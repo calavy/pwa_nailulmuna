@@ -17,10 +17,10 @@ if (($_GET['template'] ?? '') === 'csv') {
 }
 
 $allowedRedirects = [
-    '/pwa_nailulmuna/santri/index.php',
-    '/pwa_nailulmuna/santri/import.php',
+    '/santri/index.php',
+    '/santri/import.php',
 ];
-$redirectTarget = '/pwa_nailulmuna/santri/import.php';
+$redirectTarget = '/santri/import.php';
 $requestedRedirect = trim((string) ($_POST['redirect_to'] ?? ''));
 if ($requestedRedirect !== '' && in_array($requestedRedirect, $allowedRedirects, true)) {
     $redirectTarget = $requestedRedirect;

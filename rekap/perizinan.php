@@ -8,7 +8,7 @@ require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 

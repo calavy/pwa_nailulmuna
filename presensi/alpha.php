@@ -10,7 +10,7 @@ require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Generate alpa selesai. Total tersimpan: ' . $created);
-    header('Location: /pwa_nailulmuna/presensi/alpha.php');
+    header('Location: /presensi/alpha.php');
     exit;
 }
 

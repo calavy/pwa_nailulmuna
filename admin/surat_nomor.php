@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         set_flash('error', 'Data tidak valid.');
     }
-    header('Location: /pwa_nailulmuna/admin/surat_nomor.php');
+    header('Location: /admin/surat_nomor.php');
     exit;
 }
 
@@ -111,9 +111,9 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <p class="small text-muted mt-3 mb-0">
-    <a href="/pwa_nailulmuna/admin/rekap_surat_izin.php">Rekapan surat izin</a> ·
-    <a href="/pwa_nailulmuna/admin/rekap_surat_sp.php">Rekap surat SP</a> ·
-    <a href="/pwa_nailulmuna/perizinan/index.php">Perizinan</a>
+    <a href="/admin/rekap_surat_izin.php">Rekapan surat izin</a> ·
+    <a href="/admin/rekap_surat_sp.php">Rekap surat SP</a> ·
+    <a href="/perizinan/index.php">Perizinan</a>
 </p>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

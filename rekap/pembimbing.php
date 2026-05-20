@@ -9,7 +9,7 @@ require_roles(['admin']);
 
 if (!table_exists($pdo, 'presensi_pembimbing')) {
     set_flash('error', 'Tabel presensi_pembimbing belum ada. Jalankan migrasi terbaru.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -162,7 +162,7 @@ $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 
@@ -329,7 +329,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-center"><?= number_format((float) ($row['total_jam'] ?? 0), 2, ',', '.') ?></td>
                             <td class="text-end fw-semibold"><?= htmlspecialchars(keuangan_format_rupiah((int) ($row['gaji_bulanan'] ?? 0))) ?></td>
                             <td class="text-end">
-                                <a class="btn btn-sm btn-outline-success" href="/pwa_nailulmuna/keuangan/index.php?tab=k&pembimbing_id=<?= (int) ($row['pembimbing_id'] ?? 0) ?>&bulan=<?= (int) $month ?>&tahun=<?= (int) $year ?>&cal=<?= urlencode($calendarMode) ?>">Bayar</a>
+                                <a class="btn btn-sm btn-outline-success" href="/keuangan/index.php?tab=k&pembimbing_id=<?= (int) ($row['pembimbing_id'] ?? 0) ?>&bulan=<?= (int) $month ?>&tahun=<?= (int) $year ?>&cal=<?= urlencode($calendarMode) ?>">Bayar</a>
                             </td>
                             <td><span class="badge text-bg-<?= $katBadge ?>"><?= htmlspecialchars($kat) ?></span></td>
                         </tr>

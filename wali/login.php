@@ -10,7 +10,7 @@ require_once __DIR__ . '/../helpers/santri_operasional.php';
 ensure_santri_identity_columns($pdo);
 
 if (isset($_SESSION['wali']['santri_id'])) {
-    header('Location: /pwa_nailulmuna/wali/index.php');
+    header('Location: /wali/index.php');
     exit;
 }
 
@@ -43,7 +43,7 @@ if ($prefillNis !== '') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nis = trim((string) ($_POST['nis'] ?? ''));
     $pin = (string) ($_POST['pin'] ?? '');
-    $redirectPin = '/pwa_nailulmuna/wali/login.php' . ($nis !== '' ? '?nis=' . urlencode($nis) : '');
+    $redirectPin = '/wali/login.php' . ($nis !== '' ? '?nis=' . urlencode($nis) : '');
 
     if ($nis === '' || $pin === '') {
         set_flash('error', 'Pilih santri terlebih dahulu, lalu masukkan PIN.');
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nama_santri' => (string) ($row['nama_santri'] ?? ''),
         'wali_santri_id' => (int) ($row['wali_santri_id'] ?? 0),
     ];
-    header('Location: /pwa_nailulmuna/wali/index.php');
+    header('Location: /wali/index.php');
     exit;
 }
 
@@ -84,7 +84,7 @@ if ($namaInstitusi === '') {
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$waliLogo = $logoPath !== '' ? '/pwa_nailulmuna/' . ltrim($logoPath, '/') : $logoUrlSetting;
+$waliLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
 $loginBrand = [
     'logo_url' => $waliLogo,
@@ -117,7 +117,7 @@ $ok = get_flash('success');
         <div class="card shadow-sm wali-card mb-3" id="wali-search-card">
             <div class="card-body p-3">
                 <h2 class="h6 mb-2 text-teal"><i class="fa-solid fa-magnifying-glass me-1"></i> Cari nama atau NIS santri</h2>
-                <form method="get" class="d-flex gap-2 align-items-stretch" action="/pwa_nailulmuna/wali/login.php" role="search">
+                <form method="get" class="d-flex gap-2 align-items-stretch" action="/wali/login.php" role="search">
                     <label class="visually-hidden" for="wali-cari-q">Cari nama atau NIS</label>
                     <input id="wali-cari-q" type="search" name="q" class="form-control" value="<?= htmlspecialchars($cari) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off" enterkeyhint="search" autofocus>
                     <button type="submit" class="btn btn-teal px-3">Cari</button>
@@ -125,7 +125,7 @@ $ok = get_flash('success');
                 <?php if ($cari !== ''): ?>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <span class="small text-muted">Hasil pencarian</span>
-                        <a href="/pwa_nailulmuna/wali/login.php" class="btn btn-link btn-sm py-0">Bersihkan</a>
+                        <a href="/wali/login.php" class="btn btn-link btn-sm py-0">Bersihkan</a>
                     </div>
                 <?php endif; ?>
                 <?php if ($cari !== '' && $cariHasil === []): ?>
@@ -163,7 +163,7 @@ $ok = get_flash('success');
                     <div class="wali-selected-name" id="wali-selected-name"><?= $hasSelected ? htmlspecialchars((string) ($selectedSantri['nama_tampil'] ?? '')) : '' ?></div>
                     <div class="font-monospace small text-muted" id="wali-selected-nis"><?= $hasSelected ? 'NIS ' . htmlspecialchars((string) ($selectedSantri['nis'] ?? '')) : '' ?></div>
                 </div>
-                <form method="post" class="d-grid gap-3" autocomplete="on" action="/pwa_nailulmuna/wali/login.php" id="wali-login-form">
+                <form method="post" class="d-grid gap-3" autocomplete="on" action="/wali/login.php" id="wali-login-form">
                     <input type="hidden" name="nis" id="wali-nis-hidden" value="<?= htmlspecialchars($prefillNis) ?>">
                     <div>
                         <label class="form-label small text-muted" for="wali-pin">PIN</label>
@@ -242,7 +242,7 @@ $ok = get_flash('success');
         gantiBtn.addEventListener('click', function () {
             clearSelected();
             if (window.history && window.history.replaceState) {
-                window.history.replaceState({}, '', '/pwa_nailulmuna/wali/login.php' + (document.getElementById('wali-cari-q')?.value ? '?q=' + encodeURIComponent(document.getElementById('wali-cari-q').value) : ''));
+                window.history.replaceState({}, '', '/wali/login.php' + (document.getElementById('wali-cari-q')?.value ? '?q=' + encodeURIComponent(document.getElementById('wali-cari-q').value) : ''));
             }
         });
     }

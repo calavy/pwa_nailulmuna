@@ -71,15 +71,15 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-intro w-100 me-3">
         <p class="page-intro-kicker mb-1">Manajemen SDM</p>
         <h1 class="h3 mb-1">Santri Aktif</h1>
-        <p class="text-muted mb-0">Santri yang masih mondok. Non aktifkan dari tabel — otomatis masuk <a href="/pwa_nailulmuna/santri/mukimin.php">Data Mukimin</a>. Penyelesaian keuangan &amp; surat lewat <strong>Administrasi keluar</strong>. Biodata lengkap di <a href="/pwa_nailulmuna/santri/semua_jati.php">Data induk santri</a>.</p>
+        <p class="text-muted mb-0">Santri yang masih mondok. Non aktifkan dari tabel — otomatis masuk <a href="/santri/mukimin.php">Data Mukimin</a>. Penyelesaian keuangan &amp; surat lewat <strong>Administrasi keluar</strong>. Biodata lengkap di <a href="/santri/semua_jati.php">Data induk santri</a>.</p>
         <p class="small text-muted mt-2 mb-0">Unduh daftar: file <strong>CSV UTF-8</strong> (titik koma) — cocok dibuka di Excel; berisi kolom biodata, orang tua, kafil, dan alamat.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="/pwa_nailulmuna/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
-        <a href="/pwa_nailulmuna/santri/mukimin.php" class="btn btn-outline-secondary btn-sm">Data Mukimin</a>
-        <a href="/pwa_nailulmuna/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/pwa_nailulmuna/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
-        <a href="/pwa_nailulmuna/santri/export_excel.php" class="btn btn-outline-primary btn-sm" title="CSV UTF-8">Export</a>
-        <a href="/pwa_nailulmuna/santri/create.php" class="btn btn-success btn-sm" data-sdm-modal="/pwa_nailulmuna/santri/create.php" data-sdm-title="Tambah santri">+ Tambah</a>
+        <a href="/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
+        <a href="/santri/mukimin.php" class="btn btn-outline-secondary btn-sm">Data Mukimin</a>
+        <a href="/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
+        <a href="/santri/export_excel.php" class="btn btn-outline-primary btn-sm" title="CSV UTF-8">Export</a>
+        <a href="/santri/create.php" class="btn btn-success btn-sm" data-sdm-modal="/santri/create.php" data-sdm-title="Tambah santri">+ Tambah</a>
     </div>
 </div>
 
@@ -208,13 +208,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 ?>
                             </td>
                             <td class="text-end text-nowrap">
-                                <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= (int) $item['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
-                                <a href="/pwa_nailulmuna/santri/edit.php?id=<?= (int) $item['id'] ?>"
+                                <a href="/santri/riwayat.php?id=<?= (int) $item['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
+                                <a href="/santri/edit.php?id=<?= (int) $item['id'] ?>"
                                    class="btn btn-sm btn-warning"
-                                   data-sdm-modal="/pwa_nailulmuna/santri/edit.php?id=<?= (int) $item['id'] ?>"
+                                   data-sdm-modal="/santri/edit.php?id=<?= (int) $item['id'] ?>"
                                    data-sdm-title="Edit santri">Edit</a>
-                                <a href="/pwa_nailulmuna/santri/nonaktif_cepat.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-danger">Ubah status</a>
-                                <a href="/pwa_nailulmuna/santri/delete.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
+                                <a href="/santri/nonaktif_cepat.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-danger">Ubah status</a>
+                                <a href="/santri/delete.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

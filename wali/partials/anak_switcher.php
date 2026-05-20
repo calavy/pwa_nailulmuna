@@ -12,7 +12,7 @@ if (!isset($waliAnakRows) || count($waliAnakRows) < 2) {
 }
 $redir = isset($waliSwitcherRedirect) && is_string($waliSwitcherRedirect)
     ? wali_portal_safe_redirect_path($waliSwitcherRedirect)
-    : wali_portal_safe_redirect_path((string) ($_SERVER['REQUEST_URI'] ?? '/pwa_nailulmuna/wali/index.php'));
+    : wali_portal_safe_redirect_path((string) ($_SERVER['REQUEST_URI'] ?? '/wali/index.php'));
 ?>
 <div class="wali-anak-strip card shadow-sm border-0 mb-3 overflow-hidden">
     <div class="card-body py-2 px-3">

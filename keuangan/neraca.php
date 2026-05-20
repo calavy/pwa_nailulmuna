@@ -23,7 +23,7 @@ if ($print) {
     echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Neraca — ' . htmlspecialchars($neraca['nama_lembaga']) . '</title>';
     echo keuangan_typography_font_links();
     echo '<style>' . keuangan_typography_print_css() . keuangan_neraca_css_dua_kolom() . '</style></head><body class="' . htmlspecialchars(keuangan_body_class('neraca-page')) . '">';
-    echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/pwa_nailulmuna/keuangan/neraca.php?per=' . urlencode($neraca['as_of']) . '">Kembali</a></div>';
+    echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/keuangan/neraca.php?per=' . urlencode($neraca['as_of']) . '">Kembali</a></div>';
     keuangan_neraca_render_html($neraca, $fmt);
     echo '</body></html>';
     exit;
@@ -35,7 +35,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> · Laporan</p>
+    <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Neraca Keuangan</h1>
     <p class="text-muted mb-0">Laporan posisi keuangan (neraca) <?= htmlspecialchars((string) $neraca['nama_lembaga']) ?> — standar PAP / ISAK 35.</p>
 </div>
@@ -49,8 +49,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-4 d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
-                <a class="btn btn-outline-secondary" href="/pwa_nailulmuna/keuangan/neraca.php?per=<?= urlencode((string) $neraca['as_of']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
-                <a class="btn btn-outline-primary" href="/pwa_nailulmuna/keuangan/index.php">Dashboard keuangan</a>
+                <a class="btn btn-outline-secondary" href="/keuangan/neraca.php?per=<?= urlencode((string) $neraca['as_of']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
             </div>
         </form>
     </div>

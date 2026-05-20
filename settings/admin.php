@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash('error', 'Hak akses hanya bisa diatur untuk user non super admin.');
         }
-        header('Location: /pwa_nailulmuna/settings/admin.php?akses=' . $targetUserId);
+        header('Location: /settings/admin.php?akses=' . $targetUserId);
         exit;
     }
 
@@ -109,19 +109,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$existing) {
             set_flash('error', 'User tidak ditemukan.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
         if ($nama === '' || $username === '') {
             set_flash('error', 'Nama dan username tidak boleh kosong.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
 
         $superCount = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
         if ((int) $existing['is_super_admin'] === 1 && $isSuperAdmin === 0 && $superCount <= 1) {
             set_flash('error', 'Tidak bisa menonaktifkan super admin terakhir.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
 
@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkUname->execute(['u' => $username, 'id' => $targetUserId]);
         if ($checkUname->fetch()) {
             set_flash('error', 'Username sudah dipakai user lain.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
 
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Data user berhasil diperbarui.');
-        header('Location: /pwa_nailulmuna/settings/admin.php');
+        header('Location: /settings/admin.php');
         exit;
     }
 
@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetUserId = (int) ($_POST['target_user_id'] ?? 0);
         if ($targetUserId === $currentUserId) {
             set_flash('error', 'Anda tidak bisa menghapus akun sendiri.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
         $stmt = $pdo->prepare('SELECT id, is_super_admin FROM users WHERE id = :id LIMIT 1');
@@ -175,20 +175,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existing = $stmt->fetch();
         if (!$existing) {
             set_flash('error', 'User tidak ditemukan.');
-            header('Location: /pwa_nailulmuna/settings/admin.php');
+            header('Location: /settings/admin.php');
             exit;
         }
         if ((int) $existing['is_super_admin'] === 1) {
             $superCount = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
             if ($superCount <= 1) {
                 set_flash('error', 'Tidak bisa menghapus super admin terakhir.');
-                header('Location: /pwa_nailulmuna/settings/admin.php');
+                header('Location: /settings/admin.php');
                 exit;
             }
         }
         $pdo->prepare('DELETE FROM users WHERE id = :id')->execute(['id' => $targetUserId]);
         set_flash('success', 'User berhasil dihapus.');
-        header('Location: /pwa_nailulmuna/settings/admin.php');
+        header('Location: /settings/admin.php');
         exit;
     }
 
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         set_flash('error', 'Nama, username, dan password wajib diisi.');
     }
-    header('Location: /pwa_nailulmuna/settings/admin.php');
+    header('Location: /settings/admin.php');
     exit;
 }
 
@@ -241,11 +241,11 @@ $openAksesUserId = (int) ($_GET['akses'] ?? 0);
 
 $pageTitle = 'Admin Tambahan';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/admin.php';
+$settingsNavActive = '/settings/admin.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> Â· Akses</p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> Â· Akses</p>
     <h1 class="h4 mb-1">Kelola user &amp; hak akses</h1>
     <p class="text-muted mb-0">Buat akun lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
 </div>

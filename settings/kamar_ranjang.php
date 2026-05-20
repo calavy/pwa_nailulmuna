@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: /pwa_nailulmuna/settings/kamar_ranjang.php');
+    header('Location: /settings/kamar_ranjang.php');
     exit;
 }
 
@@ -173,12 +173,12 @@ foreach ($kamars as $kRow) {
 
 $pageTitle = 'Master Kamar & Ranjang';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/kamar_ranjang.php';
+$settingsNavActive = '/settings/kamar_ranjang.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> · Asrama</p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> · Asrama</p>
     <h1 class="h4 mb-1">Kamar &amp; ranjang</h1>
     <p class="text-muted mb-0">Setiap ranjang punya posisi <strong>Atas</strong> atau <strong>Bawah</strong> (satu slot = satu santri aktif). Dipakai saat tambah/sunting santri dari master; isi manual tetap boleh.</p>
 </div>

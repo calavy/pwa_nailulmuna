@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $del->execute(['id' => (int) ($_POST['id'] ?? 0)]);
         set_flash('success', 'Ambang sanksi berhasil dihapus.');
     }
-    header('Location: /pwa_nailulmuna/settings/peraturan.php');
+    header('Location: /settings/peraturan.php');
     exit;
     }
 }

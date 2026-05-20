@@ -10,7 +10,7 @@ require_once __DIR__ . '/../helpers/mukimin_portal.php';
 ensure_mukimin_portal_columns($pdo);
 
 if (isset($_SESSION['mukimin']['alumni_id'])) {
-    header('Location: /pwa_nailulmuna/mukimin/index.php');
+    header('Location: /mukimin/index.php');
     exit;
 }
 
@@ -19,13 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string) ($_POST['password'] ?? '');
     if ($username === '' || $password === '') {
         set_flash('error', 'Username dan password wajib diisi.');
-        header('Location: /pwa_nailulmuna/mukimin/login.php');
+        header('Location: /mukimin/login.php');
         exit;
     }
     $row = mukimin_portal_authenticate($pdo, $username, $password);
     if (!$row) {
         set_flash('error', 'Username atau password salah, atau akses belum didaftarkan pengurus.');
-        header('Location: /pwa_nailulmuna/mukimin/login.php');
+        header('Location: /mukimin/login.php');
         exit;
     }
     session_regenerate_id(true);
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'username' => (string) ($row['portal_username'] ?? $username),
         'sektor' => (string) ($row['sektor'] ?? ''),
     ];
-    header('Location: /pwa_nailulmuna/mukimin/index.php');
+    header('Location: /mukimin/index.php');
     exit;
 }
 

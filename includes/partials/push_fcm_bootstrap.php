@@ -38,7 +38,8 @@ window.PONDOK_FCM_OPTS = {
     prompt: false
 };
 </script>
-<script src="/pwa_nailulmuna/assets/js/fcm-push.js" defer></script>
+<script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+<script src="<?= htmlspecialchars(app_url('assets/js/fcm-push.js')) ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.PondokFcm || !window.PONDOK_FCM_CONFIG || window.PONDOK_FCM_CONFIG.enabled !== '1') return;

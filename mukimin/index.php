@@ -11,7 +11,7 @@ require_once __DIR__ . '/../helpers/mukimin_portal.php';
 ensure_mukimin_portal_columns($pdo);
 
 if (!isset($_SESSION['mukimin']['alumni_id'])) {
-    header('Location: /pwa_nailulmuna/mukimin/login.php');
+    header('Location: /mukimin/login.php');
     exit;
 }
 
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Data berhasil disimpan.');
         }
     }
-    header('Location: /pwa_nailulmuna/mukimin/index.php');
+    header('Location: /mukimin/index.php');
     exit;
 }
 
@@ -61,7 +61,7 @@ $st->execute(['id' => $alumniId]);
 $row = $st->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
     unset($_SESSION['mukimin']);
-    header('Location: /pwa_nailulmuna/mukimin/login.php');
+    header('Location: /mukimin/login.php');
     exit;
 }
 
@@ -80,8 +80,8 @@ require_once __DIR__ . '/../includes/header.php';
             </p>
         </div>
         <div class="d-flex gap-2">
-            <a class="btn btn-outline-primary btn-sm" href="/pwa_nailulmuna/mukimin/unduh.php">Unduh Excel</a>
-            <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/mukimin/logout.php">Keluar</a>
+            <a class="btn btn-outline-primary btn-sm" href="/mukimin/unduh.php">Unduh Excel</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/mukimin/logout.php">Keluar</a>
         </div>
     </div>
     <?php if ($msg = get_flash('success')): ?>

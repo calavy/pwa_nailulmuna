@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 header('Content-Type: application/javascript; charset=utf-8');
-header('Service-Worker-Allowed: /pwa_nailulmuna/');
+header('Service-Worker-Allowed: /');
 header('Cache-Control: no-cache');
 
 require_once __DIR__ . '/../../config/database.php';
@@ -38,7 +38,7 @@ messaging.onBackgroundMessage(function (payload) {
 });
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || '/pwa_nailulmuna/';
+  var url = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(clients.openWindow(url));
 });
 JS;

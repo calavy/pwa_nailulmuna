@@ -104,7 +104,7 @@ require_once __DIR__ . '/../includes/header.php';
         <h1 class="h3 mb-0">Cek Update Sistem</h1>
         <p class="text-muted small mb-0">Validasi cepat hasil migrasi dan perubahan modul terbaru.</p>
     </div>
-    <a href="/pwa_nailulmuna/admin/cek_update.php" class="btn btn-outline-secondary">Refresh cek</a>
+    <a href="/admin/cek_update.php" class="btn btn-outline-secondary">Refresh cek</a>
 </div>
 
 <div class="alert <?= $allGood ? 'alert-success' : 'alert-warning' ?> mb-3">

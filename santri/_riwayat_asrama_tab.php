@@ -23,7 +23,7 @@
                                 <td class="small"><?= htmlspecialchars(trim((string) ($ar['no_ranjang'] ?? '')) !== '' ? (string) $ar['no_ranjang'] : '—') ?></td>
                                 <td class="small"><?= htmlspecialchars(santri_riwayat_asrama_periode_label($ar)) ?></td>
                                 <td class="text-end pe-3 text-nowrap btn-group-actions">
-                                    <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=asrama&edit_asrama=<?= (int) $ar['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    <a href="/santri/riwayat.php?id=<?= $id ?>&tab=asrama&edit_asrama=<?= (int) $ar['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus riwayat asrama ini?');">
                                         <input type="hidden" name="action" value="delete_asrama">
                                         <input type="hidden" name="asrama_id" value="<?= (int) $ar['id'] ?>">
@@ -81,7 +81,7 @@
                     <div class="col-12 d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Simpan</button>
                         <?php if ($editAsrama): ?>
-                            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=asrama" class="btn btn-outline-secondary btn-sm">Batal</a>
+                            <a href="/santri/riwayat.php?id=<?= $id ?>&tab=asrama" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
                 </form>

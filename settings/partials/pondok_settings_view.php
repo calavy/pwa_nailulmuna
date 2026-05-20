@@ -46,7 +46,7 @@
     <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
             <h2 class="h5 mb-0">Form pengaturan</h2>
-            <a href="/pwa_nailulmuna/settings/admin.php" class="btn btn-outline-primary btn-sm">Kelola akses user</a>
+            <a href="/settings/admin.php" class="btn btn-outline-primary btn-sm">Kelola akses user</a>
         </div>
         <?php if (is_array($waTestResult)): ?>
             <div class="alert alert-<?= !empty($waTestResult['success']) ? 'success' : 'danger' ?>">
@@ -87,7 +87,7 @@
                 <div class="form-text">Upload dari komputer/ponsel. Format: JPG, PNG, WEBP.</div>
                 <?php if (!empty($values['logo_path'])): ?>
                     <div class="mt-2">
-                        <img src="/pwa_nailulmuna/<?= htmlspecialchars($values['logo_path']) ?>" alt="Logo pesantren" style="height:64px; width:64px; object-fit:cover; border-radius:10px;">
+                        <img src="/<?= htmlspecialchars($values['logo_path']) ?>" alt="Logo pesantren" style="height:64px; width:64px; object-fit:cover; border-radius:10px;">
                     </div>
                 <?php endif; ?>
             </div>

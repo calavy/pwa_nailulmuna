@@ -57,7 +57,7 @@ $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', ''));
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$heroLogo = $logoPath !== '' ? '/pwa_nailulmuna/' . ltrim($logoPath, '/') : $logoUrlSetting;
+$heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
 auth_portal_layout_begin([
     'title' => 'Petugas presensi',
@@ -83,7 +83,7 @@ $ok = get_flash('success');
                         <strong>Belum siap.</strong> Pengurus harus mengisi <strong>Password presensi</strong> di halaman Pengaturan terlebih dahulu.
                     </div>
                 <?php endif; ?>
-                <form method="post" action="/pwa_nailulmuna/presensi/login.php" autocomplete="on">
+                <form method="post" action="/presensi/login.php" autocomplete="on">
                     <div class="mb-3">
                         <label class="form-label fw-semibold" for="presensi-pw">Password presensi</label>
                         <div class="input-group">
@@ -111,6 +111,6 @@ $ok = get_flash('success');
                 </script>
 <?php
 auth_portal_layout_end([
-    ['href' => '/pwa_nailulmuna/login.php', 'label' => 'Ganti peran / login lain'],
-    ['href' => '/pwa_nailulmuna/wali/login.php', 'label' => 'Portal wali santri'],
+    ['href' => '/login.php', 'label' => 'Ganti peran / login lain'],
+    ['href' => '/wali/login.php', 'label' => 'Portal wali santri'],
 ]);

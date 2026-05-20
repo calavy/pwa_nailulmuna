@@ -21,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'simpan_pinjaman') {
         $result = keuangan_talangan_simpan_pinjaman($pdo, $_POST, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/keuangan/talangan.php');
+        header('Location: /keuangan/talangan.php');
         exit;
     }
     if ($action === 'kembalikan') {
         $id = (int) ($_POST['pinjaman_id'] ?? 0);
         $result = keuangan_talangan_kembalikan($pdo, $id, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/keuangan/talangan.php');
+        header('Location: /keuangan/talangan.php');
         exit;
     }
 }
@@ -46,7 +46,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> · Dana talangan
+        <a href="/keuangan/index.php">Keuangan</a> · Dana talangan
     </p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-arrows-left-right text-primary me-1"></i> Dana Talangan (Internal Lending)</h1>
     <p class="text-muted mb-0">

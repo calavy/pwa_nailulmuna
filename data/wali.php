@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40)]);
                 if ($dup->fetch()) {
                     set_flash('error', 'No. ID wali sudah dipakai data lain.');
-                    header('Location: /pwa_nailulmuna/data/wali.php');
+                    header('Location: /data/wali.php');
                     exit;
                 }
             }
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 ]);
             } catch (PDOException $e) {
                 set_flash('error', 'Gagal menyimpan (No. ID bentrok atau data tidak valid).');
-                header('Location: /pwa_nailulmuna/data/wali.php');
+                header('Location: /data/wali.php');
                 exit;
             }
             $newWaliId = (int) $pdo->lastInsertId();
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40), 'id' => $id]);
                 if ($dup->fetch()) {
                     set_flash('error', 'No. ID wali sudah dipakai data lain.');
-                    header('Location: /pwa_nailulmuna/data/wali.php');
+                    header('Location: /data/wali.php');
                     exit;
                 }
             }
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 ]);
             } catch (PDOException $e) {
                 set_flash('error', 'Gagal menyimpan (No. ID bentrok atau data tidak valid).');
-                header('Location: /pwa_nailulmuna/data/wali.php');
+                header('Location: /data/wali.php');
                 exit;
             }
             if ($nomorId === '') {
@@ -134,13 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
             set_flash('success', 'Data wali dihapus.');
         }
     }
-    header('Location: /pwa_nailulmuna/data/wali.php');
+    header('Location: /data/wali.php');
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canMutate) {
     set_flash('error', 'Anda tidak punya izin mengubah data wali.');
-    header('Location: /pwa_nailulmuna/data/wali.php');
+    header('Location: /data/wali.php');
     exit;
 }
 
@@ -184,7 +184,7 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="sdm-hub-kicker mb-1">Manajemen SDM</p>
             <h1 class="h3 mb-2 sdm-hub-title">Wali santri</h1>
             <p class="text-muted mb-0 small">
-                Data wali pondok dan <strong>PIN portal</strong> untuk login wali di <a href="/pwa_nailulmuna/wali/login.php" target="_blank" rel="noopener">portal wali</a> (NIS + PIN).
+                Data wali pondok dan <strong>PIN portal</strong> untuk login wali di <a href="/wali/login.php" target="_blank" rel="noopener">portal wali</a> (NIS + PIN).
                 Profil wali dapat diedit di tabel; PIN portal per santri di bagian bawah.
             </p>
         </div>
@@ -414,8 +414,8 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="small text-muted mb-3">
             Akses login alumni <strong>hanya untuk yang didaftarkan</strong> pengurus (username, password, dan sektor).
         </p>
-        <a class="btn btn-outline-primary btn-sm" href="/pwa_nailulmuna/settings/akses_mukimin.php">Kelola akses portal mukimin</a>
-        <a class="btn btn-outline-secondary btn-sm ms-1" href="/pwa_nailulmuna/mukimin/login.php" target="_blank" rel="noopener">Buka halaman login</a>
+        <a class="btn btn-outline-primary btn-sm" href="/settings/akses_mukimin.php">Kelola akses portal mukimin</a>
+        <a class="btn btn-outline-secondary btn-sm ms-1" href="/mukimin/login.php" target="_blank" rel="noopener">Buka halaman login</a>
     </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -41,11 +41,11 @@ if ($id <= 0) {
         <p class="text-muted small mb-0">Pilih santri yang statusnya non aktif dan belum diselesaikan administrasi keuangannya.</p>
     </div>
     <?php if ($need === []): ?>
-        <div class="alert alert-info mb-0">Tidak ada santri yang menunggu penyelesaian keluar. Non aktifkan santri lewat <a href="/pwa_nailulmuna/santri/index.php">Data santri aktif</a> (tombol non aktif). Arsip ada di <a href="/pwa_nailulmuna/santri/mukimin.php">Data Mukimin</a>.</div>
+        <div class="alert alert-info mb-0">Tidak ada santri yang menunggu penyelesaian keluar. Non aktifkan santri lewat <a href="/santri/index.php">Data santri aktif</a> (tombol non aktif). Arsip ada di <a href="/santri/mukimin.php">Data Mukimin</a>.</div>
     <?php else: ?>
         <div class="list-group shadow-sm">
             <?php foreach ($need as $n): ?>
-                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="/pwa_nailulmuna/santri/keluar.php?id=<?= (int) $n['id'] ?><?= $embed ? '&embed=1' : '' ?>">
+                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="/santri/keluar.php?id=<?= (int) $n['id'] ?><?= $embed ? '&embed=1' : '' ?>">
                     <span><strong><?= htmlspecialchars((string) $n['nama_santri']) ?></strong> <span class="text-muted small"><?= htmlspecialchars((string) $n['nis']) ?></span></span>
                     <span class="small text-muted"><?= htmlspecialchars((string) ($n['tanggal_keluar'] ?? '')) ?></span>
                 </a>
@@ -61,7 +61,7 @@ $st->execute(['id' => $id]);
 $row = $st->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/santri/index.php');
+    header('Location: /santri/index.php');
     exit;
 }
 
@@ -70,7 +70,7 @@ $settled = trim((string) ($row['keluar_settled_at'] ?? '')) !== '';
 
 if (!$isNon) {
     set_flash('error', 'Formulir ini hanya untuk santri yang sudah ditandai non aktif. Ubah status di halaman Jati diri (edit santri) terlebih dahulu.');
-    header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+    header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
     exit;
 }
 
@@ -103,13 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$settled) {
     $token = (string) ($_POST['confirm_token'] ?? '');
     if ($token !== '1') {
         set_flash('error', 'Centang konfirmasi penyelesaian administrasi keluar.');
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/keluar.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/keluar.php?id=' . $id));
         exit;
     }
     $kat = strtoupper(trim((string) ($_POST['keluar_kategori'] ?? '')));
     if (!in_array($kat, ['TAMAT', 'KELUAR_PINDAH'], true)) {
         set_flash('error', 'Pilih kategori keluar: Muqim (tamat) atau Keluar (belum tamat).');
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/keluar.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/keluar.php?id=' . $id));
         exit;
     }
     $tanggalKeluar = trim((string) ($row['tanggal_keluar'] ?? ''));
@@ -144,12 +144,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$settled) {
             $pdo->rollBack();
         }
         set_flash('error', 'Gagal menyelesaikan administrasi keluar. ' . ($e->getMessage() ?: ''));
-        sdm_embed_done_redirect('/pwa_nailulmuna/santri/keluar.php?id=' . $id);
+        sdm_embed_done_redirect('/santri/keluar.php?id=' . $id);
     }
 
     mukimin_sync_from_santri($pdo, $id);
     set_flash('success', 'Administrasi keluar selesai. Cetak surat resmi dan surat tanggungan.');
-    sdm_embed_done_redirect('/pwa_nailulmuna/santri/mukimin.php');
+    sdm_embed_done_redirect('/santri/mukimin.php');
 }
 
 $pageTitle = 'Administrasi keluar';
@@ -166,7 +166,7 @@ if ($embed) {
         <p class="text-muted mb-0 small">Penyelesaian tagihan bulanan, saldo cashless, dan surat resmi.</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="/pwa_nailulmuna/santri/index.php" class="btn btn-outline-secondary btn-sm">Santri aktif</a>
+        <a href="/santri/index.php" class="btn btn-outline-secondary btn-sm">Santri aktif</a>
     </div>
 </div>
 
@@ -184,9 +184,9 @@ if ($embed) {
         Kategori: <?= htmlspecialchars(keluar_kategori_label((string) ($row['keluar_kategori'] ?? ''))) ?>.
     </div>
     <div class="d-flex flex-wrap gap-2 mb-4">
-        <a class="btn btn-primary" target="_blank" rel="noopener" href="/pwa_nailulmuna/santri/surat_keluar.php?id=<?= (int) $id ?>">Cetak surat keluar</a>
-        <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="/pwa_nailulmuna/santri/surat_tanggungan.php?id=<?= (int) $id ?>">Cetak surat tanggungan</a>
-        <a class="btn btn-outline-secondary" href="/pwa_nailulmuna/santri/mukimin.php">Data Mukimin</a>
+        <a class="btn btn-primary" target="_blank" rel="noopener" href="/santri/surat_keluar.php?id=<?= (int) $id ?>">Cetak surat keluar</a>
+        <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="/santri/surat_tanggungan.php?id=<?= (int) $id ?>">Cetak surat tanggungan</a>
+        <a class="btn btn-outline-secondary" href="/santri/mukimin.php">Data Mukimin</a>
     </div>
     <?php if (trim((string) ($row['keluar_ringkasan_keuangan'] ?? '')) !== ''): ?>
         <div class="card border-0 bg-light mb-4">
@@ -204,7 +204,7 @@ if ($embed) {
                     <h2 class="h6 mb-1">Kekurangan sebelum administrasi selesai</h2>
                     <p class="small text-muted mb-0">TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?> · Saldo cashless dipakai otomatis saat Anda menyelesaikan administrasi.</p>
                 </div>
-                <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="/pwa_nailulmuna/santri/keluar_kekurangan_print.php?id=<?= (int) $id ?>">Cetak ringkasan</a>
+                <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="/santri/keluar_kekurangan_print.php?id=<?= (int) $id ?>">Cetak ringkasan</a>
             </div>
             <div class="row g-2 small">
                 <div class="col-sm-4">

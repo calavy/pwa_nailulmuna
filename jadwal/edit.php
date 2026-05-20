@@ -7,7 +7,7 @@ require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'jadwal_kegiatan')) {
     set_flash('error', 'Tabel jadwal belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS tempat VARCHAR(255) NULL');
@@ -19,7 +19,7 @@ $jadwal = $statement->fetch();
 
 if (!$jadwal) {
     set_flash('error', 'Data jadwal tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/jadwal/index.php');
+    header('Location: /jadwal/index.php');
     exit;
 }
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $hariDipilih = is_array($hariInput) ? array_values(array_filter(array_map('intval', $hariInput), static fn($v): bool => $v >= 0 && $v <= 7)) : [];
     if (!$tingkatanDipilih || !$hariDipilih) {
         set_flash('error', 'Pilih minimal 1 tingkatan dan 1 hari.');
-        header('Location: /pwa_nailulmuna/jadwal/edit.php?id=' . $id);
+        header('Location: /jadwal/edit.php?id=' . $id);
         exit;
     }
 
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Data jadwal berhasil diperbarui. Jadwal tambahan dibuat: ' . $created . '.');
-    header('Location: /pwa_nailulmuna/jadwal/index.php');
+    header('Location: /jadwal/index.php');
     exit;
 }
 
@@ -90,7 +90,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Edit Jadwal Kegiatan</h1>
-    <a href="/pwa_nailulmuna/jadwal/index.php" class="btn btn-outline-secondary">Kembali</a>
+    <a href="/jadwal/index.php" class="btn btn-outline-secondary">Kembali</a>
 </div>
 
 <div class="card shadow-sm">

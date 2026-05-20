@@ -13,7 +13,7 @@ $appNama = app_brand_nama_ponpes($pdo);
 
 if (!table_exists($pdo, 'app_settings')) {
     set_flash('error', 'Tabel app_settings belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $namaPonpes = trim((string) ($_POST['nama_ponpes'] ?? ''));
     if ($namaPonpes === '') {
         set_flash('error', 'Nama pesantren wajib diisi.');
-        header('Location: /pwa_nailulmuna/settings/pesantren.php');
+        header('Location: /settings/pesantren.php');
         exit;
     }
 
@@ -104,13 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             set_flash('error', 'Format logo tidak didukung. Gunakan JPG, PNG, atau WEBP.');
-            header('Location: /pwa_nailulmuna/settings/pesantren.php');
+            header('Location: /settings/pesantren.php');
             exit;
         }
     }
 
     set_flash('success', 'Pengaturan berhasil disimpan.');
-    header('Location: /pwa_nailulmuna/settings/pesantren.php');
+    header('Location: /settings/pesantren.php');
     exit;
     }
 }

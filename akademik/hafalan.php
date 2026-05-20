@@ -34,13 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
 
     if ($sid <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
         set_flash('error', 'Santri dan tanggal wajib valid.');
-        header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+        header('Location: /akademik/hafalan.php');
         exit;
     }
     if ($kategori === 'BAIT') {
         if ($baitId <= 0) {
             set_flash('error', 'Pilih kitab bait.');
-            header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+            header('Location: /akademik/hafalan.php');
             exit;
         }
         $bk = $pdo->prepare('SELECT nama_kitab FROM akademik_bait_kitab WHERE id = :id AND is_aktif = 1 LIMIT 1');
@@ -48,19 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
         $brow = $bk->fetch(PDO::FETCH_ASSOC);
         if (!$brow) {
             set_flash('error', 'Kitab bait tidak valid.');
-            header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+            header('Location: /akademik/hafalan.php');
             exit;
         }
         if ($barisSetor <= 0) {
             set_flash('error', 'Isi jumlah baris setoran (lebih dari 0).');
-            header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+            header('Location: /akademik/hafalan.php');
             exit;
         }
         $target = 'Bait: ' . (string) $brow['nama_kitab'] . ' (' . $barisSetor . ' baris)';
     } else {
         if ($target === '') {
             set_flash('error', 'Target / materi Al-Qur\'an wajib diisi.');
-            header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+            header('Location: /akademik/hafalan.php');
             exit;
         }
         $baitId = 0;
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     $liburInfo = akademik_libur_info($pdo, $tanggal, 'setoran');
     if ($liburInfo !== null && akademik_blokir_setoran_libur($pdo) && !$lewatiLibur) {
         set_flash('error', 'Tanggal ini libur: ' . $liburInfo['nama'] . '. Centang "simpan tetap di hari libur" bila perlu.');
-        header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+        header('Location: /akademik/hafalan.php');
         exit;
     }
 
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     $chk->execute(['id' => $sid]);
     if (!$chk->fetch()) {
         set_flash('error', 'Santri tidak ditemukan.');
-        header('Location: /pwa_nailulmuna/akademik/hafalan.php');
+        header('Location: /akademik/hafalan.php');
         exit;
     }
     $nilai = null;
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
         'uid' => (int) ($_SESSION['user']['id'] ?? 0) ?: null,
     ]);
     set_flash('success', 'Setoran hafalan tersimpan.');
-    header('Location: /pwa_nailulmuna/akademik/hafalan.php?santri_id=' . $sid);
+    header('Location: /akademik/hafalan.php?santri_id=' . $sid);
     exit;
 }
 
@@ -155,7 +155,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Akademik</p>
     <h1 class="h3 mb-1">Input setoran hafalan</h1>
-    <p class="text-muted mb-0">Kategori <strong>Bait</strong> (kitab + baris) atau <strong>Al-Qur&apos;an</strong>. Tanggal tercatat juga dalam <strong>hijriyah</strong>. Libur akademik: atur di <a href="/pwa_nailulmuna/akademik/kalender.php">Kalender &amp; libur</a> · master bait di <a href="/pwa_nailulmuna/akademik/bait_kitab.php">Pengaturan bait</a>. Data tampil di portal wali.</p>
+    <p class="text-muted mb-0">Kategori <strong>Bait</strong> (kitab + baris) atau <strong>Al-Qur&apos;an</strong>. Tanggal tercatat juga dalam <strong>hijriyah</strong>. Libur akademik: atur di <a href="/akademik/kalender.php">Kalender &amp; libur</a> · master bait di <a href="/akademik/bait_kitab.php">Pengaturan bait</a>. Data tampil di portal wali.</p>
 </div>
 
 <div class="row g-4">
@@ -199,7 +199,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                             </select>
                             <?php if ($baitList === []): ?>
-                                <p class="small text-warning mb-0 mt-1">Belum ada kitab aktif. <a href="/pwa_nailulmuna/akademik/bait_kitab.php">Tambah di pengaturan bait</a>.</p>
+                                <p class="small text-warning mb-0 mt-1">Belum ada kitab aktif. <a href="/akademik/bait_kitab.php">Tambah di pengaturan bait</a>.</p>
                             <?php endif; ?>
                         </div>
                         <div>

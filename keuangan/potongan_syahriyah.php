@@ -27,7 +27,7 @@ $taSelesai = (int) $berjalan['selesai'];
 $bulkCtx = keuangan_syahriyah_bulk_context($pdo, $bulanBerjalan, $taMulai, $taSelesai);
 $tierTarifMap = $bulkCtx['tarifByTier'];
 $redirectPotongan = static function (int $santriId = 0) use ($q): void {
-    $url = '/pwa_nailulmuna/keuangan/potongan_syahriyah.php';
+    $url = '/keuangan/potongan_syahriyah.php';
     if ($santriId > 0) {
         $url .= '?santri_id=' . $santriId;
         if ($q !== '') {
@@ -124,13 +124,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> · Pengaturan
+        <a href="/keuangan/index.php">Keuangan</a> · Pengaturan
     </p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-percent text-primary me-1"></i> Potongan Syahriyah per Santri</h1>
     <p class="text-muted mb-0">
         Atur potongan tagihan <strong>Syahriyah</strong> dalam persen per santri (berprestasi, kaka beradik, dll.).
         Tagihan bulanan otomatis memakai tarif setelah potongan. Anda dapat <strong>menghentikan potongan per bulan</strong> (tagihan kembali tarif penuh untuk bulan itu).
-        <a href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php">Lihat tagihan bulanan</a>
+        <a href="/pembayaran/tagihan_syahriyah.php">Lihat tagihan bulanan</a>
     </p>
 </div>
 
@@ -188,7 +188,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <i class="fa-solid fa-save me-1"></i> Simpan
                         </button>
                         <?php if ($editPotongan): ?>
-                            <a href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php" class="btn btn-outline-secondary btn-sm">Batal edit</a>
+                            <a href="/keuangan/potongan_syahriyah.php" class="btn btn-outline-secondary btn-sm">Batal edit</a>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -277,7 +277,7 @@ require_once __DIR__ . '/../includes/header.php';
                         Menampilkan santri yang sudah punya pengaturan potongan.
                         <a href="?semua=1<?= $editSantriId > 0 ? '&santri_id=' . $editSantriId : '' ?>">Tampilkan semua santri</a>
                     <?php else: ?>
-                        <a href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php<?= $editSantriId > 0 ? '?santri_id=' . $editSantriId : '' ?>">Hanya yang punya potongan</a>
+                        <a href="/keuangan/potongan_syahriyah.php<?= $editSantriId > 0 ? '?santri_id=' . $editSantriId : '' ?>">Hanya yang punya potongan</a>
                     <?php endif; ?>
                 </p>
             </div>

@@ -15,16 +15,16 @@ require_roles(['admin', 'pengurus']);
 
 /** Redirect tab lama ke halaman yang masih ada (tanpa rebuild modul besar). */
 $tabRedirects = [
-    'a' => '/pwa_nailulmuna/keuangan/pengaturan.php',
-    'b' => '/pwa_nailulmuna/keuangan/pembayaran.php',
-    'c' => '/pwa_nailulmuna/pembayaran/laporan.php',
-    'd' => '/pwa_nailulmuna/keuangan/pengaturan.php?bagian=tarif',
-    'e' => '/pwa_nailulmuna/keuangan/pengeluaran.php',
-    'f' => '/pwa_nailulmuna/pembayaran/riwayat.php',
-    'g' => '/pwa_nailulmuna/keuangan/cashless_scan.php',
-    'h' => '/pwa_nailulmuna/admin/cek_update.php',
-    'j' => '/pwa_nailulmuna/keuangan/inventaris.php',
-    'k' => '/pwa_nailulmuna/rekap/pembimbing.php',
+    'a' => '/keuangan/pengaturan.php',
+    'b' => '/keuangan/pembayaran.php',
+    'c' => '/pembayaran/laporan.php',
+    'd' => '/keuangan/pengaturan.php?bagian=tarif',
+    'e' => '/keuangan/pengeluaran.php',
+    'f' => '/pembayaran/riwayat.php',
+    'g' => '/keuangan/cashless_scan.php',
+    'h' => '/admin/cek_update.php',
+    'j' => '/keuangan/inventaris.php',
+    'k' => '/rekap/pembimbing.php',
 ];
 
 $tab = trim((string) ($_GET['tab'] ?? 'dashboard'));
@@ -81,7 +81,7 @@ require_once __DIR__ . '/../includes/header.php';
     $tag = $dashSnap['tagihan_bulan'];
     $wa = $dashSnap['wa_tagihan'];
     $seimbang = !empty($ner['seimbang']);
-    $tagihanUrl = '/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan']
+    $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan']
         . '&tm=' . (int) $tag['tm'] . '&ts=' . (int) $tag['ts'];
 ?>
 <section class="keu-dash-snapshot mb-4" aria-label="Kondisi keuangan terkini">
@@ -227,7 +227,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </dd>
                     </dl>
                     <div class="d-flex flex-wrap gap-2 mt-3">
-                        <a href="/pwa_nailulmuna/settings/index.php" class="btn btn-sm btn-outline-success">
+                        <a href="/settings/index.php" class="btn btn-sm btn-outline-success">
                             <i class="fa-solid fa-gear me-1"></i> Pengaturan WA
                         </a>
                         <?php if (!empty($wa['enabled']) && !empty($wa['hari_ini_jadwal_kirim']) && empty($wa['period_sudah_kirim'])): ?>
@@ -252,8 +252,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) $neracaRingkas['as_of_label']) ?></p>
                 <p class="mb-3">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) $neracaRingkas['aset']['total'])) ?></strong></p>
                 <div class="d-flex flex-wrap gap-2">
-                    <a href="/pwa_nailulmuna/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
-                    <a href="/pwa_nailulmuna/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
+                    <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
+                    <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
                 </div>
             </div>
         </div>
@@ -265,8 +265,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="small text-muted mb-2"><?= htmlspecialchars((string) $lakRingkas['periode_label']) ?></p>
                 <p class="mb-3">Kenaikan kas: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) $lakRingkas['kenaikan_kas'])) ?></strong></p>
                 <div class="d-flex flex-wrap gap-2">
-                    <a href="/pwa_nailulmuna/keuangan/arus-kas.php" class="btn btn-success btn-sm">Buka arus kas</a>
-                    <a href="/pwa_nailulmuna/keuangan/arus-kas.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
+                    <a href="/keuangan/arus-kas.php" class="btn btn-success btn-sm">Buka arus kas</a>
+                    <a href="/keuangan/arus-kas.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
                 </div>
             </div>
         </div>
@@ -279,10 +279,10 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-primary border-opacity-25">
             <div class="card-header bg-primary bg-opacity-10 fw-semibold text-primary">Laporan</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-primary text-start" href="/pwa_nailulmuna/keuangan/neraca.php"><i class="fa-solid fa-scale-balanced me-2"></i>Neraca</a>
-                <a class="btn btn-outline-primary text-start" href="/pwa_nailulmuna/keuangan/arus-kas.php"><i class="fa-solid fa-money-bill-transfer me-2"></i>Arus kas</a>
-                <a class="btn btn-outline-primary text-start" href="/pwa_nailulmuna/pembayaran/rekap_pos.php"><i class="fa-solid fa-chart-pie me-2"></i>Rekap per POS</a>
-                <a class="btn btn-outline-primary text-start" href="/pwa_nailulmuna/pembayaran/laporan.php"><i class="fa-solid fa-chart-column me-2"></i>Laporan syahriyah</a>
+                <a class="btn btn-primary text-start" href="/keuangan/neraca.php"><i class="fa-solid fa-scale-balanced me-2"></i>Neraca</a>
+                <a class="btn btn-outline-primary text-start" href="/keuangan/arus-kas.php"><i class="fa-solid fa-money-bill-transfer me-2"></i>Arus kas</a>
+                <a class="btn btn-outline-primary text-start" href="/pembayaran/rekap_pos.php"><i class="fa-solid fa-chart-pie me-2"></i>Rekap per POS</a>
+                <a class="btn btn-outline-primary text-start" href="/pembayaran/laporan.php"><i class="fa-solid fa-chart-column me-2"></i>Laporan syahriyah</a>
             </div>
         </div>
     </div>
@@ -290,14 +290,14 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-success border-opacity-25">
             <div class="card-header bg-success bg-opacity-10 fw-semibold text-success">Transaksi</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-success text-start" href="/pwa_nailulmuna/keuangan/pembayaran.php"><i class="fa-solid fa-user-graduate me-2"></i>Input pembayaran santri</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt me-2"></i>Tagihan bulanan</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left me-2"></i>Riwayat pembayaran</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pemasukan lain</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle me-2"></i>Input pengeluaran</a>
-                <a class="btn btn-success text-start" href="/pwa_nailulmuna/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right me-2"></i>Dana talangan antar-POS</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode me-2"></i>Top up cashless</a>
-                <a class="btn btn-outline-success text-start" href="/pwa_nailulmuna/rekap/pembimbing.php"><i class="fa-solid fa-chalkboard-user me-2"></i>Gaji pembimbing</a>
+                <a class="btn btn-success text-start" href="/keuangan/pembayaran.php"><i class="fa-solid fa-user-graduate me-2"></i>Input pembayaran santri</a>
+                <a class="btn btn-outline-success text-start" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt me-2"></i>Tagihan bulanan</a>
+                <a class="btn btn-outline-success text-start" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left me-2"></i>Riwayat pembayaran</a>
+                <a class="btn btn-outline-success text-start" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pemasukan lain</a>
+                <a class="btn btn-outline-success text-start" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle me-2"></i>Input pengeluaran</a>
+                <a class="btn btn-success text-start" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right me-2"></i>Dana talangan antar-POS</a>
+                <a class="btn btn-outline-success text-start" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode me-2"></i>Top up cashless</a>
+                <a class="btn btn-outline-success text-start" href="/rekap/pembimbing.php"><i class="fa-solid fa-chalkboard-user me-2"></i>Gaji pembimbing</a>
             </div>
         </div>
     </div>
@@ -305,11 +305,11 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-secondary border-opacity-25">
             <div class="card-header bg-secondary bg-opacity-10 fw-semibold text-secondary">Pengaturan</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-secondary text-start" href="/pwa_nailulmuna/keuangan/pengaturan.php"><i class="fa-solid fa-sliders me-2"></i>Pengaturan keuangan &amp; tarif</a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri</a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan</a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/keuangan/inventaris.php"><i class="fa-solid fa-warehouse me-2"></i>Inventaris aset</a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/keuangan/cashless_pin.php"><i class="fa-solid fa-key me-2"></i>Cashless &amp; uang saku</a>
+                <a class="btn btn-secondary text-start" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders me-2"></i>Pengaturan keuangan &amp; tarif</a>
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri</a>
+                <a class="btn btn-outline-secondary text-start" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan</a>
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse me-2"></i>Inventaris aset</a>
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/cashless_pin.php"><i class="fa-solid fa-key me-2"></i>Cashless &amp; uang saku</a>
             </div>
         </div>
     </div>

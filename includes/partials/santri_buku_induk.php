@@ -56,7 +56,7 @@ if ($tabHidden !== null && $tabHidden !== '') {
     $resetHref .= (str_contains($resetHref, '?') ? '&' : '?') . 'tab=' . urlencode($tabHidden);
 }
 ?>
-<link href="/pwa_nailulmuna/assets/css/santri-timeline.css" rel="stylesheet">
+<link href="/assets/css/santri-timeline.css" rel="stylesheet">
 
 <div class="santri-buku-induk">
     <form method="get" action="<?= htmlspecialchars($filterFormAction) ?>" class="buku-filter card shadow-sm mb-3">
@@ -259,8 +259,8 @@ if ($tabHidden !== null && $tabHidden !== '') {
         </div>
         <?php if (!$readOnly): ?>
         <p class="small text-muted px-2 py-1 mb-0">
-            <a href="/pwa_nailulmuna/poin/input.php">Input poin</a> ·
-            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $santriId ?>&tab=pelanggaran">Kelola di tab Pelanggaran</a>
+            <a href="/poin/input.php">Input poin</a> ·
+            <a href="/santri/riwayat.php?id=<?= $santriId ?>&tab=pelanggaran">Kelola di tab Pelanggaran</a>
         </p>
         <?php endif; ?>
     </section>

@@ -19,13 +19,13 @@ $st->execute(['id' => $id]);
 $s = $st->fetch(PDO::FETCH_ASSOC);
 if (!$s) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/santri/index.php');
+    header('Location: /santri/index.php');
     exit;
 }
 
 if (!santri_status_is_aktif_list(santri_status_from_row($s))) {
     set_flash('error', 'Santri ini sudah tidak berstatus Aktif. Lihat di Data induk atau Data Mukimin.');
-    header('Location: /pwa_nailulmuna/santri/mukimin.php');
+    header('Location: /santri/mukimin.php');
     exit;
 }
 
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jenisKeluar = trim((string) ($_POST['jenis_keluar'] ?? ''));
     if ($jenisKeluar === '') {
         set_flash('error', 'Pilih kategori keluar: tamat/alumni atau keluar sebelum lulus.');
-        header('Location: /pwa_nailulmuna/santri/nonaktif_cepat.php?id=' . $id);
+        header('Location: /santri/nonaktif_cepat.php?id=' . $id);
         exit;
     }
     $statusValid = santri_status_validate_save(
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: /pwa_nailulmuna/santri/nonaktif_cepat.php?id=' . $id);
+        header('Location: /santri/nonaktif_cepat.php?id=' . $id);
         exit;
     }
 
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mukiminId = mukimin_sync_from_santri($pdo, $id);
 
     set_flash('success', 'Status diubah menjadi Nonaktif dan masuk Data Mukimin.');
-    $dest = '/pwa_nailulmuna/santri/mukimin.php';
+    $dest = '/santri/mukimin.php';
     if ($mukiminId > 0) {
         $dest .= '?edit=' . $mukiminId;
     }
@@ -84,7 +84,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h3 mb-1">Non aktifkan dari daftar aktif</h1>
     <p class="text-muted small mb-0">
         Status menjadi <strong>Nonaktif</strong>. Pilih apakah tamat/alumni atau keluar sebelum lulus (untuk arsip administrasi).
-        Setelah simpan, data otomatis masuk <strong>Data Mukimin</strong>. Penyelesaian keuangan &amp; surat (jika perlu) lewat <a href="/pwa_nailulmuna/santri/keluar.php">Administrasi keluar</a>. Jati diri lengkap di <a href="/pwa_nailulmuna/santri/semua_jati.php">Data induk</a>.
+        Setelah simpan, data otomatis masuk <strong>Data Mukimin</strong>. Penyelesaian keuangan &amp; surat (jika perlu) lewat <a href="/santri/keluar.php">Administrasi keluar</a>. Jati diri lengkap di <a href="/santri/semua_jati.php">Data induk</a>.
     </p>
 </div>
 
@@ -116,7 +116,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-danger">Simpan &amp; masuk Data Mukimin</button>
-                <a href="/pwa_nailulmuna/santri/index.php" class="btn btn-outline-secondary">Batal</a>
+                <a href="/santri/index.php" class="btn btn-outline-secondary">Batal</a>
             </div>
         </form>
     </div>

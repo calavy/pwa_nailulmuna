@@ -63,7 +63,7 @@ if (isset($_SESSION['user'])) {
 if (!function_exists('render_app_sidebar_nav')) {
     function render_app_sidebar_nav(array $structure, array $items, string $requestPath): void
     {
-        $hubBase = '/pwa_nailulmuna/menu/menu_hub.php';
+        $hubBase = app_url('menu/menu_hub.php');
         echo '<nav class="app-sidebar-nav" aria-label="Menu utama">';
         echo '<div class="app-sidebar-nav-label">Menu modul</div>';
         foreach ($structure as $node) {
@@ -115,14 +115,14 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
-    <link href="/pwa_nailulmuna/assets/css/app.css" rel="stylesheet">
+    <link href="/assets/css/app.css" rel="stylesheet">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">
         <?php endforeach; ?>
     <?php endif; ?>
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
-    <link href="/pwa_nailulmuna/assets/css/keuangan.css" rel="stylesheet">
+    <link href="/assets/css/keuangan.css" rel="stylesheet">
     <?php endif; ?>
     <script>
         (function () {
@@ -144,7 +144,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 <span class="app-topbar-icon" aria-hidden="true">&#9776;</span>
                 <span class="ms-2">Menu samping</span>
             </button>
-            <a href="/pwa_nailulmuna/dashboard.php" class="app-brand-link">
+            <a href="/dashboard.php" class="app-brand-link">
                 <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
                 <?php if ($appBrandTagline !== ''): ?>
                     <span class="app-brand-tagline"><?= htmlspecialchars($appBrandTagline) ?></span>
@@ -156,7 +156,7 @@ if (!function_exists('render_app_sidebar_nav')) {
             <span class="app-topbar-user d-none d-sm-inline-flex" title="<?= htmlspecialchars($currentUser) ?>"><?= htmlspecialchars($currentUser) ?></span>
             <?php if (isset($_SESSION['user'])): ?>
                 <button type="button" class="btn btn-sm btn-outline-light" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
-                <a class="btn btn-sm btn-outline-light" href="/pwa_nailulmuna/logout.php">Keluar</a>
+                <a class="btn btn-sm btn-outline-light" href="/logout.php">Keluar</a>
             <?php endif; ?>
         </div>
     </div>

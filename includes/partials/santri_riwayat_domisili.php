@@ -23,7 +23,7 @@ $domisiliMengaji = santri_riwayat_filter_ta_mulai($domisiliMengaji ?? [], $filte
 $domisiliKhidmah = santri_riwayat_filter_ta_mulai($domisiliKhidmah ?? [], $filterTa);
 $taOptions = santri_riwayat_tahun_filter_options($pdo, $santriId);
 ?>
-<link href="/pwa_nailulmuna/assets/css/santri-timeline.css" rel="stylesheet">
+<link href="/assets/css/santri-timeline.css" rel="stylesheet">
 
 <div class="santri-buku-induk">
     <form method="get" action="<?= htmlspecialchars($filterFormAction) ?>" class="buku-filter card shadow-sm mb-3">
@@ -118,7 +118,7 @@ $taOptions = santri_riwayat_tahun_filter_options($pdo, $santriId);
 
     <?php if (!$readOnly): ?>
     <p class="small text-muted mb-0">
-        Kelola lengkap di tab <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $santriId ?>&tab=domisili">Domisili</a> pada riwayat santri.
+        Kelola lengkap di tab <a href="/santri/riwayat.php?id=<?= $santriId ?>&tab=domisili">Domisili</a> pada riwayat santri.
     </p>
     <?php endif; ?>
 </div>

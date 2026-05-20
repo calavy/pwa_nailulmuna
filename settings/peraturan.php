@@ -12,7 +12,7 @@ require_once __DIR__ . '/includes/poin_settings_logic.php';
 
 $pageTitle = 'Peraturan poin';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/peraturan.php';
+$settingsNavActive = '/settings/peraturan.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 

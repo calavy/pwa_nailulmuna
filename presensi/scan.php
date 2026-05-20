@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -12,7 +12,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -267,7 +267,7 @@ $todayRows = array_slice($todayRows, 0, 30);
 
 $pageTitle = 'Scan Presensi';
 $bodyClass = 'scan-simple-page';
-$pageStylesheets = ['/pwa_nailulmuna/assets/css/presensi-scan.css'];
+$pageStylesheets = ['/assets/css/presensi-scan.css'];
 $isPetugasAbsensi = (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
 $todayScanCount = count($todayRows);
 $scanJadwalCtx = presensi_scan_jadwal_context($pdo);
@@ -285,9 +285,9 @@ require_once __DIR__ . '/../includes/header.php';
     <header class="presensi-scan-top">
         <div>
             <?php if ($isPetugasAbsensi): ?>
-                <a href="/pwa_nailulmuna/logout.php"><i class="fa-solid fa-right-from-bracket me-1"></i> Keluar</a>
+                <a href="/logout.php"><i class="fa-solid fa-right-from-bracket me-1"></i> Keluar</a>
             <?php else: ?>
-                <a href="/pwa_nailulmuna/dashboard.php"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
+                <a href="/dashboard.php"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
             <?php endif; ?>
         </div>
         <strong class="small">Scan Presensi</strong>

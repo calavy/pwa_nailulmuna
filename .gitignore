@@ -1,1 +1,2 @@
 config/database.local.php
+config/app.local.php

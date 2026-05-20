@@ -172,7 +172,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
         <i class="fa-solid fa-cash-register me-1" aria-hidden="true"></i>
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a>
+        <a href="/keuangan/index.php">Keuangan</a>
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
         <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconRiwayat) ?>"></i></span>
@@ -182,7 +182,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
 </div>
 
 <?php if (!$tablesOk): ?>
-    <div class="alert alert-warning">Tabel pembayaran keuangan belum ada. Buka <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> untuk inisialisasi.</div>
+    <div class="alert alert-warning">Tabel pembayaran keuangan belum ada. Buka <a href="/keuangan/index.php">Keuangan</a> untuk inisialisasi.</div>
 <?php endif; ?>
 
 <?php if ($tablesOk): ?>
@@ -244,7 +244,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
     </div>
     <div class="col-12 col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Terapkan filter</button>
-        <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/pembayaran/riwayat.php"><i class="fa-solid fa-rotate-left me-1"></i> Reset</a>
+        <a class="btn btn-outline-secondary btn-sm" href="/pembayaran/riwayat.php"><i class="fa-solid fa-rotate-left me-1"></i> Reset</a>
     </div>
 </form>
 
@@ -395,7 +395,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
                         </td>
                         <td class="small"><?= htmlspecialchars(trim((string) ($row['nama_petugas'] ?? '')) !== '' ? (string) $row['nama_petugas'] : '—') ?></td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/pwa_nailulmuna/keuangan/kuitansi.php?id=<?= $pid ?>"><i class="fa-solid fa-receipt me-1"></i> Buka</a>
+                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/keuangan/kuitansi.php?id=<?= $pid ?>"><i class="fa-solid fa-receipt me-1"></i> Buka</a>
                         </td>
                     </tr>
                     <?php if (trim((string) ($row['keterangan'] ?? '')) !== ''): ?>

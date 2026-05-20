@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             true
         );
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
         exit;
     }
     if ($action === 'ubah_akses') {
@@ -43,19 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             false
         );
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/settings/akses_mukimin.php?edit=' . $id);
+        header('Location: /settings/akses_mukimin.php?edit=' . $id);
         exit;
     }
     if ($action === 'toggle_aktif') {
         $result = mukimin_portal_set_aktif($pdo, (int) ($_POST['alumni_id'] ?? 0), (int) ($_POST['aktif'] ?? 0) === 1);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
         exit;
     }
     if ($action === 'cabut_akses') {
         $result = mukimin_portal_cabut_akses($pdo, (int) ($_POST['alumni_id'] ?? 0));
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
         exit;
     }
 }
@@ -80,13 +80,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="/pwa_nailulmuna/settings/index.php">Pengaturan</a> · Manajemen SDM
+        <a href="/settings/index.php">Pengaturan</a> · Manajemen SDM
     </p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-user-lock text-primary me-1"></i> Akses Portal Mukimin</h1>
     <p class="text-muted mb-0 small">
         Hanya alumni yang <strong>didaftarkan</strong> di sini yang bisa login portal.
         Login memakai <strong>username</strong> dan <strong>password</strong> (bukan semua data mukimin otomatis).
-        <a href="/pwa_nailulmuna/mukimin/login.php" target="_blank" rel="noopener">Buka halaman login</a>
+        <a href="/mukimin/login.php" target="_blank" rel="noopener">Buka halaman login</a>
     </p>
 </div>
 
@@ -129,7 +129,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <div class="col-12 d-grid gap-2">
                             <button type="submit" class="btn btn-primary btn-sm">Simpan perubahan</button>
-                            <a href="/pwa_nailulmuna/settings/akses_mukimin.php" class="btn btn-outline-secondary btn-sm">Batal</a>
+                            <a href="/settings/akses_mukimin.php" class="btn btn-outline-secondary btn-sm">Batal</a>
                         </div>
                     </form>
                 <?php else: ?>
@@ -146,7 +146,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                             </select>
                             <?php if ($belumTerdaftar === []): ?>
-                                <p class="form-text mb-0">Semua mukimin sudah terdaftar atau tidak ada hasil filter. Tambah data di <a href="/pwa_nailulmuna/santri/mukimin.php">Data Mukimin</a>.</p>
+                                <p class="form-text mb-0">Semua mukimin sudah terdaftar atau tidak ada hasil filter. Tambah data di <a href="/santri/mukimin.php">Data Mukimin</a>.</p>
                             <?php endif; ?>
                         </div>
                         <div class="col-12">

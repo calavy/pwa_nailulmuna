@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Ruangan dihapus.');
         }
     }
-    header('Location: /pwa_nailulmuna/settings/kelas_ruangan.php');
+    header('Location: /settings/kelas_ruangan.php');
     exit;
 }
 
@@ -74,12 +74,12 @@ $total = count($rows);
 
 $pageTitle = 'Master Ruangan Kelas';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/kelas_ruangan.php';
+$settingsNavActive = '/settings/kelas_ruangan.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
     <h1 class="h4 mb-1">Ruangan kelas</h1>
     <p class="text-muted mb-0">Master ruang belajar / kelas formal. Dipilih saat input data santri (opsional).</p>
 </div>

@@ -47,7 +47,7 @@ function sdm_embed_layout_start(string $pageTitle): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="/pwa_nailulmuna/assets/css/keuangan.css" rel="stylesheet">
+    <link href="/assets/css/keuangan.css" rel="stylesheet">
     <style>body{background:#f8f9fa}.sdm-embed-close{position:sticky;top:0;z-index:5}</style>
 </head>
 <body class="p-3">

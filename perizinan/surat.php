@@ -34,7 +34,7 @@ if ($blockPrint) {
         . '</style></head><body><div class="box">';
     echo '<h1>Surat izin belum dapat dicetak</h1>';
     echo '<p>Permohonan izin atas nama <strong>' . htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) . '</strong> ' . htmlspecialchars($statusLabel) . '. Surat hanya dapat dicetak setelah pengurus berwenang menyetujui permohonan.</p>';
-    echo '<p>Silakan kembali ke halaman <a class="btn" href="/pwa_nailulmuna/perizinan/index.php">Perizinan</a> untuk meninjau atau menyetujui permohonan ini.</p>';
+    echo '<p>Silakan kembali ke halaman <a class="btn" href="/perizinan/index.php">Perizinan</a> untuk meninjau atau menyetujui permohonan ini.</p>';
     echo '</div></body></html>';
     exit;
 }
@@ -44,7 +44,7 @@ $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
 $websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');

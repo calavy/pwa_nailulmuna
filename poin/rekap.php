@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rerouteTingkat = trim((string) ($_POST['reroute_tingkatan'] ?? ''));
         $rerouteSantriId = max(0, (int) ($_POST['reroute_santri_id'] ?? 0));
 
-        $redirect = '/pwa_nailulmuna/poin/rekap.php?month=' . $month . '&year=' . $year . '&mode=' . rawurlencode($rerouteMode);
+        $redirect = '/poin/rekap.php?month=' . $month . '&year=' . $year . '&mode=' . rawurlencode($rerouteMode);
         if ($rerouteTingkat !== '') {
             $redirect .= '&tingkatan=' . rawurlencode($rerouteTingkat);
         }
@@ -487,9 +487,9 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php } ?>
                                     <div class="mt-2 d-flex flex-wrap gap-1">
                                         <?php if ($total >= 75): ?>
-                                            <a class="btn btn-outline-danger btn-sm" target="_blank" href="/pwa_nailulmuna/poin/surat.php?santri_id=<?= $sid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP2">Cetak SP2</a>
+                                            <a class="btn btn-outline-danger btn-sm" target="_blank" href="/poin/surat.php?santri_id=<?= $sid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP2">Cetak SP2</a>
                                         <?php elseif ($total >= 50): ?>
-                                            <a class="btn btn-outline-warning btn-sm" target="_blank" href="/pwa_nailulmuna/poin/surat.php?santri_id=<?= $sid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP1">Cetak SP1</a>
+                                            <a class="btn btn-outline-warning btn-sm" target="_blank" href="/poin/surat.php?santri_id=<?= $sid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP1">Cetak SP1</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -654,9 +654,9 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><span class="small"><?= htmlspecialchars(resolve_sanction($sanctionRows, $total)) ?></span></td>
                         <td class="text-nowrap">
                             <?php if ($total >= 75): ?>
-                                <a class="btn btn-outline-danger btn-sm" target="_blank" href="/pwa_nailulmuna/poin/surat.php?santri_id=<?= $rid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP2">SP2</a>
+                                <a class="btn btn-outline-danger btn-sm" target="_blank" href="/poin/surat.php?santri_id=<?= $rid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP2">SP2</a>
                             <?php elseif ($total >= 50): ?>
-                                <a class="btn btn-outline-warning btn-sm" target="_blank" href="/pwa_nailulmuna/poin/surat.php?santri_id=<?= $rid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP1">SP1</a>
+                                <a class="btn btn-outline-warning btn-sm" target="_blank" href="/poin/surat.php?santri_id=<?= $rid ?>&month=<?= $month ?>&year=<?= $year ?>&sp=SP1">SP1</a>
                             <?php else: ?>
                                 <span class="text-muted small">—</span>
                             <?php endif; ?>

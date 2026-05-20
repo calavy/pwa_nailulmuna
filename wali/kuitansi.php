@@ -7,14 +7,14 @@ require_once __DIR__ . '/inc_portal.php';
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Bukti pembayaran tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/wali/pembayaran.php');
+    header('Location: /wali/pembayaran.php');
     exit;
 }
 
 $row = wali_portal_fetch_pembayaran_for_wali($pdo, $id, $waliSantriId);
 if (!$row) {
     set_flash('error', 'Bukti pembayaran tidak dapat diakses.');
-    header('Location: /pwa_nailulmuna/wali/pembayaran.php');
+    header('Location: /wali/pembayaran.php');
     exit;
 }
 
@@ -33,14 +33,14 @@ $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . ltrim($logoPath, '/') : $logoUrl;
+$logo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
 
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');
 ?>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/pembayaran.php"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/pembayaran.php"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
             <button type="button" class="btn btn-sm btn-teal" onclick="window.print()"><i class="fa-solid fa-print me-1"></i> Cetak</button>
         </div>
 

@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Tingkatan berhasil dihapus.');
         }
     }
-    header('Location: /pwa_nailulmuna/settings/tingkatan.php');
+    header('Location: /settings/tingkatan.php');
     exit;
 }
 
@@ -81,12 +81,12 @@ $totalTingkatan = count($rows);
 
 $pageTitle = 'Master Tingkatan';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/tingkatan.php';
+$settingsNavActive = '/settings/tingkatan.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
     <h1 class="h4 mb-1">Kelola tingkatan</h1>
     <p class="text-muted mb-0">Tambah, ubah nama, atau hapus master tingkatan. Mengubah nama akan menyamakan teks tingkatan di data santri dan baris jadwal kegiatan yang memakai nama lama.</p>
 </div>

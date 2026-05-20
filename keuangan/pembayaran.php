@@ -30,16 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $result = keuangan_save_pembayaran($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     if (!$result['ok']) {
         set_flash('error', $result['message']);
-        header('Location: /pwa_nailulmuna/keuangan/pembayaran.php');
+        header('Location: /keuangan/pembayaran.php');
         exit;
     }
     set_flash('success', $result['message']);
     $newId = (int) ($result['id'] ?? 0);
     if ($newId > 0) {
-        header('Location: /pwa_nailulmuna/keuangan/kuitansi.php?id=' . $newId);
+        header('Location: /keuangan/kuitansi.php?id=' . $newId);
         exit;
     }
-    header('Location: /pwa_nailulmuna/keuangan/pembayaran.php');
+    header('Location: /keuangan/pembayaran.php');
     exit;
 }
 
@@ -70,9 +70,9 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Catat penerimaan kas/bank per komponen biaya santri. Setelah simpan, kuitansi dapat dicetak.
         Untuk donasi/hibah/bantuan dari luar santri gunakan
-        <a href="/pwa_nailulmuna/keuangan/pemasukan.php">Pemasukan lain</a>.
-        <a href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
-        · <a href="/pwa_nailulmuna/keuangan/index.php">Dashboard keuangan</a>
+        <a href="/keuangan/pemasukan.php">Pemasukan lain</a>.
+        <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
+        · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>
 
@@ -153,7 +153,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </select>
                         <?php if ($akunRows === []): ?>
-                            <div class="form-text"><a href="/pwa_nailulmuna/keuangan/pengaturan.php?bagian=akun">Tambah akun kas/bank</a> di pengaturan keuangan.</div>
+                            <div class="form-text"><a href="/keuangan/pengaturan.php?bagian=akun">Tambah akun kas/bank</a> di pengaturan keuangan.</div>
                         <?php endif; ?>
                     </div>
                     <div class="col-md-6">
@@ -217,7 +217,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12 d-flex flex-wrap gap-2">
                         <button type="submit" class="btn btn-success"><i class="fa-solid fa-check me-1"></i> Simpan &amp; buka kuitansi</button>
-                        <a class="btn btn-outline-secondary" href="/pwa_nailulmuna/pembayaran/riwayat.php">Riwayat</a>
+                        <a class="btn btn-outline-secondary" href="/pembayaran/riwayat.php">Riwayat</a>
                     </div>
                 </form>
                 <?php endif; ?>
@@ -252,7 +252,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     </td>
                                     <td class="text-end small"><?= htmlspecialchars($formatRupiah((int) ((float) $r['total_nominal']))) ?></td>
                                     <td class="text-end">
-                                        <a class="btn btn-outline-primary btn-sm py-0" href="/pwa_nailulmuna/keuangan/kuitansi.php?id=<?= (int) $r['id'] ?>">KW</a>
+                                        <a class="btn btn-outline-primary btn-sm py-0" href="/keuangan/kuitansi.php?id=<?= (int) $r['id'] ?>">KW</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -268,6 +268,6 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 window.keuanganSantriMap = <?= json_encode($santriKeuanganById, JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="/pwa_nailulmuna/assets/js/keuangan-pembayaran-form.js"></script>
+<script src="/assets/js/keuangan-pembayaran-form.js"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

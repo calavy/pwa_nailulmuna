@@ -60,7 +60,7 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                 <div>
                     <div class="font-monospace small text-muted mb-0">NIS <?= htmlspecialchars((string) $waliSantriRow['nis']) ?></div>
                 </div>
-                <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+                <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
             </div>
             <p class="small text-muted mb-0 mt-2">
                 Ringkasan tagihan, presensi, dan informasi anak Anda<?= $anakCount > 1 ? ' — ganti anak lewat menu di atas.' : '.' ?>
@@ -69,21 +69,21 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
 
         <div class="row g-2 mb-3">
             <div class="col-6">
-                <a href="/pwa_nailulmuna/wali/keuangan.php" class="wali-tile-link h-100">
+                <a href="/wali/keuangan.php" class="wali-tile-link h-100">
                     <span class="wali-tile-ico"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span>
                     <div class="wali-tile-title">Keuangan</div>
                     <div class="wali-tile-desc">Tagihan &amp; pembayaran</div>
                 </a>
             </div>
             <div class="col-6">
-                <a href="/pwa_nailulmuna/wali/keaktifan.php" class="wali-tile-link h-100">
+                <a href="/wali/keaktifan.php" class="wali-tile-link h-100">
                     <span class="wali-tile-ico"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></span>
                     <div class="wali-tile-title">Keaktifan</div>
                     <div class="wali-tile-desc">Presensi bulan ini</div>
                 </a>
             </div>
             <div class="col-6">
-                <a href="/pwa_nailulmuna/wali/riwayat.php" class="wali-tile-link h-100">
+                <a href="/wali/riwayat.php" class="wali-tile-link h-100">
                     <span class="wali-tile-ico"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></span>
                     <div class="wali-tile-title">Riwayat</div>
                     <div class="wali-tile-desc">Domisili, khidmah &amp; pelanggaran</div>
@@ -118,8 +118,8 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                     <span class="wali-stat-label">Sisa</span>
                     <span class="font-monospace fw-bold <?= $tagihanSisa > 0 ? 'text-danger' : 'text-success' ?>">Rp <?= number_format($tagihanSisa, 0, ',', '.') ?></span>
                 </div>
-                <a class="btn btn-sm btn-teal w-100" href="/pwa_nailulmuna/wali/pembayaran.php">Riwayat & bukti pembayaran</a>
-                <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="/pwa_nailulmuna/wali/tagihan.php">Tabel 12 bulan</a>
+                <a class="btn btn-sm btn-teal w-100" href="/wali/pembayaran.php">Riwayat & bukti pembayaran</a>
+                <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="/wali/tagihan.php">Tabel 12 bulan</a>
                 <p class="small text-muted mt-2 mb-0">Pembayaran dilakukan melalui pengurus pondok.</p>
             </div>
         </div>
@@ -140,7 +140,7 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="wali-kicker mb-0">Presensi bulan ini</div>
-                    <a class="small fw-semibold" href="/pwa_nailulmuna/wali/keaktifan.php">Detail</a>
+                    <a class="small fw-semibold" href="/wali/keaktifan.php">Detail</a>
                 </div>
                 <div class="row g-2 text-center small">
                     <div class="col-3">

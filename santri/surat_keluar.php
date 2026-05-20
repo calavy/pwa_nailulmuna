@@ -23,7 +23,7 @@ $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
 $websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');

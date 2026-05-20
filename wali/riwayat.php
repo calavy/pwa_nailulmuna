@@ -11,7 +11,7 @@ $st->execute(['id' => $waliSantriId]);
 $santri = $st->fetch(PDO::FETCH_ASSOC);
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/wali/index.php');
+    header('Location: /wali/index.php');
     exit;
 }
 
@@ -41,7 +41,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
                 <h1 class="h5 mb-1 wali-brand fw-bold">Riwayat santri</h1>
                 <p class="small text-muted mb-0"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?></p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>
 
         <div class="row g-2 mb-3">
@@ -75,7 +75,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
             <?php
             $bagianOpts = ['semua' => 'Semua', 'domisili' => 'Domisili', 'khidmah' => 'Khidmah', 'pelanggaran' => 'Pelanggaran'];
             foreach ($bagianOpts as $k => $label):
-                $href = '/pwa_nailulmuna/wali/riwayat.php?bagian=' . urlencode($k);
+                $href = '/wali/riwayat.php?bagian=' . urlencode($k);
                 if ($filterTa > 0) {
                     $href .= '&th=' . $filterTa;
                 }
@@ -93,7 +93,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
 $santriId = $waliSantriId;
 $readOnly = true;
 $filterExtraGet = $section !== 'semua' ? ['bagian' => $section] : [];
-$filterFormAction = '/pwa_nailulmuna/wali/riwayat.php' . ($section !== 'semua' ? '?bagian=' . urlencode($section) : '');
+$filterFormAction = '/wali/riwayat.php' . ($section !== 'semua' ? '?bagian=' . urlencode($section) : '');
 if ($section === 'domisili' || $section === 'semua') {
     require __DIR__ . '/../includes/partials/santri_riwayat_domisili.php';
 }

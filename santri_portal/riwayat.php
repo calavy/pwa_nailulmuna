@@ -12,7 +12,7 @@ $st->execute(['id' => $santriId]);
 $santri = $st->fetch(PDO::FETCH_ASSOC);
 if (!$santri) {
     set_flash('error', 'Data tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/santri_portal/index.php');
+    header('Location: /santri_portal/index.php');
     exit;
 }
 
@@ -45,7 +45,7 @@ auth_portal_layout_begin([
     'accent' => 'teal',
 ]);
 ?>
-<p class="mb-2"><a href="/pwa_nailulmuna/santri_portal/index.php" class="small">&larr; Beranda</a></p>
+<p class="mb-2"><a href="/santri_portal/index.php" class="small">&larr; Beranda</a></p>
 
 <div class="row g-2 mb-3">
     <div class="col-4">
@@ -77,7 +77,7 @@ auth_portal_layout_begin([
 <div class="btn-group btn-group-sm flex-wrap w-100 mb-3" role="group" aria-label="Bagian riwayat">
     <?php
     foreach (['semua' => 'Semua', 'domisili' => 'Domisili', 'khidmah' => 'Khidmah', 'pelanggaran' => 'Pelanggaran'] as $k => $label):
-        $href = '/pwa_nailulmuna/santri_portal/riwayat.php?bagian=' . urlencode($k);
+        $href = '/santri_portal/riwayat.php?bagian=' . urlencode($k);
         if ($filterTa > 0) {
             $href .= '&th=' . $filterTa;
         }
@@ -94,7 +94,7 @@ auth_portal_layout_begin([
 <?php
 $readOnly = true;
 $filterExtraGet = $section !== 'semua' ? ['bagian' => $section] : [];
-$filterFormAction = '/pwa_nailulmuna/santri_portal/riwayat.php' . ($section !== 'semua' ? '?bagian=' . urlencode($section) : '');
+$filterFormAction = '/santri_portal/riwayat.php' . ($section !== 'semua' ? '?bagian=' . urlencode($section) : '');
 if ($section === 'domisili' || $section === 'semua') {
     require __DIR__ . '/../includes/partials/santri_riwayat_domisili.php';
 }
@@ -112,6 +112,6 @@ if ($section === 'pelanggaran' || $section === 'semua') {
 }
 ?>
 
-<p class="text-center mt-3 mb-0"><a href="/pwa_nailulmuna/santri_portal/logout.php" class="btn btn-sm btn-outline-secondary">Keluar</a></p>
+<p class="text-center mt-3 mb-0"><a href="/santri_portal/logout.php" class="btn btn-sm btn-outline-secondary">Keluar</a></p>
 <?php
 auth_portal_layout_end([], true);

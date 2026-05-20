@@ -7,7 +7,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -18,7 +18,7 @@ $izin = $statement->fetch();
 
 if (!$izin) {
     set_flash('error', 'Data izin tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/perizinan/index.php');
+    header('Location: /perizinan/index.php');
     exit;
 }
 
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Data izin berhasil diperbarui.');
-    header('Location: /pwa_nailulmuna/perizinan/index.php');
+    header('Location: /perizinan/index.php');
     exit;
 }
 
@@ -57,7 +57,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Edit Izin Santri</h1>
-    <a href="/pwa_nailulmuna/perizinan/index.php" class="btn btn-outline-secondary">Kembali</a>
+    <a href="/perizinan/index.php" class="btn btn-outline-secondary">Kembali</a>
 </div>
 
 <div class="card shadow-sm">

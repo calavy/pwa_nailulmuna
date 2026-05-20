@@ -9,7 +9,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Kuitansi tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/pembayaran/riwayat.php');
+    header('Location: /pembayaran/riwayat.php');
     exit;
 }
 
@@ -34,7 +34,7 @@ $stmt->execute(['id' => $id]);
 $row = $stmt->fetch();
 if (!$row) {
     set_flash('error', 'Data pembayaran tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/pembayaran/riwayat.php');
+    header('Location: /pembayaran/riwayat.php');
     exit;
 }
 
@@ -56,11 +56,11 @@ $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
 $verifySecret = (string) app_setting($pdo, 'kuitansi_verify_secret', 'pwa_nailulmuna_secret');
 $verifySig = substr(hash('sha256', $id . '|' . (string) $row['tanggal_bayar'] . '|' . (string) $row['total_nominal'] . '|' . $verifySecret), 0, 16);
-$verifyUrl = 'http://localhost/pwa_nailulmuna/keuangan/verifikasi_kuitansi.php?id=' . $id . '&sig=' . $verifySig;
+$verifyUrl = 'http://localhost/keuangan/verifikasi_kuitansi.php?id=' . $id . '&sig=' . $verifySig;
 $namaPetugas = trim((string) ($row['nama_petugas'] ?? ($_SESSION['user']['nama'] ?? 'Petugas')));
 
 $pageTitle = 'Kuitansi Pembayaran';
@@ -72,7 +72,7 @@ require_once __DIR__ . '/../includes/header.php';
         <button class="btn btn-sm btn-outline-secondary" onclick="printMode('official')">Print Resmi</button>
         <button class="btn btn-sm btn-outline-dark" onclick="printMode('thermal')">Print Termal</button>
         <button class="btn btn-sm btn-success" onclick="downloadPng()">Download PNG</button>
-        <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/pembayaran/riwayat.php">Kembali</a>
+        <a class="btn btn-sm btn-outline-primary" href="/pembayaran/riwayat.php">Kembali</a>
     </div>
 </div>
 

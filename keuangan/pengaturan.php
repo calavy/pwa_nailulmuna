@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'save_alokasi' => 'alokasi',
         default => 'umum',
     };
-    header('Location: /pwa_nailulmuna/keuangan/pengaturan.php?bagian=' . urlencode($redirectSection));
+    header('Location: /keuangan/pengaturan.php?bagian=' . urlencode($redirectSection));
     exit;
 }
 
@@ -71,15 +71,15 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> · Pengaturan</p>
+    <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Pengaturan</p>
     <h1 class="h4 mb-1">Pengaturan Keuangan &amp; Syahriyah</h1>
     <p class="text-muted mb-0">
         Satu tempat untuk tahun ajaran, tarif, akun kas/bank, dan alokasi dana.
         Lainnya di menu pengaturan:
-        <a href="/pwa_nailulmuna/settings/kelas_keuangan.php">Kelas keuangan</a>,
-        <a href="/pwa_nailulmuna/keuangan/inventaris.php">Inventaris aset</a>,
-        <a href="/pwa_nailulmuna/keuangan/cashless_pin.php">Cashless &amp; uang saku</a>,
-        <a href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php">Potongan syahriyah per santri</a>.
+        <a href="/settings/kelas_keuangan.php">Kelas keuangan</a>,
+        <a href="/keuangan/inventaris.php">Inventaris aset</a>,
+        <a href="/keuangan/cashless_pin.php">Cashless &amp; uang saku</a>,
+        <a href="/keuangan/potongan_syahriyah.php">Potongan syahriyah per santri</a>.
     </p>
 </div>
 
@@ -128,19 +128,19 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100">
             <div class="card-header fw-semibold">Syahriyah &amp; operasional</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-outline-primary text-start" href="/pwa_nailulmuna/settings/kelas_keuangan.php">
+                <a class="btn btn-outline-primary text-start" href="/settings/kelas_keuangan.php">
                     <i class="fa-solid fa-layer-group me-2"></i>Kelas / kategori keuangan santri
                 </a>
-                <a class="btn btn-warning text-start" href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php">
+                <a class="btn btn-warning text-start" href="/keuangan/potongan_syahriyah.php">
                     <i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri (%)
                 </a>
-                <a class="btn btn-outline-primary text-start" href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php">
+                <a class="btn btn-outline-primary text-start" href="/pembayaran/tagihan_syahriyah.php">
                     <i class="fa-solid fa-receipt me-2"></i>Tagihan syahriyah per bulan
                 </a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/pembayaran/laporan.php">
+                <a class="btn btn-outline-secondary text-start" href="/pembayaran/laporan.php">
                     <i class="fa-solid fa-chart-column me-2"></i>Laporan syahriyah
                 </a>
-                <a class="btn btn-outline-secondary text-start" href="/pwa_nailulmuna/keuangan/cashless_pin.php">
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/cashless_pin.php">
                     <i class="fa-solid fa-key me-2"></i>Cashless &amp; uang saku
                 </a>
             </div>

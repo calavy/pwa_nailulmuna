@@ -10,7 +10,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($santriIdPost <= 0) {
         set_flash('error', 'Pilih santri yang akan diajukan izinnya.');
-        header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+        header('Location: /perizinan/permohonan.php');
         exit;
     }
     if ($santriIdPost > 0) {
@@ -61,19 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkAktif->execute(['id' => $santriIdPost]);
         if (!$chkAktif->fetchColumn()) {
             set_flash('error', 'Santri tidak aktif atau sudah keluar — tidak dapat mengajukan izin.');
-            header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+            header('Location: /perizinan/permohonan.php');
             exit;
         }
     }
 
     if ($alasanPost === '') {
         set_flash('error', 'Alasan permohonan izin wajib diisi.');
-        header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+        header('Location: /perizinan/permohonan.php');
         exit;
     }
     if ($pemberiIzinPost === '') {
         set_flash('error', 'Nama pemohon (wali / petugas yang mengajukan) wajib diisi.');
-        header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+        header('Location: /perizinan/permohonan.php');
         exit;
     }
 
@@ -82,12 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $suhuRaw = $_POST['suhu_tubuh'] ?? '';
         if ($gejalaCheck === '') {
             set_flash('error', 'Untuk Izin Kesehatan, gejala wajib diisi.');
-            header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+            header('Location: /perizinan/permohonan.php');
             exit;
         }
         if ($suhuRaw === '' || !is_numeric($suhuRaw)) {
             set_flash('error', 'Untuk Izin Kesehatan, suhu tubuh wajib diisi.');
-            header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+            header('Location: /perizinan/permohonan.php');
             exit;
         }
     }
@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $pdo->rollBack();
         set_flash('error', 'Gagal menyimpan permohonan: data tidak konsisten. Coba lagi.');
-        header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+        header('Location: /perizinan/permohonan.php');
         exit;
     }
 
@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Permohonan izin terkirim. Status: PENDING. Pengurus akan meninjau di menu Perizinan.');
-    header('Location: /pwa_nailulmuna/perizinan/permohonan.php');
+    header('Location: /perizinan/permohonan.php');
     exit;
 }
 
@@ -322,7 +322,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     <h2 class="h5 mb-0">Riwayat permohonan terbaru</h2>
-                    <a class="small text-muted" href="/pwa_nailulmuna/perizinan/index.php">Buka panel persetujuan &rarr;</a>
+                    <a class="small text-muted" href="/perizinan/index.php">Buka panel persetujuan &rarr;</a>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped table-hover align-middle mb-0">

@@ -10,7 +10,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -125,7 +125,7 @@ $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');

@@ -95,7 +95,7 @@ $iconLaporan = bendahara_page_icon('laporan');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
         <i class="fa-solid fa-cash-register me-1" aria-hidden="true"></i>
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a>
+        <a href="/keuangan/index.php">Keuangan</a>
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
         <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconLaporan) ?>"></i></span>
@@ -108,7 +108,7 @@ $iconLaporan = bendahara_page_icon('laporan');
 </div>
 
 <?php if (!$tablesOk): ?>
-    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> terlebih dahulu.</div>
+    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/index.php">Keuangan</a> terlebih dahulu.</div>
 <?php endif; ?>
 
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">

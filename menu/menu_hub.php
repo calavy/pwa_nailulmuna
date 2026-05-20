@@ -21,14 +21,14 @@ foreach ($menuStructure as $node) {
 }
 if (!is_array($groupNode)) {
     set_flash('error', 'Menu tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
 $visiblePaths = menu_group_visible_paths($groupNode, $menuItems);
 if ($visiblePaths === []) {
     set_flash('error', 'Anda tidak memiliki akses ke modul ini.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -103,7 +103,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endforeach; ?>
 
 <div class="d-flex flex-wrap gap-2 align-items-center">
-    <a href="/pwa_nailulmuna/dashboard.php" class="btn btn-outline-secondary btn-sm rounded-pill">
+    <a href="/dashboard.php" class="btn btn-outline-secondary btn-sm rounded-pill">
         <i class="fa-solid fa-house me-1"></i> Dashboard
     </a>
     <span class="small text-muted">Atau gunakan menu modul di samping kiri.</span>

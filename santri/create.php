@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/create.php'));
+        header('Location: ' . sdm_embed_url('/santri/create.php'));
         exit;
     }
     $statusSantri = $statusValid['status'];
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkR->execute(['id' => $kelasRuanganId]);
         if (!$chkR->fetchColumn()) {
             set_flash('error', 'Ruangan kelas yang dipilih tidak valid.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/create.php'));
+            header('Location: ' . sdm_embed_url('/santri/create.php'));
             exit;
         }
         $kelasRuanganDb = $kelasRuanganId;
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bedErr = santri_validate_asrama_bed_unik($pdo, 0, $statusSantri, (int) ($asramaRanjangDb ?: 0), $namaKamar, $noRanjang);
     if ($bedErr !== null) {
         set_flash('error', $bedErr);
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/create.php'));
+        header('Location: ' . sdm_embed_url('/santri/create.php'));
         exit;
     }
     $data = [
@@ -173,9 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     set_flash('success', 'Data santri berhasil ditambahkan.');
     if (santri_status_is_keluar($statusSantri) && $newId > 0) {
-        sdm_embed_done_redirect('/pwa_nailulmuna/santri/keluar.php?id=' . $newId);
+        sdm_embed_done_redirect('/santri/keluar.php?id=' . $newId);
     }
-    sdm_embed_done_redirect('/pwa_nailulmuna/santri/index.php');
+    sdm_embed_done_redirect('/santri/index.php');
 }
 
 $pageTitle = 'Tambah santri';
@@ -189,11 +189,11 @@ if ($embed) {
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h3 mb-0">Tambah santri</h1>
     <?php if (!$embed): ?><div class="d-flex gap-2">
-        <a href="/pwa_nailulmuna/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
-        <a href="/pwa_nailulmuna/santri/index.php" class="btn btn-outline-secondary">Santri aktif</a>
+        <a href="/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
+        <a href="/santri/index.php" class="btn btn-outline-secondary">Santri aktif</a>
     </div><?php endif; ?>
 </div>
-<?php if (!$embed): ?><p class="small text-muted mb-3">Biodata lengkap dapat diubah lewat <a href="/pwa_nailulmuna/santri/semua_jati.php">Data induk santri</a>.</p><?php endif; ?>
+<?php if (!$embed): ?><p class="small text-muted mb-3">Biodata lengkap dapat diubah lewat <a href="/santri/semua_jati.php">Data induk santri</a>.</p><?php endif; ?>
 
 <div class="card shadow-sm">
     <div class="card-body">
@@ -284,7 +284,7 @@ if ($embed) {
                         <option value="<?= htmlspecialchars($kKode) ?>" title="<?= htmlspecialchars($kKode) ?>"><?= htmlspecialchars($kNama !== '' ? $kNama : $kKode) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <div class="form-text">Disimpan sebagai kode master; nama tampilan persis juga diterima lalu dinormalisasi. Daftar di <a href="/pwa_nailulmuna/settings/kelas_keuangan.php">Kelas keuangan</a> (menu <a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Tarif mengikuti pemetaan Muadalah / Wustho / Ulya.</div>
+                <div class="form-text">Disimpan sebagai kode master; nama tampilan persis juga diterima lalu dinormalisasi. Daftar di <a href="/settings/kelas_keuangan.php">Kelas keuangan</a> (menu <a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Tarif mengikuti pemetaan Muadalah / Wustho / Ulya.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Ruangan kelas</label>
@@ -294,7 +294,7 @@ if ($embed) {
                         <option value="<?= (int) $kr['id'] ?>"><?= htmlspecialchars((string) $kr['nama_ruangan']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <div class="form-text">Master di <a href="/pwa_nailulmuna/settings/kelas_ruangan.php">Ruangan kelas</a> (<a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>).</div>
+                <div class="form-text">Master di <a href="/settings/kelas_ruangan.php">Ruangan kelas</a> (<a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>).</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Status santri</label>
@@ -322,11 +322,11 @@ if ($embed) {
                             </select>
                         </div>
                     </div>
-                    <div class="form-text mb-2">Master di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">Pengaturan kamar &amp; ranjang</a> (<a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Satu ranjang (termasuk atas/bawah) hanya untuk satu santri <strong>aktif</strong>. Memilih ranjang master mengisi otomatis.</div>
+                    <div class="form-text mb-2">Master di <a href="/settings/kamar_ranjang.php">Pengaturan kamar &amp; ranjang</a> (<a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Satu ranjang (termasuk atas/bawah) hanya untuk satu santri <strong>aktif</strong>. Memilih ranjang master mengisi otomatis.</div>
                 <?php elseif ($asramaKamarRows !== []): ?>
-                    <p class="small text-muted mb-2">Sudah ada kamar master, belum ada ranjang. Tambah ranjang di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a> atau isi manual di bawah.</p>
+                    <p class="small text-muted mb-2">Sudah ada kamar master, belum ada ranjang. Tambah ranjang di <a href="/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a> atau isi manual di bawah.</p>
                 <?php else: ?>
-                    <p class="small text-muted mb-2">Belum ada master kamar. Isi manual atau buat master di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a>.</p>
+                    <p class="small text-muted mb-2">Belum ada master kamar. Isi manual atau buat master di <a href="/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a>.</p>
                 <?php endif; ?>
                 <div class="row g-2">
                     <div class="col-md-6">

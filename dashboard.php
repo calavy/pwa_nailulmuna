@@ -151,7 +151,7 @@ $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$dashLogo = $logoPath !== '' ? '/pwa_nailulmuna/' . ltrim($logoPath, '/') : $logoUrlSetting;
+$dashLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 $dashHeroKicker = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $namaPonpes);
 $dashLogoInitial = strtoupper(substr(($lettersOnly !== '' ? $lettersOnly : 'AP'), 0, 2));
@@ -165,8 +165,8 @@ $sideQuickActions = dashboard_filter_quick_actions($dashMenuItems);
 $sideQuickCount = count($sideQuickActions);
 $dashTileCount = count($dashTiles);
 
-$canJadwal = user_can_access_menu_path('/pwa_nailulmuna/jadwal/index.php', $dashMenuItems);
-$canPerizinan = user_can_access_menu_path('/pwa_nailulmuna/perizinan/index.php', $dashMenuItems);
+$canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
+$canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
 
 $pageTitle = 'Dashboard';
 require_once __DIR__ . '/includes/header.php';
@@ -309,7 +309,7 @@ require_once __DIR__ . '/includes/header.php';
                         <p class="small text-muted mb-0">Jadwal pada slot waktu sekarang</p>
                     </div>
                     <?php if ($canJadwal): ?>
-                    <a href="/pwa_nailulmuna/jadwal/index.php" class="btn btn-sm btn-outline-primary rounded-pill">Jadwal lengkap</a>
+                    <a href="/jadwal/index.php" class="btn btn-sm btn-outline-primary rounded-pill">Jadwal lengkap</a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
@@ -371,7 +371,7 @@ require_once __DIR__ . '/includes/header.php';
                     <p class="small text-muted mb-0">Disetujui · hari ini</p>
                 </div>
                 <?php if ($canPerizinan): ?>
-                <a href="/pwa_nailulmuna/perizinan/index.php" class="btn btn-sm btn-outline-secondary rounded-pill">Kelola perizinan</a>
+                <a href="/perizinan/index.php" class="btn btn-sm btn-outline-secondary rounded-pill">Kelola perizinan</a>
                 <?php endif; ?>
             </div>
             <div class="card-body px-4 pb-4 pt-2">

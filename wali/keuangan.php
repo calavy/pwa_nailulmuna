@@ -67,9 +67,9 @@ require __DIR__ . '/partials/greeting.php';
 
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h5 mb-0 wali-brand fw-bold">Keuangan &amp; tabungan</h1>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
-        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain. <a href="/pwa_nailulmuna/wali/pembayaran.php">Riwayat pembayaran &amp; bukti</a> · <a href="/pwa_nailulmuna/wali/tagihan.php">Tagihan bulanan</a>.</p>
+        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain. <a href="/wali/pembayaran.php">Riwayat pembayaran &amp; bukti</a> · <a href="/wali/tagihan.php">Tagihan bulanan</a>.</p>
 
         <form method="get" class="input-group input-group-sm mb-3">
             <input type="text" name="q" class="form-control" placeholder="NIS atau nama" value="<?= htmlspecialchars($q) ?>">
@@ -77,7 +77,7 @@ require __DIR__ . '/partials/greeting.php';
         </form>
 
         <?php
-        $keuRedir = '/pwa_nailulmuna/wali/keuangan.php' . ($q !== '' ? ('?q=' . rawurlencode($q)) : '');
+        $keuRedir = '/wali/keuangan.php' . ($q !== '' ? ('?q=' . rawurlencode($q)) : '');
         ?>
         <?php if (count($waliAnakRows) > 1 && $anakRows !== []): ?>
             <div class="list-group mb-3 small shadow-sm">
@@ -125,7 +125,7 @@ require __DIR__ . '/partials/greeting.php';
                     </div>
                 </div>
                 <p class="small text-muted mt-2 mb-0">Estimasi 12 × tagihan bulanan (Syahriyah + Makan) TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?>.</p>
-                <a class="btn btn-sm btn-teal w-100 mt-2" href="/pwa_nailulmuna/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat &amp; bukti semua pembayaran</a>
+                <a class="btn btn-sm btn-teal w-100 mt-2" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat &amp; bukti semua pembayaran</a>
             </div>
         </div>
 
@@ -154,7 +154,7 @@ require __DIR__ . '/partials/greeting.php';
                 </div>
                 <span class="font-monospace fw-bold fs-5">Rp <?= number_format((int) round($cashlessSaldo), 0, ',', '.') ?></span>
             </div>
-            <a class="btn btn-sm btn-outline-primary w-100 border-top rounded-0" href="/pwa_nailulmuna/wali/cashless.php">
+            <a class="btn btn-sm btn-outline-primary w-100 border-top rounded-0" href="/wali/cashless.php">
                 <i class="fa-solid fa-list me-1"></i> Lihat log jajan &amp; top-up
             </a>
         </div>

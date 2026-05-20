@@ -13,7 +13,7 @@ $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama'
 
 $waliSantriIdTentative = (int) ($_SESSION['wali']['santri_id'] ?? 0);
 if ($waliSantriIdTentative <= 0) {
-    header('Location: /pwa_nailulmuna/wali/login.php');
+    header('Location: /wali/login.php');
     exit;
 }
 
@@ -23,11 +23,11 @@ $waliGroupId = (int) ($_SESSION['wali']['wali_santri_id'] ?? 0);
 function wali_portal_safe_redirect_path(string $raw): string
 {
     $r = trim($raw);
-    if ($r !== '' && str_starts_with($r, '/pwa_nailulmuna/wali/') && !str_contains($r, "\r") && !str_contains($r, "\n")) {
+    if ($r !== '' && str_starts_with($r, '/wali/') && !str_contains($r, "\r") && !str_contains($r, "\n")) {
         return $r;
     }
 
-    return '/pwa_nailulmuna/wali/index.php';
+    return '/wali/index.php';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wali_pilih_anak'])) {
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['wali_pilih_anak'])) {
 
 $waliSantriId = (int) ($_SESSION['wali']['santri_id'] ?? 0);
 if ($waliSantriId <= 0) {
-    header('Location: /pwa_nailulmuna/wali/login.php');
+    header('Location: /wali/login.php');
     exit;
 }
 
@@ -80,13 +80,13 @@ $st->execute(['id' => $waliSantriId]);
 $waliSantriRow = $st->fetch(PDO::FETCH_ASSOC);
 if (!$waliSantriRow) {
     unset($_SESSION['wali']);
-    header('Location: /pwa_nailulmuna/wali/login.php');
+    header('Location: /wali/login.php');
     exit;
 }
 if (column_exists($pdo, 'santri', 'is_aktif') && (int) ($waliSantriRow['is_aktif'] ?? 1) !== 1) {
     unset($_SESSION['wali']);
     set_flash('error', 'Akses portal dinonaktifkan untuk santri ini.');
-    header('Location: /pwa_nailulmuna/wali/login.php');
+    header('Location: /wali/login.php');
     exit;
 }
 
@@ -118,7 +118,7 @@ $waliAnakIds = array_map(static fn(array $r): int => (int) $r['id'], $waliAnakRo
 if (!in_array($waliSantriId, $waliAnakIds, true)) {
     unset($_SESSION['wali']);
     set_flash('error', 'Sesi tidak valid. Silakan masuk kembali.');
-    header('Location: /pwa_nailulmuna/wali/login.php');
+    header('Location: /wali/login.php');
     exit;
 }
 

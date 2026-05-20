@@ -10,7 +10,7 @@ require_once __DIR__ . '/../helpers/santri_portal.php';
 ensure_santri_portal_pin_column($pdo);
 
 if (isset($_SESSION['santri_portal']['santri_id'])) {
-    header('Location: /pwa_nailulmuna/santri_portal/index.php');
+    header('Location: /santri_portal/index.php');
     exit;
 }
 
@@ -19,13 +19,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pin = (string) ($_POST['pin'] ?? '');
     if ($nis === '' || $pin === '') {
         set_flash('error', 'NIS dan PIN wajib diisi.');
-        header('Location: /pwa_nailulmuna/santri_portal/login.php');
+        header('Location: /santri_portal/login.php');
         exit;
     }
     $row = santri_portal_verify_login($pdo, $nis, $pin);
     if (!$row) {
         set_flash('error', 'NIS atau PIN salah, atau PIN belum diatur pengurus.');
-        header('Location: /pwa_nailulmuna/santri_portal/login.php');
+        header('Location: /santri_portal/login.php');
         exit;
     }
     session_regenerate_id(true);
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nis' => (string) $row['nis'],
         'nama_santri' => (string) ($row['nama_santri'] ?? ''),
     ];
-    header('Location: /pwa_nailulmuna/santri_portal/index.php');
+    header('Location: /santri_portal/index.php');
     exit;
 }
 
@@ -67,8 +67,8 @@ $err = get_flash('error');
 </form>
 <p class="small text-muted text-center mt-3 mb-0">PIN diatur pengurus pondok. Berbeda dari PIN portal wali.</p>
 <p class="small text-center mt-2 mb-0">
-    <a href="/pwa_nailulmuna/wali/login.php">Masuk sebagai wali santri</a>
-    · <a href="/pwa_nailulmuna/login.php">Portal pengurus</a>
+    <a href="/wali/login.php">Masuk sebagai wali santri</a>
+    · <a href="/login.php">Portal pengurus</a>
 </p>
 <?php
 auth_portal_layout_end();

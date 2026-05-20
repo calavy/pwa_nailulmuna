@@ -19,7 +19,7 @@ $sumberSuggest = keuangan_pemasukan_sumber_suggest();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pemasukan') {
     $result = keuangan_save_pemasukan($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-    header('Location: /pwa_nailulmuna/keuangan/pemasukan.php');
+    header('Location: /keuangan/pemasukan.php');
     exit;
 }
 
@@ -48,8 +48,8 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Catat uang masuk selain pembayaran santri (donasi, hibah, bantuan, bunga bank, dll.).
         Untuk pembayaran syahriyah/saku santri gunakan
-        <a href="/pwa_nailulmuna/keuangan/pembayaran.php">Input pembayaran</a>.
-        · <a href="/pwa_nailulmuna/keuangan/index.php">Dashboard keuangan</a>
+        <a href="/keuangan/pembayaran.php">Input pembayaran</a>.
+        · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>
 

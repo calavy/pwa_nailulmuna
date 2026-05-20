@@ -22,10 +22,10 @@ $ok = get_flash('success');
 <?php endif; ?>
 
 <div class="d-grid gap-2">
-    <a href="/pwa_nailulmuna/santri_portal/riwayat.php" class="btn btn-auth-primary">
+    <a href="/santri_portal/riwayat.php" class="btn btn-auth-primary">
         <i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat domisili, khidmah &amp; pelanggaran
     </a>
-    <a href="/pwa_nailulmuna/santri_portal/logout.php" class="btn btn-outline-secondary">Keluar</a>
+    <a href="/santri_portal/logout.php" class="btn btn-outline-secondary">Keluar</a>
 </div>
 
 <p class="small text-muted text-center mt-3 mb-0">Nilai keaktifan presensi hanya untuk pengasuh pondok.</p>

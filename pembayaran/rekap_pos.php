@@ -110,7 +110,7 @@ $iconPage = bendahara_page_icon('rekap_pos');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
         <i class="fa-solid fa-cash-register me-1" aria-hidden="true"></i>
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a>
+        <a href="/keuangan/index.php">Keuangan</a>
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
         <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconPage) ?>"></i></span>
@@ -120,12 +120,12 @@ $iconPage = bendahara_page_icon('rekap_pos');
         <strong>Target</strong> = jumlah santri aktif × tarif pengaturan per komponen.
         <strong>Terbayar</strong> = akumulasi rincian pembayaran pada periode terpilih.
         Tagihan wajib bulanan: <strong>Syahriyah</strong> dan <strong>Makan</strong> — lihat juga
-        <a href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php">Tagihan Bulanan</a>.
+        <a href="/pembayaran/tagihan_syahriyah.php">Tagihan Bulanan</a>.
     </p>
 </div>
 
 <?php if (!$tablesOk): ?>
-    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/pwa_nailulmuna/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
+    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
 <?php endif; ?>
 
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
@@ -262,8 +262,8 @@ $iconPage = bendahara_page_icon('rekap_pos');
 </div>
 
 <div class="d-flex flex-wrap gap-2 mt-3">
-    <a class="btn btn-outline-primary btn-sm" href="/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php?bulan=<?= (int) $bulanTagihan ?>&amp;tm=<?= (int) $tahunAjaranMulai ?>&amp;ts=<?= (int) $tahunAjaranSelesai ?>"><i class="fa-solid fa-receipt me-1"></i> Tagihan per santri</a>
-    <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat pembayaran</a>
+    <a class="btn btn-outline-primary btn-sm" href="/pembayaran/tagihan_syahriyah.php?bulan=<?= (int) $bulanTagihan ?>&amp;tm=<?= (int) $tahunAjaranMulai ?>&amp;ts=<?= (int) $tahunAjaranSelesai ?>"><i class="fa-solid fa-receipt me-1"></i> Tagihan per santri</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat pembayaran</a>
 </div>
 
 <script>

@@ -18,7 +18,7 @@ function push_event_izin_pengajuan_baru(
     push_notify_all_staff($pdo, 'izin_pengajuan', $title, $body, [
         'nis' => $nis,
         'jenis' => $jenisIzin,
-    ], '/pwa_nailulmuna/perizinan/index.php');
+    ], '/perizinan/index.php');
 }
 
 function push_event_izin_disetujui_wali(
@@ -31,7 +31,7 @@ function push_event_izin_disetujui_wali(
 ): void {
     $title = 'Izin anak disetujui';
     $body = $namaSantri . ' — ' . $jenisLabel . ' hingga ' . $tanggalSelesai . ' ' . substr($jamSelesai, 0, 5);
-    push_notify_wali_for_santri($pdo, $santriId, 'izin_keluar', $title, $body, [], '/pwa_nailulmuna/wali/keaktifan.php');
+    push_notify_wali_for_santri($pdo, $santriId, 'izin_keluar', $title, $body, [], '/wali/keaktifan.php');
 }
 
 function push_event_laporan_sakit_wali(
@@ -43,8 +43,8 @@ function push_event_laporan_sakit_wali(
 ): void {
     $title = 'Laporan kesehatan anak';
     $body = $namaSantri . ' — ' . $statusKesehatan . ($gejala !== '' ? ': ' . mb_substr($gejala, 0, 80) : '');
-    push_notify_wali_for_santri($pdo, $santriId, 'laporan_sakit', $title, $body, [], '/pwa_nailulmuna/wali/index.php');
-    push_notify_all_staff($pdo, 'izin_pengajuan', 'Laporan sakit: ' . $namaSantri, $body, [], '/pwa_nailulmuna/perizinan/index.php');
+    push_notify_wali_for_santri($pdo, $santriId, 'laporan_sakit', $title, $body, [], '/wali/index.php');
+    push_notify_all_staff($pdo, 'izin_pengajuan', 'Laporan sakit: ' . $namaSantri, $body, [], '/perizinan/index.php');
 }
 
 function push_event_tagihan_syahriyah_wali(
@@ -56,7 +56,7 @@ function push_event_tagihan_syahriyah_wali(
 ): void {
     $title = 'Pemberitahuan tagihan';
     $body = trim($namaSantri) . ' — ' . $periodeLabel . '. Sisa: ' . $sisaFormatted;
-    push_notify_wali_for_santri($pdo, $santriId, 'syahriyah', $title, $body, [], '/pwa_nailulmuna/wali/tagihan.php');
+    push_notify_wali_for_santri($pdo, $santriId, 'syahriyah', $title, $body, [], '/wali/tagihan.php');
 }
 
 function push_event_pelanggaran_berat_kiai(
@@ -71,23 +71,23 @@ function push_event_pelanggaran_berat_kiai(
     push_notify_all_kiai($pdo, 'pelanggaran_berat', $title, $body, [
         'nis' => $nis,
         'poin' => (string) $totalPoin,
-    ], '/pwa_nailulmuna/poin/rekap.php');
+    ], '/poin/rekap.php');
 }
 
 function push_event_keuangan_harian_kiai(PDO $pdo, string $summaryBody): void
 {
     $title = 'Ringkasan keuangan harian';
-    push_notify_all_kiai($pdo, 'keuangan_harian', $title, mb_substr($summaryBody, 0, 400), [], '/pwa_nailulmuna/keuangan/index.php');
+    push_notify_all_kiai($pdo, 'keuangan_harian', $title, mb_substr($summaryBody, 0, 400), [], '/keuangan/index.php');
 }
 
 function push_event_rapat_staff(PDO $pdo, string $title, string $body, ?string $url = null): void
 {
-    push_notify_all_staff($pdo, 'rapat', $title, $body, [], $url ?? '/pwa_nailulmuna/dashboard.php');
+    push_notify_all_staff($pdo, 'rapat', $title, $body, [], $url ?? '/dashboard.php');
 }
 
 function push_event_tugas_keamanan(PDO $pdo, string $title, string $body): void
 {
-    push_notify_all_staff($pdo, 'tugas_keamanan', $title, $body, [], '/pwa_nailulmuna/dashboard.php');
+    push_notify_all_staff($pdo, 'tugas_keamanan', $title, $body, [], '/dashboard.php');
 }
 
 function trigger_push_daily_kiai(PDO $pdo): void
@@ -213,7 +213,7 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
             'Pemberitahuan tagihan',
             $body,
             ['sisa' => (string) $sisa],
-            '/pwa_nailulmuna/wali/tagihan.php'
+            '/wali/tagihan.php'
         ) > 0) {
             $sent++;
         }

@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute($data);
         set_flash('success', 'Data pembimbing ditambahkan.');
     }
-    header('Location: /pwa_nailulmuna/pembimbing/index.php');
+    header('Location: /pembimbing/index.php');
     exit;
 }
 
@@ -98,7 +98,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td><?= htmlspecialchars($row['no_wa'] ?: '-') ?></td>
                             <td><span class="badge text-bg-<?= (int) $row['is_aktif'] === 1 ? 'success' : 'warning' ?>"><?= (int) $row['is_aktif'] === 1 ? 'Aktif' : 'Izin/Pulang' ?></span></td>
                             <td class="text-end">
-                                <a href="/pwa_nailulmuna/pembimbing/edit.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
+                                <a href="/pembimbing/edit.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -196,7 +196,7 @@
             tahun_ajaran_mulai: String(tahunMulai()),
             tahun_ajaran_selesai: String(tahunSelesai()),
         });
-        fetch('/pwa_nailulmuna/api/keuangan/tagihan_preview.php?' + params.toString(), {
+        fetch('/api/keuangan/tagihan_preview.php?' + params.toString(), {
             credentials: 'same-origin',
         })
             .then(function (res) {

@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['hijri_tes_tanggal'] = $tgl;
         set_flash('success', 'Tes konversi dijalankan.');
     }
-    header('Location: /pwa_nailulmuna/settings/hijri_mappings.php');
+    header('Location: /settings/hijri_mappings.php');
     exit;
 }
 
@@ -87,13 +87,13 @@ $hasilTes = preg_match('/^\d{4}-\d{2}-\d{2}$/', $tesTanggal) ? konversiKeHijriah
 
 $pageTitle = 'Pemetaan Hijriyah';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/hijri_mappings.php';
+$settingsNavActive = '/settings/hijri_mappings.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<link href="/pwa_nailulmuna/assets/css/kalender-akademik.css" rel="stylesheet">
+<link href="/assets/css/kalender-akademik.css" rel="stylesheet">
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/settings/kalender.php">Kalender</a> · <a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
+    <p class="page-intro-kicker mb-1"><a href="/settings/kalender.php">Kalender</a> · <a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
     <h1 class="h4 mb-1">Kalender Hijriyah (database)</h1>
     <p class="text-muted mb-0 small">Awal tiap bulan H. = tanggal <strong>1 Masehi</strong> dalam format <strong>H / B / T</strong> (Hari / Bulan / Tahun). Edit di tabel lalu klik <strong>Simpan</strong>.</p>
 </div>
@@ -223,7 +223,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <p class="small text-muted">
-    <a href="/pwa_nailulmuna/akademik/kalender.php?view=atur">Atur 12 bulan per tahun H. (kalender akademik)</a>
+    <a href="/akademik/kalender.php?view=atur">Atur 12 bulan per tahun H. (kalender akademik)</a>
 </p>
 
 <?php

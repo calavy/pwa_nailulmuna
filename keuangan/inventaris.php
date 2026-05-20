@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('error', 'Gagal menonaktifkan aset.');
         }
     }
-    header('Location: /pwa_nailulmuna/keuangan/inventaris.php');
+    header('Location: /keuangan/inventaris.php');
     exit;
 }
 
@@ -64,7 +64,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Pencatatan aset pondok (tanah, bangunan, kendaraan, peralatan) dan penyusutan bulanan.
         Pembelian aset otomatis mengurangi kas/bank dan membuat jurnal <strong>Debit aset tetap / Kredit kas</strong>.
-        Nilai buku masuk ke <a href="/pwa_nailulmuna/keuangan/neraca.php">neraca</a> dan perolehan ke <a href="/pwa_nailulmuna/keuangan/arus-kas.php">arus kas investasi</a>.
+        Nilai buku masuk ke <a href="/keuangan/neraca.php">neraca</a> dan perolehan ke <a href="/keuangan/arus-kas.php">arus kas investasi</a>.
     </p>
 </div>
 
@@ -188,7 +188,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm mb-4">
             <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
                 <span>Daftar inventaris</span>
-                <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/keuangan/index.php">Dashboard</a>
+                <a class="btn btn-sm btn-outline-secondary" href="/keuangan/index.php">Dashboard</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">

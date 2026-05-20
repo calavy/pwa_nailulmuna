@@ -27,19 +27,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'fcm_daily_kiai_enabled', isset($_POST['fcm_daily_kiai_enabled']) ? '1' : '0');
         save_setting($pdo, 'fcm_daily_kiai_time', trim((string) ($_POST['fcm_daily_kiai_time'] ?? '20:00')));
         set_flash('success', 'Pengaturan FCM disimpan.');
-        header('Location: /pwa_nailulmuna/settings/push.php');
+        header('Location: /settings/push.php');
         exit;
     }
     if ($action === 'test_push') {
         $n = push_notify_all_staff($pdo, 'rapat', 'Uji push FCM', 'Notifikasi uji dari pengaturan pondok. Jika ini muncul, FCM berhasil.');
         set_flash($n > 0 ? 'success' : 'error', $n > 0 ? "Push terkirim ke {$n} perangkat staff." : 'Tidak ada token staff atau FCM gagal.');
-        header('Location: /pwa_nailulmuna/settings/push.php');
+        header('Location: /settings/push.php');
         exit;
     }
     if ($action === 'test_kiai') {
         push_event_keuangan_harian_kiai($pdo, 'Uji ringkasan harian — ' . date('d/m/Y H:i'));
         set_flash('success', 'Uji push kiai dikirim (jika ada token).');
-        header('Location: /pwa_nailulmuna/settings/push.php');
+        header('Location: /settings/push.php');
         exit;
     }
     if ($action === 'import_json') {
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_flash('success', 'Kredensial service account diimpor. Lengkapi Web API Key, App ID, Sender ID, dan VAPID lalu simpan.');
             }
         }
-        header('Location: /pwa_nailulmuna/settings/push.php');
+        header('Location: /settings/push.php');
         exit;
     }
 }

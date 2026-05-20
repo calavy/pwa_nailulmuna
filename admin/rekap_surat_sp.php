@@ -100,7 +100,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div>
         <p class="text-muted small mb-1">Administrasi</p>
         <h1 class="h3 mb-0">Rekap surat SP (SP1 / SP2)</h1>
-        <p class="text-muted small mb-0">Nomor tercatat saat surat dicetak dari <a href="/pwa_nailulmuna/poin/rekap.php">rekap poin</a>. Penomoran berkesinambungan lewat <a href="/pwa_nailulmuna/admin/surat_nomor.php">Nomor surat</a>.</p>
+        <p class="text-muted small mb-0">Nomor tercatat saat surat dicetak dari <a href="/poin/rekap.php">rekap poin</a>. Penomoran berkesinambungan lewat <a href="/admin/surat_nomor.php">Nomor surat</a>.</p>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
@@ -151,7 +151,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <td class="small"><?= htmlspecialchars($periodeTeks) ?></td>
                     <td class="text-end">
                         <?php if ($sid > 0 && $m >= 1 && $m <= 12): ?>
-                            <a class="btn btn-sm btn-outline-dark" target="_blank" href="/pwa_nailulmuna/poin/surat.php?santri_id=<?= $sid ?>&amp;month=<?= $m ?>&amp;year=<?= (int) $tahun ?>&amp;sp=<?= htmlspecialchars($spParam) ?>">Cetak ulang</a>
+                            <a class="btn btn-sm btn-outline-dark" target="_blank" href="/poin/surat.php?santri_id=<?= $sid ?>&amp;month=<?= $m ?>&amp;year=<?= (int) $tahun ?>&amp;sp=<?= htmlspecialchars($spParam) ?>">Cetak ulang</a>
                         <?php else: ?>
                             <span class="text-muted small">—</span>
                         <?php endif; ?>
@@ -164,8 +164,8 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <p class="small text-muted mt-3">
-    <a href="/pwa_nailulmuna/admin/surat_nomor.php">Pengaturan nomor surat</a>
-    · <a href="/pwa_nailulmuna/admin/rekap_surat_izin.php">Rekap surat izin</a>
+    <a href="/admin/surat_nomor.php">Pengaturan nomor surat</a>
+    · <a href="/admin/rekap_surat_izin.php">Rekap surat izin</a>
 </p>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

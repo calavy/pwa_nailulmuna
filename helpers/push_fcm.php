@@ -299,7 +299,7 @@ function push_fcm_send_multicast(PDO $pdo, array $tokens, string $title, string 
                 'data' => $dataPayload,
                 'webpush' => [
                     'fcm_options' => [
-                        'link' => $clickUrl ?? '/pwa_nailulmuna/',
+                        'link' => $clickUrl ?? '/',
                     ],
                 ],
             ],
@@ -562,5 +562,5 @@ function push_notify_wali_for_santri(
         return 0;
     }
 
-    return push_notify($pdo, 'wali', $category, $title, $body, $data, $clickUrl ?? '/pwa_nailulmuna/wali/index.php', $waliId);
+    return push_notify($pdo, 'wali', $category, $title, $body, $data, $clickUrl ?? '/wali/index.php', $waliId);
 }

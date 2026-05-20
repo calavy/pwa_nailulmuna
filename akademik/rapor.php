@@ -20,7 +20,7 @@ if ($editId > 0) {
     $editRow = $eSt->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Rapor untuk diedit tidak ditemukan.');
-        header('Location: /pwa_nailulmuna/akademik/rapor.php');
+        header('Location: /akademik/rapor.php');
         exit;
     }
 }
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_rapor WHERE id = :id')->execute(['id' => $rid]);
             set_flash('success', 'Rapor dihapus.');
         }
-        header('Location: /pwa_nailulmuna/akademik/rapor.php');
+        header('Location: /akademik/rapor.php');
         exit;
     }
     if ($action === 'simpan_rapor') {
@@ -47,21 +47,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $published = isset($_POST['is_published']) ? 1 : 0;
         if ($sid <= 0 || $judul === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
             set_flash('error', 'Santri, judul periode, dan tanggal terbit wajib valid.');
-            header('Location: /pwa_nailulmuna/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
             exit;
         }
         ensure_akademik_libur_table($pdo);
         $liburN = akademik_libur_info($pdo, $tgl, 'penilaian');
         if ($liburN !== null && akademik_blokir_penilaian_libur($pdo)) {
             set_flash('error', 'Tanggal terbit pada hari libur: ' . $liburN['nama'] . ' — tidak disimpan (aktifkan opsional di Kalender akademik atau pilih tanggal lain).');
-            header('Location: /pwa_nailulmuna/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
             exit;
         }
         $chk = $pdo->prepare('SELECT id FROM santri WHERE id = :id LIMIT 1');
         $chk->execute(['id' => $sid]);
         if (!$chk->fetch()) {
             set_flash('error', 'Santri tidak ditemukan.');
-            header('Location: /pwa_nailulmuna/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
             exit;
         }
         $uid = (int) ($_SESSION['user']['id'] ?? 0) ?: null;
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' => $rid,
             ]);
             set_flash('success', 'Rapor diperbarui.');
-            header('Location: /pwa_nailulmuna/akademik/rapor.php?santri_id=' . $sid);
+            header('Location: /akademik/rapor.php?santri_id=' . $sid);
             exit;
         }
         $pdo->prepare('
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'uid' => $uid,
         ]);
         set_flash('success', 'Rapor ditambahkan.');
-        header('Location: /pwa_nailulmuna/akademik/rapor.php?santri_id=' . $sid);
+        header('Location: /akademik/rapor.php?santri_id=' . $sid);
         exit;
     }
 }
@@ -152,7 +152,7 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
     <h1 class="h3 mb-1">Rapor &amp; WA wali</h1>
     <p class="text-muted mb-0">Buat rapor per santri, centang <strong>Terbit</strong> agar tampil di portal wali. Tombol WA membuka chat ke nomor wali (tanpa gateway).</p>
     <p class="small text-muted mb-0 mt-2">
-        <a href="/pwa_nailulmuna/settings/tingkatan.php" class="link-secondary">Pengaturan master tingkatan</a>
+        <a href="/settings/tingkatan.php" class="link-secondary">Pengaturan master tingkatan</a>
         — ubah nama tingkatan; data santri &amp; jadwal yang memakai nama lama ikut diselaraskan.
     </p>
 </div>
@@ -163,7 +163,7 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
             <div class="card-body">
                 <h2 class="h5 mb-3"><?= $editRow ? 'Edit rapor' : 'Tambah rapor' ?></h2>
                 <?php if ($editRow): ?>
-                    <p class="small text-muted"><a href="/pwa_nailulmuna/akademik/rapor.php">Batal edit — form baru</a></p>
+                    <p class="small text-muted"><a href="/akademik/rapor.php">Batal edit — form baru</a></p>
                 <?php endif; ?>
                 <form method="post" class="d-grid gap-2">
                     <input type="hidden" name="action" value="simpan_rapor">
@@ -264,7 +264,7 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
                                     <?php else: ?>
                                         <span class="small text-muted">—</span>
                                     <?php endif; ?>
-                                    <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/akademik/rapor.php?edit=<?= (int) $d['id'] ?>#rapor-form">Edit</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="/akademik/rapor.php?edit=<?= (int) $d['id'] ?>#rapor-form">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus rapor ini?');">
                                         <input type="hidden" name="action" value="hapus_rapor">
                                         <input type="hidden" name="rapor_id" value="<?= (int) $d['id'] ?>">

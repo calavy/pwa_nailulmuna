@@ -110,7 +110,7 @@ function mukimin_page_url(array $extra = [], ?array $filters = null): string
             $q[$key] = $v;
         }
     }
-    $url = '/pwa_nailulmuna/santri/mukimin.php';
+    $url = '/santri/mukimin.php';
 
     return $q ? $url . '?' . http_build_query($q) : $url;
 }
@@ -151,7 +151,7 @@ $thMasukOptions = alumni_distinct_tahun($pdo, 'th_masuk');
 $thKeluarOptions = alumni_distinct_tahun($pdo, 'th_keluar');
 $keteranganOptions = mukimin_distinct_keterangan($pdo);
 $exportQs = http_build_query(array_filter($filters, static fn(string $v): bool => $v !== ''));
-$exportUrl = '/pwa_nailulmuna/santri/mukimin_export.php' . ($exportQs !== '' ? '?' . $exportQs : '');
+$exportUrl = '/santri/mukimin_export.php' . ($exportQs !== '' ? '?' . $exportQs : '');
 $editId = (int) ($_GET['edit'] ?? 0);
 $editRow = null;
 if ($editId > 0) {
@@ -168,14 +168,14 @@ if ($editId > 0) {
 $showFormPanel = $editRow !== null || (($_GET['tambah'] ?? '') === '1');
 
 $pageTitle = 'Data Mukimin';
-$pageStylesheets = ['/pwa_nailulmuna/assets/css/mukimin.css'];
+$pageStylesheets = ['/assets/css/mukimin.css'];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3 mukimin-page-intro">
     <p class="page-intro-kicker mb-1">Manajemen SDM</p>
     <h1 class="h3 mb-1">Data Mukimin</h1>
-    <p class="text-muted mb-0 small">Arsip santri yang sudah non aktif (muqim/keluar). Otomatis masuk saat dinonaktifkan dari daftar santri aktif. Biodata lengkap tetap di <a href="/pwa_nailulmuna/santri/semua_jati.php">Data induk</a>.</p>
+    <p class="text-muted mb-0 small">Arsip santri yang sudah non aktif (muqim/keluar). Otomatis masuk saat dinonaktifkan dari daftar santri aktif. Biodata lengkap tetap di <a href="/santri/semua_jati.php">Data induk</a>.</p>
 </div>
 
 <div class="d-flex flex-wrap gap-2 mb-3 mukimin-toolbar">
@@ -189,8 +189,8 @@ require_once __DIR__ . '/../includes/header.php';
         </button>
     <?php endif; ?>
     <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars($exportUrl) ?>">Unduh Excel</a>
-    <a class="btn btn-outline-success btn-sm" href="/pwa_nailulmuna/santri/mukimin_import.php">Import</a>
-    <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/settings/akses_mukimin.php"><i class="fa-solid fa-user-lock me-1"></i> Akses portal</a>
+    <a class="btn btn-outline-success btn-sm" href="/santri/mukimin_import.php">Import</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/settings/akses_mukimin.php"><i class="fa-solid fa-user-lock me-1"></i> Akses portal</a>
 </div>
 
 <div class="mb-3">
@@ -202,7 +202,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php require __DIR__ . '/partials/mukimin_filter.php'; ?>
 
         <?php if (!$rows): ?>
-            <p class="text-muted text-center py-4 mb-0"><?= $totalAll === 0 ? 'Belum ada data mukimin. Data akan masuk otomatis saat santri dinonaktifkan dari daftar aktif, atau <a href="/pwa_nailulmuna/santri/mukimin_import.php">import Excel</a>.' : 'Tidak ada data mukimin yang cocok dengan filter.' ?></p>
+            <p class="text-muted text-center py-4 mb-0"><?= $totalAll === 0 ? 'Belum ada data mukimin. Data akan masuk otomatis saat santri dinonaktifkan dari daftar aktif, atau <a href="/santri/mukimin_import.php">import Excel</a>.' : 'Tidak ada data mukimin yang cocok dengan filter.' ?></p>
         <?php else: ?>
             <div class="mukimin-mobile-list">
                 <?php foreach ($rows as $r): ?>

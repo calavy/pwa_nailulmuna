@@ -26,7 +26,7 @@ $santri = $st->fetch(PDO::FETCH_ASSOC);
 
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/santri/semua_jati.php');
+    header('Location: /santri/semua_jati.php');
     exit;
 }
 
@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $tab = 'domisili';
     }
-    $redir = '/pwa_nailulmuna/santri/riwayat.php?id=' . $id . '&tab=' . urlencode($tab);
+    $redir = '/santri/riwayat.php?id=' . $id . '&tab=' . urlencode($tab);
     if ($thPel > 0) {
         $redir .= '&th_pel=' . $thPel;
     }
@@ -186,8 +186,8 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="/pwa_nailulmuna/santri/edit.php?id=<?= $id ?>" class="btn btn-outline-warning btn-sm">Edit biodata</a>
-        <a href="/pwa_nailulmuna/santri/semua_jati.php" class="btn btn-outline-secondary btn-sm">Data induk</a>
+        <a href="/santri/edit.php?id=<?= $id ?>" class="btn btn-outline-warning btn-sm">Edit biodata</a>
+        <a href="/santri/semua_jati.php" class="btn btn-outline-secondary btn-sm">Data induk</a>
     </div>
 </div>
 
@@ -205,7 +205,7 @@ require_once __DIR__ . '/../includes/header.php';
     }
     foreach ($tabs as $k => $label):
         $active = $tab === $k ? ' active' : '';
-        $href = '/pwa_nailulmuna/santri/riwayat.php?id=' . $id . '&tab=' . $k;
+        $href = '/santri/riwayat.php?id=' . $id . '&tab=' . $k;
         if ($filterTa > 0 && $k === 'buku') {
             $href .= '&th=' . $filterTa;
         }
@@ -245,7 +245,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <?php
-$filterFormAction = '/pwa_nailulmuna/santri/riwayat.php';
+$filterFormAction = '/santri/riwayat.php';
 $tabHidden = 'buku';
 $readOnly = false;
 $showKeaktifanNilai = user_can_view_keaktifan_nilai();
@@ -378,7 +378,7 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
                                 <td><?= htmlspecialchars((string) $hr['nama_hidmah']) ?></td>
                                 <td class="small"><?= htmlspecialchars($periode) ?></td>
                                 <td class="text-end pe-3 text-nowrap">
-                                    <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=hidmah&edit_hidmah=<?= (int) $hr['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    <a href="/santri/riwayat.php?id=<?= $id ?>&tab=hidmah&edit_hidmah=<?= (int) $hr['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus data hidmah ini?');">
                                         <input type="hidden" name="action" value="delete_hidmah">
                                         <input type="hidden" name="hidmah_id" value="<?= (int) $hr['id'] ?>">
@@ -453,7 +453,7 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
                     <div class="col-12 d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Simpan</button>
                         <?php if ($editHidmah): ?>
-                            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=hidmah" class="btn btn-outline-secondary btn-sm">Batal</a>
+                            <a href="/santri/riwayat.php?id=<?= $id ?>&tab=hidmah" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -509,7 +509,7 @@ krsort($tahunFilterList);
                         </td>
                         <td class="small text-muted"><?= $kaRow ? htmlspecialchars((string) $kaRow['keterangan']) : 'Tidak ada data presensi' ?></td>
                         <td class="text-end pe-3">
-                            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran&th_pel=<?= (int) $thRow ?>"
+                            <a href="/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran&th_pel=<?= (int) $thRow ?>"
                                class="btn btn-outline-primary btn-sm<?= $thPel === (int) $thRow ? ' active' : '' ?>">Detail</a>
                         </td>
                     </tr>
@@ -535,7 +535,7 @@ krsort($tahunFilterList);
 <div class="row g-2 mb-3">
     <?php foreach ($pelanggaranPerTahun as $pt): ?>
     <div class="col-6 col-md-3">
-        <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran&th_pel=<?= (int) $pt['th'] ?>"
+        <a href="/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran&th_pel=<?= (int) $pt['th'] ?>"
            class="card shadow-sm text-decoration-none <?= $thPel === (int) $pt['th'] ? 'border-primary' : '' ?>">
             <div class="card-body py-2 text-center">
                 <div class="h6 mb-0">Pelanggaran <?= (int) $pt['th'] ?></div>
@@ -546,7 +546,7 @@ krsort($tahunFilterList);
     <?php endforeach; ?>
     <?php if ($thPel > 0): ?>
     <div class="col-auto align-self-center">
-        <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran" class="btn btn-outline-secondary btn-sm">Semua tahun</a>
+        <a href="/santri/riwayat.php?id=<?= $id ?>&tab=pelanggaran" class="btn btn-outline-secondary btn-sm">Semua tahun</a>
     </div>
     <?php endif; ?>
 </div>
@@ -555,7 +555,7 @@ krsort($tahunFilterList);
 <div class="card shadow-sm">
     <div class="card-header py-2 d-flex justify-content-between">
         <strong>Riwayat pelanggaran kedisiplinan</strong>
-        <a href="/pwa_nailulmuna/poin/input.php" class="btn btn-outline-primary btn-sm">Input poin</a>
+        <a href="/poin/input.php" class="btn btn-outline-primary btn-sm">Input poin</a>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">

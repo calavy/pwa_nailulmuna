@@ -12,12 +12,12 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-4">
     <p class="page-intro-kicker mb-1">Santri &amp; SDM</p>
     <h1 class="h3 mb-2">Alur data santri</h1>
-    <p class="text-muted mb-0">Jati diri = biodata <strong>seluruh</strong> santri (aktif &amp; sudah muqim/keluar), lewat menu <a href="/pwa_nailulmuna/santri/semua_jati.php">Semua jati diri</a>. Non aktif dari daftar aktif bisa lewat <strong>Non aktifkan</strong> (muqim=tamat vs keluar=belum tamat), lalu <strong>Santri keluar</strong> untuk keuangan &amp; surat (satu formulir untuk keduanya).</p>
+    <p class="text-muted mb-0">Jati diri = biodata <strong>seluruh</strong> santri (aktif &amp; sudah muqim/keluar), lewat menu <a href="/santri/semua_jati.php">Semua jati diri</a>. Non aktif dari daftar aktif bisa lewat <strong>Non aktifkan</strong> (muqim=tamat vs keluar=belum tamat), lalu <strong>Santri keluar</strong> untuk keuangan &amp; surat (satu formulir untuk keduanya).</p>
 </div>
 
 <div class="row g-3">
     <div class="col-md-6 col-lg-4">
-        <a href="/pwa_nailulmuna/santri/semua_jati.php" class="text-decoration-none">
+        <a href="/santri/semua_jati.php" class="text-decoration-none">
             <div class="card shadow-sm h-100 border-primary-subtle">
                 <div class="card-body">
                     <div class="text-primary fw-bold mb-1">1 · Jati diri</div>
@@ -28,7 +28,7 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="col-md-6 col-lg-4">
-        <a href="/pwa_nailulmuna/santri/index.php" class="text-decoration-none">
+        <a href="/santri/index.php" class="text-decoration-none">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="fw-bold text-success mb-1">2 · Santri aktif</div>
@@ -39,7 +39,7 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="col-md-6 col-lg-4">
-        <a href="/pwa_nailulmuna/santri/mukimin.php" class="text-decoration-none">
+        <a href="/santri/mukimin.php" class="text-decoration-none">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="fw-bold text-secondary mb-1">3 · Muqim &amp; keluar</div>
@@ -50,7 +50,7 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="col-md-6 col-lg-4">
-        <a href="/pwa_nailulmuna/santri/keluar.php" class="text-decoration-none">
+        <a href="/santri/keluar.php" class="text-decoration-none">
             <div class="card shadow-sm h-100 border-danger-subtle">
                 <div class="card-body">
                     <div class="fw-bold text-danger mb-1">4 · Santri keluar</div>
@@ -61,7 +61,7 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="col-md-6 col-lg-4">
-        <a href="/pwa_nailulmuna/data/wali.php" class="text-decoration-none">
+        <a href="/data/wali.php" class="text-decoration-none">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="fw-bold text-body mb-1">Profil wali</div>

@@ -24,7 +24,7 @@ if ($print) {
     echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Arus Kas — ' . htmlspecialchars($lak['nama_lembaga']) . '</title>';
     echo keuangan_typography_font_links();
     echo '<style>' . keuangan_typography_print_css() . keuangan_aruskas_css() . '</style></head><body class="' . htmlspecialchars(keuangan_body_class('aruskas-page')) . '">';
-    echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/pwa_nailulmuna/keuangan/arus-kas.php?dari=' . urlencode($lak['date_from']) . '&amp;sampai=' . urlencode($lak['date_to']) . '">Kembali</a></div>';
+    echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/keuangan/arus-kas.php?dari=' . urlencode($lak['date_from']) . '&amp;sampai=' . urlencode($lak['date_to']) . '">Kembali</a></div>';
     keuangan_aruskas_render_html($lak, $fmt);
     echo '</body></html>';
     exit;
@@ -36,7 +36,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> · Laporan</p>
+    <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Laporan Arus Kas</h1>
     <p class="text-muted mb-0">Arus kas operasi, investasi, dan pendanaan <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.</p>
 </div>
@@ -54,9 +54,9 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-6 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
-                <a class="btn btn-outline-secondary" href="/pwa_nailulmuna/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
-                <a class="btn btn-outline-primary" href="/pwa_nailulmuna/keuangan/neraca.php">Neraca</a>
-                <a class="btn btn-outline-primary" href="/pwa_nailulmuna/keuangan/index.php">Dashboard keuangan</a>
+                <a class="btn btn-outline-secondary" href="/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
+                <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
             </div>
         </form>
     </div>

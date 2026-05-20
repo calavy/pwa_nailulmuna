@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -333,7 +333,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                                 <br><span class="text-muted">Maks. per scan: Rp <?= number_format($scanUangMaxNominal, 0, ',', '.') ?>.</span>
                             <?php else: ?>
-                                Belum ada peta QR. Atur di <a href="/pwa_nailulmuna/keuangan/cashless_pin.php">Setting PIN Cashless</a> → Peta QR nominal.
+                                Belum ada peta QR. Atur di <a href="/keuangan/cashless_pin.php">Setting PIN Cashless</a> → Peta QR nominal.
                             <?php endif; ?>
                         </div>
                         <div id="money_reader" style="width:100%; max-width:420px; display:none;" class="mt-2"></div>

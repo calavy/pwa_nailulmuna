@@ -18,7 +18,7 @@ $editId = (int) ($_GET['id'] ?? 0);
 $hariMap = santri_izin_tetap_hari_map();
 
 $redirect = static function (int $id = 0) use ($q): void {
-    $url = '/pwa_nailulmuna/perizinan/izin_tetap.php';
+    $url = '/perizinan/izin_tetap.php';
     if ($id > 0) {
         $url .= '?id=' . $id;
     }
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'hapus') {
         $result = santri_izin_tetap_hapus($pdo, (int) ($_POST['id'] ?? 0));
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /pwa_nailulmuna/perizinan/izin_tetap.php');
+        header('Location: /perizinan/izin_tetap.php');
         exit;
     }
 }
@@ -72,7 +72,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="/pwa_nailulmuna/perizinan/index.php">Perizinan</a> · Santri
+        <a href="/perizinan/index.php">Perizinan</a> · Santri
     </p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-calendar-check text-primary me-1"></i> Izin Tetap (Hidmah)</h1>
     <p class="text-muted mb-0">
@@ -174,7 +174,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-save me-1"></i> Simpan</button>
                         <?php if ($editRow): ?>
-                            <a href="/pwa_nailulmuna/perizinan/izin_tetap.php" class="btn btn-outline-secondary btn-sm">Batal</a>
+                            <a href="/perizinan/izin_tetap.php" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
                 </form>

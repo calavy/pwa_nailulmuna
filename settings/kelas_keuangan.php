@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $used = (int) $c->fetchColumn();
                     if ($used > 0) {
                         set_flash('error', 'Tidak dapat dihapus: masih dipakai oleh ' . $used . ' santri. Nonaktifkan saja.');
-                        header('Location: /pwa_nailulmuna/settings/kelas_keuangan.php');
+                        header('Location: /settings/kelas_keuangan.php');
                         exit;
                     }
                 }
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header('Location: /pwa_nailulmuna/settings/kelas_keuangan.php');
+    header('Location: /settings/kelas_keuangan.php');
     exit;
 }
 
@@ -116,12 +116,12 @@ $total = count($rows);
 
 $pageTitle = 'Kelas Keuangan';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/kelas_keuangan.php';
+$settingsNavActive = '/settings/kelas_keuangan.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
     <h1 class="h4 mb-1">Kelas / kategori keuangan</h1>
     <p class="text-muted mb-0">Atur kode (disimpan di data santri), nama tampilan, tarif Muadalah/Wustho/Ulya, dan urutan. Mengubah <strong>kode</strong> menyamakan nilai <code>kategori_kelas</code> santri yang memakai kode lama. Input santri/import bisa memakai <strong>nama tampilan persis</strong> atau kode — sistem menormalisasi ke kode master.</p>
 </div>

@@ -28,7 +28,7 @@ $todayMasehi = date('Y-m-d');
 /** @param array<string, scalar|null> $q */
 function akad_cal_url(array $q = []): string
 {
-    $base = '/pwa_nailulmuna/akademik/kalender.php';
+    $base = '/akademik/kalender.php';
     if ($q === []) {
         return $base;
     }
@@ -396,7 +396,7 @@ $pageTitle = 'Kalender akademik';
 $bodyClass = 'akademik-kalender-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<link href="/pwa_nailulmuna/assets/css/kalender-akademik.css" rel="stylesheet">
+<link href="/assets/css/kalender-akademik.css" rel="stylesheet">
 
 <div class="akad-cal-hero mb-4">
     <p class="akad-cal-hero-kicker small text-uppercase fw-bold mb-1">Akademik</p>
@@ -424,7 +424,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a href="<?= htmlspecialchars(akad_cal_url(['view' => 'atur', 'hy' => $hijriYear])) ?>"
                    class="btn btn-outline-secondary<?= $view === 'atur' ? ' active' : '' ?>"><i class="fa-solid fa-sliders me-1"></i> Atur tahun H.</a>
             </div>
-            <a class="btn btn-outline-secondary btn-sm ms-auto" href="/pwa_nailulmuna/settings/kalender.php"><i class="fa-solid fa-gear me-1"></i> Pengaturan</a>
+            <a class="btn btn-outline-secondary btn-sm ms-auto" href="/settings/kalender.php"><i class="fa-solid fa-gear me-1"></i> Pengaturan</a>
         </div>
 
         <div class="akad-cal-legend">
@@ -653,7 +653,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </table>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Simpan tahun <?= (int) $hijriYear ?> H.</button>
-                <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/settings/hijri_mappings.php">Pemetaan lengkap</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/settings/hijri_mappings.php">Pemetaan lengkap</a>
             </form>
         </div>
     </div>

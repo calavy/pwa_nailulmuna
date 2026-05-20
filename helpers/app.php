@@ -2188,7 +2188,7 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
 
 function settings_pengaturan_hub_url(): string
 {
-    return '/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan';
+    return '/menu/menu_hub.php?id=menu-grp-pengaturan';
 }
 
 /**
@@ -2225,17 +2225,17 @@ function settings_pengaturan_nav_items(?PDO $pdo = null): array
 function menu_tile_icon_for_path(string $path): string
 {
     $exactIcons = [
-        '/pwa_nailulmuna/settings/pesantren.php' => 'fa-solid fa-mosque',
-        '/pwa_nailulmuna/settings/peraturan.php' => 'fa-solid fa-scale-balanced',
-        '/pwa_nailulmuna/settings/kalender.php' => 'fa-solid fa-calendar-days',
-        '/pwa_nailulmuna/settings/tingkatan.php' => 'fa-solid fa-layer-group',
-        '/pwa_nailulmuna/settings/kamar_ranjang.php' => 'fa-solid fa-bed',
-        '/pwa_nailulmuna/settings/kelas_ruangan.php' => 'fa-solid fa-door-open',
-        '/pwa_nailulmuna/settings/kelas_keuangan.php' => 'fa-solid fa-coins',
-        '/pwa_nailulmuna/settings/admin.php' => 'fa-solid fa-user-shield',
-        '/pwa_nailulmuna/settings/push.php' => 'fa-solid fa-bell',
-        '/pwa_nailulmuna/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',
-        '/pwa_nailulmuna/settings/hijri_mappings.php' => 'fa-solid fa-moon',
+        '/settings/pesantren.php' => 'fa-solid fa-mosque',
+        '/settings/peraturan.php' => 'fa-solid fa-scale-balanced',
+        '/settings/kalender.php' => 'fa-solid fa-calendar-days',
+        '/settings/tingkatan.php' => 'fa-solid fa-layer-group',
+        '/settings/kamar_ranjang.php' => 'fa-solid fa-bed',
+        '/settings/kelas_ruangan.php' => 'fa-solid fa-door-open',
+        '/settings/kelas_keuangan.php' => 'fa-solid fa-coins',
+        '/settings/admin.php' => 'fa-solid fa-user-shield',
+        '/settings/push.php' => 'fa-solid fa-bell',
+        '/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',
+        '/settings/hijri_mappings.php' => 'fa-solid fa-moon',
     ];
     if (isset($exactIcons[$path])) {
         return $exactIcons[$path];
@@ -2325,7 +2325,7 @@ function menu_group_visible_paths(array $node, array $menuItems): array
 function menu_sidebar_group_is_active(array $node, string $requestPath, array $menuItems): bool
 {
     $hubId = (string) ($node['id'] ?? '');
-    if ($hubId !== '' && str_contains($requestPath, '/pwa_nailulmuna/menu/menu_hub.php')) {
+    if ($hubId !== '' && str_contains($requestPath, '/menu/menu_hub.php')) {
         $qid = isset($_GET['id']) ? (string) $_GET['id'] : '';
         if ($qid === $hubId) {
             return true;

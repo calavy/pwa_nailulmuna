@@ -8,5 +8,5 @@ session_destroy();
 session_start();
 $_SESSION['flash']['success'] = 'Anda telah logout.';
 
-header('Location: /pwa_nailulmuna/login.php');
+header('Location: /login.php');
 exit;

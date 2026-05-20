@@ -26,7 +26,7 @@ foreach ($pelanggaranShow as $pl) {
 }
 $taOptions = santri_riwayat_tahun_filter_options($pdo, $santriId);
 ?>
-<link href="/pwa_nailulmuna/assets/css/santri-timeline.css" rel="stylesheet">
+<link href="/assets/css/santri-timeline.css" rel="stylesheet">
 
 <div class="santri-buku-induk">
     <form method="get" action="<?= htmlspecialchars($filterFormAction) ?>" class="buku-filter card shadow-sm mb-3">

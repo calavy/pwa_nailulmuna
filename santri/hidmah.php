@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('error', 'Pilih santri terlebih dahulu.');
     } elseif (santri_riwayat_hidmah_save($pdo, $_POST, $santriId)) {
         set_flash('success', 'Data hidmah berhasil disimpan.');
-        header('Location: /pwa_nailulmuna/santri/riwayat.php?id=' . $santriId . '&tab=hidmah');
+        header('Location: /santri/riwayat.php?id=' . $santriId . '&tab=hidmah');
         exit;
     } else {
         set_flash('error', 'Nama hidmah wajib diisi.');
@@ -64,7 +64,7 @@ require_once __DIR__ . '/../includes/header.php';
         <h1 class="h3 mb-1">Input hidmah santri</h1>
         <p class="text-muted small mb-0">Catat peran hidmah, pengurus santri, atau pembantu usaha pondok per tahun ajaran.</p>
     </div>
-    <a href="/pwa_nailulmuna/santri/semua_jati.php" class="btn btn-outline-secondary btn-sm">Data induk</a>
+    <a href="/santri/semua_jati.php" class="btn btn-outline-secondary btn-sm">Data induk</a>
 </div>
 
 <div class="row g-3">
@@ -83,7 +83,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($santriList !== []): ?>
                 <div class="list-group list-group-flush border rounded mb-0" style="max-height:220px;overflow:auto">
                     <?php foreach ($santriList as $s): ?>
-                    <a href="/pwa_nailulmuna/santri/hidmah.php?santri_id=<?= (int) $s['id'] ?>&q=<?= urlencode($q) ?>"
+                    <a href="/santri/hidmah.php?santri_id=<?= (int) $s['id'] ?>&q=<?= urlencode($q) ?>"
                        class="list-group-item list-group-item-action py-2<?= $santriId === (int) $s['id'] ? ' active' : '' ?>">
                         <span class="fw-semibold"><?= htmlspecialchars((string) $s['nama_santri']) ?></span>
                         <span class="text-muted small"> · <?= htmlspecialchars((string) $s['nis']) ?></span>
@@ -98,7 +98,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="alert alert-success py-2 mt-3 mb-0 small">
                     Terpilih: <strong><?= htmlspecialchars((string) $selected['nama_santri']) ?></strong>
                     (<?= htmlspecialchars((string) $selected['nis']) ?>)
-                    · <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= (int) $selected['id'] ?>">Lihat riwayat lengkap</a>
+                    · <a href="/santri/riwayat.php?id=<?= (int) $selected['id'] ?>">Lihat riwayat lengkap</a>
                 </div>
                 <?php endif; ?>
             </div>
@@ -169,7 +169,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td><?= htmlspecialchars((string) $rh['nama_hidmah']) ?></td>
                                 <td class="small"><?= (int) $rh['tahun_ajaran_mulai'] ?>/<?= !empty($rh['tahun_ajaran_selesai']) ? (int) $rh['tahun_ajaran_selesai'] : ((int) $rh['tahun_ajaran_mulai'] + 1) ?></td>
                                 <td class="text-end pe-3">
-                                    <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= (int) $rh['santri_id'] ?>&tab=hidmah" class="btn btn-outline-primary btn-sm">Riwayat</a>
+                                    <a href="/santri/riwayat.php?id=<?= (int) $rh['santri_id'] ?>&tab=hidmah" class="btn btn-outline-primary btn-sm">Riwayat</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

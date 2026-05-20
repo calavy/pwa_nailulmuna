@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'akademik_blokir_setoran_libur', isset($_POST['blok_setoran']) ? '1' : '0');
         save_setting($pdo, 'akademik_blokir_penilaian_libur', isset($_POST['blok_penilaian']) ? '1' : '0');
         set_flash('success', 'Pengaturan blokir hari libur disimpan.');
-        header('Location: /pwa_nailulmuna/settings/kalender.php');
+        header('Location: /settings/kalender.php');
         exit;
     }
     if ($action === 'simpan_default_view_kalender') {
@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         save_setting($pdo, 'akademik_kalender_default_view', $dv);
         set_flash('success', 'Tampilan awal halaman kalender akademik disimpan.');
-        header('Location: /pwa_nailulmuna/settings/kalender.php');
+        header('Location: /settings/kalender.php');
         exit;
     }
 }
@@ -69,9 +69,9 @@ $hijriTahunRangeTeks = $hijriTahunMinMasehi > 0 && $hijriTahunMaxMasehi > 0
         : sprintf('melintasi tahun Hijriyah %d H. dan %d H.', $hijriTahunMinMasehi, $hijriTahunMaxMasehi))
     : '';
 
-$uPusat = '/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan';
-$uPondokMasehi = '/pwa_nailulmuna/settings/pesantren.php#tahun-masehi-acuan';
-$uAkademik = '/pwa_nailulmuna/akademik/kalender.php';
+$uPusat = '/menu/menu_hub.php?id=menu-grp-pengaturan';
+$uPondokMasehi = '/settings/pesantren.php#tahun-masehi-acuan';
+$uAkademik = '/akademik/kalender.php';
 $uAwalBulan = $uAkademik . '?view=atur&hy=' . $hyToday;
 $urlBulanIni = $uAkademik . '?view=bulan&hy=' . $hyToday . '&hm=' . $hmToday;
 
@@ -83,14 +83,14 @@ $defViewCur = in_array($defViewCur, ['bulan', 'tahun'], true) ? $defViewCur : 'b
 
 $pageTitle = 'Kalender';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/kalender.php';
+$settingsNavActive = '/settings/kalender.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-4">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars($uPusat) ?>">Pengaturan</a> · <a href="<?= htmlspecialchars($uAkademik) ?>">Kalender akademik</a></p>
     <h1 class="h4 mb-2">Kalender</h1>
-    <p class="text-muted mb-2">Tanggal Masehi mengikuti jam sistem; tanggal Hijriyah memakai <strong>kalender kustom berbasis database</strong> (<a href="/pwa_nailulmuna/settings/hijri_mappings.php">pemetaan Hijriyah</a>) dengan fallback hisab Intl bila belum diisi.</p>
+    <p class="text-muted mb-2">Tanggal Masehi mengikuti jam sistem; tanggal Hijriyah memakai <strong>kalender kustom berbasis database</strong> (<a href="/settings/hijri_mappings.php">pemetaan Hijriyah</a>) dengan fallback hisab Intl bila belum diisi.</p>
     <p class="small text-muted mb-0"><span class="badge text-bg-light border me-1">Halaman ini</span> ringkasan, pintasan, dan pengaturan lanjutan (blokir aktivitas saat libur, tampilan awal). <span class="badge text-bg-primary me-1">Kalender akademik</span> untuk mengatur tahun H., tanggal Masehi hari ke-1 tiap bulan H., dan libur rentang.</p>
     <?php if (!class_exists('IntlDateFormatter')) { ?>
         <p class="alert alert-warning small py-2 px-3 mb-0 mt-3"><strong>PHP intl</strong> tidak aktif: hisab Hijriyah otomatis (Um al-Qura) tidak berjalan. Tahun H. di kalender memakai fallback aman (1447 H.) sampai Anda mengaktifkan <code class="user-select-all">extension=intl</code> di php.ini dan merestart Apache.</p>
@@ -175,7 +175,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td class="small">Atur <strong>tahun H.</strong>, <strong>tanggal Masehi hari ke-1</strong>, dan <strong>29/30 hari</strong> per bulan (sidang isbat)</td>
                         <td class="small">
                             <a class="btn btn-sm btn-primary mb-1" href="<?= htmlspecialchars($uAwalBulan) ?>">Kalender — pengaturan tahun <?= (int) $hyToday ?> H.</a>
-                            <a class="btn btn-sm btn-outline-primary mb-1" href="/pwa_nailulmuna/settings/hijri_mappings.php">Pemetaan Hijriyah (DB)</a>
+                            <a class="btn btn-sm btn-outline-primary mb-1" href="/settings/hijri_mappings.php">Pemetaan Hijriyah (DB)</a>
                             <a class="btn btn-sm btn-outline-secondary mb-1" href="<?= htmlspecialchars($urlBulanIni) ?>">Grid bulan ini</a>
                         </td>
                     </tr>

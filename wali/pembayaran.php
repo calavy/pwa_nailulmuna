@@ -24,7 +24,7 @@ require __DIR__ . '/partials/greeting.php';
                 <h1 class="h5 mb-0 wali-brand fw-bold">Riwayat pembayaran</h1>
                 <p class="small text-muted mb-0">Tagihan wajib: syahriyah &amp; makan. Saku opsional (masuk cashless).</p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>
 
         <div class="alert alert-light border small mb-3 py-2">
@@ -38,8 +38,8 @@ require __DIR__ . '/partials/greeting.php';
         </div>
 
         <div class="d-flex flex-wrap gap-2 mb-3">
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/tagihan.php"><i class="fa-solid fa-receipt me-1"></i> Tagihan bulanan</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/keuangan.php"><i class="fa-solid fa-wallet me-1"></i> Ringkasan keuangan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/tagihan.php"><i class="fa-solid fa-receipt me-1"></i> Tagihan bulanan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/keuangan.php"><i class="fa-solid fa-wallet me-1"></i> Ringkasan keuangan</a>
         </div>
 
         <?php if (!$tablesOk): ?>
@@ -102,7 +102,7 @@ require __DIR__ . '/partials/greeting.php';
                     <?php if (trim((string) ($trx['keterangan'] ?? '')) !== ''): ?>
                         <p class="small text-muted mb-2"><strong>Catatan:</strong> <?= htmlspecialchars((string) $trx['keterangan']) ?></p>
                     <?php endif; ?>
-                    <a class="btn btn-sm btn-teal w-100" href="/pwa_nailulmuna/wali/kuitansi.php?id=<?= $pid ?>">
+                    <a class="btn btn-sm btn-teal w-100" href="/wali/kuitansi.php?id=<?= $pid ?>">
                         <i class="fa-solid fa-receipt me-1"></i> Lihat bukti / kuitansi
                     </a>
                 </div>

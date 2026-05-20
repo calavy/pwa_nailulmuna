@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limit = max(0, (int) $limitRaw);
         save_setting($pdo, 'cashless_daily_limit', (string) $limit);
         set_flash('success', 'Batas harian cashless berhasil disimpan.');
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php');
+        header('Location: /keuangan/cashless_pin.php');
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_scan_uang_setting') {
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'cashless_scan_uang_voice', $isVoice);
         save_setting($pdo, 'cashless_scan_uang_max_nominal', (string) $maxNominal);
         set_flash('success', 'Pengaturan scan uang cashless berhasil disimpan.');
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php');
+        header('Location: /keuangan/cashless_pin.php');
         exit;
     }
     if (($_POST['action'] ?? '') === 'create_qr_nominal_map') {
@@ -54,12 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ket = trim((string) ($_POST['map_keterangan'] ?? ''));
         if ($kode === '' || strlen($kode) > 120) {
             set_flash('error', 'Kode QR wajib diisi (alfanumerik, maks. 120 karakter setelah normalisasi).');
-            header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#peta-qr-nominal');
+            header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
             exit;
         }
         if ($nominal <= 0) {
             set_flash('error', 'Nominal harus lebih dari 0.');
-            header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#peta-qr-nominal');
+            header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
             exit;
         }
         try {
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             set_flash('error', 'Gagal menyimpan: kode mungkin sudah dipakai.');
         }
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
         exit;
     }
     if (($_POST['action'] ?? '') === 'update_qr_nominal_map') {
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Peta QR nominal diperbarui.');
         }
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
         exit;
     }
     if (($_POST['action'] ?? '') === 'delete_qr_nominal_map') {
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM cashless_nominal_qr_map WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Peta QR nominal dihapus.');
         }
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_cashless_pin') {
@@ -113,17 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pinKonf = trim((string) ($_POST['pin_konfirmasi'] ?? ''));
         if ($santriId <= 0) {
             set_flash('error', 'Pilih santri.');
-            header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#form-pin-cashless');
+            header('Location: /keuangan/cashless_pin.php#form-pin-cashless');
             exit;
         }
         if (strlen($pinBaru) < 4) {
             set_flash('error', 'PIN minimal 4 digit.');
-            header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
+            header('Location: /keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
             exit;
         }
         if ($pinBaru !== $pinKonf) {
             set_flash('error', 'PIN dan konfirmasi PIN tidak sama.');
-            header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
+            header('Location: /keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
             exit;
         }
         $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'santri_id' => $santriId,
         ]);
         set_flash('success', 'PIN cashless berhasil disimpan.');
-        header('Location: /pwa_nailulmuna/keuangan/cashless_pin.php#form-pin-cashless');
+        header('Location: /keuangan/cashless_pin.php#form-pin-cashless');
         exit;
     }
 }
@@ -188,11 +188,11 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <p class="page-intro-kicker mb-1 small"><a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
+        <p class="page-intro-kicker mb-1 small"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
         <h1 class="h4 mb-0">Pengaturan Cashless &amp; Uang Saku</h1>
         <p class="small text-muted mb-0">PIN santri, batas belanja harian, scan uang, dan alur top-up dari pembayaran Saku.</p>
     </div>
-    <a href="/pwa_nailulmuna/keuangan/cashless_scan.php" class="btn btn-outline-danger btn-sm">Ke Scan Cashless</a>
+    <a href="/keuangan/cashless_scan.php" class="btn btn-outline-danger btn-sm">Ke Scan Cashless</a>
 </div>
 <div class="alert alert-info small mb-3">
     <strong>Uang saku (opsional):</strong> jika wali membayar pos <em>Saku</em> (mis. Rp 100.000), nominal itu masuk saldo <strong>cashless</strong> santri.
@@ -364,7 +364,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="text-end"><?= $sr['balance'] !== null ? 'Rp ' . number_format((int) ((float) $sr['balance']), 0, ',', '.') : '—' ?></td>
                                 <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/keuangan/cashless_pin.php?ubah_pin=<?= (int) $sr['id'] ?>#form-pin-cashless">Ubah PIN</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="/keuangan/cashless_pin.php?ubah_pin=<?= (int) $sr['id'] ?>#form-pin-cashless">Ubah PIN</a>
                                 </td>
                             </tr>
                         <?php endforeach; else: ?>

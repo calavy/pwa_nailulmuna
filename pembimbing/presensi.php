@@ -5,5 +5,5 @@ require_once __DIR__ . '/../includes/auth.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
-header('Location: /pwa_nailulmuna/presensi/scan.php');
+header('Location: /presensi/scan.php');
 exit;

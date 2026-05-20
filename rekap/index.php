@@ -10,7 +10,7 @@ require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 
@@ -76,7 +76,7 @@ $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $masehiMonths = [
@@ -398,12 +398,12 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <?php if (($_SESSION['user']['role'] ?? '') === 'admin'): ?>
             <div class="d-flex justify-content-end mb-2">
-                <a href="/pwa_nailulmuna/rekap/perizinan.php" class="btn btn-outline-primary btn-sm me-2">Rekap Perizinan</a>
-                <a href="/pwa_nailulmuna/rekap/pembimbing.php" class="btn btn-outline-secondary btn-sm">Rekap Pembimbing</a>
+                <a href="/rekap/perizinan.php" class="btn btn-outline-primary btn-sm me-2">Rekap Perizinan</a>
+                <a href="/rekap/pembimbing.php" class="btn btn-outline-secondary btn-sm">Rekap Pembimbing</a>
             </div>
         <?php else: ?>
             <div class="d-flex justify-content-end mb-2">
-                <a href="/pwa_nailulmuna/rekap/perizinan.php" class="btn btn-outline-primary btn-sm">Rekap Perizinan</a>
+                <a href="/rekap/perizinan.php" class="btn btn-outline-primary btn-sm">Rekap Perizinan</a>
             </div>
         <?php endif; ?>
         <form method="get" class="row g-2" id="rekap-filter-form">

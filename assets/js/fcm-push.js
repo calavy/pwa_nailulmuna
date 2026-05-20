@@ -4,6 +4,18 @@
 (function (global) {
     'use strict';
 
+    function appBase() {
+        var b = (typeof window !== 'undefined' && window.PONDOK_APP_BASE != null) ? String(window.PONDOK_APP_BASE) : '';
+        b = b.replace(/\/$/, '');
+        return b;
+    }
+
+    function appPath(relative) {
+        relative = String(relative || '').replace(/^\//, '');
+        var base = appBase();
+        return (base === '' ? '' : base) + '/' + relative;
+    }
+
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
             var s = document.createElement('script');
@@ -37,8 +49,9 @@
             });
         }
 
-        var reg = await navigator.serviceWorker.register('/pwa_nailulmuna/api/push/messaging-sw.php', {
-            scope: '/pwa_nailulmuna/',
+        var swScope = (appBase() === '' ? '/' : appBase() + '/');
+        var reg = await navigator.serviceWorker.register(appPath('api/push/messaging-sw.php'), {
+            scope: swScope,
         });
         var messaging = firebase.messaging();
         messaging.useServiceWorker(reg);
@@ -56,7 +69,7 @@
             return { ok: false, reason: 'no_token' };
         }
 
-        var res = await fetch('/pwa_nailulmuna/api/push/register.php', {
+        var res = await fetch(appPath('api/push/register.php'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',

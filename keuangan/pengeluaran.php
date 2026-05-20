@@ -19,7 +19,7 @@ $userNama = trim((string) ($_SESSION['user']['nama'] ?? 'Petugas'));
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pengeluaran') {
     $result = keuangan_save_pengeluaran($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-    header('Location: /pwa_nailulmuna/keuangan/pengeluaran.php');
+    header('Location: /keuangan/pengeluaran.php');
     exit;
 }
 
@@ -48,8 +48,8 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Formulir Pengeluaran Operasional</h1>
     <p class="text-muted mb-0">
         Catat beban keluar dari kas/bank. Untuk gaji pembimbing gunakan modul terpisah.
-        <a href="/pwa_nailulmuna/rekap/pembimbing.php">Gaji pembimbing</a>
-        · <a href="/pwa_nailulmuna/keuangan/index.php">Dashboard keuangan</a>
+        <a href="/rekap/pembimbing.php">Gaji pembimbing</a>
+        · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>
 

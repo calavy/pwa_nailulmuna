@@ -25,8 +25,8 @@
 </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <?php if (isset($_SESSION['user'])): ?>
-    <script src="/pwa_nailulmuna/assets/js/sdm-modals.js"></script>
-    <script src="/pwa_nailulmuna/assets/js/santri-select.js"></script>
+    <script src="/assets/js/sdm-modals.js"></script>
+    <script src="/assets/js/santri-select.js"></script>
     <?php require_once __DIR__ . '/partials/push_fcm_bootstrap.php'; ?>
     <?php endif; ?>
 </body>

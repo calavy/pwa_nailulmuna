@@ -61,7 +61,7 @@ $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . ltrim($logoPath, '/') : $logoUrl;
+$logo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
 
 $bulanNama = [
     1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',

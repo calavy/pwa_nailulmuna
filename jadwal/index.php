@@ -7,7 +7,7 @@ require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
     set_flash('error', 'Tabel jadwal belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
-    header('Location: /pwa_nailulmuna/dashboard.php');
+    header('Location: /dashboard.php');
     exit;
 }
 $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS pembimbing_id INT NULL');
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$tingkatanDipilih || !$hariDipilih) {
             set_flash('error', 'Pilih minimal 1 tingkatan dan 1 hari.');
-            header('Location: /pwa_nailulmuna/jadwal/index.php');
+            header('Location: /jadwal/index.php');
             exit;
         }
 
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: /pwa_nailulmuna/jadwal/index.php');
+    header('Location: /jadwal/index.php');
     exit;
 }
 
@@ -268,7 +268,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                         <td><?= htmlspecialchars(trim((string) ($item['tempat'] ?? '')) !== '' ? (string) $item['tempat'] : '—') ?></td>
                                                         <td><?= htmlspecialchars($item['nama_pembimbing']) ?></td>
                                                         <td class="text-end text-nowrap">
-                                                            <a href="/pwa_nailulmuna/jadwal/edit.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
+                                                            <a href="/jadwal/edit.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
                                                             <form method="post" class="d-inline" onsubmit="return confirm('Hapus jadwal ini?')">
                                                                 <input type="hidden" name="action" value="hapus_jadwal">
                                                                 <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">

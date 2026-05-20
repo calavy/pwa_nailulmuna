@@ -37,7 +37,7 @@ $santri = $statement->fetch();
 
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/santri/index.php');
+    header('Location: /santri/index.php');
     exit;
 }
 
@@ -48,12 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pinSantriKonf = trim((string) ($_POST['santri_pin_konfirmasi'] ?? ''));
     if (($pinWaliBaru !== '') !== ($pinWaliKonf !== '')) {
         set_flash('error', 'Isi PIN portal wali dan konfirmasi lengkap, atau kosongkan keduanya.');
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
         exit;
     }
     if (($pinSantriBaru !== '') !== ($pinSantriKonf !== '')) {
         set_flash('error', 'Isi PIN portal santri dan konfirmasi lengkap, atau kosongkan keduanya.');
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
         exit;
     }
 
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
         exit;
     }
     $statusSantri = $statusValid['status'];
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkR->execute(['id' => $kelasRuanganId]);
         if (!$chkR->fetchColumn()) {
             set_flash('error', 'Ruangan kelas yang dipilih tidak valid.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
             exit;
         }
         $kelasRuanganDb = $kelasRuanganId;
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bedErr = santri_validate_asrama_bed_unik($pdo, $id, $statusSantri, (int) ($asramaRanjangDb ?: 0), $namaKamar, $noRanjang);
     if ($bedErr !== null) {
         set_flash('error', $bedErr);
-        header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
         exit;
     }
     $data = [
@@ -168,12 +168,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pinWaliBaru !== '') {
         if (strlen($pinWaliBaru) < 6) {
             set_flash('error', 'PIN portal wali minimal 6 karakter.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
             exit;
         }
         if ($pinWaliBaru !== $pinWaliKonf) {
             set_flash('error', 'Konfirmasi PIN portal wali tidak sama.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
             exit;
         }
     }
@@ -204,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash('success', 'Data santri disimpan dan diperbarui di Data Mukimin.');
         }
-        $dest = '/pwa_nailulmuna/santri/mukimin.php';
+        $dest = '/santri/mukimin.php';
         if ($mukiminId > 0) {
             $dest .= '?edit=' . $mukiminId;
         }
@@ -215,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pinWaliBaru !== '') {
         if ($pinWaliBaru !== $pinWaliKonf) {
             set_flash('error', 'Konfirmasi PIN portal wali tidak cocok.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
             exit;
         }
         $pdo->prepare('UPDATE santri SET wali_portal_pin_hash = :h WHERE id = :id')->execute([
@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pinSantriBaru !== '') {
         if ($pinSantriBaru !== $pinSantriKonf) {
             set_flash('error', 'Konfirmasi PIN portal santri tidak cocok.');
-            header('Location: ' . sdm_embed_url('/pwa_nailulmuna/santri/edit.php?id=' . $id));
+            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
             exit;
         }
         ensure_santri_portal_pin_column($pdo);
@@ -238,7 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     set_flash('success', 'Data santri berhasil diperbarui.');
     $aktifAfter = santri_status_is_aktif_list($statusSantri);
-    sdm_embed_done_redirect($aktifAfter ? '/pwa_nailulmuna/santri/index.php' : '/pwa_nailulmuna/santri/semua_jati.php');
+    sdm_embed_done_redirect($aktifAfter ? '/santri/index.php' : '/santri/semua_jati.php');
 }
 
 $atasKeinginanSelected = strtoupper(trim((string) ($santri['atas_keinginan'] ?? '')));
@@ -289,15 +289,15 @@ if ($embed) {
 <?php
 $statusEdit = santri_status_from_row($santri);
 $aktifEdit = santri_status_is_aktif_list($statusEdit);
-$kembaliHref = $aktifEdit ? '/pwa_nailulmuna/santri/index.php' : '/pwa_nailulmuna/santri/semua_jati.php';
+$kembaliHref = $aktifEdit ? '/santri/index.php' : '/santri/semua_jati.php';
 $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h3 mb-0">Edit santri</h1>
     <?php if (!$embed): ?>
     <div class="d-flex gap-2">
-        <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>" class="btn btn-outline-info btn-sm">Riwayat</a>
-        <a href="/pwa_nailulmuna/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
+        <a href="/santri/riwayat.php?id=<?= $id ?>" class="btn btn-outline-info btn-sm">Riwayat</a>
+        <a href="/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
         <a href="<?= htmlspecialchars($kembaliHref) ?>" class="btn btn-outline-secondary"><?= htmlspecialchars($kembaliLabel) ?></a>
     </div>
     <?php endif; ?>
@@ -375,7 +375,7 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
                 <?php if ($kelasKeu !== '' && !in_array($kelasKeu, array_map(static fn ($r) => strtoupper(trim((string) ($r['kode'] ?? ''))), $kelasKeuanganList), true)): ?>
                     <div class="form-text text-warning">Nilai tersimpan &quot;<?= htmlspecialchars($kelasKeu) ?>&quot; tidak ada di daftar aktif. Pilih ulang atau aktifkan kembali di master.</div>
                 <?php endif; ?>
-                <div class="form-text">Nilai disimpan sebagai <strong>kode</strong> master. Bisa pilih dari daftar atau tempel <strong>nama tampilan persis</strong> saat impor — sistem menyesuaikan ke kode. Kelola di <a href="/pwa_nailulmuna/settings/kelas_keuangan.php">Kelas keuangan</a> (<a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>).</div>
+                <div class="form-text">Nilai disimpan sebagai <strong>kode</strong> master. Bisa pilih dari daftar atau tempel <strong>nama tampilan persis</strong> saat impor — sistem menyesuaikan ke kode. Kelola di <a href="/settings/kelas_keuangan.php">Kelas keuangan</a> (<a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>).</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Ruangan kelas</label>
@@ -386,7 +386,7 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
                         <option value="<?= (int) $kr['id'] ?>" <?= $selKr === (int) $kr['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $kr['nama_ruangan']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <div class="form-text">Master di <a href="/pwa_nailulmuna/settings/kelas_ruangan.php">Ruangan kelas</a>.</div>
+                <div class="form-text">Master di <a href="/settings/kelas_ruangan.php">Ruangan kelas</a>.</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Status Santri</label>
@@ -415,11 +415,11 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
                             </select>
                         </div>
                     </div>
-                    <div class="form-text mb-2">Master di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">Pengaturan kamar &amp; ranjang</a> (<a href="/pwa_nailulmuna/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Satu ranjang hanya untuk satu santri <strong>aktif</strong>. Non aktif melepas slot master.</div>
+                    <div class="form-text mb-2">Master di <a href="/settings/kamar_ranjang.php">Pengaturan kamar &amp; ranjang</a> (<a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a>). Satu ranjang hanya untuk satu santri <strong>aktif</strong>. Non aktif melepas slot master.</div>
                 <?php elseif ($asramaKamarRows !== []): ?>
-                    <p class="small text-muted mb-2">Belum ada ranjang di master. Tambah di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a> atau isi manual.</p>
+                    <p class="small text-muted mb-2">Belum ada ranjang di master. Tambah di <a href="/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a> atau isi manual.</p>
                 <?php else: ?>
-                    <p class="small text-muted mb-2">Belum ada master kamar. Isi manual atau buat di <a href="/pwa_nailulmuna/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a>.</p>
+                    <p class="small text-muted mb-2">Belum ada master kamar. Isi manual atau buat di <a href="/settings/kamar_ranjang.php">pengaturan kamar &amp; ranjang</a>.</p>
                 <?php endif; ?>
                 <div class="row g-2">
                     <div class="col-md-6">
@@ -454,7 +454,7 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-12">
                 <div class="alert alert-info py-3 mb-0">
                     <h2 class="h6 mb-2">Portal wali santri</h2>
-                    <p class="small mb-2">Wali login di <a href="/pwa_nailulmuna/wali/login.php" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS</strong> santri dan <strong>PIN</strong> yang Anda atur di sini.</p>
+                    <p class="small mb-2">Wali login di <a href="/wali/login.php" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS</strong> santri dan <strong>PIN</strong> yang Anda atur di sini.</p>
                     <p class="small mb-3 <?= !empty($santri['wali_portal_pin_hash']) ? 'text-success' : 'text-warning' ?>">
                         <?= !empty($santri['wali_portal_pin_hash']) ? 'PIN portal sudah diatur.' : 'PIN portal belum diatur — wali belum bisa masuk.' ?>
                     </p>
@@ -474,7 +474,7 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-12">
                 <div class="alert alert-info py-3 mb-0">
                     <h2 class="h6 mb-2">Portal santri (login mandiri)</h2>
-                    <p class="small mb-2">Santri login di <a href="/pwa_nailulmuna/santri_portal/login.php" target="_blank" rel="noopener">/santri_portal/login.php</a> untuk melihat riwayat domisili dan pelanggaran sendiri.</p>
+                    <p class="small mb-2">Santri login di <a href="/santri_portal/login.php" target="_blank" rel="noopener">/santri_portal/login.php</a> untuk melihat riwayat domisili dan pelanggaran sendiri.</p>
                     <p class="small mb-3 <?= !empty($santri['santri_portal_pin_hash']) ? 'text-success' : 'text-warning' ?>">
                         <?= !empty($santri['santri_portal_pin_hash']) ? 'PIN portal santri sudah diatur.' : 'PIN portal santri belum diatur.' ?>
                     </p>

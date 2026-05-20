@@ -15,7 +15,7 @@ if (($_GET['template'] ?? '') === 'xlsx') {
     exit;
 }
 
-$redirectTarget = '/pwa_nailulmuna/santri/mukimin_import.php';
+$redirectTarget = '/santri/mukimin_import.php';
 $templateLabels = alumni_xlsx_header_labels();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Import data mukimin selesai. Total baris diproses: ' . $total . '. Urutan tampilan mengikuti baris di file Excel (import ulang file lengkap untuk menyelaraskan urutan).');
-        header('Location: /pwa_nailulmuna/santri/mukimin.php');
+        header('Location: /santri/mukimin.php');
         exit;
     } catch (Throwable $e) {
         set_flash('error', 'Import gagal: ' . $e->getMessage());
@@ -113,8 +113,8 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="small text-muted mb-2"><?= htmlspecialchars(implode(' | ', $templateLabels)) ?></p>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-primary btn-sm" href="?template=xlsx">Unduh template Excel</a>
-            <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/santri/mukimin.php">Kembali ke Data Mukimin</a>
-            <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/santri/mukimin_export.php">Unduh data saat ini</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/santri/mukimin.php">Kembali ke Data Mukimin</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/santri/mukimin_export.php">Unduh data saat ini</a>
         </div>
     </div>
 </div>

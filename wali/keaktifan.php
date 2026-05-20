@@ -42,7 +42,7 @@ wali_layout_head('Keaktifan — Portal Wali', true, 'keaktifan');
                 <h1 class="h5 mb-0 wali-brand fw-bold">Keaktifan &amp; presensi</h1>
                 <p class="small text-muted mb-0">Hanya data <strong>anak Anda</strong> (<?= htmlspecialchars((string) ($waliSantriRow['nama_tampil'] ?? '')) ?>).</p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
 
         <div class="wali-hero mb-3">

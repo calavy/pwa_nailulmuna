@@ -26,12 +26,12 @@ require __DIR__ . '/partials/greeting.php';
                 <h1 class="h5 mb-0 wali-brand fw-bold">Log jajan (cashless)</h1>
                 <p class="small text-muted mb-0">Transparansi top-up saku dan belanja di pondok.</p>
             </div>
-            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>
 
         <div class="d-flex flex-wrap gap-2 mb-3">
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/keuangan.php"><i class="fa-solid fa-wallet me-1"></i> Ringkasan keuangan</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat pembayaran</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/keuangan.php"><i class="fa-solid fa-wallet me-1"></i> Ringkasan keuangan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat pembayaran</a>
         </div>
 
         <div class="card shadow-sm wali-card mb-3 border-primary border-opacity-25">

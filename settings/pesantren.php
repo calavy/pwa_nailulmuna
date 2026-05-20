@@ -12,14 +12,14 @@ require_once __DIR__ . '/includes/pondok_settings_logic.php';
 
 $pageTitle = 'Pesantren';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/pwa_nailulmuna/settings/pesantren.php';
+$settingsNavActive = '/settings/pesantren.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Pesantren</h1>
-    <p class="text-muted mb-0 small">Nama pondok, logo, WhatsApp, presensi, dan tagihan otomatis. Tarif keuangan di <a href="/pwa_nailulmuna/keuangan/pengaturan.php">pengaturan keuangan</a>.</p>
+    <p class="text-muted mb-0 small">Nama pondok, logo, WhatsApp, presensi, dan tagihan otomatis. Tarif keuangan di <a href="/keuangan/pengaturan.php">pengaturan keuangan</a>.</p>
 </div>
 
     <div class="row g-3 mb-3">

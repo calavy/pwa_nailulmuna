@@ -229,9 +229,9 @@ function keuangan_dashboard_build_tindakan(
     $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
     $bulanLabel = (string) ($periode['bulan_label'] ?? '');
     $taLabel = (string) ($periode['ta_label'] ?? '');
-    $tagihanUrl = '/pwa_nailulmuna/pembayaran/tagihan_syahriyah.php?bulan=' . (int) ($periode['bulan'] ?? 0)
+    $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) ($periode['bulan'] ?? 0)
         . '&tm=' . (int) ($periode['mulai'] ?? 0) . '&ts=' . (int) ($periode['selesai'] ?? 0);
-    $settingsUrl = '/pwa_nailulmuna/settings/index.php';
+    $settingsUrl = '/settings/index.php';
     $out = [];
 
     if (!$seimbang) {
@@ -239,7 +239,7 @@ function keuangan_dashboard_build_tindakan(
             'level' => 'danger',
             'judul' => 'Neraca belum seimbang',
             'deskripsi' => 'Selisih ' . $fmt(abs($selisih)) . ' — periksa jurnal, saldo akun, dan transaksi terakhir.',
-            'href' => '/pwa_nailulmuna/keuangan/neraca.php',
+            'href' => '/keuangan/neraca.php',
             'icon' => 'fa-scale-unbalanced',
         ];
     }
@@ -268,7 +268,7 @@ function keuangan_dashboard_build_tindakan(
             'level' => 'warning',
             'judul' => 'Lengkapi nomor WA wali',
             'deskripsi' => $penunggakTanpaWa . ' penunggak belum punya nomor WhatsApp wali — tidak bisa dikirimi tagihan otomatis.',
-            'href' => '/pwa_nailulmuna/santri/index.php',
+            'href' => '/santri/index.php',
             'icon' => 'fa-brands fa-whatsapp',
         ];
     }

@@ -102,7 +102,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
         <i class="fa-solid fa-cash-register me-1"></i>
-        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a>
+        <a href="/keuangan/index.php">Keuangan</a>
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
         <span class="bendahara-page-icon"><i class="fa-solid <?= htmlspecialchars($iconTagihan) ?>"></i></span>
@@ -111,12 +111,12 @@ $iconTagihan = bendahara_page_icon('tagihan');
     <p class="text-muted mb-0">
         Tagihan wajib <strong>Syahriyah</strong> dan <strong>Makan</strong> per bulan.
         Potongan syahriyah per santri diatur di
-        <a href="/pwa_nailulmuna/keuangan/potongan_syahriyah.php">Pengaturan potongan syahriyah</a>.
+        <a href="/keuangan/potongan_syahriyah.php">Pengaturan potongan syahriyah</a>.
     </p>
 </div>
 
 <?php if (!$tablesOk): ?>
-    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/pwa_nailulmuna/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
+    <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
 <?php endif; ?>
 
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
@@ -242,7 +242,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
                             <span class="badge text-bg-<?= htmlspecialchars($r['statusClass']) ?>"><?= htmlspecialchars($r['status']) ?></span>
                         </td>
                         <td class="text-end text-nowrap">
-                            <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>&tm=<?= (int) $tahunAjaranMulai ?>&ts=<?= (int) $tahunAjaranSelesai ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
+                            <a class="btn btn-sm btn-outline-primary" href="/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>&tm=<?= (int) $tahunAjaranMulai ?>&ts=<?= (int) $tahunAjaranSelesai ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

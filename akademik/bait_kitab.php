@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_bait_kitab WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Kitab bait dihapus.');
         }
-        header('Location: /pwa_nailulmuna/akademik/bait_kitab.php');
+        header('Location: /akademik/bait_kitab.php');
         exit;
     }
     if ($action === 'simpan') {
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aktif = isset($_POST['is_aktif']) ? 1 : 0;
         if ($nama === '') {
             set_flash('error', 'Nama kitab wajib diisi.');
-            header('Location: /pwa_nailulmuna/akademik/bait_kitab.php' . ($id > 0 ? '?edit=' . $id : ''));
+            header('Location: /akademik/bait_kitab.php' . ($id > 0 ? '?edit=' . $id : ''));
             exit;
         }
         $target = akademik_hitung_target_bait_per_hari($baris, $hari);
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Kitab bait ditambahkan.');
         }
-        header('Location: /pwa_nailulmuna/akademik/bait_kitab.php');
+        header('Location: /akademik/bait_kitab.php');
         exit;
     }
 }
@@ -78,7 +78,7 @@ if ($editId > 0) {
     $editRow = $e->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Data kitab untuk diedit tidak ditemukan.');
-        header('Location: /pwa_nailulmuna/akademik/bait_kitab.php');
+        header('Location: /akademik/bait_kitab.php');
         exit;
     }
 }
@@ -90,12 +90,12 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Akademik</p>
     <h1 class="h3 mb-1">Pengaturan setoran bait</h1>
-    <p class="text-muted mb-0">Nama kitab, jumlah baris, dan estimasi hari selesai. <strong>Target baris per hari</strong> dihitung otomatis: ⌈jumlah baris ÷ hari⌉ (minimal 1). Dipakai di <a href="/pwa_nailulmuna/akademik/hafalan.php">Input setoran hafalan</a> (kategori Bait).</p>
+    <p class="text-muted mb-0">Nama kitab, jumlah baris, dan estimasi hari selesai. <strong>Target baris per hari</strong> dihitung otomatis: ⌈jumlah baris ÷ hari⌉ (minimal 1). Dipakai di <a href="/akademik/hafalan.php">Input setoran hafalan</a> (kategori Bait).</p>
 </div>
 
 <div class="d-flex flex-wrap gap-2 mb-3">
-    <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/akademik/hafalan.php">Setoran hafalan</a>
-    <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/akademik/kalender.php">Kalender &amp; libur</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/akademik/hafalan.php">Setoran hafalan</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/akademik/kalender.php">Kalender &amp; libur</a>
 </div>
 
 <div class="row g-4">
@@ -132,7 +132,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">Simpan</button>
                         <?php if ($editRow): ?>
-                            <a class="btn btn-outline-secondary" href="/pwa_nailulmuna/akademik/bait_kitab.php">Batal edit</a>
+                            <a class="btn btn-outline-secondary" href="/akademik/bait_kitab.php">Batal edit</a>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -168,7 +168,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td class="text-end small"><?= (int) $r['estimasi_hari_selesai'] ?></td>
                                 <td class="text-end font-monospace small text-success"><?= (int) $r['target_baris_per_hari'] ?></td>
                                 <td class="text-end text-nowrap">
-                                    <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/akademik/bait_kitab.php?edit=<?= (int) $r['id'] ?>#bait-kitab-form">Edit</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="/akademik/bait_kitab.php?edit=<?= (int) $r['id'] ?>#bait-kitab-form">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus kitab ini?');">
                                         <input type="hidden" name="action" value="hapus">
                                         <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">

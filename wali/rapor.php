@@ -30,7 +30,7 @@ wali_layout_head('Rapor — Portal Wali', true, 'rapor');
 ?>
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h5 mb-0 wali-brand fw-bold">Rapor akademik</h1>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
         <p class="small text-muted">Hanya rapor yang sudah <strong>diterbitkan</strong> pengurus.</p>
 

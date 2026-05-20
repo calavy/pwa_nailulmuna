@@ -14,13 +14,13 @@ require __DIR__ . '/partials/greeting.php';
 ?>
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h5 mb-0 wali-brand fw-bold">Tagihan TA <?= htmlspecialchars($berjalan['ta_label']) ?></h1>
-            <a class="btn btn-sm btn-outline-secondary" href="/pwa_nailulmuna/wali/logout.php">Keluar</a>
+            <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
         <p class="small text-muted mb-3">
             <span class="badge text-bg-primary me-1">Bulan berjalan</span>
             <strong><?= htmlspecialchars($berjalan['bulan_label']) ?> <?= (int) $berjalan['tahun_kalender'] ?></strong>
             · Wajib: Syahriyah &amp; Makan. Saku opsional (cashless).
-            <a href="/pwa_nailulmuna/wali/pembayaran.php">Riwayat pembayaran</a>.
+            <a href="/wali/pembayaran.php">Riwayat pembayaran</a>.
         </p>
 
         <div class="card shadow-sm wali-card">

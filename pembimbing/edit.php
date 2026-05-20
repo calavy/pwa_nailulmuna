@@ -12,7 +12,7 @@ $pembimbing = $statement->fetch();
 
 if (!$pembimbing) {
     set_flash('error', 'Data pembimbing tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/pembimbing/index.php');
+    header('Location: /pembimbing/index.php');
     exit;
 }
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update->execute($data);
 
     set_flash('success', 'Data pembimbing berhasil diperbarui.');
-    header('Location: /pwa_nailulmuna/pembimbing/index.php');
+    header('Location: /pembimbing/index.php');
     exit;
 }
 
@@ -40,7 +40,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Edit Pembimbing</h1>
-    <a href="/pwa_nailulmuna/pembimbing/index.php" class="btn btn-outline-secondary">Kembali</a>
+    <a href="/pembimbing/index.php" class="btn btn-outline-secondary">Kembali</a>
 </div>
 
 <div class="card shadow-sm">

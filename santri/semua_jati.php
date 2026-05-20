@@ -40,8 +40,8 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="text-muted small mb-0">Biodata seluruh santri — status <strong>Aktif</strong>, <strong>Nonaktif</strong>, atau <strong>Khidmah</strong>. Klik <strong>Edit</strong> untuk ubah status.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="/pwa_nailulmuna/santri/create.php" class="btn btn-success btn-sm" data-sdm-modal="/pwa_nailulmuna/santri/create.php" data-sdm-title="Tambah santri">+ Tambah santri</a>
-        <a href="/pwa_nailulmuna/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/pwa_nailulmuna/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
+        <a href="/santri/create.php" class="btn btn-success btn-sm" data-sdm-modal="/santri/create.php" data-sdm-title="Tambah santri">+ Tambah santri</a>
+        <a href="/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
     </div>
 </div>
 
@@ -112,10 +112,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end pe-3">
-                            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
-                            <a href="/pwa_nailulmuna/santri/edit.php?id=<?= (int) $r['id'] ?>"
+                            <a href="/santri/riwayat.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
+                            <a href="/santri/edit.php?id=<?= (int) $r['id'] ?>"
                                class="btn btn-sm btn-warning"
-                               data-sdm-modal="/pwa_nailulmuna/santri/edit.php?id=<?= (int) $r['id'] ?>"
+                               data-sdm-modal="/santri/edit.php?id=<?= (int) $r['id'] ?>"
                                data-sdm-title="Edit santri">Edit</a>
                         </td>
                     </tr>
@@ -130,8 +130,8 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="mt-3 small text-muted">
-    <a href="/pwa_nailulmuna/santri/index.php">Santri aktif</a> ·
-    <a href="/pwa_nailulmuna/santri/mukimin.php">Data Mukimin</a>
+    <a href="/santri/index.php">Santri aktif</a> ·
+    <a href="/santri/mukimin.php">Data Mukimin</a>
 </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

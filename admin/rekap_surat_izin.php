@@ -129,7 +129,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                     </td>
                     <td class="text-end">
-                        <a class="btn btn-sm btn-outline-dark" target="_blank" href="/pwa_nailulmuna/perizinan/surat.php?id=<?= (int) $r['id'] ?>">Cetak</a>
+                        <a class="btn btn-sm btn-outline-dark" target="_blank" href="/perizinan/surat.php?id=<?= (int) $r['id'] ?>">Cetak</a>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -139,9 +139,9 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <p class="small text-muted mt-3">
-    <a href="/pwa_nailulmuna/admin/surat_nomor.php">Pengaturan nomor surat</a>
-    · <a href="/pwa_nailulmuna/admin/rekap_surat_sp.php">Rekap surat SP (poin)</a>
-    · <a href="/pwa_nailulmuna/poin/rekap.php">Cetak SP dari rekap poin</a>
+    <a href="/admin/surat_nomor.php">Pengaturan nomor surat</a>
+    · <a href="/admin/rekap_surat_sp.php">Rekap surat SP (poin)</a>
+    · <a href="/poin/rekap.php">Cetak SP dari rekap poin</a>
 </p>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

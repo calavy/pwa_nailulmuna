@@ -9,7 +9,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Kuitansi tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/keuangan/index.php?tab=f');
+    header('Location: /keuangan/index.php?tab=f');
     exit;
 }
 
@@ -33,7 +33,7 @@ $stmt->execute(['id' => $id]);
 $row = $stmt->fetch();
 if (!$row) {
     set_flash('error', 'Data pembayaran tidak ditemukan.');
-    header('Location: /pwa_nailulmuna/keuangan/index.php?tab=f');
+    header('Location: /keuangan/index.php?tab=f');
     exit;
 }
 
@@ -55,7 +55,7 @@ $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $logoPath = app_setting($pdo, 'logo_path', '');
 $logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/pwa_nailulmuna/' . $logoPath : $logoUrl;
+$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
 
 $pageTitle = 'Kuitansi Pembayaran';
@@ -67,7 +67,7 @@ require_once __DIR__ . '/../includes/header.php';
         <button class="btn btn-sm btn-outline-secondary" onclick="printMode('official')">Print Resmi</button>
         <button class="btn btn-sm btn-outline-dark" onclick="printMode('thermal')">Print Termal</button>
         <button class="btn btn-sm btn-success" onclick="downloadPng()">Download PNG</button>
-        <a class="btn btn-sm btn-outline-primary" href="/pwa_nailulmuna/keuangan/index.php?tab=f">Kembali</a>
+        <a class="btn btn-sm btn-outline-primary" href="/keuangan/index.php?tab=f">Kembali</a>
     </div>
 </div>
 

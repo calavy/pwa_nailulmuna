@@ -31,7 +31,7 @@ if ($editDomId > 0) {
                                 <td class="small"><?= htmlspecialchars(trim((string) ($dm['no_ranjang'] ?? '')) !== '' ? (string) $dm['no_ranjang'] : '—') ?></td>
                                 <td class="small"><?= htmlspecialchars(santri_riwayat_domisili_periode_label($dm)) ?></td>
                                 <td class="text-end pe-3 text-nowrap btn-group-actions">
-                                    <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=domisili&edit_domisili=<?= (int) $dm['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    <a href="/santri/riwayat.php?id=<?= $id ?>&tab=domisili&edit_domisili=<?= (int) $dm['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus riwayat domisili ini?');">
                                         <input type="hidden" name="action" value="delete_domisili">
                                         <input type="hidden" name="domisili_id" value="<?= (int) $dm['id'] ?>">
@@ -64,7 +64,7 @@ if ($editDomId > 0) {
                                 <td class="small"><?= htmlspecialchars(trim((string) ($dk['no_ranjang'] ?? '')) !== '' ? (string) $dk['no_ranjang'] : '—') ?></td>
                                 <td class="small"><?= htmlspecialchars(santri_riwayat_domisili_periode_label($dk)) ?></td>
                                 <td class="text-end pe-3 text-nowrap btn-group-actions">
-                                    <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=domisili&edit_domisili=<?= (int) $dk['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    <a href="/santri/riwayat.php?id=<?= $id ?>&tab=domisili&edit_domisili=<?= (int) $dk['id'] ?>" class="btn btn-outline-primary btn-sm">Edit</a>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus riwayat domisili ini?');">
                                         <input type="hidden" name="action" value="delete_domisili">
                                         <input type="hidden" name="domisili_id" value="<?= (int) $dk['id'] ?>">
@@ -138,7 +138,7 @@ if ($editDomId > 0) {
                     <div class="col-12 d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Simpan</button>
                         <?php if ($editDom): ?>
-                            <a href="/pwa_nailulmuna/santri/riwayat.php?id=<?= $id ?>&tab=domisili" class="btn btn-outline-secondary btn-sm">Batal</a>
+                            <a href="/santri/riwayat.php?id=<?= $id ?>&tab=domisili" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
                 </form>

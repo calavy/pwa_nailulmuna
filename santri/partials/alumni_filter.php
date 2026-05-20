@@ -63,7 +63,7 @@
         </div>
         <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
             <button type="submit" class="btn btn-primary btn-sm">Terapkan filter</button>
-            <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/santri/alumni.php<?= $editId > 0 ? '?edit=' . $editId : '' ?>">Reset</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/santri/alumni.php<?= $editId > 0 ? '?edit=' . $editId : '' ?>">Reset</a>
             <p class="small text-muted mb-0 ms-lg-auto">Menampilkan <strong><?= $total ?></strong> dari <?= $totalAll ?> alumni &middot; urut <strong>baris Excel / NIS</strong></p>
         </div>
     </div>
