@@ -1,0 +1,112 @@
+.alumni-toolbar .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+    .alumni-toolbar .btn {
+        flex: 1 1 calc(50% - 0.25rem);
+    }
+}
+
+.alumni-form-panel {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: var(--bs-body-bg);
+}
+
+.alumni-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: var(--bs-body-bg);
+}
+
+.alumni-card + .alumni-card {
+    margin-top: 0.625rem;
+}
+
+.alumni-card-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.35;
+    margin-bottom: 0.15rem;
+}
+
+.alumni-card-nis {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+}
+
+.alumni-card-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.alumni-card-meta dt {
+    margin: 0;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--bs-secondary-color);
+}
+
+.alumni-card-meta dd {
+    margin: 0;
+    font-weight: 500;
+}
+
+.alumni-card-alamat {
+    margin-top: 0.65rem;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.45;
+}
+
+.alumni-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.alumni-card-actions .btn {
+    flex: 1;
+}
+
+.alumni-filter-form .form-label {
+    font-size: 0.8rem;
+}
+
+.alumni-filter-form .form-control,
+.alumni-filter-form .form-select {
+    font-size: 1rem;
+    min-height: 2.75rem;
+}
+
+@media (min-width: 992px) {
+    .alumni-desktop-table {
+        display: block;
+    }
+
+    .alumni-mobile-list {
+        display: none;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .alumni-desktop-table {
+        display: none;
+    }
+
+    .alumni-mobile-list {
+        display: block;
+    }
+
+    .alumni-page-intro .h3 {
+        font-size: 1.35rem;
+    }
+}

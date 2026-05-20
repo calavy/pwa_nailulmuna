@@ -1,0 +1,232 @@
+/**
+ * Modul Keuangan — tipografi seragam (Plus Jakarta Sans, sama dengan aplikasi).
+ * Mudah dibaca: ukuran nyaman, angka rapi, kontras teks jelas.
+ */
+
+body.keuangan-module {
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    letter-spacing: 0.01em;
+}
+
+body.keuangan-module .app-main {
+    font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Judul & intro */
+body.keuangan-module .page-intro h1,
+body.keuangan-module .page-intro .h4 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+body.keuangan-module .page-intro-kicker {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Formulir */
+body.keuangan-module .form-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.35rem;
+}
+
+body.keuangan-module .form-control,
+body.keuangan-module .form-select {
+    font-size: 0.9375rem;
+    line-height: 1.45;
+}
+
+body.keuangan-module .form-text {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+/* Tabel transaksi */
+body.keuangan-module .table {
+    font-size: 0.9rem;
+}
+
+body.keuangan-module .table thead th {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: none;
+}
+
+body.keuangan-module .table td.text-end,
+body.keuangan-module .table th.text-end,
+body.keuangan-module .app-mini-stat-value {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+/* Kartu ringkasan */
+body.keuangan-module .app-mini-stat-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+body.keuangan-module .app-mini-stat-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+body.keuangan-module .card-header {
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+/* Tab navigasi pengaturan */
+body.keuangan-module .nav-tabs .nav-link {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* —— Laporan: Neraca & Arus Kas —— */
+body.keuangan-module.neraca-page,
+body.keuangan-module.aruskas-page {
+    font-size: 0.9375rem;
+}
+
+body.keuangan-module .neraca-sheet,
+body.keuangan-module .aruskas-sheet,
+body.keuangan-module .neraca-report-body,
+body.keuangan-module .aruskas-report-body {
+    font-family: inherit;
+    color: #0f172a;
+}
+
+body.keuangan-module .neraca-sheet h1,
+body.keuangan-module .aruskas-sheet h1 {
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+body.keuangan-module .neraca-kolom table,
+body.keuangan-module .aruskas-table {
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+body.keuangan-module .neraca-kolom .amt,
+body.keuangan-module .aruskas-table .amt {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-weight: 600;
+}
+
+body.keuangan-module .neraca-kolom-head,
+body.keuangan-module .aruskas-table .section td {
+    font-family: inherit;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+body.keuangan-module .neraca-balance-note,
+body.keuangan-module .aruskas-rekon {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Kuitansi & angka */
+body.keuangan-module .kuitansi-nominal,
+body.keuangan-module [inputmode="numeric"] {
+    font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] body.keuangan-module .form-label {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] body.keuangan-module .neraca-sheet,
+[data-theme="dark"] body.keuangan-module .aruskas-sheet {
+    color: #e2e8f0;
+}
+
+@media print {
+    body.keuangan-module {
+        font-size: 10pt;
+    }
+    body.keuangan-module .neraca-sheet,
+    body.keuangan-module .aruskas-sheet {
+        font-family: "Plus Jakarta Sans", system-ui, sans-serif !important;
+    }
+}
+
+/* —— Modul Bendahara —— */
+body.keuangan-module.bendahara-hub-page .bendahara-page-icon,
+body.keuangan-module.bendahara-page .bendahara-page-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.15), rgba(8, 145, 178, 0.12));
+    color: var(--app-primary);
+    font-size: 1.1rem;
+}
+
+body.keuangan-module .bendahara-nav-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.keuangan-module .bendahara-nav-link:hover .bendahara-nav-card {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-card-hover);
+}
+
+body.keuangan-module .bendahara-nav-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(15, 118, 110, 0.08);
+    font-size: 1.25rem;
+}
+
+body.keuangan-module .bendahara-nav-icon.text-primary { background: rgba(13, 110, 253, 0.1); }
+body.keuangan-module .bendahara-nav-icon.text-success { background: rgba(25, 135, 84, 0.1); }
+body.keuangan-module .bendahara-nav-icon.text-info { background: rgba(13, 202, 240, 0.12); }
+body.keuangan-module .bendahara-nav-icon.text-warning { background: rgba(255, 193, 7, 0.15); }
+
+body.keuangan-module .bendahara-toolbar .btn i {
+    width: 1.1em;
+    text-align: center;
+}
+
+body.keuangan-module .app-mini-stat.bendahara-stat-icon {
+    position: relative;
+    padding-left: 2.75rem;
+}
+
+body.keuangan-module .app-mini-stat.bendahara-stat-icon::before {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 1.1rem;
+    opacity: 0.35;
+}
+
+body.keuangan-module .bendahara-stat-tagihan::before { content: "\f571"; }
+body.keuangan-module .bendahara-stat-bayar::before { content: "\f058"; color: #198754; opacity: 0.5; }
+body.keuangan-module .bendahara-stat-lunas::before { content: "\f00c"; color: #198754; opacity: 0.5; }
+body.keuangan-module .bendahara-stat-sebagian::before { content: "\f252"; color: #ffc107; opacity: 0.55; }
+body.keuangan-module .bendahara-stat-belum::before { content: "\f071"; color: #dc3545; opacity: 0.5; }
+body.keuangan-module .bendahara-stat-trx::before { content: "\f0f6"; }
+body.keuangan-module .bendahara-stat-total::before { content: "\f155"; color: #198754; opacity: 0.5; }
+body.keuangan-module .bendahara-stat-rows::before { content: "\f03a"; }

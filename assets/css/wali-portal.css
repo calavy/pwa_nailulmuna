@@ -1,0 +1,336 @@
+/* Portal wali — dioptimalkan untuk ponsel */
+:root {
+    --wali-teal: #0f766e;
+    --wali-teal-dark: #115e59;
+    --wali-surface: #f8fafc;
+    --wali-card-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+    --wali-bottom-nav-h: 4.25rem;
+}
+
+body.wali-portal {
+    background: linear-gradient(165deg, #ecfdf5 0%, #e0f2fe 38%, #f8fafc 100%);
+    min-height: 100dvh;
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #0f172a;
+    padding-bottom: calc(var(--wali-bottom-nav-h) + 1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.wali-shell {
+    max-width: 28rem;
+    margin: 0 auto;
+}
+
+.wali-card {
+    border-radius: 1.1rem;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    box-shadow: var(--wali-card-shadow);
+}
+
+.wali-brand {
+    color: var(--wali-teal);
+    letter-spacing: 0.02em;
+}
+
+.wali-greeting-line {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.45;
+}
+
+.wali-kicker {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.wali-stat-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wali-stat-label {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.btn-teal {
+    background-color: var(--wali-teal) !important;
+    border-color: var(--wali-teal) !important;
+    color: #fff !important;
+    min-height: 2.75rem;
+    font-weight: 600;
+}
+
+.btn-teal:hover {
+    filter: brightness(0.94);
+    color: #fff !important;
+}
+
+.text-teal {
+    color: var(--wali-teal) !important;
+}
+
+.wali-tile-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 1rem;
+    border: 1px solid rgba(15, 118, 110, 0.16);
+    background: #fff;
+    padding: 1rem;
+    min-height: 5.5rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wali-tile-link:active {
+    transform: scale(0.98);
+}
+
+.wali-tile-link .wali-tile-ico {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 118, 110, 0.1);
+    color: var(--wali-teal);
+    font-size: 1.15rem;
+    margin-bottom: 0.5rem;
+}
+
+.wali-tile-link .wali-tile-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.wali-tile-link .wali-tile-desc {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+.wali-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1030;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid rgba(15, 118, 110, 0.15);
+    backdrop-filter: blur(8px);
+    padding: 0.35rem 0.25rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    justify-content: space-around;
+    gap: 0.15rem;
+    max-width: 28rem;
+    margin: 0 auto;
+}
+
+.wali-bottom-nav a {
+    flex: 1;
+    text-align: center;
+    text-decoration: none;
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.35rem 0.2rem;
+    border-radius: 0.65rem;
+    min-height: 2.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+}
+
+.wali-bottom-nav a i {
+    font-size: 1.1rem;
+}
+
+.wali-bottom-nav a.active {
+    color: var(--wali-teal);
+    background: rgba(15, 118, 110, 0.1);
+}
+
+.wali-login-hero {
+    text-align: center;
+    padding: 0.5rem 0 1rem;
+    color: var(--wali-teal-dark);
+}
+
+.wali-login-hero .wali-login-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(15, 118, 110, 0.25);
+    margin-bottom: 0.5rem;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+
+.wali-login-hero .wali-login-initial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.2), rgba(14, 165, 233, 0.18));
+    border: 2px dashed rgba(15, 118, 110, 0.35);
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: 0.06em;
+    color: var(--wali-teal-dark);
+    margin-bottom: 0.5rem;
+}
+
+.wali-login-hero .wali-login-kicker {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+}
+
+.wali-login-hero .wali-login-ponpes {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #0f172a;
+    margin-bottom: 0.15rem;
+}
+
+.wali-login-hero .wali-login-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--wali-teal);
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.wali-login-hero .wali-login-welcome {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #0f172a;
+    margin: 0.35rem 0 0;
+    padding: 0 0.25rem;
+}
+
+.wali-login-steps {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.wali-login-steps .step {
+    flex: 1;
+    text-align: center;
+    font-size: 0.72rem;
+    padding: 0.45rem 0.35rem;
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(15, 118, 110, 0.15);
+    color: #64748b;
+}
+
+.wali-login-steps .step.active {
+    background: var(--wali-teal);
+    border-color: var(--wali-teal);
+    color: #fff;
+    font-weight: 600;
+}
+
+.wali-pick-item {
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    min-height: 2.75rem;
+}
+
+.wali-pick-item:hover,
+.wali-pick-item:focus {
+    background: rgba(15, 118, 110, 0.08);
+    border-color: rgba(15, 118, 110, 0.35) !important;
+}
+
+.wali-pick-item.selected {
+    background: rgba(15, 118, 110, 0.12);
+    border-color: var(--wali-teal) !important;
+}
+
+.wali-selected-card {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.1) 0%, rgba(14, 165, 233, 0.08) 100%);
+    border: 1px solid rgba(15, 118, 110, 0.22);
+    border-radius: 0.85rem;
+    padding: 0.85rem 1rem;
+}
+
+.wali-selected-card .wali-selected-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #0f172a;
+}
+
+#wali-pin-panel.d-none {
+    display: none !important;
+}
+
+.wali-anak-strip .wali-anak-pill {
+    min-height: 2.75rem;
+}
+
+.wali-hero {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.12) 0%, rgba(14, 165, 233, 0.1) 100%);
+    border: 1px solid rgba(15, 118, 110, 0.18);
+    border-radius: 1.1rem;
+    padding: 1rem 1.1rem;
+}
+
+.wali-nav-scroll {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    margin: 0 -0.25rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.wali-nav-scroll .btn {
+    flex: 0 0 auto;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
+    border-radius: 0.65rem;
+    white-space: nowrap;
+}
+
+.wali-nav-scroll .btn.active {
+    background: var(--wali-teal);
+    border-color: var(--wali-teal);
+    color: #fff;
+    font-weight: 600;
+}
+
+@media (min-width: 768px) {
+    body.wali-portal--login {
+        padding-bottom: 1.5rem;
+    }
+
+    .wali-bottom-nav {
+        display: none;
+    }
+}
+
+@media (max-width: 767px) {
+    .wali-nav-scroll--desktop-only {
+        display: none !important;
+    }
+}

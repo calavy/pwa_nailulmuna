@@ -1,0 +1,414 @@
+<?php
+
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/bendahara_ui.php';
+
+require_roles(['admin', 'pengurus']);
+ensure_santri_identity_columns($pdo);
+ensure_kelas_keuangan_table($pdo);
+
+$tanggalDari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
+$tanggalSampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
+$jenis = strtoupper(trim((string) ($_GET['jenis'] ?? '')));
+if (!in_array($jenis, ['', 'BULANAN', 'AWAL_TAHUN'], true)) {
+    $jenis = '';
+}
+$santriId = (int) ($_GET['santri_id'] ?? 0);
+$metode = strtoupper(trim((string) ($_GET['metode'] ?? '')));
+if (!in_array($metode, ['', 'KAS', 'TRANSFER'], true)) {
+    $metode = '';
+}
+$posSlug = trim((string) ($_GET['pos'] ?? ''));
+$limit = (int) ($_GET['limit'] ?? 500);
+if ($limit < 50) {
+    $limit = 50;
+}
+if ($limit > 2000) {
+    $limit = 2000;
+}
+
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalDari)) {
+    $tanggalDari = date('Y-m-01');
+}
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalSampai)) {
+    $tanggalSampai = date('Y-m-d');
+}
+if ($tanggalDari > $tanggalSampai) {
+    $tmp = $tanggalDari;
+    $tanggalDari = $tanggalSampai;
+    $tanggalSampai = $tmp;
+}
+
+$tablesOk = table_exists($pdo, 'keuangan_pembayaran');
+$detailOk = $tablesOk && table_exists($pdo, 'keuangan_pembayaran_detail');
+$list = [];
+$santriPick = [];
+$posOptions = [];
+$detailMap = [];
+$ringkasan = [
+    'jumlah' => 0,
+    'total' => 0.0,
+    'per_metode' => [],
+];
+$ringkasanPos = [];
+
+if ($tablesOk) {
+    if ($detailOk) {
+        $posOptions = $pdo->query('SELECT DISTINCT pos_slug, pos_nama FROM keuangan_pembayaran_detail ORDER BY pos_nama ASC, pos_slug ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $kkCol = column_exists($pdo, 'santri', 'kategori_kelas') ? 's.kategori_kelas' : "''";
+    $joinUser = table_exists($pdo, 'users') ? 'LEFT JOIN users u ON u.id = p.created_by' : '';
+    $namaPetugas = table_exists($pdo, 'users') ? 'u.nama AS nama_petugas' : "'' AS nama_petugas";
+    $joinAkun = '';
+    $namaAkun = "'' AS nama_akun";
+    if (table_exists($pdo, 'keuangan_akun') && column_exists($pdo, 'keuangan_pembayaran', 'akun_id')) {
+        $joinAkun = 'LEFT JOIN keuangan_akun ak ON ak.id = p.akun_id';
+        $namaAkun = 'COALESCE(ak.nama_akun, \'\') AS nama_akun';
+    }
+
+    $sqlFromJoins = "
+        FROM keuangan_pembayaran p
+        INNER JOIN santri s ON s.id = p.santri_id
+        {$joinUser}
+        {$joinAkun}";
+    $sqlWhere = '
+        WHERE p.tanggal_bayar BETWEEN :dari AND :sampai';
+    $params = ['dari' => $tanggalDari, 'sampai' => $tanggalSampai];
+    if ($jenis !== '') {
+        $sqlWhere .= ' AND p.jenis_periode = :jenis';
+        $params['jenis'] = $jenis;
+    }
+    if ($santriId > 0) {
+        $sqlWhere .= ' AND p.santri_id = :sid';
+        $params['sid'] = $santriId;
+    }
+    if ($metode !== '' && column_exists($pdo, 'keuangan_pembayaran', 'metode_bayar')) {
+        $sqlWhere .= ' AND p.metode_bayar = :metode';
+        $params['metode'] = $metode;
+    }
+    if ($posSlug !== '' && $detailOk) {
+        $sqlWhere .= ' AND EXISTS (SELECT 1 FROM keuangan_pembayaran_detail dx WHERE dx.pembayaran_id = p.id AND dx.pos_slug = :pos_slug)';
+        $params['pos_slug'] = $posSlug;
+    }
+
+    $sqlBase = $sqlFromJoins . $sqlWhere;
+
+    $sumStmt = $pdo->prepare('SELECT COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase);
+    $sumStmt->execute($params);
+    $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
+    if ($sumRow) {
+        $ringkasan['jumlah'] = (int) ($sumRow['jml'] ?? 0);
+        $ringkasan['total'] = (float) ($sumRow['total'] ?? 0);
+    }
+
+    if (column_exists($pdo, 'keuangan_pembayaran', 'metode_bayar')) {
+        $grp = $pdo->prepare('SELECT p.metode_bayar, COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase . ' GROUP BY p.metode_bayar ORDER BY p.metode_bayar ASC');
+        $grp->execute($params);
+        $ringkasan['per_metode'] = $grp->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    if ($detailOk) {
+        $posAggSql = '
+            SELECT d.pos_slug, d.pos_nama, COUNT(DISTINCT d.pembayaran_id) AS jml_trx, COALESCE(SUM(d.nominal), 0) AS total_nominal
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            INNER JOIN santri s ON s.id = p.santri_id
+            ' . $joinUser . '
+            ' . $joinAkun . '
+            ' . $sqlWhere . '
+            GROUP BY d.pos_slug, d.pos_nama
+            ORDER BY d.pos_nama ASC';
+        $posAgg = $pdo->prepare($posAggSql);
+        try {
+            $posAgg->execute($params);
+            $ringkasanPos = $posAgg->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            $ringkasanPos = [];
+        }
+    }
+
+    $sqlList = "
+        SELECT p.id, p.santri_id, p.jenis_periode, p.tahun_ajaran_mulai, p.tahun_ajaran_selesai, p.bulan_tagihan,
+               p.tanggal_bayar, p.total_nominal, p.metode_bayar, p.keterangan, p.no_referensi, p.created_at,
+               s.nis, s.nama_santri, {$kkCol} AS kategori_kelas, {$namaPetugas}, {$namaAkun}
+        " . $sqlBase . ' ORDER BY p.tanggal_bayar DESC, p.id DESC LIMIT ' . (int) $limit;
+    $st = $pdo->prepare($sqlList);
+    $st->execute($params);
+    $list = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $ids = array_map(static fn (array $r): int => (int) ($r['id'] ?? 0), $list);
+    $ids = array_values(array_filter($ids, static fn (int $v): bool => $v > 0));
+    if ($ids !== [] && $detailOk) {
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $det = $pdo->prepare("SELECT pembayaran_id, pos_slug, pos_nama, nominal FROM keuangan_pembayaran_detail WHERE pembayaran_id IN ($in) ORDER BY pembayaran_id ASC, id ASC");
+        $det->execute($ids);
+        foreach ($det->fetchAll(PDO::FETCH_ASSOC) as $d) {
+            $pid = (int) $d['pembayaran_id'];
+            if (!isset($detailMap[$pid])) {
+                $detailMap[$pid] = [];
+            }
+            $detailMap[$pid][] = $d;
+        }
+    }
+
+    $santriPick = $pdo->query('SELECT id, nis, nama_santri FROM santri ORDER BY nama_santri ASC LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+$bulanMap = [
+    1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
+    7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
+];
+
+$pageTitle = 'Riwayat Pembayaran';
+$bodyClass = keuangan_body_class('bendahara-page');
+require_once __DIR__ . '/../includes/header.php';
+$iconRiwayat = bendahara_page_icon('riwayat');
+?>
+
+<div class="page-intro mb-3">
+    <p class="page-intro-kicker mb-1">
+        <i class="fa-solid fa-cash-register me-1" aria-hidden="true"></i>
+        <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a>
+    </p>
+    <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
+        <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconRiwayat) ?>"></i></span>
+        Riwayat pembayaran (detail)
+    </h1>
+    <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Total dan rincian per POS dihitung otomatis sesuai filter.</p>
+</div>
+
+<?php if (!$tablesOk): ?>
+    <div class="alert alert-warning">Tabel pembayaran keuangan belum ada. Buka <a href="/pwa_nailulmuna/keuangan/index.php">Keuangan</a> untuk inisialisasi.</div>
+<?php endif; ?>
+
+<?php if ($tablesOk): ?>
+<form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
+    <div class="col-6 col-md-2">
+        <label class="form-label small mb-0">Dari tanggal</label>
+        <input class="form-control form-control-sm" type="date" name="dari" value="<?= htmlspecialchars($tanggalDari) ?>">
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label small mb-0">Sampai tanggal</label>
+        <input class="form-control form-control-sm" type="date" name="sampai" value="<?= htmlspecialchars($tanggalSampai) ?>">
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label small mb-0">Jenis periode</label>
+        <select class="form-select form-select-sm" name="jenis">
+            <option value="" <?= $jenis === '' ? 'selected' : '' ?>>Semua</option>
+            <option value="BULANAN" <?= $jenis === 'BULANAN' ? 'selected' : '' ?>>Bulanan</option>
+            <option value="AWAL_TAHUN" <?= $jenis === 'AWAL_TAHUN' ? 'selected' : '' ?>>Awal tahun</option>
+        </select>
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label small mb-0">Metode bayar</label>
+        <select class="form-select form-select-sm" name="metode">
+            <option value="" <?= $metode === '' ? 'selected' : '' ?>>Semua</option>
+            <option value="KAS" <?= $metode === 'KAS' ? 'selected' : '' ?>>Kas</option>
+            <option value="TRANSFER" <?= $metode === 'TRANSFER' ? 'selected' : '' ?>>Transfer</option>
+        </select>
+    </div>
+    <div class="col-12 col-md-2">
+        <label class="form-label small mb-0">POS / komponen</label>
+        <select class="form-select form-select-sm" name="pos" <?= !$detailOk ? 'disabled title="Tabel rincian belum ada"' : '' ?>>
+            <option value="">Semua POS</option>
+            <?php foreach ($posOptions as $po): ?>
+                <option value="<?= htmlspecialchars((string) $po['pos_slug']) ?>" <?= $posSlug === (string) $po['pos_slug'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string) $po['pos_nama']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <div class="form-text">Hanya transaksi yang memuat baris rincian POS ini.</div>
+    </div>
+    <div class="col-12 col-md-4">
+        <label class="form-label small mb-0">Santri</label>
+        <select class="form-select form-select-sm" name="santri_id">
+            <option value="0">Semua santri</option>
+            <?php foreach ($santriPick as $sp): ?>
+                <option value="<?= (int) $sp['id'] ?>" <?= $santriId === (int) $sp['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string) $sp['nama_santri']) ?> (<?= htmlspecialchars((string) $sp['nis']) ?>)
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label small mb-0">Maks. baris</label>
+        <select class="form-select form-select-sm" name="limit">
+            <?php foreach ([200, 500, 1000, 2000] as $lm): ?>
+                <option value="<?= $lm ?>" <?= $limit === $lm ? 'selected' : '' ?>><?= $lm ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Terapkan filter</button>
+        <a class="btn btn-outline-secondary btn-sm" href="/pwa_nailulmuna/pembayaran/riwayat.php"><i class="fa-solid fa-rotate-left me-1"></i> Reset</a>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4">
+        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-trx">
+            <div class="app-mini-stat-label">Jumlah transaksi (sesuai filter)</div>
+            <div class="app-mini-stat-value"><?= number_format($ringkasan['jumlah'], 0, ',', '.') ?></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-total">
+            <div class="app-mini-stat-label">Total nominal</div>
+            <div class="app-mini-stat-value text-success">Rp <?= number_format((int) round($ringkasan['total']), 0, ',', '.') ?></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-rows">
+            <div class="app-mini-stat-label">Baris tabel (dibatasi)</div>
+            <div class="app-mini-stat-value"><?= count($list) ?> / <?= $limit ?></div>
+            <div class="small text-muted mt-1">Ringkasan total di atas memakai <strong>semua</strong> transaksi pada filter, bukan hanya baris yang ditampilkan.</div>
+        </div>
+    </div>
+</div>
+
+<?php if ($ringkasan['per_metode'] !== []): ?>
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-3">
+        <h2 class="h6 mb-2">Terjumlah per metode bayar</h2>
+        <div class="table-responsive mb-0">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light"><tr><th>Metode</th><th class="text-end">Jumlah</th><th class="text-end">Total</th></tr></thead>
+                <tbody>
+                    <?php foreach ($ringkasan['per_metode'] as $pm): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) ($pm['metode_bayar'] ?? '-')) ?></td>
+                            <td class="text-end"><?= number_format((int) ($pm['jml'] ?? 0), 0, ',', '.') ?></td>
+                            <td class="text-end font-monospace">Rp <?= number_format((int) round((float) ($pm['total'] ?? 0)), 0, ',', '.') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($detailOk && $ringkasanPos !== []): ?>
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-3">
+        <h2 class="h6 mb-2">Terjumlah per POS (komponen rincian)</h2>
+        <p class="small text-muted mb-2">Nominal dari baris rincian; satu transaksi bisa memuat beberapa POS.</p>
+        <div class="table-responsive mb-0">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light"><tr><th>POS</th><th class="text-end">Trx terlibat</th><th class="text-end">Σ nominal rincian</th></tr></thead>
+                <tbody>
+                    <?php foreach ($ringkasanPos as $rp): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) ($rp['pos_nama'] ?? '')) ?> <span class="text-muted small">(<?= htmlspecialchars((string) ($rp['pos_slug'] ?? '')) ?>)</span></td>
+                            <td class="text-end"><?= number_format((int) ($rp['jml_trx'] ?? 0), 0, ',', '.') ?></td>
+                            <td class="text-end font-monospace">Rp <?= number_format((int) round((float) ($rp['total_nominal'] ?? 0)), 0, ',', '.') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+<?php endif; ?>
+
+<?php if ($tablesOk): ?>
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>ID</th>
+                        <th>Santri</th>
+                        <th>Kelas keuangan</th>
+                        <th>Jenis</th>
+                        <th>Periode</th>
+                        <th>Rincian POS</th>
+                        <th class="text-end">Total</th>
+                        <th>Metode</th>
+                        <th>Akun / ref.</th>
+                        <th>Petugas</th>
+                        <th class="text-end">Kuitansi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (!$list): ?>
+                    <tr><td colspan="12" class="text-muted text-center py-4">Belum ada pembayaran pada rentang &amp; filter ini.</td></tr>
+                <?php endif; ?>
+                <?php foreach ($list as $row): ?>
+                    <?php
+                    $bl = (int) ($row['bulan_tagihan'] ?? 0);
+                    $periodeLabel = (string) $row['tahun_ajaran_mulai'] . '/' . (string) $row['tahun_ajaran_selesai'];
+                    if (($row['jenis_periode'] ?? '') === 'BULANAN' && $bl >= 1 && $bl <= 12) {
+                        $periodeLabel = ($bulanMap[$bl] ?? $bl) . ' · TA ' . $periodeLabel;
+                    } else {
+                        $periodeLabel = 'TA ' . $periodeLabel;
+                    }
+                    $pid = (int) $row['id'];
+                    $dets = $detailMap[$pid] ?? [];
+                    ?>
+                    <tr>
+                        <td class="text-nowrap small"><?= htmlspecialchars((string) $row['tanggal_bayar']) ?></td>
+                        <td class="small font-monospace">#<?= $pid ?></td>
+                        <td>
+                            <div class="fw-semibold small"><?= htmlspecialchars((string) $row['nama_santri']) ?></div>
+                            <div class="font-monospace text-muted" style="font-size: 0.75rem;"><?= htmlspecialchars((string) $row['nis']) ?></div>
+                        </td>
+                        <td class="small">
+                            <?php
+                            $kk = trim((string) ($row['kategori_kelas'] ?? ''));
+                            echo $kk !== '' ? htmlspecialchars(kelas_keuangan_label_for_kode($pdo, $kk)) : '—';
+                            ?>
+                        </td>
+                        <td><span class="badge text-bg-light text-dark border"><?= htmlspecialchars((string) ($row['jenis_periode'] ?? '')) ?></span></td>
+                        <td class="small"><?= htmlspecialchars($periodeLabel) ?></td>
+                        <td class="small" style="max-width:14rem;">
+                            <?php if (!$detailOk): ?>
+                                <span class="text-muted">—</span>
+                            <?php elseif ($dets === []): ?>
+                                <span class="text-muted">Tanpa rincian</span>
+                            <?php else: ?>
+                                <ul class="mb-0 ps-3">
+                                    <?php foreach ($dets as $d): ?>
+                                        <li><?= htmlspecialchars((string) ($d['pos_nama'] ?? '')) ?> <span class="text-muted">Rp <?= number_format((int) round((float) ($d['nominal'] ?? 0)), 0, ',', '.') ?></span></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end font-monospace small">Rp <?= number_format((int) round((float) $row['total_nominal']), 0, ',', '.') ?></td>
+                        <td class="small"><?= htmlspecialchars((string) ($row['metode_bayar'] ?? 'KAS')) ?></td>
+                        <td class="small">
+                            <?php
+                            $ak = trim((string) ($row['nama_akun'] ?? ''));
+                            $ref = trim((string) ($row['no_referensi'] ?? ''));
+                            echo $ak !== '' ? htmlspecialchars($ak) : '—';
+                            if ($ref !== '') {
+                                echo '<div class="text-muted" style="font-size:0.7rem;">Ref: ' . htmlspecialchars($ref) . '</div>';
+                            }
+                            ?>
+                        </td>
+                        <td class="small"><?= htmlspecialchars(trim((string) ($row['nama_petugas'] ?? '')) !== '' ? (string) $row['nama_petugas'] : '—') ?></td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/pwa_nailulmuna/keuangan/kuitansi.php?id=<?= $pid ?>"><i class="fa-solid fa-receipt me-1"></i> Buka</a>
+                        </td>
+                    </tr>
+                    <?php if (trim((string) ($row['keterangan'] ?? '')) !== ''): ?>
+                        <tr class="table-light">
+                            <td colspan="12" class="small py-1"><strong>Keterangan:</strong> <?= nl2br(htmlspecialchars((string) $row['keterangan'])) ?></td>
+                        </tr>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -1,0 +1,788 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/santri_operasional.php';
+require_once __DIR__ . '/keuangan_rekap.php';
+require_once __DIR__ . '/keuangan_neraca.php';
+require_once __DIR__ . '/keuangan_jurnal.php';
+
+function keuangan_money_input_to_int(string $raw): int
+{
+    $digits = preg_replace('/[^\d]/', '', $raw) ?? '';
+
+    return $digits === '' ? 0 : (int) $digits;
+}
+
+/** @return array<int, string> */
+function keuangan_bulan_map(): array
+{
+    return [
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+        7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+    ];
+}
+
+/** Tahun ajaran dari tanggal (mulai Juli). */
+function keuangan_tahun_ajaran_from_date(?string $dateYmd = null): array
+{
+    $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
+        $dateYmd = date('Y-m-d');
+    }
+    $ts = strtotime($dateYmd) ?: time();
+    $y = (int) date('Y', $ts);
+    $m = (int) date('n', $ts);
+    $mulai = $m >= 7 ? $y : $y - 1;
+
+    return ['mulai' => $mulai, 'selesai' => $mulai + 1];
+}
+
+/** Bulan tagihan kalender yang sedang berjalan (1–12). */
+function keuangan_bulan_berjalan(?string $dateYmd = null): int
+{
+    $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
+        $dateYmd = date('Y-m-d');
+    }
+    $ts = strtotime($dateYmd) ?: time();
+
+    return max(1, min(12, (int) date('n', $ts)));
+}
+
+/**
+ * Periode keuangan aktif: tahun ajaran + bulan kalender sesuai waktu sekarang.
+ *
+ * @return array{mulai:int,selesai:int,bulan:int,bulan_label:string,ta_label:string,tahun_kalender:int}
+ */
+function keuangan_periode_berjalan(PDO $pdo, ?string $dateYmd = null): array
+{
+    $ta = keuangan_tahun_ajaran_from_date($dateYmd);
+    $bulan = keuangan_bulan_berjalan($dateYmd);
+    $map = keuangan_bulan_map();
+
+    return [
+        'mulai' => $ta['mulai'],
+        'selesai' => $ta['selesai'],
+        'bulan' => $bulan,
+        'bulan_label' => $map[$bulan] ?? (string) $bulan,
+        'ta_label' => $ta['mulai'] . '/' . $ta['selesai'],
+        'tahun_kalender' => (int) date('Y', strtotime(trim((string) ($dateYmd ?? date('Y-m-d')))) ?: time()),
+    ];
+}
+
+/** @return array{mulai:int,selesai:int} */
+function keuangan_tahun_ajaran_aktif(PDO $pdo, ?string $dateYmd = null): array
+{
+    return keuangan_tahun_ajaran_from_date($dateYmd);
+}
+
+/**
+ * Baris tagihan wajib 12 bulan untuk satu santri (TA aktif + penanda bulan berjalan).
+ *
+ * @return list<array<string, mixed>>
+ */
+function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKategori, ?int $bulanBerjalan = null): array
+{
+    if ($santriId <= 0) {
+        return [];
+    }
+    $periode = keuangan_tahun_ajaran_aktif($pdo);
+    $bulanIni = $bulanBerjalan ?? keuangan_bulan_berjalan();
+    $bulanMap = keuangan_bulan_map();
+    $rows = [];
+    for ($m = 1; $m <= 12; $m++) {
+        $st = tagihan_wajib_status_for_month($pdo, $santriId, $m, $periode['mulai'], $periode['selesai'], $kelasKategori);
+        $perPos = (array) ($st['per_pos'] ?? []);
+        $rows[] = [
+            'bulan' => $m,
+            'label' => $bulanMap[$m] ?? (string) $m,
+            'tagihan' => (int) ($st['expected_total'] ?? 0),
+            'bayar' => (int) ($st['paid_total'] ?? 0),
+            'sisa' => (int) ($st['sisa_total'] ?? 0),
+            'status' => (string) ($st['status'] ?? '—'),
+            'badge' => (string) ($st['statusClass'] ?? 'secondary'),
+            'is_bulan_ini' => $m === $bulanIni,
+            'sy_expected' => (int) (($perPos['syahriyah']['expected'] ?? 0)),
+            'sy_paid' => (int) (($perPos['syahriyah']['paid'] ?? 0)),
+            'mk_expected' => (int) (($perPos['makan']['expected'] ?? 0)),
+            'mk_paid' => (int) (($perPos['makan']['paid'] ?? 0)),
+        ];
+    }
+
+    return $rows;
+}
+
+/**
+ * Definisi pos pembayaran (tarif per tier muadalah/wustho/ulya).
+ *
+ * @return list<array{slug:string,nama:string,kategori:string,default:array<string,int>}>
+ */
+function keuangan_biaya_definitions(): array
+{
+    return [
+        ['slug' => 'syahriyah', 'nama' => 'Syahriyah', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 200000, 'wustho' => 210000, 'ulya' => 215000]],
+        ['slug' => 'makan', 'nama' => 'Makan', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 220000, 'wustho' => 220000, 'ulya' => 220000]],
+        ['slug' => 'saku', 'nama' => 'Saku', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 300000, 'wustho' => 300000, 'ulya' => 300000]],
+        ['slug' => 'pendaftaran', 'nama' => 'Pendaftaran Pondok', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 150000, 'wustho' => 150000, 'ulya' => 150000]],
+        ['slug' => 'bangunan', 'nama' => 'Bangunan', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 200000, 'wustho' => 200000, 'ulya' => 200000]],
+        ['slug' => 'seragam', 'nama' => 'Seragam', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 350000, 'wustho' => 350000, 'ulya' => 350000]],
+        ['slug' => 'koperasi', 'nama' => 'Uang Pokok Koperasi', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 100000, 'wustho' => 100000, 'ulya' => 100000]],
+        ['slug' => 'rak_lemari', 'nama' => 'Rak & Lemari', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 700000, 'wustho' => 700000, 'ulya' => 700000]],
+        ['slug' => 'lks', 'nama' => 'LKS', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 0, 'wustho' => 150000, 'ulya' => 150000]],
+        ['slug' => 'his', 'nama' => 'HIS', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 150000, 'wustho' => 150000, 'ulya' => 150000]],
+        ['slug' => 'raport', 'nama' => 'Raport', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 55000, 'wustho' => 55000, 'ulya' => 55000]],
+        ['slug' => 'kis', 'nama' => 'KIS (Kartu Identitas Santri)', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 15000, 'wustho' => 15000, 'ulya' => 15000]],
+    ];
+}
+
+function keuangan_fee_nominal_for_tier(PDO $pdo, array $def, string $tier): int
+{
+    if (!in_array($tier, ['muadalah', 'wustho', 'ulya'], true)) {
+        $tier = 'wustho';
+    }
+    $fallback = (int) ($def['default'][$tier] ?? 0);
+
+    return max(0, (int) app_setting($pdo, 'keuangan_fee_' . $def['slug'] . '_' . $tier, (string) $fallback));
+}
+
+function ensure_keuangan_transaksi_tables(PDO $pdo): void
+{
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_pembayaran (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            santri_id INT NOT NULL,
+            jenis_periode ENUM('BULANAN','AWAL_TAHUN') NOT NULL DEFAULT 'BULANAN',
+            tahun_ajaran_mulai SMALLINT NOT NULL,
+            tahun_ajaran_selesai SMALLINT NOT NULL,
+            bulan_tagihan TINYINT NULL,
+            tanggal_bayar DATE NOT NULL,
+            total_nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+            keterangan TEXT NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_keu_bayar_santri (santri_id),
+            INDEX idx_keu_bayar_periode (jenis_periode, tahun_ajaran_mulai, tahun_ajaran_selesai, bulan_tagihan)
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_pembayaran_detail (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pembayaran_id INT NOT NULL,
+            pos_slug VARCHAR(80) NOT NULL,
+            pos_nama VARCHAR(150) NOT NULL,
+            nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_keu_detail_pembayaran (pembayaran_id)
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_akun (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            jenis_akun ENUM('KAS','BANK','E-WALLET') NOT NULL DEFAULT 'KAS',
+            nama_akun VARCHAR(120) NOT NULL,
+            nama_bank VARCHAR(120) NULL,
+            no_rekening VARCHAR(80) NULL,
+            atas_nama VARCHAR(120) NULL,
+            opening_balance DECIMAL(12,2) NOT NULL DEFAULT 0,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_alokasi (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nama_komponen VARCHAR(150) NOT NULL,
+            kategori VARCHAR(120) NOT NULL,
+            persen DECIMAL(6,2) NOT NULL DEFAULT 0,
+            urutan INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_pengeluaran (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tanggal DATE NOT NULL,
+            penanggung_jawab VARCHAR(120) NOT NULL,
+            pos VARCHAR(120) NOT NULL,
+            alokasi_nama VARCHAR(150) NULL,
+            nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+            keterangan TEXT NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS keuangan_pemasukan (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tanggal DATE NOT NULL,
+            sumber VARCHAR(120) NOT NULL,
+            dari_pihak VARCHAR(150) NULL,
+            metode_bayar ENUM('KAS','TRANSFER') NOT NULL DEFAULT 'KAS',
+            akun_id INT NULL,
+            no_bukti VARCHAR(120) NULL,
+            nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+            keterangan TEXT NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_keu_pemasukan_tanggal (tanggal),
+            INDEX idx_keu_pemasukan_akun (akun_id)
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cashless_accounts (
+            santri_id INT PRIMARY KEY,
+            pin_hash VARCHAR(255) NULL,
+            balance DECIMAL(12,2) NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cashless_transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            santri_id INT NOT NULL,
+            tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            jenis ENUM('TOPUP','DEBIT') NOT NULL,
+            nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+            keterangan VARCHAR(255) NULL,
+            ref_pembayaran_id INT NULL,
+            created_by INT NULL,
+            INDEX idx_cashless_santri_tanggal (santri_id, tanggal)
+        )
+    ");
+
+    if (table_exists($pdo, 'keuangan_pembayaran')) {
+        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS metode_bayar ENUM('KAS','TRANSFER') NOT NULL DEFAULT 'KAS'");
+        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS akun_id INT NULL");
+        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS no_referensi VARCHAR(100) NULL");
+        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS status_lunas ENUM('LUNAS','CICILAN') NOT NULL DEFAULT 'LUNAS'");
+    }
+    if (table_exists($pdo, 'keuangan_pengeluaran')) {
+        $pdo->exec("ALTER TABLE keuangan_pengeluaran ADD COLUMN IF NOT EXISTS metode_keluar ENUM('KAS','TRANSFER') NOT NULL DEFAULT 'KAS'");
+        $pdo->exec("ALTER TABLE keuangan_pengeluaran ADD COLUMN IF NOT EXISTS akun_id INT NULL");
+        $pdo->exec("ALTER TABLE keuangan_pengeluaran ADD COLUMN IF NOT EXISTS no_bukti VARCHAR(120) NULL");
+    }
+
+    keuangan_seed_akun_default($pdo);
+    keuangan_seed_alokasi_default($pdo);
+    ensure_keuangan_jurnal_tables($pdo);
+}
+
+function keuangan_seed_akun_default(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        return;
+    }
+    $cnt = (int) $pdo->query('SELECT COUNT(*) FROM keuangan_akun')->fetchColumn();
+    if ($cnt > 0) {
+        return;
+    }
+    $pdo->exec("
+        INSERT INTO keuangan_akun (jenis_akun, nama_akun, is_default, is_active) VALUES
+        ('KAS', 'Kas Bendahara', 1, 1),
+        ('BANK', 'Rekening Operasional', 0, 1)
+    ");
+}
+
+function keuangan_seed_alokasi_default(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'keuangan_alokasi')) {
+        return;
+    }
+    $cnt = (int) $pdo->query('SELECT COUNT(*) FROM keuangan_alokasi')->fetchColumn();
+    if ($cnt > 0) {
+        return;
+    }
+    $defaults = [
+        ['Gaji mudaris (Pagu 15 guru)', 'Pendidikan', 37, 1],
+        ['Gaji karyawan utama (2 orang)', 'Admin/Ops', 5, 2],
+        ['Gaji karyawan tambahan (3 orang)', 'Pendukung', 7, 3],
+        ['Listrik', 'Utilitas', 10, 4],
+        ['Air bersih', 'Utilitas', 1, 5],
+        ['WiFi', 'Digital', 1, 6],
+        ['Kebersihan', 'Sarpras', 2, 8],
+        ['Kesehatan', 'Sarpras', 2, 9],
+    ];
+    $ins = $pdo->prepare('INSERT INTO keuangan_alokasi (nama_komponen, kategori, persen, urutan, is_active) VALUES (:nama, :kat, :persen, :urutan, 1)');
+    foreach ($defaults as [$nama, $kat, $persen, $urutan]) {
+        $ins->execute(['nama' => $nama, 'kat' => $kat, 'persen' => $persen, 'urutan' => $urutan]);
+    }
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_fetch_akun_aktif(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        return [];
+    }
+
+    return $pdo->query('
+        SELECT id, jenis_akun, nama_akun, nama_bank, no_rekening, is_default
+        FROM keuangan_akun
+        WHERE is_active = 1
+        ORDER BY is_default DESC, jenis_akun ASC, id ASC
+    ')->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_fetch_alokasi_aktif(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'keuangan_alokasi')) {
+        return [];
+    }
+
+    return $pdo->query('
+        SELECT id, nama_komponen, kategori, persen, urutan
+        FROM keuangan_alokasi
+        WHERE is_active = 1
+        ORDER BY urutan ASC, id ASC
+    ')->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_fetch_santri_aktif(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'santri')) {
+        return [];
+    }
+    ensure_santri_identity_columns($pdo);
+    $aktif = function_exists('santri_sql_aktif_only') ? santri_sql_aktif_only('s') : '1=1';
+    $cols = ['id', 'nis', 'nama_santri'];
+    if (column_exists($pdo, 'santri', 'kategori_kelas')) {
+        $cols[] = 'kategori_kelas';
+    }
+    if (column_exists($pdo, 'santri', 'tingkatan')) {
+        $cols[] = 'tingkatan';
+    }
+
+    return $pdo->query('SELECT ' . implode(', ', $cols) . ' FROM santri s WHERE ' . $aktif . ' ORDER BY nama_santri ASC')->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * @return array<string, array{kelas_label:string,tier_key:string,tier_label:string,fees:array<string,int>}>
+ */
+function keuangan_build_santri_keuangan_map(PDO $pdo, array $biayaDefinitions): array
+{
+    $map = [];
+    foreach (keuangan_fetch_santri_aktif($pdo) as $s) {
+        $id = (int) ($s['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $kat = trim((string) ($s['kategori_kelas'] ?? $s['tingkatan'] ?? ''));
+        $tier = keuangan_tier_key_from_kelas($kat, $pdo);
+        $tierLabel = $tier === 'muadalah' ? 'Muadalah' : ($tier === 'ulya' ? 'Ulya' : 'Wustho');
+        $fees = [];
+        foreach ($biayaDefinitions as $def) {
+            $fees[$def['slug']] = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+        }
+        $map[(string) $id] = [
+            'kelas_label' => $kat !== '' ? $kat : 'Belum diset',
+            'tier_key' => $tier,
+            'tier_label' => $tierLabel,
+            'fees' => $fees,
+        ];
+    }
+
+    return $map;
+}
+
+/**
+ * @param array<string, mixed> $post
+ * @return array{ok:bool,message:string,id?:int}
+ */
+function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
+{
+    ensure_keuangan_transaksi_tables($pdo);
+    $biayaDefinitions = keuangan_biaya_definitions();
+    $periode = keuangan_tahun_ajaran_aktif($pdo);
+
+    $santriId = (int) ($post['santri_id'] ?? 0);
+    $jenisPeriode = strtoupper(trim((string) ($post['jenis_periode'] ?? 'BULANAN')));
+    $bulanTagihan = (int) ($post['bulan_tagihan'] ?? 0);
+    $tahunMulai = max(2000, min(2100, (int) ($post['tahun_ajaran_mulai'] ?? $periode['mulai'])));
+    $tahunSelesai = max($tahunMulai, min(2105, (int) ($post['tahun_ajaran_selesai'] ?? $periode['selesai'])));
+    $tanggalBayar = trim((string) ($post['tanggal_bayar'] ?? date('Y-m-d')));
+    $keterangan = trim((string) ($post['keterangan'] ?? ''));
+    $metodeBayar = strtoupper(trim((string) ($post['metode_bayar'] ?? 'KAS')));
+    $akunId = (int) ($post['akun_id'] ?? 0);
+    $noReferensi = trim((string) ($post['no_referensi'] ?? ''));
+    if (!in_array($jenisPeriode, ['BULANAN', 'AWAL_TAHUN'], true)) {
+        $jenisPeriode = 'BULANAN';
+    }
+    if ($jenisPeriode !== 'BULANAN') {
+        $bulanTagihan = 0;
+    } elseif ($bulanTagihan < 1 || $bulanTagihan > 12) {
+        $bulanTagihan = (int) date('n');
+    }
+    if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
+        $metodeBayar = 'KAS';
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalBayar)) {
+        $tanggalBayar = date('Y-m-d');
+    }
+
+    $pickedPos = $post['bayar_pos'] ?? [];
+    if (!is_array($pickedPos)) {
+        $pickedPos = [];
+    }
+
+    if ($santriId <= 0 || $pickedPos === []) {
+        return ['ok' => false, 'message' => 'Pilih santri dan minimal satu komponen pembayaran.'];
+    }
+    if ($akunId <= 0) {
+        return ['ok' => false, 'message' => 'Pilih akun kas/bank penerimaan.'];
+    }
+    if ($metodeBayar === 'TRANSFER' && $noReferensi === '') {
+        return ['ok' => false, 'message' => 'Nomor referensi transfer wajib diisi.'];
+    }
+
+    $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
+    $tagihanBreakdown = keuangan_tagihan_breakdown_for_santri(
+        $pdo,
+        $santriId,
+        $jenisPeriode,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $biayaDefinitions
+    );
+    $wajibSlugs = $jenisPeriode === 'BULANAN' ? keuangan_tagihan_wajib_slugs() : [];
+
+    $totalNominal = 0;
+    $detailRows = [];
+    $stillHasSisaWajib = false;
+    foreach ($biayaDefinitions as $def) {
+        if (($def['kategori'] ?? '') !== $kategoriFilter) {
+            continue;
+        }
+        $slug = (string) ($def['slug'] ?? '');
+        if (!in_array($slug, $pickedPos, true)) {
+            continue;
+        }
+        $nominal = keuangan_money_input_to_int((string) ($post['nominal_' . $slug] ?? '0'));
+        if ($nominal <= 0) {
+            continue;
+        }
+        $posInfo = $tagihanBreakdown[$slug] ?? null;
+        if (is_array($posInfo) && $slug !== 'saku') {
+            $sisa = (int) ($posInfo['sisa'] ?? 0);
+            $expected = (int) ($posInfo['expected'] ?? 0);
+            $isWajibBulanan = $jenisPeriode === 'BULANAN' && in_array($slug, $wajibSlugs, true);
+            if ($expected > 0 && $nominal > $sisa && ($isWajibBulanan || $jenisPeriode === 'AWAL_TAHUN')) {
+                return [
+                    'ok' => false,
+                    'message' => 'Nominal ' . ($def['nama'] ?? $slug) . ' melebihi sisa tagihan (Rp ' . number_format($sisa, 0, ',', '.') . ').',
+                ];
+            }
+        }
+        $detailRows[] = ['slug' => $slug, 'nama' => $def['nama'], 'nominal' => $nominal];
+        $totalNominal += $nominal;
+    }
+
+    if ($detailRows === []) {
+        return ['ok' => false, 'message' => 'Nominal pembayaran tidak valid.'];
+    }
+
+    foreach ($detailRows as $dr) {
+        if ($dr['slug'] === 'saku') {
+            continue;
+        }
+        $info = $tagihanBreakdown[$dr['slug']] ?? null;
+        if (!is_array($info)) {
+            continue;
+        }
+        $paidBefore = (int) ($info['paid'] ?? 0);
+        $expected = (int) ($info['expected'] ?? 0);
+        if ($expected > 0 && ($paidBefore + (int) $dr['nominal']) < $expected) {
+            $stillHasSisaWajib = true;
+            break;
+        }
+    }
+    $statusLunas = $stillHasSisaWajib ? 'CICILAN' : 'LUNAS';
+
+    $hasStatusCol = column_exists($pdo, 'keuangan_pembayaran', 'status_lunas');
+    $hasMetodeCol = column_exists($pdo, 'keuangan_pembayaran', 'metode_bayar');
+
+    $cols = ['santri_id', 'jenis_periode', 'tahun_ajaran_mulai', 'tahun_ajaran_selesai', 'bulan_tagihan', 'tanggal_bayar', 'total_nominal', 'keterangan', 'created_by'];
+    $vals = [':santri_id', ':jenis_periode', ':mulai', ':selesai', ':bulan_tagihan', ':tanggal_bayar', ':total_nominal', ':keterangan', ':created_by'];
+    $params = [
+        'santri_id' => $santriId,
+        'jenis_periode' => $jenisPeriode,
+        'mulai' => $tahunMulai,
+        'selesai' => $tahunSelesai,
+        'bulan_tagihan' => $bulanTagihan > 0 ? $bulanTagihan : null,
+        'tanggal_bayar' => $tanggalBayar,
+        'total_nominal' => $totalNominal,
+        'keterangan' => $keterangan,
+        'created_by' => $userId > 0 ? $userId : null,
+    ];
+    if ($hasMetodeCol) {
+        $cols[] = 'metode_bayar';
+        $vals[] = ':metode_bayar';
+        $params['metode_bayar'] = $metodeBayar;
+    }
+    if (column_exists($pdo, 'keuangan_pembayaran', 'akun_id')) {
+        $cols[] = 'akun_id';
+        $vals[] = ':akun_id';
+        $params['akun_id'] = $akunId;
+    }
+    if (column_exists($pdo, 'keuangan_pembayaran', 'no_referensi')) {
+        $cols[] = 'no_referensi';
+        $vals[] = ':no_referensi';
+        $params['no_referensi'] = $noReferensi !== '' ? $noReferensi : null;
+    }
+    if ($hasStatusCol) {
+        $cols[] = 'status_lunas';
+        $vals[] = ':status_lunas';
+        $params['status_lunas'] = $statusLunas;
+    }
+
+    $sql = 'INSERT INTO keuangan_pembayaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
+    $pdo->prepare($sql)->execute($params);
+    $pembayaranId = (int) $pdo->lastInsertId();
+
+    $insertDetail = $pdo->prepare('
+        INSERT INTO keuangan_pembayaran_detail (pembayaran_id, pos_slug, pos_nama, nominal)
+        VALUES (:pembayaran_id, :pos_slug, :pos_nama, :nominal)
+    ');
+    foreach ($detailRows as $dr) {
+        $insertDetail->execute([
+            'pembayaran_id' => $pembayaranId,
+            'pos_slug' => $dr['slug'],
+            'pos_nama' => $dr['nama'],
+            'nominal' => $dr['nominal'],
+        ]);
+    }
+
+    $hasSaku = array_filter($detailRows, static fn(array $r): bool => $r['slug'] === 'saku');
+    if ($hasSaku) {
+        $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
+        $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
+        $pdo->prepare('UPDATE cashless_accounts SET balance = balance + :nominal WHERE santri_id = :santri_id')->execute([
+            'nominal' => $topupNominal,
+            'santri_id' => $santriId,
+        ]);
+        $pdo->prepare("
+            INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
+            VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
+        ")->execute([
+            'santri_id' => $santriId,
+            'nominal' => $topupNominal,
+            'keterangan' => 'Topup otomatis dari pembayaran pos Saku',
+            'ref_pembayaran_id' => $pembayaranId,
+            'created_by' => $userId > 0 ? $userId : null,
+        ]);
+    }
+
+    keuangan_jurnal_pembayaran(
+        $pdo,
+        $pembayaranId,
+        $tanggalBayar,
+        $akunId,
+        $totalNominal,
+        $detailRows,
+        $kategoriFilter,
+        $userId
+    );
+
+    return [
+        'ok' => true,
+        'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.',
+        'id' => $pembayaranId,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $post
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
+{
+    ensure_keuangan_transaksi_tables($pdo);
+
+    $tanggal = trim((string) ($post['tanggal_pengeluaran'] ?? date('Y-m-d')));
+    $penanggungJawab = trim((string) ($post['penanggung_jawab'] ?? ''));
+    $pos = trim((string) ($post['pos_pengeluaran'] ?? ''));
+    $alokasiNama = trim((string) ($post['alokasi_nama'] ?? ''));
+    $metodeKeluar = strtoupper(trim((string) ($post['metode_keluar'] ?? 'KAS')));
+    $akunId = (int) ($post['akun_id'] ?? 0);
+    $noBukti = trim((string) ($post['no_bukti'] ?? ''));
+    $nominal = keuangan_money_input_to_int((string) ($post['nominal_pengeluaran'] ?? '0'));
+    $keterangan = trim((string) ($post['keterangan_pengeluaran'] ?? ''));
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        $tanggal = date('Y-m-d');
+    }
+    if (!in_array($metodeKeluar, ['KAS', 'TRANSFER'], true)) {
+        $metodeKeluar = 'KAS';
+    }
+    if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
+        return ['ok' => false, 'message' => 'Form pengeluaran belum lengkap (penanggung jawab, pos, nominal).'];
+    }
+    if ($akunId <= 0) {
+        return ['ok' => false, 'message' => 'Pilih akun kas/bank sumber dana.'];
+    }
+
+    $cols = ['tanggal', 'penanggung_jawab', 'pos', 'alokasi_nama', 'nominal', 'keterangan', 'created_by'];
+    $vals = [':tanggal', ':penanggung_jawab', ':pos', ':alokasi_nama', ':nominal', ':keterangan', ':created_by'];
+    $params = [
+        'tanggal' => $tanggal,
+        'penanggung_jawab' => $penanggungJawab,
+        'pos' => $pos,
+        'alokasi_nama' => $alokasiNama !== '' ? $alokasiNama : null,
+        'nominal' => $nominal,
+        'keterangan' => $keterangan,
+        'created_by' => $userId > 0 ? $userId : null,
+    ];
+    if (column_exists($pdo, 'keuangan_pengeluaran', 'metode_keluar')) {
+        $cols[] = 'metode_keluar';
+        $vals[] = ':metode_keluar';
+        $params['metode_keluar'] = $metodeKeluar;
+    }
+    if (column_exists($pdo, 'keuangan_pengeluaran', 'akun_id')) {
+        $cols[] = 'akun_id';
+        $vals[] = ':akun_id';
+        $params['akun_id'] = $akunId;
+    }
+    if (column_exists($pdo, 'keuangan_pengeluaran', 'no_bukti')) {
+        $cols[] = 'no_bukti';
+        $vals[] = ':no_bukti';
+        $params['no_bukti'] = $noBukti !== '' ? $noBukti : null;
+    }
+
+    $sql = 'INSERT INTO keuangan_pengeluaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
+    $pdo->prepare($sql)->execute($params);
+    $pengeluaranId = (int) $pdo->lastInsertId();
+
+    keuangan_jurnal_pengeluaran($pdo, $pengeluaranId, $tanggal, $akunId, $nominal, $pos, $userId);
+
+    return ['ok' => true, 'message' => 'Pengeluaran berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
+}
+
+/** @return list<string> */
+function keuangan_pemasukan_sumber_suggest(): array
+{
+    return [
+        'Donasi umum',
+        'Hibah / bantuan',
+        'Wakaf',
+        'Bantuan lembaga / yayasan',
+        'Bunga bank',
+        'Penjualan aset',
+        'Retur / pengembalian dana',
+        'Lainnya',
+    ];
+}
+
+/**
+ * @param array<string, mixed> $post
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
+{
+    ensure_keuangan_transaksi_tables($pdo);
+
+    $tanggal = trim((string) ($post['tanggal_pemasukan'] ?? date('Y-m-d')));
+    $sumber = trim((string) ($post['sumber_pemasukan'] ?? ''));
+    $dariPihak = trim((string) ($post['dari_pihak'] ?? ''));
+    $metodeBayar = strtoupper(trim((string) ($post['metode_bayar'] ?? 'KAS')));
+    $akunId = (int) ($post['akun_id'] ?? 0);
+    $noBukti = trim((string) ($post['no_bukti'] ?? ''));
+    $nominal = keuangan_money_input_to_int((string) ($post['nominal_pemasukan'] ?? '0'));
+    $keterangan = trim((string) ($post['keterangan_pemasukan'] ?? ''));
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        $tanggal = date('Y-m-d');
+    }
+    if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
+        $metodeBayar = 'KAS';
+    }
+    if ($sumber === '' || $nominal <= 0) {
+        return ['ok' => false, 'message' => 'Form pemasukan belum lengkap (sumber, nominal).'];
+    }
+    if ($akunId <= 0) {
+        return ['ok' => false, 'message' => 'Pilih akun kas/bank penerimaan.'];
+    }
+
+    $pdo->prepare('
+        INSERT INTO keuangan_pemasukan (tanggal, sumber, dari_pihak, metode_bayar, akun_id, no_bukti, nominal, keterangan, created_by)
+        VALUES (:tanggal, :sumber, :dari_pihak, :metode_bayar, :akun_id, :no_bukti, :nominal, :keterangan, :created_by)
+    ')->execute([
+        'tanggal' => $tanggal,
+        'sumber' => $sumber,
+        'dari_pihak' => $dariPihak !== '' ? $dariPihak : null,
+        'metode_bayar' => $metodeBayar,
+        'akun_id' => $akunId,
+        'no_bukti' => $noBukti !== '' ? $noBukti : null,
+        'nominal' => $nominal,
+        'keterangan' => $keterangan !== '' ? $keterangan : null,
+        'created_by' => $userId > 0 ? $userId : null,
+    ]);
+    $pemasukanId = (int) $pdo->lastInsertId();
+
+    keuangan_jurnal_pemasukan($pdo, $pemasukanId, $tanggal, $akunId, $nominal, $sumber, $userId);
+
+    return ['ok' => true, 'message' => 'Pemasukan berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_recent_pemasukan(PDO $pdo, int $limit = 15): array
+{
+    if (!table_exists($pdo, 'keuangan_pemasukan')) {
+        return [];
+    }
+    $limit = max(5, min(50, $limit));
+    $join = table_exists($pdo, 'keuangan_akun') ? 'LEFT JOIN keuangan_akun a ON a.id = p.akun_id' : '';
+    $akunCol = table_exists($pdo, 'keuangan_akun') ? ', a.nama_akun AS akun_nama' : '';
+
+    return $pdo->query("
+        SELECT p.id, p.tanggal, p.sumber, p.dari_pihak, p.metode_bayar, p.nominal, p.keterangan, p.no_bukti{$akunCol}
+        FROM keuangan_pemasukan p
+        {$join}
+        ORDER BY p.id DESC
+        LIMIT {$limit}
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_recent_pembayaran(PDO $pdo, int $limit = 15): array
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    ensure_santri_identity_columns($pdo);
+    $limit = max(5, min(50, $limit));
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+
+    return $pdo->query("
+        SELECT p.id, p.tanggal_bayar, p.jenis_periode, p.bulan_tagihan, p.total_nominal, p.metode_bayar,
+               s.nis, {$nameCol} AS nama_santri
+        FROM keuangan_pembayaran p
+        INNER JOIN santri s ON s.id = p.santri_id
+        ORDER BY p.id DESC
+        LIMIT {$limit}
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_recent_pengeluaran(PDO $pdo, int $limit = 15): array
+{
+    if (!table_exists($pdo, 'keuangan_pengeluaran')) {
+        return [];
+    }
+    $limit = max(5, min(50, $limit));
+    $join = table_exists($pdo, 'keuangan_akun') ? 'LEFT JOIN keuangan_akun a ON a.id = p.akun_id' : '';
+    $akunCol = table_exists($pdo, 'keuangan_akun') ? ', a.nama_akun AS akun_nama' : '';
+
+    return $pdo->query("
+        SELECT p.id, p.tanggal, p.penanggung_jawab, p.pos, p.alokasi_nama, p.metode_keluar, p.nominal, p.keterangan, p.no_bukti{$akunCol}
+        FROM keuangan_pengeluaran p
+        {$join}
+        ORDER BY p.id DESC
+        LIMIT {$limit}
+    ")->fetchAll(PDO::FETCH_ASSOC);
+}

@@ -1,0 +1,58 @@
+/* Buku induk digital — riwayat santri */
+.santri-buku-induk .buku-section {
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    background: #fff;
+}
+
+.santri-buku-induk .buku-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.75rem;
+    margin: 0;
+    background: var(--bs-light, #f8f9fa);
+    border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+    color: var(--bs-secondary, #6c757d);
+}
+
+.santri-buku-induk .table-buku {
+    font-size: 0.8125rem;
+    margin-bottom: 0;
+}
+
+.santri-buku-induk .table-buku th {
+    font-weight: 600;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    background: #fafbfc;
+}
+
+.santri-buku-induk .table-buku td,
+.santri-buku-induk .table-buku th {
+    padding: 0.4rem 0.65rem;
+    vertical-align: middle;
+}
+
+.santri-buku-induk .buku-filter {
+    font-size: 0.8125rem;
+}
+
+.santri-buku-induk .btn,
+.santri-data-actions .btn {
+    --bs-btn-padding-y: 0.2rem;
+    --bs-btn-padding-x: 0.45rem;
+    --bs-btn-font-size: 0.75rem;
+    --bs-btn-line-height: 1.35;
+}
+
+.santri-buku-induk .btn-group-actions {
+    gap: 0.25rem;
+}
+
+.santri-buku-induk .btn-group-actions .btn {
+    min-width: auto;
+}

@@ -1,0 +1,754 @@
+/* Kalender akademik — tampilan bersih & modern (selaras app.css) */
+
+.akademik-kalender-page {
+    --cal-primary: #0f766e;
+    --cal-primary-soft: rgba(15, 118, 110, 0.08);
+    --cal-primary-border: rgba(15, 118, 110, 0.22);
+    --cal-page-bg: #f4f6f8;
+    --cal-surface: #ffffff;
+    --cal-surface-muted: #f8fafc;
+    --cal-border: #e8ecf1;
+    --cal-text: #0f172a;
+    --cal-text-muted: #64748b;
+    --cal-radius: 12px;
+    --cal-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    --cal-shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.07);
+}
+
+/* Latar halaman datar — tanpa gradien app.css */
+body.akademik-kalender-page {
+    background: var(--cal-page-bg) !important;
+}
+
+body.akademik-kalender-page .app-main {
+    background: transparent;
+}
+
+body.akademik-kalender-page .app-content {
+    background: transparent;
+}
+
+[data-theme="dark"] .akademik-kalender-page {
+    --cal-page-bg: #0f1419;
+    --cal-surface: #1a2332;
+    --cal-surface-muted: #151c27;
+    --cal-border: #2d3a4d;
+    --cal-text: #f1f5f9;
+    --cal-text-muted: #94a3b8;
+    --cal-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] body.akademik-kalender-page {
+    background: var(--cal-page-bg) !important;
+}
+
+/* —— Hero —— */
+.akad-cal-hero {
+    background: var(--cal-surface);
+    border: 1px solid var(--cal-border);
+    border-left: 4px solid var(--cal-primary);
+    border-radius: var(--cal-radius);
+    color: var(--cal-text);
+    padding: 1.35rem 1.5rem;
+    box-shadow: var(--cal-shadow);
+    position: relative;
+}
+
+.akad-cal-hero h1 {
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    position: relative;
+}
+
+.akad-cal-hero-kicker {
+    color: var(--cal-primary) !important;
+    letter-spacing: 0.08em;
+}
+
+.akad-cal-hero .opacity-90 {
+    opacity: 1 !important;
+    color: var(--cal-text-muted);
+}
+
+.akad-cal-hero-today {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 8px;
+    background: var(--cal-primary-soft);
+    border: 1px solid var(--cal-primary-border);
+    color: var(--cal-text);
+    font-size: 0.85rem;
+}
+
+.akad-cal-hero-today .fa-solid {
+    color: var(--cal-primary);
+}
+
+/* —— Nav & toolbar —— */
+.akad-cal-nav-card {
+    border: 1px solid var(--cal-border);
+    border-radius: var(--cal-radius);
+    box-shadow: var(--cal-shadow);
+    background: var(--cal-surface);
+}
+
+.akad-cal-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: center;
+}
+
+.akad-cal-toolbar .btn-group {
+    box-shadow: inset 0 0 0 1px var(--cal-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.akad-cal-toolbar .btn-group .btn {
+    border: none;
+    padding: 0.45rem 0.9rem;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.akad-cal-toolbar .btn-group .btn.active {
+    background: var(--cal-primary);
+    color: #fff;
+    box-shadow: none;
+}
+
+/* —— Legend —— */
+.akad-cal-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--cal-text-muted);
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--cal-border);
+    margin-top: 0.25rem;
+}
+
+.akad-cal-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.55rem;
+    border-radius: 8px;
+    background: var(--cal-surface);
+    border: 1px solid var(--cal-border);
+}
+
+.akad-cal-legend-swatch {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.akad-cal-legend-swatch--today {
+    outline: 2px solid var(--cal-primary);
+    outline-offset: 1px;
+    background: #fff;
+}
+
+.akad-cal-legend-swatch--jumat { background: var(--cal-primary-soft); border-color: var(--cal-primary-border); }
+.akad-cal-legend-swatch--libur { background: rgba(251, 191, 36, 0.55); }
+.akad-cal-legend-swatch--libur-minggu { background: rgba(45, 212, 191, 0.45); }
+.akad-cal-legend-swatch--hari-islam { background: linear-gradient(135deg, rgba(124, 58, 237, 0.5), rgba(251, 191, 36, 0.4)); }
+.akad-cal-legend-swatch--hari-nasional { background: rgba(239, 68, 68, 0.45); }
+
+.akad-cal-legend-note {
+    grid-column: 1 / -1;
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-top: 0.15rem;
+}
+
+/* —— Month card & navigation —— */
+.akad-cal-main-card {
+    border: 1px solid var(--cal-border);
+    border-radius: var(--cal-radius);
+    box-shadow: var(--cal-shadow);
+    background: var(--cal-surface);
+    overflow: hidden;
+}
+
+.akad-cal-main-card,
+.akad-cal-nav-card {
+    background: var(--cal-surface);
+}
+
+.akad-cal-filter-bar {
+    padding: 1rem 1.25rem;
+    background: var(--cal-surface);
+    border-bottom: 1px solid var(--cal-border);
+}
+
+.akad-cal-month-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.25rem 0.75rem;
+}
+
+.akad-cal-month-header-text h2 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin: 0;
+    color: var(--cal-text);
+}
+
+.akad-cal-month-header-text p {
+    margin: 0.25rem 0 0;
+    font-size: 0.88rem;
+    color: var(--cal-text-muted);
+}
+
+.akad-cal-month-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--cal-surface);
+    border: 1px solid var(--cal-border);
+    border-radius: 10px;
+    padding: 0.2rem;
+}
+
+.akad-cal-month-nav .btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--cal-text);
+}
+
+.akad-cal-month-nav .btn:hover {
+    background: var(--cal-surface);
+    color: var(--cal-primary);
+}
+
+.akad-cal-month-body {
+    padding: 0 1rem 1.25rem;
+}
+
+.akad-cal-year-note {
+    font-size: 0.85rem;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    background: var(--cal-surface-muted);
+    border: 1px solid var(--cal-border);
+    color: var(--cal-text-muted);
+    margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .akad-cal-year-note {
+    background: var(--cal-surface-muted);
+    border-color: var(--cal-border);
+    color: var(--cal-text-muted);
+}
+
+/* —— Calendar grid shell —— */
+.akad-cal-month-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
+}
+
+.akad-cal-table-shell {
+    border: 1px solid var(--cal-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--cal-surface);
+}
+
+.akad-cal-month-block {
+    margin-bottom: 0.5rem;
+}
+
+.akad-cal-month-head {
+    margin-bottom: 0.65rem;
+}
+
+.akad-cal-month-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--cal-text);
+}
+
+.akad-cal-month-subtitle {
+    font-size: 0.78rem;
+    color: var(--cal-text-muted);
+    margin: 0.15rem 0 0;
+    line-height: 1.35;
+}
+
+/* —— Table —— */
+.akad-cal-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.akad-cal-table th {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+    padding: 0.65rem 0.25rem;
+    color: var(--cal-text-muted);
+    background: var(--cal-surface);
+    border-bottom: 1px solid var(--cal-border);
+}
+
+.akad-cal-th--jumat {
+    color: var(--cal-primary) !important;
+}
+
+.akad-cal-th--weekend {
+    color: #94a3b8 !important;
+}
+
+.akad-cal-table td {
+    border: 1px solid var(--cal-border);
+    vertical-align: top;
+    padding: 0;
+}
+
+/* —— Day cell —— */
+.akad-cal-day {
+    height: 5.75rem;
+    background: var(--cal-surface);
+    position: relative;
+    cursor: default;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.akad-cal-day:focus-visible {
+    outline: 2px solid var(--cal-primary);
+    outline-offset: -2px;
+    z-index: 2;
+}
+
+.akad-cal-day:not(.akad-cal-day--empty):hover {
+    z-index: 1;
+    background: #fafbfc !important;
+    box-shadow: inset 0 0 0 1px var(--cal-primary-border);
+}
+
+[data-theme="dark"] .akad-cal-day:not(.akad-cal-day--empty):hover {
+    background: #243044 !important;
+}
+
+.akad-cal-day--empty {
+    background: var(--cal-surface-muted) !important;
+    opacity: 1;
+    pointer-events: none;
+}
+
+.akad-cal-day--empty .akad-cal-day-inner {
+    visibility: hidden;
+}
+
+.akad-cal-day-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0.4rem 0.45rem;
+    gap: 0.12rem;
+    min-height: 5.75rem;
+}
+
+.akad-cal-day-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.2rem;
+}
+
+.akad-cal-day-num {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--cal-text);
+    letter-spacing: -0.02em;
+}
+
+.akad-cal-day-today-badge {
+    font-size: 0.52rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.12rem 0.35rem;
+    border-radius: 4px;
+    background: var(--cal-primary);
+    color: #fff;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+/* Sel hari: dasar putih, status pakai garis kiri tipis (bukan wash warna penuh) */
+.akad-cal-day:not(.akad-cal-day--empty) {
+    background: var(--cal-surface) !important;
+}
+
+.akad-cal-day--today {
+    background: var(--cal-surface) !important;
+    box-shadow: inset 0 0 0 2px var(--cal-primary);
+}
+
+.akad-cal-day--today .akad-cal-day-num {
+    color: var(--cal-primary);
+}
+
+.akad-cal-day--weekend:not(.akad-cal-day--libur):not(.akad-cal-day--today) {
+    background: var(--cal-surface) !important;
+}
+
+.akad-cal-day--jumat:not(.akad-cal-day--libur):not(.akad-cal-day--today) {
+    background: var(--cal-surface) !important;
+    box-shadow: inset 3px 0 0 var(--cal-primary);
+}
+
+.akad-cal-col--jumat .akad-cal-day-num {
+    color: var(--cal-primary);
+}
+
+.akad-cal-day--libur,
+.akad-cal-day--libur-minggu:not(.akad-cal-day--libur),
+.akad-cal-day--hari-islam,
+.akad-cal-day--hari-nasional,
+.akad-cal-day--libur.akad-cal-day--hari-islam,
+.akad-cal-day--libur.akad-cal-day--hari-nasional {
+    background: var(--cal-surface) !important;
+}
+
+.akad-cal-day--libur {
+    box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.akad-cal-day--libur-minggu:not(.akad-cal-day--libur) {
+    box-shadow: inset 3px 0 0 #2dd4bf;
+}
+
+.akad-cal-day--hari-islam,
+.akad-cal-day--libur.akad-cal-day--hari-islam {
+    box-shadow: inset 3px 0 0 #8b5cf6;
+}
+
+.akad-cal-day--hari-nasional,
+.akad-cal-day--libur.akad-cal-day--hari-nasional {
+    box-shadow: inset 3px 0 0 #ef4444;
+}
+
+.akad-cal-day--today.akad-cal-day--libur,
+.akad-cal-day--today.akad-cal-day--hari-islam,
+.akad-cal-day--today.akad-cal-day--hari-nasional {
+    box-shadow: inset 0 0 0 2px var(--cal-primary), inset 3px 0 0 #f59e0b;
+}
+
+.akad-cal-day-hijri {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--cal-text-muted);
+}
+
+.akad-cal-day-hijri--compact {
+    font-size: 0.52rem;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hijri month accent colors */
+.akad-cal-hijri-bulan--1 .akad-cal-day-hijri { color: #6d28d9; }
+.akad-cal-hijri-bulan--2 .akad-cal-day-hijri { color: #4338ca; }
+.akad-cal-hijri-bulan--3 .akad-cal-day-hijri { color: #2563eb; }
+.akad-cal-hijri-bulan--4 .akad-cal-day-hijri { color: #0d9488; }
+.akad-cal-hijri-bulan--5 .akad-cal-day-hijri { color: #16a34a; }
+.akad-cal-hijri-bulan--6 .akad-cal-day-hijri { color: #65a30d; }
+.akad-cal-hijri-bulan--7 .akad-cal-day-hijri { color: #ca8a04; }
+.akad-cal-hijri-bulan--8 .akad-cal-day-hijri { color: #ea580c; }
+.akad-cal-hijri-bulan--9 .akad-cal-day-hijri { color: #7e22ce; }
+.akad-cal-hijri-bulan--10 .akad-cal-day-hijri { color: #9333ea; }
+.akad-cal-hijri-bulan--11 .akad-cal-day-hijri { color: #db2777; }
+.akad-cal-hijri-bulan--12 .akad-cal-day-hijri { color: #dc2626; }
+
+.akad-cal-day-pasaran {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.25;
+}
+
+.akad-cal-day-pasaran--compact {
+    align-self: center;
+    font-size: 0.48rem;
+    padding: 0.06rem 0.2rem;
+}
+
+.akad-cal-pasaran--1,
+.akad-cal-pasaran--2,
+.akad-cal-pasaran--3,
+.akad-cal-pasaran--4,
+.akad-cal-pasaran--5 {
+    background: var(--cal-surface-muted);
+    border: 1px solid var(--cal-border);
+    color: var(--cal-text-muted);
+}
+
+.akad-cal-day-event {
+    display: block;
+    margin-top: auto;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.58rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.akad-cal-day-event--islam {
+    background: var(--cal-surface-muted);
+    border: 1px solid #ddd6fe;
+    color: #5b21b6;
+}
+
+.akad-cal-day-event--nasional {
+    background: var(--cal-surface-muted);
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}
+
+.akad-cal-day-event--libur {
+    background: var(--cal-surface-muted);
+    border: 1px solid #fde68a;
+    color: #92400e;
+}
+
+[data-theme="dark"] .akad-cal-day-event--islam { color: #ddd6fe; }
+[data-theme="dark"] .akad-cal-day-event--nasional { color: #fecaca; }
+[data-theme="dark"] .akad-cal-day-event--libur { color: #fde68a; }
+
+.akad-cal-day-libur-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 0.35rem;
+}
+
+/* —— Year grid (12 months) —— */
+.akad-cal-year-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+    .akad-cal-year-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 992px) {
+    .akad-cal-year-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (min-width: 1400px) {
+    .akad-cal-year-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.akad-cal-month-block--compact {
+    padding: 0.75rem;
+    border: 1px solid var(--cal-border);
+    border-radius: 10px;
+    background: var(--cal-surface);
+    transition: box-shadow 0.2s ease;
+}
+
+.akad-cal-month-block--compact:hover {
+    border-color: var(--cal-primary-border);
+}
+
+/* Kartu & tabel di bawah kalender — latar seragam */
+body.akademik-kalender-page .card {
+    background: var(--cal-surface);
+    border-color: var(--cal-border);
+    box-shadow: var(--cal-shadow);
+}
+
+body.akademik-kalender-page .card-header.bg-light {
+    background: var(--cal-surface-muted) !important;
+    border-color: var(--cal-border);
+}
+
+body.akademik-kalender-page .table-light {
+    --bs-table-bg: var(--cal-surface-muted);
+    --bs-table-border-color: var(--cal-border);
+}
+
+.akad-cal-month-block--compact .akad-cal-month-title {
+    font-size: 0.88rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--cal-border);
+    margin-bottom: 0.5rem;
+}
+
+.akad-cal-table--compact .akad-cal-day {
+    height: 3.35rem;
+}
+
+.akad-cal-table--compact .akad-cal-day-inner {
+    min-height: 3.35rem;
+    padding: 0.2rem 0.25rem;
+}
+
+.akad-cal-table--compact .akad-cal-day-num {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+    width: 100%;
+}
+
+.akad-cal-table--compact .akad-cal-day-today-badge {
+    display: none;
+}
+
+.akad-cal-table--compact .akad-cal-day--today {
+    box-shadow: inset 0 0 0 2px var(--cal-primary);
+}
+
+.akad-cal-table--compact .akad-cal-day-event {
+    font-size: 0.45rem;
+    padding: 0.08rem 0.15rem;
+}
+
+/* —— Settings panel —— */
+.akad-cal-settings-panel {
+    border-top: 3px solid var(--cal-primary);
+}
+
+/* —— Libur cards —— */
+.akad-cal-libur-card {
+    border: 1px solid var(--cal-border);
+    border-radius: var(--cal-radius);
+    box-shadow: var(--cal-shadow);
+    background: var(--cal-surface);
+    height: 100%;
+}
+
+.akad-cal-libur-card .card-body {
+    padding: 1.25rem;
+}
+
+.akad-cal-libur-card h2 {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+/* H/B/T inputs */
+.hijri-hbt-group {
+    font-size: 0.85rem;
+}
+
+.hijri-hbt-field {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+}
+
+.hijri-hbt-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--cal-text-muted);
+    line-height: 1;
+}
+
+.hijri-hbt-input {
+    width: 3.1rem;
+    text-align: center;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    border-radius: 8px;
+}
+
+.hijri-hbt-input[name$="_t"],
+.hijri-hbt-input[name*="_t["] {
+    width: 4.25rem;
+}
+
+.hijri-hbt-sep {
+    color: var(--cal-text-muted);
+    font-weight: 600;
+    padding: 0 0.05rem;
+    margin-top: 0.85rem;
+}
+
+table .hijri-hbt-group {
+    min-width: 11rem;
+}
+
+/* Mobile */
+@media (max-width: 575.98px) {
+    .akad-cal-day {
+        height: 4.5rem;
+    }
+
+    .akad-cal-day-inner {
+        min-height: 4.5rem;
+        padding: 0.3rem;
+    }
+
+    .akad-cal-day-num {
+        font-size: 1rem;
+    }
+
+    .akad-cal-day-today-badge {
+        font-size: 0.48rem;
+        padding: 0.1rem 0.28rem;
+    }
+
+    .akad-cal-day-hijri {
+        font-size: 0.6rem;
+    }
+
+    .akad-cal-month-header-text h2 {
+        font-size: 1.15rem;
+    }
+
+    .akad-cal-legend {
+        grid-template-columns: 1fr 1fr;
+    }
+}

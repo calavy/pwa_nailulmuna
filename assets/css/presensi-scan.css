@@ -1,0 +1,403 @@
+/* Halaman scan presensi — layar penuh, fokus kamera */
+.scan-simple-page .app-sidebar,
+.scan-simple-page #mobileSidebar,
+.scan-simple-page #sidebar-toggle-btn,
+.scan-simple-page .app-topbar-title,
+.scan-simple-page .app-topbar-user {
+    display: none !important;
+}
+
+.scan-simple-page .app-shell {
+    display: block;
+}
+
+.scan-simple-page .app-main {
+    max-width: 100%;
+    padding: 0 !important;
+}
+
+.scan-simple-page .app-content {
+    padding-top: 0 !important;
+}
+
+.scan-simple-page .navbar.app-topbar {
+    margin-bottom: 0 !important;
+}
+
+.presensi-scan-app {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    min-height: calc(100dvh - 52px);
+    display: flex;
+    flex-direction: column;
+    background: #0f172a;
+}
+
+.presensi-scan-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(15, 23, 42, 0.92);
+    color: #e2e8f0;
+    z-index: 10;
+}
+
+.presensi-scan-top a {
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.presensi-scan-top a:hover {
+    color: #fff;
+}
+
+.presensi-scan-status {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+    white-space: nowrap;
+}
+
+.presensi-scan-status.is-waiting {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fde68a;
+}
+
+.presensi-scan-status.is-error {
+    background: rgba(248, 113, 113, 0.2);
+    color: #fecaca;
+}
+
+.presensi-scan-viewport {
+    position: relative;
+    flex: 1;
+    min-height: min(68dvh, 560px);
+    overflow: hidden;
+}
+
+.presensi-scan-viewport #qr-reader {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: min(68dvh, 560px);
+    border: none !important;
+    padding: 0 !important;
+    background: #000 !important;
+}
+
+.presensi-scan-viewport #qr-reader video {
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Jangan tampilkan teks hasil decode QR dari library html5-qrcode */
+#qr-reader__dashboard_section_csr,
+#qr-reader__dashboard_section_swaplink,
+#qr-reader__dashboard_section_fsr,
+#reader__dashboard_section_csr,
+#reader__dashboard_section_swaplink,
+#reader__dashboard_section_fsr,
+#qr-reader__scan_region [id$="scan-result"],
+#reader__scan_region [id$="scan-result"] {
+    display: none !important;
+}
+
+.presensi-scan-frame {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.presensi-scan-frame-box {
+    width: min(78vw, 320px);
+    height: min(78vw, 320px);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+    position: relative;
+}
+
+.presensi-scan-frame-box::before,
+.presensi-scan-frame-box::after {
+    content: "";
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 3px solid #22c55e;
+}
+
+.presensi-scan-frame-box::before {
+    top: -2px;
+    left: -2px;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 12px 0 0 0;
+}
+
+.presensi-scan-frame-box::after {
+    bottom: -2px;
+    right: -2px;
+    border-left: none;
+    border-top: none;
+    border-radius: 0 0 12px 0;
+}
+
+.presensi-scan-hint {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    padding: 0.35rem 0.75rem 0.25rem;
+    background: #0f172a;
+}
+
+/* Panel hitung mundur jadwal scan */
+.presensi-scan-timer {
+    padding: 0.5rem 0.75rem 0.35rem;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.presensi-scan-timer-inner {
+    text-align: center;
+    padding: 0.45rem 0.5rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.presensi-scan-timer.is-active .presensi-scan-timer-inner {
+    border-color: rgba(74, 222, 128, 0.55);
+    background: rgba(22, 101, 52, 0.25);
+}
+
+.presensi-scan-timer.is-upcoming .presensi-scan-timer-inner {
+    border-color: rgba(251, 191, 36, 0.5);
+    background: rgba(120, 53, 15, 0.25);
+}
+
+.presensi-scan-timer.is-ended .presensi-scan-timer-inner,
+.presensi-scan-timer.is-none .presensi-scan-timer-inner {
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+.presensi-scan-timer.is-libur .presensi-scan-timer-inner {
+    border-color: rgba(248, 113, 113, 0.45);
+    background: rgba(127, 29, 29, 0.25);
+}
+
+.presensi-scan-timer-title {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    line-height: 1.3;
+}
+
+.presensi-scan-timer-range {
+    display: block;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-top: 0.1rem;
+}
+
+.presensi-scan-timer-clock {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    color: #f8fafc;
+    line-height: 1.15;
+    margin: 0.2rem 0 0.05rem;
+}
+
+.presensi-scan-timer.is-active .presensi-scan-timer-clock {
+    color: #86efac;
+}
+
+.presensi-scan-timer.is-upcoming .presensi-scan-timer-clock {
+    color: #fde68a;
+}
+
+.presensi-scan-timer-hint {
+    display: block;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.presensi-scan-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    background: #1e293b;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.presensi-scan-controls .btn-scan-ctl {
+    flex: 1 1 calc(33% - 0.35rem);
+    min-width: 5.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.72rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+}
+
+.presensi-scan-controls .btn-scan-ctl i {
+    font-size: 1.1rem;
+}
+
+.presensi-scan-controls .btn-scan-ctl:active {
+    transform: scale(0.97);
+}
+
+.presensi-scan-controls .btn-scan-ctl.is-active {
+    background: rgba(59, 130, 246, 0.35);
+    border-color: #60a5fa;
+    color: #fff;
+}
+
+.presensi-scan-settings {
+    display: none;
+    padding: 0 0.75rem 0.5rem;
+    background: #1e293b;
+}
+
+.presensi-scan-settings.is-open {
+    display: block;
+}
+
+.presensi-scan-settings label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+}
+
+.presensi-scan-settings .form-select {
+    font-size: 0.85rem;
+    background-color: #0f172a;
+    color: #e2e8f0;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.presensi-scan-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+    text-align: center;
+    z-index: 8;
+}
+
+.presensi-scan-error.d-none {
+    display: none !important;
+}
+
+/* Flash singkat di area kamera */
+.presensi-scan-viewport.presensi-scan-flash-success {
+    box-shadow: inset 0 0 0 4px rgba(34, 197, 94, 0.85);
+    animation: presensi-flash-success 0.65s ease-out;
+}
+
+.presensi-scan-viewport.presensi-scan-flash-warning {
+    box-shadow: inset 0 0 0 4px rgba(251, 191, 36, 0.9);
+    animation: presensi-flash-warning 0.65s ease-out;
+}
+
+@keyframes presensi-flash-success {
+    0% { box-shadow: inset 0 0 0 6px rgba(34, 197, 94, 1); }
+    100% { box-shadow: inset 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes presensi-flash-warning {
+    0% { box-shadow: inset 0 0 0 6px rgba(251, 191, 36, 1); }
+    100% { box-shadow: inset 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+
+/* Banner notifikasi hasil scan */
+.presensi-scan-result {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    z-index: 1100;
+    width: min(92vw, 400px);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.presensi-scan-result.is-visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.presensi-scan-result-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    border: 2px solid transparent;
+}
+
+.presensi-scan-result--success {
+    background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+    border-color: #4ade80;
+    color: #ecfdf5;
+}
+
+.presensi-scan-result--warning {
+    background: linear-gradient(135deg, #713f12 0%, #854d0e 100%);
+    border-color: #fbbf24;
+    color: #fffbeb;
+}
+
+.presensi-scan-result--danger {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+    border-color: #f87171;
+    color: #fef2f2;
+}
+
+.presensi-scan-result-icon {
+    font-size: 1.75rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.presensi-scan-result--success .presensi-scan-result-icon {
+    color: #86efac;
+}
+
+.presensi-scan-result--warning .presensi-scan-result-icon {
+    color: #fde68a;
+}
+
+.presensi-scan-result-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
