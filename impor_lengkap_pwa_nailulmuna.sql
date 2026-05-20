@@ -5,8 +5,8 @@
 -- =============================================================================
 SET NAMES utf8mb4;
 
-CREATE DATABASE IF NOT EXISTS pwa_nailulmuna;
-USE pwa_nailulmuna;
+CREATE DATABASE IF NOT EXISTS u700125577_pwanailulmuna;
+USE u700125577_pwanailulmuna;
 
 -- --------------------------------------------------------------------------
 -- Bagian 1: inti (setara schema.sql)
