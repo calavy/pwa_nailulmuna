@@ -9,9 +9,9 @@
  */
 $host = '127.0.0.1';
 $port = '3306';
-$dbName = 'pwa_nailulmuna';
-$dbUser = 'root';
-$dbPass = '';
+$dbName = 'u700125577_pwanailulmuna';
+$dbUser = 'u700125577_pwanailulmuna';
+$dbPass = 'Pwanailulmuna@1990';
 
 $envHost = getenv('DB_HOST');
 if ($envHost !== false && trim((string) $envHost) !== '') {
