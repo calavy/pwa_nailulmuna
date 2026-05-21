@@ -10,10 +10,15 @@ require_roles(['admin', 'pengurus']);
 ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
-$bulanMap = keuangan_bulan_map();
 $berjalan = keuangan_periode_berjalan($pdo);
-$tahunAjaranMulai = max(2000, min(2100, (int) ($_GET['tm'] ?? $berjalan['mulai'])));
-$tahunAjaranSelesai = max($tahunAjaranMulai, min(2105, (int) ($_GET['ts'] ?? $berjalan['selesai'])));
+$kalenderMode = pondok_kalender_mode($pdo);
+$taFilter = pondok_normalisasi_tahun_ajaran_input(
+    $pdo,
+    (int) ($_GET['tm'] ?? $berjalan['mulai']),
+    (int) ($_GET['ts'] ?? $berjalan['selesai'])
+);
+$tahunAjaranMulai = $taFilter['mulai'];
+$tahunAjaranSelesai = $taFilter['selesai'];
 
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
 
@@ -35,36 +40,43 @@ foreach ($santriRows as $s) {
     $totalExpectedOneMonth += $exp;
 }
 
+$bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
 $paidByMonth = array_fill(1, 12, 0);
 if ($tablesOk) {
-    $st = $pdo->prepare('
-        SELECT p.bulan_tagihan AS b, COALESCE(SUM(d.nominal), 0) AS total
-        FROM keuangan_pembayaran_detail d
-        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE p.jenis_periode = \'BULANAN\'
-          AND p.tahun_ajaran_mulai = :tm
-          AND p.tahun_ajaran_selesai = :ts
-          AND d.pos_slug IN (\'syahriyah\', \'makan\')
-          AND p.bulan_tagihan BETWEEN 1 AND 12
-        GROUP BY p.bulan_tagihan
-    ');
-    $st->execute(['tm' => $tahunAjaranMulai, 'ts' => $tahunAjaranSelesai]);
-    foreach ($st->fetchAll() as $row) {
-        $b = (int) ($row['b'] ?? 0);
-        if ($b >= 1 && $b <= 12) {
-            $paidByMonth[$b] = (int) ((float) ($row['total'] ?? 0));
+    foreach ($bulanSlots as $slot) {
+        $b = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($b < 1 || $b > 12) {
+            continue;
         }
+        $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $b, 'p');
+        $st = $pdo->prepare('
+            SELECT COALESCE(SUM(d.nominal), 0) AS total
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            WHERE p.jenis_periode = \'BULANAN\'
+              AND p.tahun_ajaran_mulai = :tm
+              AND p.tahun_ajaran_selesai = :ts
+              AND d.pos_slug IN (\'syahriyah\', \'makan\')
+              AND ' . $bulanMatch['sql'] . '
+        ');
+        $st->execute(array_merge(['tm' => $tahunAjaranMulai, 'ts' => $tahunAjaranSelesai], $bulanMatch['params']));
+        $paidByMonth[$b] = (int) ((float) ($st->fetchColumn() ?: 0));
     }
 }
 
 $rowsLaporan = [];
 $bulanBerjalan = $berjalan['bulan'];
-for ($b = 1; $b <= 12; $b++) {
+foreach ($bulanSlots as $slot) {
+    $b = (int) ($slot['bulan_tagihan'] ?? 0);
+    if ($b < 1 || $b > 12) {
+        continue;
+    }
     $tagihan = $totalExpectedOneMonth;
     $terbayar = $paidByMonth[$b];
     $rowsLaporan[] = [
         'bulan' => $b,
-        'label' => $bulanMap[$b],
+        'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),
+        'rentang_masehi' => ($slot['masehi_awal'] ?? '') !== '' ? ($slot['masehi_awal'] . ' – ' . $slot['masehi_akhir']) : '',
         'tagihan' => $tagihan,
         'terbayar' => $terbayar,
         'sisa' => max(0, $tagihan - $terbayar),
@@ -103,7 +115,8 @@ $iconLaporan = bendahara_page_icon('laporan');
     </h1>
     <p class="text-muted mb-0">
         Total tagihan per bulan = jumlah santri aktif × nominal Syahriyah masing-masing (tier).
-        Terbayar = akumulasi detail pos <code>syahriyah</code> pada pembayaran bulanan dengan bulan tagihan sama.
+        Terbayar = akumulasi pos syahriyah &amp; makan per bulan tagihan.
+        Kalender aktif: <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong> (sesuai pengaturan pondok &amp; kalender akademik).
     </p>
 </div>
 
@@ -113,12 +126,13 @@ $iconLaporan = bendahara_page_icon('laporan');
 
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
     <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran mulai</label>
-        <input class="form-control form-control-sm" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="2000" max="2100">
+        <?php $taMeta = pondok_ta_form_meta($pdo); ?>
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_mulai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-mulai" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>">
     </div>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran selesai</label>
-        <input class="form-control form-control-sm" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="2000" max="2105">
+    <div class="col-6 col-md-2 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_selesai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-selesai" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>" <?= pondok_kalender_hijriyah($pdo) ? 'readonly' : '' ?>>
     </div>
     <div class="col-6 col-md-2">
         <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
@@ -132,7 +146,7 @@ $iconLaporan = bendahara_page_icon('laporan');
 
 <div class="card shadow-sm mb-3">
     <div class="card-body py-2">
-        <span class="small text-muted">Santri aktif: <strong><?= count($santriRows) ?></strong> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · <span class="badge text-bg-primary">Bulan berjalan: <?= htmlspecialchars($berjalan['bulan_label']) ?></span></span>
+        <span class="small text-muted">Santri aktif: <strong><?= count($santriRows) ?></strong> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · <span class="badge text-bg-primary">Bulan berjalan: <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></span></span>
     </div>
 </div>
 
@@ -153,6 +167,9 @@ $iconLaporan = bendahara_page_icon('laporan');
                     <tr class="<?= !empty($r['is_bulan_ini']) ? 'table-primary' : '' ?>">
                         <td>
                             <?= htmlspecialchars($r['label']) ?>
+                            <?php if (!empty($r['rentang_masehi']) && $kalenderMode === 'hijriyah'): ?>
+                                <div class="small text-muted"><?= htmlspecialchars($r['rentang_masehi']) ?></div>
+                            <?php endif; ?>
                             <?php if (!empty($r['is_bulan_ini'])): ?>
                                 <span class="badge text-bg-primary ms-1" style="font-size:.65rem">Bulan ini</span>
                             <?php endif; ?>
@@ -168,4 +185,5 @@ $iconLaporan = bendahara_page_icon('laporan');
     </div>
 </div>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

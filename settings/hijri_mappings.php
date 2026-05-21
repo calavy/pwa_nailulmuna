@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['hijri_tes_tanggal'] = $tgl;
         set_flash('success', 'Tes konversi dijalankan.');
     }
-    header('Location: /settings/hijri_mappings.php');
+    header('Location: ' . app_href('/settings/hijri_mappings.php'));
     exit;
 }
 

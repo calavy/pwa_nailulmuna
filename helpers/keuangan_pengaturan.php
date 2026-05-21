@@ -9,18 +9,26 @@ require_once __DIR__ . '/keuangan_alokasi.php';
 /** @return array{ok:bool,message:string} */
 function keuangan_save_periode_settings(PDO $pdo, array $post): array
 {
-    $mulai = (int) ($post['keuangan_periode_mulai'] ?? 0);
-    $selesai = (int) ($post['keuangan_periode_selesai'] ?? 0);
-    if ($mulai < 2000 || $mulai > 2100) {
-        return ['ok' => false, 'message' => 'Tahun ajaran mulai tidak valid.'];
-    }
-    if ($selesai < $mulai) {
-        $selesai = $mulai + 1;
+    require_once __DIR__ . '/pondok_kalender.php';
+    $ta = pondok_normalisasi_tahun_ajaran_input(
+        $pdo,
+        (int) ($post['keuangan_periode_mulai'] ?? 0),
+        (int) ($post['keuangan_periode_selesai'] ?? 0)
+    );
+    $mulai = $ta['mulai'];
+    $selesai = $ta['selesai'];
+    $min = pondok_ta_tahun_min($pdo);
+    $max = pondok_ta_tahun_max($pdo);
+    if ($mulai < $min || $mulai > $max) {
+        return ['ok' => false, 'message' => 'Tahun ajaran mulai tidak valid (' . $min . '–' . $max . ').'];
     }
     save_setting($pdo, 'keuangan_periode_mulai', (string) $mulai);
     save_setting($pdo, 'keuangan_periode_selesai', (string) $selesai);
 
-    return ['ok' => true, 'message' => 'Periode tahun ajaran disimpan (' . $mulai . '/' . $selesai . ').'];
+    return [
+        'ok' => true,
+        'message' => 'Periode tahun ajaran disimpan (' . pondok_tahun_ajaran_label($pdo, $ta) . ').',
+    ];
 }
 
 /** @return array{ok:bool,message:string} */
@@ -140,10 +148,14 @@ function keuangan_fetch_alokasi_all(PDO $pdo): array
         return [];
     }
 
+    if (function_exists('ensure_keuangan_alokasi_jenis_dana')) {
+        ensure_keuangan_alokasi_jenis_dana($pdo);
+    }
+
     return $pdo->query('
-        SELECT id, nama_komponen, kategori, persen, urutan, is_active
+        SELECT id, nama_komponen, kategori, jenis_dana, persen, urutan, is_active
         FROM keuangan_alokasi
-        ORDER BY urutan ASC, nama_komponen ASC
+        ORDER BY jenis_dana ASC, urutan ASC, nama_komponen ASC
     ')->fetchAll(PDO::FETCH_ASSOC);
 }
 
@@ -154,9 +166,11 @@ function keuangan_save_alokasi(PDO $pdo, array $post): array
     $id = (int) ($post['alokasi_id'] ?? 0);
     $nama = trim((string) ($post['nama_komponen'] ?? ''));
     $kategori = trim((string) ($post['kategori'] ?? ''));
+    $jenisDana = keuangan_alokasi_normalize_jenis((string) ($post['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH));
     $persen = (float) str_replace(',', '.', (string) ($post['persen'] ?? '0'));
     $urutan = (int) ($post['urutan'] ?? 0);
     $isActive = !isset($post['is_active']) || (string) $post['is_active'] === '1';
+    $label = keuangan_alokasi_label_jenis($jenisDana);
 
     if ($nama === '' || $kategori === '') {
         return ['ok' => false, 'message' => 'Nama komponen dan kategori wajib diisi.'];
@@ -165,36 +179,39 @@ function keuangan_save_alokasi(PDO $pdo, array $post): array
         return ['ok' => false, 'message' => 'Persentase tidak boleh negatif.'];
     }
 
-    $validasi = keuangan_alokasi_validate_persen($pdo, $persen, $id, $isActive);
+    $validasi = keuangan_alokasi_validate_persen($pdo, $persen, $id, $isActive, $jenisDana);
     if (!$validasi['ok']) {
         return ['ok' => false, 'message' => $validasi['message']];
     }
 
     if ($id > 0) {
         $pdo->prepare('
-            UPDATE keuangan_alokasi SET nama_komponen = :nama, kategori = :kat, persen = :persen, urutan = :urutan, is_active = :aktif
+            UPDATE keuangan_alokasi
+            SET nama_komponen = :nama, kategori = :kat, jenis_dana = :jenis, persen = :persen, urutan = :urutan, is_active = :aktif
             WHERE id = :id
         ')->execute([
             'nama' => $nama,
             'kat' => $kategori,
+            'jenis' => $jenisDana,
             'persen' => $persen,
             'urutan' => $urutan,
             'aktif' => $isActive ? 1 : 0,
             'id' => $id,
         ]);
 
-        return ['ok' => true, 'message' => 'Alokasi syahriyah diperbarui.'];
+        return ['ok' => true, 'message' => 'Alokasi ' . $label . ' diperbarui.', 'jenis_dana' => $jenisDana];
     }
 
     $pdo->prepare('
-        INSERT INTO keuangan_alokasi (nama_komponen, kategori, persen, urutan, is_active)
-        VALUES (:nama, :kat, :persen, :urutan, 1)
+        INSERT INTO keuangan_alokasi (nama_komponen, kategori, jenis_dana, persen, urutan, is_active)
+        VALUES (:nama, :kat, :jenis, :persen, :urutan, 1)
     ')->execute([
         'nama' => $nama,
         'kat' => $kategori,
+        'jenis' => $jenisDana,
         'persen' => $persen,
         'urutan' => $urutan,
     ]);
 
-    return ['ok' => true, 'message' => 'Alokasi syahriyah ditambahkan.'];
+    return ['ok' => true, 'message' => 'Alokasi ' . $label . ' ditambahkan.', 'jenis_dana' => $jenisDana];
 }

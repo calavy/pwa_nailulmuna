@@ -11,7 +11,7 @@ $st->execute(['id' => $waliSantriId]);
 $santri = $st->fetch(PDO::FETCH_ASSOC);
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /wali/index.php');
+    header('Location: ' . app_href('/wali/index.php'));
     exit;
 }
 
@@ -38,8 +38,8 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
 ?>
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
             <div class="flex-grow-1">
-                <h1 class="h5 mb-1 wali-brand fw-bold">Riwayat santri</h1>
-                <p class="small text-muted mb-0"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?></p>
+                <h1 class="h5 mb-1 wali-brand fw-bold">Riwayat Santri</h1>
+                <p class="small text-muted mb-0"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?> · <a href="/wali/pembayaran.php">Riwayat Keuangan</a></p>
             </div>
             <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>
@@ -65,7 +65,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
                 <div class="card shadow-sm border-0 wali-card">
                     <div class="card-body py-2 small">
                         <div class="text-muted">TA berjalan</div>
-                        <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif)) ?></strong>
+                        <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif, $pdo)) ?></strong>
                     </div>
                 </div>
             </div>

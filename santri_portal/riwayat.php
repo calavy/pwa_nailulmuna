@@ -12,7 +12,7 @@ $st->execute(['id' => $santriId]);
 $santri = $st->fetch(PDO::FETCH_ASSOC);
 if (!$santri) {
     set_flash('error', 'Data tidak ditemukan.');
-    header('Location: /santri_portal/index.php');
+    header('Location: ' . app_href('/santri_portal/index.php'));
     exit;
 }
 
@@ -68,7 +68,7 @@ auth_portal_layout_begin([
         <div class="card border-0 shadow-sm">
             <div class="card-body py-2 small">
                 <div class="text-muted">TA berjalan</div>
-                <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif)) ?></strong>
+                <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif, $pdo)) ?></strong>
             </div>
         </div>
     </div>

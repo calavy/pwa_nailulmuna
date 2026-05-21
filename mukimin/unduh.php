@@ -11,7 +11,7 @@ require_once __DIR__ . '/../helpers/mukimin_portal.php';
 ensure_mukimin_portal_columns($pdo);
 
 if (!isset($_SESSION['mukimin']['alumni_id'])) {
-    header('Location: /mukimin/login.php');
+    header('Location: ' . app_href('/mukimin/login.php'));
     exit;
 }
 
@@ -20,7 +20,7 @@ $st = $pdo->prepare('SELECT * FROM akademik_alumni WHERE id = :id LIMIT 1');
 $st->execute(['id' => $alumniId]);
 $row = $st->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
-    header('Location: /mukimin/login.php');
+    header('Location: ' . app_href('/mukimin/login.php'));
     exit;
 }
 

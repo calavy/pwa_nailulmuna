@@ -19,13 +19,13 @@ $st->execute(['id' => $id]);
 $s = $st->fetch(PDO::FETCH_ASSOC);
 if (!$s) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /santri/index.php');
+    header('Location: ' . app_href('/santri/index.php'));
     exit;
 }
 
 if (!santri_status_is_aktif_list(santri_status_from_row($s))) {
     set_flash('error', 'Santri ini sudah tidak berstatus Aktif. Lihat di Data induk atau Data Mukimin.');
-    header('Location: /santri/mukimin.php');
+    header('Location: ' . app_href('/santri/mukimin.php'));
     exit;
 }
 
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jenisKeluar = trim((string) ($_POST['jenis_keluar'] ?? ''));
     if ($jenisKeluar === '') {
         set_flash('error', 'Pilih kategori keluar: tamat/alumni atau keluar sebelum lulus.');
-        header('Location: /santri/nonaktif_cepat.php?id=' . $id);
+        header('Location: ' . app_rewrite_internal_url('/santri/nonaktif_cepat.php?id=' . $id));
         exit;
     }
     $statusValid = santri_status_validate_save(
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: /santri/nonaktif_cepat.php?id=' . $id);
+        header('Location: ' . app_rewrite_internal_url('/santri/nonaktif_cepat.php?id=' . $id));
         exit;
     }
 
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($mukiminId > 0) {
         $dest .= '?edit=' . $mukiminId;
     }
-    header('Location: ' . $dest);
+    header('Location: ' . app_href($dest));
     exit;
 }
 

@@ -7,6 +7,7 @@ require_once __DIR__ . '/santri_operasional.php';
 require_once __DIR__ . '/keuangan_rekap.php';
 require_once __DIR__ . '/keuangan_neraca.php';
 require_once __DIR__ . '/keuangan_jurnal.php';
+require_once __DIR__ . '/pondok_kalender.php';
 
 function keuangan_money_input_to_int(string $raw): int
 {
@@ -16,39 +17,36 @@ function keuangan_money_input_to_int(string $raw): int
 }
 
 /** @return array<int, string> */
-function keuangan_bulan_map(): array
+function keuangan_bulan_map(PDO $pdo = null): array
 {
+    if ($pdo instanceof PDO) {
+        return pondok_bulan_nama_map($pdo);
+    }
+
     return [
         1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
         7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
     ];
 }
 
-/** Tahun ajaran dari tanggal (mulai Juli). */
-function keuangan_tahun_ajaran_from_date(?string $dateYmd = null): array
+/** Tahun ajaran dari tanggal (Juli Masehi atau tahun H. jika kalender pondok Hijriyah). */
+function keuangan_tahun_ajaran_from_date(?string $dateYmd = null, ?PDO $pdo = null): array
 {
-    $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
-        $dateYmd = date('Y-m-d');
+    if ($pdo instanceof PDO) {
+        return pondok_tahun_ajaran_from_date($pdo, $dateYmd);
     }
-    $ts = strtotime($dateYmd) ?: time();
-    $y = (int) date('Y', $ts);
-    $m = (int) date('n', $ts);
-    $mulai = $m >= 7 ? $y : $y - 1;
 
-    return ['mulai' => $mulai, 'selesai' => $mulai + 1];
+    return pondok_tahun_ajaran_masehi_dari_tanggal($dateYmd);
 }
 
-/** Bulan tagihan kalender yang sedang berjalan (1–12). */
-function keuangan_bulan_berjalan(?string $dateYmd = null): int
+/** Bulan tagihan slot yang sedang berjalan (1–12, mengikuti kalender pondok). */
+function keuangan_bulan_berjalan(?string $dateYmd = null, ?PDO $pdo = null): int
 {
-    $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
-        $dateYmd = date('Y-m-d');
+    if ($pdo instanceof PDO) {
+        return (int) (pondok_periode_berjalan($pdo, $dateYmd)['bulan'] ?? 1);
     }
-    $ts = strtotime($dateYmd) ?: time();
 
-    return max(1, min(12, (int) date('n', $ts)));
+    return keuangan_bulan_berjalan_masehi($dateYmd);
 }
 
 /**
@@ -58,24 +56,13 @@ function keuangan_bulan_berjalan(?string $dateYmd = null): int
  */
 function keuangan_periode_berjalan(PDO $pdo, ?string $dateYmd = null): array
 {
-    $ta = keuangan_tahun_ajaran_from_date($dateYmd);
-    $bulan = keuangan_bulan_berjalan($dateYmd);
-    $map = keuangan_bulan_map();
-
-    return [
-        'mulai' => $ta['mulai'],
-        'selesai' => $ta['selesai'],
-        'bulan' => $bulan,
-        'bulan_label' => $map[$bulan] ?? (string) $bulan,
-        'ta_label' => $ta['mulai'] . '/' . $ta['selesai'],
-        'tahun_kalender' => (int) date('Y', strtotime(trim((string) ($dateYmd ?? date('Y-m-d')))) ?: time()),
-    ];
+    return pondok_periode_berjalan($pdo, $dateYmd);
 }
 
 /** @return array{mulai:int,selesai:int} */
 function keuangan_tahun_ajaran_aktif(PDO $pdo, ?string $dateYmd = null): array
 {
-    return keuangan_tahun_ajaran_from_date($dateYmd);
+    return pondok_tahun_ajaran_aktif($pdo, $dateYmd);
 }
 
 /**
@@ -89,15 +76,22 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
         return [];
     }
     $periode = keuangan_tahun_ajaran_aktif($pdo);
-    $bulanIni = $bulanBerjalan ?? keuangan_bulan_berjalan();
-    $bulanMap = keuangan_bulan_map();
+    $bulanIni = $bulanBerjalan ?? keuangan_bulan_berjalan(null, $pdo);
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $periode['mulai'], $periode['selesai']);
     $rows = [];
-    for ($m = 1; $m <= 12; $m++) {
+    foreach ($slots as $slot) {
+        $m = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($m < 1 || $m > 12) {
+            continue;
+        }
         $st = tagihan_wajib_status_for_month($pdo, $santriId, $m, $periode['mulai'], $periode['selesai'], $kelasKategori);
         $perPos = (array) ($st['per_pos'] ?? []);
         $rows[] = [
             'bulan' => $m,
-            'label' => $bulanMap[$m] ?? (string) $m,
+            'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),
+            'masehi_awal' => (string) ($slot['masehi_awal'] ?? ''),
+            'masehi_akhir' => (string) ($slot['masehi_akhir'] ?? ''),
+            'kalender_hijriyah' => $slot['kalender_hijriyah'] ?? null,
             'tagihan' => (int) ($st['expected_total'] ?? 0),
             'bayar' => (int) ($st['paid_total'] ?? 0),
             'sisa' => (int) ($st['sisa_total'] ?? 0),
@@ -196,6 +190,7 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             nama_komponen VARCHAR(150) NOT NULL,
             kategori VARCHAR(120) NOT NULL,
+            jenis_dana ENUM('SYAHRIYAH','AWAL_TAHUN') NOT NULL DEFAULT 'SYAHRIYAH',
             persen DECIMAL(6,2) NOT NULL DEFAULT 0,
             urutan INT NOT NULL DEFAULT 0,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -268,6 +263,9 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
 
     keuangan_seed_akun_default($pdo);
     keuangan_seed_alokasi_default($pdo);
+    require_once __DIR__ . '/keuangan_alokasi.php';
+    ensure_keuangan_alokasi_jenis_dana($pdo);
+    ensure_keuangan_pembayaran_kalender_hijriyah($pdo);
     ensure_keuangan_jurnal_tables($pdo);
 }
 
@@ -306,9 +304,18 @@ function keuangan_seed_alokasi_default(PDO $pdo): void
         ['Kebersihan', 'Sarpras', 2, 8],
         ['Kesehatan', 'Sarpras', 2, 9],
     ];
-    $ins = $pdo->prepare('INSERT INTO keuangan_alokasi (nama_komponen, kategori, persen, urutan, is_active) VALUES (:nama, :kat, :persen, :urutan, 1)');
+    $ins = $pdo->prepare('
+        INSERT INTO keuangan_alokasi (nama_komponen, kategori, jenis_dana, persen, urutan, is_active)
+        VALUES (:nama, :kat, :jenis, :persen, :urutan, 1)
+    ');
     foreach ($defaults as [$nama, $kat, $persen, $urutan]) {
-        $ins->execute(['nama' => $nama, 'kat' => $kat, 'persen' => $persen, 'urutan' => $urutan]);
+        $ins->execute([
+            'nama' => $nama,
+            'kat' => $kat,
+            'jenis' => 'SYAHRIYAH',
+            'persen' => $persen,
+            'urutan' => $urutan,
+        ]);
     }
 }
 
@@ -328,18 +335,35 @@ function keuangan_fetch_akun_aktif(PDO $pdo): array
 }
 
 /** @return list<array<string, mixed>> */
-function keuangan_fetch_alokasi_aktif(PDO $pdo): array
+function keuangan_fetch_alokasi_aktif(PDO $pdo, ?string $jenisDana = null): array
 {
     if (!table_exists($pdo, 'keuangan_alokasi')) {
         return [];
     }
+    if (!column_exists($pdo, 'keuangan_alokasi', 'jenis_dana')) {
+        require_once __DIR__ . '/keuangan_alokasi.php';
+        ensure_keuangan_alokasi_jenis_dana($pdo);
+    }
 
-    return $pdo->query('
-        SELECT id, nama_komponen, kategori, persen, urutan
+    $sql = '
+        SELECT id, nama_komponen, kategori, jenis_dana, persen, urutan
         FROM keuangan_alokasi
         WHERE is_active = 1
-        ORDER BY urutan ASC, id ASC
-    ')->fetchAll(PDO::FETCH_ASSOC);
+    ';
+    $params = [];
+    if ($jenisDana !== null && $jenisDana !== '') {
+        $j = strtoupper(trim($jenisDana));
+        if (!in_array($j, ['SYAHRIYAH', 'AWAL_TAHUN'], true)) {
+            $j = 'SYAHRIYAH';
+        }
+        $sql .= ' AND jenis_dana = :jenis';
+        $params['jenis'] = $j;
+    }
+    $sql .= ' ORDER BY urutan ASC, id ASC';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 /** @return list<array<string, mixed>> */
@@ -403,8 +427,13 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     $santriId = (int) ($post['santri_id'] ?? 0);
     $jenisPeriode = strtoupper(trim((string) ($post['jenis_periode'] ?? 'BULANAN')));
     $bulanTagihan = (int) ($post['bulan_tagihan'] ?? 0);
-    $tahunMulai = max(2000, min(2100, (int) ($post['tahun_ajaran_mulai'] ?? $periode['mulai'])));
-    $tahunSelesai = max($tahunMulai, min(2105, (int) ($post['tahun_ajaran_selesai'] ?? $periode['selesai'])));
+    $taInput = pondok_normalisasi_tahun_ajaran_input(
+        $pdo,
+        (int) ($post['tahun_ajaran_mulai'] ?? $periode['mulai']),
+        (int) ($post['tahun_ajaran_selesai'] ?? $periode['selesai'])
+    );
+    $tahunMulai = $taInput['mulai'];
+    $tahunSelesai = $taInput['selesai'];
     $tanggalBayar = trim((string) ($post['tanggal_bayar'] ?? date('Y-m-d')));
     $keterangan = trim((string) ($post['keterangan'] ?? ''));
     $metodeBayar = strtoupper(trim((string) ($post['metode_bayar'] ?? 'KAS')));
@@ -416,8 +445,11 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     if ($jenisPeriode !== 'BULANAN') {
         $bulanTagihan = 0;
     } elseif ($bulanTagihan < 1 || $bulanTagihan > 12) {
-        $bulanTagihan = (int) date('n');
+        $bulanTagihan = keuangan_bulan_berjalan(null, $pdo);
     }
+    $kalenderHijriyahBayar = $jenisPeriode === 'BULANAN'
+        ? pondok_kalender_hijriyah_untuk_simpan_pembayaran($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan)
+        : null;
     if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
         $metodeBayar = 'KAS';
     }
@@ -534,6 +566,11 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         $cols[] = 'no_referensi';
         $vals[] = ':no_referensi';
         $params['no_referensi'] = $noReferensi !== '' ? $noReferensi : null;
+    }
+    if (column_exists($pdo, 'keuangan_pembayaran', 'kalender_hijriyah')) {
+        $cols[] = 'kalender_hijriyah';
+        $vals[] = ':kalender_hijriyah';
+        $params['kalender_hijriyah'] = $kalenderHijriyahBayar;
     }
     if ($hasStatusCol) {
         $cols[] = 'status_lunas';

@@ -87,7 +87,7 @@
                 <div class="form-text">Upload dari komputer/ponsel. Format: JPG, PNG, WEBP.</div>
                 <?php if (!empty($values['logo_path'])): ?>
                     <div class="mt-2">
-                        <img src="/<?= htmlspecialchars($values['logo_path']) ?>" alt="Logo pesantren" style="height:64px; width:64px; object-fit:cover; border-radius:10px;">
+                        <img src="<?= htmlspecialchars(app_href('/' . ltrim((string) $values['logo_path'], '/'))) ?>" alt="Logo pesantren" class="pondok-logo-preview">
                     </div>
                 <?php endif; ?>
             </div>
@@ -133,6 +133,7 @@
                     <option value="MASEHI" <?= strtoupper((string) $values['wa_tagihan_calendar']) === 'MASEHI' ? 'selected' : '' ?>>Masehi</option>
                     <option value="HIJRIYAH" <?= strtoupper((string) $values['wa_tagihan_calendar']) === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah</option>
                 </select>
+                <div class="form-text">Mengatur bulan tagihan (Muharram–Dzulhijjah bila Hijriyah), laporan keuangan, dan rekap presensi. Saat diubah ke Hijriyah, data lama disesuaikan otomatis dari tanggal bayar/presensi. <a href="/settings/kalender.php#backfill-hijriyah">Penyesuaian manual</a>.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Tanggal Kirim</label>

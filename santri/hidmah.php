@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('error', 'Pilih santri terlebih dahulu.');
     } elseif (santri_riwayat_hidmah_save($pdo, $_POST, $santriId)) {
         set_flash('success', 'Data hidmah berhasil disimpan.');
-        header('Location: /santri/riwayat.php?id=' . $santriId . '&tab=hidmah');
+        header('Location: ' . app_rewrite_internal_url('/santri/riwayat.php?id=' . $santriId . '&tab=hidmah'));
         exit;
     } else {
         set_flash('error', 'Nama hidmah wajib diisi.');
@@ -122,14 +122,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Nama hidmah / jabatan</label>
                         <input type="text" name="nama_hidmah" class="form-control form-control-sm" required placeholder="Mis. Pengurus asrama, Toko pondok">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label">TA mulai</label>
-                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm" min="2000" max="2100" value="<?= (int) $taAktif['mulai'] ?>" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">TA selesai (ops.)</label>
-                        <input type="number" name="tahun_ajaran_selesai" class="form-control form-control-sm" min="2000" max="2100">
-                    </div>
+                    <?php
+                    $taMulaiHidmahPage = (int) $taAktif['mulai'];
+                    $taSelesaiHidmahPage = (int) $taAktif['selesai'];
+                    $taColClass = 'col-6';
+                    $inputClass = 'form-control form-control-sm';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-12">
                         <label class="form-label">Keterangan</label>
                         <textarea name="keterangan" class="form-control form-control-sm" rows="2"></textarea>
@@ -184,4 +183,5 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

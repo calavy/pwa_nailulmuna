@@ -70,23 +70,13 @@ function wali_portal_format_rupiah(int $nominal): string
 }
 
 /** Label periode pembayaran untuk tampilan wali. */
-function wali_portal_label_periode(array $row): string
+function wali_portal_label_periode(PDO $pdo, array $row): string
 {
-    $bulanMap = [
-        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
-        7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-    ];
-    $jenis = (string) ($row['jenis_periode'] ?? '');
-    $bl = (int) ($row['bulan_tagihan'] ?? 0);
-    $ta = (string) ($row['tahun_ajaran_mulai'] ?? '') . '/' . (string) ($row['tahun_ajaran_selesai'] ?? '');
-    if ($jenis === 'BULANAN' && $bl >= 1 && $bl <= 12) {
-        return ($bulanMap[$bl] ?? (string) $bl) . ' · TA ' . $ta;
-    }
-    if ($jenis === 'AWAL_TAHUN') {
-        return 'Awal tahun · TA ' . $ta;
+    if (!function_exists('pondok_label_periode_pembayaran')) {
+        require_once __DIR__ . '/pondok_kalender.php';
     }
 
-    return trim($jenis . ($ta !== '/' ? ' · TA ' . $ta : ''));
+    return pondok_label_periode_pembayaran($pdo, $row);
 }
 
 /**
@@ -105,9 +95,12 @@ function wali_portal_fetch_pembayaran_list(PDO $pdo, int $santriId, int $limit =
     $metodeCol = column_exists($pdo, 'keuangan_pembayaran', 'metode_bayar') ? 'p.metode_bayar' : "'KAS' AS metode_bayar";
     $refCol = column_exists($pdo, 'keuangan_pembayaran', 'no_referensi') ? 'p.no_referensi' : "'' AS no_referensi";
 
+    $khCol = column_exists($pdo, 'keuangan_pembayaran', 'kalender_hijriyah')
+        ? 'p.kalender_hijriyah'
+        : 'NULL AS kalender_hijriyah';
     $st = $pdo->prepare("
         SELECT p.id, p.jenis_periode, p.tahun_ajaran_mulai, p.tahun_ajaran_selesai, p.bulan_tagihan,
-               p.tanggal_bayar, p.total_nominal, {$metodeCol}, {$refCol}, p.keterangan
+               {$khCol}, p.tanggal_bayar, p.total_nominal, {$metodeCol}, {$refCol}, p.keterangan
         FROM keuangan_pembayaran p
         WHERE p.santri_id = :sid
         ORDER BY p.tanggal_bayar DESC, p.id DESC
@@ -140,7 +133,7 @@ function wali_portal_fetch_pembayaran_list(PDO $pdo, int $santriId, int $limit =
     foreach ($rows as &$r) {
         $pid = (int) ($r['id'] ?? 0);
         $r['details'] = $detailMap[$pid] ?? [];
-        $r['periode_label'] = wali_portal_label_periode($r);
+        $r['periode_label'] = wali_portal_label_periode($pdo, $r);
     }
     unset($r);
 

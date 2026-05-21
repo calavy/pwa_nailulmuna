@@ -119,9 +119,9 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         : 0.0;
 
     $waEnabled = trim((string) app_setting($pdo, 'wa_tagihan_auto_enabled', '0')) === '1';
-    $waCalendar = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'MASEHI')));
+    $waCalendar = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
     if (!in_array($waCalendar, ['MASEHI', 'HIJRIYAH'], true)) {
-        $waCalendar = 'MASEHI';
+        $waCalendar = 'HIJRIYAH';
     }
     $waDueDay = max(1, min(30, (int) app_setting($pdo, 'wa_tagihan_day', '5')));
     $waSendTime = trim((string) app_setting($pdo, 'wa_tagihan_send_time', '08:00'));
@@ -176,7 +176,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         ],
         'tagihan_bulan' => [
             'bulan' => $bulan,
-            'bulan_label' => (string) $periode['bulan_label'],
+            'bulan_label' => (string) ($periode['periode_tampilan'] ?? $periode['bulan_label']),
             'ta_label' => (string) $periode['ta_label'],
             'tm' => $tm,
             'ts' => $ts,

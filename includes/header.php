@@ -9,7 +9,7 @@ $currentRole = $_SESSION['user']['role'] ?? 'admin';
 if (isset($_SESSION['user']) && (($_SESSION['user']['username'] ?? '') === 'admin') && !isset($_SESSION['user']['is_super_admin'])) {
     $_SESSION['user']['is_super_admin'] = 1;
 }
-$requestPath = $_SERVER['REQUEST_URI'] ?? '';
+$requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
 $menuPack = require __DIR__ . '/menu_data.php';
 $menuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
 $menuStructure = $menuPack['menuStructure'];
@@ -63,7 +63,6 @@ if (isset($_SESSION['user'])) {
 if (!function_exists('render_app_sidebar_nav')) {
     function render_app_sidebar_nav(array $structure, array $items, string $requestPath): void
     {
-        $hubBase = app_url('menu/menu_hub.php');
         echo '<nav class="app-sidebar-nav" aria-label="Menu utama">';
         echo '<div class="app-sidebar-nav-label">Menu modul</div>';
         foreach ($structure as $node) {
@@ -75,7 +74,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 }
                 $icon = (string) ($node['icon'] ?? 'fa-solid fa-circle');
                 $active = str_contains($requestPath, $path);
-                echo '<a class="app-side-nav-item' . ($active ? ' active' : '') . '" href="' . htmlspecialchars($path) . '">'
+                echo '<a class="app-side-nav-item' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($path)) . '">'
                     . '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>'
                     . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$path]) . '</span>'
                     . '</a>';
@@ -89,9 +88,9 @@ if (!function_exists('render_app_sidebar_nav')) {
                 }
                 $icon = (string) ($node['icon'] ?? 'fa-solid fa-layer-group');
                 $label = (string) ($node['label'] ?? 'Grup');
-                $href = $hubBase . '?id=' . rawurlencode($gid);
+                $href = '/menu/menu_hub.php?id=' . rawurlencode($gid);
                 $active = menu_sidebar_group_is_active($node, $requestPath, $items);
-                echo '<a class="app-side-nav-item app-side-nav-item--hub' . ($active ? ' active' : '') . '" href="' . htmlspecialchars($href) . '">'
+                echo '<a class="app-side-nav-item app-side-nav-item--hub' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($href)) . '">'
                     . '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>'
                     . '<span class="app-side-nav-text">' . htmlspecialchars($label) . '</span>'
                     . '<span class="app-side-nav-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>'
@@ -115,14 +114,14 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
-    <link href="/assets/css/app.css" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">
         <?php endforeach; ?>
     <?php endif; ?>
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
-    <link href="/assets/css/keuangan.css" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
     <script>
         (function () {
@@ -144,7 +143,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 <span class="app-topbar-icon" aria-hidden="true">&#9776;</span>
                 <span class="ms-2">Menu samping</span>
             </button>
-            <a href="/dashboard.php" class="app-brand-link">
+            <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link">
                 <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
                 <?php if ($appBrandTagline !== ''): ?>
                     <span class="app-brand-tagline"><?= htmlspecialchars($appBrandTagline) ?></span>
@@ -156,7 +155,7 @@ if (!function_exists('render_app_sidebar_nav')) {
             <span class="app-topbar-user d-none d-sm-inline-flex" title="<?= htmlspecialchars($currentUser) ?>"><?= htmlspecialchars($currentUser) ?></span>
             <?php if (isset($_SESSION['user'])): ?>
                 <button type="button" class="btn btn-sm btn-outline-light" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
-                <a class="btn btn-sm btn-outline-light" href="/logout.php">Keluar</a>
+                <a class="btn btn-sm btn-outline-light" href="<?= htmlspecialchars(app_href('/logout.php')) ?>">Keluar</a>
             <?php endif; ?>
         </div>
     </div>

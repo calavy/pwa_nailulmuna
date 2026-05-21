@@ -2,12 +2,14 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/operasional_audit.php';
 
 require_roles(['admin', 'pengurus']);
+$auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
 if (!table_exists($pdo, 'jadwal_kegiatan')) {
     set_flash('error', 'Tabel jadwal belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS tempat VARCHAR(255) NULL');
@@ -19,18 +21,19 @@ $jadwal = $statement->fetch();
 
 if (!$jadwal) {
     set_flash('error', 'Data jadwal tidak ditemukan.');
-    header('Location: /jadwal/index.php');
+    header('Location: ' . app_href('/jadwal/index.php'));
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $beforeAudit = jadwal_kegiatan_audit_fetch($pdo, $id);
     $tingkatanInput = $_POST['tingkatan'] ?? [];
     $hariInput = $_POST['hari_ke'] ?? [];
     $tingkatanDipilih = is_array($tingkatanInput) ? array_values(array_filter(array_map('trim', $tingkatanInput), static fn($v): bool => $v !== '')) : [];
     $hariDipilih = is_array($hariInput) ? array_values(array_filter(array_map('intval', $hariInput), static fn($v): bool => $v >= 0 && $v <= 7)) : [];
     if (!$tingkatanDipilih || !$hariDipilih) {
         set_flash('error', 'Pilih minimal 1 tingkatan dan 1 hari.');
-        header('Location: /jadwal/edit.php?id=' . $id);
+        header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
         exit;
     }
 
@@ -67,8 +70,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $afterAudit = jadwal_kegiatan_audit_fetch($pdo, $id);
+    operasional_audit_log(
+        $pdo,
+        OPERASIONAL_AUDIT_MODUL_JADWAL,
+        'UPDATE',
+        $id,
+        $beforeAudit,
+        [
+            'jadwal_utama' => $afterAudit,
+            'jadwal_tambahan_dibuat' => $created,
+        ],
+        $auditUserId,
+        'Perubahan jadwal #' . $id . ($created > 0 ? ' (+ ' . $created . ' baris baru)' : '')
+    );
     set_flash('success', 'Data jadwal berhasil diperbarui. Jadwal tambahan dibuat: ' . $created . '.');
-    header('Location: /jadwal/index.php');
+    header('Location: ' . app_href('/jadwal/index.php'));
     exit;
 }
 
@@ -107,15 +124,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-6">
                 <label class="form-label">Tingkatan (centang bisa banyak)</label>
-                <div class="border rounded p-2" style="max-height: 170px; overflow-y: auto;">
-                    <?php foreach ($tingkatanList as $tg): ?>
-                        <?php $tgText = (string) $tg; $tgId = 'tg-' . md5($tgText); ?>
-                        <div class="form-check mb-1">
-                            <input class="form-check-input" type="checkbox" name="tingkatan[]" id="<?= htmlspecialchars($tgId) ?>" value="<?= htmlspecialchars($tgText) ?>" <?= in_array($tgText, $selectedTingkatan, true) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="<?= htmlspecialchars($tgId) ?>"><?= htmlspecialchars($tgText) ?></label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+                <?php require __DIR__ . '/../includes/partials/jadwal_tingkatan_chips.php'; ?>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Hari (centang bisa banyak)</label>

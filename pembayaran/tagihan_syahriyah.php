@@ -11,12 +11,19 @@ require_roles(['admin', 'pengurus']);
 ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
-$bulanMap = keuangan_bulan_map();
 $berjalan = keuangan_periode_berjalan($pdo);
 
-$tahunAjaranMulai = max(2000, min(2100, (int) ($_GET['tm'] ?? $berjalan['mulai'])));
-$tahunAjaranSelesai = max($tahunAjaranMulai, min(2105, (int) ($_GET['ts'] ?? $berjalan['selesai'])));
+$taFilter = pondok_normalisasi_tahun_ajaran_input(
+    $pdo,
+    (int) ($_GET['tm'] ?? $berjalan['mulai']),
+    (int) ($_GET['ts'] ?? $berjalan['selesai'])
+);
+$tahunAjaranMulai = $taFilter['mulai'];
+$tahunAjaranSelesai = $taFilter['selesai'];
 $bulanTagihan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
+$bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+$slotAktif = pondok_slot_dari_bulan_tagihan($bulanSlots, $bulanTagihan);
+$kalenderMode = pondok_kalender_mode($pdo);
 $q = trim((string) ($_GET['q'] ?? ''));
 
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
@@ -109,11 +116,24 @@ $iconTagihan = bendahara_page_icon('tagihan');
         Tagihan Bulanan
     </h1>
     <p class="text-muted mb-0">
-        Tagihan wajib <strong>Syahriyah</strong> dan <strong>Makan</strong> per bulan.
+        Tagihan wajib <strong>Syahriyah</strong> dan <strong>Makan</strong> per bulan
+        (kalender <?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?>).
+        <?php if ($slotAktif && !empty($slotAktif['masehi_awal'])): ?>
+            Periode aktif: <strong><?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slotAktif)) ?></strong>
+            <span class="text-muted">(<?= htmlspecialchars((string) $slotAktif['masehi_awal']) ?> s/d <?= htmlspecialchars((string) $slotAktif['masehi_akhir']) ?> M)</span>.
+        <?php endif; ?>
         Potongan syahriyah per santri diatur di
         <a href="/keuangan/potongan_syahriyah.php">Pengaturan potongan syahriyah</a>.
     </p>
 </div>
+
+<?php if (!pondok_kalender_hijriyah($pdo)): ?>
+    <div class="alert alert-warning">
+        Kalender tagihan masih <strong>Masehi</strong> (bulan Januari–Desember, contoh «Mei»).
+        Agar bulan tampil <strong>Muharram, Safar, … Dzulhijjah</strong>, ubah di
+        <a href="/settings/pesantren.php">Pengaturan pondok</a> → Kalender tagihan → <strong>Hijriyah</strong>, lalu simpan.
+    </div>
+<?php endif; ?>
 
 <?php if (!$tablesOk): ?>
     <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
@@ -123,18 +143,20 @@ $iconTagihan = bendahara_page_icon('tagihan');
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Bulan tagihan</label>
         <select class="form-select form-select-sm" name="bulan">
-            <?php foreach ($bulanMap as $b => $label): ?>
-                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+            <?php foreach ($bulanSlots as $slot): ?>
+                <?php $b = (int) ($slot['bulan_tagihan'] ?? 0); ?>
+                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
+    <?php $taMeta = pondok_ta_form_meta($pdo); ?>
     <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran mulai</label>
-        <input class="form-control form-control-sm" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="2000" max="2100">
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_mulai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-mulai" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>">
     </div>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran selesai</label>
-        <input class="form-control form-control-sm" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="2000" max="2105">
+    <div class="col-6 col-md-2 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_selesai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-selesai" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>" <?= pondok_kalender_hijriyah($pdo) ? 'readonly' : '' ?>>
     </div>
     <div class="col-12 col-md-4">
         <label class="form-label small mb-0">Cari nama / NIS</label>
@@ -252,4 +274,5 @@ $iconTagihan = bendahara_page_icon('tagihan');
     </div>
 </div>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

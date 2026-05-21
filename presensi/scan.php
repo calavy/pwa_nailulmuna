@@ -5,14 +5,16 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/presensi_scan_jadwal.php';
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -86,6 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 goto end_scan_process;
             }
             $kegiatanId = isset($kegiatan['id']) ? (int) $kegiatan['id'] : null;
+            $jadwalId = isset($kegiatan['jadwal_kegiatan_id']) ? (int) $kegiatan['jadwal_kegiatan_id'] : 0;
+            ensure_presensi_jadwal_column($pdo);
             $lateThreshold = (int) app_setting($pdo, 'batas_telat_menit', '15');
             $catatan = null;
             if ($kegiatan && $lateThreshold > 0 && isset($kegiatan['jam_mulai']) && $kegiatan['jam_mulai'] !== null) {
@@ -127,7 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $update = $pdo->prepare('
                     UPDATE presensi
-                    SET jam_presensi = :jam_presensi, status_presensi = "HADIR", kalender_hijriyah = :kalender_hijriyah, created_by = :created_by, catatan = :catatan
+                    SET jam_presensi = :jam_presensi, status_presensi = "HADIR", kalender_hijriyah = :kalender_hijriyah,
+                        created_by = :created_by, catatan = :catatan, jadwal_kegiatan_id = :jid
                     WHERE id = :id
                 ');
                 $update->execute([
@@ -136,15 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'kalender_hijriyah' => $hijri,
                     'created_by' => $createdBy,
                     'catatan' => $catatan,
+                    'jid' => $jadwalId > 0 ? $jadwalId : null,
                 ]);
             } else {
                 $insert = $pdo->prepare('
-                    INSERT INTO presensi (santri_id, kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
-                    VALUES (:santri_id, :kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
+                    INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
+                    VALUES (:santri_id, :kegiatan_id, :jid, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
                 ');
                 $insert->execute([
                     'santri_id' => (int) $santri['id'],
                     'kegiatan_id' => $kegiatanId,
+                    'jid' => $jadwalId > 0 ? $jadwalId : null,
                     'tanggal_presensi' => $tanggal,
                     'jam_presensi' => $jam,
                     'status_presensi' => 'HADIR',
@@ -278,6 +285,7 @@ $timerSec = $timerState === 'active'
     : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
 $timerClockInit = sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60);
 require_once __DIR__ . '/../includes/header.php';
+$canBersihkanPresensi = user_can_hapus_presensi_admin();
 ?>
 
 
@@ -296,8 +304,15 @@ require_once __DIR__ . '/../includes/header.php';
 
     <p class="presensi-scan-hint mb-0">
         Arahkan QR ke kotak hijau · otomatis tercatat
+        <?php if (pondok_kalender_hijriyah($pdo)): ?>
+            <?php $periodeHariIni = pondok_periode_berjalan($pdo, $today); ?>
+            <span class="text-white-50"> · <?= htmlspecialchars((string) ($periodeHariIni['periode_tampilan'] ?? '')) ?></span>
+        <?php endif; ?>
         <?php if ($todayScanCount > 0): ?>
             <span class="text-white-50"> · hari ini <?= (int) $todayScanCount ?>+</span>
+        <?php endif; ?>
+        <?php if ($canBersihkanPresensi): ?>
+            · <a href="<?= htmlspecialchars(app_href('/presensi/bersihkan.php')) ?>" class="text-white text-decoration-underline">Bersihkan presensi</a>
         <?php endif; ?>
     </p>
 

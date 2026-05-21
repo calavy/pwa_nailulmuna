@@ -20,7 +20,7 @@ if ($editId > 0) {
     $editRow = $eSt->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Rapor untuk diedit tidak ditemukan.');
-        header('Location: /akademik/rapor.php');
+        header('Location: ' . app_href('/akademik/rapor.php'));
         exit;
     }
 }
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_rapor WHERE id = :id')->execute(['id' => $rid]);
             set_flash('success', 'Rapor dihapus.');
         }
-        header('Location: /akademik/rapor.php');
+        header('Location: ' . app_href('/akademik/rapor.php'));
         exit;
     }
     if ($action === 'simpan_rapor') {
@@ -47,21 +47,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $published = isset($_POST['is_published']) ? 1 : 0;
         if ($sid <= 0 || $judul === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
             set_flash('error', 'Santri, judul periode, dan tanggal terbit wajib valid.');
-            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : '')));
             exit;
         }
         ensure_akademik_libur_table($pdo);
         $liburN = akademik_libur_info($pdo, $tgl, 'penilaian');
         if ($liburN !== null && akademik_blokir_penilaian_libur($pdo)) {
             set_flash('error', 'Tanggal terbit pada hari libur: ' . $liburN['nama'] . ' — tidak disimpan (aktifkan opsional di Kalender akademik atau pilih tanggal lain).');
-            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : '')));
             exit;
         }
         $chk = $pdo->prepare('SELECT id FROM santri WHERE id = :id LIMIT 1');
         $chk->execute(['id' => $sid]);
         if (!$chk->fetch()) {
             set_flash('error', 'Santri tidak ditemukan.');
-            header('Location: /akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : ''));
+            header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : '')));
             exit;
         }
         $uid = (int) ($_SESSION['user']['id'] ?? 0) ?: null;
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' => $rid,
             ]);
             set_flash('success', 'Rapor diperbarui.');
-            header('Location: /akademik/rapor.php?santri_id=' . $sid);
+            header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php?santri_id=' . $sid));
             exit;
         }
         $pdo->prepare('
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'uid' => $uid,
         ]);
         set_flash('success', 'Rapor ditambahkan.');
-        header('Location: /akademik/rapor.php?santri_id=' . $sid);
+        header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php?santri_id=' . $sid));
         exit;
     }
 }

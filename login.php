@@ -90,7 +90,7 @@ auth_portal_layout_begin([
     'subtitle' => $portalSubtitle,
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $namaPonpes,
-    'logo_url' => $heroLogo,
+    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
     'max_width' => $peran === '' ? '520px' : '420px',
     'accent' => 'teal',
 ]);
@@ -109,42 +109,42 @@ $ok = get_flash('success');
                     <p class="text-muted small text-center mb-3">Pilih cara masuk sesuai tugas Anda.</p>
                     <div class="row g-2">
                         <div class="col-sm-6">
-                            <a href="/login.php?peran=pengurus" class="btn btn-outline-success w-100 py-3 text-start">
+                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pengurus')) ?>" class="btn btn-outline-success w-100 py-3 text-start">
                                 <i class="fa-solid fa-user-tie fa-lg me-2"></i>
                                 <strong>Pengurus / Admin</strong>
                                 <span class="d-block small text-muted mt-1">Username &amp; password</span>
                             </a>
                         </div>
                         <div class="col-sm-6">
-                            <a href="/login.php?peran=pembimbing" class="btn btn-outline-primary w-100 py-3 text-start">
+                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="btn btn-outline-primary w-100 py-3 text-start">
                                 <i class="fa-solid fa-chalkboard-user fa-lg me-2"></i>
                                 <strong>Pembimbing</strong>
                                 <span class="d-block small text-muted mt-1">Username &amp; password</span>
                             </a>
                         </div>
                         <div class="col-sm-6">
-                            <a href="/presensi/login.php" class="btn btn-outline-info w-100 py-3 text-start">
+                            <a href="<?= htmlspecialchars(app_href('/presensi/login.php')) ?>" class="btn btn-outline-info w-100 py-3 text-start">
                                 <i class="fa-solid fa-qrcode fa-lg me-2"></i>
                                 <strong>Petugas presensi</strong>
                                 <span class="d-block small text-muted mt-1">Password saja</span>
                             </a>
                         </div>
                         <div class="col-sm-6">
-                            <a href="/wali/login.php" class="btn btn-outline-success w-100 py-3 text-start border-2">
+                            <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" class="btn btn-outline-success w-100 py-3 text-start border-2">
                                 <i class="fa-solid fa-mobile-screen-button fa-lg me-2"></i>
                                 <strong>Portal wali (HP)</strong>
                                 <span class="d-block small text-muted mt-1">Cari anak · NIS · PIN</span>
                             </a>
                         </div>
                         <div class="col-sm-6">
-                            <a href="/santri_portal/login.php" class="btn btn-outline-success w-100 py-3 text-start">
+                            <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" class="btn btn-outline-success w-100 py-3 text-start">
                                 <i class="fa-solid fa-user-graduate fa-lg me-2"></i>
                                 <strong>Portal santri</strong>
                                 <span class="d-block small text-muted mt-1">NIS · PIN santri</span>
                             </a>
                         </div>
                         <div class="col-sm-6">
-                            <a href="/mukimin/login.php" class="btn btn-outline-secondary w-100 py-3 text-start">
+                            <a href="<?= htmlspecialchars(app_href('/mukimin/login.php')) ?>" class="btn btn-outline-secondary w-100 py-3 text-start">
                                 <i class="fa-solid fa-book-open fa-lg me-2"></i>
                                 <strong>Portal mukimin</strong>
                                 <span class="d-block small text-muted mt-1">Alumni terdaftar · username &amp; password</span>
@@ -154,7 +154,7 @@ $ok = get_flash('success');
                     <p class="small text-muted text-center mt-3 mb-0">Logo &amp; nama pondok dapat diubah di menu <strong>Pengaturan</strong> setelah login pengurus.</p>
                 <?php else: ?>
                     <div class="d-flex justify-content-end mb-2">
-                        <a href="/login.php" class="btn btn-link btn-sm">Ganti peran</a>
+                        <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="btn btn-link btn-sm">Ganti peran</a>
                     </div>
                     <form method="post">
                         <input type="hidden" name="peran" value="<?= htmlspecialchars($peran) ?>">

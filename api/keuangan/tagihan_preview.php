@@ -17,8 +17,13 @@ $santriId = (int) ($_GET['santri_id'] ?? 0);
 $jenisPeriode = strtoupper(trim((string) ($_GET['jenis_periode'] ?? 'BULANAN')));
 $bulanTagihan = (int) ($_GET['bulan_tagihan'] ?? 0);
 $periode = keuangan_tahun_ajaran_aktif($pdo);
-$tahunMulai = max(2000, min(2100, (int) ($_GET['tahun_ajaran_mulai'] ?? $periode['mulai'])));
-$tahunSelesai = max($tahunMulai, min(2105, (int) ($_GET['tahun_ajaran_selesai'] ?? $periode['selesai'])));
+$taNorm = pondok_normalisasi_tahun_ajaran_input(
+    $pdo,
+    (int) ($_GET['tahun_ajaran_mulai'] ?? $periode['mulai']),
+    (int) ($_GET['tahun_ajaran_selesai'] ?? $periode['selesai'])
+);
+$tahunMulai = $taNorm['mulai'];
+$tahunSelesai = $taNorm['selesai'];
 
 if (!in_array($jenisPeriode, ['BULANAN', 'AWAL_TAHUN'], true)) {
     $jenisPeriode = 'BULANAN';

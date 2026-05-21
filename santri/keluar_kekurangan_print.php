@@ -38,10 +38,13 @@ if ($settled) {
     exit('Administrasi keluar sudah selesai — ringkasan kekurangan tidak lagi dipakai.');
 }
 
-$periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) (int) date('Y'));
-$periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) ($periodeMulai + 1));
-if ($periodeSelesai < $periodeMulai) {
-    $periodeSelesai = $periodeMulai + 1;
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
+$taAktifPrint = pondok_tahun_ajaran_aktif($pdo);
+$periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) $taAktifPrint['mulai']);
+$periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) $taAktifPrint['selesai']);
+if ($periodeMulai < pondok_ta_tahun_min($pdo) || $periodeSelesai < $periodeMulai) {
+    $periodeMulai = $taAktifPrint['mulai'];
+    $periodeSelesai = $taAktifPrint['selesai'];
 }
 
 $kelasKategori = trim((string) ($row['kategori_kelas'] ?? ''));

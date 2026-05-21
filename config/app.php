@@ -3,12 +3,16 @@
 declare(strict_types=1);
 
 /**
- * Konfigurasi path aplikasi (https://pwa.nailulmuna.id/).
- * base_path '' = aplikasi di root domain (tanpa subfolder).
- * Untuk XAMPP lokal subfolder: salin app.local.example.php → app.local.php
- * dan set base_path => '/pwa_nailulmuna'.
+ * Konfigurasi aplikasi — cukup file ini di GitHub.
+ *
+ * base_path null = deteksi otomatis:
+ *   - XAMPP: http://localhost/pwa_nailulmuna/...
+ *   - Hosting (root domain): https://pwa.nailulmuna.id/...
+ *
+ * public_url null = ikut domain browser saat dibuka.
+ * Opsional: salin config/app.local.example.php → app.local.php jika perlu override.
  */
 return [
-    'base_path' => '',
-    'public_url' => 'https://pwa.nailulmuna.id',
+    'base_path' => null,
+    'public_url' => null,
 ];

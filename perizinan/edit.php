@@ -7,7 +7,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -18,7 +18,7 @@ $izin = $statement->fetch();
 
 if (!$izin) {
     set_flash('error', 'Data izin tidak ditemukan.');
-    header('Location: /perizinan/index.php');
+    header('Location: ' . app_href('/perizinan/index.php'));
     exit;
 }
 
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Data izin berhasil diperbarui.');
-    header('Location: /perizinan/index.php');
+    header('Location: ' . app_href('/perizinan/index.php'));
     exit;
 }
 

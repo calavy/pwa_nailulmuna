@@ -35,8 +35,7 @@ if ($tab !== 'dashboard' && $tab !== 'i' && isset($tabRedirects[$tab])) {
     if ($extra !== []) {
         $target .= (str_contains($target, '?') ? '&' : '?') . http_build_query($extra);
     }
-    header('Location: ' . $target);
-    exit;
+    app_redirect_path($target);
 }
 
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);
@@ -306,6 +305,8 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-header bg-secondary bg-opacity-10 fw-semibold text-secondary">Pengaturan</div>
             <div class="card-body d-grid gap-2">
                 <a class="btn btn-secondary text-start" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders me-2"></i>Pengaturan keuangan &amp; tarif</a>
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie me-2"></i>Alokasi syahriyah</a>
+                <a class="btn btn-outline-secondary text-start" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie me-2"></i>Alokasi awal tahun</a>
                 <a class="btn btn-outline-secondary text-start" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri</a>
                 <a class="btn btn-outline-secondary text-start" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan</a>
                 <a class="btn btn-outline-secondary text-start" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse me-2"></i>Inventaris aset</a>

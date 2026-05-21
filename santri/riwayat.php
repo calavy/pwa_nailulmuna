@@ -26,7 +26,7 @@ $santri = $st->fetch(PDO::FETCH_ASSOC);
 
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /santri/semua_jati.php');
+    header('Location: ' . app_href('/santri/semua_jati.php'));
     exit;
 }
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'stak' => $stAk,
                 'cat' => trim((string) ($_POST['catatan'] ?? '')) ?: null,
             ]);
-            set_flash('success', 'Tingkatan tahun ajaran ' . santri_tahun_ajaran_label($ta) . ' disimpan.');
+            set_flash('success', 'Tingkatan tahun ajaran ' . santri_tahun_ajaran_label($ta, $pdo) . ' disimpan.');
         } else {
             set_flash('error', 'Tahun ajaran dan tingkatan wajib diisi.');
         }
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($filterTa > 0) {
         $redir .= '&th=' . $filterTa;
     }
-    header('Location: ' . $redir);
+    header('Location: ' . app_href($redir));
     exit;
 }
 
@@ -239,7 +239,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-0">
             <div class="card-body py-2 small">
                 <div class="text-muted">Tahun ajaran berjalan</div>
-                <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif)) ?></strong>
+                <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif, $pdo)) ?></strong>
             </div>
         </div>
     </div>
@@ -274,7 +274,7 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
                         <tbody>
                         <?php foreach ($tingkatanRows as $tr): ?>
                             <tr>
-                                <td class="ps-3 fw-semibold"><?= htmlspecialchars(santri_tahun_ajaran_label(['mulai' => (int) $tr['tahun_ajaran_mulai'], 'selesai' => (int) $tr['tahun_ajaran_selesai']])) ?></td>
+                                <td class="ps-3 fw-semibold"><?= htmlspecialchars(santri_tahun_ajaran_label(['mulai' => (int) $tr['tahun_ajaran_mulai'], 'selesai' => (int) $tr['tahun_ajaran_selesai']], $pdo)) ?></td>
                                 <td><?= htmlspecialchars((string) $tr['tingkatan']) ?></td>
                                 <td><?= htmlspecialchars(santri_riwayat_kelas_tampilan($pdo, (string) ($tr['kategori_kelas'] ?? ''))) ?></td>
                                 <td class="small"><?= htmlspecialchars(trim((string) ($tr['wali_kelas'] ?? '')) !== '' ? (string) $tr['wali_kelas'] : '—') ?></td>
@@ -298,10 +298,13 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
             <div class="card-body">
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="save_tingkatan">
-                    <div class="col-12">
-                        <label class="form-label">Tahun ajaran mulai</label>
-                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm" min="2000" max="2100" value="<?= (int) $taAktif['mulai'] ?>" required>
-                        <div class="form-text">Contoh: 2025 untuk TA 2025/2026</div>
+                    <?php $taMetaTingkat = pondok_ta_form_meta($pdo); ?>
+                    <div class="col-12 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
+                        <label class="form-label"><?= htmlspecialchars($taMetaTingkat['label_mulai']) ?></label>
+                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm pondok-ta-mulai"
+                               min="<?= (int) $taMetaTingkat['min'] ?>" max="<?= (int) $taMetaTingkat['max'] ?>"
+                               value="<?= (int) $taAktif['mulai'] ?>" required>
+                        <div class="form-text"><?= pondok_kalender_hijriyah($pdo) ? 'Contoh: 1447 untuk TA 1447/1448 H' : 'Contoh: 2025 untuk TA 2025/2026' ?></div>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Tingkatan</label>
@@ -356,12 +359,10 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
                         <tbody>
                         <?php foreach ($hidmahRows as $hr): ?>
                             <?php
-                            $taLabel = (int) $hr['tahun_ajaran_mulai'];
-                            if (!empty($hr['tahun_ajaran_selesai'])) {
-                                $taLabel .= '/' . (int) $hr['tahun_ajaran_selesai'];
-                            } else {
-                                $taLabel .= '/' . ((int) $hr['tahun_ajaran_mulai'] + 1);
-                            }
+                            $taLabel = santri_tahun_ajaran_label([
+                                'mulai' => (int) $hr['tahun_ajaran_mulai'],
+                                'selesai' => (int) ($hr['tahun_ajaran_selesai'] ?? 0) ?: (int) $hr['tahun_ajaran_mulai'] + 1,
+                            ], $pdo);
                             $periode = '';
                             if (!empty($hr['tanggal_mulai'])) {
                                 $periode = (string) $hr['tanggal_mulai'];
@@ -426,16 +427,14 @@ require __DIR__ . '/../includes/partials/santri_buku_induk.php';
                                placeholder="Mis. Ketua bidang tahfidz, Toko pondok"
                                value="<?= htmlspecialchars((string) ($editHidmah['nama_hidmah'] ?? '')) ?>">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label">TA mulai (tahun)</label>
-                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= (int) ($editHidmah['tahun_ajaran_mulai'] ?? $taAktif['mulai']) ?>" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">TA selesai (opsional)</label>
-                        <input type="number" name="tahun_ajaran_selesai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= !empty($editHidmah['tahun_ajaran_selesai']) ? (int) $editHidmah['tahun_ajaran_selesai'] : '' ?>">
-                    </div>
+                    <?php
+                    $taMulaiHidmah = (int) ($editHidmah['tahun_ajaran_mulai'] ?? $taAktif['mulai']);
+                    $taSelesaiHidmah = !empty($editHidmah['tahun_ajaran_selesai'])
+                        ? (int) $editHidmah['tahun_ajaran_selesai']
+                        : $taMulaiHidmah + 1;
+                    $taColClass = 'col-6';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-6">
                         <label class="form-label">Tanggal mulai</label>
                         <input type="date" name="tanggal_mulai" class="form-control form-control-sm"
@@ -612,4 +611,5 @@ krsort($tahunFilterList);
 </p>
 <?php endif; ?>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -6,5 +6,5 @@ require_once __DIR__ . '/../config/session.php';
 
 unset($_SESSION['mukimin']);
 set_flash('success', 'Anda sudah keluar dari portal mukimin.');
-header('Location: /mukimin/login.php');
+header('Location: ' . app_href('/mukimin/login.php'));
 exit;

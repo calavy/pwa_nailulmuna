@@ -83,9 +83,16 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                 </a>
             </div>
             <div class="col-6">
+                <a href="<?= htmlspecialchars(app_href('/wali/izin.php')) ?>" class="wali-tile-link h-100">
+                    <span class="wali-tile-ico"><i class="fa-solid fa-person-walking-arrow-right" aria-hidden="true"></i></span>
+                    <div class="wali-tile-title">Ajukan izin</div>
+                    <div class="wali-tile-desc">Keluar, pulang, sakit</div>
+                </a>
+            </div>
+            <div class="col-6">
                 <a href="/wali/riwayat.php" class="wali-tile-link h-100">
                     <span class="wali-tile-ico"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></span>
-                    <div class="wali-tile-title">Riwayat</div>
+                    <div class="wali-tile-title">Riwayat Santri</div>
                     <div class="wali-tile-desc">Domisili, khidmah &amp; pelanggaran</div>
                 </a>
             </div>
@@ -96,7 +103,7 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                 <div class="wali-kicker mb-2">Tagihan bulan ini</div>
                 <div class="small text-muted mb-2">
                     <span class="badge text-bg-primary me-1" style="font-size:.65rem">Bulan ini</span>
-                    <?= htmlspecialchars($berjalan['bulan_label']) ?> <?= (int) $berjalan['tahun_kalender'] ?> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · Syahriyah + Makan
+                    <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · Syahriyah + Makan
                 </div>
                 <div class="d-flex justify-content-between mb-1 small">
                     <span class="wali-stat-label">Syahriyah</span>
@@ -118,7 +125,7 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                     <span class="wali-stat-label">Sisa</span>
                     <span class="font-monospace fw-bold <?= $tagihanSisa > 0 ? 'text-danger' : 'text-success' ?>">Rp <?= number_format($tagihanSisa, 0, ',', '.') ?></span>
                 </div>
-                <a class="btn btn-sm btn-teal w-100" href="/wali/pembayaran.php">Riwayat & bukti pembayaran</a>
+                <a class="btn btn-sm btn-teal w-100" href="/wali/pembayaran.php">Riwayat Keuangan &amp; bukti</a>
                 <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="/wali/tagihan.php">Tabel 12 bulan</a>
                 <p class="small text-muted mt-2 mb-0">Pembayaran dilakukan melalui pengurus pondok.</p>
             </div>

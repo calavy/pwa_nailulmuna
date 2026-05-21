@@ -11,7 +11,7 @@ require_once __DIR__ . '/../helpers/mukimin_portal.php';
 ensure_mukimin_portal_columns($pdo);
 
 if (!isset($_SESSION['mukimin']['alumni_id'])) {
-    header('Location: /mukimin/login.php');
+    header('Location: ' . app_href('/mukimin/login.php'));
     exit;
 }
 
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Data berhasil disimpan.');
         }
     }
-    header('Location: /mukimin/index.php');
+    header('Location: ' . app_href('/mukimin/index.php'));
     exit;
 }
 
@@ -61,7 +61,7 @@ $st->execute(['id' => $alumniId]);
 $row = $st->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
     unset($_SESSION['mukimin']);
-    header('Location: /mukimin/login.php');
+    header('Location: ' . app_href('/mukimin/login.php'));
     exit;
 }
 

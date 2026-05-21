@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($santriId <= 0) {
         set_flash('error', 'Pilih santri terlebih dahulu.');
-        header('Location: /poin/input.php');
+        header('Location: ' . app_href('/poin/input.php'));
         exit;
     }
     if (!in_array($jenis, ['PLUS', 'MINUS'], true)) {
@@ -44,14 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($point <= 0) {
         set_flash('error', 'Bobot poin harus lebih dari 0.');
-        header('Location: /poin/input.php');
+        header('Location: ' . app_href('/poin/input.php'));
         exit;
     }
 
     $liburN = akademik_libur_info($pdo, $tanggal, 'penilaian');
     if ($liburN !== null && akademik_blokir_penilaian_libur($pdo)) {
         set_flash('error', 'Tanggal ini libur: ' . $liburN['nama'] . ' — input poin tidak diizinkan (atur di Kalender akademik).');
-        header('Location: /poin/input.php');
+        header('Location: ' . app_href('/poin/input.php'));
         exit;
     }
 
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Input poin berhasil disimpan.');
-    header('Location: /poin/input.php');
+    header('Location: ' . app_href('/poin/input.php'));
     exit;
 }
 

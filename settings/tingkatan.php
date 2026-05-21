@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Tingkatan berhasil dihapus.');
         }
     }
-    header('Location: /settings/tingkatan.php');
+    header('Location: ' . app_href('/settings/tingkatan.php'));
     exit;
 }
 

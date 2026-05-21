@@ -30,7 +30,7 @@ function sdm_embed_done_redirect(string $url): void
         echo '</body></html>';
         exit;
     }
-    header('Location: ' . $url);
+    header('Location: ' . app_href($url));
     exit;
 }
 

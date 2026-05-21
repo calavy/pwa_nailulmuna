@@ -20,7 +20,7 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $editSantriId = (int) ($_GET['santri_id'] ?? 0);
 $tampilSemua = isset($_GET['semua']) && (string) $_GET['semua'] === '1';
 $berjalan = keuangan_periode_berjalan($pdo);
-$bulanMap = keuangan_bulan_map();
+$bulanMap = keuangan_bulan_map($pdo);
 $bulanBerjalan = (int) $berjalan['bulan'];
 $taMulai = (int) $berjalan['mulai'];
 $taSelesai = (int) $berjalan['selesai'];
@@ -36,8 +36,7 @@ $redirectPotongan = static function (int $santriId = 0) use ($q): void {
     } elseif ($q !== '') {
         $url .= '?q=' . urlencode($q);
     }
-    header('Location: ' . $url);
-    exit;
+    app_redirect_path($url);
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -213,13 +212,18 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-3">
-                            <label class="form-label small mb-0">TA mulai</label>
-                            <input type="number" class="form-control form-control-sm" name="tahun_ajaran_mulai" value="<?= (int) $berjalan['mulai'] ?>" min="2000" max="2100" required>
+                        <?php
+                        $taMetaJeda = pondok_ta_form_meta($pdo);
+                        $taMulaiJeda = (int) $berjalan['mulai'];
+                        $taSelesaiJeda = (int) $berjalan['selesai'];
+                        ?>
+                        <div class="col-3 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
+                            <label class="form-label small mb-0"><?= htmlspecialchars($taMetaJeda['label_mulai']) ?></label>
+                            <input type="number" class="form-control form-control-sm pondok-ta-mulai" name="tahun_ajaran_mulai" value="<?= $taMulaiJeda ?>" min="<?= (int) $taMetaJeda['min'] ?>" max="<?= (int) $taMetaJeda['max'] ?>" required>
                         </div>
-                        <div class="col-3">
-                            <label class="form-label small mb-0">TA selesai</label>
-                            <input type="number" class="form-control form-control-sm" name="tahun_ajaran_selesai" value="<?= (int) $berjalan['selesai'] ?>" min="2000" max="2105" required>
+                        <div class="col-3 pondok-ta-field">
+                            <label class="form-label small mb-0"><?= htmlspecialchars($taMetaJeda['label_selesai']) ?></label>
+                            <input type="number" class="form-control form-control-sm pondok-ta-selesai" name="tahun_ajaran_selesai" value="<?= $taSelesaiJeda ?>" min="<?= (int) $taMetaJeda['min'] ?>" max="<?= (int) $taMetaJeda['max'] ?>" <?= pondok_kalender_hijriyah($pdo) ? 'readonly' : '' ?> required>
                         </div>
                         <div class="col-12">
                             <input type="text" class="form-control form-control-sm" name="keterangan_jeda" maxlength="255" placeholder="Alasan jeda (opsional)">
@@ -434,4 +438,5 @@ require_once __DIR__ . '/../includes/header.php';
 })();
 </script>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

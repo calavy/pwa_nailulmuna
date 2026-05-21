@@ -100,6 +100,15 @@ function keuangan_akun_coa_kode(PDO $pdo, int $akunId): string
     return $jenis === 'BANK' ? '1102' : '1101';
 }
 
+function keuangan_jurnal_delete_by_ref(PDO $pdo, string $refType, int $refId): void
+{
+    if ($refId <= 0 || !table_exists($pdo, 'akuntansi_jurnal_umum')) {
+        return;
+    }
+    $stmt = $pdo->prepare('DELETE FROM akuntansi_jurnal_umum WHERE ref_type = :t AND ref_id = :id');
+    $stmt->execute(['t' => $refType, 'id' => $refId]);
+}
+
 function keuangan_jurnal_ref_exists(PDO $pdo, string $refType, int $refId): bool
 {
     if ($refId <= 0 || !table_exists($pdo, 'akuntansi_jurnal_umum')) {

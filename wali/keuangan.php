@@ -69,7 +69,7 @@ require __DIR__ . '/partials/greeting.php';
             <h1 class="h5 mb-0 wali-brand fw-bold">Keuangan &amp; tabungan</h1>
             <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
-        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain. <a href="/wali/pembayaran.php">Riwayat pembayaran &amp; bukti</a> · <a href="/wali/tagihan.php">Tagihan bulanan</a>.</p>
+        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain. <a href="/wali/pembayaran.php">Riwayat Keuangan</a> · <a href="/wali/tagihan.php">Tagihan bulanan</a>.</p>
 
         <form method="get" class="input-group input-group-sm mb-3">
             <input type="text" name="q" class="form-control" placeholder="NIS atau nama" value="<?= htmlspecialchars($q) ?>">
@@ -125,7 +125,7 @@ require __DIR__ . '/partials/greeting.php';
                     </div>
                 </div>
                 <p class="small text-muted mt-2 mb-0">Estimasi 12 × tagihan bulanan (Syahriyah + Makan) TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?>.</p>
-                <a class="btn btn-sm btn-teal w-100 mt-2" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat &amp; bukti semua pembayaran</a>
+                <a class="btn btn-sm btn-teal w-100 mt-2" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat Keuangan &amp; bukti</a>
             </div>
         </div>
 
@@ -163,7 +163,7 @@ require __DIR__ . '/partials/greeting.php';
         <div class="card shadow-sm wali-card">
             <div class="card-header bg-white small fw-semibold text-muted d-flex justify-content-between align-items-center flex-wrap gap-1">
                 <span>Tagihan bulanan (Syahriyah + Makan)</span>
-                <span class="badge text-bg-primary">Bulan ini: <?= htmlspecialchars($berjalan['bulan_label']) ?></span>
+                <span class="badge text-bg-primary">Bulan ini: <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></span>
             </div>
             <div class="card-body p-0">
                 <?php $mode = 'staff'; require __DIR__ . '/../includes/partials/tagihan_bulanan_tabel.php'; ?>

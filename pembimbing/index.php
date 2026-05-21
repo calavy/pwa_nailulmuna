@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute($data);
         set_flash('success', 'Data pembimbing ditambahkan.');
     }
-    header('Location: /pembimbing/index.php');
+    header('Location: ' . app_href('/pembimbing/index.php'));
     exit;
 }
 

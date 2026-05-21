@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $used = (int) $c->fetchColumn();
                     if ($used > 0) {
                         set_flash('error', 'Tidak dapat dihapus: masih dipakai oleh ' . $used . ' santri. Nonaktifkan saja.');
-                        header('Location: /settings/kelas_keuangan.php');
+                        header('Location: ' . app_href('/settings/kelas_keuangan.php'));
                         exit;
                     }
                 }
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    header('Location: /settings/kelas_keuangan.php');
+    header('Location: ' . app_href('/settings/kelas_keuangan.php'));
     exit;
 }
 

@@ -16,7 +16,7 @@ ensure_keuangan_transaksi_tables($pdo);
 ensure_kelas_keuangan_table($pdo);
 
 $section = trim((string) ($_GET['bagian'] ?? 'umum'));
-$validSections = ['umum', 'tarif', 'akun', 'alokasi'];
+$validSections = ['umum', 'tarif', 'akun', 'alokasi', 'alokasi_awal'];
 if (!in_array($section, $validSections, true)) {
     $section = 'umum';
 }
@@ -34,14 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $redirectSection = match ($action) {
         'save_tarif' => 'tarif',
         'save_akun' => 'akun',
-        'save_alokasi' => 'alokasi',
+        'save_alokasi' => keuangan_alokasi_section_for_jenis((string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH)),
         default => 'umum',
     };
-    header('Location: /keuangan/pengaturan.php?bagian=' . urlencode($redirectSection));
+    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?bagian=' . urlencode($redirectSection)));
     exit;
 }
 
-$periode = keuangan_tahun_ajaran_aktif($pdo);
+$periode = pondok_tahun_ajaran_aktif($pdo);
+$taMeta = pondok_ta_form_meta($pdo);
 $biayaDefs = keuangan_biaya_definitions();
 $tiers = ['muadalah' => 'Muadalah', 'wustho' => 'Wustho', 'ulya' => 'Ulya'];
 $akunRows = keuangan_fetch_akun_all($pdo);
@@ -96,6 +97,9 @@ require_once __DIR__ . '/../includes/header.php';
     <li class="nav-item">
         <a class="nav-link <?= $section === 'alokasi' ? 'active' : '' ?>" href="?bagian=alokasi">Alokasi syahriyah</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link <?= $section === 'alokasi_awal' ? 'active' : '' ?>" href="?bagian=alokasi_awal">Alokasi awal tahun</a>
+    </li>
 </ul>
 
 <?php if ($section === 'umum'): ?>
@@ -106,18 +110,26 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="save_periode">
-                    <div class="col-md-6">
-                        <label class="form-label">Tahun mulai</label>
-                        <input type="number" class="form-control" name="keuangan_periode_mulai" min="2000" max="2100"
-                               value="<?= (int) $periode['mulai'] ?>" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Tahun selesai</label>
-                        <input type="number" class="form-control" name="keuangan_periode_selesai" min="2000" max="2100"
-                               value="<?= (int) $periode['selesai'] ?>" required>
-                    </div>
+                    <?php
+                    $taMulai = (int) $periode['mulai'];
+                    $taSelesai = (int) $periode['selesai'];
+                    $taColClass = 'col-md-6';
+                    $nameMulai = 'keuangan_periode_mulai';
+                    $nameSelesai = 'keuangan_periode_selesai';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-12">
-                        <p class="small text-muted mb-2">Dipakai di tagihan bulanan (Syahriyah + Makan), input pembayaran, dan laporan periode <?= (int) $periode['mulai'] ?>/<?= (int) $periode['selesai'] ?>.</p>
+                        <p class="small text-muted mb-2">
+                            Tahun ajaran <?= $taMeta['suffix'] !== '' ? 'Hijriyah' : 'Masehi' ?> (12 bulan = Muharram–Dzulhijjah bila Hijriyah).
+                            Dipakai di tagihan, pembayaran, rekap presensi, dan laporan:
+                            <strong><?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, $periode)) ?></strong>.
+                        </p>
+                        <?php if (pondok_kalender_hijriyah($pdo)): ?>
+                            <p class="small mb-2">
+                                <a href="/settings/kalender.php#backfill-hijriyah">Sesuaikan data lama Masehi → Hijriyah</a>
+                                bila server sudah berisi input tahun/bulan Masehi.
+                            </p>
+                        <?php endif; ?>
                         <button type="submit" class="btn btn-primary">Simpan periode</button>
                     </div>
                 </form>
@@ -306,190 +318,15 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php if ($section === 'alokasi'): ?>
+<?php if ($section === 'alokasi' || $section === 'alokasi_awal'): ?>
 <?php
-    $alokasiAktifRows = keuangan_fetch_alokasi_aktif($pdo);
-    $realisasiSyahriyah = keuangan_syahriyah_realisasi_ta($pdo);
-    $simulasiAwal = keuangan_alokasi_simulasi($pdo);
-    $periodeTa = keuangan_tahun_ajaran_aktif($pdo);
+    $alokasiJenisDana = $section === 'alokasi_awal' ? KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN : KEUNGAN_ALOKASI_JENIS_SYAHRIYAH;
+    $alokasiSectionBagian = $section;
+    $alokasiRowsFiltered = keuangan_alokasi_rows_for_jenis($alokasiRows, $alokasiJenisDana);
+    $editAlokasiScoped = keuangan_alokasi_edit_for_jenis($editAlokasi, $alokasiJenisDana);
+    require __DIR__ . '/partials/alokasi_pengaturan_section.php';
 ?>
-<div class="row g-3">
-    <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-header fw-semibold"><?= $editAlokasi ? 'Ubah alokasi' : 'Tambah alokasi' ?></div>
-            <div class="card-body">
-                <form method="post" class="row g-2">
-                    <input type="hidden" name="action" value="save_alokasi">
-                    <input type="hidden" name="alokasi_id" value="<?= (int) ($editAlokasi['id'] ?? 0) ?>">
-                    <div class="col-12">
-                        <label class="form-label">Nama komponen <span class="text-danger">*</span></label>
-                        <input class="form-control" name="nama_komponen" required value="<?= htmlspecialchars((string) ($editAlokasi['nama_komponen'] ?? '')) ?>">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Kategori <span class="text-danger">*</span></label>
-                        <input class="form-control" name="kategori" required value="<?= htmlspecialchars((string) ($editAlokasi['kategori'] ?? '')) ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Persen %</label>
-                        <input type="number" step="0.01" class="form-control" name="persen" value="<?= htmlspecialchars((string) ($editAlokasi['persen'] ?? '0')) ?>">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Urutan</label>
-                        <input type="number" class="form-control" name="urutan" value="<?= (int) ($editAlokasi['urutan'] ?? 0) ?>">
-                    </div>
-                    <?php if ($editAlokasi): ?>
-                    <div class="col-12">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_active" value="1" id="alok-aktif"
-                                <?= (int) ($editAlokasi['is_active'] ?? 1) === 1 ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="alok-aktif">Aktif</label>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-primary">Simpan alokasi</button>
-                        <?php if ($editAlokasi): ?>
-                            <a class="btn btn-outline-secondary" href="?bagian=alokasi">Batal</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-                <p class="small text-muted mt-2 mb-0">Persentase untuk pembagian dana syahriyah. Total alokasi aktif <strong>tidak boleh melebihi 100%</strong> saat disimpan.</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Daftar alokasi</div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Komponen</th>
-                                <th class="text-end">%</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php if ($alokasiRows === []): ?>
-                            <tr><td colspan="3" class="text-muted text-center py-3">Belum ada alokasi.</td></tr>
-                        <?php else: ?>
-                            <?php
-                            $totalPersen = 0.0;
-                            foreach ($alokasiRows as $al):
-                                if ((int) ($al['is_active'] ?? 1) === 1) {
-                                    $totalPersen += (float) ($al['persen'] ?? 0);
-                                }
-                                ?>
-                                <tr class="<?= (int) ($al['is_active'] ?? 1) !== 1 ? 'table-secondary' : '' ?>">
-                                    <td class="small">
-                                        <?= htmlspecialchars((string) $al['nama_komponen']) ?>
-                                        <div class="text-muted"><?= htmlspecialchars((string) $al['kategori']) ?></div>
-                                    </td>
-                                    <td class="text-end small"><?= htmlspecialchars((string) $al['persen']) ?>%</td>
-                                    <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-primary" href="?bagian=alokasi&amp;edit_alokasi=<?= (int) $al['id'] ?>">Ubah</a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if ($alokasiRows !== []): ?>
-                    <p class="small text-muted px-3 py-2 mb-0">
-                        Jumlah persen aktif:
-                        <strong class="<?= $totalPersen > 100 ? 'text-danger' : '' ?>"><?= htmlspecialchars((string) round($totalPersen, 2)) ?>%</strong>
-                        <?php if ($totalPersen > 100): ?><span class="text-danger"> — melebihi 100%</span><?php endif; ?>
-                    </p>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</div>
-
-<?php if ($alokasiAktifRows !== []): ?>
-<div class="card shadow-sm mt-3 border-info border-opacity-25" id="alokasi-sim-card">
-    <div class="card-header bg-info bg-opacity-10 fw-semibold text-info-emphasis">Simulasi alokasi (what-if)</div>
-    <div class="card-body">
-        <p class="small text-muted mb-3">
-            Pagu dari realisasi <strong>syahriyah</strong> TA <?= (int) $periodeTa['mulai'] ?>/<?= (int) $periodeTa['selesai'] ?>:
-            <strong><?= htmlspecialchars($formatRupiah($realisasiSyahriyah)) ?></strong>.
-            Ubah persen di bawah untuk melihat nominal per pos <em>sebelum</em> disimpan.
-        </p>
-        <div class="row g-2 mb-3">
-            <div class="col-md-4"><div class="app-mini-stat h-100"><div class="app-mini-stat-label">Total %</div><div class="app-mini-stat-value" id="sim-total-persen"><?= htmlspecialchars((string) $simulasiAwal['total_persen']) ?>%</div></div></div>
-            <div class="col-md-4"><div class="app-mini-stat h-100"><div class="app-mini-stat-label">Sisa %</div><div class="app-mini-stat-value text-primary" id="sim-sisa-persen"><?= htmlspecialchars((string) $simulasiAwal['sisa_persen']) ?>%</div></div></div>
-            <div class="col-md-4"><div class="app-mini-stat h-100"><div class="app-mini-stat-label">Status</div><div class="app-mini-stat-value small <?= $simulasiAwal['ok'] ? 'text-success' : 'text-danger' ?>" id="sim-status-label"><?= $simulasiAwal['ok'] ? 'Valid' : 'Melebihi 100%' ?></div></div></div>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead class="table-light"><tr><th>Komponen</th><th>Persen simulasi</th><th class="text-end">Nominal</th></tr></thead>
-                <tbody>
-                <?php foreach ($alokasiAktifRows as $al):
-                    $aid = (int) ($al['id'] ?? 0);
-                    $pct = (float) ($al['persen'] ?? 0);
-                    $nomSim = $realisasiSyahriyah > 0 ? (int) floor($realisasiSyahriyah * $pct / 100) : 0;
-                    ?>
-                    <tr>
-                        <td class="small"><strong><?= htmlspecialchars((string) $al['nama_komponen']) ?></strong><div class="text-muted"><?= htmlspecialchars((string) $al['kategori']) ?></div></td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="range" class="form-range flex-grow-1 sim-persen-range" min="0" max="100" step="0.5" data-id="<?= $aid ?>" value="<?= htmlspecialchars((string) $pct) ?>">
-                                <input type="number" class="form-control form-control-sm sim-persen-input text-end" style="width:4.5rem" min="0" max="100" step="0.5" data-id="<?= $aid ?>" value="<?= htmlspecialchars((string) $pct) ?>">
-                                <span class="small">%</span>
-                            </div>
-                        </td>
-                        <td class="text-end font-monospace small sim-nominal" data-id="<?= $aid ?>"><?= htmlspecialchars($formatRupiah($nomSim)) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <p class="small text-danger mb-0 mt-2 d-none" id="sim-warn"></p>
-    </div>
-</div>
-<script>
-(function () {
-    const realisasi = <?= (int) $realisasiSyahriyah ?>;
-    const fmt = function (n) { return 'Rp ' + Math.max(0, Math.floor(n)).toLocaleString('id-ID'); };
-    function recalc() {
-        let total = 0;
-        document.querySelectorAll('.sim-persen-input').forEach(function (inp) {
-            const p = Math.max(0, parseFloat(inp.value) || 0);
-            total += p;
-            const id = inp.getAttribute('data-id');
-            const nomEl = document.querySelector('.sim-nominal[data-id="' + id + '"]');
-            if (nomEl) nomEl.textContent = fmt(realisasi * p / 100);
-        });
-        total = Math.round(total * 100) / 100;
-        const sisa = Math.max(0, Math.round((100 - total) * 100) / 100);
-        const ok = total <= 100.0001;
-        const totalEl = document.getElementById('sim-total-persen');
-        const sisaEl = document.getElementById('sim-sisa-persen');
-        const statusEl = document.getElementById('sim-status-label');
-        const warnEl = document.getElementById('sim-warn');
-        if (totalEl) { totalEl.textContent = total + '%'; totalEl.classList.toggle('text-danger', !ok); }
-        if (sisaEl) sisaEl.textContent = sisa + '%';
-        if (statusEl) { statusEl.textContent = ok ? 'Valid' : 'Melebihi 100%'; statusEl.className = 'app-mini-stat-value small ' + (ok ? 'text-success' : 'text-danger'); }
-        if (warnEl) {
-            if (!ok) { warnEl.textContent = 'Total ' + total + '% melebihi 100%. Sesuaikan sebelum menyimpan.'; warnEl.classList.remove('d-none'); }
-            else warnEl.classList.add('d-none');
-        }
-    }
-    function syncPair(id, value) {
-        document.querySelectorAll('.sim-persen-range[data-id="' + id + '"], .sim-persen-input[data-id="' + id + '"]').forEach(function (el) { el.value = value; });
-    }
-    document.querySelectorAll('.sim-persen-range').forEach(function (r) {
-        r.addEventListener('input', function () { syncPair(r.getAttribute('data-id'), r.value); recalc(); });
-    });
-    document.querySelectorAll('.sim-persen-input').forEach(function (inp) {
-        inp.addEventListener('input', function () { syncPair(inp.getAttribute('data-id'), inp.value); recalc(); });
-    });
-    recalc();
-})();
-</script>
-<?php endif; ?>
 <?php endif; ?>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

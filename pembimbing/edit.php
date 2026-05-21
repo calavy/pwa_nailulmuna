@@ -12,7 +12,7 @@ $pembimbing = $statement->fetch();
 
 if (!$pembimbing) {
     set_flash('error', 'Data pembimbing tidak ditemukan.');
-    header('Location: /pembimbing/index.php');
+    header('Location: ' . app_href('/pembimbing/index.php'));
     exit;
 }
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $update->execute($data);
 
     set_flash('success', 'Data pembimbing berhasil diperbarui.');
-    header('Location: /pembimbing/index.php');
+    header('Location: ' . app_href('/pembimbing/index.php'));
     exit;
 }
 

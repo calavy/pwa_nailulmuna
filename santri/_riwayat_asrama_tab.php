@@ -64,16 +64,15 @@
                         <input type="text" name="no_ranjang" class="form-control form-control-sm"
                                value="<?= htmlspecialchars((string) ($editAsrama['no_ranjang'] ?? $santri['no_ranjang'] ?? '')) ?>">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label">TA mulai (tahun)</label>
-                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= (int) ($editAsrama['tahun_ajaran_mulai'] ?? $taAktif['mulai']) ?>">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">TA selesai (opsional)</label>
-                        <input type="number" name="tahun_ajaran_selesai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= !empty($editAsrama['tahun_ajaran_selesai']) ? (int) $editAsrama['tahun_ajaran_selesai'] : '' ?>">
-                    </div>
+                    <?php
+                    $taMulaiAsrama = (int) ($editAsrama['tahun_ajaran_mulai'] ?? $taAktif['mulai']);
+                    $taSelesaiAsrama = !empty($editAsrama['tahun_ajaran_selesai'])
+                        ? (int) $editAsrama['tahun_ajaran_selesai']
+                        : $taMulaiAsrama + 1;
+                    $taColClass = 'col-6';
+                    $inputClass = 'form-control form-control-sm';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-12">
                         <label class="form-label">Catatan</label>
                         <input type="text" name="catatan" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($editAsrama['catatan'] ?? '')) ?>">

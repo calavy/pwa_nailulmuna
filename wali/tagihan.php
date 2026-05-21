@@ -18,9 +18,9 @@ require __DIR__ . '/partials/greeting.php';
         </div>
         <p class="small text-muted mb-3">
             <span class="badge text-bg-primary me-1">Bulan berjalan</span>
-            <strong><?= htmlspecialchars($berjalan['bulan_label']) ?> <?= (int) $berjalan['tahun_kalender'] ?></strong>
+            <strong><?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></strong>
             · Wajib: Syahriyah &amp; Makan. Saku opsional (cashless).
-            <a href="/wali/pembayaran.php">Riwayat pembayaran</a>.
+            <a href="/wali/pembayaran.php">Riwayat Keuangan</a>.
         </p>
 
         <div class="card shadow-sm wali-card">

@@ -7,14 +7,14 @@ require_once __DIR__ . '/inc_portal.php';
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Bukti pembayaran tidak ditemukan.');
-    header('Location: /wali/pembayaran.php');
+    header('Location: ' . app_href('/wali/pembayaran.php'));
     exit;
 }
 
 $row = wali_portal_fetch_pembayaran_for_wali($pdo, $id, $waliSantriId);
 if (!$row) {
     set_flash('error', 'Bukti pembayaran tidak dapat diakses.');
-    header('Location: /wali/pembayaran.php');
+    header('Location: ' . app_href('/wali/pembayaran.php'));
     exit;
 }
 
@@ -27,7 +27,7 @@ if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
 
 $nominalTotal = (int) round((float) ($row['total_nominal'] ?? 0));
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
-$periodeLabel = wali_portal_label_periode($row);
+$periodeLabel = wali_portal_label_periode($pdo, $row);
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));

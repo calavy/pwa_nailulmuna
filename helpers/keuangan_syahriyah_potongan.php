@@ -118,7 +118,8 @@ function keuangan_syahriyah_potongan_jeda_tambah(PDO $pdo, array $post): array
     if ($bulan < 1 || $bulan > 12) {
         return ['ok' => false, 'message' => 'Bulan tagihan tidak valid.'];
     }
-    if ($tm < 2000 || $ts < $tm) {
+    $taNorm = pondok_normalisasi_tahun_ajaran_input($pdo, $tm, $ts);
+    if ($taNorm['mulai'] < pondok_ta_tahun_min($pdo)) {
         return ['ok' => false, 'message' => 'Tahun ajaran tidak valid.'];
     }
 
@@ -130,19 +131,19 @@ function keuangan_syahriyah_potongan_jeda_tambah(PDO $pdo, array $post): array
     ');
     $stmt->execute([
         'sid' => $santriId,
-        'tm' => $tm,
-        'ts' => $ts,
+        'tm' => $taNorm['mulai'],
+        'ts' => $taNorm['selesai'],
         'bulan' => $bulan,
         'ket' => $ket !== '' ? $ket : 'Potongan dihentikan sementara',
     ]);
-
-    $bulanMap = keuangan_bulan_map();
+    $labelBulan = pondok_bulan_label($pdo, $bulan, $taNorm['mulai'], $taNorm['selesai']);
 
     return [
         'ok' => true,
-        'message' => 'Potongan dihentikan untuk bulan '
-            . ($bulanMap[$bulan] ?? (string) $bulan)
-            . ' TA ' . $tm . '/' . $ts . ' (tagihan tarif penuh).',
+        'message' => 'Potongan dihentikan untuk '
+            . $labelBulan
+            . ' · TA ' . pondok_tahun_ajaran_label($pdo, $taNorm)
+            . ' (tagihan tarif penuh).',
     ];
 }
 

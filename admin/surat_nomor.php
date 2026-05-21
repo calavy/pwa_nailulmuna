@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         set_flash('error', 'Data tidak valid.');
     }
-    header('Location: /admin/surat_nomor.php');
+    header('Location: ' . app_href('/admin/surat_nomor.php'));
     exit;
 }
 

@@ -154,6 +154,12 @@ body.wali-portal {
     font-size: 1.1rem;
 }
 
+.wali-bottom-nav a span {
+    line-height: 1.15;
+    max-width: 4.75rem;
+    word-break: break-word;
+}
+
 .wali-bottom-nav a.active {
     color: var(--wali-teal);
     background: rgba(15, 118, 110, 0.1);
@@ -166,13 +172,18 @@ body.wali-portal {
 }
 
 .wali-login-hero .wali-login-logo {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid rgba(15, 118, 110, 0.25);
+    display: inline-block;
+    width: auto;
+    height: auto;
+    max-width: 120px;
+    max-height: 96px;
+    object-fit: contain;
+    object-position: center;
+    border: none;
+    border-radius: 0;
     margin-bottom: 0.5rem;
-    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+    box-shadow: none;
+    background: transparent;
 }
 
 .wali-login-hero .wali-login-initial {

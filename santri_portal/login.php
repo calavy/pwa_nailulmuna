@@ -5,13 +5,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_portal.php';
 
 ensure_santri_portal_pin_column($pdo);
 
 if (isset($_SESSION['santri_portal']['santri_id'])) {
-    header('Location: /santri_portal/index.php');
-    exit;
+    app_redirect('santri_portal/index.php');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -19,14 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pin = (string) ($_POST['pin'] ?? '');
     if ($nis === '' || $pin === '') {
         set_flash('error', 'NIS dan PIN wajib diisi.');
-        header('Location: /santri_portal/login.php');
-        exit;
+        app_redirect('santri_portal/login.php');
     }
     $row = santri_portal_verify_login($pdo, $nis, $pin);
     if (!$row) {
         set_flash('error', 'NIS atau PIN salah, atau PIN belum diatur pengurus.');
-        header('Location: /santri_portal/login.php');
-        exit;
+        app_redirect('santri_portal/login.php');
     }
     session_regenerate_id(true);
     $_SESSION['santri_portal'] = [
@@ -34,8 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nis' => (string) $row['nis'],
         'nama_santri' => (string) ($row['nama_santri'] ?? ''),
     ];
-    header('Location: /santri_portal/index.php');
-    exit;
+    app_redirect('santri_portal/index.php');
 }
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
@@ -67,8 +64,8 @@ $err = get_flash('error');
 </form>
 <p class="small text-muted text-center mt-3 mb-0">PIN diatur pengurus pondok. Berbeda dari PIN portal wali.</p>
 <p class="small text-center mt-2 mb-0">
-    <a href="/wali/login.php">Masuk sebagai wali santri</a>
-    · <a href="/login.php">Portal pengurus</a>
+    <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>">Masuk sebagai wali santri</a>
+    · <a href="<?= htmlspecialchars(app_href('/login.php')) ?>">Portal pengurus</a>
 </p>
 <?php
 auth_portal_layout_end();

@@ -13,5 +13,5 @@ if ($id > 0) {
     set_flash('success', 'Data santri berhasil dihapus.');
 }
 
-header('Location: /santri/index.php');
+header('Location: ' . app_href('/santri/index.php'));
 exit;

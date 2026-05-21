@@ -106,7 +106,7 @@ if ($tabHidden !== null && $tabHidden !== '') {
                 <tbody>
                 <?php foreach ($tingkatanShow as $tr): ?>
                     <tr>
-                        <td class="fw-semibold"><?= htmlspecialchars(santri_tahun_ajaran_label(['mulai' => (int) $tr['tahun_ajaran_mulai'], 'selesai' => (int) $tr['tahun_ajaran_selesai']])) ?></td>
+                        <td class="fw-semibold"><?= htmlspecialchars(santri_tahun_ajaran_label(['mulai' => (int) $tr['tahun_ajaran_mulai'], 'selesai' => (int) $tr['tahun_ajaran_selesai']], $pdo)) ?></td>
                         <td><?= htmlspecialchars((string) $tr['tingkatan']) ?></td>
                         <td><?= htmlspecialchars(santri_riwayat_kelas_tampilan($pdo, (string) ($tr['kategori_kelas'] ?? ''))) ?></td>
                         <td><?= htmlspecialchars(trim((string) ($tr['wali_kelas'] ?? '')) !== '' ? (string) $tr['wali_kelas'] : '—') ?></td>

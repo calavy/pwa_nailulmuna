@@ -21,7 +21,7 @@ $templateLabels = alumni_xlsx_header_labels();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_FILES['file_import']) || !is_array($_FILES['file_import']) || (int) $_FILES['file_import']['error'] !== UPLOAD_ERR_OK) {
         set_flash('error', 'File import tidak valid.');
-        header('Location: ' . $redirectTarget);
+        header('Location: ' . app_href($redirectTarget));
         exit;
     }
 
@@ -79,13 +79,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Import data mukimin selesai. Total baris diproses: ' . $total . '. Urutan tampilan mengikuti baris di file Excel (import ulang file lengkap untuk menyelaraskan urutan).');
-        header('Location: /santri/mukimin.php');
+        header('Location: ' . app_href('/santri/mukimin.php'));
         exit;
     } catch (Throwable $e) {
         set_flash('error', 'Import gagal: ' . $e->getMessage());
     }
 
-    header('Location: ' . $redirectTarget);
+    header('Location: ' . app_href($redirectTarget));
     exit;
 }
 

@@ -3,28 +3,22 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/pondok_kalender.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/santri_status.php';
 
 /** @return array{mulai:int,selesai:int} */
 function santri_tahun_ajaran_for_date(PDO $pdo, ?string $dateYmd = null): array
 {
-    $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
-        $dateYmd = date('Y-m-d');
-    }
-    $ts = strtotime($dateYmd) ?: time();
-    $y = (int) date('Y', $ts);
-    $m = (int) date('n', $ts);
-    // Tahun ajaran pondok: mulai Juli (7) — selaras keuangan umum pesantren
-    $mulai = $m >= 7 ? $y : $y - 1;
-    $selesai = $mulai + 1;
-
-    return ['mulai' => $mulai, 'selesai' => $selesai];
+    return pondok_tahun_ajaran_from_date($pdo, $dateYmd);
 }
 
-function santri_tahun_ajaran_label(array $ta): string
+function santri_tahun_ajaran_label(array $ta, ?PDO $pdo = null): string
 {
+    if ($pdo instanceof PDO) {
+        return pondok_tahun_ajaran_label($pdo, $ta);
+    }
+
     return (int) ($ta['mulai'] ?? 0) . '/' . (int) ($ta['selesai'] ?? 0);
 }
 

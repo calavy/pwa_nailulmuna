@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limit = max(0, (int) $limitRaw);
         save_setting($pdo, 'cashless_daily_limit', (string) $limit);
         set_flash('success', 'Batas harian cashless berhasil disimpan.');
-        header('Location: /keuangan/cashless_pin.php');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_scan_uang_setting') {
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'cashless_scan_uang_voice', $isVoice);
         save_setting($pdo, 'cashless_scan_uang_max_nominal', (string) $maxNominal);
         set_flash('success', 'Pengaturan scan uang cashless berhasil disimpan.');
-        header('Location: /keuangan/cashless_pin.php');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'create_qr_nominal_map') {
@@ -54,12 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ket = trim((string) ($_POST['map_keterangan'] ?? ''));
         if ($kode === '' || strlen($kode) > 120) {
             set_flash('error', 'Kode QR wajib diisi (alfanumerik, maks. 120 karakter setelah normalisasi).');
-            header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
+            header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
             exit;
         }
         if ($nominal <= 0) {
             set_flash('error', 'Nominal harus lebih dari 0.');
-            header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
+            header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
             exit;
         }
         try {
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             set_flash('error', 'Gagal menyimpan: kode mungkin sudah dipakai.');
         }
-        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'update_qr_nominal_map') {
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Peta QR nominal diperbarui.');
         }
-        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'delete_qr_nominal_map') {
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM cashless_nominal_qr_map WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Peta QR nominal dihapus.');
         }
-        header('Location: /keuangan/cashless_pin.php#peta-qr-nominal');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_cashless_pin') {
@@ -113,17 +113,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pinKonf = trim((string) ($_POST['pin_konfirmasi'] ?? ''));
         if ($santriId <= 0) {
             set_flash('error', 'Pilih santri.');
-            header('Location: /keuangan/cashless_pin.php#form-pin-cashless');
+            header('Location: ' . app_href('/keuangan/cashless_pin.php#form-pin-cashless'));
             exit;
         }
         if (strlen($pinBaru) < 4) {
             set_flash('error', 'PIN minimal 4 digit.');
-            header('Location: /keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
+            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless'));
             exit;
         }
         if ($pinBaru !== $pinKonf) {
             set_flash('error', 'PIN dan konfirmasi PIN tidak sama.');
-            header('Location: /keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless');
+            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless'));
             exit;
         }
         $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'santri_id' => $santriId,
         ]);
         set_flash('success', 'PIN cashless berhasil disimpan.');
-        header('Location: /keuangan/cashless_pin.php#form-pin-cashless');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php#form-pin-cashless'));
         exit;
     }
 }

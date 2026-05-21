@@ -21,6 +21,16 @@ function keuangan_rekap_pos_with_expected(
 
     $paidBySlug = [];
     if (table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        $bulanSql = '1=1';
+        $bulanParams = [];
+        if ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0) {
+            if (!function_exists('pondok_sql_match_bulan_tagihan')) {
+                require_once __DIR__ . '/pondok_kalender.php';
+            }
+            $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan, 'p');
+            $bulanSql = $bulanMatch['sql'];
+            $bulanParams = $bulanMatch['params'];
+        }
         $paidStmt = $pdo->prepare('
             SELECT d.pos_slug, d.pos_nama, COALESCE(SUM(d.nominal), 0) AS total_nominal
             FROM keuangan_pembayaran p
@@ -28,15 +38,14 @@ function keuangan_rekap_pos_with_expected(
             WHERE p.jenis_periode = :jenis_periode
               AND p.tahun_ajaran_mulai = :tahun_mulai
               AND p.tahun_ajaran_selesai = :tahun_selesai
-              AND (:bulan_tagihan = 0 OR p.bulan_tagihan = :bulan_tagihan)
+              AND (' . ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0 ? $bulanSql : '1=1') . ')
             GROUP BY d.pos_slug, d.pos_nama
         ');
-        $paidStmt->execute([
+        $paidStmt->execute(array_merge([
             'jenis_periode' => $jenisPeriode,
             'tahun_mulai' => $tahunMulai,
             'tahun_selesai' => $tahunSelesai,
-            'bulan_tagihan' => $jenisPeriode === 'BULANAN' ? $bulanTagihan : 0,
-        ]);
+        ], $bulanParams));
         foreach ($paidStmt->fetchAll(PDO::FETCH_ASSOC) as $pr) {
             $slug = strtolower(trim((string) ($pr['pos_slug'] ?? '')));
             if ($slug === '') {

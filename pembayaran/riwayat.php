@@ -1,12 +1,16 @@
 <?php
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/bendahara_ui.php';
+require_once __DIR__ . '/../helpers/keuangan_pembayaran_admin.php';
 
 require_roles(['admin', 'pengurus']);
+ensure_keuangan_pembayaran_audit_table($pdo);
+$canKoreksiPembayaran = user_can_koreksi_pembayaran();
 ensure_santri_identity_columns($pdo);
 ensure_kelas_keuangan_table($pdo);
 
@@ -158,10 +162,6 @@ if ($tablesOk) {
     $santriPick = $pdo->query('SELECT id, nis, nama_santri FROM santri ORDER BY nama_santri ASC LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-$bulanMap = [
-    1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
-    7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
-];
 
 $pageTitle = 'Riwayat Pembayaran';
 $bodyClass = keuangan_body_class('bendahara-page');
@@ -179,6 +179,11 @@ $iconRiwayat = bendahara_page_icon('riwayat');
         Riwayat pembayaran (detail)
     </h1>
     <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Total dan rincian per POS dihitung otomatis sesuai filter.</p>
+    <?php if (user_can_lihat_audit_operasional()): ?>
+        <p class="small mb-0 mt-2">
+            <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_audit.php')) ?>"><i class="fa-solid fa-clipboard-list me-1"></i> Log audit operasional</a>
+        </p>
+    <?php endif; ?>
 </div>
 
 <?php if (!$tablesOk): ?>
@@ -335,21 +340,18 @@ $iconRiwayat = bendahara_page_icon('riwayat');
                         <th>Akun / ref.</th>
                         <th>Petugas</th>
                         <th class="text-end">Kuitansi</th>
+                        <?php if ($canKoreksiPembayaran): ?>
+                            <th class="text-end">Admin</th>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (!$list): ?>
-                    <tr><td colspan="12" class="text-muted text-center py-4">Belum ada pembayaran pada rentang &amp; filter ini.</td></tr>
+                    <tr><td colspan="<?= $canKoreksiPembayaran ? 13 : 12 ?>" class="text-muted text-center py-4">Belum ada pembayaran pada rentang &amp; filter ini.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($list as $row): ?>
                     <?php
-                    $bl = (int) ($row['bulan_tagihan'] ?? 0);
-                    $periodeLabel = (string) $row['tahun_ajaran_mulai'] . '/' . (string) $row['tahun_ajaran_selesai'];
-                    if (($row['jenis_periode'] ?? '') === 'BULANAN' && $bl >= 1 && $bl <= 12) {
-                        $periodeLabel = ($bulanMap[$bl] ?? $bl) . ' · TA ' . $periodeLabel;
-                    } else {
-                        $periodeLabel = 'TA ' . $periodeLabel;
-                    }
+                    $periodeLabel = pondok_label_periode_pembayaran($pdo, $row);
                     $pid = (int) $row['id'];
                     $dets = $detailMap[$pid] ?? [];
                     ?>
@@ -395,12 +397,17 @@ $iconRiwayat = bendahara_page_icon('riwayat');
                         </td>
                         <td class="small"><?= htmlspecialchars(trim((string) ($row['nama_petugas'] ?? '')) !== '' ? (string) $row['nama_petugas'] : '—') ?></td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="/keuangan/kuitansi.php?id=<?= $pid ?>"><i class="fa-solid fa-receipt me-1"></i> Buka</a>
+                            <a class="btn btn-sm btn-outline-secondary" target="_blank" href="<?= htmlspecialchars(app_href('/keuangan/kuitansi.php?id=' . $pid)) ?>"><i class="fa-solid fa-receipt me-1"></i> Buka</a>
                         </td>
+                        <?php if ($canKoreksiPembayaran): ?>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-outline-warning" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_edit.php?id=' . $pid)) ?>" title="Edit / hapus"><i class="fa-solid fa-pen-to-square"></i></a>
+                            </td>
+                        <?php endif; ?>
                     </tr>
                     <?php if (trim((string) ($row['keterangan'] ?? '')) !== ''): ?>
                         <tr class="table-light">
-                            <td colspan="12" class="small py-1"><strong>Keterangan:</strong> <?= nl2br(htmlspecialchars((string) $row['keterangan'])) ?></td>
+                            <td colspan="<?= $canKoreksiPembayaran ? 13 : 12 ?>" class="small py-1"><strong>Keterangan:</strong> <?= nl2br(htmlspecialchars((string) $row['keterangan'])) ?></td>
                         </tr>
                     <?php endif; ?>
                 <?php endforeach; ?>

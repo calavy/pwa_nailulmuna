@@ -15,20 +15,20 @@ $ringkasanPos = wali_portal_ringkasan_pos($pdo, $waliSantriId, $periodeMulai, $p
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran');
 
 require_once __DIR__ . '/includes/layout.php';
-wali_layout_head('Riwayat pembayaran — Portal Wali', true, 'pembayaran');
+wali_layout_head('Riwayat Keuangan — Portal Wali', true, 'pembayaran');
 require __DIR__ . '/partials/greeting.php';
 ?>
 
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
             <div>
-                <h1 class="h5 mb-0 wali-brand fw-bold">Riwayat pembayaran</h1>
-                <p class="small text-muted mb-0">Tagihan wajib: syahriyah &amp; makan. Saku opsional (masuk cashless).</p>
+                <h1 class="h5 mb-0 wali-brand fw-bold">Riwayat Keuangan</h1>
+                <p class="small text-muted mb-0">Pembayaran tagihan (syahriyah &amp; makan), bukti kuitansi, dan ringkasan POS. · <a href="/wali/riwayat.php">Riwayat Santri</a></p>
             </div>
             <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>
 
         <div class="alert alert-light border small mb-3 py-2">
-            <strong>Tagihan <?= htmlspecialchars($berjalan['bulan_label']) ?> <?= (int) $berjalan['tahun_kalender'] ?></strong>
+            <strong>Tagihan <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></strong>
             (TA <?= htmlspecialchars($berjalan['ta_label']) ?>):
             <?php if ((int) ($tagihanBulanIni['sisa_total'] ?? 0) > 0): ?>
                 sisa <span class="text-danger fw-semibold">Rp <?= number_format((int) $tagihanBulanIni['sisa_total'], 0, ',', '.') ?></span>
@@ -80,7 +80,7 @@ require __DIR__ . '/partials/greeting.php';
                     <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                         <div>
                             <div class="fw-bold font-monospace"><?= htmlspecialchars((string) ($trx['tanggal_bayar'] ?? '')) ?></div>
-                            <div class="small text-muted"><?= htmlspecialchars((string) ($trx['periode_label'] ?? wali_portal_label_periode($trx))) ?></div>
+                            <div class="small text-muted"><?= htmlspecialchars((string) ($trx['periode_label'] ?? wali_portal_label_periode($pdo, $trx))) ?></div>
                         </div>
                         <div class="text-end">
                             <div class="fw-bold text-success font-monospace"><?= htmlspecialchars(wali_portal_format_rupiah($total)) ?></div>

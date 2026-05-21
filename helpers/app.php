@@ -75,7 +75,8 @@ function pondok_settings_defaults(): array
         'wa_pengurus' => '',
         'jam_kirim_wa_auto' => '',
         'wa_tagihan_auto_enabled' => '0',
-        'wa_tagihan_calendar' => 'MASEHI',
+        'wa_tagihan_calendar' => 'HIJRIYAH',
+        'jadwal_tampilan_grup' => 'kegiatan',
         'wa_tagihan_day' => '5',
         'wa_tagihan_send_time' => '08:00',
         'batas_alpa_notif' => '3',
@@ -401,7 +402,7 @@ function activity_for_tingkatan(PDO $pdo, string $tingkatan, string $date, strin
 
     $day = date('N', strtotime($date));
     $statement = $pdo->prepare('
-        SELECT k.id, k.nama_kegiatan, j.jam_mulai, j.jam_selesai, j.tempat
+        SELECT k.id, k.nama_kegiatan, j.id AS jadwal_kegiatan_id, j.jam_mulai, j.jam_selesai, j.tempat
         FROM jadwal_kegiatan j
         INNER JOIN kegiatan k ON k.id = j.kegiatan_id
         WHERE (j.tingkatan = :tingkatan OR j.tingkatan = "Semua Tingkatan")
@@ -1390,25 +1391,7 @@ function syahriyah_paid_nominal_for_month(PDO $pdo, int $santriId, int $bulanTag
         return 0;
     }
 
-    $stmt = $pdo->prepare('
-        SELECT COALESCE(SUM(d.nominal), 0)
-        FROM keuangan_pembayaran_detail d
-        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE p.santri_id = :sid
-          AND p.jenis_periode = \'BULANAN\'
-          AND p.bulan_tagihan = :bulan
-          AND p.tahun_ajaran_mulai = :tm
-          AND p.tahun_ajaran_selesai = :ts
-          AND d.pos_slug = \'syahriyah\'
-    ');
-    $stmt->execute([
-        'sid' => $santriId,
-        'bulan' => $bulanTagihan,
-        'tm' => $tahunAjaranMulai,
-        'ts' => $tahunAjaranSelesai,
-    ]);
-
-    return (int) ((float) ($stmt->fetchColumn() ?: 0));
+    return tagihan_paid_nominal_for_pos_month($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, 'syahriyah');
 }
 
 /** Pos bulanan yang menimbulkan tagihan jika belum dibayar (bukan saku). */
@@ -1452,6 +1435,10 @@ function tagihan_paid_nominal_for_pos_month(PDO $pdo, int $santriId, int $bulanT
     if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
         return 0;
     }
+    if (!function_exists('pondok_sql_match_bulan_tagihan')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $bulanTagihan, 'p');
 
     $stmt = $pdo->prepare('
         SELECT COALESCE(SUM(d.nominal), 0)
@@ -1459,18 +1446,17 @@ function tagihan_paid_nominal_for_pos_month(PDO $pdo, int $santriId, int $bulanT
         INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
         WHERE p.santri_id = :sid
           AND p.jenis_periode = \'BULANAN\'
-          AND p.bulan_tagihan = :bulan
+          AND ' . $bulanMatch['sql'] . '
           AND p.tahun_ajaran_mulai = :tm
           AND p.tahun_ajaran_selesai = :ts
           AND d.pos_slug = :pos_slug
     ');
-    $stmt->execute([
+    $stmt->execute(array_merge([
         'sid' => $santriId,
-        'bulan' => $bulanTagihan,
         'tm' => $tahunAjaranMulai,
         'ts' => $tahunAjaranSelesai,
         'pos_slug' => $posSlug,
-    ]);
+    ], $bulanMatch['params']));
 
     return (int) ((float) ($stmt->fetchColumn() ?: 0));
 }
@@ -1625,9 +1611,9 @@ function trigger_auto_wa_tagihan_wali(PDO $pdo): void
     if (trim((string) app_setting($pdo, 'wa_tagihan_auto_enabled', '0')) !== '1') {
         return;
     }
-    $calendarMode = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'MASEHI')));
+    $calendarMode = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
     if (!in_array($calendarMode, ['MASEHI', 'HIJRIYAH'], true)) {
-        $calendarMode = 'MASEHI';
+        $calendarMode = 'HIJRIYAH';
     }
     $dueDay = (int) app_setting($pdo, 'wa_tagihan_day', '5');
     $dueDay = max(1, min(30, $dueDay));
@@ -1674,7 +1660,14 @@ function trigger_auto_wa_tagihan_wali(PDO $pdo): void
         return;
     }
 
-    $bulan = (int) date('n');
+    if (!function_exists('pondok_periode_berjalan')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    if (!function_exists('keuangan_tahun_ajaran_aktif')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+    }
+    $periodeBerjalan = pondok_periode_berjalan($pdo);
+    $bulan = (int) ($periodeBerjalan['bulan'] ?? 1);
     $periodeTa = keuangan_tahun_ajaran_aktif($pdo);
     $tahunAjaranMulai = (int) ($periodeTa['mulai'] ?? 0);
     $tahunAjaranSelesai = (int) ($periodeTa['selesai'] ?? 0);
@@ -2173,15 +2166,14 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
             if ($role === 'petugas_absensi') {
                 app_redirect('presensi/scan.php');
             }
-            $fallbackPath = app_url('dashboard.php');
+            $fallbackPath = '/dashboard.php';
             foreach ($permissionPathMap as $candidatePath => $candidatePermission) {
                 if (isset($allowedMap[$candidatePermission])) {
                     $fallbackPath = $candidatePath;
                     break;
                 }
             }
-            header('Location: ' . $fallbackPath);
-            exit;
+            app_redirect_path($fallbackPath);
         }
     }
 }
@@ -2236,6 +2228,9 @@ function menu_tile_icon_for_path(string $path): string
         '/settings/push.php' => 'fa-solid fa-bell',
         '/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',
         '/settings/hijri_mappings.php' => 'fa-solid fa-moon',
+        '/yayasan/pengurus.php' => 'fa-solid fa-user-tie',
+        '/yayasan/rapat.php' => 'fa-solid fa-people-group',
+        '/yayasan/notulen.php' => 'fa-solid fa-file-pen',
     ];
     if (isset($exactIcons[$path])) {
         return $exactIcons[$path];
@@ -2278,6 +2273,9 @@ function menu_tile_icon_for_path(string $path): string
     }
     if (str_contains($path, 'settings')) {
         return 'fa-solid fa-gear';
+    }
+    if (str_contains($path, 'yayasan')) {
+        return 'fa-solid fa-building-columns';
     }
     return 'fa-solid fa-arrow-right';
 }

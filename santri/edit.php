@@ -37,7 +37,7 @@ $santri = $statement->fetch();
 
 if (!$santri) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /santri/index.php');
+    header('Location: ' . app_href('/santri/index.php'));
     exit;
 }
 
@@ -48,12 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pinSantriKonf = trim((string) ($_POST['santri_pin_konfirmasi'] ?? ''));
     if (($pinWaliBaru !== '') !== ($pinWaliKonf !== '')) {
         set_flash('error', 'Isi PIN portal wali dan konfirmasi lengkap, atau kosongkan keduanya.');
-        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
     if (($pinSantriBaru !== '') !== ($pinSantriKonf !== '')) {
         set_flash('error', 'Isi PIN portal santri dan konfirmasi lengkap, atau kosongkan keduanya.');
-        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
 
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
     $statusSantri = $statusValid['status'];
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkR->execute(['id' => $kelasRuanganId]);
         if (!$chkR->fetchColumn()) {
             set_flash('error', 'Ruangan kelas yang dipilih tidak valid.');
-            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
             exit;
         }
         $kelasRuanganDb = $kelasRuanganId;
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bedErr = santri_validate_asrama_bed_unik($pdo, $id, $statusSantri, (int) ($asramaRanjangDb ?: 0), $namaKamar, $noRanjang);
     if ($bedErr !== null) {
         set_flash('error', $bedErr);
-        header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
     $data = [
@@ -168,12 +168,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pinWaliBaru !== '') {
         if (strlen($pinWaliBaru) < 6) {
             set_flash('error', 'PIN portal wali minimal 6 karakter.');
-            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
             exit;
         }
         if ($pinWaliBaru !== $pinWaliKonf) {
             set_flash('error', 'Konfirmasi PIN portal wali tidak sama.');
-            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
             exit;
         }
     }
@@ -208,14 +208,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($mukiminId > 0) {
             $dest .= '?edit=' . $mukiminId;
         }
-        header('Location: ' . sdm_embed_url($dest));
+        header('Location: ' . app_href(sdm_embed_url($dest)));
         exit;
     }
 
     if ($pinWaliBaru !== '') {
         if ($pinWaliBaru !== $pinWaliKonf) {
             set_flash('error', 'Konfirmasi PIN portal wali tidak cocok.');
-            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
             exit;
         }
         $pdo->prepare('UPDATE santri SET wali_portal_pin_hash = :h WHERE id = :id')->execute([
@@ -226,7 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pinSantriBaru !== '') {
         if ($pinSantriBaru !== $pinSantriKonf) {
             set_flash('error', 'Konfirmasi PIN portal santri tidak cocok.');
-            header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
             exit;
         }
         ensure_santri_portal_pin_column($pdo);

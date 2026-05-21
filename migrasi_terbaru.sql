@@ -247,3 +247,115 @@ WHERE UPPER(TRIM(COALESCE(status_santri, ''))) = 'AKTIF' OR TRIM(COALESCE(status
 -- -----------------------------------------------------------------------------
 ALTER TABLE santri ADD COLUMN IF NOT EXISTS santri_portal_pin_hash VARCHAR(255) NULL;
 
+-- -----------------------------------------------------------------------------
+-- 2026-05-20 | Riwayat pembayaran — log audit edit/hapus (admin)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS keuangan_pembayaran_audit (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pembayaran_id INT NULL,
+    aksi ENUM('UPDATE','DELETE') NOT NULL,
+    data_sebelum JSON NOT NULL,
+    data_sesudah JSON NULL,
+    alasan TEXT NOT NULL,
+    user_id INT NULL,
+    user_nama VARCHAR(120) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_kpa_pembayaran (pembayaran_id),
+    INDEX idx_kpa_created (created_at),
+    INDEX idx_kpa_aksi (aksi)
+);
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 | Log audit terpadu: koreksi pembayaran + jadwal (super admin)
+-- -----------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 | Presensi terikat jadwal (hapus otomatis saat jadwal dihapus)
+-- -----------------------------------------------------------------------------
+ALTER TABLE presensi ADD COLUMN IF NOT EXISTS jadwal_kegiatan_id INT NULL AFTER kegiatan_id;
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 | Pembayaran: kalender hijriyah per bulan tagihan
+-- -----------------------------------------------------------------------------
+ALTER TABLE keuangan_pembayaran
+    ADD COLUMN IF NOT EXISTS kalender_hijriyah VARCHAR(7) NULL AFTER bulan_tagihan;
+ALTER TABLE keuangan_pembayaran ADD INDEX IF NOT EXISTS idx_keu_bayar_kalender_h (kalender_hijriyah);
+-- Setelah migrasi + aktifkan kalender HIJRIYAH di pengaturan pondok, jalankan penyesuaian data lama:
+--   Settings → Kalender → "Sesuaikan data lama ke Hijriyah", atau:
+--   php scripts/pondok_backfill_kalender_hijriyah.php
+-- Bila bulan masih «Mei» bukan «Muharram», jalankan sekali:
+UPDATE app_settings SET setting_value = 'HIJRIYAH' WHERE setting_key = 'wa_tagihan_calendar' AND setting_value = 'MASEHI';
+UPDATE app_settings SET setting_value = 'bulan' WHERE setting_key = 'akademik_kalender_default_view' AND setting_value = 'masehi';
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 | Alokasi dana awal tahun (terpisah dari syahriyah)
+-- -----------------------------------------------------------------------------
+ALTER TABLE keuangan_alokasi
+    ADD COLUMN IF NOT EXISTS jenis_dana ENUM('SYAHRIYAH','AWAL_TAHUN') NOT NULL DEFAULT 'SYAHRIYAH' AFTER kategori;
+
+CREATE TABLE IF NOT EXISTS operasional_audit_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    modul VARCHAR(40) NOT NULL,
+    entity_id INT NULL,
+    aksi ENUM('CREATE','UPDATE','DELETE') NOT NULL,
+    data_sebelum JSON NOT NULL,
+    data_sesudah JSON NULL,
+    alasan TEXT NOT NULL,
+    user_id INT NULL,
+    user_nama VARCHAR(120) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_oal_modul (modul),
+    INDEX idx_oal_entity (modul, entity_id),
+    INDEX idx_oal_created (created_at),
+    INDEX idx_oal_aksi (aksi)
+);
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-21 | Modul Yayasan: pengurus, rapat, notulen
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS yayasan_pengurus (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nama VARCHAR(120) NOT NULL,
+    jabatan VARCHAR(80) NOT NULL DEFAULT 'Anggota',
+    no_wa VARCHAR(30) NULL,
+    email VARCHAR(120) NULL,
+    urutan INT NOT NULL DEFAULT 0,
+    is_aktif TINYINT(1) NOT NULL DEFAULT 1,
+    catatan TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_yayasan_pengurus_aktif (is_aktif),
+    INDEX idx_yayasan_pengurus_urutan (urutan)
+);
+
+CREATE TABLE IF NOT EXISTS yayasan_rapat (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nomor_rapat VARCHAR(40) NULL,
+    judul VARCHAR(200) NOT NULL,
+    tanggal_rapat DATE NOT NULL,
+    waktu_mulai TIME NULL,
+    waktu_selesai TIME NULL,
+    lokasi VARCHAR(120) NULL,
+    jenis ENUM('RUTIN','INSIDENTAL','LAIN') NOT NULL DEFAULT 'RUTIN',
+    status ENUM('DRAFT','SELESAI') NOT NULL DEFAULT 'DRAFT',
+    agenda_ringkas TEXT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_yayasan_rapat_tanggal (tanggal_rapat),
+    INDEX idx_yayasan_rapat_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS yayasan_notulen (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    rapat_id INT NOT NULL,
+    judul VARCHAR(200) NULL,
+    isi LONGTEXT NULL,
+    ringkasan TEXT NULL,
+    keputusan TEXT NULL,
+    tindak_lanjut TEXT NULL,
+    hadir TEXT NULL,
+    diinput_oleh INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_yayasan_notulen_rapat (rapat_id),
+    CONSTRAINT fk_yayasan_notulen_rapat FOREIGN KEY (rapat_id) REFERENCES yayasan_rapat(id) ON DELETE CASCADE
+);
+

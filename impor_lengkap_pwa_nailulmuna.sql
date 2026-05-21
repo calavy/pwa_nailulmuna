@@ -576,7 +576,7 @@ INSERT INTO app_settings (setting_key, setting_value) VALUES
 ('cashless_scan_uang_voice', '1'),
 ('cashless_scan_uang_max_nominal', '200000'),
 ('wa_tagihan_auto_enabled', '0'),
-('wa_tagihan_calendar', 'MASEHI'),
+('wa_tagihan_calendar', 'HIJRIYAH'),
 ('wa_tagihan_day', '5')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
 

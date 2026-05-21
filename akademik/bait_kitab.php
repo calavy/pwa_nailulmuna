@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_bait_kitab WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Kitab bait dihapus.');
         }
-        header('Location: /akademik/bait_kitab.php');
+        header('Location: ' . app_href('/akademik/bait_kitab.php'));
         exit;
     }
     if ($action === 'simpan') {
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aktif = isset($_POST['is_aktif']) ? 1 : 0;
         if ($nama === '') {
             set_flash('error', 'Nama kitab wajib diisi.');
-            header('Location: /akademik/bait_kitab.php' . ($id > 0 ? '?edit=' . $id : ''));
+            header('Location: ' . app_rewrite_internal_url('/akademik/bait_kitab.php' . ($id > 0 ? '?edit=' . $id : '')));
             exit;
         }
         $target = akademik_hitung_target_bait_per_hari($baris, $hari);
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Kitab bait ditambahkan.');
         }
-        header('Location: /akademik/bait_kitab.php');
+        header('Location: ' . app_href('/akademik/bait_kitab.php'));
         exit;
     }
 }
@@ -78,7 +78,7 @@ if ($editId > 0) {
     $editRow = $e->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Data kitab untuk diedit tidak ditemukan.');
-        header('Location: /akademik/bait_kitab.php');
+        header('Location: ' . app_href('/akademik/bait_kitab.php'));
         exit;
     }
 }

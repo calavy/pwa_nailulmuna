@@ -7,5 +7,5 @@ if (str_contains($uri, '#peraturan')) {
 } elseif (str_contains($uri, '#master')) {
     $target = '/menu/menu_hub.php?id=menu-grp-pengaturan';
 }
-header('Location: ' . $target, true, 302);
-exit;
+require_once __DIR__ . '/../helpers/app_path.php';
+app_redirect_path($target);

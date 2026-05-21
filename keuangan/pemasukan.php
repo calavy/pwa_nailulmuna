@@ -19,7 +19,7 @@ $sumberSuggest = keuangan_pemasukan_sumber_suggest();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pemasukan') {
     $result = keuangan_save_pemasukan($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-    header('Location: /keuangan/pemasukan.php');
+    header('Location: ' . app_href('/keuangan/pemasukan.php'));
     exit;
 }
 

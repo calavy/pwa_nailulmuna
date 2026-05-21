@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 
 require_login();
@@ -19,12 +20,13 @@ $userNama = trim((string) ($_SESSION['user']['nama'] ?? 'Petugas'));
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pengeluaran') {
     $result = keuangan_save_pengeluaran($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-    header('Location: /keuangan/pengeluaran.php');
+    header('Location: ' . app_href('/keuangan/pengeluaran.php'));
     exit;
 }
 
 $akunRows = keuangan_fetch_akun_aktif($pdo);
-$alokasiRows = keuangan_fetch_alokasi_aktif($pdo);
+$alokasiSyahriyah = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
+$alokasiAwalTahun = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN);
 $defaultAkunId = 0;
 foreach ($akunRows as $ar) {
     if ((int) ($ar['is_default'] ?? 0) === 1) {
@@ -80,16 +82,29 @@ require_once __DIR__ . '/../includes/header.php';
                         </datalist>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Alokasi syahriyah (opsional)</label>
+                        <label class="form-label">Alokasi dana (opsional)</label>
                         <select class="form-select" name="alokasi_nama">
                             <option value="">— Tidak terkait alokasi —</option>
-                            <?php foreach ($alokasiRows as $ar): ?>
-                                <option value="<?= htmlspecialchars((string) $ar['nama_komponen']) ?>">
-                                    <?= htmlspecialchars((string) $ar['nama_komponen']) ?> (<?= htmlspecialchars((string) $ar['persen']) ?>%)
-                                </option>
-                            <?php endforeach; ?>
+                            <?php if ($alokasiSyahriyah !== []): ?>
+                                <optgroup label="Dana syahriyah">
+                                    <?php foreach ($alokasiSyahriyah as $ar): ?>
+                                        <option value="<?= htmlspecialchars((string) $ar['nama_komponen']) ?>">
+                                            <?= htmlspecialchars((string) $ar['nama_komponen']) ?> (<?= htmlspecialchars((string) $ar['persen']) ?>%)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endif; ?>
+                            <?php if ($alokasiAwalTahun !== []): ?>
+                                <optgroup label="Dana awal tahun">
+                                    <?php foreach ($alokasiAwalTahun as $ar): ?>
+                                        <option value="<?= htmlspecialchars((string) $ar['nama_komponen']) ?>">
+                                            <?= htmlspecialchars((string) $ar['nama_komponen']) ?> (<?= htmlspecialchars((string) $ar['persen']) ?>%)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endif; ?>
                         </select>
-                        <div class="form-text">Hubungkan ke komponen alokasi bila pengeluaran dari dana syahriyah.</div>
+                        <div class="form-text">Pilih komponen alokasi bila pengeluaran dari dana syahriyah atau awal tahun.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Metode</label>

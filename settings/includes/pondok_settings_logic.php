@@ -13,7 +13,7 @@ $appNama = app_brand_nama_ponpes($pdo);
 
 if (!table_exists($pdo, 'app_settings')) {
     set_flash('error', 'Tabel app_settings belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $namaPonpes = trim((string) ($_POST['nama_ponpes'] ?? ''));
     if ($namaPonpes === '') {
         set_flash('error', 'Nama pesantren wajib diisi.');
-        header('Location: /settings/pesantren.php');
+        header('Location: ' . app_href('/settings/pesantren.php'));
         exit;
     }
 
@@ -63,11 +63,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($fields as $field) {
         save_setting($pdo, $field, trim((string) ($_POST[$field] ?? '')));
     }
-    $calendar = strtoupper(trim((string) ($_POST['wa_tagihan_calendar'] ?? 'MASEHI')));
+    $calendarLama = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
+    $calendar = strtoupper(trim((string) ($_POST['wa_tagihan_calendar'] ?? 'HIJRIYAH')));
     if (!in_array($calendar, ['MASEHI', 'HIJRIYAH'], true)) {
-        $calendar = 'MASEHI';
+        $calendar = 'HIJRIYAH';
     }
     save_setting($pdo, 'wa_tagihan_calendar', $calendar);
+    if ($calendar === 'HIJRIYAH') {
+        save_setting($pdo, 'akademik_kalender_default_view', 'bulan');
+    }
+    if ($calendar === 'HIJRIYAH' && $calendarLama !== 'HIJRIYAH') {
+        require_once __DIR__ . '/../../helpers/pondok_kalender.php';
+        $bf = pondok_backfill_kalender_hijriyah($pdo, false);
+        $_SESSION['pondok_backfill_flash'] = sprintf(
+            'Kalender tagihan diubah ke Hijriyah. Data lama disesuaikan: %d pembayaran, %d presensi, %d jeda potongan.',
+            (int) $bf['pembayaran'],
+            (int) $bf['presensi'],
+            (int) $bf['jeda']
+        );
+    }
     $dueDay = max(1, min(30, (int) ($_POST['wa_tagihan_day'] ?? 5)));
     save_setting($pdo, 'wa_tagihan_day', (string) $dueDay);
     save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($_POST['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
@@ -104,13 +118,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             set_flash('error', 'Format logo tidak didukung. Gunakan JPG, PNG, atau WEBP.');
-            header('Location: /settings/pesantren.php');
+            header('Location: ' . app_href('/settings/pesantren.php'));
             exit;
         }
     }
 
-    set_flash('success', 'Pengaturan berhasil disimpan.');
-    header('Location: /settings/pesantren.php');
+    $msg = 'Pengaturan berhasil disimpan.';
+    if (!empty($_SESSION['pondok_backfill_flash'])) {
+        $msg .= ' ' . (string) $_SESSION['pondok_backfill_flash'];
+        unset($_SESSION['pondok_backfill_flash']);
+    }
+    set_flash('success', $msg);
+    header('Location: ' . app_href('/settings/pesantren.php'));
     exit;
     }
 }
@@ -151,7 +170,7 @@ if (trim((string) ($values['wa_pengurus'] ?? '')) !== '') {
 $values['wa_tagihan_auto_enabled'] = ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? '1' : '0';
 $values['wa_tagihan_calendar'] = in_array(strtoupper((string) ($values['wa_tagihan_calendar'] ?? '')), ['MASEHI', 'HIJRIYAH'], true)
     ? strtoupper((string) $values['wa_tagihan_calendar'])
-    : 'MASEHI';
+    : 'HIJRIYAH';
 $tagihanDayRaw = (int) ($values['wa_tagihan_day'] ?? 5);
 $values['wa_tagihan_day'] = (string) max(1, min(30, $tagihanDayRaw > 0 ? $tagihanDayRaw : 5));
 

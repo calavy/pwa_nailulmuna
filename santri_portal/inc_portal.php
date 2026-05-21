@@ -11,7 +11,7 @@ ensure_santri_portal_pin_column($pdo);
 
 $santriPortalId = (int) ($_SESSION['santri_portal']['santri_id'] ?? 0);
 if ($santriPortalId <= 0) {
-    header('Location: /santri_portal/login.php');
+    header('Location: ' . app_href('/santri_portal/login.php'));
     exit;
 }
 
@@ -23,12 +23,12 @@ $st->execute(['id' => $santriPortalId]);
 $santriPortalRow = $st->fetch(PDO::FETCH_ASSOC);
 if (!$santriPortalRow) {
     unset($_SESSION['santri_portal']);
-    header('Location: /santri_portal/login.php');
+    header('Location: ' . app_href('/santri_portal/login.php'));
     exit;
 }
 if (column_exists($pdo, 'santri', 'is_aktif') && (int) ($santriPortalRow['is_aktif'] ?? 1) !== 1) {
     unset($_SESSION['santri_portal']);
     set_flash('error', 'Akses portal dinonaktifkan.');
-    header('Location: /santri_portal/login.php');
+    header('Location: ' . app_href('/santri_portal/login.php'));
     exit;
 }

@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             true
         );
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: ' . app_rewrite_internal_url('/settings/akses_mukimin.php?q=' . urlencode($q)));
         exit;
     }
     if ($action === 'ubah_akses') {
@@ -43,19 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             false
         );
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /settings/akses_mukimin.php?edit=' . $id);
+        header('Location: ' . app_rewrite_internal_url('/settings/akses_mukimin.php?edit=' . $id));
         exit;
     }
     if ($action === 'toggle_aktif') {
         $result = mukimin_portal_set_aktif($pdo, (int) ($_POST['alumni_id'] ?? 0), (int) ($_POST['aktif'] ?? 0) === 1);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: ' . app_rewrite_internal_url('/settings/akses_mukimin.php?q=' . urlencode($q)));
         exit;
     }
     if ($action === 'cabut_akses') {
         $result = mukimin_portal_cabut_akses($pdo, (int) ($_POST['alumni_id'] ?? 0));
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /settings/akses_mukimin.php?q=' . urlencode($q));
+        header('Location: ' . app_rewrite_internal_url('/settings/akses_mukimin.php?q=' . urlencode($q)));
         exit;
     }
 }

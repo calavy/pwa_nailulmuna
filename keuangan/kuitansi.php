@@ -3,13 +3,14 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Kuitansi tidak ditemukan.');
-    header('Location: /pembayaran/riwayat.php');
+    header('Location: ' . app_href('/pembayaran/riwayat.php'));
     exit;
 }
 
@@ -34,7 +35,7 @@ $stmt->execute(['id' => $id]);
 $row = $stmt->fetch();
 if (!$row) {
     set_flash('error', 'Data pembayaran tidak ditemukan.');
-    header('Location: /pembayaran/riwayat.php');
+    header('Location: ' . app_href('/pembayaran/riwayat.php'));
     exit;
 }
 
@@ -42,12 +43,18 @@ $detStmt = $pdo->prepare("SELECT pos_nama, nominal FROM keuangan_pembayaran_deta
 $detStmt->execute(['id' => $id]);
 $details = $detStmt->fetchAll();
 
-$bulanMap = [
-    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
-    7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-];
 $bulanTagihan = (int) ($row['bulan_tagihan'] ?? 0);
-$periodeLabel = $bulanTagihan > 0 ? ($bulanMap[$bulanTagihan] ?? ('Bulan ' . $bulanTagihan)) : 'Awal Tahun';
+$tm = (int) ($row['tahun_ajaran_mulai'] ?? 0);
+$ts = (int) ($row['tahun_ajaran_selesai'] ?? 0);
+$khTersimpan = trim((string) ($row['kalender_hijriyah'] ?? ''));
+if ($bulanTagihan > 0 && $khTersimpan !== '') {
+    $slotKh = pondok_slot_dari_kalender_hijriyah(pondok_bulan_slots_tahun_ajaran($pdo, $tm, $ts), $khTersimpan);
+    $periodeLabel = (string) ($slotKh['label'] ?? $khTersimpan);
+} elseif ($bulanTagihan > 0 && $tm > 0) {
+    $periodeLabel = pondok_bulan_label($pdo, $bulanTagihan, $tm, $ts);
+} else {
+    $periodeLabel = 'Awal Tahun';
+}
 $nominalTotal = (int) ((float) ($row['total_nominal'] ?? 0));
 $formatRupiah = static fn(int $nominal): string => 'Rp ' . number_format($nominal, 0, ',', '.');
 

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/akademik_kalender_ui.php';
 require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/kalender_agenda.php';
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_akademik_libur_table($pdo);
@@ -46,7 +47,7 @@ function akad_cal_state_from_request(): array
     if (!in_array($view, ['bulan', 'masehi', 'atur'], true)) {
         $view = 'bulan';
     }
-    $mode = strtolower(trim((string) ($_GET['mode'] ?? 'masehi')));
+    $mode = strtolower(trim((string) ($_GET['mode'] ?? 'hijri')));
     if (!in_array($mode, ['hijri', 'masehi'], true)) {
         $mode = 'hijri';
     }
@@ -137,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Hari libur ditambahkan.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'hapus_libur') {
@@ -146,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_libur WHERE id = :id')->execute(['id' => $lid]);
             set_flash('success', 'Libur dihapus.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'tambah_libur_minggu') {
@@ -168,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Libur per hari (mingguan) ditambahkan.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'hapus_libur_minggu') {
@@ -177,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_libur_mingguan WHERE id = :id')->execute(['id' => $lid]);
             set_flash('success', 'Libur mingguan dihapus.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'tambah_agenda') {
@@ -203,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Jadwal / pengingat ditambahkan.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'hapus_agenda') {
@@ -213,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_agenda WHERE id = :id')->execute(['id' => $aid]);
             set_flash('success', 'Entri dihapus.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'tandai_agenda_selesai') {
@@ -223,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('UPDATE akademik_agenda SET selesai = 1 WHERE id = :id')->execute(['id' => $aid]);
             set_flash('success', 'Tugas ditandai selesai.');
         }
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'simpan_hijri_awal_bulan') {
@@ -231,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!hijri_tahun_valid($hy)) {
             set_flash('error', 'Tahun hijriyah tidak valid.');
             $back['view'] = 'atur';
-            header('Location: ' . akad_cal_url($back));
+            header('Location: ' . app_href(akad_cal_url($back)));
             exit;
         }
         ensure_hijri_mappings_table($pdo);
@@ -266,14 +267,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_flash('error', 'Tanggal tidak valid untuk ' . $namaBulan . ' — isi H/B/T (hari/bulan/tahun Masehi) dengan benar.');
                 $back['view'] = 'atur';
                 $back['hy'] = $hy;
-                header('Location: ' . akad_cal_url($back));
+                header('Location: ' . app_href(akad_cal_url($back)));
                 exit;
             }
             if ($raw < $gLo || $raw > $gHi) {
                 set_flash('error', 'Tanggal Masehi harus dalam rentang ' . $gLo . ' — ' . $gHi . ' (tahun ' . $hy . ' H.).');
                 $back['view'] = 'atur';
                 $back['hy'] = $hy;
-                header('Location: ' . akad_cal_url($back));
+                header('Location: ' . app_href(akad_cal_url($back)));
                 exit;
             }
             hijri_simpan_mapping($pdo, $hy, $namaBulan, $raw, $th);
@@ -284,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('success', 'Pemetaan tahun ' . $hy . ' H. disimpan.');
         $back['view'] = 'atur';
         $back['hy'] = $hy;
-        header('Location: ' . akad_cal_url($back));
+        header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
 }
@@ -303,6 +304,12 @@ $gregMonth = (int) $st['gm'];
 
 if (!isset($_GET['view']) && in_array($defViewSetting, ['bulan', 'masehi', 'atur'], true)) {
     $view = $defViewSetting;
+}
+if (!isset($_GET['mode']) && pondok_kalender_hijriyah($pdo)) {
+    $mode = 'hijri';
+}
+if (!isset($_GET['view']) && pondok_kalender_hijriyah($pdo) && $view === 'masehi') {
+    $view = 'bulan';
 }
 
 $hijriAnchorDefault = akademik_hijri_anchor_hari_ini($pdo);

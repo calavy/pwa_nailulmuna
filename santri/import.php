@@ -29,7 +29,7 @@ if ($requestedRedirect !== '' && in_array($requestedRedirect, $allowedRedirects,
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_FILES['file_import']) || !is_array($_FILES['file_import']) || (int) $_FILES['file_import']['error'] !== UPLOAD_ERR_OK) {
         set_flash('error', 'File import tidak valid.');
-        header('Location: ' . $redirectTarget);
+        header('Location: ' . app_href($redirectTarget));
         exit;
     }
 
@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('error', 'Import gagal: ' . $e->getMessage());
     }
 
-    header('Location: ' . $redirectTarget);
+    header('Location: ' . app_href($redirectTarget));
     exit;
 }
 

@@ -2,15 +2,27 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../helpers/app_path.php';
+
 /** @return list<array{href:string,icon:string,label:string,key:string}> */
 function wali_bottom_nav_items(): array
 {
     return [
-        ['href' => '/wali/index.php', 'icon' => 'fa-house', 'label' => 'Beranda', 'key' => 'beranda'],
-        ['href' => '/wali/keuangan.php', 'icon' => 'fa-wallet', 'label' => 'Keuangan', 'key' => 'keuangan'],
-        ['href' => '/wali/pembayaran.php', 'icon' => 'fa-clock-rotate-left', 'label' => 'Riwayat', 'key' => 'pembayaran'],
-        ['href' => '/wali/tagihan.php', 'icon' => 'fa-receipt', 'label' => 'Tagihan', 'key' => 'tagihan'],
-        ['href' => '/wali/keaktifan.php', 'icon' => 'fa-calendar-check', 'label' => 'Aktif', 'key' => 'keaktifan'],
+        ['href' => app_href('/wali/index.php'), 'icon' => 'fa-house', 'label' => 'Beranda', 'key' => 'beranda'],
+        ['href' => app_href('/wali/keuangan.php'), 'icon' => 'fa-wallet', 'label' => 'Keuangan', 'key' => 'keuangan'],
+        ['href' => app_href('/wali/pembayaran.php'), 'icon' => 'fa-receipt', 'label' => 'Riwayat Keuangan', 'key' => 'pembayaran'],
+        ['href' => app_href('/wali/tagihan.php'), 'icon' => 'fa-file-invoice', 'label' => 'Tagihan', 'key' => 'tagihan'],
+        ['href' => app_href('/wali/keaktifan.php'), 'icon' => 'fa-calendar-check', 'label' => 'Aktif', 'key' => 'keaktifan'],
+        ['href' => app_href('/wali/izin.php'), 'icon' => 'fa-person-walking-arrow-right', 'label' => 'Izin', 'key' => 'izin'],
+    ];
+}
+
+/** Menu tambahan (desktop) — riwayat non-keuangan. */
+function wali_extra_nav_items(): array
+{
+    return [
+        ['href' => app_href('/wali/riwayat.php'), 'label' => 'Riwayat Santri', 'key' => 'riwayat'],
+        ['href' => app_href('/wali/rapor.php'), 'label' => 'Rapor', 'key' => 'rapor'],
     ];
 }
 
@@ -30,7 +42,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <?php if ($withManifest): ?>
-        <link rel="manifest" href="/wali/manifest.php">
+        <link rel="manifest" href="<?= htmlspecialchars(app_href('/wali/manifest.php')) ?>">
         <meta name="theme-color" content="#0f766e">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -42,7 +54,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="/assets/css/wali-portal.css" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="container wali-shell px-3">
@@ -59,7 +71,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
         ?>
         <div class="wali-login-hero">
             <?php if ($lbLogo !== ''): ?>
-                <img class="wali-login-logo" src="<?= htmlspecialchars($lbLogo) ?>" alt="Logo pondok" width="80" height="80" decoding="async">
+                <img class="wali-login-logo" src="<?= htmlspecialchars($lbLogo) ?>" alt="Logo pesantren" decoding="async">
             <?php elseif ($lbNama !== '' || $lbWelcome !== ''): ?>
                 <div class="wali-login-initial" aria-hidden="true"><?= htmlspecialchars($ini) ?></div>
             <?php endif; ?>
@@ -90,8 +102,9 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
             <?php foreach (wali_bottom_nav_items() as $item): ?>
                 <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navActive === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
             <?php endforeach; ?>
-            <a href="/wali/riwayat.php" class="btn btn-sm btn-outline-secondary <?= $navActive === 'riwayat' ? 'active' : '' ?>">Riwayat</a>
-            <a href="/wali/rapor.php" class="btn btn-sm btn-outline-secondary <?= $navActive === 'rapor' ? 'active' : '' ?>">Rapor</a>
+            <?php foreach (wali_extra_nav_items() as $item): ?>
+                <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navActive === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
+            <?php endforeach; ?>
             <button type="button" class="btn btn-sm btn-outline-success" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
         </nav>
         <?php if (isset($waliAnakRows) && count($waliAnakRows) > 1): ?>

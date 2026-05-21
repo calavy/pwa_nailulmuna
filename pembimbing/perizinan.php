@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ins->execute($data);
     $pdo->prepare('UPDATE pembimbing SET is_aktif = 0 WHERE id = :id')->execute(['id' => $data['id']]);
     set_flash('success', 'Perizinan pembimbing berhasil dibuat.');
-    header('Location: /pembimbing/perizinan.php');
+    header('Location: ' . app_href('/pembimbing/perizinan.php'));
     exit;
 }
 

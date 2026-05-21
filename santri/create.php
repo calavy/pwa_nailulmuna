@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     if (!$statusValid['ok']) {
         set_flash('error', (string) $statusValid['error']);
-        header('Location: ' . sdm_embed_url('/santri/create.php'));
+        header('Location: ' . app_href(sdm_embed_url('/santri/create.php')));
         exit;
     }
     $statusSantri = $statusValid['status'];
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkR->execute(['id' => $kelasRuanganId]);
         if (!$chkR->fetchColumn()) {
             set_flash('error', 'Ruangan kelas yang dipilih tidak valid.');
-            header('Location: ' . sdm_embed_url('/santri/create.php'));
+            header('Location: ' . app_href(sdm_embed_url('/santri/create.php')));
             exit;
         }
         $kelasRuanganDb = $kelasRuanganId;
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bedErr = santri_validate_asrama_bed_unik($pdo, 0, $statusSantri, (int) ($asramaRanjangDb ?: 0), $namaKamar, $noRanjang);
     if ($bedErr !== null) {
         set_flash('error', $bedErr);
-        header('Location: ' . sdm_embed_url('/santri/create.php'));
+        header('Location: ' . app_href(sdm_embed_url('/santri/create.php')));
         exit;
     }
     $data = [

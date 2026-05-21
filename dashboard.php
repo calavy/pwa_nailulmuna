@@ -12,6 +12,7 @@ require_once __DIR__ . '/helpers/santri_operasional.php';
 ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/helpers/mukimin.php';
 require_once __DIR__ . '/helpers/dashboard_menu.php';
+require_once __DIR__ . '/helpers/jadwal_ui.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
@@ -96,6 +97,7 @@ if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
     $stmt->execute(['hari_ke' => $hariKe, 'jam_now' => $nowTime]);
     $kegiatanAktif = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+$kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
 
 /** Anchor jam live agar selaras dengan waktu server yang dipakai query jadwal (bukan jam lokal browser). */
 $dashServerClockMs = (int) round(microtime(true) * 1000);
@@ -169,6 +171,7 @@ $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
 
 $pageTitle = 'Dashboard';
+$bodyClass = 'dash-page';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
@@ -178,7 +181,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="dash-hero-brand dash-hero-brand--top mb-3 mb-md-4">
                 <?php if ($dashLogo !== ''): ?>
                     <div class="dash-hero-logo-wrap">
-                        <img src="<?= htmlspecialchars($dashLogo) ?>" alt="" class="dash-hero-logo" width="96" height="96" decoding="async">
+                        <img src="<?= htmlspecialchars(app_href($dashLogo)) ?>" alt="Logo pesantren" class="dash-hero-logo" decoding="async">
                     </div>
                 <?php else: ?>
                     <div class="dash-hero-logo-wrap dash-hero-logo-wrap--placeholder" aria-hidden="true">
@@ -313,7 +316,7 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
-                    <?php if ($kegiatanAktif === []): ?>
+                    <?php if ($kegiatanAktifGrouped === []): ?>
                         <div class="dash-empty-chart py-5 text-center text-muted">
                             <div class="display-6 mb-2 opacity-50"><i class="fa-regular fa-calendar"></i></div>
                             <p class="mb-0 fw-semibold">Belum ada kegiatan di jam ini</p>
@@ -321,19 +324,29 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                     <?php else: ?>
                         <div class="d-flex flex-column gap-2">
-                            <?php foreach ($kegiatanAktif as $kg): ?>
-                                <div class="dash-jadwal-row">
-                                    <div class="dash-jadwal-time">
-                                        <i class="fa-regular fa-clock me-1 opacity-75"></i>
-                                        <?= htmlspecialchars(substr((string) ($kg['jam_mulai'] ?? ''), 0, 5)) ?>–<?= htmlspecialchars(substr((string) ($kg['jam_selesai'] ?? ''), 0, 5)) ?>
-                                    </div>
+                            <?php foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows): ?>
+                                <div class="dash-jadwal-row dash-jadwal-row--compact">
                                     <div class="dash-jadwal-row-main">
-                                        <span class="dash-jadwal-nama"><?= htmlspecialchars((string) ($kg['nama_kegiatan'] ?? '')) ?></span>
-                                        <span class="dash-jadwal-meta"><?= htmlspecialchars((string) ($kg['tingkatan'] ?? '')) ?></span>
+                                        <span class="dash-jadwal-nama"><?= htmlspecialchars($namaKegiatan) ?></span>
+                                        <span class="dash-jadwal-time">
+                                            <i class="fa-regular fa-clock me-1 opacity-75"></i>
+                                            <?= htmlspecialchars(substr((string) ($slotRows[0]['jam_mulai'] ?? ''), 0, 5)) ?>–<?= htmlspecialchars(substr((string) ($slotRows[0]['jam_selesai'] ?? ''), 0, 5)) ?>
+                                        </span>
                                     </div>
-                                    <?php if (trim((string) ($kg['tempat'] ?? '')) !== ''): ?>
-                                        <div class="dash-jadwal-meta dash-jadwal-tempat">
-                                            <i class="fa-solid fa-location-dot me-1"></i><?= htmlspecialchars(trim((string) $kg['tempat'])) ?>
+                                    <div class="dash-jadwal-tingkatan-wrap">
+                                        <?php foreach ($slotRows as $kg): ?>
+                                            <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge"><?= htmlspecialchars((string) ($kg['tingkatan'] ?? '—')) ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <?php
+                                    $tempatList = array_values(array_unique(array_filter(array_map(
+                                        static fn(array $r): string => trim((string) ($r['tempat'] ?? '')),
+                                        $slotRows
+                                    ))));
+                                    ?>
+                                    <?php if ($tempatList !== []): ?>
+                                        <div class="dash-jadwal-meta dash-jadwal-tempat small">
+                                            <i class="fa-solid fa-location-dot me-1"></i><?= htmlspecialchars(implode(' · ', $tempatList)) ?>
                                         </div>
                                     <?php endif; ?>
                                 </div>
@@ -351,7 +364,7 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
                 <div class="card-body px-4 pb-4 pt-3 d-flex flex-column gap-2">
                     <?php foreach ($sideQuickActions as $act): ?>
-                        <a href="<?= htmlspecialchars($act['path']) ?>" class="<?= htmlspecialchars($act['class']) ?> rounded-3 py-2">
+                        <a href="<?= htmlspecialchars(app_rewrite_internal_url($act['path'])) ?>" class="<?= htmlspecialchars($act['class']) ?> rounded-3 py-2">
                             <i class="fa-solid <?= htmlspecialchars($act['icon']) ?> me-2"></i> <?= htmlspecialchars($act['label']) ?>
                         </a>
                     <?php endforeach; ?>
@@ -419,7 +432,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-quick-grid dash-quick-grid--compact">
                     <?php foreach ($dashTiles as $idx => $tile): ?>
                         <?php $accent = (int) ($idx % 6); ?>
-                        <a class="dash-quick-tile dash-quick-tile--compact dash-quick-tile--a<?= $accent ?>" href="<?= htmlspecialchars($tile['path']) ?>" title="<?= htmlspecialchars($tile['label']) ?>">
+                        <a class="dash-quick-tile dash-quick-tile--compact dash-quick-tile--a<?= $accent ?>" href="<?= htmlspecialchars(app_rewrite_internal_url($tile['path'])) ?>" title="<?= htmlspecialchars($tile['label']) ?>">
                             <i class="<?= htmlspecialchars($tile['icon']) ?>" aria-hidden="true"></i>
                             <span class="dash-quick-tile-main">
                                 <span class="dash-quick-tile-line1"><?= htmlspecialchars($tile['label']) ?></span>

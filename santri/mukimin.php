@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM akademik_alumni WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Data mukimin dihapus.');
         }
-        header('Location: ' . mukimin_page_url([], mukimin_filters_from_post()));
+        header('Location: ' . app_href(mukimin_page_url([], mukimin_filters_from_post())));
         exit;
     }
     if ($action === 'simpan') {
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama = trim((string) ($_POST['nama'] ?? ''));
         if ($nis === '' || $nama === '') {
             set_flash('error', 'NIS dan nama wajib diisi.');
-            header('Location: ' . mukimin_page_url($id > 0 ? ['edit' => (string) $id] : [], mukimin_filters_from_post()));
+            header('Location: ' . app_href(mukimin_page_url($id > 0 ? ['edit' => (string)) $id] : [], mukimin_filters_from_post()));
             exit;
         }
         $thMasuk = trim((string) ($_POST['th_masuk'] ?? ''));
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ')->execute($params);
             } catch (PDOException $e) {
                 set_flash('error', 'NIS sudah dipakai mukimin lain.');
-                header('Location: ' . mukimin_page_url(['edit' => (string) $id], mukimin_filters_from_post()));
+                header('Location: ' . app_href(mukimin_page_url(['edit' => (string)) $id], mukimin_filters_from_post()));
                 exit;
             }
             set_flash('success', 'Data mukimin diperbarui.');
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ')->execute($params);
             set_flash('success', 'Data mukimin ditambahkan.');
         }
-        header('Location: ' . mukimin_page_url([], mukimin_filters_from_post()));
+        header('Location: ' . app_href(mukimin_page_url([], mukimin_filters_from_post())));
         exit;
     }
 }
@@ -160,7 +160,7 @@ if ($editId > 0) {
     $editRow = $e->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Data mukimin untuk diedit tidak ditemukan.');
-        header('Location: ' . mukimin_page_url(['edit' => ''], $filters));
+        header('Location: ' . app_href(mukimin_page_url(['edit' => ''], $filters)));
         exit;
     }
 }

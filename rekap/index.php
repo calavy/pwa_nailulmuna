@@ -4,19 +4,22 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 
 require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
-$mode = $_GET['mode'] ?? 'masehi';
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
+$defaultRekapMode = pondok_kalender_hijriyah($pdo) ? 'hijriyah' : 'masehi';
+$mode = $_GET['mode'] ?? $defaultRekapMode;
 if (!in_array($mode, ['masehi', 'hijriyah'], true)) {
-    $mode = 'masehi';
+    $mode = $defaultRekapMode;
 }
 $previousMode = $_GET['previous_mode'] ?? $mode;
 if (!in_array($previousMode, ['masehi', 'hijriyah'], true)) {
@@ -93,20 +96,7 @@ $masehiMonths = [
     11 => 'November',
     12 => 'Desember',
 ];
-$hijriyahMonths = [
-    1 => 'Muharram',
-    2 => 'Safar',
-    3 => 'Rabiul Awal',
-    4 => 'Rabiul Akhir',
-    5 => 'Jumadil Awal',
-    6 => 'Jumadil Akhir',
-    7 => 'Rajab',
-    8 => 'Syaban',
-    9 => 'Ramadan',
-    10 => 'Syawal',
-    11 => 'Dzulkaidah',
-    12 => 'Dzulhijjah',
-];
+$hijriyahMonths = hijri_nama_bulan_list();
 $monthName = $mode === 'hijriyah' ? ($hijriyahMonths[$month] ?? '-') : ($masehiMonths[$month] ?? '-');
 $hijriEquivalent = get_hijri_ym_from_gregorian_month($year, $month);
 [$hijriToGregorianStart, $hijriToGregorianEnd] = akademik_gregorian_range_from_hijri_month($pdo, $year, $month);

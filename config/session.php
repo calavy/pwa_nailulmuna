@@ -6,6 +6,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+/** Semua link internal href="/..." otomatis dapat prefix /pwa_nailulmuna di XAMPP. */
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    ob_start(static function (string $buffer): string {
+        return app_ob_rewrite_html($buffer);
+    });
+}
+
 function set_flash(string $key, string $message): void
 {
     $_SESSION['flash'][$key] = $message;

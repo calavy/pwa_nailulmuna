@@ -2,12 +2,16 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/operasional_audit.php';
+require_once __DIR__ . '/../helpers/presensi_admin.php';
+require_once __DIR__ . '/../helpers/jadwal_ui.php';
 
 require_roles(['admin', 'pengurus']);
+$auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
 if (!table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
     set_flash('error', 'Tabel jadwal belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS pembimbing_id INT NULL');
@@ -32,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$tingkatanDipilih || !$hariDipilih) {
             set_flash('error', 'Pilih minimal 1 tingkatan dan 1 hari.');
-            header('Location: /jadwal/index.php');
+            header('Location: ' . app_href('/jadwal/index.php'));
             exit;
         }
 
@@ -43,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             VALUES (:kegiatan_id, :tingkatan, :hari_ke, :jam_mulai, :jam_selesai, :pembimbing_id, :tempat)
         ');
         $created = 0;
+        $createdIds = [];
         foreach ($tingkatanDipilih as $tingkatan) {
             foreach ($hariDipilih as $hariKe) {
                 $insert->execute([
@@ -54,24 +59,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'pembimbing_id' => (int) ($_POST['pembimbing_id'] ?? 0) ?: null,
                     'tempat' => $tempatJadwal,
                 ]);
+                $newId = (int) $pdo->lastInsertId();
+                if ($newId > 0) {
+                    $createdIds[] = $newId;
+                }
                 $created++;
             }
         }
+        $firstId = $createdIds[0] ?? 0;
+        operasional_audit_log(
+            $pdo,
+            OPERASIONAL_AUDIT_MODUL_JADWAL,
+            'CREATE',
+            $firstId,
+            null,
+            [
+                'jumlah_baru' => $created,
+                'jadwal_ids' => $createdIds,
+                'kegiatan_id' => (int) ($_POST['kegiatan_id'] ?? 0),
+                'tingkatan' => $tingkatanDipilih,
+                'hari_ke' => $hariDipilih,
+                'jam_mulai' => $_POST['jam_mulai'] ?? '00:00',
+                'jam_selesai' => $_POST['jam_selesai'] ?? '00:00',
+                'tempat' => $tempatJadwal,
+            ],
+            $auditUserId,
+            'Penambahan jadwal kegiatan (' . $created . ' baris)'
+        );
         set_flash('success', 'Jadwal berhasil ditambahkan: ' . $created . ' data.');
     }
 
     if ($action === 'hapus_jadwal') {
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) {
+            $before = jadwal_kegiatan_audit_fetch($pdo, $id);
+            $hapusPresensi = presensi_hapus_untuk_jadwal($pdo, $id);
             $delete = $pdo->prepare('DELETE FROM jadwal_kegiatan WHERE id = :id');
             $delete->execute(['id' => $id]);
-            set_flash('success', 'Jadwal berhasil dihapus.');
+            operasional_audit_log(
+                $pdo,
+                OPERASIONAL_AUDIT_MODUL_JADWAL,
+                'DELETE',
+                $id,
+                $before,
+                null,
+                $auditUserId,
+                'Penghapusan jadwal #' . $id . ($hapusPresensi > 0 ? ' (+ ' . $hapusPresensi . ' presensi terkait)' : '')
+            );
+            $msg = 'Jadwal berhasil dihapus.';
+            if ($hapusPresensi > 0) {
+                $msg .= ' Presensi terkait: ' . $hapusPresensi . ' baris ikut dihapus.';
+            }
+            set_flash('success', $msg);
         } else {
             set_flash('error', 'ID jadwal tidak valid.');
         }
     }
 
-    header('Location: /jadwal/index.php');
+    header('Location: ' . app_href('/jadwal/index.php'));
+    exit;
+}
+
+if (isset($_GET['grup'])) {
+    $g = strtolower(trim((string) $_GET['grup']));
+    if (in_array($g, ['kegiatan', 'tingkatan'], true)) {
+        jadwal_simpan_tampilan_grup($pdo, $g);
+    }
+    header('Location: ' . app_href('/jadwal/index.php'));
     exit;
 }
 
@@ -83,37 +137,35 @@ $pembimbingList = table_exists($pdo, 'pembimbing')
     ? $pdo->query('SELECT id, nama_pembimbing FROM pembimbing ORDER BY nama_pembimbing ASC')->fetchAll()
     : [];
 $kegiatanList = $pdo->query('SELECT id, nama_kegiatan, is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
-$jadwalList = $pdo->query("SELECT j.id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id ORDER BY j.tingkatan ASC, j.hari_ke ASC, j.jam_mulai ASC")->fetchAll();
+$jadwalList = $pdo->query("SELECT j.id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC")->fetchAll();
 $totalKegiatan = count($kegiatanList);
 $totalJadwal = count($jadwalList);
-$totalTingkatanJadwal = count($jadwalGrouped ?? []);
 
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
-$jadwalGrouped = [];
-foreach ($jadwalList as $row) {
-    $tg = (string) $row['tingkatan'];
-    $hk = (int) $row['hari_ke'];
-    if (!isset($jadwalGrouped[$tg])) {
-        $jadwalGrouped[$tg] = [];
-    }
-    if (!isset($jadwalGrouped[$tg][$hk])) {
-        $jadwalGrouped[$tg][$hk] = [];
-    }
-    $jadwalGrouped[$tg][$hk][] = $row;
+$tampilanGrup = jadwal_tampilan_grup($pdo);
+$jadwalGrouped = $tampilanGrup === 'kegiatan'
+    ? jadwal_kelompokkan_per_kegiatan($jadwalList)
+    : jadwal_kelompokkan_per_tingkatan($jadwalList);
+jadwal_urutkan_grup_hari($jadwalGrouped);
+
+if ($tampilanGrup === 'tingkatan') {
+    $tingkatanSortIndex = array_flip(array_values($tingkatanList));
+    uksort($jadwalGrouped, static function (string $a, string $b) use ($tingkatanSortIndex): int {
+        $ia = $tingkatanSortIndex[$a] ?? PHP_INT_MAX;
+        $ib = $tingkatanSortIndex[$b] ?? PHP_INT_MAX;
+        if ($ia !== $ib) {
+            return $ia <=> $ib;
+        }
+
+        return strcmp($a, $b);
+    });
+} else {
+    ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
 }
 
-$tingkatanSortIndex = array_flip(array_values($tingkatanList));
-uksort($jadwalGrouped, static function (string $a, string $b) use ($tingkatanSortIndex): int {
-    $ia = $tingkatanSortIndex[$a] ?? PHP_INT_MAX;
-    $ib = $tingkatanSortIndex[$b] ?? PHP_INT_MAX;
-    if ($ia !== $ib) {
-        return $ia <=> $ib;
-    }
-    return strcmp($a, $b);
-});
-
 $pageTitle = 'Jadwal Kegiatan';
+$bodyClass = 'jadwal-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -121,6 +173,11 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1">Modul Jadwal</p>
     <h1 class="h4 mb-1">Jadwal kegiatan santri</h1>
     <p class="text-muted mb-0">Atur kegiatan per tingkatan, hari, jam, pembimbing, dan lokasi dalam satu halaman.</p>
+    <?php if (user_can_lihat_audit_operasional()): ?>
+        <p class="small mb-0 mt-2">
+            <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_audit.php?modul=jadwal_kegiatan')) ?>"><i class="fa-solid fa-clipboard-list me-1"></i> Log audit jadwal</a>
+        </p>
+    <?php endif; ?>
 </div>
 
 <div class="row g-3 mb-4">
@@ -172,15 +229,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label">Tingkatan (boleh centang banyak)</label>
-                        <div class="border rounded p-2" style="max-height: 170px; overflow-y: auto;">
-                            <?php foreach ($tingkatanList as $tg): ?>
-                                <?php $tgId = 'tg-' . md5((string) $tg); ?>
-                                <div class="form-check mb-1">
-                                    <input class="form-check-input" type="checkbox" name="tingkatan[]" id="<?= htmlspecialchars($tgId) ?>" value="<?= htmlspecialchars((string) $tg) ?>">
-                                    <label class="form-check-label" for="<?= htmlspecialchars($tgId) ?>"><?= htmlspecialchars((string) $tg) ?></label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                        <?php $selectedTingkatan = []; require __DIR__ . '/../includes/partials/jadwal_tingkatan_chips.php'; ?>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Pembimbing (opsional)</label>
@@ -224,67 +273,19 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-lg-8">
         <div class="card shadow-sm">
             <div class="card-body">
-                <h2 class="h5 mb-3">Daftar Jadwal</h2>
-                <p class="text-muted small mb-3">Dikelompokkan per tingkatan, lalu per hari. Baris diurutkan berdasarkan jam.</p>
-                <?php if ($jadwalList === []): ?>
-                    <p class="text-muted mb-0">Belum ada jadwal.</p>
-                <?php else: ?>
-                    <?php foreach ($jadwalGrouped as $namaTingkatan => $byHari): ?>
-                        <div class="mb-4">
-                            <h3 class="h6 text-primary border-bottom pb-2 mb-3"><?= htmlspecialchars($namaTingkatan) ?></h3>
-                            <?php
-                            $hariKeys = array_keys($byHari);
-                            sort($hariKeys, SORT_NUMERIC);
-                            ?>
-                            <?php foreach ($hariKeys as $hariKe):
-                                $items = $byHari[$hariKe] ?? [];
-                                if ($items === []) {
-                                    continue;
-                                }
-                                usort($items, static function (array $a, array $b): int {
-                                    return strcmp((string) $a['jam_mulai'], (string) $b['jam_mulai']);
-                                });
-                                ?>
-                                <div class="ms-0 ms-md-2 mb-3">
-                                    <div class="fw-semibold small text-secondary mb-2">
-                                        <?= htmlspecialchars($hari[$hariKe] ?? 'Hari #' . $hariKe) ?>
-                                    </div>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-striped table-hover align-middle mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th>Jam</th>
-                                                    <th>Kegiatan</th>
-                                                    <th>Tempat</th>
-                                                    <th>Pembimbing</th>
-                                                    <th class="text-end">Aksi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php foreach ($items as $item): ?>
-                                                    <tr>
-                                                        <td><?= htmlspecialchars(substr($item['jam_mulai'], 0, 5)) ?> - <?= htmlspecialchars(substr($item['jam_selesai'], 0, 5)) ?></td>
-                                                        <td><?= htmlspecialchars($item['nama_kegiatan']) ?></td>
-                                                        <td><?= htmlspecialchars(trim((string) ($item['tempat'] ?? '')) !== '' ? (string) $item['tempat'] : '—') ?></td>
-                                                        <td><?= htmlspecialchars($item['nama_pembimbing']) ?></td>
-                                                        <td class="text-end text-nowrap">
-                                                            <a href="/jadwal/edit.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-warning">Edit</a>
-                                                            <form method="post" class="d-inline" onsubmit="return confirm('Hapus jadwal ini?')">
-                                                                <input type="hidden" name="action" value="hapus_jadwal">
-                                                                <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
-                                                                <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
-                                                            </form>
-                                                        </td>
-                                                    </tr>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">Daftar Jadwal</h2>
+                        <p class="text-muted small mb-0">Utama per <strong>kegiatan</strong>; tingkatan badge kecil di kolom tabel.</p>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Tampilan grup jadwal">
+                        <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?grup=kegiatan')) ?>"
+                           class="btn <?= $tampilanGrup === 'kegiatan' ? 'btn-primary' : 'btn-outline-primary' ?>">Per kegiatan</a>
+                        <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?grup=tingkatan')) ?>"
+                           class="btn <?= $tampilanGrup === 'tingkatan' ? 'btn-primary' : 'btn-outline-primary' ?>">Per tingkatan</a>
+                    </div>
+                </div>
+                <?php require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php'; ?>
             </div>
         </div>
     </div>

@@ -65,7 +65,7 @@ auth_portal_layout_begin([
     'subtitle' => 'Scan QR kehadiran santri & pembimbing. Setelah masuk, izinkan akses kamera belakang di browser.',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $namaPonpes,
-    'logo_url' => $heroLogo,
+    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
     'accent' => 'indigo',
 ]);
 
@@ -83,7 +83,7 @@ $ok = get_flash('success');
                         <strong>Belum siap.</strong> Pengurus harus mengisi <strong>Password presensi</strong> di halaman Pengaturan terlebih dahulu.
                     </div>
                 <?php endif; ?>
-                <form method="post" action="/presensi/login.php" autocomplete="on">
+                <form method="post" action="<?= htmlspecialchars(app_href('/presensi/login.php')) ?>" autocomplete="on">
                     <div class="mb-3">
                         <label class="form-label fw-semibold" for="presensi-pw">Password presensi</label>
                         <div class="input-group">

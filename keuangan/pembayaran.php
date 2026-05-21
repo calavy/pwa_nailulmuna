@@ -16,30 +16,36 @@ ensure_santri_identity_columns($pdo);
 ensure_kelas_keuangan_table($pdo);
 
 $biayaDefinitions = keuangan_biaya_definitions();
-$bulanMap = keuangan_bulan_map();
 $berjalan = keuangan_periode_berjalan($pdo);
+$kalenderMode = pondok_kalender_mode($pdo);
 $periode = keuangan_tahun_ajaran_aktif($pdo);
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);
 
 $prefillSantriId = (int) ($_GET['santri_id'] ?? 0);
 $prefillBulan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
-$prefillTm = max(2000, min(2100, (int) ($_GET['tm'] ?? $berjalan['mulai'])));
-$prefillTs = max($prefillTm, min(2105, (int) ($_GET['ts'] ?? $berjalan['selesai'])));
+$taPrefill = pondok_normalisasi_tahun_ajaran_input(
+    $pdo,
+    (int) ($_GET['tm'] ?? $berjalan['mulai']),
+    (int) ($_GET['ts'] ?? $berjalan['selesai'])
+);
+$prefillTm = $taPrefill['mulai'];
+$prefillTs = $taPrefill['selesai'];
+$bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $prefillTm, $prefillTs);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pembayaran') {
     $result = keuangan_save_pembayaran($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     if (!$result['ok']) {
         set_flash('error', $result['message']);
-        header('Location: /keuangan/pembayaran.php');
+        header('Location: ' . app_href('/keuangan/pembayaran.php'));
         exit;
     }
     set_flash('success', $result['message']);
     $newId = (int) ($result['id'] ?? 0);
     if ($newId > 0) {
-        header('Location: /keuangan/kuitansi.php?id=' . $newId);
+        header('Location: ' . app_rewrite_internal_url('/keuangan/kuitansi.php?id=' . $newId));
         exit;
     }
-    header('Location: /keuangan/pembayaran.php');
+    header('Location: ' . app_href('/keuangan/pembayaran.php'));
     exit;
 }
 
@@ -69,6 +75,8 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Formulir Pembayaran Santri</h1>
     <p class="text-muted mb-0">
         Catat penerimaan kas/bank per komponen biaya santri. Setelah simpan, kuitansi dapat dicetak.
+        Bulan tagihan mengikuti kalender <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>
+        (pengaturan pondok).
         Untuk donasi/hibah/bantuan dari luar santri gunakan
         <a href="/keuangan/pemasukan.php">Pemasukan lain</a>.
         <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
@@ -107,10 +115,13 @@ require_once __DIR__ . '/../includes/header.php';
                         </select>
                     </div>
                     <div class="col-md-4" id="wrap-bulan">
-                        <label class="form-label">Bulan tagihan</label>
+                        <label class="form-label">Bulan tagihan <?= $kalenderMode === 'hijriyah' ? '(Hijriyah)' : '(Masehi)' ?></label>
                         <select class="form-select" name="bulan_tagihan" id="bulan_tagihan">
-                            <?php foreach ($bulanMap as $m => $label): ?>
-                                <option value="<?= $m ?>" <?= $m === $prefillBulan ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                            <?php foreach ($bulanSlots as $slot): ?>
+                                <?php $m = (int) ($slot['bulan_tagihan'] ?? 0); ?>
+                                <option value="<?= $m ?>" <?= $m === $prefillBulan ? 'selected' : '' ?> data-kh="<?= htmlspecialchars((string) ($slot['kalender_hijriyah'] ?? '')) ?>">
+                                    <?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -118,14 +129,12 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Tanggal bayar</label>
                         <input type="date" class="form-control" name="tanggal_bayar" value="<?= htmlspecialchars(date('Y-m-d')) ?>" required>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Th. ajaran mulai</label>
-                        <input type="number" class="form-control" name="tahun_ajaran_mulai" value="<?= (int) $prefillTm ?>" min="2000" max="2100">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Th. ajaran selesai</label>
-                        <input type="number" class="form-control" name="tahun_ajaran_selesai" value="<?= (int) $prefillTs ?>" min="2000" max="2105">
-                    </div>
+                    <?php
+                    $taMulai = (int) $prefillTm;
+                    $taSelesai = (int) $prefillTs;
+                    $inputClass = 'form-control';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-md-3">
                         <label class="form-label">Metode</label>
                         <select class="form-select" name="metode_bayar" id="metode_bayar">
@@ -241,7 +250,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php
                                 $bl = (int) ($r['bulan_tagihan'] ?? 0);
                                 $periodeShort = ($r['jenis_periode'] ?? '') === 'BULANAN' && $bl > 0
-                                    ? ($bulanMap[$bl] ?? '')
+                                    ? pondok_bulan_label($pdo, $bl, (int) ($r['tahun_ajaran_mulai'] ?? $prefillTm), (int) ($r['tahun_ajaran_selesai'] ?? $prefillTs))
                                     : 'Awal th.';
                                 ?>
                                 <tr>
@@ -268,6 +277,7 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 window.keuanganSantriMap = <?= json_encode($santriKeuanganById, JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<script src="/assets/js/keuangan-pembayaran-form.js"></script>
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_href('/assets/js/keuangan-pembayaran-form.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

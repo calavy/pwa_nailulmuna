@@ -1358,44 +1358,65 @@ body {
 }
 
 .dash-hero-logo-wrap {
-    width: 84px;
-    height: 84px;
-    border-radius: 50%;
-    background: #ffffff;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22), 0 0 0 4px rgba(255, 255, 255, 0.18);
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    padding: 0;
     flex: 0 0 auto;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    padding: 0;
+    max-width: 140px;
+    max-height: 104px;
+}
+
+.dash-hero-logo-wrap--placeholder {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    border: 1px dashed rgba(255, 255, 255, 0.45);
+    box-shadow: none;
+    max-width: none;
+    max-height: none;
 }
 
 @media (min-width: 992px) {
-    .dash-hero-logo-wrap {
+    .dash-hero-logo-wrap--placeholder {
         width: 96px;
         height: 96px;
     }
 }
 
-.dash-hero-logo-wrap--placeholder {
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
-    border: 1px dashed rgba(255, 255, 255, 0.45);
-    box-shadow: none;
-}
-
 .dash-hero-logo {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
     display: block;
+    width: auto;
+    height: auto;
+    max-width: 140px;
+    max-height: 104px;
+    object-fit: contain;
+    object-position: center;
+    filter: drop-shadow(0 3px 10px rgba(15, 23, 42, 0.35));
 }
 
 .dash-hero-logo-fallback {
     font-weight: 800;
     font-size: 1.6rem;
     letter-spacing: 0.05em;
+}
+
+.pondok-logo-preview {
+    display: block;
+    max-width: 160px;
+    max-height: 96px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    background: transparent;
+    border: none;
+    border-radius: 0;
 }
 
 .dash-hero-brand-text {
@@ -1642,6 +1663,91 @@ body {
     border: 1px solid rgba(148, 163, 184, 0.25);
     border-left: 3px solid rgba(15, 118, 110, 0.45);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+.dash-jadwal-row--compact {
+    padding: 0.45rem 0.65rem;
+    border-radius: 8px;
+    border-left-width: 2px;
+}
+
+.dash-jadwal-row--compact .dash-jadwal-nama {
+    font-size: 0.88rem;
+}
+
+.dash-jadwal-row--compact .dash-jadwal-time {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.dash-jadwal-tingkatan-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+}
+
+.jadwal-tingkatan-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    max-height: 7.5rem;
+    overflow-y: auto;
+    padding: 0.15rem 0;
+}
+
+.jadwal-tingkatan-chip {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.15rem 0.45rem;
+    line-height: 1.25;
+    border-radius: 999px;
+}
+
+.jadwal-tingkatan-badge,
+.dash-jadwal-tingkatan-wrap .jadwal-tingkatan-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.12rem 0.4rem;
+    border-radius: 999px;
+}
+
+.jadwal-grup-blok {
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(248, 250, 252, 0.5);
+}
+
+[data-theme="dark"] .jadwal-grup-blok {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(71, 85, 105, 0.4);
+}
+
+.jadwal-grup-judul {
+    font-size: 0.92rem;
+    margin-bottom: 0.35rem;
+}
+
+.jadwal-tabel-ringkas th,
+.jadwal-tabel-ringkas td {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.45rem;
+}
+
+.dash-page .dash-kpi .card-body {
+    padding: 0.65rem 0.75rem;
+}
+
+.dash-page .dash-kpi-value {
+    font-size: 1.35rem;
+}
+
+.dash-page .dash-kpi-ico {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.95rem;
 }
 
 [data-theme="dark"] .dash-jadwal-row {
@@ -2131,9 +2237,8 @@ body {
 }
 
 /* Dashboard — tampilan utama (hero + pintasan) */
-.dash-page .dash-hero-logo {
-    object-fit: contain;
-    padding: 0.2rem;
+.dash-page .dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder) {
+    background: transparent;
 }
 
 .dash-panel .card-header h2,

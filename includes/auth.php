@@ -34,7 +34,8 @@ function require_roles(array $roles): void
     }
 
     $role = (string) ($_SESSION['user']['role'] ?? 'admin');
-    $permissionKey = permission_key_for_request((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    require_once __DIR__ . '/../helpers/app_path.php';
+    $permissionKey = permission_key_for_request(app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? '')));
     if ($permissionKey !== null) {
         if (!user_has_current_page_permission()) {
             set_flash('error', 'Anda tidak memiliki akses ke halaman ini.');
@@ -59,6 +60,49 @@ function require_super_admin(): void
     require_login();
     if (!is_super_admin()) {
         set_flash('error', 'Fitur ini hanya untuk admin super.');
+        auth_redirect_access_denied();
+    }
+}
+
+/** Koreksi/hapus riwayat pembayaran — role admin atau super admin (bukan pengurus biasa). */
+function user_can_koreksi_pembayaran(): bool
+{
+    if (!isset($_SESSION['user'])) {
+        return false;
+    }
+    if (is_super_admin()) {
+        return true;
+    }
+
+    return strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin';
+}
+
+function require_koreksi_pembayaran(): void
+{
+    require_login();
+    if (!user_can_koreksi_pembayaran()) {
+        set_flash('error', 'Koreksi pembayaran hanya untuk admin.');
+        auth_redirect_access_denied();
+    }
+}
+
+/** Lihat log audit operasional (pembayaran + jadwal, …) — hanya super admin. */
+function user_can_lihat_audit_operasional(): bool
+{
+    return is_super_admin();
+}
+
+/** @deprecated Gunakan user_can_lihat_audit_operasional() */
+function user_can_lihat_audit_pembayaran(): bool
+{
+    return user_can_lihat_audit_operasional();
+}
+
+function require_lihat_audit_operasional(): void
+{
+    require_login();
+    if (!user_can_lihat_audit_operasional()) {
+        set_flash('error', 'Log audit hanya untuk admin super.');
         auth_redirect_access_denied();
     }
 }
@@ -198,6 +242,9 @@ function permission_key_for_request(string $requestPath): ?string
         '/pembayaran/laporan.php' => 'keuangan',
         '/pembayaran/rekap_pos.php' => 'keuangan',
         '/settings/admin.php' => 'settings_admin',
+        '/yayasan/pengurus.php' => 'yayasan',
+        '/yayasan/rapat.php' => 'yayasan',
+        '/yayasan/notulen.php' => 'yayasan',
     ];
 
     foreach ($pathMap as $path => $permissionKey) {
@@ -215,7 +262,8 @@ function user_has_current_page_permission(): bool
         return true;
     }
 
-    $permissionKey = permission_key_for_request((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    require_once __DIR__ . '/../helpers/app_path.php';
+    $permissionKey = permission_key_for_request(app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? '')));
     if ($permissionKey === null) {
         return false;
     }

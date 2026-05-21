@@ -5,12 +5,13 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
+require_once __DIR__ . '/../helpers/presensi_admin.php';
 
 require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -75,20 +76,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $jamMulaiKeg = null;
     $jamSelesaiKeg = null;
+    $jadwalKegiatanId = null;
     if ($kegiatanId > 0 && table_exists($pdo, 'jadwal_kegiatan')) {
         $hariKe = (int) date('N', strtotime($tanggal));
         $jadwalStmt = $pdo->prepare('
-            SELECT jam_mulai, jam_selesai FROM jadwal_kegiatan
-            WHERE kegiatan_id = :kid AND hari_ke = :hari
+            SELECT id, jam_mulai, jam_selesai FROM jadwal_kegiatan
+            WHERE kegiatan_id = :kid AND (hari_ke = 0 OR hari_ke = :hari)
             ORDER BY jam_mulai ASC LIMIT 1
         ');
         $jadwalStmt->execute(['kid' => $kegiatanId, 'hari' => $hariKe]);
         $jadwalRow = $jadwalStmt->fetch(PDO::FETCH_ASSOC);
         if (is_array($jadwalRow)) {
+            $jadwalKegiatanId = (int) ($jadwalRow['id'] ?? 0) ?: null;
             $jamMulaiKeg = (string) ($jadwalRow['jam_mulai'] ?? null);
             $jamSelesaiKeg = (string) ($jadwalRow['jam_selesai'] ?? null);
         }
     }
+    ensure_presensi_jadwal_column($pdo);
     $izinTetapIds = santri_izin_tetap_santri_ids_pada_tanggal($pdo, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
 
     $threshold = (int) app_setting($pdo, 'batas_alpa_notif', '3');
@@ -104,12 +108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $insert = $pdo->prepare('
-            INSERT INTO presensi (santri_id, kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
-            VALUES (:santri_id, :kegiatan_id, :tanggal_presensi, :jam_presensi, "ALPA", :kalender_hijriyah, :created_by)
+            INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
+            VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, "ALPA", :kalender_hijriyah, :created_by)
         ');
         $insert->execute([
             'santri_id' => $santriId,
             'kegiatan_id' => $kegiatanId > 0 ? $kegiatanId : null,
+            'jadwal_kegiatan_id' => $jadwalKegiatanId,
             'tanggal_presensi' => $tanggal,
             'jam_presensi' => date('H:i:s'),
             'kalender_hijriyah' => $hijri,
@@ -151,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     set_flash('success', 'Generate alpa selesai. Total tersimpan: ' . $created);
-    header('Location: /presensi/alpha.php');
+    header('Location: ' . app_href('/presensi/alpha.php'));
     exit;
 }
 
@@ -161,7 +166,11 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm">
     <div class="card-body">
         <h1 class="h4">Generate Alpa Otomatis</h1>
-        <p class="text-muted">Santri yang tidak hadir dan tidak izin pada tanggal/kegiatan ini akan dicatat sebagai ALPA.</p>
+        <p class="text-muted">Santri yang tidak hadir dan tidak izin pada tanggal/kegiatan ini akan dicatat sebagai ALPA.
+            <?php if (user_can_hapus_presensi_admin()): ?>
+                <a href="<?= htmlspecialchars(app_href('/presensi/bersihkan.php')) ?>">Bersihkan presensi tanpa kegiatan</a>
+            <?php endif; ?>
+        </p>
         <form method="post" class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Tanggal</label>

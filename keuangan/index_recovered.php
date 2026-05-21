@@ -9,7 +9,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Kuitansi tidak ditemukan.');
-    header('Location: /keuangan/index.php?tab=f');
+    header('Location: ' . app_href('/keuangan/index.php?tab=f'));
     exit;
 }
 
@@ -33,7 +33,7 @@ $stmt->execute(['id' => $id]);
 $row = $stmt->fetch();
 if (!$row) {
     set_flash('error', 'Data pembayaran tidak ditemukan.');
-    header('Location: /keuangan/index.php?tab=f');
+    header('Location: ' . app_href('/keuangan/index.php?tab=f'));
     exit;
 }
 

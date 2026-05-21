@@ -9,7 +9,7 @@ require_roles(['admin']);
 
 if (!table_exists($pdo, 'presensi_pembimbing')) {
     set_flash('error', 'Tabel presensi_pembimbing belum ada. Jalankan migrasi terbaru.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 

@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Ruangan dihapus.');
         }
     }
-    header('Location: /settings/kelas_ruangan.php');
+    header('Location: ' . app_href('/settings/kelas_ruangan.php'));
     exit;
 }
 

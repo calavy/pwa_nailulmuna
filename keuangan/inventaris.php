@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('error', 'Gagal menonaktifkan aset.');
         }
     }
-    header('Location: /keuangan/inventaris.php');
+    header('Location: ' . app_href('/keuangan/inventaris.php'));
     exit;
 }
 

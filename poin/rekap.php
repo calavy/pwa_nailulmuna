@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($rerouteMode === 'santri' && $rerouteSantriId > 0) {
             $redirect .= '&santri_id=' . $rerouteSantriId;
         }
-        header('Location: ' . $redirect);
+        header('Location: ' . app_href($redirect));
         exit;
     }
 }

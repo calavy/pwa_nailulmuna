@@ -5,13 +5,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/mukimin_portal.php';
 
 ensure_mukimin_portal_columns($pdo);
 
 if (isset($_SESSION['mukimin']['alumni_id'])) {
-    header('Location: /mukimin/index.php');
-    exit;
+    app_redirect('mukimin/index.php');
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -19,14 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string) ($_POST['password'] ?? '');
     if ($username === '' || $password === '') {
         set_flash('error', 'Username dan password wajib diisi.');
-        header('Location: /mukimin/login.php');
-        exit;
+        app_redirect('mukimin/login.php');
     }
     $row = mukimin_portal_authenticate($pdo, $username, $password);
     if (!$row) {
         set_flash('error', 'Username atau password salah, atau akses belum didaftarkan pengurus.');
-        header('Location: /mukimin/login.php');
-        exit;
+        app_redirect('mukimin/login.php');
     }
     session_regenerate_id(true);
     $_SESSION['mukimin'] = [
@@ -36,8 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'username' => (string) ($row['portal_username'] ?? $username),
         'sektor' => (string) ($row['sektor'] ?? ''),
     ];
-    header('Location: /mukimin/index.php');
-    exit;
+    app_redirect('mukimin/index.php');
 }
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));

@@ -10,7 +10,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $izinInfo = $izinInfoStmt->fetch();
             if (!$izinInfo) {
                 set_flash('error', 'Data permohonan tidak ditemukan.');
-                header('Location: /perizinan/index.php');
+                header('Location: ' . app_href('/perizinan/index.php'));
                 exit;
             }
 
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tsSelesai = strtotime($tglSelesai . ' ' . $jamSelesai);
             if ($tsMulai !== false && $tsSelesai !== false && $tsSelesai < $tsMulai) {
                 set_flash('error', 'Waktu selesai harus sesudah waktu mulai. Periksa kembali tanggal/jam.');
-                header('Location: /perizinan/index.php');
+                header('Location: ' . app_href('/perizinan/index.php'));
                 exit;
             }
 
@@ -140,10 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             set_flash('success', 'Izin disetujui. QR digital aktif dan surat siap dicetak.');
-            header('Location: /perizinan/surat.php?id=' . $id);
+            header('Location: ' . app_rewrite_internal_url('/perizinan/surat.php?id=' . $id));
             exit;
         }
-        header('Location: /perizinan/index.php');
+        header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
     if ($action === 'reject_izin') {
@@ -158,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Izin ditolak.');
         }
-        header('Location: /perizinan/index.php');
+        header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
     if ($action === 'perpanjang_izin') {
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 set_flash('error', 'Izin tidak dapat diperpanjang (status atau jenis tidak sesuai pengaturan).');
             }
         }
-        header('Location: /perizinan/index.php');
+        header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
     if ($action === 'create_health') {
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chkH->execute(['id' => $sidH]);
             if (!$chkH->fetchColumn()) {
                 set_flash('error', 'Santri tidak aktif — laporan E-Health hanya untuk santri aktif.');
-                header('Location: /perizinan/index.php');
+                header('Location: ' . app_href('/perizinan/index.php'));
                 exit;
             }
         }
@@ -217,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
         ]);
         set_flash('success', 'Laporan kesehatan berhasil disimpan.');
-        header('Location: /perizinan/index.php');
+        header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
 
@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkAktif->execute(['id' => $santriIdPost]);
         if (!$chkAktif->fetchColumn()) {
             set_flash('error', 'Santri tidak aktif atau sudah keluar — tidak dapat diberi izin baru.');
-            header('Location: /perizinan/index.php');
+            header('Location: ' . app_href('/perizinan/index.php'));
             exit;
         }
     }
@@ -241,17 +241,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $suhuRaw = $_POST['suhu_tubuh'] ?? '';
         if ($santriIdPost <= 0) {
             set_flash('error', 'Pilih santri untuk izin kesehatan.');
-            header('Location: /perizinan/index.php');
+            header('Location: ' . app_href('/perizinan/index.php'));
             exit;
         }
         if ($gejalaCheck === '') {
             set_flash('error', 'Izin kesehatan wajib melengkapi E-Health: isi gejala.');
-            header('Location: /perizinan/index.php');
+            header('Location: ' . app_href('/perizinan/index.php'));
             exit;
         }
         if ($suhuRaw === '' || !is_numeric($suhuRaw)) {
             set_flash('error', 'Izin kesehatan wajib melengkapi E-Health: isi suhu tubuh.');
-            header('Location: /perizinan/index.php');
+            header('Location: ' . app_href('/perizinan/index.php'));
             exit;
         }
     }
@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $pdo->rollBack();
         set_flash('error', 'Gagal menyimpan: data tidak konsisten. Coba lagi.');
-        header('Location: /perizinan/index.php');
+        header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
 
@@ -340,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ? 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan.'
         : 'Pengajuan izin tersimpan (status: PENDING). Menunggu persetujuan.';
     set_flash('success', $okMsg);
-    header('Location: /perizinan/index.php');
+    header('Location: ' . app_href('/perizinan/index.php'));
     exit;
 }
 

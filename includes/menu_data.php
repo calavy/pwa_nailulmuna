@@ -64,6 +64,9 @@ return [
         '/rekap/izin_telat.php' => 'Rekap Telat',
         '/settings/index.php' => 'Pesantren',
         '/settings/admin.php' => 'Kelola Akses User',
+        '/yayasan/pengurus.php' => 'Pengurus',
+        '/yayasan/rapat.php' => 'Rapat',
+        '/yayasan/notulen.php' => 'Notulen',
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],
@@ -143,6 +146,13 @@ return [
                 '/poin/input.php',
                 '/poin/rekap.php',
                 '/rekap/santri_bagus.php',
+            ]],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-yayasan', 'label' => 'Yayasan', 'icon' => 'fa-solid fa-building-columns', 'sections' => [
+            ['title' => '', 'paths' => [
+                '/yayasan/pengurus.php',
+                '/yayasan/rapat.php',
+                '/yayasan/notulen.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [
@@ -264,5 +274,8 @@ return [
         '/pembayaran/laporan.php' => 'keuangan',
         '/pembayaran/rekap_pos.php' => 'keuangan',
         '/settings/admin.php' => 'settings_admin',
+        '/yayasan/pengurus.php' => 'yayasan',
+        '/yayasan/rapat.php' => 'yayasan',
+        '/yayasan/notulen.php' => 'yayasan',
     ],
 ];

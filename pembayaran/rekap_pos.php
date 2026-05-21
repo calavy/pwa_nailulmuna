@@ -15,7 +15,6 @@ ensure_keuangan_transaksi_tables($pdo);
 ensure_santri_identity_columns($pdo);
 
 $biayaDefinitions = keuangan_biaya_definitions();
-$bulanMap = keuangan_bulan_map();
 $periode = keuangan_tahun_ajaran_aktif($pdo);
 $berjalan = keuangan_periode_berjalan($pdo);
 $wajibSlugs = array_flip(keuangan_tagihan_wajib_slugs());
@@ -24,9 +23,15 @@ $jenisPeriode = strtoupper(trim((string) ($_GET['jenis'] ?? 'BULANAN')));
 if (!in_array($jenisPeriode, ['BULANAN', 'AWAL_TAHUN'], true)) {
     $jenisPeriode = 'BULANAN';
 }
-$tahunAjaranMulai = max(2000, min(2100, (int) ($_GET['tm'] ?? $berjalan['mulai'] ?? $periode['mulai'])));
-$tahunAjaranSelesai = max($tahunAjaranMulai, min(2105, (int) ($_GET['ts'] ?? $berjalan['selesai'] ?? $periode['selesai'])));
+$taFilter = pondok_normalisasi_tahun_ajaran_input(
+    $pdo,
+    (int) ($_GET['tm'] ?? $berjalan['mulai'] ?? $periode['mulai']),
+    (int) ($_GET['ts'] ?? $berjalan['selesai'] ?? $periode['selesai'])
+);
+$tahunAjaranMulai = $taFilter['mulai'];
+$tahunAjaranSelesai = $taFilter['selesai'];
 $bulanTagihan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
+$bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
 
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
 $rows = [];
@@ -57,8 +62,8 @@ $sumSisa = max(0, $sumExpected - $sumPaid);
 $pctCapai = $sumExpected > 0 ? min(100, (int) round(($sumPaid / $sumExpected) * 100)) : 0;
 
 $periodeLabel = $jenisPeriode === 'BULANAN'
-    ? ($bulanMap[$bulanTagihan] ?? (string) $bulanTagihan) . ' · TA ' . $tahunAjaranMulai . '/' . $tahunAjaranSelesai
-    : 'Awal tahun · TA ' . $tahunAjaranMulai . '/' . $tahunAjaranSelesai;
+    ? pondok_bulan_label($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai) . ' · TA ' . pondok_tahun_ajaran_label($pdo, ['mulai' => $tahunAjaranMulai, 'selesai' => $tahunAjaranSelesai])
+    : 'Awal tahun · TA ' . pondok_tahun_ajaran_label($pdo, ['mulai' => $tahunAjaranMulai, 'selesai' => $tahunAjaranSelesai]);
 
 $queryBase = http_build_query([
     'jenis' => $jenisPeriode,
@@ -139,18 +144,20 @@ $iconPage = bendahara_page_icon('rekap_pos');
     <div class="col-6 col-md-2" id="rekap-pos-bulan-wrap">
         <label class="form-label small mb-0">Bulan tagihan</label>
         <select class="form-select form-select-sm" name="bulan">
-            <?php foreach ($bulanMap as $b => $label): ?>
-                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+            <?php foreach ($bulanSlots as $slot): ?>
+                <?php $b = (int) ($slot['bulan_tagihan'] ?? 0); ?>
+                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
     <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran mulai</label>
-        <input class="form-control form-control-sm" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="2000" max="2100">
+        <?php $taMeta = pondok_ta_form_meta($pdo); ?>
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_mulai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-mulai" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>">
     </div>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Th. ajaran selesai</label>
-        <input class="form-control form-control-sm" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="2000" max="2105">
+    <div class="col-6 col-md-2 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
+        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_selesai']) ?></label>
+        <input class="form-control form-control-sm pondok-ta-selesai" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>" <?= pondok_kalender_hijriyah($pdo) ? 'readonly' : '' ?>>
     </div>
     <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
@@ -279,4 +286,5 @@ $iconPage = bendahara_page_icon('rekap_pos');
 })();
 </script>
 
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

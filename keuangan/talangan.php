@@ -21,14 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'simpan_pinjaman') {
         $result = keuangan_talangan_simpan_pinjaman($pdo, $_POST, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /keuangan/talangan.php');
+        header('Location: ' . app_href('/keuangan/talangan.php'));
         exit;
     }
     if ($action === 'kembalikan') {
         $id = (int) ($_POST['pinjaman_id'] ?? 0);
         $result = keuangan_talangan_kembalikan($pdo, $id, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /keuangan/talangan.php');
+        header('Location: ' . app_href('/keuangan/talangan.php'));
         exit;
     }
 }

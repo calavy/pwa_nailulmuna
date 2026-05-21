@@ -21,14 +21,14 @@ foreach ($menuStructure as $node) {
 }
 if (!is_array($groupNode)) {
     set_flash('error', 'Menu tidak ditemukan.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
 $visiblePaths = menu_group_visible_paths($groupNode, $menuItems);
 if ($visiblePaths === []) {
     set_flash('error', 'Anda tidak memiliki akses ke modul ini.');
-    header('Location: /dashboard.php');
+    header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
 
@@ -86,7 +86,7 @@ require_once __DIR__ . '/../includes/header.php';
                 $tileLabel = (string) ($menuItems[$path] ?? $path);
                 ?>
                 <div class="col-12 col-sm-6 col-xl-4">
-                    <a href="<?= htmlspecialchars($path) ?>" class="menu-hub-tile card h-100 text-decoration-none shadow-sm border-0">
+                    <a href="<?= htmlspecialchars(app_href($path)) ?>" class="menu-hub-tile card h-100 text-decoration-none shadow-sm border-0">
                         <div class="card-body d-flex align-items-start gap-3">
                             <span class="menu-hub-tile-icon" aria-hidden="true"><i class="<?= htmlspecialchars($tileIcon) ?>"></i></span>
                             <div class="min-w-0 flex-grow-1">
@@ -103,7 +103,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endforeach; ?>
 
 <div class="d-flex flex-wrap gap-2 align-items-center">
-    <a href="/dashboard.php" class="btn btn-outline-secondary btn-sm rounded-pill">
+    <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="btn btn-outline-secondary btn-sm rounded-pill">
         <i class="fa-solid fa-house me-1"></i> Dashboard
     </a>
     <span class="small text-muted">Atau gunakan menu modul di samping kiri.</span>

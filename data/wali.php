@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
         if ($nama === '') {
             set_flash('error', 'Nama wali wajib diisi.');
         } else {
+            $redirectAfter = '/data/wali.php';
             $uid = $userId > 0 ? $userId : null;
             if ($uid !== null) {
                 $chk = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
@@ -38,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40)]);
                 if ($dup->fetch()) {
                     set_flash('error', 'No. ID wali sudah dipakai data lain.');
-                    header('Location: /data/wali.php');
+                    header('Location: ' . app_href('/data/wali.php'));
                     exit;
                 }
             }
@@ -52,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 ]);
             } catch (PDOException $e) {
                 set_flash('error', 'Gagal menyimpan (No. ID bentrok atau data tidak valid).');
-                header('Location: /data/wali.php');
+                header('Location: ' . app_href('/data/wali.php'));
                 exit;
             }
             $newWaliId = (int) $pdo->lastInsertId();
@@ -60,6 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 wali_santri_ensure_automatic_nomor($pdo, $newWaliId);
             }
             set_flash('success', 'Data wali ditambahkan.');
+            header('Location: ' . app_href($redirectAfter));
+            exit;
         }
     } elseif ($action === 'update') {
         $id = (int) ($_POST['id'] ?? 0);
@@ -68,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
         $alamat = trim((string) ($_POST['alamat'] ?? ''));
         $nomorId = trim((string) ($_POST['nomor_id'] ?? ''));
         $userId = (int) ($_POST['user_id'] ?? 0);
+        $redirectAfter = '/data/wali.php?edit=' . max(0, $id);
         if ($id <= 0 || $nama === '') {
             set_flash('error', 'Data tidak valid.');
         } else {
@@ -84,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40), 'id' => $id]);
                 if ($dup->fetch()) {
                     set_flash('error', 'No. ID wali sudah dipakai data lain.');
-                    header('Location: /data/wali.php');
+                    header('Location: ' . app_href($redirectAfter));
                     exit;
                 }
             }
@@ -99,13 +103,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 ]);
             } catch (PDOException $e) {
                 set_flash('error', 'Gagal menyimpan (No. ID bentrok atau data tidak valid).');
-                header('Location: /data/wali.php');
+                header('Location: ' . app_href($redirectAfter));
                 exit;
             }
             if ($nomorId === '') {
                 wali_santri_ensure_automatic_nomor($pdo, $id);
             }
             set_flash('success', 'Data wali diperbarui.');
+            header('Location: ' . app_href($redirectAfter));
+            exit;
         }
     } elseif ($action === 'set_portal_pin') {
         $santriId = (int) ($_POST['santri_id'] ?? 0);
@@ -134,13 +140,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
             set_flash('success', 'Data wali dihapus.');
         }
     }
-    header('Location: /data/wali.php');
+    header('Location: ' . app_href('/data/wali.php'));
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canMutate) {
     set_flash('error', 'Anda tidak punya izin mengubah data wali.');
-    header('Location: /data/wali.php');
+    header('Location: ' . app_href('/data/wali.php'));
     exit;
 }
 
@@ -161,6 +167,7 @@ $sqlList = "
 $rows = $pdo->query($sqlList)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $total = count($rows);
 $linked = count(array_filter($rows, static fn(array $r): bool => !empty($r['user_id'])));
+$editOpenId = $canMutate ? (int) ($_GET['edit'] ?? 0) : 0;
 
 $portalSantriRows = [];
 if (column_exists($pdo, 'santri', 'wali_portal_pin_hash')) {
@@ -184,8 +191,8 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="sdm-hub-kicker mb-1">Manajemen SDM</p>
             <h1 class="h3 mb-2 sdm-hub-title">Wali santri</h1>
             <p class="text-muted mb-0 small">
-                Data wali pondok dan <strong>PIN portal</strong> untuk login wali di <a href="/wali/login.php" target="_blank" rel="noopener">portal wali</a> (NIS + PIN).
-                Profil wali dapat diedit di tabel; PIN portal per santri di bagian bawah.
+                Data wali pondok dan <strong>PIN portal</strong> untuk login wali di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">portal wali</a> (NIS + PIN).
+                Klik <strong>Edit</strong> pada baris untuk mengubah profil; PIN portal per santri di bagian bawah.
             </p>
         </div>
         <div class="col-lg-4">
@@ -211,163 +218,166 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="alert alert-info">Anda dapat melihat daftar. Untuk menambah / mengubah / menghapus, minta izin <strong>Tambah/Edit Santri</strong> kepada admin.</div>
 <?php endif; ?>
 
-<div class="row g-4">
-    <?php if ($canMutate): ?>
-    <div class="col-lg-4">
-        <div class="card shadow-sm border-0 sdm-form-card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                    <h2 class="h6 mb-0 d-flex align-items-center gap-2">
-                        <span class="sdm-icon-dot sdm-dot-teal"></span> Data wali
-                    </h2>
-                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#form-tambah-wali" aria-expanded="false" aria-controls="form-tambah-wali">
-                        <i class="fa-solid fa-plus me-1"></i> Tambah wali
-                    </button>
-                </div>
-                <div id="form-tambah-wali" class="collapse">
-                <form method="post" class="d-grid gap-2 border-top pt-3">
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="px-3 py-3 border-bottom bg-light bg-opacity-50 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h2 class="h6 mb-0">Daftar wali</h2>
+            <?php if ($canMutate): ?>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#form-tambah-wali" aria-expanded="false" aria-controls="form-tambah-wali">
+                    <i class="fa-solid fa-plus me-1"></i> Tambah wali
+                </button>
+            <?php endif; ?>
+        </div>
+        <?php if ($canMutate): ?>
+        <div id="form-tambah-wali" class="collapse border-bottom">
+            <div class="p-3 bg-light bg-opacity-25">
+                <h3 class="h6 mb-3 d-flex align-items-center gap-2">
+                    <span class="sdm-icon-dot sdm-dot-teal"></span> Tambah data wali baru
+                </h3>
+                <form method="post" class="row g-2 align-items-end">
                     <input type="hidden" name="action" value="create">
-                    <div>
+                    <div class="col-md-4 col-lg-3">
                         <label class="form-label small mb-0">Nama</label>
-                        <input type="text" name="nama" class="form-control" required maxlength="120" placeholder="Nama lengkap wali">
+                        <input type="text" name="nama" class="form-control form-control-sm" required maxlength="120" placeholder="Nama lengkap wali">
                     </div>
-                    <div>
+                    <div class="col-md-3 col-lg-2">
                         <label class="form-label small mb-0">No. ID (opsional)</label>
-                        <input type="text" name="nomor_id" class="form-control" maxlength="40" placeholder="Kosong = otomatis WS-000001">
+                        <input type="text" name="nomor_id" class="form-control form-control-sm font-monospace" maxlength="40" placeholder="WS-…">
                     </div>
-                    <div>
-                        <label class="form-label small mb-0">No. WhatsApp</label>
-                        <input type="text" name="no_wa" class="form-control" maxlength="40" placeholder="628…">
+                    <div class="col-md-3 col-lg-2">
+                        <label class="form-label small mb-0">WhatsApp</label>
+                        <input type="text" name="no_wa" class="form-control form-control-sm" maxlength="40" placeholder="628…">
                     </div>
-                    <div>
-                        <label class="form-label small mb-0">Alamat</label>
-                        <textarea name="alamat" class="form-control" rows="2" placeholder="Alamat domisili"></textarea>
-                    </div>
-                    <div>
-                        <label class="form-label small mb-0">Akun pengguna (opsional)</label>
-                        <select name="user_id" class="form-select">
+                    <div class="col-md-4 col-lg-3">
+                        <label class="form-label small mb-0">Akun pengguna</label>
+                        <select name="user_id" class="form-select form-select-sm">
                             <option value="0">— Tidak dihubungkan —</option>
                             <?php foreach ($usersPick as $u): ?>
                                 <option value="<?= (int) $u['id'] ?>"><?= htmlspecialchars((string) $u['nama']) ?> (@<?= htmlspecialchars((string) $u['username']) ?>)</option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary mt-1">Simpan</button>
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label small mb-0">Alamat</label>
+                        <textarea name="alamat" class="form-control form-control-sm" rows="1" placeholder="Alamat domisili"></textarea>
+                    </div>
+                    <div class="col-12 col-lg-auto">
+                        <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+                    </div>
                 </form>
-                </div>
             </div>
         </div>
-    </div>
-    <?php endif; ?>
-    <div class="<?= $canMutate ? 'col-lg-8' : 'col-12' ?>">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-body p-0">
-                <div class="px-3 py-3 border-bottom bg-light bg-opacity-50">
-                    <h2 class="h6 mb-0">Daftar wali</h2>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <?php if ($canMutate): ?>
-                                    <th>Profil &amp; kontak</th>
-                                    <th class="text-end" style="width:6rem">Aksi</th>
-                                <?php else: ?>
-                                    <th>Nama &amp; alamat</th>
-                                    <th class="text-nowrap">No. ID</th>
-                                    <th>Santri</th>
-                                    <th>WhatsApp</th>
-                                    <th>Akun pengguna</th>
-                                <?php endif; ?>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php if (!$rows): ?>
-                            <tr><td colspan="<?= $canMutate ? 2 : 5 ?>" class="text-center text-muted py-4">Belum ada data wali.</td></tr>
+        <?php endif; ?>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nama &amp; alamat</th>
+                        <th class="text-nowrap">No. ID</th>
+                        <th>Santri</th>
+                        <th>WhatsApp</th>
+                        <th>Akun pengguna</th>
+                        <?php if ($canMutate): ?>
+                            <th class="text-end text-nowrap" style="width:8.5rem">Aksi</th>
                         <?php endif; ?>
-                        <?php foreach ($rows as $r): ?>
-                            <tr>
-                                <?php if ($canMutate): ?>
-                                    <td>
-                                        <form method="post" class="d-grid gap-2 sdm-inline-form">
-                                            <input type="hidden" name="action" value="update">
-                                            <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
-                                            <div class="small text-muted mb-2 pb-2 border-bottom">
-                                                <span class="badge text-bg-light border font-monospace"><?= htmlspecialchars((string) ($r['nomor_id'] ?? '—')) ?></span>
-                                                <span class="ms-1"><?= (int) ($r['jumlah_santri'] ?? 0) ?> santri</span>
-                                                <?php if (($r['santri_ringkas'] ?? '') !== ''): ?>
-                                                    <div class="mt-1 text-wrap" style="font-size:0.8rem"><?= htmlspecialchars((string) $r['santri_ringkas']) ?></div>
-                                                <?php endif; ?>
-                                            </div>
-                                            <div class="row g-2">
-                                                <div class="col-md-6">
-                                                    <label class="form-label small mb-0 text-muted">Nama</label>
-                                                    <input type="text" name="nama" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $r['nama']) ?>" required maxlength="120">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label small mb-0 text-muted">No. ID</label>
-                                                    <input type="text" name="nomor_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars((string) ($r['nomor_id'] ?? '')) ?>" maxlength="40" placeholder="Kosong = otomatis">
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <label class="form-label small mb-0 text-muted">WhatsApp</label>
-                                                    <input type="text" name="no_wa" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars((string) ($r['no_wa'] ?? '')) ?>" maxlength="40" placeholder="628…">
-                                                </div>
-                                                <div class="col-12">
-                                                    <label class="form-label small mb-0 text-muted">Alamat</label>
-                                                    <textarea name="alamat" class="form-control form-control-sm" rows="2" placeholder="Alamat"><?= htmlspecialchars((string) ($r['alamat'] ?? '')) ?></textarea>
-                                                </div>
-                                                <div class="col-12">
-                                                    <label class="form-label small mb-0 text-muted">Akun pengguna</label>
-                                                    <select name="user_id" class="form-select form-select-sm">
-                                                        <option value="0">— Tanpa akun —</option>
-                                                        <?php foreach ($usersPick as $u): ?>
-                                                            <option value="<?= (int) $u['id'] ?>" <?= (int) ($r['user_id'] ?? 0) === (int) $u['id'] ? 'selected' : '' ?>>
-                                                                <?= htmlspecialchars((string) $u['nama']) ?> (@<?= htmlspecialchars((string) $u['username']) ?>)
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                                <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
-                                            </div>
-                                        </form>
-                                    </td>
-                                    <td class="text-end align-top">
-                                        <form method="post" onsubmit="return confirm('Hapus data wali ini?');">
-                                            <input type="hidden" name="action" value="delete">
-                                            <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
-                                        </form>
-                                    </td>
-                                <?php else: ?>
-                                    <td>
-                                        <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama']) ?></div>
-                                        <div class="small text-muted"><?= ($r['alamat'] ?? '') !== '' ? nl2br(htmlspecialchars((string) $r['alamat'])) : '—' ?></div>
-                                    </td>
-                                    <td class="small font-monospace"><?= htmlspecialchars((string) ($r['nomor_id'] ?? '—')) ?></td>
-                                    <td class="small">
-                                        <div><?= (int) ($r['jumlah_santri'] ?? 0) ?> orang</div>
-                                        <?php if (($r['santri_ringkas'] ?? '') !== ''): ?>
-                                            <div class="text-muted text-wrap" style="font-size:0.75rem"><?= htmlspecialchars((string) $r['santri_ringkas']) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-nowrap small font-monospace"><?= htmlspecialchars((string) ($r['no_wa'] ?? '—')) ?></td>
-                                    <td class="small">
-                                        <?php if (!empty($r['user_id'])): ?>
-                                            <span class="badge text-bg-light border"><?= htmlspecialchars((string) ($r['user_nama'] ?? '')) ?></span>
-                                            <div class="text-muted" style="font-size:0.75rem">@<?= htmlspecialchars((string) ($r['user_username'] ?? '')) ?></div>
-                                        <?php else: ?>
-                                            <span class="text-muted">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                <?php endif; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (!$rows): ?>
+                    <tr><td colspan="<?= $canMutate ? 6 : 5 ?>" class="text-center text-muted py-4">Belum ada data wali.</td></tr>
+                <?php endif; ?>
+                <?php foreach ($rows as $r):
+                    $waliId = (int) $r['id'];
+                    $isEditing = $canMutate && $editOpenId === $waliId;
+                    ?>
+                    <tr>
+                        <td>
+                            <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama']) ?></div>
+                            <div class="small text-muted"><?= ($r['alamat'] ?? '') !== '' ? nl2br(htmlspecialchars((string) $r['alamat'])) : '—' ?></div>
+                        </td>
+                        <td class="small font-monospace"><?= htmlspecialchars((string) ($r['nomor_id'] ?? '—')) ?></td>
+                        <td class="small">
+                            <div><?= (int) ($r['jumlah_santri'] ?? 0) ?> orang</div>
+                            <?php if (($r['santri_ringkas'] ?? '') !== ''): ?>
+                                <div class="text-muted text-wrap" style="font-size:0.75rem"><?= htmlspecialchars((string) $r['santri_ringkas']) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-nowrap small font-monospace"><?= htmlspecialchars((string) ($r['no_wa'] ?? '—')) ?></td>
+                        <td class="small">
+                            <?php if (!empty($r['user_id'])): ?>
+                                <span class="badge text-bg-light border"><?= htmlspecialchars((string) ($r['user_nama'] ?? '')) ?></span>
+                                <div class="text-muted" style="font-size:0.75rem">@<?= htmlspecialchars((string) ($r['user_username'] ?? '')) ?></div>
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <?php if ($canMutate): ?>
+                            <td class="text-end text-nowrap">
+                                <button type="button"
+                                    class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#edit-wali-<?= $waliId ?>"
+                                    aria-expanded="<?= $isEditing ? 'true' : 'false' ?>"
+                                    aria-controls="edit-wali-<?= $waliId ?>">
+                                    <i class="fa-solid fa-pen-to-square me-1"></i> Edit
+                                </button>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Hapus data wali ini?');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="<?= $waliId ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ms-1">Hapus</button>
+                                </form>
+                            </td>
+                        <?php endif; ?>
+                    </tr>
+                    <?php if ($canMutate): ?>
+                    <tr class="collapse<?= $isEditing ? ' show' : '' ?>" id="edit-wali-<?= $waliId ?>">
+                        <td colspan="6" class="bg-light bg-opacity-25 border-top-0 pt-0">
+                            <form method="post" class="p-3 border rounded-3 bg-white shadow-sm">
+                                <input type="hidden" name="action" value="update">
+                                <input type="hidden" name="id" value="<?= $waliId ?>">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                                    <h3 class="h6 mb-0">Edit wali: <?= htmlspecialchars((string) $r['nama']) ?></h3>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#edit-wali-<?= $waliId ?>">Tutup</button>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-6 col-lg-4">
+                                        <label class="form-label small mb-0">Nama</label>
+                                        <input type="text" name="nama" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $r['nama']) ?>" required maxlength="120">
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <label class="form-label small mb-0">No. ID</label>
+                                        <input type="text" name="nomor_id" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars((string) ($r['nomor_id'] ?? '')) ?>" maxlength="40" placeholder="Kosong = otomatis">
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <label class="form-label small mb-0">WhatsApp</label>
+                                        <input type="text" name="no_wa" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars((string) ($r['no_wa'] ?? '')) ?>" maxlength="40" placeholder="628…">
+                                    </div>
+                                    <div class="col-12 col-lg-8">
+                                        <label class="form-label small mb-0">Alamat</label>
+                                        <textarea name="alamat" class="form-control form-control-sm" rows="2" placeholder="Alamat"><?= htmlspecialchars((string) ($r['alamat'] ?? '')) ?></textarea>
+                                    </div>
+                                    <div class="col-12 col-lg-4">
+                                        <label class="form-label small mb-0">Akun pengguna</label>
+                                        <select name="user_id" class="form-select form-select-sm">
+                                            <option value="0">— Tanpa akun —</option>
+                                            <?php foreach ($usersPick as $u): ?>
+                                                <option value="<?= (int) $u['id'] ?>" <?= (int) ($r['user_id'] ?? 0) === (int) $u['id'] ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars((string) $u['nama']) ?> (@<?= htmlspecialchars((string) $u['username']) ?>)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="submit" class="btn btn-sm btn-primary">Simpan perubahan</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -414,8 +424,8 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="small text-muted mb-3">
             Akses login alumni <strong>hanya untuk yang didaftarkan</strong> pengurus (username, password, dan sektor).
         </p>
-        <a class="btn btn-outline-primary btn-sm" href="/settings/akses_mukimin.php">Kelola akses portal mukimin</a>
-        <a class="btn btn-outline-secondary btn-sm ms-1" href="/mukimin/login.php" target="_blank" rel="noopener">Buka halaman login</a>
+        <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/settings/akses_mukimin.php')) ?>">Kelola akses portal mukimin</a>
+        <a class="btn btn-outline-secondary btn-sm ms-1" href="<?= htmlspecialchars(app_href('/mukimin/login.php')) ?>" target="_blank" rel="noopener">Buka halaman login</a>
     </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

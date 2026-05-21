@@ -113,16 +113,15 @@ if ($editDomId > 0) {
                         <label class="form-label">No. kasur / ranjang</label>
                         <input type="text" name="no_ranjang" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($editDom['no_ranjang'] ?? '')) ?>">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label">TA mulai (tahun)</label>
-                        <input type="number" name="tahun_ajaran_mulai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= (int) ($editDom['tahun_ajaran_mulai'] ?? $taAktif['mulai']) ?>">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">TA selesai (opsional)</label>
-                        <input type="number" name="tahun_ajaran_selesai" class="form-control form-control-sm" min="2000" max="2100"
-                               value="<?= !empty($editDom['tahun_ajaran_selesai']) ? (int) $editDom['tahun_ajaran_selesai'] : '' ?>">
-                    </div>
+                    <?php
+                    $taMulaiDom = (int) ($editDom['tahun_ajaran_mulai'] ?? $taAktif['mulai']);
+                    $taSelesaiDom = !empty($editDom['tahun_ajaran_selesai'])
+                        ? (int) $editDom['tahun_ajaran_selesai']
+                        : $taMulaiDom + 1;
+                    $taColClass = 'col-6';
+                    $inputClass = 'form-control form-control-sm';
+                    require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
+                    ?>
                     <div class="col-6">
                         <label class="form-label">Tanggal mulai</label>
                         <input type="date" name="tanggal_mulai" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($editDom['tanggal_mulai'] ?? '')) ?>">

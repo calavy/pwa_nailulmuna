@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    header('Location: /settings/kamar_ranjang.php');
+    header('Location: ' . app_href('/settings/kamar_ranjang.php'));
     exit;
 }
 

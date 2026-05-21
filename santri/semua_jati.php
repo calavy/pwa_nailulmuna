@@ -92,7 +92,7 @@ require_once __DIR__ . '/../includes/header.php';
                             $tglM = trim((string) ($r['tanggal_masuk'] ?? ''));
                             if ($tglM !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglM)) {
                                 echo htmlspecialchars($tglM);
-                                echo '<br><span class="text-muted">TA ' . htmlspecialchars(santri_tahun_ajaran_label(santri_tahun_ajaran_for_date($pdo, $tglM))) . '</span>';
+                                echo '<br><span class="text-muted">TA ' . htmlspecialchars(santri_tahun_ajaran_label(santri_tahun_ajaran_for_date($pdo, $tglM), $pdo)) . '</span>';
                             } else {
                                 echo '<span class="text-muted">—</span>';
                             }

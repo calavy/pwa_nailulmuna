@@ -1,2 +1,8 @@
 config/database.local.php
 config/app.local.php
+config/firebase.local.php
+
+# Upload pengguna (logo pondok, dll.) — tetap di server, tidak via GitHub
+uploads/*
+!uploads/.gitkeep
+!uploads/logos/.gitkeep

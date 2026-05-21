@@ -61,7 +61,7 @@ $st->execute(['id' => $id]);
 $row = $st->fetch(PDO::FETCH_ASSOC);
 if (!$row) {
     set_flash('error', 'Data santri tidak ditemukan.');
-    header('Location: /santri/index.php');
+    header('Location: ' . app_href('/santri/index.php'));
     exit;
 }
 
@@ -70,12 +70,18 @@ $settled = trim((string) ($row['keluar_settled_at'] ?? '')) !== '';
 
 if (!$isNon) {
     set_flash('error', 'Formulir ini hanya untuk santri yang sudah ditandai non aktif. Ubah status di halaman Jati diri (edit santri) terlebih dahulu.');
-    header('Location: ' . sdm_embed_url('/santri/edit.php?id=' . $id));
+    header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
     exit;
 }
 
-$periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) (int) date('Y'));
-$periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) ($periodeMulai + 1));
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
+$taAktifKeluar = pondok_tahun_ajaran_aktif($pdo);
+$periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) $taAktifKeluar['mulai']);
+$periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) $taAktifKeluar['selesai']);
+if ($periodeMulai < pondok_ta_tahun_min($pdo)) {
+    $periodeMulai = $taAktifKeluar['mulai'];
+    $periodeSelesai = $taAktifKeluar['selesai'];
+}
 if ($periodeSelesai < $periodeMulai) {
     $periodeSelesai = $periodeMulai + 1;
 }
@@ -103,13 +109,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$settled) {
     $token = (string) ($_POST['confirm_token'] ?? '');
     if ($token !== '1') {
         set_flash('error', 'Centang konfirmasi penyelesaian administrasi keluar.');
-        header('Location: ' . sdm_embed_url('/santri/keluar.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/keluar.php?id=' . $id)));
         exit;
     }
     $kat = strtoupper(trim((string) ($_POST['keluar_kategori'] ?? '')));
     if (!in_array($kat, ['TAMAT', 'KELUAR_PINDAH'], true)) {
         set_flash('error', 'Pilih kategori keluar: Muqim (tamat) atau Keluar (belum tamat).');
-        header('Location: ' . sdm_embed_url('/santri/keluar.php?id=' . $id));
+        header('Location: ' . app_href(sdm_embed_url('/santri/keluar.php?id=' . $id)));
         exit;
     }
     $tanggalKeluar = trim((string) ($row['tanggal_keluar'] ?? ''));
@@ -202,7 +208,7 @@ if ($embed) {
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                 <div>
                     <h2 class="h6 mb-1">Kekurangan sebelum administrasi selesai</h2>
-                    <p class="small text-muted mb-0">TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?> · Saldo cashless dipakai otomatis saat Anda menyelesaikan administrasi.</p>
+                    <p class="small text-muted mb-0">TA <?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, ['mulai' => $periodeMulai, 'selesai' => $periodeSelesai])) ?> · Saldo cashless dipakai otomatis saat Anda menyelesaikan administrasi.</p>
                 </div>
                 <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="/santri/keluar_kekurangan_print.php?id=<?= (int) $id ?>">Cetak ringkasan</a>
             </div>

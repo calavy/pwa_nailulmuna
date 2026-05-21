@@ -25,7 +25,7 @@ $redirect = static function (int $id = 0) use ($q): void {
     if ($q !== '') {
         $url .= ($id > 0 ? '&' : '?') . 'q=' . urlencode($q);
     }
-    header('Location: ' . $url);
+    header('Location: ' . app_href($url));
     exit;
 };
 
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'hapus') {
         $result = santri_izin_tetap_hapus($pdo, (int) ($_POST['id'] ?? 0));
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-        header('Location: /perizinan/izin_tetap.php');
+        header('Location: ' . app_href('/perizinan/izin_tetap.php'));
         exit;
     }
 }

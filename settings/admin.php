@@ -57,6 +57,7 @@ $permissionOptions = [
     'settings_umum' => 'Settings Umum (legacy â€” gunakan Pengaturan)',
     'settings_admin' => 'Kelola Akses User',
     'akademik_hafalan' => 'Akademik: setoran hafalan (bait & Qur\'an), kalender libur, rapor',
+    'yayasan' => 'Yayasan: pengurus, rapat, notulen',
 ];
 
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash('error', 'Hak akses hanya bisa diatur untuk user non super admin.');
         }
-        header('Location: /settings/admin.php?akses=' . $targetUserId);
+        header('Location: ' . app_rewrite_internal_url('/settings/admin.php?akses=' . $targetUserId));
         exit;
     }
 
@@ -109,19 +110,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$existing) {
             set_flash('error', 'User tidak ditemukan.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
         if ($nama === '' || $username === '') {
             set_flash('error', 'Nama dan username tidak boleh kosong.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
 
         $superCount = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
         if ((int) $existing['is_super_admin'] === 1 && $isSuperAdmin === 0 && $superCount <= 1) {
             set_flash('error', 'Tidak bisa menonaktifkan super admin terakhir.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
 
@@ -129,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkUname->execute(['u' => $username, 'id' => $targetUserId]);
         if ($checkUname->fetch()) {
             set_flash('error', 'Username sudah dipakai user lain.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
 
@@ -159,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Data user berhasil diperbarui.');
-        header('Location: /settings/admin.php');
+        header('Location: ' . app_href('/settings/admin.php'));
         exit;
     }
 
@@ -167,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetUserId = (int) ($_POST['target_user_id'] ?? 0);
         if ($targetUserId === $currentUserId) {
             set_flash('error', 'Anda tidak bisa menghapus akun sendiri.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
         $stmt = $pdo->prepare('SELECT id, is_super_admin FROM users WHERE id = :id LIMIT 1');
@@ -175,20 +176,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $existing = $stmt->fetch();
         if (!$existing) {
             set_flash('error', 'User tidak ditemukan.');
-            header('Location: /settings/admin.php');
+            header('Location: ' . app_href('/settings/admin.php'));
             exit;
         }
         if ((int) $existing['is_super_admin'] === 1) {
             $superCount = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE is_super_admin = 1')->fetchColumn();
             if ($superCount <= 1) {
                 set_flash('error', 'Tidak bisa menghapus super admin terakhir.');
-                header('Location: /settings/admin.php');
+                header('Location: ' . app_href('/settings/admin.php'));
                 exit;
             }
         }
         $pdo->prepare('DELETE FROM users WHERE id = :id')->execute(['id' => $targetUserId]);
         set_flash('success', 'User berhasil dihapus.');
-        header('Location: /settings/admin.php');
+        header('Location: ' . app_href('/settings/admin.php'));
         exit;
     }
 
@@ -219,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         set_flash('error', 'Nama, username, dan password wajib diisi.');
     }
-    header('Location: /settings/admin.php');
+    header('Location: ' . app_href('/settings/admin.php'));
     exit;
 }
 

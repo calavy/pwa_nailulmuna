@@ -81,21 +81,33 @@ function auth_portal_layout_begin(array $ctx): void
             margin-bottom: 1.25rem;
         }
         .auth-portal-hero .logo-ring {
-            width: 88px;
-            height: 88px;
-            border-radius: 50%;
             margin: 0 auto 0.75rem;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.35);
+            background: transparent;
+            border: none;
+            border-radius: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            overflow: visible;
+            max-width: 140px;
         }
         .auth-portal-hero .logo-ring img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+            display: block;
+            width: auto;
+            height: auto;
+            max-width: 140px;
+            max-height: 104px;
+            object-fit: contain;
+            object-position: center;
+            filter: drop-shadow(0 3px 10px rgba(15, 23, 42, 0.35));
+        }
+        .auth-portal-hero .logo-ring--fallback {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            overflow: hidden;
         }
         .auth-portal-hero .logo-fallback {
             font-weight: 800;
@@ -158,9 +170,9 @@ function auth_portal_layout_begin(array $ctx): void
     <div class="auth-portal-wrap" style="max-width: <?= htmlspecialchars($maxWidth) ?>">
         <div class="auth-portal-hero">
             <?php if ($logoUrl !== '' || $namaPonpesRaw !== '' || $welcome !== ''): ?>
-                <div class="logo-ring" aria-hidden="<?= $logoUrl === '' ? 'true' : 'false' ?>">
+                <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>" aria-hidden="<?= $logoUrl === '' ? 'true' : 'false' ?>">
                     <?php if ($logoUrl !== ''): ?>
-                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo aplikasi" width="88" height="88" decoding="async">
+                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo pesantren" decoding="async">
                     <?php else: ?>
                         <span class="logo-fallback"><?= htmlspecialchars($initials) ?></span>
                     <?php endif; ?>
