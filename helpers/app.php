@@ -56,6 +56,26 @@ function app_brand_nama_ponpes(PDO $pdo, string $fallback = 'A.P.I Nailul Muna')
     return $nama;
 }
 
+/** Path/URL logo pesantren untuk tampilan UI (kosong jika belum diatur). */
+function app_pondok_logo_src(PDO $pdo): string
+{
+    $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
+    if ($logoPath !== '') {
+        return '/' . ltrim($logoPath, '/');
+    }
+
+    return trim((string) app_setting($pdo, 'logo_url', ''));
+}
+
+/** Inisial 2 huruf dari nama pondok (fallback logo). */
+function app_pondok_logo_initials(PDO $pdo, string $fallbackTitle = 'A.P.I Nailul Muna'): string
+{
+    $nama = app_brand_nama_ponpes($pdo, $fallbackTitle);
+    $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $nama);
+
+    return strtoupper(substr(($lettersOnly !== '' ? $lettersOnly : 'AP'), 0, 2));
+}
+
 /**
  * Nilai awal pengaturan pesantren bila belum pernah disimpan.
  *

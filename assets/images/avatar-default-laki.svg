@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Avatar laki-laki">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#115e59"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg)"/>
+  <circle cx="60" cy="42" r="21" fill="#f0fdfa"/>
+  <path d="M28 108c5-18 20-30 32-30s27 12 32 30" fill="#f0fdfa"/>
+  <path d="M48 38h24v6H48z" fill="#0f766e" opacity="0.35"/>
+</svg>

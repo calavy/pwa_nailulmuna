@@ -1,10 +1,17 @@
 /* Halaman scan presensi — layar penuh, fokus kamera */
 .scan-simple-page .app-sidebar,
+.scan-simple-page .app-sidebar--desktop,
 .scan-simple-page #mobileSidebar,
 .scan-simple-page #sidebar-toggle-btn,
 .scan-simple-page .app-topbar-title,
+.scan-simple-page .app-topbar-page,
+.scan-simple-page .app-topbar-user-pill,
 .scan-simple-page .app-topbar-user {
     display: none !important;
+}
+
+.scan-simple-page .app-frame {
+    display: block;
 }
 
 .scan-simple-page .app-shell {
@@ -20,7 +27,7 @@
     padding-top: 0 !important;
 }
 
-.scan-simple-page .navbar.app-topbar {
+.scan-simple-page .app-topbar {
     margin-bottom: 0 !important;
 }
 

@@ -12,37 +12,37 @@ function dashboard_quick_action_definitions(): array
     return [
         [
             'path' => '/presensi/scan.php',
-            'class' => 'btn btn-primary shadow-sm',
+            'class' => 'dash-quick-action dash-quick-action--primary',
             'icon' => 'fa-qrcode',
             'label' => 'Scan presensi',
         ],
         [
             'path' => '/perizinan/index.php',
-            'class' => 'btn btn-outline-secondary',
+            'class' => 'dash-quick-action',
             'icon' => 'fa-person-walking-arrow-right',
             'label' => 'Perizinan',
         ],
         [
             'path' => '/santri/index.php',
-            'class' => 'btn btn-outline-secondary',
+            'class' => 'dash-quick-action',
             'icon' => 'fa-user-group',
             'label' => 'Data santri',
         ],
         [
             'path' => '/keuangan/index.php',
-            'class' => 'btn btn-outline-secondary',
+            'class' => 'dash-quick-action',
             'icon' => 'fa-wallet',
             'label' => 'Keuangan',
         ],
         [
             'path' => '/pembayaran/tagihan_syahriyah.php',
-            'class' => 'btn btn-outline-secondary',
+            'class' => 'dash-quick-action',
             'icon' => 'fa-receipt',
             'label' => 'Tagihan syahriyah',
         ],
         [
             'path' => '/jadwal/index.php',
-            'class' => 'btn btn-outline-secondary',
+            'class' => 'dash-quick-action',
             'icon' => 'fa-calendar-days',
             'label' => 'Jadwal',
         ],

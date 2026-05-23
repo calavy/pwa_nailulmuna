@@ -12,6 +12,73 @@ function user_profil_ensure_schema(PDO $pdo): void
         return;
     }
     $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS foto_profil VARCHAR(255) NULL DEFAULT NULL');
+    if (!column_exists($pdo, 'users', 'jenis_kelamin')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN jenis_kelamin ENUM('Laki-laki','Perempuan') NULL DEFAULT NULL");
+    }
+}
+
+/** @return 'Laki-laki'|'Perempuan'|null */
+function user_profil_normalize_jenis_kelamin(?string $jk): ?string
+{
+    $jk = trim((string) $jk);
+    if ($jk === 'Laki-laki' || strcasecmp($jk, 'laki-laki') === 0 || strcasecmp($jk, 'l') === 0) {
+        return 'Laki-laki';
+    }
+    if ($jk === 'Perempuan' || strcasecmp($jk, 'perempuan') === 0 || strcasecmp($jk, 'p') === 0) {
+        return 'Perempuan';
+    }
+
+    return null;
+}
+
+/** Sapaan hormat: Bapak / Ibu. */
+function user_profil_sapaan(?string $jenisKelamin): string
+{
+    $jk = user_profil_normalize_jenis_kelamin($jenisKelamin);
+    if ($jk === 'Perempuan') {
+        return 'Ibu';
+    }
+    if ($jk === 'Laki-laki') {
+        return 'Bapak';
+    }
+
+    return 'Bapak/Ibu';
+}
+
+/** Nama depan untuk tampilan singkat. */
+function user_profil_nama_depan(string $nama): string
+{
+    $nama = trim($nama);
+    if ($nama === '') {
+        return '';
+    }
+    $parts = preg_split('/\s+/u', $nama) ?: [];
+
+    return (string) ($parts[0] ?? $nama);
+}
+
+/**
+ * @param array{nama?:string,jenis_kelamin?:string|null} $user
+ */
+function user_profil_panggilan_display(array $user): string
+{
+    $sapaan = user_profil_sapaan($user['jenis_kelamin'] ?? null);
+    $depan = user_profil_nama_depan((string) ($user['nama'] ?? ''));
+
+    return $depan !== '' ? $sapaan . ' ' . $depan : $sapaan;
+}
+
+/** Gambar profil default (belum upload) — menyesuaikan jenis kelamin jika ada. */
+function user_profil_default_avatar_href(?string $jenisKelamin): string
+{
+    $jk = user_profil_normalize_jenis_kelamin($jenisKelamin);
+    $file = match ($jk) {
+        'Perempuan' => 'avatar-default-perempuan.svg',
+        'Laki-laki' => 'avatar-default-laki.svg',
+        default => 'avatar-default.svg',
+    };
+
+    return app_href('/assets/images/' . $file);
 }
 
 function user_profil_upload_dir(): string
@@ -123,15 +190,19 @@ function user_profil_render_avatar(array $user, string $sizeClass = 'app-user-av
 
     if ($foto !== '') {
         $src = htmlspecialchars(user_profil_url($foto), ENT_QUOTES, 'UTF-8');
-        return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . '" title="' . $title . '">'
+        return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . ' app-user-avatar--uploaded" title="' . $title . '">'
             . '<img src="' . $src . '" alt="" class="app-user-avatar__img" loading="lazy" decoding="async">'
             . '</span>';
     }
 
-    $initials = htmlspecialchars(user_profil_initials($nama), ENT_QUOTES, 'UTF-8');
+    $srcDefault = htmlspecialchars(
+        user_profil_default_avatar_href($user['jenis_kelamin'] ?? null),
+        ENT_QUOTES,
+        'UTF-8'
+    );
 
-    return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . ' app-user-avatar--fallback" title="' . $title . '" aria-hidden="true">'
-        . $initials
+    return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . ' app-user-avatar--default" title="' . $title . '">'
+        . '<img src="' . $srcDefault . '" alt="" class="app-user-avatar__img" loading="lazy" decoding="async">'
         . '</span>';
 }
 
@@ -145,6 +216,12 @@ function user_profil_sync_session(PDO $pdo, int $userId): void
     $st->execute(['id' => $userId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     $_SESSION['user']['foto_profil'] = trim((string) ($row['foto_profil'] ?? ''));
+    if (column_exists($pdo, 'users', 'jenis_kelamin')) {
+        $stJk = $pdo->prepare('SELECT jenis_kelamin FROM users WHERE id = :id LIMIT 1');
+        $stJk->execute(['id' => $userId]);
+        $rowJk = $stJk->fetch(PDO::FETCH_ASSOC);
+        $_SESSION['user']['jenis_kelamin'] = user_profil_normalize_jenis_kelamin($rowJk['jenis_kelamin'] ?? null);
+    }
 }
 
 function user_profil_fetch_for_user(PDO $pdo, int $userId): ?string

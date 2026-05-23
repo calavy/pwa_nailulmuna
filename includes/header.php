@@ -10,20 +10,24 @@ $currentRole = $_SESSION['user']['role'] ?? 'admin';
 $currentUserRow = [
     'nama' => $currentUser,
     'foto_profil' => trim((string) ($_SESSION['user']['foto_profil'] ?? '')),
+    'jenis_kelamin' => user_profil_normalize_jenis_kelamin($_SESSION['user']['jenis_kelamin'] ?? null),
 ];
 if (isset($_SESSION['user']['id']) && isset($pdo) && $pdo instanceof PDO && table_exists($pdo, 'users')) {
     user_profil_ensure_schema($pdo);
     $uidHeader = (int) $_SESSION['user']['id'];
-    $stHeaderUser = $pdo->prepare('SELECT nama, foto_profil FROM users WHERE id = :id LIMIT 1');
+    $stHeaderUser = $pdo->prepare('SELECT nama, foto_profil, jenis_kelamin FROM users WHERE id = :id LIMIT 1');
     $stHeaderUser->execute(['id' => $uidHeader]);
     $rowHeaderUser = $stHeaderUser->fetch(PDO::FETCH_ASSOC);
     if (is_array($rowHeaderUser)) {
         $currentUser = (string) ($rowHeaderUser['nama'] ?? $currentUser);
+        $jkHeader = user_profil_normalize_jenis_kelamin($rowHeaderUser['jenis_kelamin'] ?? null);
         $currentUserRow = [
             'nama' => $currentUser,
             'foto_profil' => trim((string) ($rowHeaderUser['foto_profil'] ?? '')),
+            'jenis_kelamin' => $jkHeader,
         ];
         $_SESSION['user']['foto_profil'] = $currentUserRow['foto_profil'];
+        $_SESSION['user']['jenis_kelamin'] = $jkHeader;
     }
 }
 if (isset($_SESSION['user']) && (($_SESSION['user']['username'] ?? '') === 'admin') && !isset($_SESSION['user']['is_super_admin'])) {
@@ -79,6 +83,20 @@ if (isset($_SESSION['user'])) {
     $appBrandTagline = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
     $appBrandTitle = app_brand_nama_ponpes($pdo, $appBrandTitle);
 }
+$appLogoSrc = isset($_SESSION['user']) ? app_pondok_logo_src($pdo) : '';
+$appLogoInitial = isset($_SESSION['user']) ? app_pondok_logo_initials($pdo, $appBrandTitle) : 'AP';
+$appAlamatPonpes = isset($_SESSION['user']) ? trim((string) app_setting($pdo, 'alamat_ponpes', '')) : '';
+
+$roleLabels = [
+    'admin' => 'Administrator',
+    'pengurus' => 'Pengurus',
+    'pembimbing' => 'Pembimbing',
+    'kiai' => 'Kiai',
+    'guru' => 'Guru',
+    'keuangan' => 'Keuangan',
+];
+$currentRoleLabel = $roleLabels[$currentRole] ?? ucfirst((string) $currentRole);
+$pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
 if (!function_exists('render_app_sidebar_nav')) {
     function render_app_sidebar_nav(array $structure, array $items, string $requestPath): void
@@ -151,59 +169,92 @@ if (!function_exists('render_app_sidebar_nav')) {
         })();
     </script>
 </head>
-<body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . '"' : '' ?>>
-<nav class="navbar navbar-dark app-topbar mb-3">
-    <div class="container-fluid px-3 px-md-4">
-        <div class="app-topbar-left">
-            <button class="btn btn-light btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-label="Buka menu">
-                <span class="app-topbar-icon" aria-hidden="true">&#9776;</span>
-                <span class="d-none d-sm-inline ms-1">Menu</span>
-            </button>
-            <button class="btn btn-outline-light btn-sm d-none d-lg-inline-flex" type="button" id="sidebar-toggle-btn" aria-label="Sembunyikan menu samping">
-                <span class="app-topbar-icon" aria-hidden="true">&#9776;</span>
-                <span class="ms-2">Menu samping</span>
-            </button>
-            <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link">
-                <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
-                <?php if ($appBrandTagline !== ''): ?>
-                    <span class="app-brand-tagline"><?= htmlspecialchars($appBrandTagline) ?></span>
-                <?php endif; ?>
-            </a>
-            <span class="app-topbar-title d-none d-md-inline-flex"><?= htmlspecialchars($pageTitle ?? 'Dashboard') ?></span>
-        </div>
-        <div class="app-topbar-right">
-            <?php if (isset($_SESSION['user'])): ?>
-                <a class="app-topbar-profile d-none d-sm-inline-flex" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="Profil &amp; foto">
-                    <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
-                    <span class="app-topbar-user"><?= htmlspecialchars($currentUser) ?></span>
-                </a>
-                <a class="app-topbar-profile d-inline-flex d-sm-none" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="<?= htmlspecialchars($currentUser) ?>">
-                    <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
-                </a>
-                <button type="button" class="btn btn-sm btn-outline-light" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
-                <a class="btn btn-sm btn-outline-light" href="<?= htmlspecialchars(app_href('/logout.php')) ?>">Keluar</a>
-            <?php endif; ?>
-        </div>
-    </div>
-</nav>
-<div class="app-shell px-2 px-md-3 pb-5" id="app-shell">
-    <aside class="app-sidebar d-none d-lg-block">
+<body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . ' app-body-shell"' : ' class="app-body-shell"' ?>>
+<div class="app-frame" id="app-frame">
+    <aside class="app-sidebar app-sidebar--desktop d-none d-lg-flex" aria-label="Menu samping">
+        <?php
+        $compact = false;
+        $sidebarHeadIdSuffix = 'desk';
+        require __DIR__ . '/partials/app_sidebar_head.php';
+        ?>
         <div class="app-sidebar-inner">
             <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
         </div>
     </aside>
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title">Menu Aplikasi</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-        <div class="offcanvas-body">
-            <div class="d-grid gap-1 app-sidebar-mobile">
-                <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
+
+    <div class="app-frame-main">
+        <header class="app-topbar">
+            <div class="app-topbar-inner">
+                <div class="app-topbar-left">
+                    <button class="btn btn-light btn-sm app-topbar-menu-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-label="Buka menu">
+                        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline ms-1">Menu</span>
+                    </button>
+                    <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none">
+                        <?php if ($appLogoSrc !== ''): ?>
+                            <span class="app-brand-mark app-brand-mark--logo">
+                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="" class="app-brand-logo" decoding="async">
+                            </span>
+                        <?php else: ?>
+                            <span class="app-brand-mark app-brand-mark--fallback" aria-hidden="true"><?= htmlspecialchars($appLogoInitial) ?></span>
+                        <?php endif; ?>
+                        <span class="app-brand-text">
+                            <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
+                            <?php if ($appBrandTagline !== ''): ?>
+                                <span class="app-brand-tagline"><?= htmlspecialchars($appBrandTagline) ?></span>
+                            <?php endif; ?>
+                        </span>
+                    </a>
+                    <div class="app-topbar-page d-none d-lg-flex">
+                        <span class="app-topbar-page-kicker">Halaman aktif</span>
+                        <h1 class="app-topbar-page-title"><?= htmlspecialchars($pageTitleHeader) ?></h1>
+                    </div>
+                </div>
+                <div class="app-topbar-center d-lg-none">
+                    <span class="app-topbar-title-mobile"><?= htmlspecialchars($pageTitleHeader) ?></span>
+                </div>
+                <div class="app-topbar-right">
+                    <?php if (isset($_SESSION['user'])): ?>
+                        <span class="app-topbar-role badge rounded-pill d-none d-md-inline-flex"><?= htmlspecialchars($currentRoleLabel) ?></span>
+                        <a class="app-topbar-user-pill d-none d-sm-inline-flex" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="Profil &amp; foto">
+                            <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                            <span class="app-topbar-user-pill-text">
+                                <span class="app-topbar-user-name"><?= htmlspecialchars($currentUser) ?></span>
+                            </span>
+                        </a>
+                        <a class="app-topbar-user-pill d-inline-flex d-sm-none" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="<?= htmlspecialchars($currentUser) ?>">
+                            <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                        </a>
+                        <button type="button" class="btn btn-sm app-topbar-icon-btn" id="btn-fcm-subscribe" title="Aktifkan notifikasi push" aria-label="Notifikasi">
+                            <i class="fa-solid fa-bell"></i>
+                        </button>
+                        <a class="btn btn-sm app-topbar-icon-btn app-topbar-logout" href="<?= htmlspecialchars(app_href('/logout.php')) ?>" title="Keluar">
+                            <i class="fa-solid fa-right-from-bracket d-sm-none" aria-hidden="true"></i>
+                            <span class="d-none d-sm-inline">Keluar</span>
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </header>
+
+        <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar">
+            <div class="offcanvas-header border-0 pb-0">
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+            </div>
+            <div class="offcanvas-body pt-2">
+                <?php
+                $compact = true;
+                $sidebarHeadIdSuffix = 'mob';
+                require __DIR__ . '/partials/app_sidebar_head.php';
+                ?>
+                <div class="app-sidebar-mobile">
+                    <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
+                </div>
             </div>
         </div>
-    </div>
-    <main class="app-content app-main">
+
+        <div class="app-shell app-shell--wide" id="app-shell">
+            <main class="app-content app-main">
     <?php if ($success = get_flash('success')): ?>
         <div class="alert alert-success app-flash mb-3" role="alert"><?= htmlspecialchars($success) ?></div>
     <?php endif; ?>
@@ -212,22 +263,8 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php endif; ?>
     <script>
         (function () {
-            const shell = document.getElementById('app-shell');
-            const btn = document.getElementById('sidebar-toggle-btn');
-            if (!shell || !btn) return;
-            const key = 'sidebar-collapsed';
-            const saved = localStorage.getItem(key);
-            if (saved === '1') {
-                shell.classList.add('sidebar-collapsed');
-                const span = btn.querySelector('span.ms-2');
-                if (span) span.textContent = 'Tampilkan menu';
-            }
-            btn.addEventListener('click', function () {
-                shell.classList.toggle('sidebar-collapsed');
-                const collapsed = shell.classList.contains('sidebar-collapsed');
-                localStorage.setItem(key, collapsed ? '1' : '0');
-                const span = btn.querySelector('span.ms-2');
-                if (span) span.textContent = collapsed ? 'Tampilkan menu' : 'Menu samping';
-            });
+            try {
+                localStorage.removeItem('sidebar-collapsed');
+            } catch (e) {}
         })();
     </script>

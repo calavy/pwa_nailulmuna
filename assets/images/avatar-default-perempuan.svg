@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Avatar perempuan">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg)"/>
+  <circle cx="60" cy="44" r="20" fill="#ecfeff"/>
+  <path d="M34 52c8 10 12 10 26 10s18 0 26-10" fill="none" stroke="#ecfeff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M26 108c7-20 24-34 34-34s27 14 34 34" fill="#ecfeff"/>
+</svg>

@@ -2,6 +2,8 @@
 <?php require_once __DIR__ . '/partials/sdm_modals.php'; ?>
 <?php endif; ?>
     </main>
+        </div>
+    </div>
 </div>
 <script>
     (function () {

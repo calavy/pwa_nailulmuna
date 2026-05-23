@@ -13,6 +13,7 @@ ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/helpers/mukimin.php';
 require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
+require_once __DIR__ . '/helpers/user_profil.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
@@ -151,12 +152,9 @@ $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Bapak/Ibu';
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$dashLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
+$dashLogo = app_pondok_logo_src($pdo);
 $dashHeroKicker = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-$lettersOnly = preg_replace('/[^A-Za-z]/u', '', $namaPonpes);
-$dashLogoInitial = strtoupper(substr(($lettersOnly !== '' ? $lettersOnly : 'AP'), 0, 2));
+$dashLogoInitial = app_pondok_logo_initials($pdo, $namaPonpes);
 
 $menuPack = require __DIR__ . '/includes/menu_data.php';
 $dashMenuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
@@ -177,29 +175,7 @@ require_once __DIR__ . '/includes/header.php';
 <div class="dash-page">
     <div class="dash-hero mb-4">
         <div class="dash-hero-inner">
-            <div class="dash-hero-brand dash-hero-brand--top mb-3 mb-md-4">
-                <?php if ($dashLogo !== ''): ?>
-                    <div class="dash-hero-logo-wrap">
-                        <img src="<?= htmlspecialchars(app_href($dashLogo)) ?>" alt="Logo pesantren" class="dash-hero-logo" decoding="async">
-                    </div>
-                <?php else: ?>
-                    <div class="dash-hero-logo-wrap dash-hero-logo-wrap--placeholder" aria-hidden="true">
-                        <span class="dash-hero-logo-fallback"><?= htmlspecialchars($dashLogoInitial) ?></span>
-                    </div>
-                <?php endif; ?>
-                <div class="dash-hero-brand-text min-w-0">
-                    <div class="dash-hero-pesantren-kicker text-white-50"><?= $dashHeroKicker !== '' ? htmlspecialchars($dashHeroKicker) : 'Pesantren' ?></div>
-                    <div class="dash-hero-pesantren text-white"><?= htmlspecialchars($namaPonpes) ?></div>
-                    <?php if ($alamatPonpes !== ''): ?>
-                        <p class="dash-hero-pesantren-sub mb-0 mt-2 text-white-50 d-flex align-items-start gap-2">
-                            <i class="fa-solid fa-location-dot mt-1 flex-shrink-0 opacity-75" aria-hidden="true"></i>
-                            <span class="min-w-0"><?= htmlspecialchars($alamatPonpes) ?></span>
-                        </p>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <div class="dash-hero-divider"></div>
-            <div class="dash-hero-grid">
+            <div class="dash-hero-layout dash-hero-layout--slim">
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Beranda</div>
                     <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!</h1>
@@ -262,8 +238,8 @@ require_once __DIR__ . '/includes/header.php';
         </div>
     </div>
 
-    <div class="row g-4 mb-4 dash-main-panels">
-        <div class="col-lg-7">
+    <div class="dash-layout-grid mb-4">
+        <section class="dash-layout-main">
             <div class="card border-0 shadow-sm h-100 dash-panel dash-panel--lift">
                 <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-start gap-2 pt-4 px-4 pb-0">
                     <div>
@@ -314,8 +290,8 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
-        <div class="col-lg-5">
+        </section>
+        <aside class="dash-layout-aside">
             <div class="card border-0 shadow-sm h-100 dash-panel dash-panel-side dash-panel--lift">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
                     <h2 class="h5 mb-1">Aksi cepat</h2>
@@ -323,7 +299,7 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
                 <div class="card-body px-4 pb-4 pt-3 d-flex flex-column gap-2">
                     <?php foreach ($sideQuickActions as $act): ?>
-                        <a href="<?= htmlspecialchars(app_rewrite_internal_url($act['path'])) ?>" class="<?= htmlspecialchars($act['class']) ?> rounded-3 py-2">
+                        <a href="<?= htmlspecialchars(app_rewrite_internal_url($act['path'])) ?>" class="<?= htmlspecialchars($act['class']) ?>">
                             <i class="fa-solid <?= htmlspecialchars($act['icon']) ?> me-2"></i> <?= htmlspecialchars($act['label']) ?>
                         </a>
                     <?php endforeach; ?>
@@ -332,7 +308,7 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
+        </aside>
     </div>
 
     <?php if ($izinAktifRows !== []): ?>
