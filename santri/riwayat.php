@@ -186,7 +186,7 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a href="/santri/edit.php?id=<?= $id ?>" class="btn btn-outline-warning btn-sm">Edit biodata</a>
+        <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $id)) ?>" class="btn btn-outline-warning btn-sm">Edit biodata</a>
         <a href="/santri/semua_jati.php" class="btn btn-outline-secondary btn-sm">Data induk</a>
     </div>
 </div>

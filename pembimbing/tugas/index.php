@@ -40,6 +40,16 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
+<div class="alert alert-light border small mb-3">
+    <strong class="d-block mb-1">Alur ke santri</strong>
+    <ol class="mb-0 ps-3">
+        <li>Buat tugas → isi soal PG/esai → tekan <strong>Publikasikan tugas</strong> (status <em>published</em>).</li>
+        <li>Santri login di <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" target="_blank" rel="noopener">portal santri</a> (NIS + PIN portal atau PIN cashless).</li>
+        <li>Tugas muncul di <strong>Tugas Ikhtibar</strong> pada hari tugas (tanggal ≤ hari ini) dan tingkatan yang sesuai.</li>
+        <li>Santri memasukkan token (jika diaktifkan), mengerjakan, lalu menyelesaikan — nilai bisa dilihat pembimbing di menu Nilai.</li>
+    </ol>
+</div>
+
 <?php
 $flashOk = get_flash('success');
 $flashErr = get_flash('error');

@@ -30,7 +30,16 @@ $err = get_flash('error');
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
 <?php if ($tugasList === []): ?>
-    <p class="text-muted small text-center">Belum ada tugas yang dipublikasikan untuk Anda.</p>
+    <div class="text-muted small">
+        <p class="text-center mb-2">Belum ada tugas yang tampil untuk Anda.</p>
+        <p class="mb-1"><strong>Penyebab umum:</strong></p>
+        <ul class="mb-0 ps-3">
+            <li>Pembimbing belum menekan <em>Publikasikan tugas</em></li>
+            <li>Tanggal tugas belum tiba (hanya tampil mulai hari H)</li>
+            <li>Filter tingkatan tidak sesuai profil Anda</li>
+            <li>Soal belum diisi saat tugas dibuat</li>
+        </ul>
+    </div>
 <?php else: ?>
     <div class="d-grid gap-2">
         <?php foreach ($tugasList as $t):

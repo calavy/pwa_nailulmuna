@@ -8,6 +8,59 @@ function ensure_santri_portal_pin_column(PDO $pdo): void
     ensure_santri_identity_columns($pdo);
 }
 
+/** Hash PIN cashless santri (jika akun ada). */
+function santri_portal_cashless_pin_hash(PDO $pdo, int $santriId): string
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'cashless_accounts')) {
+        return '';
+    }
+    $st = $pdo->prepare('SELECT pin_hash FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
+    $st->execute(['id' => $santriId]);
+    $hash = $st->fetchColumn();
+
+    return is_string($hash) ? trim($hash) : '';
+}
+
+/**
+ * Cek PIN: portal santri dulu, lalu PIN cashless (satu PIN untuk belanja & login).
+ */
+function santri_portal_verify_pin(PDO $pdo, int $santriId, string $pin, ?string $portalPinHash = null): bool
+{
+    if ($pin === '') {
+        return false;
+    }
+    $portalHash = $portalPinHash;
+    if ($portalHash === null) {
+        ensure_santri_portal_pin_column($pdo);
+        $st = $pdo->prepare('SELECT santri_portal_pin_hash FROM santri WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $santriId]);
+        $portalHash = trim((string) ($st->fetchColumn() ?: ''));
+    }
+    if ($portalHash !== '' && password_verify($pin, $portalHash)) {
+        return true;
+    }
+    $cashlessHash = santri_portal_cashless_pin_hash($pdo, $santriId);
+
+    return $cashlessHash !== '' && password_verify($pin, $cashlessHash);
+}
+
+/** Apakah santri punya minimal satu PIN (portal atau cashless)? */
+function santri_portal_has_login_pin(PDO $pdo, int $santriId, ?string $portalPinHash = null): bool
+{
+    $portalHash = $portalPinHash;
+    if ($portalHash === null && $santriId > 0) {
+        ensure_santri_portal_pin_column($pdo);
+        $st = $pdo->prepare('SELECT santri_portal_pin_hash FROM santri WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $santriId]);
+        $portalHash = trim((string) ($st->fetchColumn() ?: ''));
+    }
+    if ($portalHash !== '') {
+        return true;
+    }
+
+    return santri_portal_cashless_pin_hash($pdo, $santriId) !== '';
+}
+
 /** Verifikasi PIN portal santri; mengembalikan baris santri aktif atau null. */
 function santri_portal_verify_login(PDO $pdo, string $nis, string $pin): ?array
 {
@@ -29,8 +82,12 @@ function santri_portal_verify_login(PDO $pdo, string $nis, string $pin): ?array
     if (!$row) {
         return null;
     }
-    $hash = trim((string) ($row['santri_portal_pin_hash'] ?? ''));
-    if ($hash === '' || !password_verify($pin, $hash)) {
+    $santriId = (int) ($row['id'] ?? 0);
+    $portalHash = trim((string) ($row['santri_portal_pin_hash'] ?? ''));
+    if (!santri_portal_has_login_pin($pdo, $santriId, $portalHash)) {
+        return null;
+    }
+    if (!santri_portal_verify_pin($pdo, $santriId, $pin, $portalHash)) {
         return null;
     }
 

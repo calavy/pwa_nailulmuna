@@ -1,4 +1,22 @@
 (function () {
+    function resolveAppUrl(url) {
+        url = (url || '').trim();
+        if (!url || /^https?:\/\//i.test(url) || url.indexOf('//') === 0) {
+            return url;
+        }
+        if (url.charAt(0) !== '/') {
+            return url;
+        }
+        var base = (window.PONDOK_APP_BASE || '').replace(/\/$/, '');
+        if (!base) {
+            return url;
+        }
+        if (url === base || url.indexOf(base + '/') === 0) {
+            return url;
+        }
+        return base + url;
+    }
+
     function initSdmModals() {
         if (typeof bootstrap === 'undefined') {
             return;
@@ -14,6 +32,7 @@
         var titleEl = document.getElementById('sdmModalFormLabel');
 
         function openSdmForm(url, title) {
+            url = resolveAppUrl(url);
             if (!url) {
                 return;
             }

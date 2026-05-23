@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $row = santri_portal_verify_login($pdo, $nis, $pin);
     if (!$row) {
-        set_flash('error', 'NIS atau PIN salah, atau PIN belum diatur pengurus.');
+        set_flash('error', 'NIS atau PIN salah. Pastikan PIN portal santri atau PIN cashless sudah diatur pengurus.');
         app_redirect('santri_portal/login.php');
     }
     session_regenerate_id(true);
@@ -41,7 +41,7 @@ require_once __DIR__ . '/../includes/auth_portal_layout.php';
 auth_portal_layout_begin([
     'title' => 'Portal Santri',
     'welcome' => 'Portal Santri',
-    'subtitle' => 'Masuk dengan NIS dan PIN untuk melihat riwayat domisili dan pelanggaran Anda.',
+    'subtitle' => 'Masuk dengan NIS dan PIN (portal santri atau PIN cashless) untuk tugas ikhtibar dan riwayat pribadi.',
     'nama_ponpes' => $namaPonpes,
     'max_width' => '420px',
     'accent' => 'teal',
@@ -57,12 +57,12 @@ $err = get_flash('error');
         <input type="text" name="nis" class="form-control" required inputmode="numeric" autocomplete="username">
     </div>
     <div>
-        <label class="form-label">PIN portal santri</label>
-        <input type="password" name="pin" class="form-control" required minlength="6" autocomplete="current-password">
+        <label class="form-label">PIN</label>
+        <input type="password" name="pin" class="form-control" required minlength="4" maxlength="32" inputmode="numeric" autocomplete="current-password" placeholder="PIN portal atau cashless">
     </div>
     <button type="submit" class="btn btn-auth-primary w-100">Masuk</button>
 </form>
-<p class="small text-muted text-center mt-3 mb-0">PIN diatur pengurus pondok. Berbeda dari PIN portal wali.</p>
+<p class="small text-muted text-center mt-3 mb-0">PIN bisa dari <strong>portal santri</strong> (edit santri) atau <strong>PIN cashless</strong> (menu keuangan). Berbeda dari PIN wali.</p>
 <p class="small text-center mt-2 mb-0">
     <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>">Masuk sebagai wali santri</a>
     · <a href="<?= htmlspecialchars(app_href('/login.php')) ?>">Portal pengurus</a>

@@ -113,9 +113,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </td>
                         <td class="text-end pe-3">
                             <a href="/santri/riwayat.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
-                            <a href="/santri/edit.php?id=<?= (int) $r['id'] ?>"
+                            <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $r['id'])) ?>"
                                class="btn btn-sm btn-warning"
-                               data-sdm-modal="/santri/edit.php?id=<?= (int) $r['id'] ?>"
+                               data-sdm-modal="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $r['id'])) ?>"
                                data-sdm-title="Edit santri">Edit</a>
                         </td>
                     </tr>

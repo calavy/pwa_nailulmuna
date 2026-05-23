@@ -365,7 +365,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm mb-3" id="form-pin-cashless">
             <div class="card-header fw-semibold small">PIN cashless santri</div>
             <div class="card-body">
-                <p class="small text-muted">PIN dipakai saat scan belanja. Saldo diisi dari pembayaran pos Saku (opsional).</p>
+                <p class="small text-muted">PIN dipakai saat scan belanja <strong>dan</strong> bisa dipakai santri login di <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" target="_blank" rel="noopener">portal santri</a> (jika PIN portal santri belum diatur). Saldo diisi dari pembayaran pos Saku (opsional).</p>
                 <form method="post">
                     <input type="hidden" name="action" value="save_cashless_pin">
                     <div class="mb-2">

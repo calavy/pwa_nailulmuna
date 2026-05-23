@@ -474,9 +474,9 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-12">
                 <div class="alert alert-info py-3 mb-0">
                     <h2 class="h6 mb-2">Portal santri (login mandiri)</h2>
-                    <p class="small mb-2">Santri login di <a href="/santri_portal/login.php" target="_blank" rel="noopener">/santri_portal/login.php</a> untuk melihat riwayat domisili dan pelanggaran sendiri.</p>
+                    <p class="small mb-2">Santri login di <a href="/santri_portal/login.php" target="_blank" rel="noopener">/santri_portal/login.php</a> untuk tugas ikhtibar, riwayat domisili, dan pelanggaran.</p>
                     <p class="small mb-3 <?= !empty($santri['santri_portal_pin_hash']) ? 'text-success' : 'text-warning' ?>">
-                        <?= !empty($santri['santri_portal_pin_hash']) ? 'PIN portal santri sudah diatur.' : 'PIN portal santri belum diatur.' ?>
+                        <?= !empty($santri['santri_portal_pin_hash']) ? 'PIN portal santri sudah diatur.' : 'PIN portal santri belum diatur — santri bisa memakai PIN cashless jika sudah diset di menu Keuangan → Cashless.' ?>
                     </p>
                     <div class="row g-2">
                         <div class="col-md-6">
@@ -488,7 +488,7 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
                             <input type="password" name="santri_pin_konfirmasi" class="form-control form-control-sm" autocomplete="new-password" minlength="6" placeholder="Konfirmasi">
                         </div>
                     </div>
-                    <div class="form-text mt-1">PIN terpisah dari PIN wali. Minimal 6 karakter.</div>
+                    <div class="form-text mt-1">PIN terpisah dari PIN wali. Minimal 6 karakter. Jika kosong, login portal memakai PIN cashless (min. 4 digit).</div>
                 </div>
             </div>
             <div class="col-12">

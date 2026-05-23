@@ -197,11 +197,16 @@ function app_ob_rewrite_html(string $html): string
     $slug = trim($base, '/');
     $alreadyPrefixed = $slug !== '' ? '(?!' . preg_quote($slug, '#') . '\/)' : '';
 
-    $result = preg_replace(
+    $prefixAbs = '$1=$2' . $base . '/';
+    $patterns = [
         '#\b(href|action|src)=(["\'])(?!//)/' . $alreadyPrefixed . '#',
-        '$1=$2' . $base . '/',
-        $html
-    );
+        '#\bdata-sdm-modal=(["\'])(?!//)/' . $alreadyPrefixed . '#',
+    ];
+    $result = $html;
+    foreach ($patterns as $pattern) {
+        $replaced = preg_replace($pattern, $prefixAbs, $result);
+        $result = is_string($replaced) ? $replaced : $result;
+    }
 
-    return is_string($result) ? $result : $html;
+    return $result;
 }

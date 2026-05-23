@@ -208,13 +208,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 ?>
                             </td>
                             <td class="text-end text-nowrap">
-                                <a href="/santri/riwayat.php?id=<?= (int) $item['id'] ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
-                                <a href="/santri/edit.php?id=<?= (int) $item['id'] ?>"
+                                <a href="<?= htmlspecialchars(app_href('/santri/riwayat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
+                                <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
                                    class="btn btn-sm btn-warning"
-                                   data-sdm-modal="/santri/edit.php?id=<?= (int) $item['id'] ?>"
+                                   data-sdm-modal="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
                                    data-sdm-title="Edit santri">Edit</a>
-                                <a href="/santri/nonaktif_cepat.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-outline-danger">Ubah status</a>
-                                <a href="/santri/delete.php?id=<?= $item['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
+                                <a href="<?= htmlspecialchars(app_href('/santri/nonaktif_cepat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-danger">Ubah status</a>
+                                <a href="<?= htmlspecialchars(app_href('/santri/delete.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
