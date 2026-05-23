@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Menu cepat dashboard — hanya path yang lolos filter ACL (menuItems).
+ * Aksi cepat & pencarian modul dashboard — hanya path yang lolos filter ACL (menuItems).
  */
 
 /** @return list<array{path:string,class:string,icon:string,label:string}> */
@@ -49,7 +49,31 @@ function dashboard_quick_action_definitions(): array
     ];
 }
 
-/** Path prioritas untuk tile menu cepat (urutan tampil). */
+/**
+ * Semua modul yang boleh diakses, untuk pencarian cepat dashboard.
+ *
+ * @param callable(string): string $iconForPath
+ * @return list<array{path:string,label:string,icon:string}>
+ */
+function dashboard_build_search_items(array $menuItems, callable $iconForPath): array
+{
+    $items = [];
+    foreach ($menuItems as $path => $label) {
+        if (!is_string($path) || $path === '' || !is_string($label) || trim($label) === '') {
+            continue;
+        }
+        $items[] = [
+            'path' => $path,
+            'label' => trim($label),
+            'icon' => $iconForPath($path),
+        ];
+    }
+    usort($items, static fn(array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+
+    return $items;
+}
+
+/** Path prioritas untuk tile menu (legacy). */
 function dashboard_quick_tile_priority_paths(): array
 {
     return [

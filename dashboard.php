@@ -158,12 +158,9 @@ $dashLogoInitial = app_pondok_logo_initials($pdo, $namaPonpes);
 
 $menuPack = require __DIR__ . '/includes/menu_data.php';
 $dashMenuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
-$dashMenuStructure = $menuPack['menuStructure'];
-
-$dashTiles = dashboard_build_quick_tiles($dashMenuItems, $dashMenuStructure, $iconForPath);
+$dashSearchItems = dashboard_build_search_items($dashMenuItems, $iconForPath);
 $sideQuickActions = dashboard_filter_quick_actions($dashMenuItems);
 $sideQuickCount = count($sideQuickActions);
-$dashTileCount = count($dashTiles);
 
 $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
@@ -293,7 +290,32 @@ require_once __DIR__ . '/includes/header.php';
         </section>
         <aside class="dash-layout-aside">
             <div class="card border-0 shadow-sm h-100 dash-panel dash-panel-side dash-panel--lift">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                <?php if ($dashSearchItems !== []): ?>
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 <?= $sideQuickCount === 0 ? 'pb-4' : '' ?>">
+                    <h2 class="h6 mb-1">Pencarian cepat</h2>
+                    <p class="small text-muted mb-2">Cari modul menu</p>
+                    <div class="dash-aside-search" id="dash-menu-search-wrap">
+                        <label class="visually-hidden" for="dash-menu-search-input">Pencarian cepat modul</label>
+                        <span class="dash-aside-search__ico" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input
+                            type="search"
+                            id="dash-menu-search-input"
+                            class="dash-aside-search__input form-control"
+                            placeholder="Ketik nama modul…"
+                            autocomplete="off"
+                            enterkeyhint="search"
+                            role="combobox"
+                            aria-expanded="false"
+                            aria-controls="dash-menu-search-results"
+                            aria-autocomplete="list"
+                        >
+                        <div class="dash-aside-search__results" id="dash-menu-search-results" role="listbox" hidden></div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($sideQuickCount > 0): ?>
+                <div class="card-header bg-transparent border-0 <?= $dashSearchItems !== [] ? 'pt-3' : 'pt-4' ?> px-4 pb-0 <?= $dashSearchItems !== [] ? 'border-top' : '' ?>">
                     <h2 class="h5 mb-1">Aksi cepat</h2>
                     <p class="small text-muted mb-0">Modul yang sering dipakai</p>
                 </div>
@@ -303,10 +325,12 @@ require_once __DIR__ . '/includes/header.php';
                             <i class="fa-solid <?= htmlspecialchars($act['icon']) ?> me-2"></i> <?= htmlspecialchars($act['label']) ?>
                         </a>
                     <?php endforeach; ?>
-                    <?php if ($sideQuickCount === 0): ?>
-                        <p class="small text-muted mb-0">Gunakan menu modul di samping untuk membuka fitur yang tersedia.</p>
-                    <?php endif; ?>
                 </div>
+                <?php elseif ($dashSearchItems === []): ?>
+                <div class="card-body px-4 pb-4 pt-3">
+                    <p class="small text-muted mb-0">Gunakan menu modul di samping untuk membuka fitur yang tersedia.</p>
+                </div>
+                <?php endif; ?>
             </div>
         </aside>
     </div>
@@ -349,39 +373,109 @@ require_once __DIR__ . '/includes/header.php';
         </div>
     <?php endif; ?>
 
-    <details class="dash-quick-details card border-0 shadow-sm mb-2" open>
-        <summary class="dash-quick-details__summary">
-            <span class="dash-quick-details__lead">
-                <span class="dash-quick-details__ico" aria-hidden="true"><i class="fa-solid fa-bolt"></i></span>
-                <span class="dash-quick-details__text">
-                    <span class="dash-quick-details__title">Menu cepat</span>
-                    <span class="dash-quick-details__meta"><?= (int) $dashTileCount ?> pintasan · sesuai hak akses</span>
-                </span>
-            </span>
-            <span class="dash-quick-details__chev" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span>
-        </summary>
-        <div class="dash-quick-details__body">
-            <?php if ($dashTiles === []): ?>
-                <p class="small text-muted mb-0 px-3 pb-3">Belum ada modul yang dapat ditampilkan.</p>
-            <?php else: ?>
-                <div class="dash-quick-grid dash-quick-grid--compact">
-                    <?php foreach ($dashTiles as $idx => $tile): ?>
-                        <?php $accent = (int) ($idx % 6); ?>
-                        <a class="dash-quick-tile dash-quick-tile--compact dash-quick-tile--a<?= $accent ?>" href="<?= htmlspecialchars(app_rewrite_internal_url($tile['path'])) ?>" title="<?= htmlspecialchars($tile['label']) ?>">
-                            <i class="<?= htmlspecialchars($tile['icon']) ?>" aria-hidden="true"></i>
-                            <span class="dash-quick-tile-main">
-                                <span class="dash-quick-tile-line1"><?= htmlspecialchars($tile['label']) ?></span>
-                            </span>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-    </details>
 </div>
 
 <script>
     (function () {
+        const searchItems = <?= json_encode(array_map(static function (array $item): array {
+            return [
+                'path' => app_rewrite_internal_url((string) $item['path']),
+                'label' => (string) $item['label'],
+                'icon' => (string) $item['icon'],
+            ];
+        }, $dashSearchItems), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+        const searchWrap = document.getElementById('dash-menu-search-wrap');
+        const searchInput = document.getElementById('dash-menu-search-input');
+        const searchResults = document.getElementById('dash-menu-search-results');
+        if (searchWrap && searchInput && searchResults && searchItems.length) {
+            let activeIdx = -1;
+            const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+
+            function closeResults() {
+                searchResults.hidden = true;
+                searchInput.setAttribute('aria-expanded', 'false');
+                activeIdx = -1;
+            }
+
+            function openResults() {
+                searchResults.hidden = false;
+                searchInput.setAttribute('aria-expanded', 'true');
+            }
+
+            function renderResults(query) {
+                const q = norm(query.trim());
+                const matches = q === ''
+                    ? searchItems.slice(0, 12)
+                    : searchItems.filter((item) => norm(item.label).includes(q) || norm(item.path).includes(q)).slice(0, 16);
+
+                searchResults.innerHTML = '';
+                if (matches.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'dash-aside-search__empty';
+                    empty.textContent = 'Tidak ada modul yang cocok.';
+                    searchResults.appendChild(empty);
+                    openResults();
+                    return;
+                }
+
+                matches.forEach((item, idx) => {
+                    const row = document.createElement('a');
+                    row.className = 'dash-aside-search__item';
+                    row.href = item.path;
+                    row.setAttribute('role', 'option');
+                    row.dataset.idx = String(idx);
+                    const ico = document.createElement('i');
+                    ico.className = item.icon;
+                    ico.setAttribute('aria-hidden', 'true');
+                    const lbl = document.createElement('span');
+                    lbl.textContent = item.label;
+                    row.append(ico, lbl);
+                    searchResults.appendChild(row);
+                });
+                openResults();
+            }
+
+            function setActive(idx) {
+                const rows = searchResults.querySelectorAll('.dash-aside-search__item');
+                rows.forEach((r) => r.classList.remove('is-active'));
+                activeIdx = idx;
+                if (idx >= 0 && rows[idx]) {
+                    rows[idx].classList.add('is-active');
+                    rows[idx].scrollIntoView({ block: 'nearest' });
+                }
+            }
+
+            searchInput.addEventListener('focus', () => renderResults(searchInput.value));
+            searchInput.addEventListener('input', () => renderResults(searchInput.value));
+            searchInput.addEventListener('keydown', (e) => {
+                const rows = searchResults.querySelectorAll('.dash-aside-search__item');
+                if (e.key === 'Escape') {
+                    closeResults();
+                    return;
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setActive(Math.min(activeIdx + 1, rows.length - 1));
+                    return;
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActive(Math.max(activeIdx - 1, 0));
+                    return;
+                }
+                if (e.key === 'Enter' && activeIdx >= 0 && rows[activeIdx]) {
+                    e.preventDefault();
+                    window.location.href = rows[activeIdx].href;
+                }
+            });
+            document.addEventListener('click', (e) => {
+                if (!searchWrap.contains(e.target)) {
+                    closeResults();
+                }
+            });
+        }
+
         const clockEl = document.getElementById('dashboard-live-clock');
         const dateEl = document.getElementById('dashboard-live-date');
         if (!clockEl || !dateEl) return;
