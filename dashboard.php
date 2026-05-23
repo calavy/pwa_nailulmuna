@@ -169,7 +169,6 @@ $dashTileCount = count($dashTiles);
 
 $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
-
 $pageTitle = 'Dashboard';
 $bodyClass = 'dash-page';
 require_once __DIR__ . '/includes/header.php';
@@ -204,9 +203,6 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Beranda</div>
                     <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!</h1>
-                    <p class="dash-hero-date mb-0">
-                        <span id="dashboard-hero-date"></span>
-                    </p>
                     <?php if ($dashHijriLabel !== '' || $dashPasaran !== ''): ?>
                         <p class="dash-hero-hijri mb-0 mt-1 small text-white-50">
                             <?php if ($dashHijriLabel !== ''): ?>
@@ -219,86 +215,49 @@ require_once __DIR__ . '/includes/header.php';
                         </p>
                     <?php endif; ?>
                 </div>
-                <div class="dash-hero-summary d-none d-md-block text-md-end">
-                    <span class="dash-hero-badge">Ringkasan hari ini</span>
-                    <p class="dash-hero-hint text-white-50 mt-2 mb-0">Santri aktif, izin, slot jadwal, dan jam berjalan — ringkas di satu layar.</p>
+                <div class="dash-hero-clock" aria-live="polite">
+                    <div class="dash-hero-clock__top">
+                        <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan</span>
+                        <span class="dash-hero-clock__live">Live</span>
+                    </div>
+                    <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
+                    <div class="dash-hero-clock__date" id="dashboard-live-date">—</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-2">
-            <div class="card h-100 border-0 shadow-sm dash-kpi dash-kpi--putra">
-                <div class="card-body">
-                    <div class="dash-kpi-inner">
-                        <div class="dash-kpi-ico" aria-hidden="true"><i class="fa-solid fa-user-graduate"></i></div>
-                        <div class="min-w-0">
-                            <div class="dash-kpi-label">Santri Putra</div>
-                            <div class="dash-kpi-value"><?= $putra ?></div>
-                            <div class="dash-kpi-hint small">Jumlah aktif</div>
-                        </div>
-                    </div>
-                </div>
+    <div class="dash-kpi-grid mb-4" role="list" aria-label="Ringkasan data santri">
+        <div class="dash-kpi-grid__item" role="listitem">
+            <div class="dash-kpi-box dash-kpi-box--putra h-100">
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person"></i></div>
+                <div class="dash-kpi-box__label">Santri Putra</div>
+                <div class="dash-kpi-box__value"><?= (int) $putra ?></div>
+                <div class="dash-kpi-box__hint">Jumlah aktif</div>
             </div>
         </div>
-        <div class="col-6 col-lg-2">
-            <div class="card h-100 border-0 shadow-sm dash-kpi dash-kpi--putri">
-                <div class="card-body">
-                    <div class="dash-kpi-inner">
-                        <div class="dash-kpi-ico" aria-hidden="true"><i class="fa-solid fa-user-graduate"></i></div>
-                        <div class="min-w-0">
-                            <div class="dash-kpi-label">Santri Putri</div>
-                            <div class="dash-kpi-value"><?= $putri ?></div>
-                            <div class="dash-kpi-hint small">Jumlah aktif</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="dash-kpi-grid__item" role="listitem">
+            <div class="dash-kpi-box dash-kpi-box--putri h-100">
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-dress"></i></div>
+                <div class="dash-kpi-box__label">Santri Putri</div>
+                <div class="dash-kpi-box__value"><?= (int) $putri ?></div>
+                <div class="dash-kpi-box__hint">Jumlah aktif</div>
             </div>
         </div>
-        <div class="col-6 col-lg-2">
-            <div class="card h-100 border-0 shadow-sm dash-kpi">
-                <div class="card-body">
-                    <div class="dash-kpi-inner">
-                        <div class="dash-kpi-ico" aria-hidden="true"><i class="fa-solid fa-book-open"></i></div>
-                        <div class="min-w-0">
-                            <div class="dash-kpi-label">Data Mukimin</div>
-                            <div class="dash-kpi-value"><?= $mukiminCount ?></div>
-                            <div class="dash-kpi-hint small">Santri non aktif</div>
-                        </div>
-                    </div>
-                </div>
+        <div class="dash-kpi-grid__item" role="listitem">
+            <div class="dash-kpi-box dash-kpi-box--mukimin h-100">
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-book-open-reader"></i></div>
+                <div class="dash-kpi-box__label">Data Mukimin</div>
+                <div class="dash-kpi-box__value"><?= (int) $mukiminCount ?></div>
+                <div class="dash-kpi-box__hint">Santri non aktif</div>
             </div>
         </div>
-        <div class="col-6 col-lg-2">
-            <div class="card h-100 border-0 shadow-sm dash-kpi dash-kpi--izin">
-                <div class="card-body">
-                    <div class="dash-kpi-inner">
-                        <div class="dash-kpi-ico" aria-hidden="true"><i class="fa-solid fa-person-walking-arrow-right"></i></div>
-                        <div class="min-w-0">
-                            <div class="dash-kpi-label">Sedang izin</div>
-                            <div class="dash-kpi-value"><?= $izinAktifCount ?></div>
-                            <div class="dash-kpi-hint small">Hari ini</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm dash-kpi dash-kpi--waktu dash-status-card--live">
-                <div class="card-body">
-                    <div class="dash-kpi-inner">
-                        <div class="dash-kpi-ico" aria-hidden="true"><i class="fa-solid fa-clock"></i></div>
-                        <div class="min-w-0 flex-grow-1">
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                                <div class="dash-kpi-label mb-0">Waktu berjalan</div>
-                                <span class="badge rounded-pill dash-pill-live small">Live</span>
-                            </div>
-                            <div class="dash-kpi-value dash-kpi-value--clock dash-clock-live" id="dashboard-live-clock">--:--:--</div>
-                            <div class="dash-kpi-hint small mb-0" id="dashboard-live-date"></div>
-                        </div>
-                    </div>
-                </div>
+        <div class="dash-kpi-grid__item" role="listitem">
+            <div class="dash-kpi-box dash-kpi-box--izin h-100">
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-walking-luggage"></i></div>
+                <div class="dash-kpi-box__label">Sedang izin</div>
+                <div class="dash-kpi-box__value"><?= (int) $izinAktifCount ?></div>
+                <div class="dash-kpi-box__hint">Hari ini</div>
             </div>
         </div>
     </div>
@@ -449,7 +408,6 @@ require_once __DIR__ . '/includes/header.php';
     (function () {
         const clockEl = document.getElementById('dashboard-live-clock');
         const dateEl = document.getElementById('dashboard-live-date');
-        const heroDate = document.getElementById('dashboard-hero-date');
         if (!clockEl || !dateEl) return;
         const serverAtLoad = <?= (int) $dashServerClockMs ?>;
         const perfAtLoad = performance.now();
@@ -464,7 +422,6 @@ require_once __DIR__ . '/includes/header.php';
             clockEl.textContent = fmtTime.format(d);
             const dateStr = fmtDate.format(d);
             dateEl.textContent = dateStr;
-            if (heroDate) heroDate.textContent = dateStr;
         }
         tick();
         setInterval(tick, 1000);

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/inc_portal.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/akademik_rapor.php';
 
-ensure_akademik_rapor_table($pdo);
+ensure_akademik_rapor_columns($pdo);
 
 $rows = [];
 if (table_exists($pdo, 'akademik_rapor')) {
     $st = $pdo->prepare('
-        SELECT id, judul_periode, tanggal_terbit, narasi, predikat_akhlak, catatan_pondok
+        SELECT *
         FROM akademik_rapor
         WHERE santri_id = :sid AND is_published = 1
         ORDER BY tanggal_terbit DESC, id DESC
@@ -32,7 +33,7 @@ wali_layout_head('Rapor — Portal Wali', true, 'rapor');
             <h1 class="h5 mb-0 wali-brand fw-bold">Rapor akademik</h1>
             <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
-        <p class="small text-muted">Hanya rapor yang sudah <strong>diterbitkan</strong> pengurus.</p>
+        <p class="small text-muted">Hanya rapor yang sudah <strong>diterbitkan</strong> pengurus. Termasuk presensi, setoran hafalan, dan nilai tugas Ikhtibar.</p>
 
         <?php if ($waAdminUrl): ?>
             <a class="btn btn-success w-100 mb-3" target="_blank" rel="noopener" href="<?= htmlspecialchars($waAdminUrl) ?>">Chat WhatsApp pengurus</a>
@@ -45,6 +46,14 @@ wali_layout_head('Rapor — Portal Wali', true, 'rapor');
         <?php else: ?>
             <div class="d-flex flex-column gap-3">
                 <?php foreach ($rows as $r): ?>
+                    <?php
+                    $periode = rapor_periode_dari_row($pdo, $r);
+                    $raporPeriodeLabel = (string) $periode['label'];
+                    $raporPresensi = rapor_presensi_bulan($pdo, $waliSantriId, $periode);
+                    $raporSetoran = rapor_setoran_bulan($pdo, $waliSantriId, $periode);
+                    $raporTugas = rapor_tugas_bulan($pdo, $waliSantriId, $periode);
+                    $raporCompact = true;
+                    ?>
                     <div class="card shadow-sm wali-card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between gap-2 mb-2">
@@ -58,8 +67,9 @@ wali_layout_head('Rapor — Portal Wali', true, 'rapor');
                                 <div class="small text-body-secondary mb-2" style="white-space:pre-wrap;"><?= htmlspecialchars((string) $r['narasi']) ?></div>
                             <?php endif; ?>
                             <?php if (trim((string) ($r['catatan_pondok'] ?? '')) !== ''): ?>
-                                <div class="small border-start border-3 border-success ps-2 mt-2"><?= nl2br(htmlspecialchars((string) $r['catatan_pondok'])) ?></div>
+                                <div class="small border-start border-3 border-success ps-2 mb-2"><?= nl2br(htmlspecialchars((string) $r['catatan_pondok'])) ?></div>
                             <?php endif; ?>
+                            <?php require __DIR__ . '/../includes/partials/rapor_isi.php'; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>

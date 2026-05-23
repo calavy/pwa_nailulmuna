@@ -4,8 +4,28 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/user_profil.php';
 $currentUser = $_SESSION['user']['nama'] ?? 'Guest';
 $currentRole = $_SESSION['user']['role'] ?? 'admin';
+$currentUserRow = [
+    'nama' => $currentUser,
+    'foto_profil' => trim((string) ($_SESSION['user']['foto_profil'] ?? '')),
+];
+if (isset($_SESSION['user']['id']) && isset($pdo) && $pdo instanceof PDO && table_exists($pdo, 'users')) {
+    user_profil_ensure_schema($pdo);
+    $uidHeader = (int) $_SESSION['user']['id'];
+    $stHeaderUser = $pdo->prepare('SELECT nama, foto_profil FROM users WHERE id = :id LIMIT 1');
+    $stHeaderUser->execute(['id' => $uidHeader]);
+    $rowHeaderUser = $stHeaderUser->fetch(PDO::FETCH_ASSOC);
+    if (is_array($rowHeaderUser)) {
+        $currentUser = (string) ($rowHeaderUser['nama'] ?? $currentUser);
+        $currentUserRow = [
+            'nama' => $currentUser,
+            'foto_profil' => trim((string) ($rowHeaderUser['foto_profil'] ?? '')),
+        ];
+        $_SESSION['user']['foto_profil'] = $currentUserRow['foto_profil'];
+    }
+}
 if (isset($_SESSION['user']) && (($_SESSION['user']['username'] ?? '') === 'admin') && !isset($_SESSION['user']['is_super_admin'])) {
     $_SESSION['user']['is_super_admin'] = 1;
 }
@@ -152,8 +172,14 @@ if (!function_exists('render_app_sidebar_nav')) {
             <span class="app-topbar-title d-none d-md-inline-flex"><?= htmlspecialchars($pageTitle ?? 'Dashboard') ?></span>
         </div>
         <div class="app-topbar-right">
-            <span class="app-topbar-user d-none d-sm-inline-flex" title="<?= htmlspecialchars($currentUser) ?>"><?= htmlspecialchars($currentUser) ?></span>
             <?php if (isset($_SESSION['user'])): ?>
+                <a class="app-topbar-profile d-none d-sm-inline-flex" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="Profil &amp; foto">
+                    <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                    <span class="app-topbar-user"><?= htmlspecialchars($currentUser) ?></span>
+                </a>
+                <a class="app-topbar-profile d-inline-flex d-sm-none" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="<?= htmlspecialchars($currentUser) ?>">
+                    <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                </a>
                 <button type="button" class="btn btn-sm btn-outline-light" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
                 <a class="btn btn-sm btn-outline-light" href="<?= htmlspecialchars(app_href('/logout.php')) ?>">Keluar</a>
             <?php endif; ?>

@@ -1,90 +1,165 @@
-/* Kalender akademik — tampilan bersih & modern (selaras app.css) */
+/* Kalender — selaras warna aplikasi & portal login */
 
-.akademik-kalender-page {
-    --cal-primary: #0f766e;
-    --cal-primary-soft: rgba(15, 118, 110, 0.08);
+.akademik-kalender-page,
+.pondok-kalender-page {
+    --cal-primary: var(--app-primary, #0f766e);
+    --cal-primary-dark: var(--app-primary-dark, #115e59);
+    --cal-secondary: var(--app-secondary, #0891b2);
+    --cal-primary-soft: rgba(15, 118, 110, 0.12);
     --cal-primary-border: rgba(15, 118, 110, 0.22);
-    --cal-page-bg: #f4f6f8;
-    --cal-surface: #ffffff;
-    --cal-surface-muted: #f8fafc;
-    --cal-border: #e8ecf1;
+    --cal-page-bg: #f0fdfa;
+    /* Panel & kartu — mint/teal, bukan putih */
+    --cal-surface: #ecfdf5;
+    --cal-surface-muted: #d1fae5;
+    --cal-surface-raised: #f0fdfa;
+    /* Sel tanggal (1 bulan & 12 bulan) */
+    --cal-cell: #f0fdfa;
+    --cal-cell-weekend: #e6faf5;
+    --cal-cell-empty: #dcefe9;
+    --cal-cell-hover: #ccfbf1;
+    --cal-head-row: linear-gradient(180deg, #d1fae5 0%, #ecfdf5 100%);
+    --cal-border: rgba(15, 118, 110, 0.18);
     --cal-text: #0f172a;
     --cal-text-muted: #64748b;
-    --cal-radius: 12px;
-    --cal-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-    --cal-shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.07);
+    --cal-radius: 14px;
+    --cal-shadow: 0 8px 24px rgba(15, 118, 110, 0.08);
+    --cal-shadow-hover: 0 12px 32px rgba(15, 118, 110, 0.12);
 }
 
-/* Latar halaman datar — tanpa gradien app.css */
-body.akademik-kalender-page {
-    background: var(--cal-page-bg) !important;
+body.akademik-kalender-page,
+body.pondok-kalender-page {
+    background: linear-gradient(180deg, var(--cal-page-bg) 0%, #f8fafc 48%, #f1f5f9 100%) !important;
 }
 
-body.akademik-kalender-page .app-main {
+body.akademik-kalender-page .app-main,
+body.pondok-kalender-page .app-main,
+body.akademik-kalender-page .app-content,
+body.pondok-kalender-page .app-content {
     background: transparent;
 }
 
-body.akademik-kalender-page .app-content {
-    background: transparent;
-}
-
-[data-theme="dark"] .akademik-kalender-page {
-    --cal-page-bg: #0f1419;
-    --cal-surface: #1a2332;
-    --cal-surface-muted: #151c27;
-    --cal-border: #2d3a4d;
+[data-theme="dark"] .akademik-kalender-page,
+[data-theme="dark"] .pondok-kalender-page {
+    --cal-page-bg: #0f172a;
+    --cal-surface: #1a2f2d;
+    --cal-surface-muted: #152826;
+    --cal-surface-raised: #1e3a38;
+    --cal-cell: #1a2f2d;
+    --cal-cell-weekend: #173532;
+    --cal-cell-empty: #132220;
+    --cal-cell-hover: #234a46;
+    --cal-head-row: linear-gradient(180deg, #1e3a38 0%, #1a2f2d 100%);
+    --cal-border: rgba(45, 212, 191, 0.2);
     --cal-text: #f1f5f9;
     --cal-text-muted: #94a3b8;
-    --cal-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --cal-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-[data-theme="dark"] body.akademik-kalender-page {
-    background: var(--cal-page-bg) !important;
+[data-theme="dark"] body.akademik-kalender-page,
+[data-theme="dark"] body.pondok-kalender-page {
+    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
 }
 
-/* —— Hero —— */
-.akad-cal-hero {
-    background: var(--cal-surface);
-    border: 1px solid var(--cal-border);
-    border-left: 4px solid var(--cal-primary);
-    border-radius: var(--cal-radius);
-    color: var(--cal-text);
-    padding: 1.35rem 1.5rem;
-    box-shadow: var(--cal-shadow);
+/* —— Hero (gaya portal login) —— */
+.akad-cal-hero--portal {
+    background: linear-gradient(145deg, var(--cal-primary) 0%, var(--cal-primary-dark) 42%, var(--cal-secondary) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: clamp(14px, 2vw, 18px);
+    color: #fff;
+    padding: clamp(1.1rem, 3vw, 1.5rem) clamp(1rem, 3.5vw, 1.6rem);
+    box-shadow: 0 18px 46px rgba(14, 116, 144, 0.28);
     position: relative;
+    overflow: hidden;
 }
 
-.akad-cal-hero h1 {
-    font-weight: 800;
-    letter-spacing: -0.03em;
+.akad-cal-hero--portal::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image:
+        radial-gradient(ellipse 70% 50% at 100% 0%, rgba(255, 255, 255, 0.25), transparent 55%),
+        radial-gradient(circle at 1.5px 1.5px, rgba(255, 255, 255, 0.15) 1px, transparent 0);
+    background-size: auto, 22px 22px;
+}
+
+.akad-cal-hero--portal > * {
     position: relative;
+    z-index: 1;
 }
 
 .akad-cal-hero-kicker {
-    color: var(--cal-primary) !important;
-    letter-spacing: 0.08em;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.82) !important;
+    margin: 0;
 }
 
-.akad-cal-hero .opacity-90 {
-    opacity: 1 !important;
-    color: var(--cal-text-muted);
+.akad-cal-hero-brand {
+    font-size: clamp(1rem, 2.8vw, 1.2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: #fff;
 }
 
-.akad-cal-hero-today {
+.akad-cal-hero-title {
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #fff;
+    margin: 0;
+}
+
+.akad-cal-hero-desc {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 52ch;
+}
+
+.akad-cal-hero-today-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.akad-cal-hero-today-chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    padding: 0.45rem 0.85rem;
-    border-radius: 8px;
-    background: var(--cal-primary-soft);
-    border: 1px solid var(--cal-primary-border);
-    color: var(--cal-text);
-    font-size: 0.85rem;
+    gap: 0.4rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
 }
 
-.akad-cal-hero-today .fa-solid {
-    color: var(--cal-primary);
+.akad-cal-hero-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.akad-cal-hero-status--aktif {
+    background: #22c55e;
+    color: #fff;
+}
+
+.akad-cal-hero-status--libur {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+@media (min-width: 992px) {
+    .akad-cal-hero-desc {
+        max-width: 42ch;
+    }
 }
 
 /* —— Nav & toolbar —— */
@@ -121,6 +196,49 @@ body.akademik-kalender-page .app-content {
     box-shadow: none;
 }
 
+.akad-cal-toolbar .btn-outline-primary {
+    border-color: var(--cal-primary-border);
+    color: var(--cal-primary);
+    font-weight: 600;
+}
+
+.akad-cal-toolbar .btn-outline-primary.active,
+.akad-cal-toolbar .btn-outline-primary:hover {
+    background: var(--cal-primary);
+    border-color: var(--cal-primary);
+    color: #fff;
+}
+
+body.akademik-kalender-page .btn-success,
+body.pondok-kalender-page .btn-success {
+    background: var(--cal-primary) !important;
+    border-color: var(--cal-primary) !important;
+}
+
+.akad-cal-card-header,
+.akad-cal-card-footer {
+    background: linear-gradient(120deg, rgba(15, 118, 110, 0.08) 0%, rgba(8, 145, 178, 0.06) 100%) !important;
+    border-color: var(--cal-border) !important;
+    color: var(--cal-text);
+}
+
+.akad-cal-section-title {
+    color: var(--cal-primary) !important;
+    font-weight: 700;
+}
+
+.akad-cal-settings-card,
+.akad-cal-link-card {
+    border-color: var(--cal-border) !important;
+    border-radius: var(--cal-radius);
+    box-shadow: var(--cal-shadow);
+    overflow: hidden;
+}
+
+.akad-cal-link-card .btn-success {
+    font-weight: 600;
+}
+
 /* —— Legend —— */
 .akad-cal-legend {
     display: grid;
@@ -139,7 +257,7 @@ body.akademik-kalender-page .app-content {
     gap: 0.45rem;
     padding: 0.35rem 0.55rem;
     border-radius: 8px;
-    background: var(--cal-surface);
+    background: var(--cal-surface-raised);
     border: 1px solid var(--cal-border);
 }
 
@@ -154,7 +272,7 @@ body.akademik-kalender-page .app-content {
 .akad-cal-legend-swatch--today {
     outline: 2px solid var(--cal-primary);
     outline-offset: 1px;
-    background: #fff;
+    background: var(--cal-cell);
 }
 
 .akad-cal-legend-swatch--jumat { background: var(--cal-primary-soft); border-color: var(--cal-primary-border); }
@@ -186,7 +304,7 @@ body.akademik-kalender-page .app-content {
 
 .akad-cal-filter-bar {
     padding: 1rem 1.25rem;
-    background: var(--cal-surface);
+    background: var(--cal-surface-raised);
     border-bottom: 1px solid var(--cal-border);
 }
 
@@ -197,6 +315,7 @@ body.akademik-kalender-page .app-content {
     justify-content: space-between;
     gap: 1rem;
     padding: 1.25rem 1.25rem 0.75rem;
+    background: var(--cal-surface-raised);
 }
 
 .akad-cal-month-header-text h2 {
@@ -237,12 +356,13 @@ body.akademik-kalender-page .app-content {
 }
 
 .akad-cal-month-nav .btn:hover {
-    background: var(--cal-surface);
+    background: var(--cal-cell-hover);
     color: var(--cal-primary);
 }
 
 .akad-cal-month-body {
     padding: 0 1rem 1.25rem;
+    background: var(--cal-surface);
 }
 
 .akad-cal-year-note {
@@ -272,7 +392,7 @@ body.akademik-kalender-page .app-content {
     border: 1px solid var(--cal-border);
     border-radius: 10px;
     overflow: hidden;
-    background: var(--cal-surface);
+    background: var(--cal-surface-muted);
 }
 
 .akad-cal-month-block {
@@ -311,8 +431,8 @@ body.akademik-kalender-page .app-content {
     letter-spacing: 0.04em;
     text-align: center;
     padding: 0.65rem 0.25rem;
-    color: var(--cal-text-muted);
-    background: var(--cal-surface);
+    color: var(--cal-primary-dark);
+    background: var(--cal-head-row);
     border-bottom: 1px solid var(--cal-border);
 }
 
@@ -333,7 +453,7 @@ body.akademik-kalender-page .app-content {
 /* —— Day cell —— */
 .akad-cal-day {
     height: 5.75rem;
-    background: var(--cal-surface);
+    background: var(--cal-cell);
     position: relative;
     cursor: default;
     transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
@@ -347,17 +467,13 @@ body.akademik-kalender-page .app-content {
 
 .akad-cal-day:not(.akad-cal-day--empty):hover {
     z-index: 1;
-    background: #fafbfc !important;
+    background: var(--cal-cell-hover) !important;
     box-shadow: inset 0 0 0 1px var(--cal-primary-border);
 }
 
-[data-theme="dark"] .akad-cal-day:not(.akad-cal-day--empty):hover {
-    background: #243044 !important;
-}
-
 .akad-cal-day--empty {
-    background: var(--cal-surface-muted) !important;
-    opacity: 1;
+    background: var(--cal-cell-empty) !important;
+    opacity: 0.85;
     pointer-events: none;
 }
 
@@ -402,13 +518,13 @@ body.akademik-kalender-page .app-content {
     line-height: 1.2;
 }
 
-/* Sel hari: dasar putih, status pakai garis kiri tipis (bukan wash warna penuh) */
+/* Sel hari — latar teal aplikasi; status pakai garis kiri */
 .akad-cal-day:not(.akad-cal-day--empty) {
-    background: var(--cal-surface) !important;
+    background: var(--cal-cell) !important;
 }
 
 .akad-cal-day--today {
-    background: var(--cal-surface) !important;
+    background: var(--cal-cell-hover) !important;
     box-shadow: inset 0 0 0 2px var(--cal-primary);
 }
 
@@ -417,11 +533,11 @@ body.akademik-kalender-page .app-content {
 }
 
 .akad-cal-day--weekend:not(.akad-cal-day--libur):not(.akad-cal-day--today) {
-    background: var(--cal-surface) !important;
+    background: var(--cal-cell-weekend) !important;
 }
 
 .akad-cal-day--jumat:not(.akad-cal-day--libur):not(.akad-cal-day--today) {
-    background: var(--cal-surface) !important;
+    background: var(--cal-cell-weekend) !important;
     box-shadow: inset 3px 0 0 var(--cal-primary);
 }
 
@@ -435,7 +551,7 @@ body.akademik-kalender-page .app-content {
 .akad-cal-day--hari-nasional,
 .akad-cal-day--libur.akad-cal-day--hari-islam,
 .akad-cal-day--libur.akad-cal-day--hari-nasional {
-    background: var(--cal-surface) !important;
+    background: var(--cal-cell) !important;
 }
 
 .akad-cal-day--libur {
@@ -514,9 +630,9 @@ body.akademik-kalender-page .app-content {
 .akad-cal-pasaran--3,
 .akad-cal-pasaran--4,
 .akad-cal-pasaran--5 {
-    background: var(--cal-surface-muted);
-    border: 1px solid var(--cal-border);
-    color: var(--cal-text-muted);
+    background: rgba(15, 118, 110, 0.1);
+    border: 1px solid var(--cal-primary-border);
+    color: var(--cal-primary-dark);
 }
 
 .akad-cal-day-event {
@@ -533,26 +649,82 @@ body.akademik-kalender-page .app-content {
 }
 
 .akad-cal-day-event--islam {
-    background: var(--cal-surface-muted);
+    background: rgba(255, 255, 255, 0.45);
     border: 1px solid #ddd6fe;
     color: #5b21b6;
 }
 
 .akad-cal-day-event--nasional {
-    background: var(--cal-surface-muted);
+    background: rgba(255, 255, 255, 0.45);
     border: 1px solid #fecaca;
     color: #b91c1c;
 }
 
 .akad-cal-day-event--libur {
-    background: var(--cal-surface-muted);
+    background: rgba(255, 255, 255, 0.45);
     border: 1px solid #fde68a;
     color: #92400e;
+}
+
+.akad-cal-day-event--agenda {
+    background: rgba(8, 145, 178, 0.14);
+    border: 1px solid rgba(8, 145, 178, 0.35);
+    color: var(--cal-secondary, #0891b2);
+    margin-top: 0.12rem;
+}
+
+.akad-cal-day-agenda-more {
+    display: block;
+    font-size: 0.52rem;
+    font-weight: 700;
+    color: var(--cal-secondary, #0891b2);
+    margin-top: 0.08rem;
+}
+
+.akad-cal-day--has-agenda {
+    box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.28);
+}
+
+.akad-cal-day--pick {
+    cursor: pointer;
+}
+
+.akad-cal-day--pick:hover,
+.akad-cal-day--pick:focus-visible {
+    background: var(--cal-cell-hover) !important;
+    outline: 2px solid rgba(8, 145, 178, 0.45);
+    outline-offset: -2px;
+    z-index: 1;
+}
+
+.akad-cal-legend-swatch--agenda {
+    background: rgba(8, 145, 178, 0.2);
+    border: 1px solid rgba(8, 145, 178, 0.45);
+}
+
+[data-theme="dark"] .akad-cal-day-event--agenda {
+    background: rgba(8, 145, 178, 0.22);
+    color: #67e8f9;
+}
+
+[data-theme="dark"] .akad-cal-day-event--islam,
+[data-theme="dark"] .akad-cal-day-event--nasional,
+[data-theme="dark"] .akad-cal-day-event--libur {
+    background: rgba(15, 23, 42, 0.55);
 }
 
 [data-theme="dark"] .akad-cal-day-event--islam { color: #ddd6fe; }
 [data-theme="dark"] .akad-cal-day-event--nasional { color: #fecaca; }
 [data-theme="dark"] .akad-cal-day-event--libur { color: #fde68a; }
+
+[data-theme="dark"] .akad-cal-pasaran--1,
+[data-theme="dark"] .akad-cal-pasaran--2,
+[data-theme="dark"] .akad-cal-pasaran--3,
+[data-theme="dark"] .akad-cal-pasaran--4,
+[data-theme="dark"] .akad-cal-pasaran--5 {
+    background: rgba(15, 118, 110, 0.25);
+    color: #99f6e4;
+}
 
 .akad-cal-day-libur-dot {
     width: 0.4rem;
@@ -592,22 +764,34 @@ body.akademik-kalender-page .app-content {
     padding: 0.75rem;
     border: 1px solid var(--cal-border);
     border-radius: 10px;
-    background: var(--cal-surface);
-    transition: box-shadow 0.2s ease;
+    background: linear-gradient(165deg, var(--cal-surface) 0%, var(--cal-surface-raised) 100%);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .akad-cal-month-block--compact:hover {
-    border-color: var(--cal-primary-border);
+    border-color: var(--cal-primary);
+    box-shadow: var(--cal-shadow-hover);
 }
 
-/* Kartu & tabel di bawah kalender — latar seragam */
-body.akademik-kalender-page .card {
+.akad-cal-month-block--compact .akad-cal-table-shell {
+    background: var(--cal-surface-muted);
+}
+
+.akad-cal-month-block--compact .akad-cal-day:not(.akad-cal-day--empty) {
+    background: var(--cal-cell) !important;
+}
+
+/* Kartu & tabel — latar seragam */
+body.akademik-kalender-page .card,
+body.pondok-kalender-page .card {
     background: var(--cal-surface);
     border-color: var(--cal-border);
     box-shadow: var(--cal-shadow);
+    border-radius: var(--cal-radius);
 }
 
-body.akademik-kalender-page .card-header.bg-light {
+body.akademik-kalender-page .card-header.bg-light,
+body.pondok-kalender-page .card-header.bg-light {
     background: var(--cal-surface-muted) !important;
     border-color: var(--cal-border);
 }

@@ -21,6 +21,7 @@ function surat_nomor_prefix_for_jenis(string $jenis): string
         'izin_keluar' => 'SIZN.S',
         'izin_tugas' => 'IZN.T',
         'izin_sakit' => 'IZN.S',
+        'izin_tetap' => 'SIZN.T',
         'sp1' => 'S.SP1.',
         'sp2' => 'S.SP2.',
         'surat_keluar' => 'SKLR.S',

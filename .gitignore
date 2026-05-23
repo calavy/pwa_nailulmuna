@@ -6,3 +6,4 @@ config/firebase.local.php
 uploads/*
 !uploads/.gitkeep
 !uploads/logos/.gitkeep
+!uploads/profiles/.gitkeep

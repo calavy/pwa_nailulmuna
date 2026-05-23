@@ -7,260 +7,186 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
+require_once __DIR__ . '/../helpers/kalender_pengaturan.php';
+require_once __DIR__ . '/../includes/auth_portal_layout.php';
+require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
 
 require_roles(['admin', 'pengurus']);
+ensure_akademik_kalender_hari_table($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? ''));
-    if ($action === 'aktifkan_kalender_hijriyah') {
-        pondok_aktifkan_kalender_hijriyah($pdo);
-        $bf = pondok_backfill_kalender_hijriyah($pdo, false);
-        set_flash('success', sprintf(
-            'Kalender pondok diaktifkan ke Hijriyah. Data lama disesuaikan: %d pembayaran, %d presensi, %d jeda potongan (%d dilewati).',
-            (int) $bf['pembayaran'],
-            (int) $bf['presensi'],
-            (int) $bf['jeda'],
-            (int) $bf['skipped']
-        ));
+    if ($action === 'simpan_pengaturan') {
+        $res = kalender_pengaturan_simpan($pdo, $_POST);
+        $msg = $res['message'];
+        if (!empty($res['backfill']) && is_array($res['backfill'])) {
+            $bf = $res['backfill'];
+            $msg .= sprintf(
+                ' Data lama disesuaikan: %d pembayaran, %d presensi, %d jeda potongan.',
+                (int) ($bf['pembayaran'] ?? 0),
+                (int) ($bf['presensi'] ?? 0),
+                (int) ($bf['jeda'] ?? 0)
+            );
+        }
+        set_flash($res['ok'] ? 'success' : 'error', $msg);
         header('Location: ' . app_href('/settings/kalender.php'));
         exit;
     }
     if ($action === 'backfill_kalender_hijriyah') {
         $bf = pondok_backfill_kalender_hijriyah($pdo, !empty($_POST['force']));
         set_flash('success', sprintf(
-            'Penyesuaian kalender Hijriyah selesai: %d pembayaran, %d presensi, %d jeda potongan diperbarui (%d dilewati).',
+            'Penyesuaian selesai: %d pembayaran, %d presensi, %d jeda (%d dilewati).',
             (int) $bf['pembayaran'],
             (int) $bf['presensi'],
             (int) $bf['jeda'],
             (int) $bf['skipped']
         ));
-        header('Location: ' . app_href('/settings/kalender.php'));
-        exit;
-    }
-    if ($action === 'simpan_pengaturan_blokir') {
-        save_setting($pdo, 'akademik_blokir_presensi_libur', isset($_POST['blok_presensi']) ? '1' : '0');
-        save_setting($pdo, 'akademik_blokir_setoran_libur', isset($_POST['blok_setoran']) ? '1' : '0');
-        save_setting($pdo, 'akademik_blokir_penilaian_libur', isset($_POST['blok_penilaian']) ? '1' : '0');
-        set_flash('success', 'Pengaturan blokir hari libur disimpan.');
-        header('Location: ' . app_href('/settings/kalender.php'));
-        exit;
-    }
-    if ($action === 'simpan_default_view_kalender') {
-        $dv = strtolower(trim((string) ($_POST['akademik_kalender_default_view'] ?? 'bulan')));
-        if (!in_array($dv, ['bulan', 'masehi', 'atur', 'tahun'], true)) {
-            $dv = 'bulan';
-        }
-        if ($dv === 'tahun') {
-            $dv = 'atur';
-        }
-        save_setting($pdo, 'akademik_kalender_default_view', $dv);
-        set_flash('success', 'Tampilan awal halaman kalender akademik disimpan.');
-        header('Location: ' . app_href('/settings/kalender.php'));
+        header('Location: ' . app_href('/settings/kalender.php#alat-lanjutan'));
         exit;
     }
 }
 
-ensure_akademik_kalender_hari_table($pdo);
-
-$hijriBulanNama = [
-    1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
-    7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
-];
-
-$todayMasehi = date('Y-m-d');
-$todayHijri = akademik_hijri_tanggal_penuh($pdo, $todayMasehi);
-$hijriAnchor = akademik_hijri_anchor_hari_ini($pdo);
-$hyToday = 1446;
-$hmToday = 1;
-if (preg_match('/^(\d{4})-(\d{2})-\d{2}$/', $todayHijri, $mh)) {
-    $hyToday = (int) $mh[1];
-    $hmToday = (int) $mh[2];
-}
-if ($hyToday < 1300 || $hyToday > 1600) {
-    $hyToday = $hijriAnchor['y'];
-    $hmToday = $hijriAnchor['m'];
-}
-$hijriLabelLatin = $todayHijri;
-if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $todayHijri, $mh)) {
-    $mo = (int) $mh[2];
-    $hijriLabelLatin = (int) $mh[3] . ' ' . ($hijriBulanNama[$mo] ?? ('Bulan ' . $mo)) . ' ' . (int) $mh[1] . ' H.';
-}
-$masehiLabel = akademik_masehi_label_pendek($todayMasehi);
-
-$masehiTahunBerjalan = (int) date('Y');
-[$hijriTahunMinMasehi, $hijriTahunMaxMasehi] = akademik_hijri_tahun_range_untuk_tahun_masehi($pdo, $masehiTahunBerjalan);
-$hijriTahunRangeTeks = $hijriTahunMinMasehi > 0 && $hijriTahunMaxMasehi > 0
-    ? ($hijriTahunMinMasehi === $hijriTahunMaxMasehi
-        ? sprintf('seluruhnya dalam tahun Hijriyah %d H.', $hijriTahunMinMasehi)
-        : sprintf('melintasi tahun Hijriyah %d H. dan %d H.', $hijriTahunMinMasehi, $hijriTahunMaxMasehi))
-    : '';
-
-$uPusat = '/menu/menu_hub.php?id=menu-grp-pengaturan';
-$uPondokMasehi = '/settings/pesantren.php#tahun-masehi-acuan';
-$uAkademik = '/akademik/kalender.php';
-$uAwalBulan = $uAkademik . '?view=atur&hy=' . $hyToday;
-$urlBulanIni = $uAkademik . '?view=bulan&hy=' . $hyToday . '&hm=' . $hmToday;
-
-$kalenderStatus = pondok_kalender_status($pdo);
-$kalenderTagihanMode = $kalenderStatus['mode'];
+$v = kalender_pengaturan_load($pdo);
+$hari = kalender_pengaturan_ringkas_hari_ini($pdo);
 $blokP = akademik_blokir_presensi_libur($pdo);
 $blokS = akademik_blokir_setoran_libur($pdo);
 $blokN = akademik_blokir_penilaian_libur($pdo);
-$defViewCur = strtolower(trim((string) app_setting($pdo, 'akademik_kalender_default_view', 'bulan')));
-$defViewCur = in_array($defViewCur, ['bulan', 'tahun'], true) ? $defViewCur : 'bulan';
 
-$pageTitle = 'Kalender';
-$bodyClass = 'settings-module-page';
+$pageTitle = 'Pengaturan Kalender';
+$bodyClass = 'settings-module-page pondok-kalender-page';
 $settingsNavActive = '/settings/kalender.php';
+$brandNama = auth_portal_brand_nama($pdo);
 require_once __DIR__ . '/../includes/header.php';
+
+$err = get_flash('error');
+$ok = get_flash('success');
+?>
+<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
+
+<?php
+render_kalender_page_hero([
+    'kicker' => 'Pengaturan',
+    'brand' => $brandNama,
+    'title' => 'Pengaturan Kalender',
+    'description' => 'Kalender Hijriyah/Masehi, tagihan bulanan, rekap tahun, dan aturan hari libur pondok.',
+    'today_masehi' => (string) ($hari['masehi_label'] ?? ''),
+    'today_hijri' => (string) ($hari['hijri_label'] ?? ''),
+    'status_label' => (string) ($hari['status']['label'] ?? ''),
+    'status_active' => !empty($hari['status']['aktif']),
+]);
 ?>
 
-<div class="page-intro mb-4">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars($uPusat) ?>">Pengaturan</a> · <a href="<?= htmlspecialchars($uAkademik) ?>">Kalender akademik</a></p>
-    <h1 class="h4 mb-2">Kalender</h1>
-    <p class="text-muted mb-2">Tanggal Masehi mengikuti jam sistem; tanggal Hijriyah memakai <strong>kalender kustom berbasis database</strong> (<a href="/settings/hijri_mappings.php">pemetaan Hijriyah</a>) dengan fallback hisab Intl bila belum diisi.</p>
-    <p class="small text-muted mb-0"><span class="badge text-bg-light border me-1">Halaman ini</span> ringkasan, pintasan, dan pengaturan lanjutan (blokir aktivitas saat libur, tampilan awal). <span class="badge text-bg-primary me-1">Kalender akademik</span> untuk mengatur tahun H., tanggal Masehi hari ke-1 tiap bulan H., dan libur rentang.</p>
-    <p class="small mt-2 mb-0">Tagihan &amp; laporan keuangan santri memakai kalender <strong><?= htmlspecialchars($kalenderStatus['label']) ?></strong> — ubah di <a href="/settings/pesantren.php">Pengaturan pondok</a> (Kalender Tagihan).</p>
-    <?php if (!$kalenderStatus['aktif']) { ?>
-        <div class="alert alert-warning mt-3 mb-0 py-2 px-3">
-            <p class="small mb-2 mb-md-0"><strong>Kalender masih Masehi.</strong> Bulan tagihan akan tampil sebagai Januari–Desember (mis. «Mei»), bukan Muharram–Dzulhijjah. Aktifkan Hijriyah sekali di bawah atau di Pengaturan pondok.</p>
-            <form method="post" class="mt-2" onsubmit="return confirm('Aktifkan kalender Hijriyah untuk tagihan, laporan, dan tampilan kalender akademik?');">
-                <input type="hidden" name="action" value="aktifkan_kalender_hijriyah">
-                <button type="submit" class="btn btn-sm btn-warning">Aktifkan kalender Hijriyah</button>
-            </form>
-        </div>
-    <?php } ?>
-    <?php if (!class_exists('IntlDateFormatter')) { ?>
-        <p class="alert alert-warning small py-2 px-3 mb-0 mt-3"><strong>PHP intl</strong> tidak aktif: hisab Hijriyah otomatis (Um al-Qura) tidak berjalan. Tahun H. di kalender memakai fallback aman (1447 H.) sampai Anda mengaktifkan <code class="user-select-all">extension=intl</code> di php.ini dan merestart Apache.</p>
-    <?php } ?>
-</div>
+<?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+<?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
 
-<div class="card shadow-sm mb-4 border-primary">
+<form method="post" class="card shadow-sm mb-3 akad-cal-settings-card">
+    <input type="hidden" name="action" value="simpan_pengaturan">
+    <div class="card-header akad-cal-card-header fw-semibold">Pengaturan utama</div>
     <div class="card-body">
-        <h2 class="h6 text-primary mb-3">1. Hari ini (otomatis)</h2>
-        <div class="row g-3">
-            <div class="col-md-6">
-                <p class="small text-muted mb-1">Masehi</p>
-                <p class="mb-0 fs-5 fw-semibold"><?= htmlspecialchars($masehiLabel) ?></p>
-                <p class="small font-monospace text-muted mb-0"><?= htmlspecialchars($todayMasehi) ?></p>
-            </div>
-            <div class="col-md-6">
-                <p class="small text-muted mb-1">Hijriyah (yang dipakai aplikasi)</p>
-                <p class="mb-0 fs-5 fw-semibold"><?= htmlspecialchars($hijriLabelLatin) ?></p>
-                <p class="small font-monospace text-muted mb-0"><?= htmlspecialchars($todayHijri) ?> · <span class="text-body">Tahun H. <?= (int) $hyToday ?>, bulan ke-<?= (int) $hmToday ?></span></p>
-            </div>
-        </div>
-        <?php if ($hijriTahunRangeTeks !== '') { ?>
-            <p class="small text-muted border-top pt-3 mb-0">Satu tahun Masehi penuh (1 Jan–31 Des <strong><?= (int) $masehiTahunBerjalan ?></strong>) menurut data aplikasi <?= htmlspecialchars($hijriTahunRangeTeks) ?>. Ini wajar karena tahun Hijriyah lebih pendek dari tahun Masehi.</p>
-        <?php } ?>
-    </div>
-</div>
-
-<div class="card shadow-sm mb-4" id="pengaturan-lanjutan-kalender">
-    <div class="card-body">
-        <h2 class="h6 mb-3">2. Pengaturan lanjutan kalender akademik</h2>
         <div class="row g-4">
-            <div class="col-md-6">
-                <h3 class="h6 text-muted mb-2">Tampilan awal halaman kalender</h3>
-                <p class="small text-muted mb-2">Saat membuka kalender akademik tanpa memilih tampilan, halaman memakai pilihan ini.</p>
-                <form method="post" class="d-flex flex-wrap align-items-center gap-2">
-                    <input type="hidden" name="action" value="simpan_default_view_kalender">
-                    <select name="akademik_kalender_default_view" class="form-select form-select-sm" style="width:auto;min-width:10rem">
-                        <option value="bulan" <?= in_array($defViewCur, ['bulan', ''], true) ? 'selected' : '' ?>>Satu bulan</option>
-                        <option value="masehi" <?= $defViewCur === 'masehi' ? 'selected' : '' ?>>12 bulan (Masehi)</option>
-                        <option value="atur" <?= in_array($defViewCur, ['atur', 'tahun'], true) ? 'selected' : '' ?>>Atur tahun H.</option>
+            <div class="col-lg-6">
+                <h2 class="h6 akad-cal-section-title mb-2">Kalender pondok</h2>
+                <p class="small text-muted">Mempengaruhi tagihan syahriyah, laporan keuangan, rekap presensi, dan tampilan bulan di aplikasi.</p>
+                <div class="mb-3">
+                    <label class="form-label">Jenis kalender</label>
+                    <select name="wa_tagihan_calendar" class="form-select" id="sel-kalender-mode">
+                        <option value="HIJRIYAH" <?= $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah (Muharram – Dzulhijjah)</option>
+                        <option value="MASEHI" <?= $v['wa_tagihan_calendar'] === 'MASEHI' ? 'selected' : '' ?>>Masehi (Januari – Desember)</option>
                     </select>
-                    <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
-                </form>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label">Tanggal kirim tagihan</label>
+                        <input type="number" name="wa_tagihan_day" class="form-control" min="1" max="30" value="<?= htmlspecialchars($v['wa_tagihan_day']) ?>">
+                        <div class="form-text">Hari ke-1 s/d 30 tiap bulan.</div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Jam kirim tagihan (WA)</label>
+                        <input type="time" name="wa_tagihan_send_time" class="form-control" value="<?= htmlspecialchars($v['wa_tagihan_send_time']) ?>">
+                    </div>
+                </div>
             </div>
-            <div class="col-md-6">
-                <h3 class="h6 text-muted mb-2">Blokir aktivitas di hari libur</h3>
-                <form method="post" class="d-grid gap-2">
-                    <input type="hidden" name="action" value="simpan_pengaturan_blokir">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="blok_presensi" id="bp" <?= $blokP ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="bp">Blokir <strong>presensi</strong> pada tanggal libur</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="blok_setoran" id="bs" <?= $blokS ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="bs">Blokir <strong>setoran hafalan</strong> (kecuali lewati di form)</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="blok_penilaian" id="bn" <?= $blokN ? 'checked' : '' ?>>
-                        <label class="form-check-label small" for="bn">Blokir <strong>input poin / penilaian</strong> pada tanggal libur</label>
-                    </div>
-                    <button type="submit" class="btn btn-sm btn-primary">Simpan blokir</button>
-                </form>
+
+            <div class="col-lg-6">
+                <h2 class="h6 akad-cal-section-title mb-2">Rekap &amp; laporan</h2>
+                <p class="small text-muted">Tahun default saat membuka rekap tanpa memilih tahun di alamat web.</p>
+                <div class="mb-3">
+                    <label class="form-label">Sumber tahun Masehi</label>
+                    <select name="app_tahun_masehi_mode" class="form-select">
+                        <option value="BERJALAN" <?= $v['app_tahun_masehi_mode'] === 'BERJALAN' ? 'selected' : '' ?>>Otomatis tahun berjalan</option>
+                        <option value="TETAP" <?= $v['app_tahun_masehi_mode'] === 'TETAP' ? 'selected' : '' ?>>Tetap ke tahun tertentu</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tahun Masehi tetap</label>
+                    <input type="number" name="app_tahun_masehi_tetap" class="form-control" min="1900" max="2100" value="<?= htmlspecialchars($v['app_tahun_masehi_tetap']) ?>">
+                </div>
+            </div>
+
+            <div class="col-12"><hr class="my-0"></div>
+
+            <div class="col-lg-6">
+                <h2 class="h6 akad-cal-section-title mb-2">Kalender akademik</h2>
+                <label class="form-label">Tampilan awal halaman kalender</label>
+                <select name="akademik_kalender_default_view" class="form-select mb-3">
+                    <option value="bulan" <?= $v['akademik_kalender_default_view'] === 'bulan' ? 'selected' : '' ?>>Satu bulan Hijriyah</option>
+                    <option value="masehi" <?= $v['akademik_kalender_default_view'] === 'masehi' ? 'selected' : '' ?>>12 bulan Masehi</option>
+                    <option value="atur" <?= $v['akademik_kalender_default_view'] === 'atur' ? 'selected' : '' ?>>Atur tahun H. (awal bulan)</option>
+                </select>
+            </div>
+
+            <div class="col-lg-6">
+                <h2 class="h6 akad-cal-section-title mb-2">Hari libur</h2>
+                <p class="small text-muted">Blokir input saat tanggal ditandai libur di kalender akademik.</p>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="blok_presensi" id="bp" <?= $blokP ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="bp">Blokir presensi</label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="blok_setoran" id="bs" <?= $blokS ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="bs">Blokir setoran hafalan</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="blok_penilaian" id="bn" <?= $blokN ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="bn">Blokir input poin / penilaian</label>
+                </div>
             </div>
         </div>
     </div>
-</div>
+    <div class="card-footer akad-cal-card-footer d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <span class="small text-muted">Semua pengaturan di atas disimpan sekaligus.</span>
+        <button type="submit" class="btn btn-success"><i class="fa-solid fa-save me-1"></i> Simpan pengaturan</button>
+    </div>
+</form>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <h2 class="h6 mb-2">3. Mengatur apa, di mana?</h2>
-        <p class="small text-muted mb-3">Ikuti baris yang sesuai kebutuhan; tautan kanan membuka bagian yang tepat di aplikasi.</p>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col" style="min-width:14rem">Yang ingin Anda lakukan</th>
-                        <th scope="col">Buka</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="small">Atur <strong>tahun H.</strong>, <strong>tanggal Masehi hari ke-1</strong>, dan <strong>29/30 hari</strong> per bulan (sidang isbat)</td>
-                        <td class="small">
-                            <a class="btn btn-sm btn-primary mb-1" href="<?= htmlspecialchars($uAwalBulan) ?>">Kalender — pengaturan tahun <?= (int) $hyToday ?> H.</a>
-                            <a class="btn btn-sm btn-outline-primary mb-1" href="/settings/hijri_mappings.php">Pemetaan Hijriyah (DB)</a>
-                            <a class="btn btn-sm btn-outline-secondary mb-1" href="<?= htmlspecialchars($urlBulanIni) ?>">Grid bulan ini</a>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="small"><strong>Libur rentang</strong> (cuti, libur nasional menurut Masehi)</td>
-                        <td class="small"><a href="<?= htmlspecialchars($uAkademik) ?>#kalender-libur-rentang">Kalender akademik — tambah libur rentang</a></td>
-                    </tr>
-                    <tr>
-                        <td class="small"><strong>Blokir aktivitas</strong> saat tanggal libur &amp; <strong>tampilan awal</strong> kalender</td>
-                        <td class="small"><a href="#pengaturan-lanjutan-kalender">Bagian «Pengaturan lanjutan» di halaman ini</a></td>
-                    </tr>
-                    <tr>
-                        <td class="small"><strong>Tahun Masehi default</strong> untuk rekap bila alamat web tanpa tahun</td>
-                        <td class="small"><a href="<?= htmlspecialchars($uPondokMasehi) ?>">Pengaturan pondok — tahun Masehi acuan</a></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+<div class="card shadow-sm mb-3 akad-cal-link-card">
+    <div class="card-header akad-cal-card-header fw-semibold small">Kelola kalender &amp; libur</div>
+    <div class="card-body d-flex flex-wrap gap-2">
+        <a href="<?= htmlspecialchars(app_href('/akademik/kalender.php')) ?>" class="btn btn-success"><i class="fa-solid fa-calendar-days me-1"></i> Kalender akademik (grid &amp; libur)</a>
+        <a href="/settings/hijri_mappings.php" class="btn btn-outline-secondary"><i class="fa-solid fa-moon me-1"></i> Pemetaan bulan Hijriyah</a>
+    </div>
+    <div class="card-footer small text-muted">
+        Atur tanggal awal tiap bulan H., jumlah hari (29/30), dan libur rentang di halaman kalender akademik atau pemetaan DB.
     </div>
 </div>
 
-<div class="card shadow-sm mb-4 border-warning" id="backfill-hijriyah">
+<div class="card shadow-sm mb-3 border-warning border-opacity-50" id="alat-lanjutan">
+    <div class="card-header fw-semibold small">Alat lanjutan</div>
     <div class="card-body">
-        <h2 class="h6 mb-2">4. Sesuaikan data lama (Masehi → Hijriyah)</h2>
-        <p class="small text-muted mb-3">
-            Bila server/GitHub sudah berisi pembayaran atau presensi dengan bulan tahun Masehi (Januari–Desember / TA 2025/2026),
-            jalankan penyesuaian sekali setelah mengaktifkan kalender tagihan <strong>Hijriyah</strong> di
-            <a href="/settings/pesantren.php">Pengaturan pondok</a>. Sistem mengisi <code>kalender_hijriyah</code> dari
-            <code>tanggal_bayar</code> / <code>tanggal_presensi</code> dan menyelaraskan bulan tagihan + tahun ajaran.
-            Laporan keuangan &amp; rekap presensi memakai acuan bulan Hijriyah (Muharram–Dzulhijjah).
-        </p>
-        <form method="post" class="d-flex flex-wrap gap-2 align-items-center" onsubmit="return confirm('Jalankan penyesuaian data ke kalender Hijriyah?');">
+        <p class="small text-muted mb-2">Jika data lama masih memakai bulan Masehi (Januari–Desember), jalankan penyesuaian sekali setelah mengaktifkan kalender Hijriyah.</p>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-center" onsubmit="return confirm('Jalankan penyesuaian data ke Hijriyah?');">
             <input type="hidden" name="action" value="backfill_kalender_hijriyah">
             <button type="submit" class="btn btn-warning btn-sm">Sesuaikan data lama ke Hijriyah</button>
             <label class="form-check-label small mb-0">
-                <input class="form-check-input" type="checkbox" name="force" value="1">
-                Paksa ulang semua baris
+                <input class="form-check-input" type="checkbox" name="force" value="1"> Paksa ulang semua baris
             </label>
         </form>
-        <p class="small text-muted mb-0 mt-2">CLI (opsional): <code class="user-select-all">php scripts/pondok_backfill_kalender_hijriyah.php</code></p>
     </div>
 </div>
 
-<div class="alert alert-light border mb-0">
-    <p class="small mb-2"><strong>Alur singkat:</strong> cek hijriyah hari ini di atas → buka <a href="<?= htmlspecialchars($uAwalBulan) ?>">kalender (tampilan tahun)</a> untuk mengisi tanggal Masehi hari ke-1 tiap bulan H. bila perlu → atur libur rentang di kalender akademik.</p>
-    <p class="small text-muted mb-0">Butuh bantuan konteks? Kembali ke <a href="<?= htmlspecialchars($uPusat) ?>">pusat pengaturan</a> untuk modul lain.</p>
-</div>
+<?php if (!class_exists('IntlDateFormatter')): ?>
+    <p class="alert alert-warning small py-2">Aktifkan ekstensi PHP <code>intl</code> agar hisab Hijriyah otomatis (Um al-Qura) berjalan optimal.</p>
+<?php endif; ?>
 
 <?php
 require_once __DIR__ . '/includes/settings_nav.php';

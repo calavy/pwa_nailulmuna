@@ -87,14 +87,14 @@ $hasilTes = preg_match('/^\d{4}-\d{2}-\d{2}$/', $tesTanggal) ? konversiKeHijriah
 
 $pageTitle = 'Pemetaan Hijriyah';
 $bodyClass = 'settings-module-page';
-$settingsNavActive = '/settings/hijri_mappings.php';
+$settingsNavActive = '/settings/kalender.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <link href="/assets/css/kalender-akademik.css" rel="stylesheet">
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/settings/kalender.php">Kalender</a> · <a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
-    <h1 class="h4 mb-1">Kalender Hijriyah (database)</h1>
+    <p class="page-intro-kicker mb-1"><a href="/settings/kalender.php">Pengaturan Kalender</a> · <a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
+    <h1 class="h4 mb-1">Pemetaan bulan Hijriyah</h1>
     <p class="text-muted mb-0 small">Awal tiap bulan H. = tanggal <strong>1 Masehi</strong> dalam format <strong>H / B / T</strong> (Hari / Bulan / Tahun). Edit di tabel lalu klik <strong>Simpan</strong>.</p>
 </div>
 

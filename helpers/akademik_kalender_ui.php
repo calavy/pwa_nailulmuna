@@ -350,6 +350,9 @@ function akademik_kalender_cell_classes(array $day): string
     } elseif ($jenisKhusus === 'nasional') {
         $c[] = 'akad-cal-day--hari-nasional';
     }
+    if (!empty($day['agenda_items'])) {
+        $c[] = 'akad-cal-day--has-agenda';
+    }
 
     return implode(' ', $c);
 }
@@ -361,7 +364,8 @@ function akademik_kalender_render_month(
     array $cells,
     bool $compact = false,
     string $monthTitle = '',
-    string $monthSubtitle = ''
+    string $monthSubtitle = '',
+    bool $agendaKlik = false
 ): void {
     $tableClass = 'akad-cal-table' . ($compact ? ' akad-cal-table--compact' : '');
     $hari = akademik_kalender_hari_minggu();
@@ -402,6 +406,7 @@ function akademik_kalender_render_month(
                     <?php
                     else:
                         $colClass = $c === 4 ? ' akad-cal-col--jumat' : ($c >= 5 ? ' akad-cal-col--weekend' : '');
+                        $agendaItems = is_array($cell['agenda_items'] ?? null) ? $cell['agenda_items'] : [];
                         $tipParts = array_filter([
                             (string) ($cell['masehi_label'] ?? ''),
                             (string) ($cell['hijri_label'] ?? ''),
@@ -409,6 +414,9 @@ function akademik_kalender_render_month(
                             (string) ($cell['hari_khusus_nama'] ?? ''),
                             (string) ($cell['libur_nama'] ?? ''),
                         ]);
+                        foreach ($agendaItems as $agTip) {
+                            $tipParts[] = (string) ($agTip['judul'] ?? '');
+                        }
                         $tip = implode(' · ', array_unique($tipParts));
                         $eventLabel = (string) ($cell['hari_khusus_nama'] ?? '');
                         $eventKind = (string) ($cell['hari_khusus_jenis'] ?? 'lain');
@@ -416,10 +424,13 @@ function akademik_kalender_render_month(
                             $eventLabel = (string) $cell['libur_nama'];
                             $eventKind = 'libur';
                         }
+                        $masehiYmd = (string) ($cell['masehi'] ?? '');
+                        $pickClass = $agendaKlik && $masehiYmd !== '' ? ' akad-cal-day--pick' : '';
                         ?>
-                        <td class="<?= htmlspecialchars(akademik_kalender_cell_classes($cell) . $colClass) ?>"
-                            <?= $tip !== '' ? ' title="' . htmlspecialchars($tip) . '"' : '' ?>
-                            tabindex="0">
+                        <td class="<?= htmlspecialchars(akademik_kalender_cell_classes($cell) . $colClass . $pickClass) ?>"
+                            <?= $masehiYmd !== '' ? ' data-masehi="' . htmlspecialchars($masehiYmd) . '"' : '' ?>
+                            <?= $agendaKlik && $masehiYmd !== '' ? ' role="button" tabindex="0"' : ' tabindex="0"' ?>
+                            <?= $tip !== '' ? ' title="' . htmlspecialchars($tip) . '"' : '' ?>>
                             <div class="akad-cal-day-inner">
                                 <div class="akad-cal-day-top">
                                     <span class="akad-cal-day-num"><?= (int) ($cell['masehi_hari'] ?? 0) ?></span>
@@ -443,6 +454,25 @@ function akademik_kalender_render_month(
                                     <span class="akad-cal-day-event akad-cal-day-event--<?= htmlspecialchars($eventKind) ?>">
                                         <?= htmlspecialchars($eventLabel) ?>
                                     </span>
+                                <?php endif; ?>
+                                <?php
+                                $agendaShown = 0;
+                                foreach ($agendaItems as $agCell):
+                                    if ($agendaShown >= ($compact ? 1 : 2)) {
+                                        break;
+                                    }
+                                    $agendaShown++;
+                                    $agJudul = (string) ($agCell['judul'] ?? '');
+                                    if ($agJudul === '') {
+                                        continue;
+                                    }
+                                    ?>
+                                    <span class="akad-cal-day-event akad-cal-day-event--agenda" title="<?= htmlspecialchars($agJudul) ?>">
+                                        <?= htmlspecialchars(mb_strlen($agJudul) > ($compact ? 10 : 16) ? mb_substr($agJudul, 0, $compact ? 8 : 14) . '…' : $agJudul) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                                <?php if (count($agendaItems) > ($compact ? 1 : 2)): ?>
+                                    <span class="akad-cal-day-agenda-more">+<?= count($agendaItems) - ($compact ? 1 : 2) ?></span>
                                 <?php endif; ?>
                             </div>
                         </td>

@@ -126,7 +126,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </p>
                         <?php if (pondok_kalender_hijriyah($pdo)): ?>
                             <p class="small mb-2">
-                                <a href="/settings/kalender.php#backfill-hijriyah">Sesuaikan data lama Masehi → Hijriyah</a>
+                                <a href="/settings/kalender.php#alat-lanjutan">Sesuaikan data lama Masehi → Hijriyah</a>
                                 bila server sudah berisi input tahun/bulan Masehi.
                             </p>
                         <?php endif; ?>

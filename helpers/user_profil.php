@@ -1,0 +1,164 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Foto profil akun users (upload, URL, avatar HTML).
+ */
+
+function user_profil_ensure_schema(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'users')) {
+        return;
+    }
+    $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS foto_profil VARCHAR(255) NULL DEFAULT NULL');
+}
+
+function user_profil_upload_dir(): string
+{
+    return dirname(__DIR__) . '/uploads/profiles';
+}
+
+/** @return list<string> */
+function user_profil_allowed_extensions(): array
+{
+    return ['jpg', 'jpeg', 'png', 'webp'];
+}
+
+/**
+ * @param array{name?:string,tmp_name?:string,error?:int} $file
+ * @return array{ok:bool,path?:string,error?:string}
+ */
+function user_profil_handle_upload(array $file, ?string $oldRelativePath = null): array
+{
+    $err = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_NO_FILE) {
+        return ['ok' => true];
+    }
+    if ($err !== UPLOAD_ERR_OK) {
+        return ['ok' => false, 'error' => 'Upload foto gagal. Coba lagi.'];
+    }
+
+    $tmpFile = (string) ($file['tmp_name'] ?? '');
+    $originalName = (string) ($file['name'] ?? '');
+    $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+    if (!in_array($extension, user_profil_allowed_extensions(), true)) {
+        return ['ok' => false, 'error' => 'Format foto tidak didukung. Gunakan JPG, PNG, atau WEBP.'];
+    }
+
+    if (!is_uploaded_file($tmpFile)) {
+        return ['ok' => false, 'error' => 'File upload tidak valid.'];
+    }
+
+    $maxBytes = 2 * 1024 * 1024;
+    if (@filesize($tmpFile) > $maxBytes) {
+        return ['ok' => false, 'error' => 'Ukuran foto maksimal 2 MB.'];
+    }
+
+    $targetDir = user_profil_upload_dir();
+    if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        return ['ok' => false, 'error' => 'Folder upload tidak dapat dibuat.'];
+    }
+
+    $safeName = 'user-' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.' . $extension;
+    $targetPath = $targetDir . '/' . $safeName;
+
+    if (!move_uploaded_file($tmpFile, $targetPath)) {
+        return ['ok' => false, 'error' => 'Gagal menyimpan foto ke server.'];
+    }
+
+    user_profil_delete_file($oldRelativePath);
+
+    return ['ok' => true, 'path' => 'uploads/profiles/' . $safeName];
+}
+
+function user_profil_delete_file(?string $relativePath): void
+{
+    $relativePath = trim((string) $relativePath);
+    if ($relativePath === '' || !str_starts_with($relativePath, 'uploads/profiles/')) {
+        return;
+    }
+    $full = dirname(__DIR__) . '/' . ltrim($relativePath, '/');
+    if (is_file($full)) {
+        @unlink($full);
+    }
+}
+
+function user_profil_url(?string $relativePath): string
+{
+    $relativePath = trim((string) $relativePath);
+    if ($relativePath === '') {
+        return '';
+    }
+    return app_href('/' . ltrim($relativePath, '/'));
+}
+
+function user_profil_initials(string $nama): string
+{
+    $nama = trim($nama);
+    if ($nama === '') {
+        return '?';
+    }
+    $parts = preg_split('/\s+/u', $nama) ?: [];
+    if (count($parts) >= 2) {
+        return mb_strtoupper(mb_substr($parts[0], 0, 1) . mb_substr($parts[1], 0, 1));
+    }
+
+    return mb_strtoupper(mb_substr($nama, 0, 2));
+}
+
+/**
+ * @param array{nama?:string,foto_profil?:string|null} $user
+ */
+function user_profil_render_avatar(array $user, string $sizeClass = 'app-user-avatar--md', string $extraClass = ''): string
+{
+    $nama = trim((string) ($user['nama'] ?? 'User'));
+    $foto = trim((string) ($user['foto_profil'] ?? ''));
+    $classes = 'app-user-avatar ' . $sizeClass;
+    if ($extraClass !== '') {
+        $classes .= ' ' . $extraClass;
+    }
+    $title = htmlspecialchars($nama, ENT_QUOTES, 'UTF-8');
+
+    if ($foto !== '') {
+        $src = htmlspecialchars(user_profil_url($foto), ENT_QUOTES, 'UTF-8');
+        return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . '" title="' . $title . '">'
+            . '<img src="' . $src . '" alt="" class="app-user-avatar__img" loading="lazy" decoding="async">'
+            . '</span>';
+    }
+
+    $initials = htmlspecialchars(user_profil_initials($nama), ENT_QUOTES, 'UTF-8');
+
+    return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . ' app-user-avatar--fallback" title="' . $title . '" aria-hidden="true">'
+        . $initials
+        . '</span>';
+}
+
+function user_profil_sync_session(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0 || !isset($_SESSION['user']) || (int) ($_SESSION['user']['id'] ?? 0) !== $userId) {
+        return;
+    }
+    user_profil_ensure_schema($pdo);
+    $st = $pdo->prepare('SELECT foto_profil FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $_SESSION['user']['foto_profil'] = trim((string) ($row['foto_profil'] ?? ''));
+}
+
+function user_profil_fetch_for_user(PDO $pdo, int $userId): ?string
+{
+    if ($userId <= 0) {
+        return null;
+    }
+    user_profil_ensure_schema($pdo);
+    $st = $pdo->prepare('SELECT foto_profil FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+
+    return trim((string) ($row['foto_profil'] ?? '')) ?: null;
+}

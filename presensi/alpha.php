@@ -6,6 +6,8 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
 require_once __DIR__ . '/../helpers/presensi_admin.php';
+require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+require_once __DIR__ . '/../helpers/santri_operasional.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -27,9 +29,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tanggal = $_POST['tanggal'] ?? date('Y-m-d');
     $tingkatan = trim($_POST['tingkatan'] ?? '');
     $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
+
+    if ($kegiatanId <= 0) {
+        set_flash('error', 'Pilih kegiatan yang terikat jadwal. ALPA hanya untuk santri yang tingkatannya masuk jadwal kegiatan tersebut.');
+        header('Location: ' . app_href('/presensi/alpha.php'));
+        exit;
+    }
+    if (!presensi_tingkatan_terjadwal($pdo, $tingkatan, $kegiatanId, $tanggal)) {
+        set_flash('error', 'Tingkatan "' . $tingkatan . '" tidak terdaftar di jadwal kegiatan ini pada tanggal ' . $tanggal . '. Tidak ada ALPA yang dibuat.');
+        header('Location: ' . app_href('/presensi/alpha.php'));
+        exit;
+    }
+
     $hijri = akademik_hijri_ym_untuk_masehi($pdo, $tanggal);
 
-    $santriStmt = $pdo->prepare('SELECT id, nama_santri, nis, no_wa_wali FROM santri WHERE tingkatan = :tingkatan');
+    $santriStmt = $pdo->prepare('SELECT id, nama_santri, nis, no_wa_wali FROM santri WHERE tingkatan = :tingkatan AND ' . santri_sql_aktif_only('santri'));
     $santriStmt->execute(['tingkatan' => $tingkatan]);
     $santriList = $santriStmt->fetchAll();
 
@@ -81,16 +95,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hariKe = (int) date('N', strtotime($tanggal));
         $jadwalStmt = $pdo->prepare('
             SELECT id, jam_mulai, jam_selesai FROM jadwal_kegiatan
-            WHERE kegiatan_id = :kid AND (hari_ke = 0 OR hari_ke = :hari)
+            WHERE kegiatan_id = :kid
+              AND (hari_ke = 0 OR hari_ke = :hari)
+              AND (tingkatan = :tingkatan OR tingkatan = "Semua Tingkatan")
             ORDER BY jam_mulai ASC LIMIT 1
         ');
-        $jadwalStmt->execute(['kid' => $kegiatanId, 'hari' => $hariKe]);
+        $jadwalStmt->execute(['kid' => $kegiatanId, 'hari' => $hariKe, 'tingkatan' => $tingkatan]);
         $jadwalRow = $jadwalStmt->fetch(PDO::FETCH_ASSOC);
         if (is_array($jadwalRow)) {
             $jadwalKegiatanId = (int) ($jadwalRow['id'] ?? 0) ?: null;
             $jamMulaiKeg = (string) ($jadwalRow['jam_mulai'] ?? null);
             $jamSelesaiKeg = (string) ($jadwalRow['jam_selesai'] ?? null);
         }
+    }
+    if ($jadwalKegiatanId === null) {
+        set_flash('error', 'Tidak ada slot jadwal untuk tingkatan "' . $tingkatan . '" pada kegiatan dan tanggal tersebut.');
+        header('Location: ' . app_href('/presensi/alpha.php'));
+        exit;
     }
     ensure_presensi_jadwal_column($pdo);
     $izinTetapIds = santri_izin_tetap_santri_ids_pada_tanggal($pdo, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
@@ -166,7 +187,8 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm">
     <div class="card-body">
         <h1 class="h4">Generate Alpa Otomatis</h1>
-        <p class="text-muted">Santri yang tidak hadir dan tidak izin pada tanggal/kegiatan ini akan dicatat sebagai ALPA.
+        <p class="text-muted">Hanya santri <strong>aktif</strong> yang tingkatannya <strong>terdaftar di jadwal</strong> kegiatan terpilih. Santri di luar jadwal tidak dihitung ALPA meskipun tidak scan.
+            Santri yang tidak hadir dan tidak izin pada tanggal/kegiatan ini akan dicatat sebagai ALPA.
             <?php if (user_can_hapus_presensi_admin()): ?>
                 <a href="<?= htmlspecialchars(app_href('/presensi/bersihkan.php')) ?>">Bersihkan presensi tanpa kegiatan</a>
             <?php endif; ?>
@@ -191,8 +213,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-4">
                 <label class="form-label">Kegiatan</label>
-                <select name="kegiatan_id" class="form-select">
-                    <option value="0">Tanpa kegiatan spesifik</option>
+                <select name="kegiatan_id" class="form-select" required>
+                    <option value="">— Pilih kegiatan —</option>
                     <?php foreach ($kegiatanList as $k): ?>
                         <option value="<?= $k['id'] ?>"><?= htmlspecialchars($k['nama_kegiatan']) ?></option>
                     <?php endforeach; ?>

@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/operasional_audit.php';
+require_once __DIR__ . '/../helpers/jadwal_ui.php';
 
 require_roles(['admin', 'pengurus']);
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -40,9 +41,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
     $jamMulai = $_POST['jam_mulai'] ?? '00:00';
     $jamSelesai = $_POST['jam_selesai'] ?? '00:00';
+    if (jadwal_norm_jam($jamSelesai) <= jadwal_norm_jam($jamMulai)) {
+        set_flash('error', 'Jam selesai harus setelah jam mulai.');
+        header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
+        exit;
+    }
     $pembimbingId = (int) ($_POST['pembimbing_id'] ?? 0) ?: null;
     $tempatVal = trim((string) ($_POST['tempat'] ?? ''));
     $tempatVal = $tempatVal !== '' ? $tempatVal : null;
+
+    $hariLabels = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+    $firstCombo = true;
+    foreach ($tingkatanDipilih as $tingkatan) {
+        foreach ($hariDipilih as $hariKe) {
+            $exclude = $firstCombo ? $id : 0;
+            $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai, $exclude);
+            if ($bentrok !== null) {
+                set_flash('error', jadwal_pesan_bentrok($bentrok, $hariLabels));
+                header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
+                exit;
+            }
+            $firstCombo = false;
+        }
+    }
 
     $update = $pdo->prepare('UPDATE jadwal_kegiatan SET kegiatan_id = :kegiatan_id, tingkatan = :tingkatan, hari_ke = :hari_ke, jam_mulai = :jam_mulai, jam_selesai = :jam_selesai, pembimbing_id = :pembimbing_id, tempat = :tempat WHERE id = :id');
     $insert = $pdo->prepare('INSERT INTO jadwal_kegiatan (kegiatan_id, tingkatan, hari_ke, jam_mulai, jam_selesai, pembimbing_id, tempat) VALUES (:kegiatan_id, :tingkatan, :hari_ke, :jam_mulai, :jam_selesai, :pembimbing_id, :tempat)');

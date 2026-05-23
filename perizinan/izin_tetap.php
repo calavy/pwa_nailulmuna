@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
 
 require_login();
@@ -13,6 +14,7 @@ require_roles(['admin', 'pengurus', 'petugas_absensi']);
 ensure_santri_izin_tetap_tables($pdo);
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
+$defaultPenanggungJawab = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $q = trim((string) ($_GET['q'] ?? ''));
 $editId = (int) ($_GET['id'] ?? 0);
 $hariMap = santri_izin_tetap_hari_map();
@@ -76,7 +78,7 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-calendar-check text-primary me-1"></i> Izin Tetap (Hidmah)</h1>
     <p class="text-muted mb-0">
-        Santri hidmah yang keluar pada <strong>hari &amp; jam tertentu</strong> tidak perlu surat izin cetak.
+        Santri hidmah yang keluar pada <strong>hari &amp; jam tertentu</strong> dapat dicetak surat izin tetap resmi.
         Status presensi disinkronkan otomatis (IZIN) sesuai jadwal. Dapat diubah atau dihentikan kapan saja.
     </p>
 </div>
@@ -159,6 +161,13 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="btn-tambah-slot">+ Tambah hari/jam</button>
                     <div class="mb-2">
+                        <label class="form-label">Penanggung jawab (tanda tangan surat)</label>
+                        <input type="text" class="form-control form-control-sm" name="penanggung_jawab" maxlength="120"
+                            placeholder="Nama penanggung jawab santri / hidmah"
+                            value="<?= htmlspecialchars($editRow ? (string) ($editRow['penanggung_jawab'] ?? $defaultPenanggungJawab) : $defaultPenanggungJawab) ?>">
+                        <div class="form-text">Muncul di kolom tanda tangan surat cetak. Kosongkan untuk garis tanda tangan kosong.</div>
+                    </div>
+                    <div class="mb-2">
                         <label class="form-label">Keterangan</label>
                         <textarea class="form-control form-control-sm" name="keterangan" rows="2"><?= htmlspecialchars($editRow ? (string) ($editRow['keterangan'] ?? '') : '') ?></textarea>
                     </div>
@@ -169,11 +178,12 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="alert alert-light border small py-2 mb-3">
                         <i class="fa-solid fa-circle-info text-primary me-1"></i>
-                        Tanpa cetak surat. Sinkron presensi: status <strong>IZIN</strong> pada hari/jam jadwal (generate alpa &amp; rekap).
+                        Setelah disimpan, cetak surat izin tetap (A5). Presensi: status <strong>IZIN</strong> pada hari/jam jadwal.
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-save me-1"></i> Simpan</button>
                         <?php if ($editRow): ?>
+                            <a href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . (int) $editRow['id'])) ?>" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat A5</a>
                             <a href="/perizinan/izin_tetap.php" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
@@ -252,6 +262,9 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    <?php if ($aktif): ?>
+                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . $iid)) ?>" target="_blank" rel="noopener" title="Cetak surat A5"><i class="fa-solid fa-print"></i></a>
+                                    <?php endif; ?>
                                     <a class="btn btn-sm btn-outline-primary" href="?id=<?= $iid ?>">Ubah</a>
                                     <form method="post" class="d-inline">
                                         <input type="hidden" name="action" value="toggle_aktif">

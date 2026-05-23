@@ -3,8 +3,35 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
+require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi']);
+$koperasiPortal = defined('CASHLESS_KOPERASI_PORTAL') && CASHLESS_KOPERASI_PORTAL === true;
+
+if ($koperasiPortal) {
+    cashless_koperasi_require_session($pdo);
+    $koperasiCtx = cashless_koperasi_resolve_context($pdo);
+} else {
+    require_roles(['admin', 'pengurus', 'petugas_absensi']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && trim((string) ($_POST['action'] ?? '')) === 'select_koperasi') {
+        $pick = (int) ($_POST['koperasi_id'] ?? 0);
+        if ($pick >= 1 && $pick <= 3) {
+            $_SESSION['cashless_scan_koperasi_id'] = $pick;
+            set_flash('success', 'Koperasi aktif: ' . (cashless_koperasi_by_id($pdo, $pick)['nama'] ?? ('Koperasi ' . $pick)));
+        }
+        header('Location: ' . app_href('/keuangan/cashless_scan.php'));
+        exit;
+    }
+    $koperasiCtx = cashless_koperasi_resolve_context($pdo);
+    if ((int) ($koperasiCtx['id'] ?? 0) < 1) {
+        $_SESSION['cashless_scan_koperasi_id'] = 1;
+        $koperasiCtx = cashless_koperasi_resolve_context($pdo);
+    }
+}
+
+$koperasiId = (int) ($koperasiCtx['id'] ?? 0);
+$koperasiNama = (string) ($koperasiCtx['nama'] ?? 'Umum');
+$createdByUserId = $koperasiPortal ? 0 : (int) ($_SESSION['user']['id'] ?? 0);
 
 $pdo->exec("
 CREATE TABLE IF NOT EXISTS cashless_accounts (
@@ -198,13 +225,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'nominal' => $nominal,
                             'santri_id' => $santriId,
                         ]);
-                        $pdo->prepare("INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, created_by) VALUES (:santri_id,'DEBIT',:nominal,:keterangan,:created_by)")
-                            ->execute([
-                                'santri_id' => $santriId,
-                                'nominal' => $nominal,
-                                'keterangan' => $keterangan,
-                                'created_by' => (int) ($_SESSION['user']['id'] ?? 0),
-                            ]);
+                        cashless_koperasi_insert_debit(
+                            $pdo,
+                            $santriId,
+                            $nominal,
+                            $keterangan,
+                            $createdByUserId,
+                            $koperasiId > 0 ? $koperasiId : null
+                        );
                         $lastSuccessNominal = $nominal;
                         $resultType = 'success';
                         $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp ' . number_format($nominal, 0, ',', '.') . '.';
@@ -225,20 +253,35 @@ if (!empty($_SESSION['cashless_auto_nominal_scan'])) {
     unset($_SESSION['cashless_auto_nominal_scan']);
 }
 
-$todayRows = $pdo->query("
-    SELECT ct.tanggal, ct.nominal, ct.keterangan, s.nis, COALESCE(NULLIF(s.nama_santri,''), s.nama) AS nama_santri
-    FROM cashless_transactions ct
-    INNER JOIN santri s ON s.id = ct.santri_id
-    WHERE ct.jenis = 'DEBIT' AND DATE(ct.tanggal) = CURDATE()
-    ORDER BY ct.id DESC
-    LIMIT 20
-")->fetchAll();
+$todayRows = cashless_koperasi_fetch_debit_hari_ini($pdo, $koperasiId > 0 ? $koperasiId : null, 20);
+$koperasiListAdmin = $koperasiPortal ? [] : cashless_koperasi_list($pdo);
 
-$pageTitle = 'Scan Cashless';
-require_once __DIR__ . '/../includes/header.php';
+$pageTitle = $koperasiPortal ? ('Scan — ' . $koperasiNama) : 'Scan Cashless';
+if ($koperasiPortal) {
+    require_once __DIR__ . '/../includes/koperasi_portal_layout.php';
+    koperasi_portal_layout_begin([
+        'title' => $pageTitle,
+        'koperasi_nama' => $koperasiNama,
+        'active' => 'scan',
+    ]);
+} else {
+    require_once __DIR__ . '/../includes/header.php';
+}
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">Scan Cashless</h1>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 mb-0">Scan Cashless<?= $koperasiId > 0 ? ' · ' . htmlspecialchars($koperasiNama) : '' ?></h1>
+    <?php if (!$koperasiPortal && $koperasiListAdmin !== []): ?>
+        <form method="post" class="d-flex align-items-center gap-2">
+            <input type="hidden" name="action" value="select_koperasi">
+            <label class="small text-muted mb-0">Koperasi:</label>
+            <select name="koperasi_id" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                <?php foreach ($koperasiListAdmin as $kop): ?>
+                    <option value="<?= (int) $kop['id'] ?>" <?= (int) $kop['id'] === $koperasiId ? 'selected' : '' ?>><?= htmlspecialchars((string) $kop['nama']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?koperasi_id=' . $koperasiId . '&dari=' . date('Y-m-d') . '&sampai=' . date('Y-m-d'))) ?>" class="btn btn-outline-secondary btn-sm">Laporan hari ini</a>
+    <?php endif; ?>
 </div>
 
 <?php if ($resultMessage !== null): ?>
@@ -578,4 +621,8 @@ require_once __DIR__ . '/../includes/header.php';
 </script>
 <?php endif; ?>
 
+<?php if ($koperasiPortal): ?>
+<?php koperasi_portal_layout_end(); ?>
+<?php else: ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
+<?php endif; ?>

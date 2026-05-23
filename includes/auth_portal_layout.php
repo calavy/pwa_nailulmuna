@@ -3,8 +3,53 @@
 declare(strict_types=1);
 
 /**
- * Layout ringkas untuk halaman login mandiri (tanpa sidebar aplikasi utama).
- *
+ * Layout halaman login mandiri (kartu responsif, salam portal).
+ */
+
+function auth_portal_salam_waktu(?DateTimeInterface $when = null): string
+{
+    $tz = new DateTimeZone('Asia/Jakarta');
+    $dt = $when instanceof DateTimeInterface
+        ? (new DateTime($when->format('Y-m-d H:i:s'), $tz))
+        : new DateTime('now', $tz);
+    $hour = (int) $dt->format('G');
+    if ($hour >= 3 && $hour < 11) {
+        return 'Selamat pagi';
+    }
+    if ($hour >= 11 && $hour < 15) {
+        return 'Selamat siang';
+    }
+    if ($hour >= 15 && $hour < 18) {
+        return 'Selamat sore';
+    }
+
+    return 'Selamat malam';
+}
+
+/**
+ * @return array{salam:string,tagline:string,ponpes:string}
+ */
+function auth_portal_welcome_copy(PDO $pdo): array
+{
+    require_once __DIR__ . '/../helpers/app.php';
+    $ponpes = app_brand_nama_ponpes($pdo, 'A.P.I Nailul Muna');
+
+    return [
+        'salam' => auth_portal_salam_waktu(),
+        'tagline' => 'Selamat datang di portal resmi pesantren',
+        'ponpes' => $ponpes,
+    ];
+}
+
+/** Nama pondok untuk tampilan hero (satu sumber, tanpa duplikat). */
+function auth_portal_brand_nama(PDO $pdo): string
+{
+    require_once __DIR__ . '/../helpers/app.php';
+
+    return app_brand_nama_ponpes($pdo, 'A.P.I Nailul Muna');
+}
+
+/**
  * @param array{
  *   title: string,
  *   subtitle?: string,
@@ -12,7 +57,15 @@ declare(strict_types=1);
  *   nama_ponpes?: string,
  *   logo_url?: string,
  *   welcome?: string,
+ *   welcome_tagline?: string,
+ *   welcome_salam?: string,
+ *   card_title?: string,
+ *   card_meta?: string,
+ *   subtitle_mobile?: string,
+ *   subtitle_desktop?: string,
  *   max_width?: string,
+ *   layout?: 'stack'|'split',
+ *   shell_mod?: 'default'|'wali',
  *   accent?: 'teal'|'indigo'
  * } $ctx
  */
@@ -20,22 +73,37 @@ function auth_portal_layout_begin(array $ctx): void
 {
     $titleRaw = (string) ($ctx['title'] ?? 'Login');
     $title = htmlspecialchars($titleRaw);
-    $welcome = isset($ctx['welcome']) ? htmlspecialchars((string) $ctx['welcome']) : '';
-    $subtitle = isset($ctx['subtitle']) ? htmlspecialchars((string) $ctx['subtitle']) : '';
+    $welcomeSalam = isset($ctx['welcome_salam'])
+        ? htmlspecialchars((string) $ctx['welcome_salam'])
+        : (isset($ctx['welcome']) ? htmlspecialchars((string) $ctx['welcome']) : '');
+    $welcomeTagline = isset($ctx['welcome_tagline']) ? htmlspecialchars((string) $ctx['welcome_tagline']) : '';
+    $subtitleFallback = trim((string) ($ctx['subtitle'] ?? ''));
+    $subtitleMobile = trim((string) ($ctx['subtitle_mobile'] ?? $subtitleFallback));
+    $subtitleDesktop = trim((string) ($ctx['subtitle_desktop'] ?? $subtitleFallback));
+    $subtitleMobileHtml = $subtitleMobile !== '' ? htmlspecialchars($subtitleMobile) : '';
+    $subtitleDesktopHtml = $subtitleDesktop !== '' ? htmlspecialchars($subtitleDesktop) : '';
     $kicker = isset($ctx['kicker']) ? htmlspecialchars((string) $ctx['kicker']) : '';
     $namaPonpesRaw = trim((string) ($ctx['nama_ponpes'] ?? ''));
     $namaPonpes = $namaPonpesRaw !== '' ? htmlspecialchars($namaPonpesRaw) : '';
     $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $namaPonpesRaw);
     $initials = strtoupper(substr($lettersOnly !== '' ? $lettersOnly : 'AP', 0, 2));
     $logoUrl = trim((string) ($ctx['logo_url'] ?? ''));
-    $maxWidth = trim((string) ($ctx['max_width'] ?? '420px'));
-    if (!preg_match('/^\d+(\.\d+)?(px|rem|em|%)$/', $maxWidth)) {
-        $maxWidth = '420px';
+    $layout = ($ctx['layout'] ?? 'stack') === 'split' ? 'split' : 'stack';
+    $shellClass = 'auth-portal-shell';
+    $shellClass .= $layout === 'split' ? ' auth-portal-shell--wide' : ' auth-portal-shell--narrow';
+    if (($ctx['shell_mod'] ?? '') === 'wali') {
+        $shellClass .= ' auth-portal-shell--wali';
     }
     $accent = ($ctx['accent'] ?? 'teal') === 'indigo' ? 'indigo' : 'teal';
     $gradStart = $accent === 'indigo' ? '#312e81' : '#0f766e';
     $gradMid = $accent === 'indigo' ? '#4338ca' : '#0d9488';
     $gradEnd = $accent === 'indigo' ? '#6366f1' : '#0891b2';
+    $accentHex = $accent === 'indigo' ? '#4f46e5' : '#0f766e';
+    $accentDark = $accent === 'indigo' ? '#3730a3' : '#115e59';
+    $accentMid = $accent === 'indigo' ? '#6366f1' : '#0891b2';
+    $cardTitle = isset($ctx['card_title']) ? htmlspecialchars((string) $ctx['card_title']) : $title;
+    $cardMeta = isset($ctx['card_meta']) ? htmlspecialchars((string) $ctx['card_meta']) : '';
+    $cssHref = function_exists('app_href') ? app_href('/assets/css/auth-portal.css') : '/assets/css/auth-portal.css';
     ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -43,101 +111,36 @@ function auth_portal_layout_begin(array $ctx): void
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="<?= htmlspecialchars($accentHex) ?>">
     <title><?= $title ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="<?= htmlspecialchars($cssHref) ?>" rel="stylesheet">
     <style>
         :root {
-            --ap-auth-accent: <?= $accent === 'indigo' ? '#4f46e5' : '#0f766e' ?>;
-            --ap-auth-accent-dark: <?= $accent === 'indigo' ? '#3730a3' : '#115e59' ?>;
-            --ap-auth-surface: rgba(255, 255, 255, 0.92);
+            --ap-auth-accent: <?= $accentHex ?>;
+            --ap-auth-accent-dark: <?= $accentDark ?>;
+            --ap-auth-accent-mid: <?= $accentMid ?>;
+            --ap-auth-surface: rgba(255, 255, 255, 0.94);
         }
         [data-theme="dark"] {
-            --ap-auth-surface: rgba(30, 41, 59, 0.94);
+            --ap-auth-surface: rgba(30, 41, 59, 0.96);
         }
         body.auth-portal-page {
             font-family: "Plus Jakarta Sans", system-ui, sans-serif;
             min-height: 100dvh;
             margin: 0;
             background: linear-gradient(145deg, <?= htmlspecialchars($gradStart) ?> 0%, <?= htmlspecialchars($gradMid) ?> 42%, <?= htmlspecialchars($gradEnd) ?> 100%);
-            padding: 1.25rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+            background-attachment: fixed;
+            padding: max(1rem, env(safe-area-inset-top, 0px)) max(0.85rem, env(safe-area-inset-right, 0px)) max(1.25rem, env(safe-area-inset-bottom, 0px)) max(0.85rem, env(safe-area-inset-left, 0px));
         }
-        .auth-portal-wrap {
-            margin: 0 auto;
-        }
-        .auth-portal-card {
-            border-radius: 1.15rem;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            background: var(--ap-auth-surface);
-            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
-            backdrop-filter: blur(10px);
-        }
-        .auth-portal-hero {
-            text-align: center;
-            color: #fff;
-            margin-bottom: 1.25rem;
-        }
-        .auth-portal-hero .logo-ring {
-            margin: 0 auto 0.75rem;
-            background: transparent;
-            border: none;
-            border-radius: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: visible;
-            max-width: 140px;
-        }
-        .auth-portal-hero .logo-ring img {
-            display: block;
-            width: auto;
-            height: auto;
-            max-width: 140px;
-            max-height: 104px;
-            object-fit: contain;
-            object-position: center;
-            filter: drop-shadow(0 3px 10px rgba(15, 23, 42, 0.35));
-        }
-        .auth-portal-hero .logo-ring--fallback {
-            width: 88px;
-            height: 88px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.35);
-            overflow: hidden;
-        }
-        .auth-portal-hero .logo-fallback {
-            font-weight: 800;
-            font-size: 1.35rem;
-            letter-spacing: 0.06em;
-        }
-        .auth-portal-hero h1 {
-            font-size: 1.35rem;
-            font-weight: 700;
-            margin: 0 0 0.35rem;
-            letter-spacing: -0.02em;
-        }
-        .auth-portal-hero .auth-portal-ponpes {
-            font-size: 1.05rem;
-            font-weight: 600;
-            margin: 0 0 0.5rem;
-            line-height: 1.35;
-        }
-        .auth-portal-hero .sub {
-            font-size: 0.9rem;
-            opacity: 0.92;
-            margin: 0;
-            line-height: 1.45;
-        }
-        .auth-portal-hero .kicker {
-            font-size: 0.68rem;
-            text-transform: uppercase;
-            letter-spacing: 0.14em;
-            opacity: 0.85;
-            margin-bottom: 0.35rem;
+        @media (min-width: 992px) {
+            body.auth-portal-page {
+                padding: max(1.5rem, env(safe-area-inset-top, 0px)) max(1.25rem, env(safe-area-inset-right, 0px)) max(1.5rem, env(safe-area-inset-bottom, 0px)) max(1.25rem, env(safe-area-inset-left, 0px));
+            }
         }
         .btn-auth-primary {
             background: var(--ap-auth-accent) !important;
@@ -148,7 +151,7 @@ function auth_portal_layout_begin(array $ctx): void
             padding-block: 0.65rem;
         }
         .btn-auth-primary:hover {
-            filter: brightness(1.05);
+            filter: brightness(1.06);
             color: #fff !important;
         }
         .auth-portal-links a {
@@ -167,9 +170,15 @@ function auth_portal_layout_begin(array $ctx): void
     </script>
 </head>
 <body class="auth-portal-page">
-    <div class="auth-portal-wrap" style="max-width: <?= htmlspecialchars($maxWidth) ?>">
-        <div class="auth-portal-hero">
-            <?php if ($logoUrl !== '' || $namaPonpesRaw !== '' || $welcome !== ''): ?>
+    <div class="auth-portal-bg" aria-hidden="true">
+        <span class="auth-portal-bg__orb auth-portal-bg__orb--1"></span>
+        <span class="auth-portal-bg__orb auth-portal-bg__orb--2"></span>
+        <span class="auth-portal-bg__grid"></span>
+    </div>
+    <div class="auth-portal-viewport">
+    <div class="<?= htmlspecialchars($shellClass) ?>">
+        <header class="auth-portal-hero">
+            <?php if ($logoUrl !== '' || $namaPonpesRaw !== '' || $welcomeSalam !== ''): ?>
                 <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>" aria-hidden="<?= $logoUrl === '' ? 'true' : 'false' ?>">
                     <?php if ($logoUrl !== ''): ?>
                         <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo pesantren" decoding="async">
@@ -181,23 +190,45 @@ function auth_portal_layout_begin(array $ctx): void
             <?php if ($kicker !== ''): ?>
                 <div class="kicker"><?= $kicker ?></div>
             <?php endif; ?>
-            <?php if ($welcome !== ''): ?>
-                <h1><?= $welcome ?></h1>
-                <?php if ($namaPonpes !== ''): ?>
-                    <p class="auth-portal-ponpes"><?= $namaPonpes ?></p>
-                <?php endif; ?>
-            <?php else: ?>
-                <?php if ($namaPonpes !== ''): ?>
-                    <div class="fw-semibold opacity-90 small mb-2"><?= $namaPonpes ?></div>
-                <?php endif; ?>
-                <h1><?= $title ?></h1>
-            <?php endif; ?>
-            <?php if ($subtitle !== ''): ?>
-                <p class="sub"><?= $subtitle ?></p>
-            <?php endif; ?>
-        </div>
+            <div class="auth-portal-hero-text">
+                <div class="auth-portal-hero-lead">
+                    <?php if ($namaPonpes !== ''): ?>
+                        <p class="auth-portal-brand mb-0"><?= $namaPonpes ?></p>
+                    <?php endif; ?>
+                    <?php if ($welcomeSalam !== ''): ?>
+                        <h1 class="auth-portal-salam"><?= $welcomeSalam ?></h1>
+                    <?php elseif ($namaPonpes === '' && $title !== ''): ?>
+                        <h1 class="auth-portal-salam"><?= $title ?></h1>
+                    <?php endif; ?>
+                </div>
+                <div class="auth-portal-hero-follow">
+                    <?php if ($welcomeTagline !== ''): ?>
+                        <p class="auth-portal-tagline"><?= $welcomeTagline ?></p>
+                    <?php endif; ?>
+                    <?php if ($subtitleMobileHtml !== '' || $subtitleDesktopHtml !== ''): ?>
+                        <p class="sub mb-0">
+                            <?php if ($subtitleMobileHtml !== ''): ?>
+                                <span class="auth-portal-sub-line auth-portal-sub-line--mobile"><?= $subtitleMobileHtml ?></span>
+                            <?php endif; ?>
+                            <?php if ($subtitleDesktopHtml !== ''): ?>
+                                <span class="auth-portal-sub-line auth-portal-sub-line--desktop"><?= $subtitleDesktopHtml ?></span>
+                            <?php endif; ?>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </header>
         <div class="auth-portal-card">
-            <div class="p-4 p-md-4">
+            <div class="auth-portal-card__head">
+                <p class="auth-portal-card__head-title mb-0">
+                    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                    <?= $cardTitle ?>
+                </p>
+                <?php if ($cardMeta !== ''): ?>
+                    <p class="auth-portal-card__head-meta"><?= $cardMeta ?></p>
+                <?php endif; ?>
+            </div>
+            <div class="auth-portal-card__body">
     <?php
 }
 
@@ -210,12 +241,13 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
             </div>
         </div>
         <?php if ($footerLinks !== []): ?>
-            <div class="auth-portal-links text-center mt-3 d-flex flex-wrap justify-content-center gap-3">
+            <nav class="auth-portal-links text-center mt-2 d-flex flex-wrap justify-content-center gap-3" aria-label="Tautan portal">
                 <?php foreach ($footerLinks as $lnk): ?>
                     <a href="<?= htmlspecialchars((string) ($lnk['href'] ?? '#')) ?>"><?= htmlspecialchars((string) ($lnk['label'] ?? '')) ?></a>
                 <?php endforeach; ?>
-            </div>
+            </nav>
         <?php endif; ?>
+    </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <?php if ($enableFcm && (isset($_SESSION['santri_portal']) || isset($_SESSION['wali']))): ?>
@@ -223,5 +255,32 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
     <?php endif; ?>
 </body>
 </html>
+    <?php
+}
+
+/**
+ * Render satu tombol peran login.
+ *
+ * @param array{href:string,icon:string,icon_mod?:string,title:string,desc:string,full?:bool} $role
+ */
+function auth_portal_role_link(array $role): void
+{
+    $href = htmlspecialchars((string) ($role['href'] ?? '#'));
+    $icon = htmlspecialchars((string) ($role['icon'] ?? 'fa-circle'));
+    $iconMod = htmlspecialchars((string) ($role['icon_mod'] ?? 'pengurus'));
+    $title = htmlspecialchars((string) ($role['title'] ?? ''));
+    $desc = htmlspecialchars((string) ($role['desc'] ?? ''));
+    $fullClass = !empty($role['full']) ? ' auth-portal-role--full auth-portal-role--full-sm' : '';
+    ?>
+    <a class="auth-portal-role<?= $fullClass ?>" href="<?= $href ?>">
+        <span class="auth-portal-role__icon auth-portal-role__icon--<?= $iconMod ?>" aria-hidden="true">
+            <i class="fa-solid <?= $icon ?>"></i>
+        </span>
+        <span class="auth-portal-role__text">
+            <strong><?= $title ?></strong>
+            <span><?= $desc ?></span>
+        </span>
+        <span class="auth-portal-role__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+    </a>
     <?php
 }

@@ -49,9 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'wa_pengurus',
         'jam_kirim_wa_auto',
         'wa_tagihan_auto_enabled',
-        'wa_tagihan_calendar',
-        'wa_tagihan_day',
-        'wa_tagihan_send_time',
+        'keterangan_pengurus_bidang_keuangan',
         'batas_alpa_notif',
         'batas_telat_menit',
         'kategori_baik_max',
@@ -63,36 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($fields as $field) {
         save_setting($pdo, $field, trim((string) ($_POST[$field] ?? '')));
     }
-    $calendarLama = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
-    $calendar = strtoupper(trim((string) ($_POST['wa_tagihan_calendar'] ?? 'HIJRIYAH')));
-    if (!in_array($calendar, ['MASEHI', 'HIJRIYAH'], true)) {
-        $calendar = 'HIJRIYAH';
-    }
-    save_setting($pdo, 'wa_tagihan_calendar', $calendar);
-    if ($calendar === 'HIJRIYAH') {
-        save_setting($pdo, 'akademik_kalender_default_view', 'bulan');
-    }
-    if ($calendar === 'HIJRIYAH' && $calendarLama !== 'HIJRIYAH') {
-        require_once __DIR__ . '/../../helpers/pondok_kalender.php';
-        $bf = pondok_backfill_kalender_hijriyah($pdo, false);
-        $_SESSION['pondok_backfill_flash'] = sprintf(
-            'Kalender tagihan diubah ke Hijriyah. Data lama disesuaikan: %d pembayaran, %d presensi, %d jeda potongan.',
-            (int) $bf['pembayaran'],
-            (int) $bf['presensi'],
-            (int) $bf['jeda']
-        );
-    }
-    $dueDay = max(1, min(30, (int) ($_POST['wa_tagihan_day'] ?? 5)));
-    save_setting($pdo, 'wa_tagihan_day', (string) $dueDay);
     save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($_POST['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
-
-    $tmMode = strtoupper(trim((string) ($_POST['app_tahun_masehi_mode'] ?? 'BERJALAN')));
-    if (!in_array($tmMode, ['BERJALAN', 'TETAP'], true)) {
-        $tmMode = 'BERJALAN';
-    }
-    save_setting($pdo, 'app_tahun_masehi_mode', $tmMode);
-    $tmTetap = (int) ($_POST['app_tahun_masehi_tetap'] ?? date('Y'));
-    save_setting($pdo, 'app_tahun_masehi_tetap', (string) max(1900, min(2100, $tmTetap)));
 
     if (trim((string) ($_POST['presensi_password'] ?? '')) !== '') {
         save_setting($pdo, 'presensi_password', password_hash(trim((string) $_POST['presensi_password']), PASSWORD_DEFAULT));
@@ -123,12 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $msg = 'Pengaturan berhasil disimpan.';
-    if (!empty($_SESSION['pondok_backfill_flash'])) {
-        $msg .= ' ' . (string) $_SESSION['pondok_backfill_flash'];
-        unset($_SESSION['pondok_backfill_flash']);
-    }
-    set_flash('success', $msg);
+    set_flash('success', 'Pengaturan berhasil disimpan.');
     header('Location: ' . app_href('/settings/pesantren.php'));
     exit;
     }
@@ -147,17 +111,13 @@ foreach ([
     'wa_pengurus',
     'jam_kirim_wa_auto',
     'wa_tagihan_auto_enabled',
-    'wa_tagihan_calendar',
-    'wa_tagihan_day',
-    'wa_tagihan_send_time',
+    'keterangan_pengurus_bidang_keuangan',
     'batas_alpa_notif',
     'batas_telat_menit',
     'kategori_baik_max',
     'kategori_sedang_max',
     'izin_perpanjangan_max_hari',
     'izin_perpanjangan_jenis',
-    'app_tahun_masehi_mode',
-    'app_tahun_masehi_tetap',
 ] as $key) {
     $values[$key] = app_setting($pdo, $key, $pondokDefaults[$key] ?? '');
 }
@@ -168,14 +128,3 @@ if (trim((string) ($values['wa_pengurus'] ?? '')) !== '') {
     $pengurusWaCount = count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
 }
 $values['wa_tagihan_auto_enabled'] = ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? '1' : '0';
-$values['wa_tagihan_calendar'] = in_array(strtoupper((string) ($values['wa_tagihan_calendar'] ?? '')), ['MASEHI', 'HIJRIYAH'], true)
-    ? strtoupper((string) $values['wa_tagihan_calendar'])
-    : 'HIJRIYAH';
-$tagihanDayRaw = (int) ($values['wa_tagihan_day'] ?? 5);
-$values['wa_tagihan_day'] = (string) max(1, min(30, $tagihanDayRaw > 0 ? $tagihanDayRaw : 5));
-
-$values['app_tahun_masehi_mode'] = in_array(strtoupper((string) ($values['app_tahun_masehi_mode'] ?? '')), ['BERJALAN', 'TETAP'], true)
-    ? strtoupper((string) $values['app_tahun_masehi_mode'])
-    : 'BERJALAN';
-$tetapRaw = (int) ($values['app_tahun_masehi_tetap'] ?? (int) date('Y'));
-$values['app_tahun_masehi_tetap'] = (string) max(1900, min(2100, $tetapRaw > 0 ? $tetapRaw : (int) date('Y')));

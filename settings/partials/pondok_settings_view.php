@@ -127,22 +127,16 @@
                     <option value="0" <?= $values['wa_tagihan_auto_enabled'] !== '1' ? 'selected' : '' ?>>Nonaktif</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Kalender Tagihan</label>
-                <select class="form-select" name="wa_tagihan_calendar">
-                    <option value="MASEHI" <?= strtoupper((string) $values['wa_tagihan_calendar']) === 'MASEHI' ? 'selected' : '' ?>>Masehi</option>
-                    <option value="HIJRIYAH" <?= strtoupper((string) $values['wa_tagihan_calendar']) === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah</option>
-                </select>
-                <div class="form-text">Mengatur bulan tagihan (Muharram–Dzulhijjah bila Hijriyah), laporan keuangan, dan rekap presensi. Saat diubah ke Hijriyah, data lama disesuaikan otomatis dari tanggal bayar/presensi. <a href="/settings/kalender.php#backfill-hijriyah">Penyesuaian manual</a>.</div>
+            <div class="col-12">
+                <div class="alert alert-light border small mb-0 py-2">
+                    <strong>Kalender &amp; jadwal tagihan</strong> (jenis kalender, tanggal/jam kirim tagihan, tahun rekap, libur akademik) dikelola di
+                    <a href="/settings/kalender.php" class="fw-semibold">Pengaturan Kalender</a>.
+                </div>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Tanggal Kirim</label>
-                <input type="number" min="1" max="30" class="form-control" name="wa_tagihan_day" value="<?= htmlspecialchars((string) $values['wa_tagihan_day']) ?>">
-                <div class="form-text">Rentang 1-30 agar valid untuk kalender Hijriyah dan Masehi.</div>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Jam Kirim Tagihan</label>
-                <input type="time" class="form-control" name="wa_tagihan_send_time" value="<?= htmlspecialchars($values['wa_tagihan_send_time']) ?>">
+            <div class="col-12">
+                <label class="form-label">Keterangan Pengurus Bidang Keuangan</label>
+                <textarea class="form-control" name="keterangan_pengurus_bidang_keuangan" rows="2" maxlength="500" placeholder="Teks di bawah nama Pengurus Bidang Keuangan pada pesan WA tagihan otomatis"><?= htmlspecialchars((string) ($values['keterangan_pengurus_bidang_keuangan'] ?? '')) ?></textarea>
+                <div class="form-text">Ditampilkan di pesan WhatsApp tagihan otomatis, tepat di bawah frasa <em>Pengurus Bidang Keuangan</em>.</div>
             </div>
             <hr class="my-2">
             <div class="col-md-4">
@@ -152,23 +146,6 @@
             <div class="col-md-4">
                 <label class="form-label">Batas Telat (menit)</label>
                 <input type="number" min="0" class="form-control" name="batas_telat_menit" value="<?= htmlspecialchars($values['batas_telat_menit']) ?>" placeholder="15">
-            </div>
-            <div class="col-12" id="tahun-masehi-acuan"><hr class="my-1"></div>
-            <div class="col-12">
-                <h2 class="h6 mb-1">Tahun Masehi default (rekap &amp; laporan)</h2>
-                <p class="small text-muted mb-2">Saat membuka rekap/laporan tanpa memilih tahun di URL. Mode <strong>berjalan</strong> mengikuti tahun dari tanggal server.</p>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small">Sumber tahun default</label>
-                <select class="form-select form-select-sm" name="app_tahun_masehi_mode">
-                    <option value="BERJALAN" <?= ($values['app_tahun_masehi_mode'] ?? '') === 'BERJALAN' ? 'selected' : '' ?>>Otomatis tahun Masehi berjalan</option>
-                    <option value="TETAP" <?= ($values['app_tahun_masehi_mode'] ?? '') === 'TETAP' ? 'selected' : '' ?>>Tetap ke tahun tertentu</option>
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small">Tahun Masehi tetap</label>
-                <input type="number" min="1900" max="2100" class="form-control form-control-sm" name="app_tahun_masehi_tetap" value="<?= htmlspecialchars((string) ($values['app_tahun_masehi_tetap'] ?? '')) ?>">
-                <div class="form-text">Hanya jika memilih &quot;Tetap ke tahun tertentu&quot;.</div>
             </div>
             <div class="col-12"><hr class="my-1"><h2 class="h6 mb-1">Login &amp; akses</h2></div>
             <div class="col-md-4">

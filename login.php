@@ -4,6 +4,7 @@ require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/session.php';
 require_once __DIR__ . '/helpers/app.php';
 require_once __DIR__ . '/helpers/app_path.php';
+require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
 if (isset($_SESSION['user'])) {
@@ -36,9 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
     $userRow = null;
 
     if (table_exists($pdo, 'users')) {
+        user_profil_ensure_schema($pdo);
         $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi') NOT NULL DEFAULT 'pengurus'");
         $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
-        $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin FROM users WHERE username = :username LIMIT 1');
+        $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin, foto_profil FROM users WHERE username = :username LIMIT 1');
         $statement->execute(['username' => $username]);
         $userRow = $statement->fetch();
 
@@ -63,8 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             'username' => $username,
             'role' => $userRow['role'] ?? 'admin',
             'is_super_admin' => $isSuperAdmin ? 1 : 0,
+            'foto_profil' => trim((string) ($userRow['foto_profil'] ?? '')),
         ];
         set_flash('success', 'Login berhasil.');
+        if ($peran === 'pembimbing') {
+            app_redirect('pembimbing/tugas/index.php');
+        }
         app_redirect('dashboard.php');
     }
 
@@ -73,25 +79,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
     exit;
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
+$brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
 $heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
+$welcome = auth_portal_welcome_copy($pdo);
 $peranLabel = $peran === 'pembimbing' ? 'Pembimbing' : ($peran === 'pengurus' ? 'Pengurus / Admin' : '');
-$portalSubtitle = $peran === ''
-    ? 'Silakan pilih peran Anda untuk masuk ke sistem.'
-    : 'Masukkan username dan password akun ' . strtolower($peranLabel) . '.';
+$portalSubtitleMobile = $peran === ''
+    ? 'Pilih peran di bawah untuk masuk ke sistem manajemen pondok.'
+    : 'Masukkan kredensial akun ' . strtolower($peranLabel) . ' Anda.';
+$portalSubtitleDesktop = $peran === ''
+    ? 'Pilih peran di samping untuk masuk ke sistem manajemen pondok.'
+    : $portalSubtitleMobile;
 
 auth_portal_layout_begin([
-    'title' => $peran === '' ? 'Masuk' : 'Login ' . $peranLabel,
-    'welcome' => 'Selamat datang',
-    'subtitle' => $portalSubtitle,
+    'title' => $peran === '' ? 'Portal Masuk' : 'Login ' . $peranLabel,
+    'welcome_salam' => $welcome['salam'],
+    'welcome_tagline' => $welcome['tagline'],
+    'subtitle_mobile' => $portalSubtitleMobile,
+    'subtitle_desktop' => $portalSubtitleDesktop,
     'kicker' => $jenisPendidikan,
-    'nama_ponpes' => $namaPonpes,
+    'nama_ponpes' => $brandNama,
     'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
-    'max_width' => $peran === '' ? '520px' : '420px',
+    'layout' => $peran === '' ? 'split' : 'stack',
+    'card_title' => $peran === '' ? 'Pilih cara masuk' : 'Masuk ke akun',
+    'card_meta' => $peran === '' ? 'Satu portal untuk pengurus, pembimbing, dan layanan terkait' : 'Data Anda aman · gunakan akun resmi pondok',
     'accent' => 'teal',
 ]);
 
@@ -106,70 +120,87 @@ $ok = get_flash('success');
                 <?php endif; ?>
 
                 <?php if ($peran === ''): ?>
-                    <p class="text-muted small text-center mb-3">Pilih cara masuk sesuai tugas Anda.</p>
-                    <div class="row g-2">
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pengurus')) ?>" class="btn btn-outline-success w-100 py-3 text-start">
-                                <i class="fa-solid fa-user-tie fa-lg me-2"></i>
-                                <strong>Pengurus / Admin</strong>
-                                <span class="d-block small text-muted mt-1">Username &amp; password</span>
-                            </a>
-                        </div>
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="btn btn-outline-primary w-100 py-3 text-start">
-                                <i class="fa-solid fa-chalkboard-user fa-lg me-2"></i>
-                                <strong>Pembimbing</strong>
-                                <span class="d-block small text-muted mt-1">Username &amp; password</span>
-                            </a>
-                        </div>
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/presensi/login.php')) ?>" class="btn btn-outline-info w-100 py-3 text-start">
-                                <i class="fa-solid fa-qrcode fa-lg me-2"></i>
-                                <strong>Petugas presensi</strong>
-                                <span class="d-block small text-muted mt-1">Password saja</span>
-                            </a>
-                        </div>
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" class="btn btn-outline-success w-100 py-3 text-start border-2">
-                                <i class="fa-solid fa-mobile-screen-button fa-lg me-2"></i>
-                                <strong>Portal wali (HP)</strong>
-                                <span class="d-block small text-muted mt-1">Cari anak · NIS · PIN</span>
-                            </a>
-                        </div>
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" class="btn btn-outline-success w-100 py-3 text-start">
-                                <i class="fa-solid fa-user-graduate fa-lg me-2"></i>
-                                <strong>Portal santri</strong>
-                                <span class="d-block small text-muted mt-1">NIS · PIN santri</span>
-                            </a>
-                        </div>
-                        <div class="col-sm-6">
-                            <a href="<?= htmlspecialchars(app_href('/mukimin/login.php')) ?>" class="btn btn-outline-secondary w-100 py-3 text-start">
-                                <i class="fa-solid fa-book-open fa-lg me-2"></i>
-                                <strong>Portal mukimin</strong>
-                                <span class="d-block small text-muted mt-1">Alumni terdaftar · username &amp; password</span>
-                            </a>
-                        </div>
+                    <div class="auth-portal-role-grid">
+                        <?php
+                        auth_portal_role_link([
+                            'href' => app_href('/login.php?peran=pengurus'),
+                            'icon' => 'fa-user-tie',
+                            'icon_mod' => 'pengurus',
+                            'title' => 'Pengurus / Admin',
+                            'desc' => 'Username & password',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/login.php?peran=pembimbing'),
+                            'icon' => 'fa-chalkboard-user',
+                            'icon_mod' => 'pembimbing',
+                            'title' => 'Pembimbing',
+                            'desc' => 'Username & password',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/presensi/login.php'),
+                            'icon' => 'fa-qrcode',
+                            'icon_mod' => 'presensi',
+                            'title' => 'Petugas presensi',
+                            'desc' => 'Password presensi',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/wali/login.php'),
+                            'icon' => 'fa-mobile-screen-button',
+                            'icon_mod' => 'wali',
+                            'title' => 'Portal wali',
+                            'desc' => 'NIS · PIN wali santri',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/santri_portal/login.php'),
+                            'icon' => 'fa-user-graduate',
+                            'icon_mod' => 'santri',
+                            'title' => 'Portal santri',
+                            'desc' => 'NIS · PIN santri',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/koperasi/index.php'),
+                            'icon' => 'fa-store',
+                            'icon_mod' => 'koperasi',
+                            'title' => 'Koperasi cashless',
+                            'desc' => 'Pilih koperasi · password',
+                        ]);
+                        auth_portal_role_link([
+                            'href' => app_href('/mukimin/login.php'),
+                            'icon' => 'fa-book-open',
+                            'icon_mod' => 'mukimin',
+                            'title' => 'Portal mukimin',
+                            'desc' => 'Alumni · username & password',
+                            'full' => true,
+                        ]);
+                        ?>
                     </div>
-                    <p class="small text-muted text-center mt-3 mb-0">Logo &amp; nama pondok dapat diubah di menu <strong>Pengaturan</strong> setelah login pengurus.</p>
+                    <p class="auth-portal-footnote">Logo dan nama pondok dapat diubah di menu <strong>Pengaturan</strong> setelah login pengurus.</p>
                 <?php else: ?>
-                    <div class="d-flex justify-content-end mb-2">
-                        <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="btn btn-link btn-sm">Ganti peran</a>
-                    </div>
-                    <form method="post">
+                    <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="auth-portal-back">
+                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Kembali pilih peran
+                    </a>
+                    <form method="post" class="auth-portal-form">
                         <input type="hidden" name="peran" value="<?= htmlspecialchars($peran) ?>">
                         <div class="mb-3">
-                            <label class="form-label">Username</label>
-                            <input type="text" name="username" class="form-control" required autocomplete="username">
+                            <label class="form-label" for="login-username">Username</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+                                <input type="text" name="username" id="login-username" class="form-control" required autocomplete="username" placeholder="Masukkan username">
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="password" name="password" class="form-control" required autocomplete="current-password">
+                            <label class="form-label" for="login-password">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fa-solid fa-lock" aria-hidden="true"></i></span>
+                                <input type="password" name="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="Masukkan password">
+                            </div>
                         </div>
-                        <button type="submit" class="btn btn-auth-primary w-100">Masuk</button>
+                        <button type="submit" class="btn btn-auth-primary w-100">
+                            <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
+                        </button>
                     </form>
                     <?php if ($peran === 'pengurus'): ?>
-                        <p class="small text-muted mt-3 mb-0 text-center">Akun awal: <strong>admin</strong> / <strong>admin123</strong></p>
+                        <p class="auth-portal-footnote">Akun percobaan: <strong>admin</strong> / <strong>admin123</strong></p>
                     <?php endif; ?>
                 <?php endif; ?>
 <?php

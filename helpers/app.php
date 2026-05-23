@@ -79,6 +79,7 @@ function pondok_settings_defaults(): array
         'jadwal_tampilan_grup' => 'kegiatan',
         'wa_tagihan_day' => '5',
         'wa_tagihan_send_time' => '08:00',
+        'keterangan_pengurus_bidang_keuangan' => 'Bertanggung jawab atas administrasi keuangan dan tagihan santri.',
         'batas_alpa_notif' => '3',
         'batas_telat_menit' => '15',
         'kategori_baik_max' => '1',
@@ -931,14 +932,19 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
 
     $added = 0;
     if ($pointAlpa > 0) {
+        require_once __DIR__ . '/presensi_jadwal.php';
         $alpaRows = $pdo->query('
-            SELECT p.id, p.santri_id, p.tanggal_presensi
+            SELECT p.id, p.santri_id, p.tanggal_presensi, p.kegiatan_id, s.tingkatan
             FROM presensi p
+            INNER JOIN santri s ON s.id = p.santri_id
             LEFT JOIN point_ledger pl ON pl.sumber_data = "PRESENSI_ALPA_AUTO" AND pl.reference_presensi_id = p.id
             WHERE p.status_presensi = "ALPA"
               AND pl.id IS NULL
         ')->fetchAll();
         foreach ($alpaRows as $row) {
+            if (!presensi_row_eligible_for_hitung($pdo, $row)) {
+                continue;
+            }
             $insert->execute([
                 'santri_id' => (int) $row['santri_id'],
                 'tanggal' => $row['tanggal_presensi'],
@@ -1708,7 +1714,17 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         return;
     }
 
-    $santriStmt = $pdo->prepare('SELECT id FROM santri WHERE tingkatan = :tingkatan AND is_aktif = 1');
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $kegiatanIdInt = $kegiatanId !== null ? (int) $kegiatanId : 0;
+    if ($kegiatanIdInt <= 0) {
+        return;
+    }
+    if (!presensi_tingkatan_terjadwal($pdo, $tingkatan, $kegiatanIdInt, $tanggal)) {
+        return;
+    }
+
+    require_once __DIR__ . '/santri_operasional.php';
+    $santriStmt = $pdo->prepare('SELECT id FROM santri WHERE tingkatan = :tingkatan AND ' . santri_sql_aktif_only('santri'));
     $santriStmt->execute(['tingkatan' => $tingkatan]);
     $santriIds = array_map('intval', $santriStmt->fetchAll(PDO::FETCH_COLUMN));
     if (!$santriIds) {
@@ -1739,20 +1755,29 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
     }
     $jamMulaiKeg = null;
     $jamSelesaiKeg = null;
-    if ($kegiatanId > 0 && table_exists($pdo, 'jadwal_kegiatan')) {
+    $jadwalKegiatanId = null;
+    if ($kegiatanIdInt > 0 && table_exists($pdo, 'jadwal_kegiatan')) {
         $hariKe = (int) date('N', strtotime($tanggal));
         $jadwalStmt = $pdo->prepare('
-            SELECT jam_mulai, jam_selesai FROM jadwal_kegiatan
-            WHERE kegiatan_id = :kid AND hari_ke = :hari
+            SELECT id, jam_mulai, jam_selesai FROM jadwal_kegiatan
+            WHERE kegiatan_id = :kid
+              AND (hari_ke = 0 OR hari_ke = :hari)
+              AND (tingkatan = :tingkatan OR tingkatan = "Semua Tingkatan")
             ORDER BY jam_mulai ASC LIMIT 1
         ');
-        $jadwalStmt->execute(['kid' => $kegiatanId, 'hari' => $hariKe]);
+        $jadwalStmt->execute(['kid' => $kegiatanIdInt, 'hari' => $hariKe, 'tingkatan' => $tingkatan]);
         $jadwalRow = $jadwalStmt->fetch(PDO::FETCH_ASSOC);
         if (is_array($jadwalRow)) {
+            $jadwalKegiatanId = (int) ($jadwalRow['id'] ?? 0) ?: null;
             $jamMulaiKeg = (string) ($jadwalRow['jam_mulai'] ?? null);
             $jamSelesaiKeg = (string) ($jadwalRow['jam_selesai'] ?? null);
         }
     }
+    if ($jadwalKegiatanId === null) {
+        return;
+    }
+    require_once __DIR__ . '/presensi_admin.php';
+    ensure_presensi_jadwal_column($pdo);
 
     $existingStmt = $pdo->prepare('
         SELECT id, status_presensi
@@ -1767,8 +1792,8 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         LIMIT 1
     ');
     $insertStmt = $pdo->prepare('
-        INSERT INTO presensi (santri_id, kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
-        VALUES (:santri_id, :kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
+        INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
+        VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
     ');
     $updateStmt = $pdo->prepare('
         UPDATE presensi
@@ -1787,7 +1812,7 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         $existingStmt->execute([
             'santri_id' => $santriId,
             'tanggal_presensi' => $tanggal,
-            'kegiatan_id' => $kegiatanId,
+            'kegiatan_id' => $kegiatanIdInt,
         ]);
         $existing = $existingStmt->fetch();
         if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
@@ -1797,7 +1822,8 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         if (!$existing) {
             $insertStmt->execute([
                 'santri_id' => $santriId,
-                'kegiatan_id' => $kegiatanId,
+                'kegiatan_id' => $kegiatanIdInt,
+                'jadwal_kegiatan_id' => $jadwalKegiatanId,
                 'tanggal_presensi' => $tanggal,
                 'jam_presensi' => $jam,
                 'status_presensi' => $desiredStatus,
@@ -1923,12 +1949,21 @@ function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $l
     $namaPonpes = app_brand_nama_ponpes($pdo, 'Pon-Pes A.P.I Nailul Muna');
     $nama = trim($namaSantri) !== '' ? trim($namaSantri) : 'santri';
     $totalFmt = '*Rp ' . number_format(max(0, $totalSisa), 0, ',', '.') . '*';
+    $ketKeuangan = trim((string) app_setting(
+        $pdo,
+        'keterangan_pengurus_bidang_keuangan',
+        'Bertanggung jawab atas administrasi keuangan dan tagihan santri.'
+    ));
+    $ketKeuanganLine = $ketKeuangan !== '' ? "\n_" . $ketKeuangan . "_\n" : "\n";
 
     return "Assalamu'alaikum Wr. Wb.\n"
         . 'Nyuwun pangapunten, kepareng matur dateng Bpk/Ibu wali saking *' . $nama . "*\n"
-        . 'Atasnama Pengurus *' . $namaPonpes . '* bagian Pendidikan, memberitahukan bahwa putra Bapak/Ibu masih mempunyai kekurangan '
+        . 'Atasnama Pengurus *' . $namaPonpes . '* *Pengurus Bidang Keuangan*,'
+        . $ketKeuanganLine
+        . 'memberitahukan bahwa putra/putri Bapak/Ibu masih mempunyai kekurangan '
         . $labelKekurangan . ', dan jumlah total ' . $totalFmt . ".\n"
-        . 'Berkenaan dengan hal tersebut, kami mohon maaf baru saat ini bisa melaporkan kepada Bapak/Ibu, dan atas pengertian dan kerjasamanya kami haturkan terimakasih🙏.';
+        . 'Berkenaan dengan hal tersebut, kami mohon maaf baru saat ini dapat melaporkan kepada Bapak/Ibu. '
+        . 'Atas pengertian dan kerja samanya kami ucapkan terima kasih 🙏.';
 }
 
 /** Ringkasan tagihan untuk notifikasi push (tanpa markup tebal). */
@@ -2231,6 +2266,7 @@ function menu_tile_icon_for_path(string $path): string
         '/yayasan/pengurus.php' => 'fa-solid fa-user-tie',
         '/yayasan/rapat.php' => 'fa-solid fa-people-group',
         '/yayasan/notulen.php' => 'fa-solid fa-file-pen',
+        '/yayasan/executive.php' => 'fa-solid fa-chart-line',
     ];
     if (isset($exactIcons[$path])) {
         return $exactIcons[$path];

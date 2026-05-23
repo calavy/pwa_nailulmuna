@@ -6,10 +6,12 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/akademik_rapor.php';
+require_once __DIR__ . '/../helpers/hijri_kalender.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_identity_columns($pdo);
-ensure_akademik_rapor_table($pdo);
+ensure_akademik_rapor_columns($pdo);
 
 $filterSantri = (int) ($_GET['santri_id'] ?? 0);
 $editId = (int) ($_GET['edit'] ?? 0);
@@ -45,6 +47,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pred = trim((string) ($_POST['predikat_akhlak'] ?? ''));
         $cat = trim((string) ($_POST['catatan_pondok'] ?? ''));
         $published = isset($_POST['is_published']) ? 1 : 0;
+        $periodeMode = strtolower(trim((string) ($_POST['periode_mode'] ?? 'hijriyah')));
+        if (!in_array($periodeMode, ['masehi', 'hijriyah'], true)) {
+            $periodeMode = 'hijriyah';
+        }
+        $periodeBulan = max(1, min(12, (int) ($_POST['periode_bulan'] ?? 0)));
+        $periodeTahun = (int) ($_POST['periode_tahun'] ?? 0);
+        if ($periodeBulan < 1 || $periodeTahun < 1) {
+            $defP = rapor_periode_default_dari_tanggal($pdo, $tgl);
+            $periodeMode = $defP['mode'];
+            $periodeBulan = $defP['month'];
+            $periodeTahun = $defP['year'];
+        }
         if ($sid <= 0 || $judul === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
             set_flash('error', 'Santri, judul periode, dan tanggal terbit wajib valid.');
             header('Location: ' . app_rewrite_internal_url('/akademik/rapor.php' . ($rid > 0 ? '?edit=' . $rid : '')));
@@ -71,6 +85,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     santri_id = :sid,
                     judul_periode = :judul,
                     tanggal_terbit = :tgl,
+                    periode_mode = :pm,
+                    periode_bulan = :pb,
+                    periode_tahun = :pt,
                     narasi = :nar,
                     predikat_akhlak = :pred,
                     catatan_pondok = :cat,
@@ -80,6 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'sid' => $sid,
                 'judul' => mb_substr($judul, 0, 160),
                 'tgl' => $tgl,
+                'pm' => $periodeMode,
+                'pb' => $periodeBulan,
+                'pt' => $periodeTahun,
                 'nar' => $narasi !== '' ? $narasi : null,
                 'pred' => $pred !== '' ? mb_substr($pred, 0, 100) : null,
                 'cat' => $cat !== '' ? $cat : null,
@@ -91,12 +111,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $pdo->prepare('
-            INSERT INTO akademik_rapor (santri_id, judul_periode, tanggal_terbit, narasi, predikat_akhlak, catatan_pondok, is_published, created_by)
-            VALUES (:sid, :judul, :tgl, :nar, :pred, :cat, :pub, :uid)
+            INSERT INTO akademik_rapor (santri_id, judul_periode, tanggal_terbit, periode_mode, periode_bulan, periode_tahun, narasi, predikat_akhlak, catatan_pondok, is_published, created_by)
+            VALUES (:sid, :judul, :tgl, :pm, :pb, :pt, :nar, :pred, :cat, :pub, :uid)
         ')->execute([
             'sid' => $sid,
             'judul' => mb_substr($judul, 0, 160),
             'tgl' => $tgl,
+            'pm' => $periodeMode,
+            'pb' => $periodeBulan,
+            'pt' => $periodeTahun,
             'nar' => $narasi !== '' ? $narasi : null,
             'pred' => $pred !== '' ? mb_substr($pred, 0, 100) : null,
             'cat' => $cat !== '' ? $cat : null,
@@ -145,12 +168,28 @@ $formNarasi = (string) ($editRow['narasi'] ?? '');
 $formPred = (string) ($editRow['predikat_akhlak'] ?? '');
 $formCat = (string) ($editRow['catatan_pondok'] ?? '');
 $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
+$defPeriode = $editRow
+    ? [
+        'mode' => strtolower((string) ($editRow['periode_mode'] ?? '')),
+        'month' => (int) ($editRow['periode_bulan'] ?? 0),
+        'year' => (int) ($editRow['periode_tahun'] ?? 0),
+    ]
+    : rapor_periode_default_dari_tanggal($pdo, $formTgl);
+if (!in_array($defPeriode['mode'], ['masehi', 'hijriyah'], true)) {
+    $defPeriode = rapor_periode_default_dari_tanggal($pdo, $formTgl);
+}
+if ($defPeriode['month'] < 1 || $defPeriode['year'] < 1) {
+    $defPeriode = rapor_periode_default_dari_tanggal($pdo, $formTgl);
+}
+$hijriMonths = hijri_nama_bulan_list();
+$masehiMonths = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+$calDefault = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Akademik</p>
     <h1 class="h3 mb-1">Rapor &amp; WA wali</h1>
-    <p class="text-muted mb-0">Buat rapor per santri, centang <strong>Terbit</strong> agar tampil di portal wali. Tombol WA membuka chat ke nomor wali (tanpa gateway).</p>
+    <p class="text-muted mb-0">Buat rapor per santri: presensi bulanan, setoran hafalan, dan tugas Ikhtibar per pembimbing/mapel. Centang <strong>Terbit</strong> agar tampil di portal wali.</p>
     <p class="small text-muted mb-0 mt-2">
         <a href="/settings/tingkatan.php" class="link-secondary">Pengaturan master tingkatan</a>
         — ubah nama tingkatan; data santri &amp; jadwal yang memakai nama lama ikut diselaraskan.
@@ -163,7 +202,11 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
             <div class="card-body">
                 <h2 class="h5 mb-3"><?= $editRow ? 'Edit rapor' : 'Tambah rapor' ?></h2>
                 <?php if ($editRow): ?>
-                    <p class="small text-muted"><a href="/akademik/rapor.php">Batal edit — form baru</a></p>
+                    <p class="small text-muted mb-2">
+                        <a href="/akademik/rapor.php">Batal edit — form baru</a>
+                        · <a href="/akademik/rapor_lihat.php?id=<?= (int) $editRow['id'] ?>">Pratinjau</a>
+                        · <a href="/akademik/rapor_cetak.php?id=<?= (int) $editRow['id'] ?>" target="_blank" rel="noopener">Cetak kop &amp; TTD</a>
+                    </p>
                 <?php endif; ?>
                 <form method="post" class="d-grid gap-2">
                     <input type="hidden" name="action" value="simpan_rapor">
@@ -193,6 +236,28 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
                     <div>
                         <label class="form-label">Tanggal terbit</label>
                         <input type="date" name="tanggal_terbit" class="form-control" required value="<?= htmlspecialchars($formTgl) ?>">
+                    </div>
+                    <div class="border rounded p-2 bg-light">
+                        <label class="form-label fw-semibold small mb-2">Periode presensi &amp; tugas</label>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <select name="periode_mode" class="form-select form-select-sm" id="rapor-periode-mode">
+                                    <option value="hijriyah" <?= $defPeriode['mode'] === 'hijriyah' ? 'selected' : '' ?>>Bulan Hijriyah</option>
+                                    <option value="masehi" <?= $defPeriode['mode'] === 'masehi' ? 'selected' : '' ?>>Bulan Masehi</option>
+                                </select>
+                                <div class="form-text">Default kalender pondok: <?= $calDefault === 'MASEHI' ? 'Masehi' : 'Hijriyah' ?>.</div>
+                            </div>
+                            <div class="col-7">
+                                <select name="periode_bulan" class="form-select form-select-sm" id="rapor-periode-bulan">
+                                    <?php for ($m = 1; $m <= 12; $m++): ?>
+                                        <option value="<?= $m ?>" data-masehi="<?= htmlspecialchars($masehiMonths[$m] ?? (string) $m) ?>" data-hijri="<?= htmlspecialchars($hijriMonths[$m] ?? (string) $m) ?>" <?= $defPeriode['month'] === $m ? 'selected' : '' ?>><?= htmlspecialchars($hijriMonths[$m] ?? (string) $m) ?></option>
+                                    <?php endfor; ?>
+                                </select>
+                            </div>
+                            <div class="col-5">
+                                <input type="number" name="periode_tahun" class="form-control form-control-sm" min="1300" max="2100" required value="<?= (int) $defPeriode['year'] ?>">
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label class="form-label">Ringkasan nilai / narasi</label>
@@ -238,18 +303,20 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
                                 <th>Tgl</th>
                                 <th>Santri</th>
                                 <th>Judul</th>
+                                <th>Periode data</th>
                                 <th>Terbit</th>
                                 <th class="text-end">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if (!$daftar): ?>
-                            <tr><td colspan="5" class="text-muted small">Belum ada rapor.</td></tr>
+                            <tr><td colspan="6" class="text-muted small">Belum ada rapor.</td></tr>
                         <?php endif; ?>
                         <?php foreach ($daftar as $d): ?>
                             <?php
                             $waWali = trim((string) ($d['no_wa_wali'] ?? ''));
                             $namaS = (string) ($d['nama_santri'] ?? '');
+                            $periodeRow = rapor_periode_dari_row($pdo, $d);
                             $pesanWa = 'Assalamu\'alaikum, kami informasikan rapor akademik untuk *' . $namaS . '* (' . ($d['judul_periode'] ?? '') . '). Silakan cek di portal wali pondok. Terima kasih.';
                             $waUrl = $waWali !== '' ? wa_me_chat_url($waWali, $pesanWa) : null;
                             ?>
@@ -257,8 +324,11 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
                                 <td class="text-nowrap small"><?= htmlspecialchars((string) $d['tanggal_terbit']) ?></td>
                                 <td class="small"><?= htmlspecialchars($namaS) ?></td>
                                 <td class="small"><?= htmlspecialchars((string) ($d['judul_periode'] ?? '')) ?></td>
+                                <td class="small text-muted"><?= htmlspecialchars((string) $periodeRow['label']) ?></td>
                                 <td><?= (int) ($d['is_published'] ?? 0) === 1 ? '<span class="badge text-bg-success">Ya</span>' : '<span class="badge text-bg-secondary">Draft</span>' ?></td>
                                 <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-outline-secondary" href="/akademik/rapor_lihat.php?id=<?= (int) $d['id'] ?>">Lihat</a>
+                                    <a class="btn btn-sm btn-outline-dark" href="/akademik/rapor_cetak.php?id=<?= (int) $d['id'] ?>" target="_blank" rel="noopener" title="Cetak dengan kop surat">Cetak</a>
                                     <?php if ($waUrl): ?>
                                         <a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="<?= htmlspecialchars($waUrl) ?>">WA wali</a>
                                     <?php else: ?>
@@ -282,15 +352,27 @@ $formPub = $editRow ? (int) ($editRow['is_published'] ?? 0) : 0;
     </div>
 </div>
 
-<?php if ($editRow): ?>
 <script>
 (function () {
+    var modeEl = document.getElementById('rapor-periode-mode');
+    var bulanEl = document.getElementById('rapor-periode-bulan');
+    function syncBulanLabels() {
+        if (!modeEl || !bulanEl) return;
+        var hijri = modeEl.value === 'hijriyah';
+        for (var i = 0; i < bulanEl.options.length; i++) {
+            var opt = bulanEl.options[i];
+            opt.textContent = hijri ? (opt.getAttribute('data-hijri') || opt.value) : (opt.getAttribute('data-masehi') || opt.value);
+        }
+    }
+    if (modeEl) {
+        modeEl.addEventListener('change', syncBulanLabels);
+        syncBulanLabels();
+    }
     var el = document.getElementById('rapor-form');
-    if (el) {
+    if (el && window.location.hash === '#rapor-form') {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 })();
 </script>
-<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -22,6 +22,21 @@ function yayasan_jenis_rapat_opsi(): array
     return ['RUTIN', 'INSIDENTAL', 'LAIN'];
 }
 
+function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan): string
+{
+    yayasan_ensure_tables($pdo);
+    $stmt = $pdo->prepare('
+        SELECT nama FROM yayasan_pengurus
+        WHERE jabatan = :jabatan AND is_aktif = 1
+        ORDER BY urutan ASC, id ASC
+        LIMIT 1
+    ');
+    $stmt->execute(['jabatan' => $jabatan]);
+    $nama = $stmt->fetchColumn();
+
+    return is_string($nama) ? trim($nama) : '';
+}
+
 function yayasan_ensure_tables(PDO $pdo): void
 {
     $pdo->exec('

@@ -53,19 +53,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', ''));
+$brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
 $heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
+$welcome = auth_portal_welcome_copy($pdo);
 auth_portal_layout_begin([
     'title' => 'Petugas presensi',
-    'welcome' => 'Selamat datang',
-    'subtitle' => 'Scan QR kehadiran santri & pembimbing. Setelah masuk, izinkan akses kamera belakang di browser.',
+    'welcome_salam' => $welcome['salam'],
+    'welcome_tagline' => $welcome['tagline'],
+    'subtitle' => 'Scan QR kehadiran santri & pembimbing. Izinkan akses kamera belakang setelah masuk.',
     'kicker' => $jenisPendidikan,
-    'nama_ponpes' => $namaPonpes,
+    'nama_ponpes' => $brandNama,
     'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
+    'card_title' => 'Masuk presensi',
+    'card_meta' => 'Password dari menu Pengaturan pondok',
     'accent' => 'indigo',
 ]);
 
@@ -83,7 +87,10 @@ $ok = get_flash('success');
                         <strong>Belum siap.</strong> Pengurus harus mengisi <strong>Password presensi</strong> di halaman Pengaturan terlebih dahulu.
                     </div>
                 <?php endif; ?>
-                <form method="post" action="<?= htmlspecialchars(app_href('/presensi/login.php')) ?>" autocomplete="on">
+                <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="auth-portal-back">
+                    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Kembali ke portal utama
+                </a>
+                <form method="post" class="auth-portal-form" action="<?= htmlspecialchars(app_href('/presensi/login.php')) ?>" autocomplete="on">
                     <div class="mb-3">
                         <label class="form-label fw-semibold" for="presensi-pw">Password presensi</label>
                         <div class="input-group">

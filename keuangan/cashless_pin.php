@@ -3,8 +3,11 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
 require_roles(['admin', 'pengurus']);
+
+cashless_koperasi_ensure_schema($pdo);
 
 $pdo->exec("
 CREATE TABLE IF NOT EXISTS cashless_accounts (
@@ -135,6 +138,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/keuangan/cashless_pin.php#form-pin-cashless'));
         exit;
     }
+    if (($_POST['action'] ?? '') === 'save_koperasi_cashless') {
+        foreach (cashless_koperasi_list($pdo, false) as $kop) {
+            $id = (int) $kop['id'];
+            $nama = trim((string) ($_POST['koperasi_nama_' . $id] ?? ''));
+            if ($nama !== '') {
+                save_setting($pdo, cashless_koperasi_nama_setting_key($id), $nama);
+            }
+            $pw = trim((string) ($_POST['koperasi_password_' . $id] ?? ''));
+            if ($pw !== '') {
+                save_setting($pdo, cashless_koperasi_password_setting_key($id), password_hash($pw, PASSWORD_DEFAULT));
+            }
+        }
+        set_flash('success', 'Pengaturan koperasi cashless berhasil disimpan.');
+        header('Location: ' . app_href('/keuangan/cashless_pin.php#koperasi-cashless'));
+        exit;
+    }
 }
 
 $dailyLimit = (int) app_setting($pdo, 'cashless_daily_limit', '10000');
@@ -182,6 +201,7 @@ $santriPinStatusRows = $pdo->query("
 ")->fetchAll();
 
 $ubahPinSantriId = (int) ($_GET['ubah_pin'] ?? 0);
+$koperasiList = cashless_koperasi_list($pdo, false);
 
 $pageTitle = 'Pengaturan Cashless & Uang Saku';
 require_once __DIR__ . '/../includes/header.php';
@@ -193,6 +213,7 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="small text-muted mb-0">PIN santri, batas belanja harian, scan uang, dan alur top-up dari pembayaran Saku.</p>
     </div>
     <a href="/keuangan/cashless_scan.php" class="btn btn-outline-danger btn-sm">Ke Scan Cashless</a>
+    <a href="/keuangan/cashless_laporan.php" class="btn btn-outline-secondary btn-sm">Laporan Koperasi</a>
 </div>
 <div class="alert alert-info small mb-3">
     <strong>Uang saku (opsional):</strong> jika wali membayar pos <em>Saku</em> (mis. Rp 100.000), nominal itu masuk saldo <strong>cashless</strong> santri.
@@ -201,6 +222,32 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <div class="row g-3">
     <div class="col-lg-5">
+        <div class="card shadow-sm mb-3" id="koperasi-cashless">
+            <div class="card-header fw-semibold small">Portal Koperasi (login petugas)</div>
+            <div class="card-body">
+                <p class="small text-muted">Atur nama tampilan dan password login untuk masing-masing koperasi. Petugas masuk lewat <a href="<?= htmlspecialchars(app_href('/koperasi/index.php')) ?>" target="_blank" rel="noopener">Portal Koperasi</a>.</p>
+                <form method="post">
+                    <input type="hidden" name="action" value="save_koperasi_cashless">
+                    <?php foreach ($koperasiList as $kop):
+                        $kid = (int) $kop['id'];
+                        $pwSet = trim((string) app_setting($pdo, cashless_koperasi_password_setting_key($kid), '')) !== '';
+                        ?>
+                        <div class="border rounded p-3 mb-2">
+                            <div class="fw-semibold small mb-2"><?= htmlspecialchars((string) $kop['nama']) ?></div>
+                            <div class="mb-2">
+                                <label class="form-label small">Nama tampilan</label>
+                                <input type="text" name="koperasi_nama_<?= $kid ?>" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $kop['nama']) ?>" maxlength="120">
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label small">Password login petugas <?= $pwSet ? '<span class="text-success">(sudah diatur)</span>' : '<span class="text-warning">(belum diatur)</span>' ?></label>
+                                <input type="password" name="koperasi_password_<?= $kid ?>" class="form-control form-control-sm" placeholder="Kosongkan jika tidak ingin mengubah" autocomplete="new-password">
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <button type="submit" class="btn btn-primary btn-sm">Simpan koperasi</button>
+                </form>
+            </div>
+        </div>
         <div class="card shadow-sm">
             <div class="card-header fw-semibold small">Uang saku &amp; batas harian</div>
             <div class="card-body">

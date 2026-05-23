@@ -5,6 +5,8 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/rekap_periode.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
+require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
@@ -24,6 +26,13 @@ $periodeLabel = $periode['label'];
 $tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
 $santriId = (int) ($_GET['santri_id'] ?? 0);
 $kegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
+$tampilan = trim((string) ($_GET['tampilan'] ?? 'semua'));
+if (!in_array($tampilan, ['semua', 'santri', 'kegiatan', 'tingkatan'], true)) {
+    $tampilan = 'semua';
+}
+if ($santriId > 0) {
+    $tampilan = 'santri';
+}
 $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
     $paper = 'A4';
@@ -42,69 +51,23 @@ foreach ($santriList as $santriOption) {
     }
 }
 
-$kegiatanSql = '';
-$execParams = ['start_date' => $startDate, 'end_date' => $endDate];
-if ($kegiatanId > 0) {
-    $kegiatanSql = ' AND p.kegiatan_id = :kegiatan_id';
-    $execParams['kegiatan_id'] = $kegiatanId;
+$rawRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, $kegiatanId);
+if ($tingkatan !== '') {
+    $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
+        return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
+    }));
 }
-$stmt = $pdo->prepare('
-    SELECT
-        s.id,
-        s.nama_santri,
-        s.nis,
-        s.tingkatan,
-        SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END) AS hadir,
-        SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END) AS izin,
-        SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END) AS sakit,
-        SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END) AS alpa,
-        COUNT(p.id) AS total
-    FROM presensi p
-    INNER JOIN santri s ON s.id = p.santri_id
-    WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date' . $kegiatanSql . '
-    GROUP BY s.id, s.nama_santri, s.nis, s.tingkatan
-');
-$stmt->execute($execParams);
-$rows = $stmt->fetchAll();
+if ($santriId > 0) {
+    $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($santriId): bool {
+        return (int) ($row['santri_id'] ?? 0) === $santriId;
+    }));
+}
 
 $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
 $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-
-$ranked = [];
-foreach ($rows as $row) {
-    if ($tingkatan !== '' && strtolower((string) $row['tingkatan']) !== strtolower($tingkatan)) {
-        continue;
-    }
-    if ($santriId > 0 && (int) $row['id'] !== $santriId) {
-        continue;
-    }
-    $total = (int) $row['total'];
-    $hadir = (int) $row['hadir'];
-    $alpa = (int) $row['alpa'];
-    $persen = $total > 0 ? round(($hadir / $total) * 100, 2) : 0;
-    $kategori = santri_category($alpa, $goodMax, $mediumMax);
-    $skor = ($persen * 10) - ($alpa * 5);
-    $ranked[] = [
-        'nis' => $row['nis'],
-        'nama_santri' => $row['nama_santri'],
-        'tingkatan' => $row['tingkatan'],
-        'hadir' => $hadir,
-        'izin' => (int) $row['izin'],
-        'sakit' => (int) $row['sakit'],
-        'alpa' => $alpa,
-        'total' => $total,
-        'persen_hadir' => $persen,
-        'kategori' => $kategori,
-        'skor' => $skor,
-    ];
-}
-
-usort($ranked, static function (array $a, array $b): int {
-    if ($a['skor'] === $b['skor']) {
-        return strcmp((string) $a['nama_santri'], (string) $b['nama_santri']);
-    }
-    return $b['skor'] <=> $a['skor'];
-});
+$ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
+$byKegiatan = rekap_keaktifan_build_per_kegiatan($rawRows);
+$byTingkatan = rekap_keaktifan_build_per_tingkatan($ranked);
 
 $totalSantriRekap = count($ranked);
 $totalHadir = array_sum(array_column($ranked, 'hadir'));
@@ -113,11 +76,19 @@ $totalSakit = array_sum(array_column($ranked, 'sakit'));
 $totalAlpa = array_sum(array_column($ranked, 'alpa'));
 $totalPresensi = array_sum(array_column($ranked, 'total'));
 $rataHadir = $totalPresensi > 0 ? round(($totalHadir / $totalPresensi) * 100, 2) : 0;
+
 $cakupanLabel = 'Semua Santri';
 if ($selectedSantri) {
-    $cakupanLabel = 'Per Santri - ' . (string) $selectedSantri['nama_santri'] . ' (' . (string) $selectedSantri['nis'] . ')';
+    $cakupanLabel = 'Per Santri — ' . (string) $selectedSantri['nama_santri'] . ' (' . (string) $selectedSantri['nis'] . ')';
 } elseif ($tingkatan !== '') {
-    $cakupanLabel = 'Per Tingkatan - ' . $tingkatan;
+    $cakupanLabel = 'Per Tingkatan — ' . $tingkatan;
+} elseif ($kegiatanId > 0) {
+    foreach ($kegiatanList as $kg) {
+        if ((int) $kg['id'] === $kegiatanId) {
+            $cakupanLabel = 'Per Kegiatan — ' . (string) $kg['nama_kegiatan'];
+            break;
+        }
+    }
 }
 
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
@@ -130,8 +101,36 @@ $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 $pageTitle = 'Rekap Keaktifan Santri';
+
+$buildQuery = static function (array $overrides = []) use ($mode, $month, $year, $tingkatan, $santriId, $kegiatanId, $tampilan, $paper): string {
+    $q = [
+        'mode' => $mode,
+        'month' => $month,
+        'year' => $year,
+        'tingkatan' => $tingkatan,
+        'santri_id' => $santriId,
+        'kegiatan_id' => $kegiatanId,
+        'tampilan' => $tampilan,
+        'paper' => $paper,
+    ];
+    foreach ($overrides as $k => $v) {
+        $q[$k] = $v;
+    }
+
+    return '?' . http_build_query($q);
+};
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
+
+<div class="page-intro mb-3 print-controls">
+    <p class="page-intro-kicker mb-1">Modul Kajian · Poin & Keaktifan</p>
+    <h1 class="h4 mb-1">Rekap Keaktifan Santri</h1>
+    <p class="text-muted mb-0 small">
+        Hanya presensi yang <strong>terikat jadwal</strong> (tingkatan santri masuk jadwal kegiatan).
+        Santri di luar jadwal tidak dihitung ALPA walau tidak scan.
+    </p>
+</div>
 
 <div class="card shadow-sm mb-4 print-controls">
     <div class="card-body">
@@ -180,15 +179,25 @@ require_once __DIR__ . '/../includes/header.php';
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label">Tampilan</label>
+                <select class="form-select" name="tampilan">
+                    <option value="semua" <?= $tampilan === 'semua' ? 'selected' : '' ?>>Semua (tabel)</option>
+                    <option value="santri" <?= $tampilan === 'santri' ? 'selected' : '' ?>>Per santri (kartu)</option>
+                    <option value="kegiatan" <?= $tampilan === 'kegiatan' ? 'selected' : '' ?>>Per kegiatan</option>
+                    <option value="tingkatan" <?= $tampilan === 'tingkatan' ? 'selected' : '' ?>>Per tingkatan</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">Kertas</label>
                 <select class="form-select" name="paper">
                     <option value="A4" <?= $paper === 'A4' ? 'selected' : '' ?>>A4</option>
                     <option value="F4" <?= $paper === 'F4' ? 'selected' : '' ?>>F4</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-success w-50">Tampilkan</button>
-                <button type="button" class="btn btn-outline-dark w-50 ms-2" onclick="window.print()">Cetak</button>
+            <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+                <button class="btn btn-success">Tampilkan</button>
+                <button type="button" class="btn btn-outline-dark" onclick="window.print()">Cetak</button>
+                <a href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Rekap presensi</a>
             </div>
         </form>
     </div>
@@ -244,90 +253,369 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="row g-3 mb-3 print-controls">
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
-            <div class="app-mini-stat-label">Jumlah Santri</div>
+            <div class="app-mini-stat-label">Santri</div>
             <div class="app-mini-stat-value"><?= (int) $totalSantriRekap ?></div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
-            <div class="app-mini-stat-label">Total Hadir</div>
+            <div class="app-mini-stat-label">Hadir</div>
             <div class="app-mini-stat-value text-success"><?= (int) $totalHadir ?></div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
-            <div class="app-mini-stat-label">Total Alpa</div>
+            <div class="app-mini-stat-label">Alpa</div>
             <div class="app-mini-stat-value text-danger"><?= (int) $totalAlpa ?></div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
-            <div class="app-mini-stat-label">Rata-rata Hadir</div>
+            <div class="app-mini-stat-label">% Hadir</div>
             <div class="app-mini-stat-value"><?= htmlspecialchars((string) $rataHadir) ?>%</div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm rekap-official-card">
-    <div class="card-body">
-        <h2 class="h5 print-controls">Daftar Keaktifan Santri</h2>
-        <div class="table-responsive">
-            <table class="table table-sm table-striped rekap-official-table">
-                <thead>
-                <tr>
-                    <th>No</th>
-                    <th>NIS</th>
-                    <th>Nama</th>
-                    <th>Tingkatan</th>
-                    <th>Hadir</th>
-                    <th>Alpa</th>
-                    <th>Izin</th>
-                    <th>Sakit</th>
-                    <th>Total</th>
-                    <th>% Hadir</th>
-                    <th>Kategori</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($ranked as $idx => $row): ?>
-                    <tr>
-                        <td><?= $idx + 1 ?></td>
-                        <td><?= htmlspecialchars($row['nis']) ?></td>
-                        <td><?= htmlspecialchars($row['nama_santri']) ?></td>
-                        <td><?= htmlspecialchars((string) $row['tingkatan']) ?></td>
-                        <td><?= (int) $row['hadir'] ?></td>
-                        <td><?= (int) $row['alpa'] ?></td>
-                        <td><?= (int) $row['izin'] ?></td>
-                        <td><?= (int) $row['sakit'] ?></td>
-                        <td><?= (int) $row['total'] ?></td>
-                        <td><?= htmlspecialchars((string) $row['persen_hadir']) ?>%</td>
-                        <td><?= htmlspecialchars($row['kategori']) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                <?php if (!$ranked): ?>
-                    <tr>
-                        <td colspan="11" class="text-center text-muted">Tidak ada data pada filter ini.</td>
-                    </tr>
-                <?php endif; ?>
-                </tbody>
-                <?php if ($ranked): ?>
-                    <tfoot class="rekap-print-total">
-                    <tr>
-                        <th colspan="4">Total</th>
-                        <th><?= (int) $totalHadir ?></th>
-                        <th><?= (int) $totalAlpa ?></th>
-                        <th><?= (int) $totalIzin ?></th>
-                        <th><?= (int) $totalSakit ?></th>
-                        <th><?= (int) $totalPresensi ?></th>
-                        <th><?= htmlspecialchars((string) $rataHadir) ?>%</th>
-                        <th>-</th>
-                    </tr>
-                    </tfoot>
-                <?php endif; ?>
-            </table>
+<p class="text-muted small mb-3 rekap-keaktifan-meta">
+    <?= htmlspecialchars($cakupanLabel) ?> · <?= htmlspecialchars(date('d-m-Y', strtotime($startDate))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($endDate))) ?>
+    · Hanya sesi jadwal yang relevan
+</p>
+
+<div class="card shadow-sm mb-4 keaktifan-kriteria-legend print-controls">
+    <div class="card-body py-3">
+        <h2 class="h6 mb-2">Kriteria kategori keaktifan</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge text-bg-success">Bagus: Alpa = 0</span>
+            <span class="badge text-bg-info">Baik: Alpa 1–<?= (int) $goodMax ?></span>
+            <span class="badge text-bg-warning">Sedang: Alpa <?= (int) ($goodMax + 1) ?>–<?= (int) $mediumMax ?></span>
+            <span class="badge text-bg-danger">Buruk: Alpa &gt; <?= (int) $mediumMax ?></span>
         </div>
+        <p class="small text-muted mb-0 mt-2">Ambang batas dapat diubah di Pengaturan Pondok (kategori baik/sedang max alpa).</p>
     </div>
 </div>
+
+<?php if ($tampilan === 'santri'): ?>
+    <?php if ($ranked === []): ?>
+        <div class="alert alert-light border">Tidak ada data keaktifan pada filter ini.</div>
+    <?php else: ?>
+        <div class="row g-3 keaktifan-card-grid">
+            <?php foreach ($ranked as $row): ?>
+                <?php
+                $badge = rekap_keaktifan_kategori_badge_class((string) $row['kategori']);
+                $colClass = $santriId > 0 ? 'col-12' : 'col-12 col-md-6 col-xl-4';
+                ?>
+                <div class="<?= htmlspecialchars($colClass) ?>">
+                    <article class="card keaktifan-santri-card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div class="min-w-0">
+                                    <h2 class="h6 mb-0"><?= htmlspecialchars((string) $row['nama_santri']) ?></h2>
+                                    <p class="small text-muted mb-0">NIS <?= htmlspecialchars((string) $row['nis']) ?> · <?= htmlspecialchars((string) $row['tingkatan']) ?></p>
+                                </div>
+                                <span class="badge text-bg-<?= htmlspecialchars($badge) ?>"><?= htmlspecialchars((string) $row['kategori']) ?></span>
+                            </div>
+                            <div class="row g-3 align-items-center mb-3">
+                                <div class="col-auto">
+                                    <div class="keaktifan-ring" style="--pct: <?= min(100, max(0, (float) $row['persen_hadir'])) ?>;">
+                                        <div class="keaktifan-ring-inner">
+                                            <span class="keaktifan-ring-value"><?= htmlspecialchars((string) $row['persen_hadir']) ?>%</span>
+                                            <span class="keaktifan-ring-label">Hadir</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="row g-2 text-center keaktifan-stat-row">
+                                        <div class="col-3">
+                                            <div class="keaktifan-stat keaktifan-stat--hadir">
+                                                <div class="keaktifan-stat-n"><?= (int) $row['hadir'] ?></div>
+                                                <div class="keaktifan-stat-l">Hadir</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="keaktifan-stat keaktifan-stat--alpa">
+                                                <div class="keaktifan-stat-n"><?= (int) $row['alpa'] ?></div>
+                                                <div class="keaktifan-stat-l">Alpa</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="keaktifan-stat keaktifan-stat--izin">
+                                                <div class="keaktifan-stat-n"><?= (int) $row['izin'] ?></div>
+                                                <div class="keaktifan-stat-l">Izin</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-3">
+                                            <div class="keaktifan-stat keaktifan-stat--sakit">
+                                                <div class="keaktifan-stat-n"><?= (int) $row['sakit'] ?></div>
+                                                <div class="keaktifan-stat-l">Sakit</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php if (!empty($row['per_kegiatan'])): ?>
+                                <section class="keaktifan-kegiatan-block mt-2">
+                                    <h3 class="h6 text-uppercase text-muted fw-bold mb-2">Rincian per kegiatan</h3>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered keaktifan-kegiatan-table mb-0">
+                                            <thead>
+                                            <tr>
+                                                <th>Kegiatan</th>
+                                                <th class="text-center">Hadir</th>
+                                                <th class="text-center">Alpa</th>
+                                                <th class="text-center">Izin</th>
+                                                <th class="text-center">Sakit</th>
+                                                <th class="text-center">Total</th>
+                                                <th class="text-center">%</th>
+                                                <th class="text-center">Kategori</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <?php foreach ($row['per_kegiatan'] as $namaKg => $kg): ?>
+                                                <?php $kgBadge = rekap_keaktifan_kategori_badge_class((string) ($kg['kategori'] ?? 'Buruk')); ?>
+                                                <tr>
+                                                    <td class="fw-semibold"><?= htmlspecialchars($namaKg) ?></td>
+                                                    <td class="text-center text-success"><?= (int) $kg['hadir'] ?></td>
+                                                    <td class="text-center text-danger"><?= (int) $kg['alpa'] ?></td>
+                                                    <td class="text-center"><?= (int) $kg['izin'] ?></td>
+                                                    <td class="text-center"><?= (int) $kg['sakit'] ?></td>
+                                                    <td class="text-center"><?= (int) $kg['total'] ?></td>
+                                                    <td class="text-center"><?= htmlspecialchars((string) ($kg['persen_hadir'] ?? 0)) ?>%</td>
+                                                    <td class="text-center">
+                                                        <span class="badge text-bg-<?= htmlspecialchars($kgBadge) ?>"><?= htmlspecialchars((string) ($kg['kategori'] ?? '-')) ?></span>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            <?php endif; ?>
+                        </div>
+                    </article>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+<?php elseif ($tampilan === 'kegiatan'): ?>
+    <div class="card shadow-sm rekap-official-card">
+        <div class="card-body">
+            <h2 class="h5 print-controls">Rekap per kegiatan</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped rekap-official-table">
+                    <thead>
+                    <tr>
+                        <th>Kegiatan</th>
+                        <th class="text-center">Santri</th>
+                        <th class="text-center">Hadir</th>
+                        <th class="text-center">Alpa</th>
+                        <th class="text-center">Izin</th>
+                        <th class="text-center">Sakit</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">% Hadir</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($byKegiatan as $namaKg => $kg): ?>
+                        <?php $pct = (int) $kg['total'] > 0 ? round(((int) $kg['hadir'] / (int) $kg['total']) * 100, 1) : 0; ?>
+                        <tr>
+                            <td class="fw-semibold"><?= htmlspecialchars($namaKg) ?></td>
+                            <td class="text-center"><?= (int) $kg['santri_count'] ?></td>
+                            <td class="text-center text-success"><?= (int) $kg['hadir'] ?></td>
+                            <td class="text-center text-danger"><?= (int) $kg['alpa'] ?></td>
+                            <td class="text-center"><?= (int) $kg['izin'] ?></td>
+                            <td class="text-center"><?= (int) $kg['sakit'] ?></td>
+                            <td class="text-center"><?= (int) $kg['total'] ?></td>
+                            <td class="text-center"><?= htmlspecialchars((string) $pct) ?>%</td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if ($byKegiatan === []): ?>
+                        <tr><td colspan="8" class="text-center text-muted">Tidak ada data.</td></tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<?php elseif ($tampilan === 'tingkatan'): ?>
+    <?php if ($byTingkatan === []): ?>
+        <div class="alert alert-light border">Tidak ada data keaktifan per tingkatan.</div>
+    <?php else: ?>
+        <div class="card shadow-sm rekap-official-card mb-4">
+            <div class="card-body">
+                <h2 class="h5 print-controls">Ringkasan per tingkatan</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped rekap-official-table">
+                        <thead>
+                        <tr>
+                            <th>Tingkatan</th>
+                            <th class="text-center">Santri</th>
+                            <th class="text-center">Hadir</th>
+                            <th class="text-center">Alpa</th>
+                            <th class="text-center">Izin</th>
+                            <th class="text-center">Sakit</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">% Hadir</th>
+                            <th class="text-center text-success">Bagus</th>
+                            <th class="text-center text-info">Baik</th>
+                            <th class="text-center text-warning">Sedang</th>
+                            <th class="text-center text-danger">Buruk</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($byTingkatan as $tg => $data): ?>
+                            <tr>
+                                <td class="fw-semibold"><?= htmlspecialchars($tg) ?></td>
+                                <td class="text-center"><?= (int) $data['santri_count'] ?></td>
+                                <td class="text-center text-success"><?= (int) $data['hadir'] ?></td>
+                                <td class="text-center text-danger"><?= (int) $data['alpa'] ?></td>
+                                <td class="text-center"><?= (int) $data['izin'] ?></td>
+                                <td class="text-center"><?= (int) $data['sakit'] ?></td>
+                                <td class="text-center"><?= (int) $data['total'] ?></td>
+                                <td class="text-center"><?= htmlspecialchars((string) $data['persen_hadir']) ?>%</td>
+                                <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                                    <td class="text-center fw-semibold"><?= (int) ($data['kategori'][$katKey] ?? 0) ?></td>
+                                <?php endforeach; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <?php foreach ($byTingkatan as $tg => $data): ?>
+            <div class="card shadow-sm mb-4 keaktifan-tingkatan-card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <h2 class="h5 mb-0">Tingkatan <?= htmlspecialchars($tg) ?></h2>
+                        <div class="d-flex flex-wrap gap-2">
+                            <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                                <?php $katBadge = rekap_keaktifan_kategori_badge_class($katKey); ?>
+                                <?php $katCount = (int) ($data['kategori'][$katKey] ?? 0); ?>
+                                <?php if ($katCount > 0): ?>
+                                    <span class="badge text-bg-<?= htmlspecialchars($katBadge) ?>"><?= htmlspecialchars($katKey) ?>: <?= $katCount ?></span>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                        <?php $santriKat = $data['santri_by_kategori'][$katKey] ?? []; ?>
+                        <?php if ($santriKat === []) { continue; } ?>
+                        <?php $katBadge = rekap_keaktifan_kategori_badge_class($katKey); ?>
+                        <div class="keaktifan-kategori-group mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge text-bg-<?= htmlspecialchars($katBadge) ?>"><?= htmlspecialchars($katKey) ?></span>
+                                <span class="small text-muted"><?= count($santriKat) ?> santri</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>NIS</th>
+                                        <th>Nama</th>
+                                        <th class="text-center">Hadir</th>
+                                        <th class="text-center">Alpa</th>
+                                        <th class="text-center">Izin</th>
+                                        <th class="text-center">Sakit</th>
+                                        <th class="text-center">Total</th>
+                                        <th class="text-center">%</th>
+                                        <th class="print-controls"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php foreach ($santriKat as $sRow): ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars((string) $sRow['nis']) ?></td>
+                                            <td class="fw-semibold"><?= htmlspecialchars((string) $sRow['nama_santri']) ?></td>
+                                            <td class="text-center text-success"><?= (int) $sRow['hadir'] ?></td>
+                                            <td class="text-center text-danger"><?= (int) $sRow['alpa'] ?></td>
+                                            <td class="text-center"><?= (int) $sRow['izin'] ?></td>
+                                            <td class="text-center"><?= (int) $sRow['sakit'] ?></td>
+                                            <td class="text-center"><?= (int) $sRow['total'] ?></td>
+                                            <td class="text-center"><?= htmlspecialchars((string) $sRow['persen_hadir']) ?>%</td>
+                                            <td class="print-controls">
+                                                <a href="<?= htmlspecialchars(app_href('/rekap/santri_bagus.php' . $buildQuery(['santri_id' => (int) $sRow['santri_id'], 'tampilan' => 'santri', 'tingkatan' => $tg]))) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+
+<?php else: ?>
+    <div class="card shadow-sm rekap-official-card">
+        <div class="card-body">
+            <h2 class="h5 print-controls">Daftar keaktifan (semua santri)</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped rekap-official-table">
+                    <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>NIS</th>
+                        <th>Nama</th>
+                        <th>Tingkatan</th>
+                        <th>Hadir</th>
+                        <th>Alpa</th>
+                        <th>Izin</th>
+                        <th>Sakit</th>
+                        <th>Total</th>
+                        <th>% Hadir</th>
+                        <th>Kategori</th>
+                        <th class="print-controls"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($ranked as $idx => $row): ?>
+                        <?php $badge = rekap_keaktifan_kategori_badge_class((string) $row['kategori']); ?>
+                        <tr>
+                            <td><?= $idx + 1 ?></td>
+                            <td><?= htmlspecialchars((string) $row['nis']) ?></td>
+                            <td><?= htmlspecialchars((string) $row['nama_santri']) ?></td>
+                            <td><?= htmlspecialchars((string) $row['tingkatan']) ?></td>
+                            <td class="text-center"><?= (int) $row['hadir'] ?></td>
+                            <td class="text-center"><?= (int) $row['alpa'] ?></td>
+                            <td class="text-center"><?= (int) $row['izin'] ?></td>
+                            <td class="text-center"><?= (int) $row['sakit'] ?></td>
+                            <td class="text-center"><?= (int) $row['total'] ?></td>
+                            <td class="text-center"><?= htmlspecialchars((string) $row['persen_hadir']) ?>%</td>
+                            <td><span class="badge text-bg-<?= htmlspecialchars($badge) ?>"><?= htmlspecialchars((string) $row['kategori']) ?></span></td>
+                            <td class="print-controls">
+                                <a href="<?= htmlspecialchars(app_href('/rekap/santri_bagus.php' . $buildQuery(['santri_id' => (int) $row['santri_id'], 'tampilan' => 'santri']))) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if ($ranked === []): ?>
+                        <tr><td colspan="12" class="text-center text-muted">Tidak ada data pada filter ini.</td></tr>
+                    <?php endif; ?>
+                    </tbody>
+                    <?php if ($ranked !== []): ?>
+                        <tfoot class="rekap-print-total">
+                        <tr>
+                            <th colspan="4">Total</th>
+                            <th><?= (int) $totalHadir ?></th>
+                            <th><?= (int) $totalAlpa ?></th>
+                            <th><?= (int) $totalIzin ?></th>
+                            <th><?= (int) $totalSakit ?></th>
+                            <th><?= (int) $totalPresensi ?></th>
+                            <th><?= htmlspecialchars((string) $rataHadir) ?>%</th>
+                            <th colspan="2">-</th>
+                        </tr>
+                        </tfoot>
+                    <?php endif; ?>
+                </table>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
 
 <div class="rekap-signature">
     <div class="rekap-signature-box">
@@ -350,10 +638,43 @@ require_once __DIR__ . '/../includes/header.php';
     .rekap-signature {
         display: none;
     }
+    .keaktifan-santri-card { border-radius: 12px; overflow: hidden; }
+    .keaktifan-ring {
+        --ring-size: 88px;
+        width: var(--ring-size);
+        height: var(--ring-size);
+        border-radius: 50%;
+        background: conic-gradient(#198754 calc(var(--pct) * 1%), #e9ecef 0);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .keaktifan-ring-inner {
+        width: calc(var(--ring-size) - 14px);
+        height: calc(var(--ring-size) - 14px);
+        border-radius: 50%;
+        background: var(--bs-body-bg, #fff);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.1;
+    }
+    .keaktifan-ring-value { font-weight: 700; font-size: 1rem; }
+    .keaktifan-ring-label { font-size: 0.65rem; color: #6c757d; text-transform: uppercase; }
+    .keaktifan-stat { padding: 0.35rem 0.25rem; border-radius: 8px; background: #f8f9fa; }
+    .keaktifan-stat-n { font-weight: 700; font-size: 1.05rem; }
+    .keaktifan-stat-l { font-size: 0.65rem; color: #6c757d; text-transform: uppercase; }
+    .keaktifan-stat--hadir .keaktifan-stat-n { color: #198754; }
+    .keaktifan-stat--alpa .keaktifan-stat-n { color: #dc3545; }
+    .keaktifan-stat--izin .keaktifan-stat-n { color: #0d6efd; }
+    .keaktifan-stat--sakit .keaktifan-stat-n { color: #fd7e14; }
+    .keaktifan-kegiatan-table th { font-size: 0.75rem; white-space: nowrap; }
+    .keaktifan-tingkatan-card { break-inside: avoid; }
 
     @media print {
         @page { size: <?= $paper === 'F4' ? '8.5in 13in' : 'A4' ?> portrait; margin: 12mm; }
-        .navbar, .app-sidebar, .offcanvas, .print-controls { display: none !important; }
+        .navbar, .app-sidebar, .offcanvas, .print-controls, .keaktifan-kriteria-legend { display: none !important; }
         body { background: #fff !important; }
         .app-content, .app-main, main { padding: 0 !important; margin: 0 !important; }
         .rekap-print-title {
@@ -403,34 +724,29 @@ require_once __DIR__ . '/../includes/header.php';
         .table-responsive {
             overflow: visible !important;
         }
-        .rekap-official-table {
+        .rekap-official-table,
+        .keaktifan-kegiatan-table {
             width: 100% !important;
             border-collapse: collapse !important;
             font-size: 7.8pt !important;
             color: #111827 !important;
         }
         .rekap-official-table th,
-        .rekap-official-table td {
+        .rekap-official-table td,
+        .keaktifan-kegiatan-table th,
+        .keaktifan-kegiatan-table td {
             border: 1px solid #334155 !important;
             padding: 4px 5px !important;
             vertical-align: middle !important;
         }
         .rekap-official-table thead th,
-        .rekap-print-total th {
+        .rekap-print-total th,
+        .keaktifan-kegiatan-table thead th {
             background: #f1f5f9 !important;
             font-weight: 800 !important;
             text-align: center !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-        }
-        .rekap-official-table td:nth-child(1),
-        .rekap-official-table td:nth-child(5),
-        .rekap-official-table td:nth-child(6),
-        .rekap-official-table td:nth-child(7),
-        .rekap-official-table td:nth-child(8),
-        .rekap-official-table td:nth-child(9),
-        .rekap-official-table td:nth-child(10) {
-            text-align: center;
         }
         .rekap-signature {
             display: flex;
@@ -457,6 +773,16 @@ require_once __DIR__ . '/../includes/header.php';
             border-top: 1px solid #111827;
             padding-top: 6px;
             font-weight: 700;
+        }
+        .keaktifan-santri-card,
+        .keaktifan-tingkatan-card {
+            break-inside: avoid;
+            border: 1px solid #dee2e6 !important;
+            box-shadow: none !important;
+            margin-bottom: 12px;
+        }
+        .keaktifan-santri-card .card-body {
+            padding: 10px !important;
         }
     }
 </style>

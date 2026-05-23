@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../includes/auth_portal_layout.php';
 
 ensure_santri_identity_columns($pdo);
 
@@ -76,111 +77,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     app_redirect('wali/index.php');
 }
 
-$namaInstitusi = trim((string) app_setting($pdo, 'nama_ponpes', 'A.P.I Nailul Muna'));
-if ($namaInstitusi === '') {
-    $namaInstitusi = 'A.P.I Nailul Muna';
-}
+$brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$waliLogo = $logoPath !== '' ? app_href('/' . ltrim($logoPath, '/')) : $logoUrlSetting;
+$heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
-$loginBrand = [
-    'logo_url' => $waliLogo,
-    'kicker' => $jenisPendidikan,
-    'nama_ponpes' => $namaInstitusi,
-    'headline' => 'Portal Wali Santri',
-    'subheadline' => 'Cek tagihan bulanan, presensi, dan perkembangan anak — mudah dibaca di HP.',
-];
-
+$welcome = auth_portal_welcome_copy($pdo);
 $hasSelected = $selectedSantri !== null;
 
-require_once __DIR__ . '/includes/layout.php';
-wali_layout_head('Portal Wali', true, null, $loginBrand);
+auth_portal_layout_begin([
+    'title' => 'Portal Wali Santri',
+    'welcome_salam' => $welcome['salam'],
+    'welcome_tagline' => $welcome['tagline'],
+    'subtitle_mobile' => 'Cari nama atau NIS anak, lalu masukkan PIN portal wali di bawah.',
+    'subtitle_desktop' => 'Cari nama atau NIS anak di kartu ini, lalu masukkan PIN portal wali.',
+    'kicker' => $jenisPendidikan,
+    'nama_ponpes' => $brandNama,
+    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
+    'layout' => 'stack',
+    'shell_mod' => 'wali',
+    'card_title' => 'Portal Wali Santri',
+    'card_meta' => 'Tagihan · presensi · perkembangan anak',
+    'accent' => 'teal',
+]);
 
 $err = get_flash('error');
 $ok = get_flash('success');
 ?>
-        <div class="wali-login-steps" aria-label="Langkah masuk">
-            <div class="step <?= $hasSelected ? '' : 'active' ?>" id="wali-step-label-1">1. Cari &amp; pilih</div>
-            <div class="step <?= $hasSelected ? 'active' : '' ?>" id="wali-step-label-2">2. Masukkan PIN</div>
-        </div>
-
-        <?php if ($err): ?>
-            <div class="alert alert-danger py-2 small mb-3" role="alert"><?= htmlspecialchars($err) ?></div>
-        <?php endif; ?>
-        <?php if ($ok): ?>
-            <div class="alert alert-success py-2 small mb-3" role="status"><?= htmlspecialchars($ok) ?></div>
-        <?php endif; ?>
-
-        <div class="card shadow-sm wali-card mb-3" id="wali-search-card">
-            <div class="card-body p-3">
-                <h2 class="h6 mb-2 text-teal"><i class="fa-solid fa-magnifying-glass me-1"></i> Cari nama atau NIS santri</h2>
-                <form method="get" class="d-flex gap-2 align-items-stretch" action="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" role="search">
-                    <label class="visually-hidden" for="wali-cari-q">Cari nama atau NIS</label>
-                    <input id="wali-cari-q" type="search" name="q" class="form-control" value="<?= htmlspecialchars($cari) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off" enterkeyhint="search" autofocus>
-                    <button type="submit" class="btn btn-teal px-3">Cari</button>
-                </form>
-                <?php if ($cari !== ''): ?>
-                    <div class="d-flex justify-content-between align-items-center mt-2">
-                        <span class="small text-muted">Hasil pencarian</span>
-                        <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" class="btn btn-link btn-sm py-0">Bersihkan</a>
-                    </div>
+                <?php if ($err): ?>
+                    <div class="alert alert-danger py-2 small mb-3" role="alert"><?= htmlspecialchars($err) ?></div>
                 <?php endif; ?>
-                <?php if ($cari !== '' && $cariHasil === []): ?>
-                    <p class="small text-danger mb-0 mt-2">Tidak ada santri aktif yang cocok. Periksa ejaan nama atau NIS.</p>
-                <?php elseif ($cariHasil !== []): ?>
-                    <p class="small text-muted mb-2 mt-3">Ketuk nama santri untuk melanjutkan:</p>
-                    <div class="list-group list-group-flush small rounded-3 border" id="wali-pick-list" role="listbox" aria-label="Daftar santri">
-                        <?php foreach ($cariHasil as $ch): ?>
-                            <?php
-                            $nisRow = (string) ($ch['nis'] ?? '');
-                            $isPicked = $hasSelected && $prefillNis === $nisRow;
-                            ?>
-                            <button type="button"
-                                    class="list-group-item list-group-item-action wali-pick-item d-flex justify-content-between align-items-center py-2 text-start<?= $isPicked ? ' selected' : '' ?>"
-                                    role="option"
-                                    aria-selected="<?= $isPicked ? 'true' : 'false' ?>"
-                                    data-nis="<?= htmlspecialchars($nisRow) ?>"
-                                    data-nama="<?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?>">
-                                <span class="fw-semibold"><?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?></span>
-                                <span class="font-monospace text-muted ms-2"><?= htmlspecialchars($nisRow) ?></span>
-                            </button>
-                        <?php endforeach; ?>
-                    </div>
-                <?php elseif ($cari === '' && !$hasSelected): ?>
-                    <p class="small text-muted mb-0 mt-2">Mulai dengan mengetik nama atau nomor induk (NIS) anak Anda.</p>
+                <?php if ($ok): ?>
+                    <div class="alert alert-success py-2 small mb-3" role="status"><?= htmlspecialchars($ok) ?></div>
                 <?php endif; ?>
-            </div>
-        </div>
 
-        <div class="card shadow-sm wali-card <?= $hasSelected ? '' : 'd-none' ?>" id="wali-pin-panel">
-            <div class="card-body p-4">
-                <h2 class="h6 mb-3 text-teal"><i class="fa-solid fa-lock me-1"></i> Masukkan PIN portal wali</h2>
-                <div class="wali-selected-card mb-3" id="wali-selected-display">
-                    <div class="small text-muted mb-1">Santri terpilih</div>
-                    <div class="wali-selected-name" id="wali-selected-name"><?= $hasSelected ? htmlspecialchars((string) ($selectedSantri['nama_tampil'] ?? '')) : '' ?></div>
-                    <div class="font-monospace small text-muted" id="wali-selected-nis"><?= $hasSelected ? 'NIS ' . htmlspecialchars((string) ($selectedSantri['nis'] ?? '')) : '' ?></div>
+                <div class="auth-portal-wali-steps" aria-label="Langkah masuk">
+                    <div class="auth-portal-wali-step <?= $hasSelected ? '' : 'is-active' ?>" id="wali-step-label-1">1. Cari &amp; pilih</div>
+                    <div class="auth-portal-wali-step <?= $hasSelected ? 'is-active' : '' ?>" id="wali-step-label-2">2. Masukkan PIN</div>
                 </div>
-                <form method="post" class="d-grid gap-3" autocomplete="on" action="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" id="wali-login-form">
-                    <input type="hidden" name="nis" id="wali-nis-hidden" value="<?= htmlspecialchars($prefillNis) ?>">
-                    <div>
-                        <label class="form-label small text-muted" for="wali-pin">PIN</label>
-                        <div class="input-group input-group-lg">
-                            <input id="wali-pin" type="password" name="pin" class="form-control" required autocomplete="current-password" minlength="6" inputmode="numeric" placeholder="6 digit atau lebih">
-                            <button class="btn btn-outline-secondary" type="button" id="wali-pin-toggle" aria-label="Tampilkan atau sembunyikan PIN" title="Lihat PIN">
-                                <i class="fa-regular fa-eye" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">PIN diberikan pengurus pondok. Bukan password admin.</div>
-                    </div>
-                    <button type="submit" class="btn btn-lg btn-teal">Masuk ke portal</button>
-                    <button type="button" class="btn btn-link btn-sm" id="wali-ganti-santri">Ganti santri</button>
-                </form>
-            </div>
-        </div>
 
-        <p class="text-center small text-muted mt-4 mb-0 px-2">Portal khusus wali santri. Untuk bantuan PIN, hubungi administrasi pondok.</p>
+                <div class="auth-portal-inner-panel mb-3" id="wali-search-card">
+                    <h2 class="auth-portal-inner-title"><i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i> Cari nama atau NIS santri</h2>
+                    <form method="get" class="d-flex gap-2 align-items-stretch auth-portal-form" action="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" role="search">
+                        <label class="visually-hidden" for="wali-cari-q">Cari nama atau NIS</label>
+                        <input id="wali-cari-q" type="search" name="q" class="form-control" value="<?= htmlspecialchars($cari) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off" enterkeyhint="search" autofocus>
+                        <button type="submit" class="btn btn-auth-primary px-3 flex-shrink-0">Cari</button>
+                    </form>
+                    <?php if ($cari !== ''): ?>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span class="small text-muted">Hasil pencarian</span>
+                            <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" class="btn btn-link btn-sm py-0">Bersihkan</a>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($cari !== '' && $cariHasil === []): ?>
+                        <p class="small text-danger mb-0 mt-2">Tidak ada santri aktif yang cocok. Periksa ejaan nama atau NIS.</p>
+                    <?php elseif ($cariHasil !== []): ?>
+                        <p class="small text-muted mb-2 mt-3">Ketuk nama santri untuk melanjutkan:</p>
+                        <div class="auth-portal-wali-pick-list" id="wali-pick-list" role="listbox" aria-label="Daftar santri">
+                            <?php foreach ($cariHasil as $ch): ?>
+                                <?php
+                                $nisRow = (string) ($ch['nis'] ?? '');
+                                $isPicked = $hasSelected && $prefillNis === $nisRow;
+                                ?>
+                                <button type="button"
+                                        class="auth-portal-wali-pick<?= $isPicked ? ' is-selected' : '' ?>"
+                                        role="option"
+                                        aria-selected="<?= $isPicked ? 'true' : 'false' ?>"
+                                        data-nis="<?= htmlspecialchars($nisRow) ?>"
+                                        data-nama="<?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?>">
+                                    <span class="fw-semibold"><?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?></span>
+                                    <span class="font-monospace text-muted"><?= htmlspecialchars($nisRow) ?></span>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php elseif ($cari === '' && !$hasSelected): ?>
+                        <p class="small text-muted mb-0 mt-2">Mulai dengan mengetik nama atau nomor induk (NIS) anak Anda.</p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="auth-portal-inner-panel <?= $hasSelected ? '' : 'd-none' ?>" id="wali-pin-panel">
+                    <h2 class="auth-portal-inner-title"><i class="fa-solid fa-lock me-1" aria-hidden="true"></i> Masukkan PIN portal wali</h2>
+                    <div class="auth-portal-wali-selected mb-3" id="wali-selected-display">
+                        <div class="small text-muted mb-1">Santri terpilih</div>
+                        <div class="fw-bold" id="wali-selected-name"><?= $hasSelected ? htmlspecialchars((string) ($selectedSantri['nama_tampil'] ?? '')) : '' ?></div>
+                        <div class="font-monospace small text-muted" id="wali-selected-nis"><?= $hasSelected ? 'NIS ' . htmlspecialchars((string) ($selectedSantri['nis'] ?? '')) : '' ?></div>
+                    </div>
+                    <form method="post" class="auth-portal-form d-grid gap-3" autocomplete="on" action="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" id="wali-login-form">
+                        <input type="hidden" name="nis" id="wali-nis-hidden" value="<?= htmlspecialchars($prefillNis) ?>">
+                        <div>
+                            <label class="form-label" for="wali-pin">PIN</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text"><i class="fa-solid fa-lock" aria-hidden="true"></i></span>
+                                <input id="wali-pin" type="password" name="pin" class="form-control" required autocomplete="current-password" minlength="6" inputmode="numeric" placeholder="6 digit atau lebih">
+                                <button class="btn btn-outline-secondary" type="button" id="wali-pin-toggle" aria-label="Tampilkan atau sembunyikan PIN" title="Lihat PIN">
+                                    <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">PIN diberikan pengurus pondok. Bukan password admin.</div>
+                        </div>
+                        <button type="submit" class="btn btn-auth-primary btn-lg w-100">Masuk ke portal</button>
+                        <button type="button" class="btn btn-link btn-sm" id="wali-ganti-santri">Ganti santri</button>
+                    </form>
+                </div>
+
+                <p class="auth-portal-footnote mb-0">Portal khusus wali santri. Untuk bantuan PIN, hubungi administrasi pondok.</p>
 <script>
 (function () {
     var pickList = document.getElementById('wali-pick-list');
@@ -199,29 +200,27 @@ $ok = get_flash('success');
         if (nameEl) nameEl.textContent = nama || '';
         if (nisEl) nisEl.textContent = nis ? 'NIS ' + nis : '';
         pinPanel.classList.remove('d-none');
-        if (step1) step1.classList.remove('active');
-        if (step2) step2.classList.add('active');
+        if (step1) step1.classList.remove('is-active');
+        if (step2) step2.classList.add('is-active');
         if (pickList) {
-            pickList.querySelectorAll('.wali-pick-item').forEach(function (btn) {
+            pickList.querySelectorAll('.auth-portal-wali-pick').forEach(function (btn) {
                 var on = btn.getAttribute('data-nis') === nis;
-                btn.classList.toggle('selected', on);
+                btn.classList.toggle('is-selected', on);
                 btn.setAttribute('aria-selected', on ? 'true' : 'false');
             });
         }
-        if (pinInput) {
-            pinInput.focus();
-        }
+        if (pinInput) pinInput.focus();
         pinPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function clearSelected() {
         if (nisHidden) nisHidden.value = '';
         if (pinPanel) pinPanel.classList.add('d-none');
-        if (step1) step1.classList.add('active');
-        if (step2) step2.classList.remove('active');
+        if (step1) step1.classList.add('is-active');
+        if (step2) step2.classList.remove('is-active');
         if (pickList) {
-            pickList.querySelectorAll('.wali-pick-item').forEach(function (btn) {
-                btn.classList.remove('selected');
+            pickList.querySelectorAll('.auth-portal-wali-pick').forEach(function (btn) {
+                btn.classList.remove('is-selected');
                 btn.setAttribute('aria-selected', 'false');
             });
         }
@@ -231,7 +230,7 @@ $ok = get_flash('success');
 
     if (pickList) {
         pickList.addEventListener('click', function (e) {
-            var btn = e.target.closest('.wali-pick-item');
+            var btn = e.target.closest('.auth-portal-wali-pick');
             if (!btn) return;
             setSelected(btn.getAttribute('data-nis'), btn.getAttribute('data-nama'));
         });
@@ -241,7 +240,9 @@ $ok = get_flash('success');
         gantiBtn.addEventListener('click', function () {
             clearSelected();
             if (window.history && window.history.replaceState) {
-                window.history.replaceState({}, '', <?= json_encode(app_href('/wali/login.php'), JSON_UNESCAPED_SLASHES) ?> + (document.getElementById('wali-cari-q')?.value ? '?q=' + encodeURIComponent(document.getElementById('wali-cari-q').value) : ''));
+                var base = <?= json_encode(app_href('/wali/login.php'), JSON_UNESCAPED_SLASHES) ?>;
+                var q = document.getElementById('wali-cari-q');
+                window.history.replaceState({}, '', base + (q && q.value ? '?q=' + encodeURIComponent(q.value) : ''));
             }
         });
     }
@@ -262,4 +263,7 @@ $ok = get_flash('success');
 })();
 </script>
 <?php
-wali_layout_foot(true);
+auth_portal_layout_end([
+    ['href' => app_href('/login.php'), 'label' => 'Portal pengurus'],
+    ['href' => app_href('/santri_portal/login.php'), 'label' => 'Portal santri'],
+]);

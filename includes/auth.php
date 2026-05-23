@@ -202,10 +202,17 @@ function permission_key_for_request(string $requestPath): ?string
         '/settings/akses_mukimin.php' => 'santri_index',
         '/presensi/scan.php' => 'presensi_scan',
         '/jadwal/index.php' => 'jadwal',
+        '/jadwal/tambah.php' => 'jadwal',
+        '/jadwal/tambah_kegiatan.php' => 'jadwal',
         '/akademik/hafalan.php' => 'akademik_hafalan',
         '/akademik/bait_kitab.php' => 'akademik_hafalan',
         '/akademik/kalender.php' => 'akademik_hafalan',
         '/akademik/rapor.php' => 'akademik_hafalan',
+        '/akademik/rapor_lihat.php' => 'akademik_hafalan',
+        '/akademik/rapor_cetak.php' => 'akademik_hafalan',
+        '/pembimbing/tugas/index.php' => 'akademik_ikhtibar',
+        '/pembimbing/tugas/buat.php' => 'akademik_ikhtibar',
+        '/pembimbing/tugas/nilai.php' => 'akademik_ikhtibar',
         '/settings/pusat.php' => 'pengaturan',
         '/settings/pesantren.php' => 'pengaturan',
         '/settings/peraturan.php' => 'pengaturan',
@@ -235,6 +242,7 @@ function permission_key_for_request(string $requestPath): ?string
         '/poin/settings.php' => 'pengaturan',
         '/keuangan/index.php' => 'keuangan',
         '/keuangan/cashless_scan.php' => 'keuangan',
+        '/keuangan/cashless_laporan.php' => 'keuangan',
         '/keuangan/cashless_pin.php' => 'pengaturan',
         '/pembayaran/index.php' => 'keuangan',
         '/pembayaran/tagihan_syahriyah.php' => 'keuangan',
@@ -245,6 +253,7 @@ function permission_key_for_request(string $requestPath): ?string
         '/yayasan/pengurus.php' => 'yayasan',
         '/yayasan/rapat.php' => 'yayasan',
         '/yayasan/notulen.php' => 'yayasan',
+        '/yayasan/executive.php' => 'yayasan',
     ];
 
     foreach ($pathMap as $path => $permissionKey) {

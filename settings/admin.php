@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/user_profil.php';
 
 require_roles(['admin']);
 require_super_admin();
@@ -20,6 +21,7 @@ if (!table_exists($pdo, 'users')) {
 }
 $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','kiai') NOT NULL DEFAULT 'pengurus'");
 $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
+user_profil_ensure_schema($pdo);
 $pdo->exec('
     CREATE TABLE IF NOT EXISTS user_access_permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,6 +59,7 @@ $permissionOptions = [
     'settings_umum' => 'Settings Umum (legacy â€” gunakan Pengaturan)',
     'settings_admin' => 'Kelola Akses User',
     'akademik_hafalan' => 'Akademik: setoran hafalan (bait & Qur\'an), kalender libur, rapor',
+    'akademik_ikhtibar' => 'Tugas santri Ikhtibar: buat soal, token, penilaian',
     'yayasan' => 'Yayasan: pengurus, rapat, notulen',
 ];
 
@@ -134,6 +137,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $fotoStmt = $pdo->prepare('SELECT foto_profil FROM users WHERE id = :id LIMIT 1');
+        $fotoStmt->execute(['id' => $targetUserId]);
+        $fotoOld = trim((string) ($fotoStmt->fetchColumn() ?: ''));
+
+        if (isset($_FILES['foto_profil']) && is_array($_FILES['foto_profil'])) {
+            $uploadResult = user_profil_handle_upload($_FILES['foto_profil'], $fotoOld !== '' ? $fotoOld : null);
+            if (!$uploadResult['ok']) {
+                set_flash('error', (string) ($uploadResult['error'] ?? 'Upload foto gagal.'));
+                header('Location: ' . app_href('/settings/admin.php'));
+                exit;
+            }
+            if (isset($uploadResult['path'])) {
+                $pdo->prepare('UPDATE users SET foto_profil = :f WHERE id = :id')->execute([
+                    'f' => $uploadResult['path'],
+                    'id' => $targetUserId,
+                ]);
+                user_profil_sync_session($pdo, $targetUserId);
+            }
+        }
+
         if ($password !== '') {
             $upd = $pdo->prepare('UPDATE users SET nama = :nama, username = :username, password = :password, role = :role, is_super_admin = :is_super_admin WHERE id = :id');
             $upd->execute([
@@ -187,6 +210,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         }
+        $fotoStmt = $pdo->prepare('SELECT foto_profil FROM users WHERE id = :id LIMIT 1');
+        $fotoStmt->execute(['id' => $targetUserId]);
+        $fotoOld = trim((string) ($fotoStmt->fetchColumn() ?: ''));
+        user_profil_delete_file($fotoOld !== '' ? $fotoOld : null);
         $pdo->prepare('DELETE FROM users WHERE id = :id')->execute(['id' => $targetUserId]);
         set_flash('success', 'User berhasil dihapus.');
         header('Location: ' . app_href('/settings/admin.php'));
@@ -215,6 +242,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'role' => in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'kiai'], true) ? $role : 'pengurus',
                 'is_super_admin' => $isSuperAdmin,
             ]);
+            $newUserId = (int) $pdo->lastInsertId();
+            if ($newUserId > 0 && isset($_FILES['foto_profil']) && is_array($_FILES['foto_profil'])) {
+                $uploadResult = user_profil_handle_upload($_FILES['foto_profil']);
+                if (!$uploadResult['ok']) {
+                    set_flash('error', 'User dibuat, tetapi foto gagal: ' . (string) ($uploadResult['error'] ?? ''));
+                } elseif (isset($uploadResult['path'])) {
+                    $pdo->prepare('UPDATE users SET foto_profil = :f WHERE id = :id')->execute([
+                        'f' => $uploadResult['path'],
+                        'id' => $newUserId,
+                    ]);
+                }
+            }
             set_flash('success', 'User baru berhasil ditambahkan.');
         }
     } else {
@@ -224,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$users = $pdo->query('SELECT id, nama, username, role, is_super_admin, created_at FROM users ORDER BY id DESC')->fetchAll();
+$users = $pdo->query('SELECT id, nama, username, role, is_super_admin, foto_profil, created_at FROM users ORDER BY id DESC')->fetchAll();
 $accessRows = $pdo->query('SELECT user_id, permission_key FROM user_access_permissions')->fetchAll();
 $accessMap = [];
 foreach ($accessRows as $row) {
@@ -275,11 +314,15 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h5">Tambah user</h1>
-                <form method="post" class="row g-2">
+                <form method="post" class="row g-2" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="create_user">
                     <div class="col-12"><input class="form-control" type="text" name="nama" placeholder="Nama" required></div>
                     <div class="col-12"><input class="form-control" type="text" name="username" placeholder="Username" required></div>
                     <div class="col-12"><input class="form-control" type="password" name="password" placeholder="Password" required></div>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Foto profil (opsional)</label>
+                        <input class="form-control form-control-sm" type="file" name="foto_profil" accept="image/jpeg,image/png,image/webp">
+                    </div>
                     <div class="col-12">
                         <select class="form-select" name="role">
                             <option value="pengurus">Pengurus</option>
@@ -309,6 +352,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <table class="table table-sm table-striped table-hover align-middle">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width:3rem">Foto</th>
                             <th>Nama</th>
                             <th>Username</th>
                             <th>Role</th>
@@ -329,6 +373,7 @@ require_once __DIR__ . '/../includes/header.php';
                         elseif ($role === 'petugas_absensi') { $roleBadge = 'info'; }
                         ?>
                         <tr>
+                            <td class="text-center"><?= user_profil_render_avatar($u, 'app-user-avatar--table') ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($u['nama']) ?> <?php if ($isSelf): ?><span class="badge text-bg-light text-dark border ms-1">Anda</span><?php endif; ?></td>
                             <td class="font-monospace small"><?= htmlspecialchars($u['username']) ?></td>
                             <td><span class="badge text-bg-<?= $roleBadge ?>"><?= htmlspecialchars($role) ?></span></td>
@@ -384,7 +429,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="modal fade" id="editUserModal<?= $uid ?>" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <form method="post">
+                <form method="post" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="update_user">
                     <input type="hidden" name="target_user_id" value="<?= $uid ?>">
                     <div class="modal-header">
@@ -392,7 +437,16 @@ require_once __DIR__ . '/../includes/header.php';
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                     </div>
                     <div class="modal-body">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <?= user_profil_render_avatar($u, 'app-user-avatar--lg') ?>
+                            <div class="small text-muted">Unggah foto baru di bawah. Kosongkan file jika tidak diubah.</div>
+                        </div>
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Foto profil</label>
+                                <input class="form-control" type="file" name="foto_profil" accept="image/jpeg,image/png,image/webp">
+                                <div class="form-text">JPG, PNG, WEBP · maks. 2 MB</div>
+                            </div>
                             <div class="col-12">
                                 <label class="form-label">Nama</label>
                                 <input class="form-control" type="text" name="nama" value="<?= htmlspecialchars($u['nama']) ?>" required>

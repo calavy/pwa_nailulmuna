@@ -22,7 +22,10 @@ $ok = get_flash('success');
 <?php endif; ?>
 
 <div class="d-grid gap-2">
-    <a href="/santri_portal/riwayat.php" class="btn btn-auth-primary">
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="btn btn-auth-primary">
+        <i class="fa-solid fa-list-check me-1"></i> Tugas Ikhtibar (ujian)
+    </a>
+    <a href="/santri_portal/riwayat.php" class="btn btn-outline-secondary">
         <i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat domisili, khidmah &amp; pelanggaran
     </a>
     <a href="/santri_portal/logout.php" class="btn btn-outline-secondary">Keluar</a>

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -114,11 +115,6 @@ $sqlAktifSantriRekap = santri_sql_aktif_only('s');
 
 $rows = [];
 if ($show) {
-    $targetTingkatan = $tingkatan !== '' ? [$tingkatan] : $tingkatanList;
-    foreach ($targetTingkatan as $tgSync) {
-        sync_daily_presence_for_tingkatan($pdo, date('Y-m-d'), (string) $tgSync, null, (int) ($_SESSION['user']['id'] ?? 1));
-    }
-
     if ($mode === 'hijriyah') {
         $statement = $pdo->prepare('
             SELECT
@@ -178,6 +174,10 @@ if ($show) {
             }));
         }
     }
+
+    $filterStart = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
+    $filterEnd = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStart));
+    $rows = presensi_filter_rows_eligible($pdo, $rows, $filterStart, $filterEnd);
 }
 
 $byTingkatan = [];
@@ -356,7 +356,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Rekap</p>
     <h1 class="h4 mb-1">Rekap presensi bulanan</h1>
-    <p class="text-muted mb-0">Analisis presensi per tingkatan, per santri, dan per kegiatan dengan mode Masehi/Hijriyah.</p>
+    <p class="text-muted mb-0">Analisis presensi per tingkatan, per santri, dan per kegiatan dengan mode Masehi/Hijriyah. Hanya sesi yang tingkatan santri masuk jadwal kegiatan.</p>
 </div>
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">

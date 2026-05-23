@@ -10,6 +10,8 @@ require_once __DIR__ . '/../helpers/akademik_kalender_ui.php';
 require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/kalender_agenda.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
+require_once __DIR__ . '/../includes/auth_portal_layout.php';
+require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_akademik_libur_table($pdo);
@@ -184,35 +186,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'tambah_agenda') {
         $tanggal = trim((string) ($_POST['tanggal'] ?? ''));
         $judul = trim((string) ($_POST['judul'] ?? ''));
-        $jenis = trim((string) ($_POST['jenis'] ?? 'acara'));
+        $ulang = max(0, (int) ($_POST['ulang_interval_hari'] ?? 0));
+        $ulangHingga = trim((string) ($_POST['ulang_hingga'] ?? ''));
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) || $judul === '') {
             set_flash('error', 'Tanggal dan judul wajib diisi.');
+        } elseif ($ulang > 0 && $ulangHingga !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ulangHingga)) {
+            set_flash('error', 'Tanggal akhir pengulangan tidak valid.');
+        } elseif ($ulang > 0 && $ulangHingga !== '' && $ulangHingga < $tanggal) {
+            set_flash('error', 'Tanggal akhir pengulangan harus setelah tanggal mulai.');
         } else {
-            ensure_akademik_agenda_table($pdo);
-            $pdo->prepare('
-                INSERT INTO akademik_agenda (tanggal, jam_mulai, jam_selesai, judul, jenis, catatan, untuk_peran, created_by)
-                VALUES (:tgl, :jm, :js, :judul, :jenis, :cat, :peran, :uid)
-            ')->execute([
-                'tgl' => $tanggal,
-                'jm' => trim((string) ($_POST['jam_mulai'] ?? '')) ?: null,
-                'js' => trim((string) ($_POST['jam_selesai'] ?? '')) ?: null,
-                'judul' => mb_substr($judul, 0, 200),
-                'jenis' => $jenis === 'tugas' ? 'tugas' : 'acara',
-                'cat' => trim((string) ($_POST['catatan'] ?? '')) ?: null,
-                'peran' => trim((string) ($_POST['untuk_peran'] ?? 'semua')) ?: 'semua',
-                'uid' => (int) ($_SESSION['user']['id'] ?? 0) ?: null,
-            ]);
-            set_flash('success', 'Jadwal / pengingat ditambahkan.');
+            $uid = (int) ($_SESSION['user']['id'] ?? 0);
+            akademik_agenda_insert_from_post($pdo, $_POST, $uid);
+            $msg = $ulang > 0
+                ? 'Acara ditambahkan (berulang setiap ' . $ulang . ' hari).'
+                : 'Acara ditambahkan.';
+            set_flash('success', $msg);
         }
         header('Location: ' . app_href(akad_cal_url($back)));
         exit;
     }
     if ($action === 'hapus_agenda') {
         $aid = (int) ($_POST['agenda_id'] ?? 0);
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        $role = (string) ($_SESSION['user']['role'] ?? '');
+        $isSuper = !empty($_SESSION['user']['is_super_admin']);
         if ($aid > 0) {
-            ensure_akademik_agenda_table($pdo);
-            $pdo->prepare('DELETE FROM akademik_agenda WHERE id = :id')->execute(['id' => $aid]);
-            set_flash('success', 'Entri dihapus.');
+            if (akademik_agenda_delete($pdo, $aid, $uid, $role, $isSuper)) {
+                set_flash('success', 'Acara dihapus.');
+            } else {
+                set_flash('error', 'Acara tidak ditemukan atau Anda tidak berhak menghapusnya.');
+            }
         }
         header('Location: ' . app_href(akad_cal_url($back)));
         exit;
@@ -363,6 +366,13 @@ $liburRows = $pdo->query('SELECT * FROM akademik_libur ORDER BY tanggal_mulai DE
 
 $hijriHariIniLabel = akademik_hijri_label_dari_masehi($pdo, $todayMasehi, $hijriBulanNama);
 $agendaRows = [];
+$agendaByDate = [];
+$agendaJsonModal = [];
+$currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
+$currentUserRole = (string) ($_SESSION['user']['role'] ?? '');
+$currentUserSuper = !empty($_SESSION['user']['is_super_admin']);
+$currentUserNama = (string) ($_SESSION['user']['nama'] ?? $_SESSION['user']['username'] ?? 'Anda');
+$agendaKlikAktif = in_array($view, ['bulan', 'masehi'], true);
 
 $bulanPaket = null;
 $judulBulan = '';
@@ -378,6 +388,8 @@ if ($view === 'bulan') {
     }
     if (is_array($bulanPaket)) {
         $subjudulBulan = akademik_kalender_subjudul_hijri_bulan($pdo, $bulanPaket['gStart'], $bulanPaket['gEnd'], $hijriBulanNama);
+        $agendaByDate = akademik_agenda_by_date_map($pdo, (string) $bulanPaket['gStart'], (string) $bulanPaket['gEnd']);
+        $bulanPaket['cells'] = akademik_agenda_merge_into_cells($bulanPaket['cells'], $agendaByDate);
         $agendaRows = akademik_agenda_for_range($pdo, (string) $bulanPaket['gStart'], (string) $bulanPaket['gEnd']);
     }
 }
@@ -388,37 +400,43 @@ if ($view === 'masehi') {
     $liburTahun = akademik_kalender_libur_overlap($pdo, $rangeAwal, $rangeAkhir);
     $calMapTahun = akademik_kalender_hari_map_range($pdo, $rangeAwal, $rangeAkhir);
     $liburMingguanAktif = akademik_libur_mingguan_rows($pdo);
+    $agendaByDateTahun = akademik_agenda_by_date_map($pdo, $rangeAwal, $rangeAkhir);
+    $agendaRows = akademik_agenda_for_range($pdo, $rangeAwal, $rangeAkhir);
     for ($mi = 1; $mi <= 12; $mi++) {
         $paket = akademik_kalender_siapkan_bulan_masehi($pdo, $gregYear, $mi, $hijriBulanNama, $todayMasehi, $liburTahun, $calMapTahun, $liburMingguanAktif);
+        $paket['cells'] = akademik_agenda_merge_into_cells($paket['cells'], $agendaByDateTahun);
         $tahunMasehiPaket[$mi] = [
             'paket' => $paket,
             'label' => ($namaBulanMasehi[$mi] ?? ('Bulan ' . $mi)) . ' ' . $gregYear,
             'subtitle' => akademik_kalender_subjudul_hijri_bulan($pdo, $paket['gStart'], $paket['gEnd'], $hijriBulanNama),
         ];
     }
+    $agendaByDate = $agendaByDateTahun;
+}
+
+if ($agendaKlikAktif) {
+    $agendaJsonModal = akademik_agenda_json_for_modal($agendaByDate, $currentUserId, $currentUserRole, $currentUserSuper);
 }
 
 $retHidden = $st;
+$brandNama = auth_portal_brand_nama($pdo);
+
 $pageTitle = 'Kalender akademik';
 $bodyClass = 'akademik-kalender-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<link href="/assets/css/kalender-akademik.css" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
 
-<div class="akad-cal-hero mb-4">
-    <p class="akad-cal-hero-kicker small text-uppercase fw-bold mb-1">Akademik</p>
-    <h1 class="h3 mb-2">Kalender &amp; hari libur</h1>
-    <p class="mb-0 small opacity-90">Jadwal pondok per bulan atau satu tahun penuh. Tanggal hijriyah, pasaran, dan hari libur ditampilkan jelas dalam satu tampilan.</p>
-    <?php if ($hijriHariIniLabel !== ''): ?>
-        <p class="akad-cal-hero-today mb-0">
-            <i class="fa-solid fa-calendar-day"></i>
-            <span><?= htmlspecialchars(akademik_masehi_label_pendek($todayMasehi)) ?></span>
-            <span class="opacity-75">·</span>
-            <i class="fa-solid fa-moon"></i>
-            <span><?= htmlspecialchars($hijriHariIniLabel) ?></span>
-        </p>
-    <?php endif; ?>
-</div>
+<?php
+render_kalender_page_hero([
+    'kicker' => 'Akademik',
+    'brand' => $brandNama,
+    'title' => 'Kalender & hari libur',
+    'description' => 'Jadwal pondok per bulan atau satu tahun penuh — Hijriyah, pasaran, dan libur dalam satu tampilan.',
+    'today_masehi' => akademik_masehi_label_pendek($todayMasehi),
+    'today_hijri' => $hijriHariIniLabel,
+]);
+?>
 
 <div class="card akad-cal-nav-card mb-3">
     <div class="card-body py-3">
@@ -441,7 +459,10 @@ require_once __DIR__ . '/../includes/header.php';
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--libur-minggu"></span> Libur mingguan</span>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--hari-islam"></span> Hari besar Islam</span>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--hari-nasional"></span> Libur nasional</span>
-            <span class="akad-cal-legend-note">Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.</span>
+            <?php if ($agendaKlikAktif): ?>
+            <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--agenda"></span> Acara / jadwal</span>
+            <?php endif; ?>
+            <span class="akad-cal-legend-note">Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
         </div>
     </div>
 </div>
@@ -542,10 +563,10 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="akad-cal-month-body">
             <?php if (is_array($bulanPaket)): ?>
                 <div class="akad-cal-month-wrap">
-                    <?php akademik_kalender_render_month($bulanPaket['cells'], false, '', ''); ?>
+                    <?php akademik_kalender_render_month($bulanPaket['cells'], false, '', '', true); ?>
                 </div>
                 <p class="small text-muted mt-3 mb-0">
-                    <i class="fa-solid fa-hand-pointer me-1"></i> Arahkan kursor ke tanggal untuk detail.
+                    <i class="fa-solid fa-hand-pointer me-1"></i> Klik tanggal untuk menambah atau melihat acara. Arahkan kursor untuk detail libur &amp; hijriyah.
                     Rentang Masehi: <strong><?= htmlspecialchars($bulanPaket['gStart']) ?></strong> — <strong><?= htmlspecialchars($bulanPaket['gEnd']) ?></strong>.
                 </p>
             <?php endif; ?>
@@ -584,7 +605,8 @@ require_once __DIR__ . '/../includes/header.php';
                         $blok['paket']['cells'],
                         true,
                         (string) ($blok['label'] ?? ''),
-                        (string) ($blok['subtitle'] ?? '')
+                        (string) ($blok['subtitle'] ?? ''),
+                        true
                     ); ?>
                 <?php endforeach; ?>
             </div>
@@ -808,63 +830,110 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php if ($agendaKlikAktif): ?>
+<div class="modal fade" id="modalAgendaKalender" tabindex="-1" aria-labelledby="modalAgendaKalenderLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h2 class="modal-title h6 mb-0" id="modalAgendaKalenderLabel">
+                    <i class="fa-solid fa-calendar-plus text-primary me-1"></i>
+                    <span id="agendaModalJudulTanggal">Acara</span>
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body">
+                <div id="agendaModalDaftar" class="mb-3"></div>
+                <hr class="my-2">
+                <p class="small text-muted mb-2">Tambah acara baru · pembuat: <strong><?= htmlspecialchars($currentUserNama) ?></strong></p>
+                <form method="post" id="formTambahAgendaModal" class="row g-2">
+                    <input type="hidden" name="action" value="tambah_agenda">
+                    <input type="hidden" name="tanggal" id="agendaModalTanggal" value="<?= htmlspecialchars($todayMasehi) ?>">
+                    <?php foreach ($retHidden as $k => $v): ?>
+                        <input type="hidden" name="ret_<?= htmlspecialchars((string) $k) ?>" value="<?= htmlspecialchars((string) $v) ?>">
+                    <?php endforeach; ?>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Judul acara <span class="text-danger">*</span></label>
+                        <input type="text" name="judul" class="form-control form-control-sm" required maxlength="200" placeholder="Contoh: Rapat koordinasi">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Jenis</label>
+                        <select name="jenis" class="form-select form-select-sm">
+                            <option value="acara">Acara</option>
+                            <option value="tugas">Tugas</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Jam (opsional)</label>
+                        <input type="time" name="jam_mulai" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Catatan</label>
+                        <textarea name="catatan" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Detail, lokasi, atau pengingat pribadi"></textarea>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Ulang setiap (hari)</label>
+                        <input type="number" name="ulang_interval_hari" class="form-control form-control-sm" min="0" max="365" value="0" placeholder="0 = tidak berulang">
+                        <span class="form-text">0 = sekali. Contoh: 7 = mingguan.</span>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Ulang hingga (ops.)</label>
+                        <input type="date" name="ulang_hingga" class="form-control form-control-sm" id="agendaModalUlangHingga">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Ingatkan sebelum (menit) — untuk notifikasi nanti</label>
+                        <select name="ingat_menit" class="form-select form-select-sm">
+                            <option value="0">Tanpa pengingat</option>
+                            <option value="15">15 menit</option>
+                            <option value="60">1 jam</option>
+                            <option value="1440">1 hari</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fa-solid fa-check me-1"></i> Simpan acara
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 mt-4" id="kalender-agenda">
-    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-        <h2 class="h6 mb-0"><i class="fa-solid fa-bell text-primary me-1"></i> Jadwal &amp; pengingat</h2>
-        <span class="small text-muted">Acara pondok / tugas pengurus</span>
+    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
+        <h2 class="h6 mb-0"><i class="fa-solid fa-bell text-primary me-1"></i> Jadwal &amp; acara</h2>
+        <span class="small text-muted"><?= $agendaKlikAktif ? 'Klik tanggal di kalender untuk menambah' : 'Tampilan bulan / tahun untuk mengelola acara' ?></span>
     </div>
     <div class="card-body">
-        <form method="post" class="row g-2 mb-3">
-            <input type="hidden" name="action" value="tambah_agenda">
-            <?php foreach ($retHidden as $k => $v): ?>
-                <input type="hidden" name="ret_<?= htmlspecialchars((string) $k) ?>" value="<?= htmlspecialchars((string) $v) ?>">
-            <?php endforeach; ?>
-            <div class="col-md-3">
-                <label class="form-label small mb-0">Tanggal</label>
-                <input type="date" name="tanggal" class="form-control form-control-sm" required value="<?= htmlspecialchars($todayMasehi) ?>">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small mb-0">Jenis</label>
-                <select name="jenis" class="form-select form-select-sm">
-                    <option value="acara">Acara</option>
-                    <option value="tugas">Tugas pengurus</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label small mb-0">Judul</label>
-                <input type="text" name="judul" class="form-control form-control-sm" required maxlength="200" placeholder="Nama acara atau tugas">
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary btn-sm w-100">Tambah</button>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small mb-0">Jam mulai (ops.)</label>
-                <input type="time" name="jam_mulai" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small mb-0">Jam selesai (ops.)</label>
-                <input type="time" name="jam_selesai" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small mb-0">Catatan</label>
-                <input type="text" name="catatan" class="form-control form-control-sm" maxlength="500">
-            </div>
-        </form>
         <?php if ($agendaRows === []): ?>
-            <p class="small text-muted mb-0">Belum ada jadwal di bulan yang ditampilkan. Tambahkan acara atau tugas di atas.</p>
+            <p class="small text-muted mb-0">Belum ada acara di rentang yang ditampilkan.<?= $agendaKlikAktif ? ' Klik sebuah tanggal pada kalender di atas.' : '' ?></p>
         <?php else: ?>
             <ul class="list-group list-group-flush small">
-                <?php foreach ($agendaRows as $ag): ?>
+                <?php foreach ($agendaRows as $ag):
+                    $occDate = (string) ($ag['occurrence_date'] ?? $ag['tanggal'] ?? '');
+                    $canDel = akademik_agenda_user_can_manage($ag, $currentUserId, $currentUserRole, $currentUserSuper);
+                    $ulangInt = (int) ($ag['ulang_interval_hari'] ?? 0);
+                    ?>
                     <li class="list-group-item d-flex flex-wrap justify-content-between align-items-start gap-2 px-0<?= !empty($ag['selesai']) ? ' opacity-50' : '' ?>">
                         <span>
                             <span class="badge text-bg-<?= ($ag['jenis'] ?? '') === 'tugas' ? 'warning' : 'info' ?> me-1"><?= ($ag['jenis'] ?? '') === 'tugas' ? 'Tugas' : 'Acara' ?></span>
                             <strong><?= htmlspecialchars((string) $ag['judul']) ?></strong>
-                            <span class="text-muted">· <?= htmlspecialchars((string) $ag['tanggal']) ?></span>
+                            <span class="text-muted">· <?= htmlspecialchars($occDate) ?></span>
+                            <?php if (!empty($ag['is_ulang'])): ?>
+                                <span class="badge text-bg-secondary">ulang</span>
+                            <?php endif; ?>
+                            <?php if ($ulangInt > 0 && empty($ag['is_ulang'])): ?>
+                                <span class="badge text-bg-light text-dark border">setiap <?= $ulangInt ?> hari</span>
+                            <?php endif; ?>
                             <?php if (!empty($ag['jam_mulai'])): ?>
                                 <span class="text-muted">· <?= htmlspecialchars(substr((string) $ag['jam_mulai'], 0, 5)) ?></span>
                             <?php endif; ?>
                             <?php if (!empty($ag['catatan'])): ?>
                                 <br><span class="text-muted"><?= htmlspecialchars((string) $ag['catatan']) ?></span>
+                            <?php endif; ?>
+                            <?php if (!empty($ag['pembuat_nama'])): ?>
+                                <br><span class="text-muted"><i class="fa-solid fa-user fa-xs me-1"></i><?= htmlspecialchars((string) $ag['pembuat_nama']) ?></span>
                             <?php endif; ?>
                         </span>
                         <span class="d-flex gap-1">
@@ -878,7 +947,8 @@ require_once __DIR__ . '/../includes/header.php';
                                     <button type="submit" class="btn btn-outline-success btn-sm py-0">Selesai</button>
                                 </form>
                             <?php endif; ?>
-                            <form method="post" class="m-0" onsubmit="return confirm('Hapus?');">
+                            <?php if ($canDel): ?>
+                            <form method="post" class="m-0" onsubmit="return confirm('Hapus acara ini?<?= $ulangInt > 0 ? ' Seluruh pengulangan ikut terhapus.' : '' ?>');">
                                 <input type="hidden" name="action" value="hapus_agenda">
                                 <input type="hidden" name="agenda_id" value="<?= (int) $ag['id'] ?>">
                                 <?php foreach ($retHidden as $k => $v): ?>
@@ -886,6 +956,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                                 <button type="submit" class="btn btn-outline-danger btn-sm py-0">Hapus</button>
                             </form>
+                            <?php endif; ?>
                         </span>
                     </li>
                 <?php endforeach; ?>
@@ -897,19 +968,128 @@ require_once __DIR__ . '/../includes/header.php';
 <script>
 (function () {
     var sel = document.getElementById('calModeSelect');
-    if (!sel) return;
-    function syncFields() {
-        var hijri = sel.value === 'hijri';
-        document.querySelectorAll('.cal-field--hijri').forEach(function (el) {
-            el.classList.toggle('d-none', !hijri);
-        });
-        document.querySelectorAll('.cal-field--masehi').forEach(function (el) {
-            el.classList.toggle('d-none', hijri);
-        });
+    if (sel) {
+        function syncFields() {
+            var hijri = sel.value === 'hijri';
+            document.querySelectorAll('.cal-field--hijri').forEach(function (el) {
+                el.classList.toggle('d-none', !hijri);
+            });
+            document.querySelectorAll('.cal-field--masehi').forEach(function (el) {
+                el.classList.toggle('d-none', hijri);
+            });
+        }
+        sel.addEventListener('change', syncFields);
+        syncFields();
     }
-    sel.addEventListener('change', syncFields);
-    syncFields();
 })();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
+
+<?php if ($agendaKlikAktif): ?>
+<script>
+(function () {
+    var agendaData = <?= json_encode($agendaJsonModal, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+    var agendaRetFields = <?= json_encode(array_map(
+        static fn ($k, $v) => ['name' => 'ret_' . $k, 'value' => (string) $v],
+        array_keys($retHidden),
+        array_values($retHidden)
+    ), JSON_UNESCAPED_UNICODE) ?>;
+
+    function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    function formatTanggalId(ymd) {
+        if (!ymd || ymd.length < 10) return ymd;
+        var p = ymd.split('-');
+        var bulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+        return parseInt(p[2], 10) + ' ' + (bulan[parseInt(p[1], 10)] || p[1]) + ' ' + p[0];
+    }
+
+    function initAgendaKalenderKlik() {
+        var modalEl = document.getElementById('modalAgendaKalender');
+        if (!modalEl) return;
+
+        var judulTgl = document.getElementById('agendaModalJudulTanggal');
+        var inputTgl = document.getElementById('agendaModalTanggal');
+        var daftar = document.getElementById('agendaModalDaftar');
+        var ulangHingga = document.getElementById('agendaModalUlangHingga');
+        var bsModal = null;
+
+        function getBsModal() {
+            if (bsModal) return bsModal;
+            if (typeof bootstrap !== 'undefined') {
+                bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            }
+            return bsModal;
+        }
+
+        function renderDaftar(ymd) {
+            if (!daftar) return;
+            var items = agendaData[ymd] || [];
+            if (!items.length) {
+                daftar.innerHTML = '<p class="small text-muted mb-0">Belum ada acara di tanggal ini.</p>';
+                return;
+            }
+            var html = '<ul class="list-group list-group-flush small mb-0">';
+            items.forEach(function (it) {
+                html += '<li class="list-group-item px-0 d-flex justify-content-between align-items-start gap-2">';
+                html += '<span><span class="badge text-bg-' + (it.jenis === 'tugas' ? 'warning' : 'info') + ' me-1">' + (it.jenis === 'tugas' ? 'Tugas' : 'Acara') + '</span>';
+                html += '<strong>' + escapeHtml(it.judul) + '</strong>';
+                if (it.is_ulang) html += ' <span class="badge text-bg-secondary">ulang</span>';
+                if (it.jam_mulai) html += ' <span class="text-muted">· ' + escapeHtml(it.jam_mulai) + '</span>';
+                if (it.ulang_interval_hari > 0) html += ' <span class="badge text-bg-light text-dark border">/' + it.ulang_interval_hari + ' hr</span>';
+                if (it.catatan) html += '<br><span class="text-muted">' + escapeHtml(it.catatan) + '</span>';
+                if (it.pembuat_nama) html += '<br><span class="text-muted"><i class="fa-solid fa-user fa-xs"></i> ' + escapeHtml(it.pembuat_nama) + '</span>';
+                html += '</span>';
+                if (it.can_delete) {
+                    html += '<form method="post" class="m-0 flex-shrink-0" onsubmit="return confirm(\'Hapus acara ini?\');">';
+                    html += '<input type="hidden" name="action" value="hapus_agenda">';
+                    html += '<input type="hidden" name="agenda_id" value="' + String(it.id) + '">';
+                    agendaRetFields.forEach(function (f) {
+                        html += '<input type="hidden" name="' + escapeHtml(f.name) + '" value="' + escapeHtml(f.value) + '">';
+                    });
+                    html += '<button type="submit" class="btn btn-outline-danger btn-sm py-0">Hapus</button></form>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+            daftar.innerHTML = html;
+        }
+
+        function bukaModal(ymd) {
+            if (!ymd) return;
+            if (inputTgl) inputTgl.value = ymd;
+            if (ulangHingga) ulangHingga.min = ymd;
+            if (judulTgl) judulTgl.textContent = 'Acara · ' + formatTanggalId(ymd);
+            renderDaftar(ymd);
+            var m = getBsModal();
+            if (m) {
+                m.show();
+            }
+        }
+
+        document.addEventListener('click', function (e) {
+            var cell = e.target.closest('.akad-cal-day--pick[data-masehi]');
+            if (!cell) return;
+            if (e.target.closest('a, button, form')) return;
+            e.preventDefault();
+            bukaModal(cell.getAttribute('data-masehi'));
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var cell = e.target.closest('.akad-cal-day--pick[data-masehi]');
+            if (!cell) return;
+            e.preventDefault();
+            bukaModal(cell.getAttribute('data-masehi'));
+        });
+    }
+
+    initAgendaKalenderKlik();
+})();
+</script>
+<?php endif; ?>
