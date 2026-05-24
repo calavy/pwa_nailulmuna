@@ -80,6 +80,7 @@ $rekapPosRows = [];
 $rekapAlokasiRows = [];
 $rekapBulanLabel = '';
 $rekapSyahriyahMasuk = 0;
+$rekapSyahriyahHarusMasuk = 0;
 if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
     $biayaDefs = keuangan_biaya_definitions();
     $rekapPosRows = keuangan_rekap_pos_with_expected(
@@ -90,8 +91,23 @@ if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
         $tahunAjaranSelesai,
         $biayaDefs
     );
-    $rekapAlokasiRows = keuangan_rekap_alokasi_syahriyah_bulan($pdo, $rekapBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
-    $rekapSyahriyahMasuk = keuangan_syahriyah_terbayar_bulan($pdo, $rekapBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    foreach ($rekapPosRows as $rpSy) {
+        if (strtolower(trim((string) ($rpSy['pos_slug'] ?? ''))) === 'syahriyah') {
+            $rekapSyahriyahHarusMasuk = (int) ($rpSy['expected'] ?? 0);
+            $rekapSyahriyahMasuk = (int) ($rpSy['paid'] ?? 0);
+            break;
+        }
+    }
+    if ($rekapSyahriyahMasuk <= 0) {
+        $rekapSyahriyahMasuk = keuangan_syahriyah_terbayar_bulan($pdo, $rekapBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    }
+    $rekapAlokasiRows = keuangan_rekap_alokasi_syahriyah_bulan(
+        $pdo,
+        $rekapBulan,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $rekapSyahriyahHarusMasuk
+    );
     foreach ($bulanSlots as $slot) {
         if ((int) ($slot['bulan_tagihan'] ?? 0) === $rekapBulan) {
             $rekapBulanLabel = pondok_bulan_slot_label_tampilan($pdo, $slot);
@@ -227,7 +243,12 @@ $iconLaporan = bendahara_page_icon('laporan');
             <h2 class="h5 mb-1">Rekap keluar masuk — <?= htmlspecialchars($rekapBulanLabel) ?></h2>
             <p class="small text-muted mb-0">
                 TA <?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, ['mulai' => $tahunAjaranMulai, 'selesai' => $tahunAjaranSelesai])) ?>
-                · Pembayaran syahriyah bulan ini: <strong>Rp <?= number_format($rekapSyahriyahMasuk, 0, ',', '.') ?></strong>
+                · Syahriyah harus masuk: <strong>Rp <?= number_format($rekapSyahriyahHarusMasuk, 0, ',', '.') ?></strong>
+                · Terbayar: <strong class="text-success">Rp <?= number_format($rekapSyahriyahMasuk, 0, ',', '.') ?></strong>
+                <?php $sisaSy = max(0, $rekapSyahriyahHarusMasuk - $rekapSyahriyahMasuk); ?>
+                <?php if ($sisaSy > 0): ?>
+                    · Sisa tagihan: <strong class="text-danger">Rp <?= number_format($sisaSy, 0, ',', '.') ?></strong>
+                <?php endif; ?>
             </p>
         </div>
         <a class="btn btn-sm btn-outline-secondary" href="/pembayaran/rekap_pos.php?bulan=<?= (int) $rekapBulan ?>&amp;tm=<?= (int) $tahunAjaranMulai ?>&amp;ts=<?= (int) $tahunAjaranSelesai ?>">
@@ -279,7 +300,7 @@ $iconLaporan = bendahara_page_icon('laporan');
         </div>
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
-                <div class="card-header fw-semibold">Alokasi dana syahriyah (masuk &amp; keluar)</div>
+                <div class="card-header fw-semibold">Alokasi dana syahriyah per komponen</div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle mb-0">
@@ -287,21 +308,25 @@ $iconLaporan = bendahara_page_icon('laporan');
                                 <tr>
                                     <th>Komponen alokasi</th>
                                     <th class="text-end">%</th>
+                                    <th class="text-end">Harus masuk</th>
                                     <th class="text-end">Masuk</th>
-                                    <th class="text-end">Keluar</th>
+                                    <th class="text-end">Pengeluaran</th>
                                     <th class="text-end">Saldo</th>
                                 </tr>
                             </thead>
                             <tbody>
                             <?php if ($rekapAlokasiRows === []): ?>
-                                <tr><td colspan="5" class="text-center text-muted py-3">Belum ada alokasi syahriyah aktif. Atur di <a href="/keuangan/pengaturan.php?bagian=alokasi">pengaturan alokasi</a>.</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted py-3">Belum ada alokasi syahriyah aktif. Atur di <a href="/keuangan/pengaturan.php?bagian=alokasi">pengaturan alokasi</a>.</td></tr>
                             <?php else: ?>
                                 <?php
+                                $sumHarus = 0;
                                 $sumMasuk = 0;
                                 $sumKeluar = 0;
                                 foreach ($rekapAlokasiRows as $ra):
-                                    $sumMasuk += (int) $ra['masuk'];
-                                    $sumKeluar += (int) $ra['keluar'];
+                                    $sumHarus += (int) ($ra['harus_masuk'] ?? 0);
+                                    $sumMasuk += (int) ($ra['masuk'] ?? 0);
+                                    $sumKeluar += (int) ($ra['pengeluaran'] ?? $ra['keluar'] ?? 0);
+                                    $saldoRow = (int) ($ra['saldo'] ?? 0);
                                 ?>
                                     <tr>
                                         <td>
@@ -311,15 +336,17 @@ $iconLaporan = bendahara_page_icon('laporan');
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-end"><?= htmlspecialchars((string) $ra['persen']) ?>%</td>
-                                        <td class="text-end font-monospace small text-success">Rp <?= number_format((int) $ra['masuk'], 0, ',', '.') ?></td>
-                                        <td class="text-end font-monospace small text-danger">Rp <?= number_format((int) $ra['keluar'], 0, ',', '.') ?></td>
-                                        <td class="text-end font-monospace small">Rp <?= number_format((int) $ra['saldo'], 0, ',', '.') ?></td>
+                                        <td class="text-end font-monospace small">Rp <?= number_format((int) ($ra['harus_masuk'] ?? 0), 0, ',', '.') ?></td>
+                                        <td class="text-end font-monospace small text-success">Rp <?= number_format((int) ($ra['masuk'] ?? 0), 0, ',', '.') ?></td>
+                                        <td class="text-end font-monospace small text-danger">Rp <?= number_format((int) ($ra['pengeluaran'] ?? $ra['keluar'] ?? 0), 0, ',', '.') ?></td>
+                                        <td class="text-end font-monospace small<?= $saldoRow < 0 ? ' text-danger' : '' ?>">Rp <?= number_format($saldoRow, 0, ',', '.') ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                                 <tr class="table-light fw-semibold">
                                     <td colspan="2">Total</td>
-                                    <td class="text-end font-monospace small">Rp <?= number_format($sumMasuk, 0, ',', '.') ?></td>
-                                    <td class="text-end font-monospace small">Rp <?= number_format($sumKeluar, 0, ',', '.') ?></td>
+                                    <td class="text-end font-monospace small">Rp <?= number_format($sumHarus, 0, ',', '.') ?></td>
+                                    <td class="text-end font-monospace small text-success">Rp <?= number_format($sumMasuk, 0, ',', '.') ?></td>
+                                    <td class="text-end font-monospace small text-danger">Rp <?= number_format($sumKeluar, 0, ',', '.') ?></td>
                                     <td class="text-end font-monospace small">Rp <?= number_format($sumMasuk - $sumKeluar, 0, ',', '.') ?></td>
                                 </tr>
                             <?php endif; ?>
@@ -328,8 +355,10 @@ $iconLaporan = bendahara_page_icon('laporan');
                     </div>
                 </div>
                 <div class="card-footer small text-muted">
-                    <strong>Masuk</strong> = bagian pembayaran syahriyah menurut persen alokasi.
-                    <strong>Keluar</strong> = pengeluaran yang memilih komponen alokasi pada rentang tanggal bulan tagihan.
+                    <strong>Harus masuk</strong> = target tagihan syahriyah bulan ini × persen komponen.
+                    <strong>Masuk</strong> = pembayaran syahriyah terkumpul × persen yang sama.
+                    <strong>Pengeluaran</strong> = pengeluaran yang memilih komponen alokasi pada rentang tanggal bulan tagihan.
+                    <strong>Saldo</strong> = masuk − pengeluaran.
                 </div>
             </div>
         </div>

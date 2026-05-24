@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($action === 'test_kiai') {
         push_event_keuangan_harian_kiai($pdo, 'Uji ringkasan harian — ' . date('d/m/Y H:i'));
-        set_flash('success', 'Uji push kiai dikirim (jika ada token).');
+        set_flash('success', 'Uji push pengasuh dikirim (jika ada token).');
         header('Location: ' . app_href('/settings/push.php'));
         exit;
     }
@@ -108,7 +108,7 @@ require_once __DIR__ . '/includes/settings_nav.php';
     <div class="col-md-4">
         <div class="card h-100"><div class="card-body text-center">
             <div class="fs-3 fw-bold text-warning"><?= (int) $tokenCount['kiai'] ?></div>
-            <div class="small text-muted">Perangkat kiai</div>
+            <div class="small text-muted">Perangkat pengasuh</div>
         </div></div>
     </div>
 </div>
@@ -189,11 +189,11 @@ require_once __DIR__ . '/includes/settings_nav.php';
         <div class="col-md-6">
             <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="fcm_daily_kiai_enabled" id="kiai_on" <?= $v('fcm_daily_kiai_enabled', '1') === '1' ? 'checked' : '' ?>>
-                <label class="form-check-label small" for="kiai_on">Ringkasan harian ke kiai (cron)</label>
+                <label class="form-check-label small" for="kiai_on">Ringkasan harian ke pengasuh (cron)</label>
             </div>
         </div>
         <div class="col-md-6">
-            <label class="form-label small">Jam ringkasan kiai</label>
+            <label class="form-label small">Jam ringkasan pengasuh</label>
             <input type="time" name="fcm_daily_kiai_time" class="form-control form-control-sm" value="<?= htmlspecialchars($v('fcm_daily_kiai_time', '20:00')) ?>">
         </div>
         <div class="col-12">
@@ -213,7 +213,7 @@ require_once __DIR__ . '/includes/settings_nav.php';
         </form>
         <form method="post" class="d-inline">
             <input type="hidden" name="action" value="test_kiai">
-            <button type="submit" class="btn btn-outline-warning btn-sm">Uji push kiai</button>
+            <button type="submit" class="btn btn-outline-warning btn-sm">Uji push pengasuh</button>
         </form>
         <span class="small text-muted align-self-center">Status: <?= push_fcm_enabled($pdo) ? '<span class="text-success">FCM siap</span>' : '<span class="text-danger">Belum dikonfigurasi</span>' ?></span>
     </div>
@@ -231,7 +231,7 @@ require_once __DIR__ . '/includes/settings_nav.php';
             <ul class="mb-0"><li>Pengajuan izin</li><li>Rapat</li><li>Tugas keamanan</li></ul>
         </div>
         <div class="col-md-4">
-            <strong>Kiai</strong>
+            <strong>Pengasuh</strong>
             <ul class="mb-0"><li>Ringkasan keuangan harian</li><li>Pelanggaran berat</li></ul>
         </div>
     </div>

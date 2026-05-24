@@ -110,25 +110,15 @@ $heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 
 $welcome = auth_portal_welcome_copy($pdo);
 $peranLabel = $peran === 'pembimbing' ? 'Pembimbing' : ($peran === 'pengurus' ? 'Pengurus / Admin' : '');
-$portalSubtitleMobile = $peran === ''
-    ? 'Pilih peran di bawah untuk masuk ke sistem manajemen pondok.'
-    : 'Masukkan kredensial akun ' . strtolower($peranLabel) . ' Anda.';
-$portalSubtitleDesktop = $peran === ''
-    ? 'Pilih peran di samping untuk masuk ke sistem manajemen pondok.'
-    : $portalSubtitleMobile;
 
 auth_portal_layout_begin([
     'title' => $peran === '' ? 'Portal Masuk' : 'Login ' . $peranLabel,
     'welcome_salam' => $welcome['salam'],
-    'welcome_tagline' => $welcome['tagline'],
-    'subtitle_mobile' => $portalSubtitleMobile,
-    'subtitle_desktop' => $portalSubtitleDesktop,
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
     'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
     'layout' => $peran === '' ? 'split' : 'stack',
     'card_title' => $peran === '' ? 'Pilih cara masuk' : 'Masuk ke akun',
-    'card_meta' => $peran === '' ? 'Satu portal untuk pengurus, pembimbing, dan layanan terkait' : 'Data Anda aman · gunakan akun resmi pondok',
     'accent' => 'teal',
 ]);
 
@@ -197,7 +187,6 @@ $ok = get_flash('success');
                         ]);
                         ?>
                     </div>
-                    <p class="auth-portal-footnote">Logo dan nama pondok dapat diubah di menu <strong>Pengaturan</strong> setelah login pengurus.</p>
                 <?php else: ?>
                     <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="auth-portal-back">
                         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Kembali pilih peran
@@ -222,9 +211,6 @@ $ok = get_flash('success');
                             <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
                         </button>
                     </form>
-                    <?php if ($peran === 'pengurus'): ?>
-                        <p class="auth-portal-footnote">Akun percobaan: <strong>admin</strong> / <strong>admin123</strong></p>
-                    <?php endif; ?>
                 <?php endif; ?>
 <?php
 auth_portal_layout_end();

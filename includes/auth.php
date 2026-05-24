@@ -7,6 +7,18 @@ function is_logged_in(): bool
     return isset($_SESSION['user']);
 }
 
+/** Label tampilan role pengguna (nilai di database tetap, mis. `kiai`). */
+function user_role_label(string $role): string
+{
+    return match (strtolower(trim($role))) {
+        'admin' => 'Admin',
+        'pengurus' => 'Pengurus',
+        'petugas_absensi' => 'Petugas Absensi',
+        'kiai' => 'Pengasuh',
+        default => $role !== '' ? ucfirst($role) : 'Pengurus',
+    };
+}
+
 function require_login(): void
 {
     if (!is_logged_in()) {

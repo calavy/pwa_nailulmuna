@@ -305,7 +305,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <option value="pengurus">Pengurus</option>
                             <option value="admin">Admin</option>
                             <option value="petugas_absensi">Petugas Absensi</option>
-                            <option value="kiai">Kiai</option>
+                            <option value="kiai">Pengasuh</option>
                         </select>
                     </div>
                     <div class="col-12 form-check ms-1">
@@ -348,12 +348,13 @@ require_once __DIR__ . '/../includes/header.php';
                         if ($role === 'admin') { $roleBadge = 'primary'; }
                         elseif ($role === 'pengurus') { $roleBadge = 'success'; }
                         elseif ($role === 'petugas_absensi') { $roleBadge = 'info'; }
+                        elseif ($role === 'kiai') { $roleBadge = 'warning'; }
                         ?>
                         <tr>
                             <td class="text-center"><?= user_profil_render_avatar($u, 'app-user-avatar--table') ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($u['nama']) ?> <?php if ($isSelf): ?><span class="badge text-bg-light text-dark border ms-1">Anda</span><?php endif; ?></td>
                             <td class="font-monospace small"><?= htmlspecialchars($u['username']) ?></td>
-                            <td><span class="badge text-bg-<?= $roleBadge ?>"><?= htmlspecialchars($role) ?></span></td>
+                            <td><span class="badge text-bg-<?= $roleBadge ?>"><?= htmlspecialchars(user_role_label($role)) ?></span></td>
                             <td><?= (int) $u['is_super_admin'] === 1 ? '<span class="badge text-bg-danger">Super</span>' : '<span class="text-muted">-</span>' ?></td>
                             <td class="small text-muted"><?= htmlspecialchars((string) ($u['created_at'] ?? '')) ?></td>
                             <td class="text-end text-nowrap">
@@ -443,7 +444,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <option value="pengurus" <?= $rolev === 'pengurus' ? 'selected' : '' ?>>Pengurus</option>
                                     <option value="admin" <?= $rolev === 'admin' ? 'selected' : '' ?>>Admin</option>
                                     <option value="petugas_absensi" <?= $rolev === 'petugas_absensi' ? 'selected' : '' ?>>Petugas Absensi</option>
-                                    <option value="kiai" <?= $rolev === 'kiai' ? 'selected' : '' ?>>Kiai</option>
+                                    <option value="kiai" <?= $rolev === 'kiai' ? 'selected' : '' ?>>Pengasuh</option>
                                 </select>
                             </div>
                             <div class="col-12 form-check ms-1 mt-3">
@@ -485,7 +486,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="perm-access-toolbar">
                                 <p class="small text-muted mb-2">
                                     <span class="font-monospace"><?= htmlspecialchars($u['username']) ?></span>
-                                    · role <span class="badge text-bg-light text-dark border"><?= htmlspecialchars($rolev) ?></span>
+                                    · role <span class="badge text-bg-light text-dark border"><?= htmlspecialchars(user_role_label($rolev)) ?></span>
                                     · <span class="perm-count-label"><?= $permCount ?></span> dari <?= $permTotal ?> fitur aktif
                                 </p>
                                 <div class="d-flex flex-wrap align-items-center gap-2">

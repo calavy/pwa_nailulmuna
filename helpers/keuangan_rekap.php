@@ -313,19 +313,25 @@ function keuangan_syahriyah_terbayar_bulan(
 }
 
 /**
- * Rekap masuk (alokasi dari pembayaran syahriyah) & keluar (pengeluaran) per komponen alokasi syahriyah.
+ * Rekap alokasi syahriyah per komponen: harus masuk, masuk, pengeluaran, saldo.
  *
- * @return list<array{nama:string,kategori:string,persen:float,masuk:int,keluar:int,saldo:int}>
+ * @param int $syahriyahHarusMasuk Total tagihan syahriyah seharusnya (target bulan); 0 = dihitung dari rekap POS.
+ * @return list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int}>
  */
 function keuangan_rekap_alokasi_syahriyah_bulan(
     PDO $pdo,
     int $bulanTagihan,
     int $tahunMulai,
-    int $tahunSelesai
+    int $tahunSelesai,
+    int $syahriyahHarusMasuk = 0
 ): array {
     $rows = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
     if ($rows === []) {
         return [];
+    }
+
+    if ($syahriyahHarusMasuk <= 0) {
+        $syahriyahHarusMasuk = keuangan_syahriyah_harus_masuk_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
     }
 
     $paguBulan = keuangan_syahriyah_terbayar_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
@@ -359,17 +365,51 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
             continue;
         }
         $persen = (float) ($row['persen'] ?? 0);
+        $harusMasuk = $syahriyahHarusMasuk > 0 ? (int) floor($syahriyahHarusMasuk * $persen / 100) : 0;
         $masuk = $paguBulan > 0 ? (int) floor($paguBulan * $persen / 100) : 0;
-        $keluar = (int) ($keluarMap[$nama] ?? 0);
+        $pengeluaran = (int) ($keluarMap[$nama] ?? 0);
         $out[] = [
             'nama' => $nama,
             'kategori' => (string) ($row['kategori'] ?? ''),
             'persen' => round($persen, 2),
+            'harus_masuk' => $harusMasuk,
             'masuk' => $masuk,
-            'keluar' => $keluar,
-            'saldo' => $masuk - $keluar,
+            'pengeluaran' => $pengeluaran,
+            'saldo' => $masuk - $pengeluaran,
         ];
     }
 
     return $out;
+}
+
+/** Total tagihan syahriyah seharusnya (santri aktif × tarif, termasuk potongan) untuk satu bulan tagihan. */
+function keuangan_syahriyah_harus_masuk_bulan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai
+): int {
+    if ($bulanTagihan < 1 || $bulanTagihan > 12 || !table_exists($pdo, 'santri')) {
+        return 0;
+    }
+
+    if (!function_exists('keuangan_biaya_definitions')) {
+        require_once __DIR__ . '/keuangan_defs.php';
+    }
+    $biayaDefs = keuangan_biaya_definitions();
+    $rekap = keuangan_rekap_pos_with_expected(
+        $pdo,
+        'BULANAN',
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $biayaDefs
+    );
+    foreach ($rekap as $row) {
+        if (strtolower(trim((string) ($row['pos_slug'] ?? ''))) === 'syahriyah') {
+            return (int) ($row['expected'] ?? 0);
+        }
+    }
+
+    return 0;
 }

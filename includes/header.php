@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
+require_once __DIR__ . '/auth.php';
 $currentUser = $_SESSION['user']['nama'] ?? 'Guest';
 $currentRole = $_SESSION['user']['role'] ?? 'admin';
 $currentUserRow = [
@@ -89,11 +90,11 @@ $roleLabels = [
     'admin' => 'Administrator',
     'pengurus' => 'Pengurus',
     'pembimbing' => 'Pembimbing',
-    'kiai' => 'Kiai',
+    'kiai' => 'Pengasuh',
     'guru' => 'Guru',
     'keuangan' => 'Keuangan',
 ];
-$currentRoleLabel = $roleLabels[$currentRole] ?? ucfirst((string) $currentRole);
+$currentRoleLabel = $roleLabels[$currentRole] ?? user_role_label((string) $currentRole);
 $pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
 if (!function_exists('render_app_sidebar_nav')) {
