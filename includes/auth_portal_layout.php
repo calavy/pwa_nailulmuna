@@ -82,8 +82,19 @@ function auth_portal_layout_begin(array $ctx): void
     $subtitleDesktop = trim((string) ($ctx['subtitle_desktop'] ?? $subtitleFallback));
     $subtitleMobileHtml = $subtitleMobile !== '' ? htmlspecialchars($subtitleMobile) : '';
     $subtitleDesktopHtml = $subtitleDesktop !== '' ? htmlspecialchars($subtitleDesktop) : '';
-    $kicker = isset($ctx['kicker']) ? htmlspecialchars((string) $ctx['kicker']) : '';
+    $kickerRaw = trim((string) ($ctx['kicker'] ?? ''));
     $namaPonpesRaw = trim((string) ($ctx['nama_ponpes'] ?? ''));
+    global $pdo;
+    if (isset($pdo) && $pdo instanceof PDO) {
+        require_once __DIR__ . '/../helpers/app.php';
+        if ($kickerRaw === '') {
+            $kickerRaw = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
+        }
+        if ($namaPonpesRaw === '') {
+            $namaPonpesRaw = auth_portal_brand_nama($pdo);
+        }
+    }
+    $kicker = $kickerRaw !== '' ? htmlspecialchars($kickerRaw) : '';
     $namaPonpes = $namaPonpesRaw !== '' ? htmlspecialchars($namaPonpesRaw) : '';
     $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $namaPonpesRaw);
     $initials = strtoupper(substr($lettersOnly !== '' ? $lettersOnly : 'AP', 0, 2));
@@ -181,20 +192,24 @@ function auth_portal_layout_begin(array $ctx): void
             <?php if ($logoUrl !== '' || $namaPonpesRaw !== '' || $welcomeSalam !== ''): ?>
                 <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>" aria-hidden="<?= $logoUrl === '' ? 'true' : 'false' ?>">
                     <?php if ($logoUrl !== ''): ?>
-                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo pesantren" decoding="async">
+                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo <?= htmlspecialchars(strip_tags($namaPonpesRaw !== '' ? $namaPonpesRaw : 'pesantren')) ?>" class="auth-portal-logo-img" decoding="async" fetchpriority="high">
                     <?php else: ?>
                         <span class="logo-fallback"><?= htmlspecialchars($initials) ?></span>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
-            <?php if ($kicker !== ''): ?>
-                <div class="kicker"><?= $kicker ?></div>
-            <?php endif; ?>
-            <div class="auth-portal-hero-text">
-                <div class="auth-portal-hero-lead">
+            <?php if ($kicker !== '' || $namaPonpes !== ''): ?>
+                <div class="auth-portal-pondok-identity">
+                    <?php if ($kicker !== ''): ?>
+                        <div class="kicker auth-portal-brand-kicker"><?= $kicker ?></div>
+                    <?php endif; ?>
                     <?php if ($namaPonpes !== ''): ?>
                         <p class="auth-portal-brand mb-0"><?= $namaPonpes ?></p>
                     <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            <div class="auth-portal-hero-text">
+                <div class="auth-portal-hero-lead">
                     <?php if ($welcomeSalam !== ''): ?>
                         <h1 class="auth-portal-salam"><?= $welcomeSalam ?></h1>
                     <?php elseif ($namaPonpes === '' && $title !== ''): ?>

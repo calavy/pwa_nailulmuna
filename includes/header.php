@@ -143,7 +143,11 @@ if (!function_exists('render_app_sidebar_nav')) {
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f766e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -189,19 +193,19 @@ if (!function_exists('render_app_sidebar_nav')) {
                         <i class="fa-solid fa-bars" aria-hidden="true"></i>
                         <span class="d-none d-sm-inline ms-1">Menu</span>
                     </button>
-                    <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none">
+                    <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none" title="<?= htmlspecialchars($appBrandTitle) ?>">
                         <?php if ($appLogoSrc !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
-                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="" class="app-brand-logo" decoding="async">
+                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-brand-logo" decoding="async" fetchpriority="high">
                             </span>
                         <?php else: ?>
                             <span class="app-brand-mark app-brand-mark--fallback" aria-hidden="true"><?= htmlspecialchars($appLogoInitial) ?></span>
                         <?php endif; ?>
                         <span class="app-brand-text">
-                            <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
                             <?php if ($appBrandTagline !== ''): ?>
-                                <span class="app-brand-tagline"><?= htmlspecialchars($appBrandTagline) ?></span>
+                                <span class="app-brand-tagline app-brand-kicker"><?= htmlspecialchars($appBrandTagline) ?></span>
                             <?php endif; ?>
+                            <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
                         </span>
                     </a>
                     <div class="app-topbar-page d-none d-lg-flex">

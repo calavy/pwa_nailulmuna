@@ -61,11 +61,11 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $tm = (int) $periode['mulai'];
     $ts = (int) $periode['selesai'];
 
-    $sql = 'SELECT id, nis, nama_santri, tingkatan, kategori_kelas, no_wa_wali FROM santri';
+    $sql = 'SELECT s.id, s.nis, ' . santri_list_select_nama_sql($pdo, 's') . ', s.tingkatan, s.kategori_kelas, s.no_wa_wali FROM santri s';
     if (column_exists($pdo, 'santri', 'is_aktif')) {
-        $sql .= ' WHERE COALESCE(is_aktif, 1) = 1';
+        $sql .= ' WHERE COALESCE(s.is_aktif, 1) = 1';
     }
-    $sql .= ' ORDER BY ' . santri_list_order_sql('s');
+    $sql .= ' ORDER BY ' . santri_list_order_sql('s', $pdo);
     $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tm, $ts);
     $syCtx = $tagihanCtx['sy_ctx'];

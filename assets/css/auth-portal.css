@@ -137,6 +137,33 @@
     font-weight: 600;
 }
 
+.auth-portal-pondok-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: 100%;
+    margin-bottom: 0.5rem;
+    padding-inline: 0.35rem;
+}
+
+.auth-portal-pondok-identity .auth-portal-brand-kicker {
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-size: clamp(0.72rem, 2.8vw, 0.82rem);
+    font-weight: 600;
+    line-height: 1.35;
+    margin-bottom: 0;
+    opacity: 0.92;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+.auth-portal-pondok-identity .auth-portal-brand {
+    margin-top: 0.1rem;
+}
+
 .auth-portal-hero .auth-portal-brand {
     font-size: clamp(1.1rem, 3.4vw, 1.35rem);
     font-weight: 800;
@@ -144,6 +171,11 @@
     line-height: 1.35;
     letter-spacing: -0.02em;
     text-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+    padding-inline: clamp(0.25rem, 2vw, 0.75rem);
+    max-width: 100%;
 }
 
 .auth-portal-hero .auth-portal-salam {
@@ -795,4 +827,35 @@
 [data-theme="dark"] .auth-portal-wali-selected {
     background: rgba(15, 118, 110, 0.18);
     border-color: rgba(45, 212, 191, 0.35);
+}
+
+/* HP / Android — logo & nama pondok di halaman login */
+@media (max-width: 480px) {
+    .auth-portal-hero .logo-ring {
+        max-width: min(168px, 44vw);
+        margin-bottom: 0.85rem;
+    }
+
+    .auth-portal-hero .logo-ring img {
+        max-width: min(168px, 44vw);
+        max-height: min(128px, 30vw);
+        min-height: 72px;
+    }
+
+    .auth-portal-hero .auth-portal-brand {
+        font-size: clamp(1.02rem, 4.8vw, 1.3rem);
+        line-height: 1.32;
+    }
+
+    .auth-portal-hero .auth-portal-tagline {
+        font-size: clamp(0.78rem, 3.2vw, 0.88rem);
+        padding-inline: 0.5rem;
+    }
+}
+
+@media (display-mode: standalone) {
+    .auth-portal-page {
+        padding-top: max(1rem, env(safe-area-inset-top, 0px));
+        padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    }
 }

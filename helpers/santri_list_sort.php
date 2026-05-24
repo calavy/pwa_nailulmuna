@@ -2,6 +2,39 @@
 
 declare(strict_types=1);
 
+/** Kolom nama di tabel santri: `nama_santri` atau `nama` (legacy). */
+function santri_list_nama_db_column(?PDO $pdo = null): string
+{
+    static $cachedCol = null;
+    if ($pdo === null) {
+        global $pdo;
+    }
+    if (!($pdo instanceof PDO)) {
+        return $cachedCol ?? 'nama_santri';
+    }
+    if ($cachedCol !== null) {
+        return $cachedCol;
+    }
+    if (!function_exists('table_exists')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'santri')) {
+        return 'nama_santri';
+    }
+    $cachedCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+
+    return $cachedCol;
+}
+
+/** SELECT … AS nama_santri untuk konsistensi baris hasil. */
+function santri_list_select_nama_sql(?PDO $pdo, string $alias = 's', string $as = 'nama_santri'): string
+{
+    $col = santri_list_nama_db_column($pdo);
+    $ref = santri_list_sort_col($alias, $col);
+
+    return $as !== '' && $as !== $col ? "{$ref} AS {$as}" : $ref;
+}
+
 /** @return list<string> */
 function santri_list_sort_modes(): array
 {
@@ -60,11 +93,11 @@ function santri_list_tingkatan_order_expr(string $alias = 's'): string
 }
 
 /** Klausa ORDER BY untuk query daftar santri (tanpa kata ORDER BY). */
-function santri_list_order_sql(string $alias = 's'): string
+function santri_list_order_sql(string $alias = 's', ?PDO $pdo = null): string
 {
     $mode = santri_list_sort_mode();
     $nis = santri_list_sort_col($alias, 'nis');
-    $nama = santri_list_sort_col($alias, 'nama_santri');
+    $nama = santri_list_sort_col($alias, santri_list_nama_db_column($pdo));
     $nisOrder = "CAST({$nis} AS UNSIGNED) ASC, LENGTH({$nis}) ASC, {$nis} ASC";
 
     return match ($mode) {
@@ -175,14 +208,14 @@ function santri_list_sort_rows(array $rows, ?string $mode = null): array
 /**
  * Urutan dengan metrik utama (mis. poin DESC) bila mode=nama; NIS/tingkatan mengganti urutan utama.
  */
-function santri_list_order_sql_with_primary(string $alias, string $primaryOrderSql): string
+function santri_list_order_sql_with_primary(string $alias, string $primaryOrderSql, ?PDO $pdo = null): string
 {
     $mode = santri_list_sort_mode();
     if ($mode === 'nis' || $mode === 'tingkatan') {
-        return santri_list_order_sql($alias);
+        return santri_list_order_sql($alias, $pdo);
     }
 
-    return trim($primaryOrderSql) . ', ' . santri_list_order_sql($alias);
+    return trim($primaryOrderSql) . ', ' . santri_list_order_sql($alias, $pdo);
 }
 
 /** Query string untuk tautan ubah urutan (pertahankan GET lain). */
