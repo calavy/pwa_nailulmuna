@@ -63,6 +63,11 @@ if (isset($_SESSION['user'])) {
         migrate_legacy_permissions_to_pengaturan($pdo);
         $_SESSION['acl_pengaturan_migrate_checked'] = 1;
     }
+    if (empty($_SESSION['acl_keuangan_split_checked'])) {
+        require_once __DIR__ . '/../helpers/user_permissions.php';
+        migrate_keuangan_permissions_split($pdo);
+        $_SESSION['acl_keuangan_split_checked'] = 1;
+    }
     // Maintenance berat (presensi/poin/WA massal): hanya cron/wa_auto.php — bukan tiap navigasi web.
 }
 

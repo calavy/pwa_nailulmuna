@@ -23,7 +23,31 @@ function auth_redirect_access_denied(): void
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
     }
-    app_redirect('dashboard.php');
+
+    global $pdo;
+    if ($pdo instanceof PDO && function_exists('get_allowed_permission_key_map')) {
+        $allowedMap = get_allowed_permission_key_map($pdo);
+        if ($allowedMap === null) {
+            app_redirect('dashboard.php');
+        }
+        if ($allowedMap === []) {
+            unset($_SESSION['user']);
+            set_flash('error', 'Akun belum memiliki hak akses. Hubungi admin super.');
+            app_redirect('login.php');
+        }
+        if (!function_exists('user_permission_path_map')) {
+            require_once __DIR__ . '/../helpers/user_permissions.php';
+        }
+        $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+        $fallbackPath = app_acl_first_allowed_path(user_permission_path_map(), $allowedMap);
+        if ($fallbackPath !== null && !app_acl_request_paths_equal($requestPath, $fallbackPath)) {
+            app_redirect_path($fallbackPath);
+        }
+    }
+
+    unset($_SESSION['user']);
+    set_flash('error', 'Anda tidak memiliki akses ke halaman ini.');
+    app_redirect('login.php');
 }
 
 function require_roles(array $roles): void
@@ -200,102 +224,11 @@ function require_riwayat_sensitif(): void
 
 function permission_key_for_request(string $requestPath): ?string
 {
-    $pathMap = [
-        '/dashboard.php' => 'dashboard',
-        '/santri/index.php' => 'santri_index',
-        '/santri/export_excel.php' => 'santri_index',
-        '/santri/mukimin.php' => 'santri_index',
-        '/santri/mukimin_export.php' => 'santri_index',
-        '/santri/mukimin_import.php' => 'santri_import',
-        '/mukimin/login.php' => 'santri_index',
-        '/mukimin/index.php' => 'santri_index',
-        '/mukimin/unduh.php' => 'santri_index',
-        '/mukimin/logout.php' => 'santri_index',
-        '/santri/muqim_boyong.php' => 'santri_index',
-        '/santri/keluar.php' => 'santri_index',
-        '/santri/keluar_kekurangan_print.php' => 'santri_index',
-        '/santri/surat_keluar.php' => 'santri_index',
-        '/santri/surat_tanggungan.php' => 'santri_index',
-        '/santri/semua_jati.php' => 'santri_index',
-        '/santri/riwayat.php' => 'santri_index',
-        '/santri/hidmah.php' => 'santri_index',
-        '/santri/nonaktif_cepat.php' => 'santri_index',
-        '/santri/alumni.php' => 'santri_index',
-        '/santri/alumni_export.php' => 'santri_index',
-        '/santri/alumni_import.php' => 'santri_import',
-        '/santri/create.php' => 'santri_create',
-        '/santri/edit.php' => 'santri_index',
-        '/santri/import.php' => 'santri_import',
-        '/pembimbing/edit.php' => 'pembimbing',
-        '/jadwal/edit.php' => 'jadwal',
-        '/perizinan/edit.php' => 'perizinan',
-        '/data/wali.php' => 'santri_index',
-        '/settings/akses_mukimin.php' => 'santri_index',
-        '/presensi/scan.php' => 'presensi_scan',
-        '/jadwal/index.php' => 'jadwal',
-        '/jadwal/tambah.php' => 'jadwal',
-        '/jadwal/tambah_kegiatan.php' => 'jadwal',
-        '/akademik/hafalan.php' => 'akademik_hafalan',
-        '/akademik/bait_kitab.php' => 'akademik_hafalan',
-        '/akademik/kalender.php' => 'akademik_hafalan',
-        '/akademik/rapor.php' => 'akademik_hafalan',
-        '/akademik/rapor_lihat.php' => 'akademik_hafalan',
-        '/akademik/rapor_cetak.php' => 'akademik_hafalan',
-        '/pembimbing/tugas/index.php' => 'akademik_ikhtibar',
-        '/pembimbing/tugas/buat.php' => 'akademik_ikhtibar',
-        '/pembimbing/tugas/nilai.php' => 'akademik_ikhtibar',
-        '/pembimbing/tugas/rekap.php' => 'akademik_ikhtibar',
-        '/akademik/ikhtibar_rekap.php' => 'akademik_ikhtibar',
-        '/settings/pusat.php' => 'pengaturan',
-        '/settings/pesantren.php' => 'pengaturan',
-        '/settings/peraturan.php' => 'pengaturan',
-        '/settings/kelas_ruangan.php' => 'pengaturan',
-        '/settings/kelas_keuangan.php' => 'pengaturan',
-        '/settings/tingkatan.php' => 'pengaturan',
-        '/settings/kamar_ranjang.php' => 'pengaturan',
-        '/settings/index.php' => 'pengaturan',
-        '/settings/kalender.php' => 'pengaturan',
-        '/settings/hijri_mappings.php' => 'pengaturan',
-        '/perizinan/index.php' => 'perizinan',
-        '/perizinan/izin_tetap.php' => 'perizinan',
-        '/perizinan/kembali.php' => 'perizinan_scan',
-        '/perizinan/permohonan.php' => 'perizinan_permohonan',
-        '/admin/surat_nomor.php' => 'perizinan',
-        '/admin/rekap_surat_izin.php' => 'perizinan',
-        '/admin/rekap_surat_sp.php' => 'perizinan',
-        '/pembimbing/index.php' => 'pembimbing',
-        '/pembimbing/presensi.php' => 'presensi_scan',
-        '/pembimbing/perizinan.php' => 'pembimbing_perizinan',
-        '/rekap/santri_bagus.php' => 'rekap_keaktifan',
-        '/rekap/index.php' => 'rekap',
-        '/rekap/izin_telat.php' => 'rekap_telat',
-        '/rekap/pembimbing.php' => 'rekap_pembimbing',
-        '/poin/input.php' => 'poin_input',
-        '/poin/rekap.php' => 'poin_rekap',
-        '/poin/settings.php' => 'pengaturan',
-        '/keuangan/index.php' => 'keuangan',
-        '/keuangan/cashless_scan.php' => 'keuangan',
-        '/keuangan/cashless_laporan.php' => 'keuangan',
-        '/keuangan/cashless_pin.php' => 'pengaturan',
-        '/pembayaran/index.php' => 'keuangan',
-        '/pembayaran/tagihan_syahriyah.php' => 'keuangan',
-        '/pembayaran/riwayat.php' => 'keuangan',
-        '/pembayaran/laporan.php' => 'keuangan',
-        '/pembayaran/rekap_pos.php' => 'keuangan',
-        '/settings/admin.php' => 'settings_admin',
-        '/yayasan/pengurus.php' => 'yayasan',
-        '/yayasan/rapat.php' => 'yayasan',
-        '/yayasan/notulen.php' => 'yayasan',
-        '/yayasan/executive.php' => 'yayasan',
-    ];
-
-    foreach ($pathMap as $path => $permissionKey) {
-        if (str_contains($requestPath, $path)) {
-            return $permissionKey;
-        }
+    if (!function_exists('user_permission_key_for_path')) {
+        require_once __DIR__ . '/../helpers/user_permissions.php';
     }
 
-    return null;
+    return user_permission_key_for_path($requestPath);
 }
 
 function user_has_current_page_permission(): bool
@@ -317,22 +250,7 @@ function user_has_current_page_permission(): bool
         return $role === 'petugas_absensi' && $permissionKey === 'presensi_scan';
     }
 
-    global $pdo;
-    if (!$pdo instanceof PDO) {
-        return false;
-    }
-
-    try {
-        $stmt = $pdo->prepare('SELECT 1 FROM user_access_permissions WHERE user_id = :user_id AND permission_key = :permission_key LIMIT 1');
-        $stmt->execute([
-            'user_id' => $userId,
-            'permission_key' => $permissionKey,
-        ]);
-
-        return (bool) $stmt->fetchColumn();
-    } catch (Throwable $e) {
-        return false;
-    }
+    return user_can_access_permission_key($permissionKey);
 }
 
 function user_can_access_permission_key(string $permissionKey): bool
@@ -348,14 +266,10 @@ function user_can_access_permission_key(string $permissionKey): bool
     if (!$pdo instanceof PDO) {
         return false;
     }
-    try {
-        $stmt = $pdo->prepare('SELECT 1 FROM user_access_permissions WHERE user_id = :user_id AND permission_key = :permission_key LIMIT 1');
-        $stmt->execute([
-            'user_id' => $userId,
-            'permission_key' => $permissionKey,
-        ]);
-        return (bool) $stmt->fetchColumn();
-    } catch (Throwable $e) {
-        return false;
+    $allowed = get_allowed_permission_key_map($pdo);
+    if ($allowed === null) {
+        return true;
     }
+
+    return isset($allowed[$permissionKey]);
 }

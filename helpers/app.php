@@ -2434,26 +2434,75 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
         return [];
     }
 
-    $cacheKey = 'acl_map_' . $userId;
+    $cacheKey = 'acl_map_v2_' . $userId;
     if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
-        return $_SESSION[$cacheKey];
+        return app_acl_normalize_allowed_map($_SESSION[$cacheKey]);
     }
 
     $allowedPermissions = $pdo->prepare('SELECT permission_key FROM user_access_permissions WHERE user_id = :user_id');
     $allowedPermissions->execute(['user_id' => $userId]);
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
-    $map = array_flip($allowedKeys);
+    $map = app_acl_normalize_allowed_map(array_flip($allowedKeys));
     $_SESSION[$cacheKey] = $map;
     unset($_SESSION['menu_items_acl_' . $userId]);
 
     return $map;
 }
 
+/**
+ * @param array<string, int> $map
+ * @return array<string, int>
+ */
+function app_acl_normalize_allowed_map(array $map): array
+{
+    if ($map === []) {
+        return $map;
+    }
+    if (!function_exists('user_permission_expand_allowed_map')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    $map = user_permission_expand_allowed_map($map);
+    $map['dashboard'] = 1;
+
+    return $map;
+}
+
+/**
+ * Halaman pertama yang boleh diakses (hindari redirect ke dashboard tanpa izin).
+ */
+function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap): ?string
+{
+    if ($allowedMap === []) {
+        return null;
+    }
+    if (isset($allowedMap['dashboard'])) {
+        return '/dashboard.php';
+    }
+    foreach ($permissionPathMap as $path => $permissionKey) {
+        if ($path !== '' && isset($allowedMap[$permissionKey])) {
+            return $path;
+        }
+    }
+
+    return null;
+}
+
+function app_acl_request_paths_equal(string $requestPath, string $targetPath): bool
+{
+    $a = $requestPath === '' ? '/' : $requestPath;
+    $b = $targetPath;
+    if (!str_starts_with($b, '/')) {
+        $b = '/' . ltrim($b, '/');
+    }
+
+    return $a === $b || str_starts_with($a, $b . '?') || str_starts_with($a, $b . '#');
+}
+
 /** Panggil setelah ubah izin user di pengaturan admin. */
 function app_acl_session_cache_clear(int $userId = 0): void
 {
     if ($userId > 0) {
-        unset($_SESSION['acl_map_' . $userId], $_SESSION['menu_items_acl_' . $userId]);
+        unset($_SESSION['acl_map_' . $userId], $_SESSION['acl_map_v2_' . $userId], $_SESSION['menu_items_acl_' . $userId]);
         app_menu_pack_invalidate();
         return;
     }
@@ -2461,7 +2510,7 @@ function app_acl_session_cache_clear(int $userId = 0): void
         if (!is_string($sk)) {
             continue;
         }
-        if (str_starts_with($sk, 'acl_map_') || str_starts_with($sk, 'menu_items_acl_')) {
+        if (str_starts_with($sk, 'acl_map_') || str_starts_with($sk, 'acl_map_v2_') || str_starts_with($sk, 'menu_items_acl_')) {
             unset($_SESSION[$sk]);
         }
     }
@@ -2569,14 +2618,17 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
     }
-    $fallbackPath = '/dashboard.php';
-    foreach ($permissionPathMap as $candidatePath => $candidatePermission) {
-        if (isset($allowedMap[$candidatePermission])) {
-            $fallbackPath = $candidatePath;
-            break;
-        }
+    if ($allowedMap === []) {
+        unset($_SESSION['user']);
+        set_flash('error', 'Akun belum memiliki hak akses. Hubungi admin super.');
+        app_redirect('login.php');
     }
-    app_redirect_path($fallbackPath);
+    $fallbackPath = app_acl_first_allowed_path($permissionPathMap, $allowedMap);
+    if ($fallbackPath !== null && !app_acl_request_paths_equal($requestPath, $fallbackPath)) {
+        app_redirect_path($fallbackPath);
+    }
+    unset($_SESSION['user']);
+    app_redirect('login.php');
 }
 
 function settings_pengaturan_hub_url(): string

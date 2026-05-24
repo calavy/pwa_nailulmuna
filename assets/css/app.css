@@ -1536,6 +1536,100 @@ body {
     box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
 }
 
+/* Modal atur hak akses user — area geser + tombol naik/turun */
+.modal-perm-access .modal-dialog {
+    max-height: calc(100vh - 2rem);
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.modal-perm-access .modal-content {
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-perm-access .modal-header,
+.modal-perm-access .modal-footer {
+    flex-shrink: 0;
+}
+
+.modal-perm-access .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.perm-access-toolbar {
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--card-border);
+    background: var(--card-bg, #fff);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.perm-access-scroll-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 12rem;
+    max-height: min(58vh, 520px);
+}
+
+.perm-access-scroll {
+    height: 100%;
+    max-height: min(58vh, 520px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding: 0.75rem 1rem 1rem;
+    padding-right: 2.75rem;
+}
+
+.perm-access-scroll-fab {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.perm-access-scroll-fab .btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15);
+}
+
+.perm-access-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+.perm-access-jump .btn {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+}
+
+.perm-group[data-group="keuangan"] {
+    scroll-margin-top: 0.5rem;
+}
+
 .dropdown-menu {
     border-radius: var(--radius-md);
     border: 1px solid var(--card-border);

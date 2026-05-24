@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
+require_once __DIR__ . '/../helpers/user_permissions.php';
 
 require_roles(['admin']);
 require_super_admin();
@@ -34,35 +35,9 @@ $pdo->exec('
     )
 ');
 
-$permissionOptions = [
-    'dashboard' => 'Dashboard',
-    'santri_index' => 'Santri Aktif',
-    'santri_create' => 'Tambah/Edit Santri',
-    'santri_import' => 'Import Santri',
-    'presensi_scan' => 'Scan Presensi',
-    'jadwal' => 'Jadwal Kegiatan',
-    'perizinan' => 'Perizinan (review &amp; setujui)',
-    'perizinan_permohonan' => 'Permohonan Izin (ajukan)',
-    'perizinan_scan' => 'Scan Izin Keluar/Kembali',
-    'pembimbing' => 'Data Pembimbing',
-    'pembimbing_perizinan' => 'Izin Pembimbing',
-    'rekap_keaktifan' => 'Rekap Keaktifan Santri',
-    'rekap' => 'Rekap Presensi',
-    'rekap_telat' => 'Rekap Telat',
-    'rekap_pembimbing' => 'Rekap Pembimbing',
-    'poin_input' => 'Input Poin',
-    'poin_rekap' => 'Rekap Poin',
-    'poin_settings' => 'Setting Poin',
-    'keuangan' => 'Menu Keuangan',
-    'keuangan_cashless_scan' => 'Scan Cashless',
-    'keuangan_cashless_pin' => 'Cashless & Uang Saku',
-    'pengaturan' => 'Pengaturan (pondok, master data, poin, PIN cashless, dll.)',
-    'settings_umum' => 'Settings Umum (legacy â€” gunakan Pengaturan)',
-    'settings_admin' => 'Kelola Akses User',
-    'akademik_hafalan' => 'Akademik: setoran hafalan (bait & Qur\'an), kalender libur, rapor',
-    'akademik_ikhtibar' => 'Tugas santri Ikhtibar: buat soal, token, penilaian',
-    'yayasan' => 'Yayasan: pengurus, rapat, notulen',
-];
+migrate_keuangan_permissions_split($pdo);
+$permissionGroups = user_permission_groups();
+$permissionOptions = user_permission_flat_options();
 
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
@@ -414,7 +389,12 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm mt-4 border-success border-opacity-25">
             <div class="card-body">
                 <h2 class="h5 mb-2">Hak akses per user</h2>
-                <p class="text-muted mb-0 small">Klik tombol <strong class="text-success">Atur akses</strong> pada baris user di tabel. Centang fitur yang diizinkan, lalu simpan. User <strong>super admin</strong> otomatis akses penuh.</p>
+                <p class="text-muted mb-2 small">Klik <strong class="text-success">Atur akses</strong> pada baris user. User <strong>super admin</strong> otomatis akses penuh.</p>
+                <div class="alert alert-info py-2 small mb-0">
+                    <i class="fa-solid fa-wallet me-1"></i>
+                    <strong>User bendahara / keuangan:</strong> di modal akses, bagian <strong>Keuangan (submenu)</strong> ada di urutan kedua (setelah Umum).
+                    Centang submenu yang dibutuhkan — misalnya hanya <em>Laporan</em> + <em>Transaksi</em>, atau gunakan tombol preset <em>Operasional keuangan</em>.
+                </div>
                 <?php if ($totalNonSuper === 0): ?>
                     <div class="alert alert-light border mt-3 mb-0 small">Belum ada user non super admin. Tambahkan akun pengurus lalu atur hak aksesnya.</div>
                 <?php endif; ?>
@@ -491,8 +471,8 @@ require_once __DIR__ . '/../includes/header.php';
         $permCount = count($selected);
         $permTotal = count($permissionOptions);
         ?>
-        <div class="modal fade" id="accessUserModal<?= $uid ?>" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal fade modal-perm-access" id="accessUserModal<?= $uid ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-xl">
                 <div class="modal-content">
                     <form method="post" class="perm-form">
                         <input type="hidden" name="action" value="save_access">
@@ -502,24 +482,78 @@ require_once __DIR__ . '/../includes/header.php';
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="small text-muted mb-3">
-                                <span class="font-monospace"><?= htmlspecialchars($u['username']) ?></span>
-                                · role <span class="badge text-bg-light text-dark border"><?= htmlspecialchars($rolev) ?></span>
-                                · <span class="perm-count-label"><?= $permCount ?></span> dari <?= $permTotal ?> fitur aktif
-                            </p>
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <button type="button" class="btn btn-outline-secondary btn-sm perm-check-all">Centang semua</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm perm-uncheck-all">Kosongkan</button>
+                            <div class="perm-access-toolbar">
+                                <p class="small text-muted mb-2">
+                                    <span class="font-monospace"><?= htmlspecialchars($u['username']) ?></span>
+                                    · role <span class="badge text-bg-light text-dark border"><?= htmlspecialchars($rolev) ?></span>
+                                    · <span class="perm-count-label"><?= $permCount ?></span> dari <?= $permTotal ?> fitur aktif
+                                </p>
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm perm-check-all">Centang semua</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm perm-uncheck-all">Kosongkan</button>
+                                    <span class="text-muted small mx-1 d-none d-sm-inline">|</span>
+                                    <button type="button" class="btn btn-outline-dark btn-sm perm-scroll-up" title="Geser ke atas" aria-label="Geser daftar ke atas">
+                                        <i class="fa-solid fa-chevron-up"></i> Atas
+                                    </button>
+                                    <button type="button" class="btn btn-outline-dark btn-sm perm-scroll-down" title="Geser ke bawah" aria-label="Geser daftar ke bawah">
+                                        <i class="fa-solid fa-chevron-down"></i> Bawah
+                                    </button>
+                                </div>
+                                <div class="perm-access-jump" role="navigation" aria-label="Lompat ke bagian">
+                                    <span class="small text-muted align-self-center me-1">Bagian:</span>
+                                    <?php foreach ($permissionGroups as $jumpId => $jumpGroup): ?>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm perm-jump-group"
+                                                data-jump-group="<?= htmlspecialchars($jumpId) ?>"
+                                                title="<?= htmlspecialchars((string) $jumpGroup['label']) ?>">
+                                            <?= htmlspecialchars($jumpId === 'keuangan' ? 'Keuangan' : mb_substr((string) $jumpGroup['label'], 0, 18)) ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
-                            <div class="row g-2">
-                                <?php foreach ($permissionOptions as $key => $label): ?>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input perm-checkbox" type="checkbox" name="permissions[]" value="<?= htmlspecialchars($key) ?>" id="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>" <?= in_array($key, $selected, true) ? 'checked' : '' ?>>
-                                            <label class="form-check-label" for="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>"><?= $label ?></label>
+                            <div class="perm-access-scroll-wrap">
+                                <div class="perm-access-scroll-fab">
+                                    <button type="button" class="btn btn-light btn-sm perm-scroll-up" title="Ke atas" aria-label="Ke atas">
+                                        <i class="fa-solid fa-chevron-up"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-light btn-sm perm-scroll-down" title="Ke bawah" aria-label="Ke bawah">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                </div>
+                                <div class="perm-access-scroll" tabindex="0" aria-label="Daftar hak akses, geser atas bawah">
+                            <?php foreach ($permissionGroups as $groupId => $group):
+                                $isKeuanganGroup = $groupId === 'keuangan';
+                            ?>
+                                <div class="perm-group border rounded mb-3 p-2<?= $isKeuanganGroup ? ' border-primary border-2 bg-primary bg-opacity-10' : '' ?>"
+                                     id="perm-group-<?= htmlspecialchars($groupId) ?>-<?= $uid ?>"
+                                     data-group="<?= htmlspecialchars($groupId) ?>">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                                        <h6 class="mb-0 fw-semibold<?= $isKeuanganGroup ? ' text-primary' : '' ?>">
+                                            <?php if ($isKeuanganGroup): ?><i class="fa-solid fa-wallet me-1"></i><?php endif; ?>
+                                            <?= htmlspecialchars((string) $group['label']) ?>
+                                        </h6>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            <?php if ($isKeuanganGroup): ?>
+                                                <button type="button" class="btn btn-primary btn-sm perm-preset" data-preset="keuangan_semua">Semua keuangan</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm perm-preset" data-preset="keuangan_operasional">Operasional keuangan</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm perm-preset" data-preset="keuangan_laporan_saja">Laporan saja</button>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm perm-group-check" data-group="<?= htmlspecialchars($groupId) ?>">Semua</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm perm-group-uncheck" data-group="<?= htmlspecialchars($groupId) ?>">Kosong</button>
                                         </div>
                                     </div>
-                                <?php endforeach; ?>
+                                    <div class="row g-2">
+                                        <?php foreach ($group['permissions'] as $key => $label): ?>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input perm-checkbox" type="checkbox" name="permissions[]" value="<?= htmlspecialchars($key) ?>" id="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>" data-group="<?= htmlspecialchars($groupId) ?>" <?= in_array($key, $selected, true) ? 'checked' : '' ?>>
+                                                    <label class="form-check-label small" for="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>"><?= htmlspecialchars((string) $label) ?></label>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -541,10 +575,65 @@ require_once __DIR__ . '/../includes/header.php';
             label.textContent = String(form.querySelectorAll('.perm-checkbox:checked').length);
         }
 
+        function permScrollEl(form) {
+            return form.querySelector('.perm-access-scroll');
+        }
+
+        function permScrollBy(form, delta) {
+            const el = permScrollEl(form);
+            if (!el) return;
+            el.scrollBy({ top: delta, behavior: 'smooth' });
+        }
+
+        function permScrollToGroup(form, groupId) {
+            const scroll = permScrollEl(form);
+            if (!scroll || !groupId) return;
+            const block = scroll.querySelector('.perm-group[data-group="' + groupId + '"]');
+            if (!block) return;
+            const scrollRect = scroll.getBoundingClientRect();
+            const blockRect = block.getBoundingClientRect();
+            scroll.scrollTop += blockRect.top - scrollRect.top - 8;
+        }
+
         document.querySelectorAll('.perm-form').forEach(function (form) {
             const checks = form.querySelectorAll('.perm-checkbox');
             const checkAll = form.querySelector('.perm-check-all');
             const uncheckAll = form.querySelector('.perm-uncheck-all');
+            const scrollStep = 220;
+
+            form.querySelectorAll('.perm-scroll-up').forEach(function (btn) {
+                btn.addEventListener('click', function () { permScrollBy(form, -scrollStep); });
+            });
+            form.querySelectorAll('.perm-scroll-down').forEach(function (btn) {
+                btn.addEventListener('click', function () { permScrollBy(form, scrollStep); });
+            });
+            form.querySelectorAll('.perm-jump-group').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    permScrollToGroup(form, btn.getAttribute('data-jump-group') || '');
+                });
+            });
+
+            const scrollArea = permScrollEl(form);
+            if (scrollArea) {
+                scrollArea.addEventListener('wheel', function (e) {
+                    e.stopPropagation();
+                }, { passive: true });
+                scrollArea.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        permScrollBy(form, scrollStep);
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        permScrollBy(form, -scrollStep);
+                    } else if (e.key === 'PageDown') {
+                        e.preventDefault();
+                        permScrollBy(form, scrollArea.clientHeight - 40);
+                    } else if (e.key === 'PageUp') {
+                        e.preventDefault();
+                        permScrollBy(form, -(scrollArea.clientHeight - 40));
+                    }
+                });
+            }
             checks.forEach(function (c) {
                 c.addEventListener('change', function () { updatePermCount(form); });
             });
@@ -560,12 +649,55 @@ require_once __DIR__ . '/../includes/header.php';
                     updatePermCount(form);
                 });
             }
+            form.querySelectorAll('.perm-group-check').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const g = btn.getAttribute('data-group');
+                    checks.forEach(function (c) {
+                        if (c.getAttribute('data-group') === g) { c.checked = true; }
+                    });
+                    updatePermCount(form);
+                });
+            });
+            form.querySelectorAll('.perm-group-uncheck').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const g = btn.getAttribute('data-group');
+                    checks.forEach(function (c) {
+                        if (c.getAttribute('data-group') === g) { c.checked = false; }
+                    });
+                    updatePermCount(form);
+                });
+            });
+            const presetKeys = <?= json_encode([
+                'keuangan_semua' => user_permission_preset_keys('keuangan_semua'),
+                'keuangan_operasional' => user_permission_preset_keys('keuangan_operasional'),
+                'keuangan_laporan_saja' => user_permission_preset_keys('keuangan_laporan_saja'),
+            ], JSON_THROW_ON_ERROR) ?>;
+            form.querySelectorAll('.perm-preset').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const preset = btn.getAttribute('data-preset') || '';
+                    const keys = presetKeys[preset] || [];
+                    checks.forEach(function (c) {
+                        if (c.getAttribute('data-group') === 'keuangan') {
+                            c.checked = keys.indexOf(c.value) >= 0;
+                        }
+                    });
+                    updatePermCount(form);
+                    permScrollToGroup(form, 'keuangan');
+                });
+            });
         });
 
         <?php if ($openAksesUserId > 0): ?>
         const openModal = document.getElementById('accessUserModal<?= $openAksesUserId ?>');
         if (openModal && typeof bootstrap !== 'undefined') {
-            bootstrap.Modal.getOrCreateInstance(openModal).show();
+            const inst = bootstrap.Modal.getOrCreateInstance(openModal);
+            openModal.addEventListener('shown.bs.modal', function () {
+                const form = openModal.querySelector('.perm-form');
+                if (form) {
+                    permScrollToGroup(form, 'keuangan');
+                }
+            }, { once: true });
+            inst.show();
         }
         <?php endif; ?>
     })();

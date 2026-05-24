@@ -15,7 +15,7 @@ function migrate_legacy_permissions_to_pengaturan(PDO $pdo): void
     if (app_setting($pdo, 'acl_pengaturan_migrated', '') === '1') {
         return;
     }
-    $legacyKeys = ['settings_umum', 'akademik_hafalan', 'poin_settings', 'keuangan'];
+    $legacyKeys = ['settings_umum', 'akademik_hafalan', 'poin_settings'];
     $placeholders = implode(',', array_fill(0, count($legacyKeys), '?'));
     $stmt = $pdo->prepare("SELECT DISTINCT user_id FROM user_access_permissions WHERE permission_key IN ($placeholders)");
     $stmt->execute($legacyKeys);
