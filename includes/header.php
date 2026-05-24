@@ -13,79 +13,72 @@ $currentUserRow = [
     'jenis_kelamin' => user_profil_normalize_jenis_kelamin($_SESSION['user']['jenis_kelamin'] ?? null),
 ];
 if (isset($_SESSION['user']['id']) && isset($pdo) && $pdo instanceof PDO && table_exists($pdo, 'users')) {
-    user_profil_ensure_schema($pdo);
     $uidHeader = (int) $_SESSION['user']['id'];
-    $stHeaderUser = $pdo->prepare('SELECT nama, foto_profil, jenis_kelamin FROM users WHERE id = :id LIMIT 1');
-    $stHeaderUser->execute(['id' => $uidHeader]);
-    $rowHeaderUser = $stHeaderUser->fetch(PDO::FETCH_ASSOC);
-    if (is_array($rowHeaderUser)) {
-        $currentUser = (string) ($rowHeaderUser['nama'] ?? $currentUser);
-        $jkHeader = user_profil_normalize_jenis_kelamin($rowHeaderUser['jenis_kelamin'] ?? null);
-        $currentUserRow = [
-            'nama' => $currentUser,
-            'foto_profil' => trim((string) ($rowHeaderUser['foto_profil'] ?? '')),
-            'jenis_kelamin' => $jkHeader,
-        ];
-        $_SESSION['user']['foto_profil'] = $currentUserRow['foto_profil'];
-        $_SESSION['user']['jenis_kelamin'] = $jkHeader;
+    $profilLoadedKey = 'user_profil_loaded_' . $uidHeader;
+    if (empty($_SESSION[$profilLoadedKey])) {
+        user_profil_ensure_schema($pdo);
+        $stHeaderUser = $pdo->prepare('SELECT nama, foto_profil, jenis_kelamin FROM users WHERE id = :id LIMIT 1');
+        $stHeaderUser->execute(['id' => $uidHeader]);
+        $rowHeaderUser = $stHeaderUser->fetch(PDO::FETCH_ASSOC);
+        if (is_array($rowHeaderUser)) {
+            $currentUser = (string) ($rowHeaderUser['nama'] ?? $currentUser);
+            $jkHeader = user_profil_normalize_jenis_kelamin($rowHeaderUser['jenis_kelamin'] ?? null);
+            $currentUserRow = [
+                'nama' => $currentUser,
+                'foto_profil' => trim((string) ($rowHeaderUser['foto_profil'] ?? '')),
+                'jenis_kelamin' => $jkHeader,
+            ];
+            $_SESSION['user']['foto_profil'] = $currentUserRow['foto_profil'];
+            $_SESSION['user']['jenis_kelamin'] = $jkHeader;
+            $_SESSION['user']['nama'] = $currentUser;
+        }
+        $_SESSION[$profilLoadedKey] = 1;
     }
 }
 if (isset($_SESSION['user']) && (($_SESSION['user']['username'] ?? '') === 'admin') && !isset($_SESSION['user']['is_super_admin'])) {
     $_SESSION['user']['is_super_admin'] = 1;
 }
 $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-$menuPack = require __DIR__ . '/menu_data.php';
-$menuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
+$menuPack = app_menu_pack($pdo);
+$menuItems = $menuPack['menuItems'];
 $menuStructure = $menuPack['menuStructure'];
 $permissionPathMap = $menuPack['permissionPathMap'];
-if (isset($_SESSION['user']) && table_exists($pdo, 'users')) {
-    $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
-}
-if (isset($_SESSION['user']) && table_exists($pdo, 'users') && !table_exists($pdo, 'user_access_permissions')) {
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS user_access_permissions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            permission_key VARCHAR(80) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_user_permission (user_id, permission_key),
-            CONSTRAINT fk_user_access_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-    ');
-}
 if (isset($_SESSION['user'])) {
+    if (isset($_GET['santri_sort'])) {
+        require_once __DIR__ . '/../helpers/santri_list_sort.php';
+        santri_list_sort_mode((string) $_GET['santri_sort']);
+    }
+    require_once __DIR__ . '/../helpers/app_cache.php';
+    app_performance_cache_prune_expired();
+    app_ensure_schema_deferred($pdo);
+    if (preg_match('#^/(keuangan|pembayaran)(/|$)#', $requestPath)) {
+        if (!function_exists('keuangan_ensure_schema_deferred')) {
+            require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+        }
+        keuangan_ensure_schema_deferred($pdo);
+    }
     enforce_route_acl_or_redirect($pdo, $requestPath, $permissionPathMap);
-    require_once __DIR__ . '/../helpers/pengaturan_acl.php';
-    migrate_legacy_permissions_to_pengaturan($pdo);
-}
-
-if (isset($_SESSION['user']) && table_exists($pdo, 'jadwal_kegiatan')) {
-    ensure_jadwal_kegiatan_tempat($pdo);
-}
-if (isset($_SESSION['user']) && table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
-    sync_presence_for_active_schedules(
-        $pdo,
-        date('Y-m-d'),
-        date('H:i:s'),
-        (int) ($_SESSION['user']['id'] ?? 1)
-    );
-}
-if (isset($_SESSION['user'])) {
-    ensure_point_tables($pdo);
-    sync_points_from_presensi($pdo, (int) ($_SESSION['user']['id'] ?? 1));
-    trigger_auto_wa_notifications($pdo);
-    trigger_auto_wa_tagihan_wali($pdo);
+    if (empty($_SESSION['acl_pengaturan_migrate_checked'])) {
+        require_once __DIR__ . '/../helpers/pengaturan_acl.php';
+        migrate_legacy_permissions_to_pengaturan($pdo);
+        $_SESSION['acl_pengaturan_migrate_checked'] = 1;
+    }
+    // Maintenance berat (presensi/poin/WA massal): hanya cron/wa_auto.php — bukan tiap navigasi web.
 }
 
 $appBrandTagline = '';
 $appBrandTitle = 'A.P.I Nailul Muna';
+$appLogoSrc = '';
+$appLogoInitial = 'AP';
+$appAlamatPonpes = '';
 if (isset($_SESSION['user'])) {
-    $appBrandTagline = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-    $appBrandTitle = app_brand_nama_ponpes($pdo, $appBrandTitle);
+    $brandCtx = app_header_brand_context($pdo, $appBrandTitle);
+    $appBrandTitle = (string) ($brandCtx['title'] ?? $appBrandTitle);
+    $appBrandTagline = (string) ($brandCtx['tagline'] ?? '');
+    $appLogoSrc = (string) ($brandCtx['logo'] ?? '');
+    $appLogoInitial = (string) ($brandCtx['initials'] ?? 'AP');
+    $appAlamatPonpes = (string) ($brandCtx['alamat'] ?? '');
 }
-$appLogoSrc = isset($_SESSION['user']) ? app_pondok_logo_src($pdo) : '';
-$appLogoInitial = isset($_SESSION['user']) ? app_pondok_logo_initials($pdo, $appBrandTitle) : 'AP';
-$appAlamatPonpes = isset($_SESSION['user']) ? trim((string) app_setting($pdo, 'alamat_ponpes', '')) : '';
 
 $roleLabels = [
     'admin' => 'Administrator',
@@ -153,6 +146,7 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
     <link href="<?= htmlspecialchars(app_href('/assets/css/app.css')) ?>" rel="stylesheet">
+    <link rel="preload" href="<?= htmlspecialchars(app_href('/assets/css/app.css')) ?>" as="style">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">

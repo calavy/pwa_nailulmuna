@@ -42,7 +42,9 @@ $kegiatanList = table_exists($pdo, 'kegiatan')
     ? $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE is_active = 1 ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC)
     : [];
 $hijriMonths = hijri_nama_bulan_list();
-$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri ORDER BY nama_santri ASC')->fetchAll();
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
+$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri ORDER BY ' . santri_list_order_sql('santri'))->fetchAll();
 $selectedSantri = null;
 foreach ($santriList as $santriOption) {
     if ((int) $santriOption['id'] === $santriId) {

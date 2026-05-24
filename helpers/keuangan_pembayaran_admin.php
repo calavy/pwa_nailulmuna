@@ -241,6 +241,7 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
 
     $statusLunas = 'LUNAS';
     if (column_exists($pdo, 'keuangan_pembayaran', 'status_lunas')) {
+        keuangan_transaksi_bootstrap_rekap();
         $tagihanBreakdown = keuangan_tagihan_breakdown_for_santri(
             $pdo,
             $santriId,

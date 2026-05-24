@@ -31,7 +31,9 @@ if (!in_array($reportType, ['all', 'per_tingkatan', 'per_santri'], true)) {
 $tingkatanList = table_exists($pdo, 'tingkatan')
     ? $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN)
     : [];
-$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri ORDER BY nama_santri ASC')->fetchAll();
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
+$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri ORDER BY ' . santri_list_order_sql('santri'))->fetchAll();
 
 $records = [];
 if ($show) {

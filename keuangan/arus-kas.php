@@ -12,6 +12,9 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+keuangan_ensure_schema_deferred($pdo);
+
 $dariInput = trim((string) ($_GET['dari'] ?? ''));
 $sampaiInput = trim((string) ($_GET['sampai'] ?? ''));
 $print = isset($_GET['print']) && (string) $_GET['print'] === '1';

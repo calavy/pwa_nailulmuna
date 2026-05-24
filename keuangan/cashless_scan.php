@@ -4,7 +4,10 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+
+keuangan_ensure_schema_deferred($pdo);
 
 $koperasiPortal = defined('CASHLESS_KOPERASI_PORTAL') && CASHLESS_KOPERASI_PORTAL === true;
 
@@ -32,37 +35,6 @@ if ($koperasiPortal) {
 $koperasiId = (int) ($koperasiCtx['id'] ?? 0);
 $koperasiNama = (string) ($koperasiCtx['nama'] ?? 'Umum');
 $createdByUserId = $koperasiPortal ? 0 : (int) ($_SESSION['user']['id'] ?? 0);
-
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS cashless_accounts (
-    santri_id INT PRIMARY KEY,
-    pin_hash VARCHAR(255) NULL,
-    balance DECIMAL(12,2) NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-)");
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS cashless_transactions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    santri_id INT NOT NULL,
-    tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    jenis ENUM('TOPUP','DEBIT') NOT NULL,
-    nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
-    keterangan VARCHAR(255) NULL,
-    ref_pembayaran_id INT NULL,
-    created_by INT NULL
-)");
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS cashless_nominal_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    token_code VARCHAR(80) NOT NULL UNIQUE,
-    nominal INT NOT NULL DEFAULT 0,
-    expires_at DATETIME NOT NULL,
-    is_used TINYINT(1) NOT NULL DEFAULT 0,
-    used_at DATETIME NULL,
-    created_by INT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)");
-ensure_cashless_nominal_qr_map_table($pdo);
 
 $resultMessage = null;
 $resultType = 'success';

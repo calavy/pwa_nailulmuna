@@ -14,8 +14,7 @@ require_once __DIR__ . '/../helpers/bendahara_ui.php';
 require_roles(['admin', 'pengurus']);
 require_koreksi_pembayaran();
 
-ensure_keuangan_transaksi_tables($pdo);
-ensure_santri_identity_columns($pdo);
+keuangan_ensure_schema_deferred($pdo);
 
 $pembayaranId = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($pembayaranId <= 0) {

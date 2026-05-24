@@ -71,7 +71,7 @@ function pondok_ta_tahun_max(PDO $pdo): int
 }
 
 /** @return array{mulai:int,selesai:int} */
-function pondok_tahun_ajaran_masehi_dari_tanggal(?string $dateYmd = null): array
+function pondok_tahun_ajaran_masehi_dari_tanggal(?string $dateYmd = null, ?PDO $pdo = null): array
 {
     $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateYmd)) {
@@ -80,12 +80,19 @@ function pondok_tahun_ajaran_masehi_dari_tanggal(?string $dateYmd = null): array
     $ts = strtotime($dateYmd) ?: time();
     $y = (int) date('Y', $ts);
     $m = (int) date('n', $ts);
-    $mulai = $m >= 7 ? $y : $y - 1;
+    $awal = 7;
+    if ($pdo !== null) {
+        if (!function_exists('pondok_ta_bulan_awal_masehi')) {
+            require_once __DIR__ . '/pondok_ta.php';
+        }
+        $awal = pondok_ta_bulan_awal_masehi($pdo);
+    }
+    $mulai = $m >= $awal ? $y : $y - 1;
 
     return ['mulai' => $mulai, 'selesai' => $mulai + 1];
 }
 
-/** Tahun ajaran Hijriyah: tahun H. berjalan (TA Y/Y+1), 12 bulan = Muharram–Dzulhijjah tahun Y. */
+/** Tahun ajaran Hijriyah dengan bulan awal TA yang dapat diatur (bukan selalu Muharram). */
 function pondok_tahun_ajaran_hijri_dari_tanggal(PDO $pdo, ?string $dateYmd = null): array
 {
     $dateYmd = trim((string) ($dateYmd ?? date('Y-m-d')));
@@ -95,12 +102,25 @@ function pondok_tahun_ajaran_hijri_dari_tanggal(PDO $pdo, ?string $dateYmd = nul
     $h = akademik_hijri_tanggal_penuh($pdo, $dateYmd);
     if (!preg_match('/^(\d{4})-(\d{2})-\d{2}$/', $h, $mh)) {
         $anchor = akademik_hijri_anchor_hari_ini($pdo);
-        $mulai = (int) $anchor['y'];
+        $tahunH = (int) $anchor['y'];
+        $bulanH = (int) $anchor['m'];
     } else {
-        $mulai = (int) $mh[1];
+        $tahunH = (int) $mh[1];
+        $bulanH = (int) $mh[2];
     }
+    if (!hijri_tahun_valid($tahunH)) {
+        $anchor = akademik_hijri_anchor_hari_ini($pdo);
+        $tahunH = (int) $anchor['y'];
+        $bulanH = (int) $anchor['m'];
+    }
+
+    if (!function_exists('pondok_ta_bulan_awal_hijri')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    $awal = pondok_ta_bulan_awal_hijri($pdo);
+    $mulai = $bulanH >= $awal ? $tahunH : $tahunH - 1;
     if (!hijri_tahun_valid($mulai)) {
-        $mulai = akademik_hijri_anchor_hari_ini($pdo)['y'];
+        $mulai = $tahunH;
     }
 
     return ['mulai' => $mulai, 'selesai' => $mulai + 1];
@@ -111,7 +131,7 @@ function pondok_tahun_ajaran_from_date(PDO $pdo, ?string $dateYmd = null): array
 {
     return pondok_kalender_hijriyah($pdo)
         ? pondok_tahun_ajaran_hijri_dari_tanggal($pdo, $dateYmd)
-        : pondok_tahun_ajaran_masehi_dari_tanggal($dateYmd);
+        : pondok_tahun_ajaran_masehi_dari_tanggal($dateYmd, $pdo);
 }
 
 /**
@@ -255,36 +275,55 @@ function pondok_bulan_slots_tahun_ajaran(PDO $pdo, int $tahunAjaranMulai, int $t
     $tahunAjaranSelesai = $ta['selesai'];
 
     if (pondok_kalender_hijriyah($pdo)) {
+        if (!function_exists('pondok_ta_bulan_awal_hijri')) {
+            require_once __DIR__ . '/pondok_ta.php';
+        }
+        $awal = pondok_ta_bulan_awal_hijri($pdo);
         $slots = [];
-        for ($m = 1; $m <= 12; $m++) {
-            [$masehiAwal, $masehiAkhir] = akademik_gregorian_range_from_hijri_month($pdo, $tahunAjaranMulai, $m);
-            $kh = sprintf('%04d-%02d', $tahunAjaranMulai, $m);
-            $namaBulan = hijri_indeks_ke_nama($m);
+        $hMonth = $awal;
+        $hYear = $tahunAjaranMulai;
+        for ($slot = 1; $slot <= 12; $slot++) {
+            [$masehiAwal, $masehiAkhir] = akademik_gregorian_range_from_hijri_month($pdo, $hYear, $hMonth);
+            $kh = sprintf('%04d-%02d', $hYear, $hMonth);
+            $namaBulan = hijri_indeks_ke_nama($hMonth);
             $slots[] = [
-                'slot' => $m,
-                'bulan_tagihan' => $m,
-                'label' => $namaBulan . ' ' . $tahunAjaranMulai . ' H',
+                'slot' => $slot,
+                'bulan_tagihan' => $slot,
+                'label' => $namaBulan . ' ' . $hYear . ' H',
                 'label_ringkas' => $namaBulan,
                 'kalender_hijriyah' => $kh,
-                'bulan_hijri' => $m,
-                'tahun_hijri' => $tahunAjaranMulai,
+                'bulan_hijri' => $hMonth,
+                'tahun_hijri' => $hYear,
                 'masehi_awal' => $masehiAwal,
                 'masehi_akhir' => $masehiAkhir,
             ];
+            $hMonth++;
+            if ($hMonth > 12) {
+                $hMonth = 1;
+                $hYear++;
+            }
         }
 
         return $slots;
     }
 
+    if (!function_exists('pondok_ta_bulan_awal_masehi')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    $awalM = pondok_ta_bulan_awal_masehi($pdo);
     $map = pondok_bulan_nama_map($pdo);
     $slots = [];
-    for ($b = 1; $b <= 12; $b++) {
-        $y = $b >= 7 ? $tahunAjaranMulai : $tahunAjaranSelesai;
+    for ($slot = 1; $slot <= 12; $slot++) {
+        $b = $awalM + $slot - 1;
+        if ($b > 12) {
+            $b -= 12;
+        }
+        $y = $b >= $awalM ? $tahunAjaranMulai : $tahunAjaranSelesai;
         $masehiAwal = sprintf('%04d-%02d-01', $y, $b);
         $masehiAkhir = date('Y-m-t', strtotime($masehiAwal) ?: time());
         $slots[] = [
-            'slot' => $b,
-            'bulan_tagihan' => $b,
+            'slot' => $slot,
+            'bulan_tagihan' => $slot,
             'label' => ($map[$b] ?? (string) $b),
             'label_ringkas' => $map[$b] ?? (string) $b,
             'kalender_hijriyah' => null,
@@ -357,10 +396,23 @@ function pondok_slot_untuk_tanggal(PDO $pdo, int $tahunAjaranMulai, int $tahunAj
                 return $slot;
             }
         }
-    } else {
-        $bulan = max(1, min(12, (int) date('n', strtotime($tanggalMasehi) ?: time())));
+        if (preg_match('/^(\d{4})-(\d{2})-\d{2}$/', akademik_hijri_tanggal_penuh($pdo, $tanggalMasehi), $mh)) {
+            if (!function_exists('pondok_bulan_tagihan_dari_bulan_kalender')) {
+                require_once __DIR__ . '/pondok_ta.php';
+            }
+            $bulanTagihan = pondok_bulan_tagihan_dari_bulan_kalender($pdo, (int) $mh[2], $tahunAjaranMulai);
 
-        return pondok_slot_dari_bulan_tagihan($slots, $bulan);
+            return pondok_slot_dari_bulan_tagihan($slots, $bulanTagihan);
+        }
+    } else {
+        if (!function_exists('pondok_ta_bulan_awal_masehi')) {
+            require_once __DIR__ . '/pondok_ta.php';
+        }
+        $awalM = pondok_ta_bulan_awal_masehi($pdo);
+        $bulanM = max(1, min(12, (int) date('n', strtotime($tanggalMasehi) ?: time())));
+        $bulanTagihan = pondok_bulan_tagihan_dari_bulan_kalender($pdo, $bulanM, $tahunAjaranMulai);
+
+        return pondok_slot_dari_bulan_tagihan($slots, $bulanTagihan);
     }
 
     return $slots[0];

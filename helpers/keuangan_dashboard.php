@@ -3,14 +3,46 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/keuangan_neraca.php';
+require_once __DIR__ . '/tagihan_bulanan.php';
 
 /**
  * Snapshot kondisi keuangan terkini untuk dashboard bendahara.
  *
  * @return array<string, mixed>|null null bila skema keuangan belum siap
  */
+/**
+ * Snapshot dashboard dengan cache sesi singkat (hindari hitung ulang tiap buka Keuangan).
+ *
+ * @return array<string, mixed>|null
+ */
+function keuangan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 120): ?array
+{
+    $aktif = pondok_tahun_ajaran_aktif($pdo);
+    $cacheKey = 'keuangan_dash_snap_cache';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && (int) ($cached['ta_mulai'] ?? 0) === (int) $aktif['mulai']
+    ) {
+        return is_array($cached['data'] ?? null) ? $cached['data'] : null;
+    }
+
+    $data = keuangan_dashboard_snapshot($pdo);
+    if ($data !== null) {
+        $_SESSION[$cacheKey] = [
+            'expires' => time() + max(30, $ttlSec),
+            'ta_mulai' => (int) $aktif['mulai'],
+            'data' => $data,
+        ];
+    }
+
+    return $data;
+}
+
 function keuangan_dashboard_snapshot(PDO $pdo): ?array
 {
     if (!table_exists($pdo, 'santri') || !table_exists($pdo, 'keuangan_pembayaran')) {
@@ -33,8 +65,11 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     if (column_exists($pdo, 'santri', 'is_aktif')) {
         $sql .= ' WHERE COALESCE(is_aktif, 1) = 1';
     }
-    $sql .= ' ORDER BY nama_santri ASC';
+    $sql .= ' ORDER BY ' . santri_list_order_sql('s');
     $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tm, $ts);
+    $syCtx = $tagihanCtx['sy_ctx'];
+    $paidMap = $tagihanCtx['paid_map'];
 
     $totalTagihan = 0;
     $totalTerbayar = 0;
@@ -55,7 +90,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         if ($kat === '' && !empty($s['tingkatan'])) {
             $kat = (string) $s['tingkatan'];
         }
-        $st = tagihan_wajib_status_for_month($pdo, $sid, $bulan, $tm, $ts, $kat);
+        $st = tagihan_wajib_status_for_month_bulk($pdo, $sid, $bulan, $tm, $ts, $kat, $paidMap, $syCtx);
         $expected = (int) ($st['expected_total'] ?? 0);
         if ($expected <= 0) {
             continue;

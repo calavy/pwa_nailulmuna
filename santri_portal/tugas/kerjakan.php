@@ -59,8 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($action === 'selesai') {
             $fin = ikhtibar_selesai_sesi($pdo, $sesiId);
-            set_flash($fin['ok'] ? 'success' : 'error', $fin['message'] . ($fin['skor_pg'] !== null ? ' Nilai PG: ' . $fin['skor_pg'] . '%' : ''));
-            header('Location: ' . app_href('/santri_portal/tugas/index.php'));
+            if ($fin['ok'] && !empty($fin['sesi_id'])) {
+                set_flash('success', 'Tugas selesai. Lihat ringkasan nilai di bawah.');
+                header('Location: ' . app_href('/santri_portal/tugas/hasil_detail.php?sesi_id=' . (int) $fin['sesi_id']));
+            } else {
+                set_flash($fin['ok'] ? 'success' : 'error', (string) ($fin['message'] ?? ''));
+                header('Location: ' . app_href('/santri_portal/tugas/index.php'));
+            }
             exit;
         }
         set_flash('success', 'Jawaban tersimpan.');
@@ -91,9 +96,16 @@ $ok = get_flash('success');
 if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif;
 if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif;
 
-if ($selesai): ?>
-    <p class="text-center">Anda sudah menyelesaikan tugas ini.</p>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="btn btn-auth-primary w-100">Kembali</a>
+if ($selesai):
+    $sesiSelesaiId = (int) ($sesi['id'] ?? 0);
+    ?>
+    <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
+    <p class="text-center mb-3">Anda sudah menyelesaikan tugas ini.</p>
+    <?php if ($sesiSelesaiId > 0): ?>
+        <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil_detail.php?sesi_id=' . $sesiSelesaiId)) ?>" class="btn btn-auth-primary w-100 mb-2"><i class="fa-solid fa-chart-simple me-1"></i> Lihat hasil &amp; nilai</a>
+    <?php endif; ?>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100 mb-2">Semua hasil tugas</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="btn btn-link w-100 small">Daftar tugas</a>
 <?php elseif (!$tokenOk): ?>
     <p class="small text-muted">Masukkan <strong>Token Kunci</strong> dari pembimbing untuk membuka soal.</p>
     <form method="post" class="d-grid gap-2">

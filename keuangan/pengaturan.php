@@ -5,15 +5,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/keuangan_defs.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan.php';
-require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
-
-ensure_keuangan_transaksi_tables($pdo);
-ensure_kelas_keuangan_table($pdo);
 
 $section = trim((string) ($_GET['bagian'] ?? 'umum'));
 $validSections = ['umum', 'tarif', 'akun', 'alokasi', 'alokasi_awal'];
@@ -22,6 +20,8 @@ if (!in_array($section, $validSections, true)) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+    keuangan_ensure_schema_deferred($pdo);
     $action = (string) ($_POST['action'] ?? '');
     $result = match ($action) {
         'save_periode' => keuangan_save_periode_settings($pdo, $_POST),
@@ -41,26 +41,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$periode = pondok_tahun_ajaran_aktif($pdo);
-$taMeta = pondok_ta_form_meta($pdo);
-$biayaDefs = keuangan_biaya_definitions();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || empty($_SESSION['keuangan_schema_ready_v1'])) {
+    require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+    keuangan_ensure_schema_deferred($pdo);
+}
+
 $tiers = ['muadalah' => 'Muadalah', 'wustho' => 'Wustho', 'ulya' => 'Ulya'];
-$akunRows = keuangan_fetch_akun_all($pdo);
-$alokasiRows = keuangan_fetch_alokasi_all($pdo);
-$editAkunId = (int) ($_GET['edit_akun'] ?? 0);
-$editAlokasiId = (int) ($_GET['edit_alokasi'] ?? 0);
+$biayaDefs = [];
+$feeMatrix = [];
+$akunRows = [];
+$alokasiRows = [];
+$periode = pondok_tahun_ajaran_aktif($pdo);
+$taMeta = null;
+$keuanganTa = null;
 $editAkun = null;
 $editAlokasi = null;
-foreach ($akunRows as $ar) {
-    if ((int) ($ar['id'] ?? 0) === $editAkunId) {
-        $editAkun = $ar;
-        break;
+
+if ($section === 'umum') {
+    $taMeta = pondok_ta_form_meta($pdo);
+} elseif ($section === 'tarif') {
+    $biayaDefs = keuangan_biaya_definitions();
+    $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefs);
+} elseif ($section === 'akun') {
+    $editAkunId = (int) ($_GET['edit_akun'] ?? 0);
+    $akunRows = keuangan_fetch_akun_all($pdo);
+    foreach ($akunRows as $ar) {
+        if ((int) ($ar['id'] ?? 0) === $editAkunId) {
+            $editAkun = $ar;
+            break;
+        }
     }
-}
-foreach ($alokasiRows as $al) {
-    if ((int) ($al['id'] ?? 0) === $editAlokasiId) {
-        $editAlokasi = $al;
-        break;
+} elseif ($section === 'alokasi' || $section === 'alokasi_awal') {
+    require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
+    $keuanganTa = keuangan_ta_resolve($pdo, $_GET);
+    $periode = ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']];
+    $editAlokasiId = (int) ($_GET['edit_alokasi'] ?? 0);
+    $alokasiRows = keuangan_fetch_alokasi_all($pdo);
+    foreach ($alokasiRows as $al) {
+        if ((int) ($al['id'] ?? 0) === $editAlokasiId) {
+            $editAlokasi = $al;
+            break;
+        }
     }
 }
 
@@ -102,6 +123,10 @@ require_once __DIR__ . '/../includes/header.php';
     </li>
 </ul>
 
+<?php if ($section === 'alokasi' || $section === 'alokasi_awal'): ?>
+    <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
+<?php endif; ?>
+
 <?php if ($section === 'umum'): ?>
 <div class="row g-3">
     <div class="col-lg-6">
@@ -113,7 +138,8 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php
                     $taMulai = (int) $periode['mulai'];
                     $taSelesai = (int) $periode['selesai'];
-                    $taColClass = 'col-md-6';
+                    $taColClass = 'col-md-8';
+                    $taInputMode = 'dropdown';
                     $nameMulai = 'keuangan_periode_mulai';
                     $nameSelesai = 'keuangan_periode_selesai';
                     require __DIR__ . '/../includes/partials/pondok_ta_fields.php';
@@ -194,7 +220,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <tr>
                                 <td><?= htmlspecialchars((string) $def['nama']) ?></td>
                                 <?php foreach ($tiers as $tk => $tl):
-                                    $val = keuangan_fee_nominal_for_tier($pdo, $def, $tk);
+                                    $val = (int) ($feeMatrix[$slug][$tk] ?? 0);
                                     ?>
                                     <td>
                                         <input type="text" class="form-control form-control-sm text-end"
@@ -328,5 +354,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <?php endif; ?>
 
-<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
+<?php if ($section === 'umum'): ?>
+<script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>" defer></script>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -182,7 +182,7 @@ if ($tabHidden !== null && $tabHidden !== '') {
 
     <?php if ($showKeaktifanNilai): ?>
     <section class="buku-section" aria-labelledby="buku-keaktifan">
-        <h2 class="buku-section-title" id="buku-keaktifan">D. Riwayat Keaktifan <span class="fw-normal text-muted">(dari presensi)</span></h2>
+        <h2 class="buku-section-title" id="buku-keaktifan">D. Nilai Keaktifan <span class="fw-normal text-muted">(Baik / Sedang / Buruk)</span></h2>
         <div class="table-responsive">
             <table class="table table-buku table-striped table-hover mb-0">
                 <thead>
@@ -202,6 +202,9 @@ if ($tabHidden !== null && $tabHidden !== '') {
                         <td class="fw-semibold"><?= (int) $ka['th'] ?></td>
                         <td>
                             <span class="badge <?= santri_riwayat_keaktifan_badge_class((string) $ka['label']) ?>"><?= htmlspecialchars((string) $ka['label']) ?></span>
+                            <?php if (($ka['sumber'] ?? '') === 'pengasuh'): ?>
+                                <span class="text-muted small ms-1">pengasuh</span>
+                            <?php endif; ?>
                         </td>
                         <td class="text-end"><?= (int) $ka['hadir'] ?></td>
                         <td class="text-end"><?= (int) $ka['izin'] ?></td>
@@ -216,7 +219,12 @@ if ($tabHidden !== null && $tabHidden !== '') {
                 </tbody>
             </table>
         </div>
-        <p class="small text-muted px-2 py-1 mb-0">Nilai Baik / Sedang / Buruk dihitung dari jumlah ALPA per tahun kalender.</p>
+        <p class="small text-muted px-2 py-1 mb-0">
+            Nilai ditetapkan pengasuh pondok; tanpa penilaian pengasuh, nilai mengikuti rekap presensi (ALPA per tahun kalender).
+            <?php if (!$readOnly && function_exists('user_can_edit_keaktifan_nilai') && user_can_edit_keaktifan_nilai()): ?>
+                <a href="<?= htmlspecialchars(app_href('/pengasuh/nilai_keaktifan.php')) ?>" class="ms-1">Kelola penilaian</a>
+            <?php endif; ?>
+        </p>
     </section>
     <?php endif; ?>
 
@@ -269,9 +277,9 @@ if ($tabHidden !== null && $tabHidden !== '') {
     <?php if (!$showKeaktifanNilai && !$showPelanggaran): ?>
     <div class="alert alert-light border small mb-0" role="status">
         <i class="fa-solid fa-lock me-1 text-muted"></i>
-        Riwayat <strong>keaktifan (nilai)</strong> hanya pengasuh. <strong>Pelanggaran</strong> dapat dilihat wali dan santri melalui portal masing-masing.
+        <strong>Nilai keaktifan</strong> dapat dilihat santri di portal. <strong>Pelanggaran</strong> dapat dilihat wali dan santri melalui portal masing-masing.
     </div>
     <?php elseif (!$showKeaktifanNilai && $showPelanggaran): ?>
-    <p class="small text-muted mb-0"><i class="fa-solid fa-lock me-1"></i> Nilai keaktifan (Baik/Sedang/Buruk) hanya untuk pengasuh pondok.</p>
+    <p class="small text-muted mb-0"><i class="fa-solid fa-circle-info me-1"></i> Nilai keaktifan dapat dilihat santri di <a href="/santri_portal/keaktifan.php">portal santri</a>.</p>
     <?php endif; ?>
 </div>

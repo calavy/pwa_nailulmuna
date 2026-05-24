@@ -1,0 +1,123 @@
+/* Tampilan hasil & penilaian Tugas Ikhtibar */
+.ikhtibar-hero-score {
+    text-align: center;
+    padding: 1.25rem 1rem;
+    border-radius: 1rem;
+    background: linear-gradient(145deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(13, 148, 136, 0.25);
+}
+.ikhtibar-hero-score--pending {
+    background: linear-gradient(145deg, #64748b 0%, #475569 100%);
+    box-shadow: 0 8px 24px rgba(71, 85, 105, 0.2);
+}
+.ikhtibar-hero-score__value {
+    font-size: 2.75rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.ikhtibar-hero-score__label {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 0.35rem;
+}
+.ikhtibar-score-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+}
+.ikhtibar-score-tile {
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+.ikhtibar-score-tile__val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+.ikhtibar-score-tile__lbl {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.ikhtibar-result-card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ikhtibar-result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+.ikhtibar-result-card .card-body {
+    padding: 1rem 1.1rem;
+}
+.ikhtibar-pill-status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 2rem;
+}
+.ikhtibar-jawaban-pg {
+    border-left: 3px solid #e2e8f0;
+    padding: 0.65rem 0 0.65rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+.ikhtibar-jawaban-pg--benar {
+    border-left-color: #22c55e;
+    background: #f0fdf4;
+}
+.ikhtibar-jawaban-pg--salah {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+}
+.ikhtibar-jawaban-esai {
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    padding: 0.85rem;
+    margin-bottom: 0.65rem;
+    background: #fff;
+}
+.ikhtibar-portal-tabs {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 2rem;
+}
+.ikhtibar-portal-tabs a {
+    flex: 1;
+    text-align: center;
+    padding: 0.45rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+}
+.ikhtibar-portal-tabs a.active {
+    background: #fff;
+    color: #0d9488;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.ikhtibar-rekap-stat {
+    border-radius: 0.85rem;
+    padding: 1rem;
+    text-align: center;
+    height: 100%;
+}
+.ikhtibar-rekap-stat--primary { background: #ecfdf5; color: #047857; }
+.ikhtibar-rekap-stat--warn { background: #fffbeb; color: #b45309; }
+.ikhtibar-rekap-stat--info { background: #eff6ff; color: #1d4ed8; }
+.ikhtibar-rekap-stat__num { font-size: 1.75rem; font-weight: 800; line-height: 1.1; }
+.ikhtibar-rekap-stat__lbl { font-size: 0.75rem; opacity: 0.85; }

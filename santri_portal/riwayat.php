@@ -86,10 +86,11 @@ auth_portal_layout_begin([
     <?php endforeach; ?>
 </div>
 
-<div class="alert alert-light border small mb-3">
-    <i class="fa-solid fa-circle-info me-1 text-primary"></i>
-    <strong>Nilai keaktifan</strong> (Baik/Sedang/Buruk) hanya untuk pengasuh pondok.
-</div>
+<p class="mb-3">
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/keaktifan.php')) ?>" class="btn btn-sm btn-outline-primary">
+        <i class="fa-solid fa-star-half-stroke me-1"></i> Lihat nilai keaktifan saya
+    </a>
+</p>
 
 <?php
 $readOnly = true;

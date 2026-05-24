@@ -9,7 +9,6 @@ require_once __DIR__ . '/helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/helpers/akademik_pasaran.php';
 require_once __DIR__ . '/helpers/santri_operasional.php';
 
-ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/helpers/mukimin.php';
 require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
@@ -21,12 +20,16 @@ $today = date('Y-m-d');
 
 ensure_hijri_mappings_table($pdo);
 ensure_akademik_hijri_awal_bulan_table($pdo);
-hijri_sync_from_akademik_awal_bulan($pdo);
 $hijriBulanNamaDash = [
     1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
     7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
 ];
-akademik_libur_sinkron_hari_khusus_tahun($pdo, (int) date('Y'), $hijriBulanNamaDash);
+$dashSyncKey = 'dashboard_hijri_sync_' . date('Y-m-d');
+if (empty($_SESSION[$dashSyncKey])) {
+    hijri_sync_from_akademik_awal_bulan($pdo);
+    akademik_libur_sinkron_hari_khusus_tahun($pdo, (int) date('Y'), $hijriBulanNamaDash);
+    $_SESSION[$dashSyncKey] = 1;
+}
 $dashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNamaDash);
 $dashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 $nowTime = date('H:i:s');
@@ -150,14 +153,15 @@ $hour = (int) date('H');
 $salam = $hour < 11 ? 'Selamat pagi' : ($hour < 15 ? 'Selamat siang' : ($hour < 18 ? 'Selamat sore' : 'Selamat malam'));
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Bapak/Ibu';
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-$alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$dashLogo = app_pondok_logo_src($pdo);
-$dashHeroKicker = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-$dashLogoInitial = app_pondok_logo_initials($pdo, $namaPonpes);
+$brandDash = app_header_brand_context($pdo);
+$namaPonpes = (string) ($brandDash['title'] ?? 'Pondok Pesantren');
+$alamatPonpes = (string) ($brandDash['alamat'] ?? '');
+$dashLogo = (string) ($brandDash['logo'] ?? '');
+$dashHeroKicker = (string) ($brandDash['tagline'] ?? '');
+$dashLogoInitial = (string) ($brandDash['initials'] ?? 'AP');
 
-$menuPack = require __DIR__ . '/includes/menu_data.php';
-$dashMenuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
+$menuPack = app_menu_pack($pdo);
+$dashMenuItems = $menuPack['menuItems'];
 $dashSearchItems = dashboard_build_search_items($dashMenuItems, $iconForPath);
 $sideQuickActions = dashboard_filter_quick_actions($dashMenuItems);
 $sideQuickCount = count($sideQuickActions);
@@ -166,6 +170,7 @@ $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
 $pageTitle = 'Dashboard';
 $bodyClass = 'dash-page';
+$loadPushFcm = true;
 require_once __DIR__ . '/includes/header.php';
 ?>
 

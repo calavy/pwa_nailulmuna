@@ -13,9 +13,11 @@ declare(strict_types=1);
 
 $alokasiLabel = keuangan_alokasi_label_jenis($alokasiJenisDana);
 $alokasiAktifRows = keuangan_fetch_alokasi_aktif($pdo, $alokasiJenisDana);
-$realisasiPagu = keuangan_alokasi_realisasi_ta($pdo, $alokasiJenisDana);
+$periodeTa = isset($keuanganTa) && is_array($keuanganTa)
+    ? ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']]
+    : pondok_tahun_ajaran_aktif($pdo);
+$realisasiPagu = keuangan_alokasi_realisasi_ta($pdo, $alokasiJenisDana, $periodeTa['mulai'], $periodeTa['selesai']);
 $simulasi = keuangan_alokasi_simulasi($pdo, [], $alokasiJenisDana);
-$periodeTa = keuangan_tahun_ajaran_aktif($pdo);
 $simSuffix = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN ? 'at' : 'sy';
 $paguSumber = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
     ? 'pembayaran awal tahun santri'

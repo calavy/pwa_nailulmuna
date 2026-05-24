@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/santri_list_sort.php';
 
 /** Kuota jumlah soal PG & esai. */
 function ikhtibar_kuota_pg(): array
@@ -494,8 +495,20 @@ function ikhtibar_selesai_sesi(PDO $pdo, int $sesiId): array
     $pdo->prepare('
         UPDATE ikhtibar_sesi SET status = "selesai", waktu_selesai = NOW(), skor_pg = :pg WHERE id = :id
     ')->execute(['pg' => $skorPg, 'id' => $sesiId]);
+    ikhtibar_sesi_recalculate_totals($pdo, $sesiId);
 
-    return ['ok' => true, 'message' => 'Tugas selesai.', 'skor_pg' => $skorPg];
+    $sesiFresh = $pdo->prepare('SELECT skor_pg, skor_esai, nilai_total FROM ikhtibar_sesi WHERE id = :id LIMIT 1');
+    $sesiFresh->execute(['id' => $sesiId]);
+    $sf = $sesiFresh->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    return [
+        'ok' => true,
+        'message' => 'Tugas selesai.',
+        'skor_pg' => $skorPg,
+        'skor_esai' => $sf['skor_esai'] ?? null,
+        'nilai_total' => $sf['nilai_total'] ?? null,
+        'sesi_id' => $sesiId,
+    ];
 }
 
 /**
@@ -674,7 +687,7 @@ function ikhtibar_laporan_nilai(PDO $pdo, int $tugasId): array
         FROM ikhtibar_sesi s
         INNER JOIN santri st ON st.id = s.santri_id
         WHERE s.tugas_id = :tid
-        ORDER BY nama_santri ASC
+        ORDER BY ' . santri_list_order_sql('st') . '
     ");
     $stmt->execute(['tid' => $tugasId]);
 
@@ -689,11 +702,322 @@ function ikhtibar_nilai_esai_manual(PDO $pdo, int $sesiId, int $soalId, float $n
         ON DUPLICATE KEY UPDATE nilai_esai = VALUES(nilai_esai), catatan_pembimbing = VALUES(catatan_pembimbing)
     ')->execute(['s' => $sesiId, 'q' => $soalId, 'n' => $nilai, 'c' => $catatan !== '' ? $catatan : null]);
 
-    $cnt = $pdo->prepare('SELECT AVG(nilai_esai) FROM ikhtibar_jawaban j INNER JOIN ikhtibar_soal so ON so.id = j.soal_id WHERE j.sesi_id = :s AND so.jenis = "ESAI" AND j.nilai_esai IS NOT NULL');
+    ikhtibar_sesi_recalculate_totals($pdo, $sesiId);
+}
+
+/** Bobot PG vs esai menurut jumlah soal di tugas. @return array{pg:float,esai:float} */
+function ikhtibar_bobot_komponen(int $jumlahPg, int $jumlahEsai): array
+{
+    $total = max(1, $jumlahPg + $jumlahEsai);
+
+    return [
+        'pg' => $jumlahPg > 0 ? $jumlahPg / $total : 0.0,
+        'esai' => $jumlahEsai > 0 ? $jumlahEsai / $total : 0.0,
+    ];
+}
+
+function ikhtibar_hitung_nilai_total(?float $skorPg, ?float $skorEsai, int $jumlahPg, int $jumlahEsai): ?float
+{
+    $bobot = ikhtibar_bobot_komponen($jumlahPg, $jumlahEsai);
+    $adaPg = $jumlahPg > 0 && $skorPg !== null;
+    $adaEsai = $jumlahEsai > 0 && $skorEsai !== null;
+    if ($adaPg && $adaEsai) {
+        return round($skorPg * $bobot['pg'] + $skorEsai * $bobot['esai'], 2);
+    }
+    if ($adaPg) {
+        return round($skorPg, 2);
+    }
+    if ($adaEsai) {
+        return round($skorEsai, 2);
+    }
+
+    return null;
+}
+
+/** @return array{label:string,class:string,icon:string} */
+function ikhtibar_predikat_nilai(?float $nilai): array
+{
+    if ($nilai === null) {
+        return ['label' => 'Menunggu', 'class' => 'secondary', 'icon' => 'fa-clock'];
+    }
+    if ($nilai >= 90) {
+        return ['label' => 'Sangat Baik', 'class' => 'success', 'icon' => 'fa-star'];
+    }
+    if ($nilai >= 80) {
+        return ['label' => 'Baik', 'class' => 'primary', 'icon' => 'fa-thumbs-up'];
+    }
+    if ($nilai >= 70) {
+        return ['label' => 'Cukup', 'class' => 'info', 'icon' => 'fa-check'];
+    }
+    if ($nilai >= 60) {
+        return ['label' => 'Perlu Perbaikan', 'class' => 'warning', 'icon' => 'fa-arrow-trend-up'];
+    }
+
+    return ['label' => 'Kurang', 'class' => 'danger', 'icon' => 'fa-circle-exclamation'];
+}
+
+function ikhtibar_count_esai_belum_dinilai(PDO $pdo, int $sesiId): int
+{
+    $st = $pdo->prepare('
+        SELECT COUNT(*) FROM ikhtibar_soal so
+        INNER JOIN ikhtibar_jawaban j ON j.soal_id = so.id AND j.sesi_id = :s
+        WHERE so.jenis = "ESAI" AND j.nilai_esai IS NULL
+    ');
+    $st->execute(['s' => $sesiId]);
+
+    return (int) ($st->fetchColumn() ?: 0);
+}
+
+function ikhtibar_sesi_recalculate_totals(PDO $pdo, int $sesiId): void
+{
+    ensure_akademik_ikhtibar_tables($pdo);
+    $st = $pdo->prepare('
+        SELECT s.skor_pg, s.skor_esai, t.jumlah_pg, t.jumlah_esai
+        FROM ikhtibar_sesi s
+        INNER JOIN ikhtibar_tugas t ON t.id = s.tugas_id
+        WHERE s.id = :id LIMIT 1
+    ');
+    $st->execute(['id' => $sesiId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return;
+    }
+
+    $cnt = $pdo->prepare('
+        SELECT AVG(j.nilai_esai) FROM ikhtibar_jawaban j
+        INNER JOIN ikhtibar_soal so ON so.id = j.soal_id
+        WHERE j.sesi_id = :s AND so.jenis = "ESAI" AND j.nilai_esai IS NOT NULL
+    ');
     $cnt->execute(['s' => $sesiId]);
-    $avgEsai = $cnt->fetchColumn();
-    $avgEsai = $avgEsai !== false ? round((float) $avgEsai, 2) : null;
-    $pdo->prepare('UPDATE ikhtibar_sesi SET skor_esai = :e WHERE id = :id')->execute(['e' => $avgEsai, 'id' => $sesiId]);
+    $avgRaw = $cnt->fetchColumn();
+    $jumlahEsai = (int) ($row['jumlah_esai'] ?? 0);
+    $belum = ikhtibar_count_esai_belum_dinilai($pdo, $sesiId);
+    $avgEsai = null;
+    if ($jumlahEsai > 0 && $belum === 0 && $avgRaw !== false) {
+        $avgEsai = round((float) $avgRaw, 2);
+    } elseif ($jumlahEsai > 0 && (int) $row['skor_esai'] !== null && $belum > 0) {
+        $avgEsai = null;
+    } elseif ($avgRaw !== false && $avgRaw !== null) {
+        $avgEsai = round((float) $avgRaw, 2);
+    }
+
+    $skorPg = $row['skor_pg'] !== null ? (float) $row['skor_pg'] : null;
+    $nilaiTotal = ikhtibar_hitung_nilai_total(
+        $skorPg,
+        $avgEsai,
+        (int) ($row['jumlah_pg'] ?? 0),
+        $jumlahEsai
+    );
+    if ($jumlahEsai > 0 && $belum > 0) {
+        $nilaiTotal = $skorPg !== null && (int) ($row['jumlah_pg'] ?? 0) > 0
+            ? ikhtibar_hitung_nilai_total($skorPg, null, (int) $row['jumlah_pg'], 0)
+            : null;
+    }
+
+    $pdo->prepare('UPDATE ikhtibar_sesi SET skor_esai = :e, nilai_total = :t WHERE id = :id')
+        ->execute(['e' => $avgEsai, 't' => $nilaiTotal, 'id' => $sesiId]);
+}
+
+/**
+ * Riwayat tugas & nilai satu santri (selesai + sedang berjalan).
+ *
+ * @return list<array<string,mixed>>
+ */
+function ikhtibar_riwayat_hasil_santri(PDO $pdo, int $santriId): array
+{
+    ensure_akademik_ikhtibar_tables($pdo);
+    $stmt = $pdo->prepare('
+        SELECT s.id AS sesi_id, s.status AS sesi_status, s.skor_pg, s.skor_esai, s.nilai_total,
+               s.waktu_mulai, s.waktu_selesai,
+               t.id AS tugas_id, t.judul, t.tanggal, t.hari_ke, t.mapel_label, t.jumlah_pg, t.jumlah_esai, t.durasi_menit
+        FROM ikhtibar_sesi s
+        INNER JOIN ikhtibar_tugas t ON t.id = s.tugas_id
+        WHERE s.santri_id = :sid
+        ORDER BY COALESCE(s.waktu_selesai, s.waktu_mulai, t.tanggal) DESC, t.id DESC
+    ');
+    $stmt->execute(['sid' => $santriId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as &$r) {
+        $sesiId = (int) ($r['sesi_id'] ?? 0);
+        $r['esai_pending'] = ikhtibar_count_esai_belum_dinilai($pdo, $sesiId);
+        $pred = ikhtibar_predikat_nilai($r['nilai_total'] !== null ? (float) $r['nilai_total'] : null);
+        $r['predikat'] = $pred['label'];
+        $r['predikat_class'] = $pred['class'];
+    }
+    unset($r);
+
+    return $rows;
+}
+
+/**
+ * Detail hasil satu sesi (untuk santri / pembimbing).
+ *
+ * @return array<string,mixed>|null
+ */
+function ikhtibar_hasil_detail_santri(PDO $pdo, int $sesiId, int $santriId): ?array
+{
+    ensure_akademik_ikhtibar_tables($pdo);
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $st = $pdo->prepare("
+        SELECT s.*, t.judul, t.tanggal, t.hari_ke, t.mapel_label, t.jumlah_pg, t.jumlah_esai, t.durasi_menit,
+               st.nis, st.{$nameCol} AS nama_santri
+        FROM ikhtibar_sesi s
+        INNER JOIN ikhtibar_tugas t ON t.id = s.tugas_id
+        INNER JOIN santri st ON st.id = s.santri_id
+        WHERE s.id = :sid AND s.santri_id = :uid
+        LIMIT 1
+    ");
+    $st->execute(['sid' => $sesiId, 'uid' => $santriId]);
+    $sesi = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$sesi) {
+        return null;
+    }
+
+    ikhtibar_sesi_recalculate_totals($pdo, $sesiId);
+    $st->execute(['sid' => $sesiId, 'uid' => $santriId]);
+    $sesi = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$sesi) {
+        return null;
+    }
+
+    $jStmt = $pdo->prepare('
+        SELECT j.*, so.jenis, so.nomor, so.teks_soal, so.opsi_a, so.opsi_b, so.opsi_c, so.opsi_d, so.opsi_e, so.kunci_jawaban
+        FROM ikhtibar_jawaban j
+        INNER JOIN ikhtibar_soal so ON so.id = j.soal_id
+        WHERE j.sesi_id = :s
+        ORDER BY so.jenis ASC, so.nomor ASC
+    ');
+    $jStmt->execute(['s' => $sesiId]);
+    $jawaban = $jStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $pgBenar = 0;
+    $pgTotal = 0;
+    foreach ($jawaban as $j) {
+        if ((string) ($j['jenis'] ?? '') !== 'PG') {
+            continue;
+        }
+        $pgTotal++;
+        if ((int) ($j['benar'] ?? 0) === 1) {
+            $pgBenar++;
+        }
+    }
+
+    $pred = ikhtibar_predikat_nilai($sesi['nilai_total'] !== null ? (float) $sesi['nilai_total'] : null);
+    $bobot = ikhtibar_bobot_komponen((int) ($sesi['jumlah_pg'] ?? 0), (int) ($sesi['jumlah_esai'] ?? 0));
+
+    return [
+        'sesi' => $sesi,
+        'jawaban' => $jawaban,
+        'pg_benar' => $pgBenar,
+        'pg_total' => $pgTotal,
+        'esai_pending' => ikhtibar_count_esai_belum_dinilai($pdo, $sesiId),
+        'predikat' => $pred,
+        'bobot' => $bobot,
+    ];
+}
+
+/**
+ * @return list<array<string,mixed>>
+ */
+function ikhtibar_laporan_nilai_enriched(PDO $pdo, int $tugasId): array
+{
+    $tugas = ikhtibar_tugas_by_id($pdo, $tugasId);
+    if (!$tugas) {
+        return [];
+    }
+    $rows = ikhtibar_laporan_nilai($pdo, $tugasId);
+    foreach ($rows as &$r) {
+        $sesiId = (int) ($r['sesi_id'] ?? 0);
+        if ($sesiId > 0) {
+            ikhtibar_sesi_recalculate_totals($pdo, $sesiId);
+        }
+    }
+    unset($r);
+
+    $rows = ikhtibar_laporan_nilai($pdo, $tugasId);
+    foreach ($rows as &$r) {
+        $sesiId = (int) ($r['sesi_id'] ?? 0);
+        $r['esai_pending'] = ikhtibar_count_esai_belum_dinilai($pdo, $sesiId);
+        $nt = $r['nilai_total'] !== null ? (float) $r['nilai_total'] : null;
+        if ($nt === null && $r['skor_pg'] !== null && (int) ($tugas['jumlah_esai'] ?? 0) === 0) {
+            $nt = (float) $r['skor_pg'];
+        }
+        $pred = ikhtibar_predikat_nilai($nt);
+        $r['predikat'] = $pred['label'];
+        $r['predikat_class'] = $pred['class'];
+        $r['predikat_icon'] = $pred['icon'];
+    }
+    unset($r);
+
+    return $rows;
+}
+
+/**
+ * Rekap semua tugas untuk pembimbing/admin.
+ *
+ * @return list<array<string,mixed>>
+ */
+function ikhtibar_rekap_tugas_pembimbing(PDO $pdo, int $userId): array
+{
+    $list = ikhtibar_tugas_list_pembimbing($pdo, $userId);
+    foreach ($list as &$t) {
+        $tid = (int) ($t['id'] ?? 0);
+        $st = $pdo->prepare('
+            SELECT COUNT(*) AS total_sesi,
+                   SUM(CASE WHEN status = "selesai" THEN 1 ELSE 0 END) AS selesai,
+                   AVG(nilai_total) AS rata_nilai
+            FROM ikhtibar_sesi WHERE tugas_id = :tid
+        ');
+        $st->execute(['tid' => $tid]);
+        $agg = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        $t['total_peserta'] = (int) ($agg['total_sesi'] ?? 0);
+        $t['jumlah_selesai'] = (int) ($agg['selesai'] ?? 0);
+        $t['rata_nilai'] = $agg['rata_nilai'] !== null ? round((float) $agg['rata_nilai'], 1) : null;
+
+        $pendingSt = $pdo->prepare('
+            SELECT COUNT(DISTINCT s.id) FROM ikhtibar_sesi s
+            INNER JOIN ikhtibar_jawaban j ON j.sesi_id = s.id
+            INNER JOIN ikhtibar_soal so ON so.id = j.soal_id
+            WHERE s.tugas_id = :tid AND s.status = "selesai" AND so.jenis = "ESAI" AND j.nilai_esai IS NULL
+        ');
+        $pendingSt->execute(['tid' => $tid]);
+        $t['esai_belum_koreksi'] = (int) ($pendingSt->fetchColumn() ?: 0);
+    }
+    unset($t);
+
+    return $list;
+}
+
+/** CSV nilai satu tugas (UTF-8 BOM). */
+function ikhtibar_export_nilai_csv(PDO $pdo, int $tugasId): string
+{
+    $tugas = ikhtibar_tugas_by_id($pdo, $tugasId);
+    $rows = ikhtibar_laporan_nilai_enriched($pdo, $tugasId);
+    $out = fopen('php://temp', 'r+');
+    if ($out === false) {
+        return '';
+    }
+    fputcsv($out, ['Judul', (string) ($tugas['judul'] ?? '')]);
+    fputcsv($out, ['Tanggal', (string) ($tugas['tanggal'] ?? '')]);
+    fputcsv($out, []);
+    fputcsv($out, ['NIS', 'Nama', 'Tingkatan', 'Status', 'Skor PG %', 'Skor Esai', 'Nilai Total', 'Predikat']);
+    foreach ($rows as $r) {
+        fputcsv($out, [
+            (string) ($r['nis'] ?? ''),
+            (string) ($r['nama_santri'] ?? ''),
+            (string) ($r['tingkatan'] ?? ''),
+            (string) ($r['status'] ?? ''),
+            $r['skor_pg'] !== null ? (string) $r['skor_pg'] : '',
+            $r['skor_esai'] !== null ? (string) $r['skor_esai'] : '',
+            $r['nilai_total'] !== null ? (string) $r['nilai_total'] : '',
+            (string) ($r['predikat'] ?? ''),
+        ]);
+    }
+    rewind($out);
+    $csv = stream_get_contents($out);
+    fclose($out);
+
+    return "\xEF\xBB\xBF" . ($csv !== false ? $csv : '');
 }
 
 function ikhtibar_hari_label(int $hariKe): string

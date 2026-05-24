@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
-require_once __DIR__ . '/keuangan_transaksi.php';
+require_once __DIR__ . '/keuangan_defs.php';
 require_once __DIR__ . '/keuangan_alokasi.php';
+require_once __DIR__ . '/keuangan_ta_context.php';
 
 /** @return array{ok:bool,message:string} */
 function keuangan_save_periode_settings(PDO $pdo, array $post): array
@@ -24,6 +25,13 @@ function keuangan_save_periode_settings(PDO $pdo, array $post): array
     }
     save_setting($pdo, 'keuangan_periode_mulai', (string) $mulai);
     save_setting($pdo, 'keuangan_periode_selesai', (string) $selesai);
+    pondok_ta_persist_session($ta);
+    if (function_exists('keuangan_schema_cache_clear')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+        keuangan_schema_cache_clear();
+    } else {
+        unset($_SESSION['keuangan_dash_snap_cache'], $_SESSION['pondok_ta_options_cache_v1']);
+    }
 
     return [
         'ok' => true,
@@ -58,13 +66,14 @@ function keuangan_save_tarif_settings(PDO $pdo, array $post): array
         }
     }
 
+    app_settings_cache($pdo, true);
+
     return ['ok' => true, 'message' => 'Tarif komponen biaya berhasil disimpan.'];
 }
 
 /** @return list<array<string, mixed>> */
 function keuangan_fetch_akun_all(PDO $pdo): array
 {
-    ensure_keuangan_transaksi_tables($pdo);
     if (!table_exists($pdo, 'keuangan_akun')) {
         return [];
     }
@@ -80,7 +89,10 @@ function keuangan_fetch_akun_all(PDO $pdo): array
 /** @return array{ok:bool,message:string} */
 function keuangan_save_akun(PDO $pdo, array $post): array
 {
-    ensure_keuangan_transaksi_tables($pdo);
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+        keuangan_ensure_schema_deferred($pdo);
+    }
     $id = (int) ($post['akun_id'] ?? 0);
     $jenis = strtoupper(trim((string) ($post['jenis_akun'] ?? 'KAS')));
     $nama = trim((string) ($post['nama_akun'] ?? ''));
@@ -143,13 +155,8 @@ function keuangan_save_akun(PDO $pdo, array $post): array
 /** @return list<array<string, mixed>> */
 function keuangan_fetch_alokasi_all(PDO $pdo): array
 {
-    ensure_keuangan_transaksi_tables($pdo);
     if (!table_exists($pdo, 'keuangan_alokasi')) {
         return [];
-    }
-
-    if (function_exists('ensure_keuangan_alokasi_jenis_dana')) {
-        ensure_keuangan_alokasi_jenis_dana($pdo);
     }
 
     return $pdo->query('
@@ -162,7 +169,10 @@ function keuangan_fetch_alokasi_all(PDO $pdo): array
 /** @return array{ok:bool,message:string} */
 function keuangan_save_alokasi(PDO $pdo, array $post): array
 {
-    ensure_keuangan_transaksi_tables($pdo);
+    if (!table_exists($pdo, 'keuangan_alokasi')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+        keuangan_ensure_schema_deferred($pdo);
+    }
     $id = (int) ($post['alokasi_id'] ?? 0);
     $nama = trim((string) ($post['nama_komponen'] ?? ''));
     $kategori = trim((string) ($post['kategori'] ?? ''));

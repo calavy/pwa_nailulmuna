@@ -7,8 +7,8 @@ require_once __DIR__ . '/../includes/auth.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
-$menuPack = require __DIR__ . '/../includes/menu_data.php';
-$menuItems = filter_menu_items_by_acl($pdo, $menuPack['menuItems'], $menuPack['permissionPathMap']);
+$menuPack = app_menu_pack($pdo);
+$menuItems = $menuPack['menuItems'];
 $menuStructure = $menuPack['menuStructure'];
 
 $hubId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($_GET['id'] ?? ''));

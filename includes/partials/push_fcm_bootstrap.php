@@ -8,7 +8,13 @@ if (!function_exists('pondok_pdo')) {
     require_once __DIR__ . '/../../config/database.php';
 }
 $pdo = (isset($pdo) && $pdo instanceof PDO) ? $pdo : pondok_pdo();
-$pushCfg = push_fcm_web_config($pdo);
+$pushCfgKey = 'push_fcm_cfg_cache_v1';
+if (!empty($_SESSION[$pushCfgKey]) && is_array($_SESSION[$pushCfgKey])) {
+    $pushCfg = $_SESSION[$pushCfgKey];
+} else {
+    $pushCfg = push_fcm_web_config($pdo);
+    $_SESSION[$pushCfgKey] = $pushCfg;
+}
 $pushAudience = 'staff';
 $pushCategories = push_default_categories_for_audience('staff');
 $pushSubscribeKiai = false;

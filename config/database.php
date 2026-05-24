@@ -86,28 +86,91 @@ if (function_exists('date_default_timezone_set')) {
     date_default_timezone_set('Asia/Jakarta');
 }
 
+/** Daftar tabel DB — di-cache per request agar navigasi tidak memicu ratusan SHOW TABLES. */
+function pondok_schema_tables(PDO $pdo): array
+{
+    static $cacheByPdo = [];
+    $pdoKey = spl_object_id($pdo);
+    if (isset($cacheByPdo[$pdoKey])) {
+        return $cacheByPdo[$pdoKey];
+    }
+    $map = [];
+    try {
+        $rows = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_NUM) ?: [];
+        foreach ($rows as $row) {
+            $name = strtolower((string) ($row[0] ?? ''));
+            if ($name !== '') {
+                $map[$name] = true;
+            }
+        }
+    } catch (PDOException $e) {
+        $map = [];
+    }
+    $cacheByPdo[$pdoKey] = $map;
+
+    return $map;
+}
+
 function table_exists(PDO $pdo, string $tableName): bool
 {
-    $statement = $pdo->prepare('SHOW TABLES LIKE :table_name');
-    $statement->execute(['table_name' => $tableName]);
+    $tables = pondok_schema_tables($pdo);
 
-    return (bool) $statement->fetchColumn();
+    return isset($tables[strtolower($tableName)]);
+}
+
+/** Kolom per tabel — di-cache per request. */
+function pondok_schema_columns(PDO $pdo, string $tableName): array
+{
+    static $cacheByPdoTable = [];
+    $tableKey = strtolower($tableName);
+    $pdoKey = spl_object_id($pdo) . ':' . $tableKey;
+    if (isset($cacheByPdoTable[$pdoKey])) {
+        return $cacheByPdoTable[$pdoKey];
+    }
+    $map = [];
+    if (!table_exists($pdo, $tableName)) {
+        $cacheByPdoTable[$pdoKey] = $map;
+
+        return $map;
+    }
+    try {
+        $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $tableName) ?? $tableName;
+        $rows = $pdo->query('SHOW COLUMNS FROM `' . $safeTable . '`')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            $col = strtolower((string) ($row['Field'] ?? ''));
+            if ($col !== '') {
+                $map[$col] = true;
+            }
+        }
+    } catch (PDOException $e) {
+        $map = [];
+    }
+    $cacheByPdoTable[$pdoKey] = $map;
+
+    return $map;
 }
 
 function column_exists(PDO $pdo, string $tableName, string $columnName): bool
 {
-    $statement = $pdo->prepare('SHOW COLUMNS FROM `' . $tableName . '` LIKE :column_name');
-    $statement->execute(['column_name' => $columnName]);
-    return (bool) $statement->fetchColumn();
+    $columns = pondok_schema_columns($pdo, $tableName);
+
+    return isset($columns[strtolower($columnName)]);
 }
 
 function ensure_santri_compat_schema(PDO $pdo): void
 {
-    static $done = false;
-    if ($done || !table_exists($pdo, 'santri')) {
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_santri_compat_v1'])) {
         return;
     }
-    $done = true;
+    static $doneCli = false;
+    if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        return;
+    }
+    if (!table_exists($pdo, 'santri')) {
+        $_SESSION['pondok_santri_compat_v1'] = 1;
+
+        return;
+    }
 
     $addColumnSafe = static function (string $sqlIfNotExists, string $sqlFallback) use ($pdo): void {
         try {
@@ -149,12 +212,12 @@ function ensure_santri_compat_schema(PDO $pdo): void
             WHERE (s.tingkatan IS NULL OR s.tingkatan = '')
         ");
     }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pondok_santri_compat_v1'] = 1;
+    } else {
+        $doneCli = true;
+    }
 }
 
-ensure_santri_compat_schema($pdo);
-
-require_once __DIR__ . '/../helpers/wali.php';
-ensure_wali_santri_table($pdo);
-
-require_once __DIR__ . '/../helpers/surat_nomor.php';
-ensure_surat_nomor_schema($pdo);
+// Skema & helper berat: jangan di sini — dipanggil sekali per sesi via app_ensure_schema_deferred() (includes/header).

@@ -9,10 +9,9 @@ require_once __DIR__ . '/../helpers/bendahara_ui.php';
 require_once __DIR__ . '/../helpers/keuangan_pembayaran_admin.php';
 
 require_roles(['admin', 'pengurus']);
-ensure_keuangan_pembayaran_audit_table($pdo);
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+keuangan_ensure_schema_deferred($pdo);
 $canKoreksiPembayaran = user_can_koreksi_pembayaran();
-ensure_santri_identity_columns($pdo);
-ensure_kelas_keuangan_table($pdo);
 
 $tanggalDari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
 $tanggalSampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
@@ -159,7 +158,9 @@ if ($tablesOk) {
         }
     }
 
-    $santriPick = $pdo->query('SELECT id, nis, nama_santri FROM santri ORDER BY nama_santri ASC LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    require_once __DIR__ . '/../helpers/santri_list_sort.php';
+    santri_list_sort_mode($_GET['santri_sort'] ?? null);
+    $santriPick = $pdo->query('SELECT id, nis, nama_santri FROM santri ORDER BY ' . santri_list_order_sql('santri') . ' LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 

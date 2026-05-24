@@ -5,8 +5,29 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_cache.php';
 
 require_roles(['admin', 'pengurus']);
+
+$cacheReport = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && trim((string) ($_POST['action'] ?? '')) === 'clear_cache') {
+    require_super_admin();
+    $withSchema = !empty($_POST['include_schema']);
+    $withOpcache = !empty($_POST['include_opcache']);
+    $cacheReport = app_performance_cache_clear($pdo, [
+        'schema_flags' => $withSchema,
+        'opcache' => $withOpcache,
+        'all_users_acl' => true,
+    ]);
+    set_flash('success', sprintf(
+        'Cache dibersihkan: %d entri dihapus, %d kedaluwarsa dipangkas%s.',
+        (int) ($cacheReport['cleared'] ?? 0),
+        (int) ($cacheReport['pruned'] ?? 0),
+        !empty($cacheReport['opcache']) ? ', OPcache di-reset' : ''
+    ));
+    header('Location: ' . app_href('/admin/cek_update.php'));
+    exit;
+}
 
 $checks = [];
 
@@ -167,6 +188,42 @@ require_once __DIR__ . '/../includes/header.php';
             </table>
         </div>
     </div>
+<?php endif; ?>
+
+<?php if (is_super_admin()): ?>
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-light py-2">
+        <strong><i class="fa-solid fa-broom me-1"></i> Bersihkan cache kinerja</strong>
+    </div>
+    <div class="card-body small">
+        <p class="mb-2 text-muted">
+            Cache sesi (menu ACL, snapshot keuangan, pengaturan, realisasi alokasi) kadang membuat data tampak basi atau membesarkan file sesi PHP.
+            Gunakan setelah deploy atau ubah pengaturan besar.
+        </p>
+        <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="action" value="clear_cache">
+            <div class="col-12 col-md-auto">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="include_schema" value="1" id="cacheSchema">
+                    <label class="form-check-label" for="cacheSchema">Reset flag migrasi skema <span class="text-muted">(1× request berikutnya sedikit lebih lambat)</span></label>
+                </div>
+            </div>
+            <?php if (function_exists('opcache_reset')): ?>
+            <div class="col-12 col-md-auto">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="include_opcache" value="1" id="cacheOpcache">
+                    <label class="form-check-label" for="cacheOpcache">Reset OPcache PHP</label>
+                </div>
+            </div>
+            <?php endif; ?>
+            <div class="col-12 col-md-auto">
+                <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Bersihkan cache sesi untuk user yang sedang login?');">
+                    Bersihkan cache sekarang
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 <?php endif; ?>
 
 <div class="small text-muted">

@@ -3,18 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/keuangan_defs.php';
 require_once __DIR__ . '/santri_operasional.php';
-require_once __DIR__ . '/keuangan_rekap.php';
-require_once __DIR__ . '/keuangan_neraca.php';
-require_once __DIR__ . '/keuangan_jurnal.php';
+require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/pondok_kalender.php';
-
-function keuangan_money_input_to_int(string $raw): int
-{
-    $digits = preg_replace('/[^\d]/', '', $raw) ?? '';
-
-    return $digits === '' ? 0 : (int) $digits;
-}
 
 /** @return array<int, string> */
 function keuangan_bulan_map(PDO $pdo = null): array
@@ -36,7 +28,7 @@ function keuangan_tahun_ajaran_from_date(?string $dateYmd = null, ?PDO $pdo = nu
         return pondok_tahun_ajaran_from_date($pdo, $dateYmd);
     }
 
-    return pondok_tahun_ajaran_masehi_dari_tanggal($dateYmd);
+    return pondok_tahun_ajaran_masehi_dari_tanggal($dateYmd, null);
 }
 
 /** Bulan tagihan slot yang sedang berjalan (1–12, mengikuti kalender pondok). */
@@ -108,41 +100,17 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
     return $rows;
 }
 
-/**
- * Definisi pos pembayaran (tarif per tier muadalah/wustho/ulya).
- *
- * @return list<array{slug:string,nama:string,kategori:string,default:array<string,int>}>
- */
-function keuangan_biaya_definitions(): array
-{
-    return [
-        ['slug' => 'syahriyah', 'nama' => 'Syahriyah', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 200000, 'wustho' => 210000, 'ulya' => 215000]],
-        ['slug' => 'makan', 'nama' => 'Makan', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 220000, 'wustho' => 220000, 'ulya' => 220000]],
-        ['slug' => 'saku', 'nama' => 'Saku', 'kategori' => 'Bulanan', 'default' => ['muadalah' => 300000, 'wustho' => 300000, 'ulya' => 300000]],
-        ['slug' => 'pendaftaran', 'nama' => 'Pendaftaran Pondok', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 150000, 'wustho' => 150000, 'ulya' => 150000]],
-        ['slug' => 'bangunan', 'nama' => 'Bangunan', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 200000, 'wustho' => 200000, 'ulya' => 200000]],
-        ['slug' => 'seragam', 'nama' => 'Seragam', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 350000, 'wustho' => 350000, 'ulya' => 350000]],
-        ['slug' => 'koperasi', 'nama' => 'Uang Pokok Koperasi', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 100000, 'wustho' => 100000, 'ulya' => 100000]],
-        ['slug' => 'rak_lemari', 'nama' => 'Rak & Lemari', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 700000, 'wustho' => 700000, 'ulya' => 700000]],
-        ['slug' => 'lks', 'nama' => 'LKS', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 0, 'wustho' => 150000, 'ulya' => 150000]],
-        ['slug' => 'his', 'nama' => 'HIS', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 150000, 'wustho' => 150000, 'ulya' => 150000]],
-        ['slug' => 'raport', 'nama' => 'Raport', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 55000, 'wustho' => 55000, 'ulya' => 55000]],
-        ['slug' => 'kis', 'nama' => 'KIS (Kartu Identitas Santri)', 'kategori' => 'Awal Tahun', 'default' => ['muadalah' => 15000, 'wustho' => 15000, 'ulya' => 15000]],
-    ];
-}
-
-function keuangan_fee_nominal_for_tier(PDO $pdo, array $def, string $tier): int
-{
-    if (!in_array($tier, ['muadalah', 'wustho', 'ulya'], true)) {
-        $tier = 'wustho';
-    }
-    $fallback = (int) ($def['default'][$tier] ?? 0);
-
-    return max(0, (int) app_setting($pdo, 'keuangan_fee_' . $def['slug'] . '_' . $tier, (string) $fallback));
-}
-
 function ensure_keuangan_transaksi_tables(PDO $pdo): void
 {
+    if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
+        return;
+    }
+    static $ranThisRequest = false;
+    if ($ranThisRequest) {
+        return;
+    }
+    $ranThisRequest = true;
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS keuangan_pembayaran (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -266,7 +234,97 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
     require_once __DIR__ . '/keuangan_alokasi.php';
     ensure_keuangan_alokasi_jenis_dana($pdo);
     ensure_keuangan_pembayaran_kalender_hijriyah($pdo);
+    keuangan_transaksi_bootstrap_jurnal();
     ensure_keuangan_jurnal_tables($pdo);
+}
+
+function keuangan_transaksi_bootstrap_jurnal(): void
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    $loaded = true;
+}
+
+function keuangan_transaksi_bootstrap_rekap(): void
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    require_once __DIR__ . '/keuangan_rekap.php';
+    $loaded = true;
+}
+
+/**
+ * Migrasi skema modul keuangan — sekali per sesi login (hindari CREATE/ALTER tiap klik menu).
+ */
+function keuangan_ensure_schema_deferred(PDO $pdo): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
+        return;
+    }
+
+    ensure_keuangan_transaksi_tables($pdo);
+
+    if (!function_exists('ensure_keuangan_syahriyah_potongan_table')) {
+        require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+    }
+    ensure_keuangan_syahriyah_potongan_table($pdo);
+    ensure_keuangan_syahriyah_potongan_jeda_table($pdo);
+
+    if (!function_exists('ensure_keuangan_pembayaran_audit_table')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+    }
+    ensure_keuangan_pembayaran_audit_table($pdo);
+
+    ensure_cashless_nominal_qr_map_table($pdo);
+    ensure_cashless_nominal_tokens_table($pdo);
+
+    if (!function_exists('cashless_koperasi_ensure_schema')) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+    }
+    cashless_koperasi_ensure_schema($pdo);
+
+    if (!function_exists('ensure_keuangan_talangan_tables')) {
+        require_once __DIR__ . '/keuangan_talangan.php';
+    }
+    ensure_keuangan_talangan_tables($pdo);
+
+    if (!function_exists('ensure_keuangan_inventaris_tables')) {
+        require_once __DIR__ . '/keuangan_inventaris.php';
+    }
+    ensure_keuangan_inventaris_tables($pdo);
+
+    if (function_exists('ensure_keuangan_neraca_tables')) {
+        ensure_keuangan_neraca_tables($pdo);
+    }
+
+    $_SESSION['keuangan_schema_ready_v1'] = 1;
+}
+
+/** Reset flag skema keuangan setelah migrasi manual / deploy skema baru. */
+function keuangan_schema_cache_clear(): void
+{
+    global $pdo;
+    if (!function_exists('app_performance_cache_clear')) {
+        require_once __DIR__ . '/app_cache.php';
+    }
+    if ($pdo instanceof PDO) {
+        app_performance_cache_clear($pdo, ['schema_flags' => true, 'opcache' => false, 'all_users_acl' => true]);
+        return;
+    }
+    unset($_SESSION['keuangan_schema_ready_v1'], $_SESSION['keuangan_dash_snap_cache'], $_SESSION['pondok_ta_options_cache_v1']);
+    foreach (array_keys($_SESSION) as $sk) {
+        if (is_string($sk) && str_starts_with($sk, 'keu_alokasi_real_')) {
+            unset($_SESSION[$sk]);
+        }
+    }
 }
 
 function keuangan_seed_akun_default(PDO $pdo): void
@@ -335,38 +393,6 @@ function keuangan_fetch_akun_aktif(PDO $pdo): array
 }
 
 /** @return list<array<string, mixed>> */
-function keuangan_fetch_alokasi_aktif(PDO $pdo, ?string $jenisDana = null): array
-{
-    if (!table_exists($pdo, 'keuangan_alokasi')) {
-        return [];
-    }
-    if (!column_exists($pdo, 'keuangan_alokasi', 'jenis_dana')) {
-        require_once __DIR__ . '/keuangan_alokasi.php';
-        ensure_keuangan_alokasi_jenis_dana($pdo);
-    }
-
-    $sql = '
-        SELECT id, nama_komponen, kategori, jenis_dana, persen, urutan
-        FROM keuangan_alokasi
-        WHERE is_active = 1
-    ';
-    $params = [];
-    if ($jenisDana !== null && $jenisDana !== '') {
-        $j = strtoupper(trim($jenisDana));
-        if (!in_array($j, ['SYAHRIYAH', 'AWAL_TAHUN'], true)) {
-            $j = 'SYAHRIYAH';
-        }
-        $sql .= ' AND jenis_dana = :jenis';
-        $params['jenis'] = $j;
-    }
-    $sql .= ' ORDER BY urutan ASC, id ASC';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-
-    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-}
-
-/** @return list<array<string, mixed>> */
 function keuangan_fetch_santri_aktif(PDO $pdo): array
 {
     if (!table_exists($pdo, 'santri')) {
@@ -382,7 +408,7 @@ function keuangan_fetch_santri_aktif(PDO $pdo): array
         $cols[] = 'tingkatan';
     }
 
-    return $pdo->query('SELECT ' . implode(', ', $cols) . ' FROM santri s WHERE ' . $aktif . ' ORDER BY nama_santri ASC')->fetchAll(PDO::FETCH_ASSOC);
+    return $pdo->query('SELECT ' . implode(', ', $cols) . ' FROM santri s WHERE ' . $aktif . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /**
@@ -473,6 +499,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
 
     $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
+    keuangan_transaksi_bootstrap_rekap();
     $tagihanBreakdown = keuangan_tagihan_breakdown_for_santri(
         $pdo,
         $santriId,
@@ -615,6 +642,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         ]);
     }
 
+    keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pembayaran(
         $pdo,
         $pembayaranId,
@@ -695,6 +723,7 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     $pdo->prepare($sql)->execute($params);
     $pengeluaranId = (int) $pdo->lastInsertId();
 
+    keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pengeluaran($pdo, $pengeluaranId, $tanggal, $akunId, $nominal, $pos, $userId);
 
     return ['ok' => true, 'message' => 'Pengeluaran berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
@@ -761,6 +790,7 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
     ]);
     $pemasukanId = (int) $pdo->lastInsertId();
 
+    keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pemasukan($pdo, $pemasukanId, $tanggal, $akunId, $nominal, $sumber, $userId);
 
     return ['ok' => true, 'message' => 'Pemasukan berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];

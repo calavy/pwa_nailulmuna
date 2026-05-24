@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_riwayat.php';
+require_once __DIR__ . '/../helpers/santri_keaktifan_nilai.php';
 require_once __DIR__ . '/../helpers/santri_status.php';
 
 require_roles(['admin', 'pengurus']);
@@ -139,7 +140,7 @@ santri_riwayat_domisili_ensure_for_santri($pdo, $id, $santri);
 $asramaRows = santri_riwayat_asrama_list($pdo, $id);
 $pelanggaranRows = santri_riwayat_pelanggaran_list($pdo, $id, $thPel > 0 ? $thPel : null);
 $pelanggaranPerTahun = santri_riwayat_pelanggaran_per_tahun($pdo, $id);
-$keaktifanPerTahun = santri_riwayat_keaktifan_per_tahun($pdo, $id);
+$keaktifanPerTahun = santri_keaktifan_tampilan_per_tahun($pdo, $id);
 $keaktifanByTh = [];
 foreach ($keaktifanPerTahun as $ka) {
     $keaktifanByTh[(int) $ka['th']] = $ka;

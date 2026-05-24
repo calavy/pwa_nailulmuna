@@ -6,11 +6,12 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
 require_roles(['admin', 'pengurus']);
 
-cashless_koperasi_ensure_schema($pdo);
+keuangan_ensure_schema_deferred($pdo);
 
 $koperasiList = cashless_koperasi_list($pdo);
 $filterKoperasiId = (int) ($_GET['koperasi_id'] ?? 0);

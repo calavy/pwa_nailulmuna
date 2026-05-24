@@ -23,7 +23,9 @@ $sql = '
 if ($onlyAktif && column_exists($pdo, 'santri', 'is_aktif')) {
     $sql .= ' WHERE COALESCE(is_aktif, 1) = 1';
 }
-$sql .= ' ORDER BY nama_santri ASC';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
+$sql .= ' ORDER BY ' . santri_list_order_sql('santri');
 
 $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 

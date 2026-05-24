@@ -5,21 +5,19 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/bendahara_ui.php';
-require_once __DIR__ . '/../helpers/keuangan_syahriyah_potongan.php';
-
 require_roles(['admin', 'pengurus']);
-ensure_santri_identity_columns($pdo);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
+require_once __DIR__ . '/../helpers/tagihan_bulanan.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+
+keuangan_ensure_schema_deferred($pdo);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 
 $berjalan = keuangan_periode_berjalan($pdo);
-
-$taFilter = pondok_normalisasi_tahun_ajaran_input(
-    $pdo,
-    (int) ($_GET['tm'] ?? $berjalan['mulai']),
-    (int) ($_GET['ts'] ?? $berjalan['selesai'])
-);
-$tahunAjaranMulai = $taFilter['mulai'];
-$tahunAjaranSelesai = $taFilter['selesai'];
+$keuanganTa = keuangan_ta_resolve($pdo, $_GET);
+$tahunAjaranMulai = (int) $keuanganTa['mulai'];
+$tahunAjaranSelesai = (int) $keuanganTa['selesai'];
 $bulanTagihan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
 $bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
 $slotAktif = pondok_slot_dari_bulan_tagihan($bulanSlots, $bulanTagihan);
@@ -28,11 +26,19 @@ $q = trim((string) ($_GET['q'] ?? ''));
 
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
 
+$tagihanCtx = $tablesOk
+    ? tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)
+    : ['sy_ctx' => [], 'paid_map' => [], 'kelas_labels' => [], 'tingkatan_map' => []];
+$syCtx = $tagihanCtx['sy_ctx'];
+$paidMap = $tagihanCtx['paid_map'];
+$kelasLabels = $tagihanCtx['kelas_labels'];
+$tingkatanMap = $tagihanCtx['tingkatan_map'];
+
 $sql = 'SELECT id, nis, nama_santri, tingkatan, kategori_kelas, is_aktif FROM santri';
 if (column_exists($pdo, 'santri', 'is_aktif')) {
     $sql .= ' WHERE COALESCE(is_aktif, 1) = 1';
 }
-$sql .= ' ORDER BY nama_santri ASC';
+$sql .= ' ORDER BY ' . santri_list_order_sql('santri');
 $rows = $tablesOk ? $pdo->query($sql)->fetchAll() : [];
 
 $body = [];
@@ -47,12 +53,25 @@ foreach ($rows as $s) {
     if ($q !== '' && !str_contains($namaCari, strtolower($q))) {
         continue;
     }
-    $kelasKategori = trim((string) ($s['kategori_kelas'] ?? ''));
-    if ($kelasKategori === '' && !empty($s['tingkatan'])) {
-        $kelasKategori = (string) $s['tingkatan'];
-    }
+    $kelasKategori = santri_kelas_untuk_ta(
+        $pdo,
+        (int) $s['id'],
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $s,
+        $tingkatanMap
+    );
     $st = $tablesOk
-        ? tagihan_wajib_status_for_month($pdo, (int) $s['id'], $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $kelasKategori)
+        ? tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            (int) $s['id'],
+            $bulanTagihan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $kelasKategori,
+            $paidMap,
+            $syCtx
+        )
         : [
             'expected_total' => 0,
             'paid_total' => 0,
@@ -99,6 +118,7 @@ foreach ($rows as $s) {
         'mk_paid' => (int) (($perPos['makan']['paid'] ?? 0)),
     ];
 }
+$body = santri_list_sort_rows($body);
 
 $pageTitle = 'Tagihan Bulanan';
 $bodyClass = keuangan_body_class('bendahara-page');
@@ -139,7 +159,12 @@ $iconTagihan = bendahara_page_icon('tagihan');
     <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
 <?php endif; ?>
 
+<?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
+<?php require __DIR__ . '/../includes/partials/santri_sort_toolbar.php'; ?>
+
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
+    <input type="hidden" name="tm" value="<?= (int) $tahunAjaranMulai ?>">
+    <input type="hidden" name="ts" value="<?= (int) $tahunAjaranSelesai ?>">
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Bulan tagihan</label>
         <select class="form-select form-select-sm" name="bulan">
@@ -148,15 +173,6 @@ $iconTagihan = bendahara_page_icon('tagihan');
                 <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?></option>
             <?php endforeach; ?>
         </select>
-    </div>
-    <?php $taMeta = pondok_ta_form_meta($pdo); ?>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_mulai']) ?></label>
-        <input class="form-control form-control-sm pondok-ta-mulai" type="number" name="tm" value="<?= (int) $tahunAjaranMulai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>">
-    </div>
-    <div class="col-6 col-md-2 pondok-ta-field" data-ta-hijri="<?= pondok_kalender_hijriyah($pdo) ? '1' : '0' ?>">
-        <label class="form-label small mb-0"><?= htmlspecialchars($taMeta['label_selesai']) ?></label>
-        <input class="form-control form-control-sm pondok-ta-selesai" type="number" name="ts" value="<?= (int) $tahunAjaranSelesai ?>" min="<?= (int) $taMeta['min'] ?>" max="<?= (int) $taMeta['max'] ?>" <?= pondok_kalender_hijriyah($pdo) ? 'readonly' : '' ?>>
     </div>
     <div class="col-12 col-md-4">
         <label class="form-label small mb-0">Cari nama / NIS</label>
@@ -233,7 +249,8 @@ $iconTagihan = bendahara_page_icon('tagihan');
                             if ($kkDisp === '') {
                                 echo htmlspecialchars($r['tingkatan'] !== '' ? $r['tingkatan'] : '—');
                             } else {
-                                echo htmlspecialchars(kelas_keuangan_label_for_kode($pdo, $kkDisp));
+                                $kkKey = strtoupper($kkDisp);
+                                echo htmlspecialchars($kelasLabels[$kkKey] ?? $kkDisp);
                             }
                             ?>
                         </td>

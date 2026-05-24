@@ -11,7 +11,8 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
-ensure_keuangan_inventaris_tables($pdo);
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+keuangan_ensure_schema_deferred($pdo);
 
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);
 $kategoriOptions = keuangan_inventaris_kategori_options();
@@ -36,7 +37,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-ensure_keuangan_transaksi_tables($pdo);
 $asetRows = keuangan_fetch_aset_rows($pdo, true);
 $ringkas = keuangan_inventaris_ringkas($pdo);
 $chart = keuangan_aset_chart_data($asetRows);

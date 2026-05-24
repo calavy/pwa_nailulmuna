@@ -7,29 +7,23 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
 
-ensure_keuangan_transaksi_tables($pdo);
-ensure_santri_identity_columns($pdo);
-ensure_kelas_keuangan_table($pdo);
+keuangan_ensure_schema_deferred($pdo);
 
 $biayaDefinitions = keuangan_biaya_definitions();
 $berjalan = keuangan_periode_berjalan($pdo);
 $kalenderMode = pondok_kalender_mode($pdo);
-$periode = keuangan_tahun_ajaran_aktif($pdo);
+$keuanganTa = keuangan_ta_resolve($pdo, array_merge($_GET, $_POST));
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);
 
 $prefillSantriId = (int) ($_GET['santri_id'] ?? 0);
 $prefillBulan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
-$taPrefill = pondok_normalisasi_tahun_ajaran_input(
-    $pdo,
-    (int) ($_GET['tm'] ?? $berjalan['mulai']),
-    (int) ($_GET['ts'] ?? $berjalan['selesai'])
-);
-$prefillTm = $taPrefill['mulai'];
-$prefillTs = $taPrefill['selesai'];
+$prefillTm = (int) $keuanganTa['mulai'];
+$prefillTs = (int) $keuanganTa['selesai'];
 $bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $prefillTm, $prefillTs);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pembayaran') {
@@ -83,6 +77,8 @@ require_once __DIR__ . '/../includes/header.php';
         · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>
+
+<?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
 
 <div class="row g-4">
     <div class="col-lg-7">

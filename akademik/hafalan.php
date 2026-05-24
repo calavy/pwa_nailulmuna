@@ -6,8 +6,10 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 ensure_santri_identity_columns($pdo);
 ensure_akademik_hafalan_setoran_table($pdo);
 ensure_akademik_bait_kitab_table($pdo);
@@ -115,11 +117,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'simpa
     exit;
 }
 
-$sqlSantri = 'SELECT id, nis, nama_santri FROM santri';
+$sqlSantri = 'SELECT id, nis, nama_santri, tingkatan FROM santri';
 if (column_exists($pdo, 'santri', 'is_aktif')) {
     $sqlSantri .= ' WHERE COALESCE(is_aktif, 1) = 1';
 }
-$sqlSantri .= ' ORDER BY nama_santri ASC LIMIT 600';
+$sqlSantri .= ' ORDER BY ' . santri_list_order_sql('santri') . ' LIMIT 600';
 $santriList = $pdo->query($sqlSantri)->fetchAll(PDO::FETCH_ASSOC);
 
 $hasKategori = column_exists($pdo, 'akademik_hafalan_setoran', 'kategori_setoran');

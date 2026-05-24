@@ -5,8 +5,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/akademik.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 ensure_point_tables($pdo);
 ensure_akademik_libur_table($pdo);
 
@@ -79,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$santriList = $pdo->query('SELECT id, nis, nama_santri, tingkatan FROM santri ORDER BY nama_santri ASC')->fetchAll();
+$santriList = $pdo->query('SELECT id, nis, nama_santri, tingkatan FROM santri ORDER BY ' . santri_list_order_sql('santri'))->fetchAll();
 $ruleList = $pdo->query('SELECT id, kategori, nama_rule, bobot_poin FROM point_rules WHERE is_active = 1 ORDER BY urutan ASC, kategori ASC')->fetchAll();
 $recentRows = $pdo->query('
     SELECT pl.tanggal, pl.jenis_perubahan, pl.point_delta, pl.keterangan, s.nama_santri, s.tingkatan
@@ -93,6 +95,7 @@ $totalSantriTersedia = count($santriList);
 $totalInputTerakhir = count($recentRows);
 
 $pageTitle = 'Input Poin Kedisiplinan';
+$loadSantriSelectJs = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">

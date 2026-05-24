@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
-require_once __DIR__ . '/keuangan_transaksi.php';
+require_once __DIR__ . '/pondok_ta.php';
 
 const KEUNGAN_ALOKASI_JENIS_SYAHRIYAH = 'SYAHRIYAH';
 const KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN = 'AWAL_TAHUN';
@@ -30,6 +30,9 @@ function keuangan_alokasi_label_jenis(string $jenis): string
 
 function ensure_keuangan_alokasi_jenis_dana(PDO $pdo): void
 {
+    if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
+        return;
+    }
     if (!table_exists($pdo, 'keuangan_alokasi')) {
         return;
     }
@@ -76,6 +79,34 @@ function keuangan_seed_alokasi_awal_tahun_default(PDO $pdo): void
 }
 
 /** Total persentase alokasi aktif per jenis dana. */
+/** @return list<array<string, mixed>> */
+function keuangan_fetch_alokasi_aktif(PDO $pdo, ?string $jenisDana = null): array
+{
+    if (!table_exists($pdo, 'keuangan_alokasi')) {
+        return [];
+    }
+
+    $sql = '
+        SELECT id, nama_komponen, kategori, jenis_dana, persen, urutan
+        FROM keuangan_alokasi
+        WHERE is_active = 1
+    ';
+    $params = [];
+    if ($jenisDana !== null && $jenisDana !== '') {
+        $j = strtoupper(trim($jenisDana));
+        if (!in_array($j, ['SYAHRIYAH', 'AWAL_TAHUN'], true)) {
+            $j = 'SYAHRIYAH';
+        }
+        $sql .= ' AND jenis_dana = :jenis';
+        $params['jenis'] = $j;
+    }
+    $sql .= ' ORDER BY urutan ASC, id ASC';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function keuangan_alokasi_sum_persen_aktif(PDO $pdo, int $excludeId = 0, string $jenisDana = KEUNGAN_ALOKASI_JENIS_SYAHRIYAH): float
 {
     if (!table_exists($pdo, 'keuangan_alokasi')) {
@@ -124,28 +155,54 @@ function keuangan_alokasi_validate_persen(
     return ['ok' => true, 'message' => '', 'total' => $total];
 }
 
+/**
+ * Cache realisasi alokasi per TA (60 detik) — halaman pengaturan memanggil simulasi + realisasi berkali-kali.
+ */
+function keuangan_alokasi_realisasi_cached(
+    PDO $pdo,
+    string $jenisKey,
+    int $mulai,
+    int $selesai,
+    callable $compute
+): int {
+    if (!isset($_SESSION['user'])) {
+        return (int) $compute();
+    }
+    $cacheKey = 'keu_alokasi_real_' . $jenisKey . '_' . $mulai . '_' . $selesai;
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (is_array($cached) && (int) ($cached['expires'] ?? 0) > time()) {
+        return (int) ($cached['value'] ?? 0);
+    }
+    $value = (int) $compute();
+    $_SESSION[$cacheKey] = ['expires' => time() + 60, 'value' => $value];
+
+    return $value;
+}
+
 /** Realisasi pembayaran pos syahriyah (bulanan) pada tahun ajaran aktif. */
 function keuangan_syahriyah_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
 {
     if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
         return 0;
     }
-    $periode = keuangan_tahun_ajaran_aktif($pdo);
+    $periode = pondok_tahun_ajaran_aktif($pdo);
     $mulai = $tahunMulai ?? $periode['mulai'];
     $selesai = $tahunSelesai ?? $periode['selesai'];
 
-    $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(d.nominal), 0)
-        FROM keuangan_pembayaran_detail d
-        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE LOWER(TRIM(d.pos_slug)) = 'syahriyah'
-          AND p.jenis_periode = 'BULANAN'
-          AND p.tahun_ajaran_mulai = :mulai
-          AND p.tahun_ajaran_selesai = :selesai
-    ");
-    $stmt->execute(['mulai' => $mulai, 'selesai' => $selesai]);
+    return keuangan_alokasi_realisasi_cached($pdo, 'syahriyah', $mulai, $selesai, static function () use ($pdo, $mulai, $selesai): int {
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(d.nominal), 0)
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            WHERE LOWER(TRIM(d.pos_slug)) = 'syahriyah'
+              AND p.jenis_periode = 'BULANAN'
+              AND p.tahun_ajaran_mulai = :mulai
+              AND p.tahun_ajaran_selesai = :selesai
+        ");
+        $stmt->execute(['mulai' => $mulai, 'selesai' => $selesai]);
 
-    return (int) round((float) ($stmt->fetchColumn() ?: 0));
+        return (int) round((float) ($stmt->fetchColumn() ?: 0));
+    });
 }
 
 /** Realisasi pembayaran santri periode awal tahun (semua komponen) pada TA aktif. */
@@ -154,21 +211,23 @@ function keuangan_awal_tahun_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?in
     if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
         return 0;
     }
-    $periode = keuangan_tahun_ajaran_aktif($pdo);
+    $periode = pondok_tahun_ajaran_aktif($pdo);
     $mulai = $tahunMulai ?? $periode['mulai'];
     $selesai = $tahunSelesai ?? $periode['selesai'];
 
-    $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(d.nominal), 0)
-        FROM keuangan_pembayaran_detail d
-        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE p.jenis_periode = 'AWAL_TAHUN'
-          AND p.tahun_ajaran_mulai = :mulai
-          AND p.tahun_ajaran_selesai = :selesai
-    ");
-    $stmt->execute(['mulai' => $mulai, 'selesai' => $selesai]);
+    return keuangan_alokasi_realisasi_cached($pdo, 'awal_tahun', $mulai, $selesai, static function () use ($pdo, $mulai, $selesai): int {
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(d.nominal), 0)
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            WHERE p.jenis_periode = 'AWAL_TAHUN'
+              AND p.tahun_ajaran_mulai = :mulai
+              AND p.tahun_ajaran_selesai = :selesai
+        ");
+        $stmt->execute(['mulai' => $mulai, 'selesai' => $selesai]);
 
-    return (int) round((float) ($stmt->fetchColumn() ?: 0));
+        return (int) round((float) ($stmt->fetchColumn() ?: 0));
+    });
 }
 
 function keuangan_alokasi_realisasi_ta(PDO $pdo, string $jenisDana, ?int $tahunMulai = null, ?int $tahunSelesai = null): int

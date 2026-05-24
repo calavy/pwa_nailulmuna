@@ -9,9 +9,12 @@ require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/keuangan_aruskas.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
+
+keuangan_ensure_schema_deferred($pdo);
 
 /** Redirect tab lama ke halaman yang masih ada (tanpa rebuild modul besar). */
 $tabRedirects = [
@@ -45,9 +48,7 @@ $neracaRingkas = null;
 $lakRingkas = null;
 $dashSnap = null;
 if (!$needsImport) {
-    $dashSnap = keuangan_dashboard_snapshot($pdo);
-    $neracaRingkas = keuangan_build_neraca($pdo, date('Y-m-d'));
-    $lakRingkas = keuangan_build_arus_kas($pdo, date('Y-01-01'), date('Y-m-d'));
+    $dashSnap = keuangan_dashboard_snapshot_cached($pdo);
 }
 
 $pageTitle = 'Keuangan';
@@ -242,14 +243,18 @@ require_once __DIR__ . '/../includes/header.php';
 </section>
 <?php endif; ?>
 
-<?php if ($neracaRingkas !== null && $lakRingkas !== null): ?>
+<?php if ($dashSnap !== null): ?>
+<?php
+    $nerSnap = $dashSnap['neraca'];
+    $lakRingkas = keuangan_build_arus_kas($pdo, date('Y-01-01'), date('Y-m-d'));
+?>
 <div class="row g-3 mb-4" id="laporan">
     <div class="col-lg-6">
         <div class="card shadow-sm h-100 border-primary border-opacity-25">
             <div class="card-body">
                 <h2 class="h5 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
-                <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) $neracaRingkas['as_of_label']) ?></p>
-                <p class="mb-3">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) $neracaRingkas['aset']['total'])) ?></strong></p>
+                <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) ($nerSnap['as_of_label'] ?? date('d/m/Y'))) ?></p>
+                <p class="mb-3">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
                     <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>

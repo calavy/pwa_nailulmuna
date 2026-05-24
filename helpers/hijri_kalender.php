@@ -92,6 +92,14 @@ function hijri_tahun_valid(int $tahun): bool
 
 function ensure_hijri_mappings_table(PDO $pdo): void
 {
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_hijri_mappings_v1'])) {
+        return;
+    }
+    static $doneCli = false;
+    if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        return;
+    }
+
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS hijri_mappings (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -107,6 +115,12 @@ function ensure_hijri_mappings_table(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ');
     hijri_bersihkan_data_tidak_valid($pdo);
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pondok_hijri_mappings_v1'] = 1;
+    } else {
+        $doneCli = true;
+    }
 }
 
 /** Hapus baris tahun H. tidak valid (mis. 1600 dari fallback Intl mati). */

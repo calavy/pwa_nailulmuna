@@ -967,7 +967,12 @@ function santri_riwayat_ringkasan(PDO $pdo, array $santri): array
     foreach ($pelanggaranTahun as $pt) {
         $totalPoin += (int) ($pt['total_poin'] ?? 0);
     }
-    $keaktifanTahunIni = santri_riwayat_keaktifan_tahun($pdo, $id, (int) date('Y'));
+    if (function_exists('santri_keaktifan_tampilan_tahun')) {
+        require_once __DIR__ . '/santri_keaktifan_nilai.php';
+        $keaktifanTahunIni = santri_keaktifan_tampilan_tahun($pdo, $id, (int) date('Y'));
+    } else {
+        $keaktifanTahunIni = santri_riwayat_keaktifan_tahun($pdo, $id, (int) date('Y'));
+    }
 
     return [
         'tahun_masuk' => $tglMasuk !== '' && preg_match('/^(\d{4})/', $tglMasuk, $m) ? (int) $m[1] : null,

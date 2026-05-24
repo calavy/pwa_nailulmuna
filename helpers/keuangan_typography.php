@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+function keuangan_format_rupiah(int $nominal): string
+{
+    $prefix = $nominal < 0 ? '-Rp ' : 'Rp ';
+
+    return $prefix . number_format(abs($nominal), 0, ',', '.');
+}
+
 /** Font stack modul keuangan — sama dengan --font-sans di app.css */
 function keuangan_font_family(): string
 {

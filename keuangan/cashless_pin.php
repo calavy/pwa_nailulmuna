@@ -3,31 +3,14 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
 require_roles(['admin', 'pengurus']);
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
-cashless_koperasi_ensure_schema($pdo);
-
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS cashless_accounts (
-    santri_id INT PRIMARY KEY,
-    pin_hash VARCHAR(255) NULL,
-    balance DECIMAL(12,2) NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-)");
-$pdo->exec("
-CREATE TABLE IF NOT EXISTS cashless_nominal_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    token_code VARCHAR(80) NOT NULL UNIQUE,
-    nominal INT NOT NULL DEFAULT 0,
-    expires_at DATETIME NOT NULL,
-    is_used TINYINT(1) NOT NULL DEFAULT 0,
-    used_at DATETIME NULL,
-    created_by INT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)");
-ensure_cashless_nominal_qr_map_table($pdo);
+keuangan_ensure_schema_deferred($pdo);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['action'] ?? '') === 'save_cashless_limit') {
@@ -180,24 +163,24 @@ $santriRows = $pdo->query("
     FROM santri s
     {$joinKelas}
     {$whereAktif}
-    ORDER BY nama_santri ASC
+    ORDER BY ' . santri_list_order_sql('s') . '
 ")->fetchAll();
 
 $pinRows = $pdo->query("
-    SELECT ca.santri_id, ca.balance, {$santriNameExpr} AS nama_santri, s.nis
+    SELECT ca.santri_id, ca.balance, {$santriNameExpr} AS nama_santri, s.nis, s.tingkatan
     FROM cashless_accounts ca
     INNER JOIN santri s ON s.id = ca.santri_id
-    ORDER BY nama_santri ASC
+    ORDER BY ' . santri_list_order_sql('s') . '
 ")->fetchAll();
 
 $santriPinStatusRows = $pdo->query("
-    SELECT s.id, s.nis, {$santriNameExpr} AS nama_santri,
+    SELECT s.id, s.nis, {$santriNameExpr} AS nama_santri, s.tingkatan,
            ca.balance,
            (ca.pin_hash IS NOT NULL AND ca.pin_hash <> '') AS pin_terpasang
     FROM santri s
     LEFT JOIN cashless_accounts ca ON ca.santri_id = s.id
     {$whereAktif}
-    ORDER BY nama_santri ASC
+    ORDER BY ' . santri_list_order_sql('s') . '
 ")->fetchAll();
 
 $ubahPinSantriId = (int) ($_GET['ubah_pin'] ?? 0);

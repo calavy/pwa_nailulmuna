@@ -3,11 +3,17 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/keuangan_neraca.php';
 
 function ensure_keuangan_syahriyah_potongan_table(PDO $pdo): void
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
     ensure_santri_identity_columns($pdo);
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS keuangan_santri_syahriyah_potongan (
@@ -267,7 +273,9 @@ function keuangan_syahriyah_bulk_context(
 
     $requestCache[$cacheKey] = [
         'potongan' => $potongan,
+        'potongan_preloaded' => true,
         'jeda' => $jeda,
+        'jeda_preloaded' => $bulanTagihan >= 1 && $tahunAjaranMulai > 0,
         'tarifByTier' => keuangan_syahriyah_tarif_cache_by_tier($pdo),
     ];
 
@@ -291,16 +299,17 @@ function keuangan_syahriyah_simulasi(
     if ($ctx === null) {
         $ctx = keuangan_syahriyah_bulk_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     }
-    if ($santriId > 0 && !isset($ctx['potongan'][$santriId])) {
+    if ($santriId > 0 && !isset($ctx['potongan'][$santriId]) && empty($ctx['potongan_preloaded'])) {
         $pot = keuangan_syahriyah_potongan_for_santri($pdo, $santriId);
         if ($pot) {
             $ctx['potongan'][$santriId] = $pot;
         }
     }
-    if ($santriId > 0 && $bulanTagihan >= 1 && $tahunAjaranMulai > 0
-        && !isset($ctx['jeda'][$santriId])
-        && keuangan_syahriyah_potongan_dijeda_untuk_bulan($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)) {
-        $ctx['jeda'][$santriId] = true;
+    if ($santriId > 0 && $bulanTagihan >= 1 && $tahunAjaranMulai > 0 && !isset($ctx['jeda'][$santriId])) {
+        if (empty($ctx['jeda_preloaded'])
+            && keuangan_syahriyah_potongan_dijeda_untuk_bulan($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)) {
+            $ctx['jeda'][$santriId] = true;
+        }
     }
 
     $dasar = keuangan_syahriyah_dasar_for_kategori($pdo, $kelasKategori, $ctx['tarifByTier']);
@@ -415,7 +424,7 @@ function keuangan_syahriyah_potongan_list_rows(
     $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND COALESCE(s.is_aktif, 1) = 1 ' : '';
 
     $sql = "
-        SELECT s.id, s.nis, {$nameExpr} AS nama_santri, {$katExpr} AS kategori_kelas,
+        SELECT s.id, s.nis, s.tingkatan, {$nameExpr} AS nama_santri, {$katExpr} AS kategori_kelas,
                p.id AS potongan_id, p.persen, p.keterangan, p.is_aktif AS potongan_aktif,
                p.updated_at, p.created_at
         FROM santri s
@@ -434,7 +443,7 @@ function keuangan_syahriyah_potongan_list_rows(
         $params['q'] = '%' . strtolower($q) . '%';
         $params['q2'] = '%' . strtolower($q) . '%';
     }
-    $sql .= ' ORDER BY ' . $nameExpr . ' ASC LIMIT 500';
+    $sql .= ' ORDER BY ' . santri_list_order_sql('s') . ' LIMIT 500';
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

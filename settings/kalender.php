@@ -7,7 +7,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
+require_once __DIR__ . '/../helpers/pondok_ta.php';
 require_once __DIR__ . '/../helpers/kalender_pengaturan.php';
+require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../includes/auth_portal_layout.php';
 require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
 
@@ -93,6 +95,29 @@ render_kalender_page_hero([
                         <option value="HIJRIYAH" <?= $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah (Muharram – Dzulhijjah)</option>
                         <option value="MASEHI" <?= $v['wa_tagihan_calendar'] === 'MASEHI' ? 'selected' : '' ?>>Masehi (Januari – Desember)</option>
                     </select>
+                </div>
+                <h2 class="h6 akad-cal-section-title mb-2 mt-3">Awal tahun ajaran</h2>
+                <p class="small text-muted">Bulan pertama slot tagihan (1–12) dalam satu TA. Awal TA tidak harus Muharram/Juli — misalnya mulai Rajab atau Agustus.</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6" id="wrap-ta-awal-hijri" <?= $v['wa_tagihan_calendar'] === 'MASEHI' ? 'style="display:none"' : '' ?>>
+                        <label class="form-label">Bulan awal TA (Hijriyah)</label>
+                        <select name="pondok_ta_bulan_awal_hijri" class="form-select">
+                            <?php foreach (hijri_nama_bulan_list() as $idx => $nama): ?>
+                                <option value="<?= (int) $idx ?>" <?= (int) $v['pondok_ta_bulan_awal_hijri'] === (int) $idx ? 'selected' : '' ?>><?= htmlspecialchars($nama) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="wrap-ta-awal-masehi" <?= $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'style="display:none"' : '' ?>>
+                        <label class="form-label">Bulan awal TA (Masehi)</label>
+                        <select name="pondok_ta_bulan_awal_masehi" class="form-select">
+                            <?php
+                            $masehiBulan = [1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'];
+                            foreach ($masehiBulan as $idx => $nama):
+                                ?>
+                                <option value="<?= (int) $idx ?>" <?= (int) $v['pondok_ta_bulan_awal_masehi'] === (int) $idx ? 'selected' : '' ?>><?= htmlspecialchars($nama) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
                 <div class="row g-2">
                     <div class="col-6">
@@ -183,6 +208,21 @@ render_kalender_page_hero([
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    const sel = document.getElementById('sel-kalender-mode');
+    const wh = document.getElementById('wrap-ta-awal-hijri');
+    const wm = document.getElementById('wrap-ta-awal-masehi');
+    if (!sel || !wh || !wm) return;
+    function sync() {
+        const h = sel.value === 'HIJRIYAH';
+        wh.style.display = h ? '' : 'none';
+        wm.style.display = h ? 'none' : '';
+    }
+    sel.addEventListener('change', sync);
+})();
+</script>
 
 <?php if (!class_exists('IntlDateFormatter')): ?>
     <p class="alert alert-warning small py-2">Aktifkan ekstensi PHP <code>intl</code> agar hisab Hijriyah otomatis (Um al-Qura) berjalan optimal.</p>

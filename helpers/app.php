@@ -1,16 +1,45 @@
 <?php
 
-function app_setting(PDO $pdo, string $key, ?string $default = null): ?string
+/** @return array<string, string> */
+function app_settings_cache(PDO $pdo, bool $forceReload = false): array
 {
+    static $cache = null;
+    static $cachePdoId = null;
+    $pdoId = spl_object_id($pdo);
+    if ($forceReload) {
+        $cache = null;
+        $cachePdoId = null;
+    }
+    if (is_array($cache) && $cachePdoId === $pdoId) {
+        return $cache;
+    }
+    $cachePdoId = $pdoId;
+    $cache = [];
     if (!table_exists($pdo, 'app_settings')) {
-        return $default;
+        return $cache;
+    }
+    try {
+        foreach ($pdo->query('SELECT setting_key, setting_value FROM app_settings') as $row) {
+            $k = (string) ($row['setting_key'] ?? '');
+            if ($k !== '') {
+                $cache[$k] = (string) ($row['setting_value'] ?? '');
+            }
+        }
+    } catch (PDOException $e) {
+        $cache = [];
     }
 
-    $statement = $pdo->prepare('SELECT setting_value FROM app_settings WHERE setting_key = :setting_key LIMIT 1');
-    $statement->execute(['setting_key' => $key]);
-    $value = $statement->fetchColumn();
+    return $cache;
+}
 
-    return $value !== false ? (string) $value : $default;
+function app_setting(PDO $pdo, string $key, ?string $default = null): ?string
+{
+    $cache = app_settings_cache($pdo);
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    return $default;
 }
 
 /**
@@ -32,6 +61,148 @@ function app_tahun_masehi_default(PDO $pdo): int
     return $fixed;
 }
 
+/**
+ * Sinkronisasi berat (presensi, poin, WA) — dibatasi agar navigasi menu tidak lambat.
+ * Cron/wa_auto.php tetap bisa memanggil fungsi asli langsung.
+ */
+function app_request_path_is_lightweight(string $requestPath): bool
+{
+    if ($requestPath === '') {
+        return false;
+    }
+    if (str_contains($requestPath, '/menu/menu_hub.php')) {
+        return true;
+    }
+    if (str_contains($requestPath, '/api/')) {
+        return true;
+    }
+    if (preg_match('#\.(css|js|map|woff2?|png|jpe?g|gif|webp|ico)$#i', $requestPath)) {
+        return true;
+    }
+    if (preg_match('#^/(keuangan|pembayaran)/#', $requestPath)) {
+        return true;
+    }
+    if (preg_match('#^/(santri|settings|presensi|pembimbing|akademik|rekap|perizinan|poin|jadwal|data|admin|yayasan|menu|santri_portal|wali)/#', $requestPath)) {
+        return true;
+    }
+    if ($requestPath === '/dashboard.php' || str_ends_with($requestPath, '/dashboard.php')) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Branding header — sekali per sesi (hindari 4+ query app_settings tiap klik menu).
+ *
+ * @return array{title:string,tagline:string,logo:string,initials:string,alamat:string}
+ */
+function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailul Muna'): array
+{
+    $sessionKey = 'app_header_brand_v1';
+    if (isset($_SESSION[$sessionKey]) && is_array($_SESSION[$sessionKey])) {
+        return $_SESSION[$sessionKey];
+    }
+    $title = app_brand_nama_ponpes($pdo, $fallbackTitle);
+    $ctx = [
+        'title' => $title,
+        'tagline' => trim((string) app_setting($pdo, 'jenis_pendidikan', '')),
+        'logo' => app_pondok_logo_src($pdo),
+        'initials' => app_pondok_logo_initials($pdo, $fallbackTitle),
+        'alamat' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
+    ];
+    $_SESSION[$sessionKey] = $ctx;
+
+    return $ctx;
+}
+
+/** Migrasi skema ringan — sekali per sesi login, bukan tiap request. */
+function app_ensure_schema_deferred(PDO $pdo): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    if (!empty($_SESSION['app_schema_ready_v1'])) {
+        return;
+    }
+
+    if (table_exists($pdo, 'users')) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0');
+    }
+    if (table_exists($pdo, 'users') && !table_exists($pdo, 'user_access_permissions')) {
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS user_access_permissions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                permission_key VARCHAR(80) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_user_permission (user_id, permission_key),
+                CONSTRAINT fk_user_access_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        ');
+    }
+    if (table_exists($pdo, 'jadwal_kegiatan')) {
+        ensure_jadwal_kegiatan_tempat($pdo);
+    }
+
+    if (function_exists('ensure_santri_compat_schema')) {
+        ensure_santri_compat_schema($pdo);
+    }
+    ensure_santri_identity_columns($pdo);
+    if (function_exists('ensure_kelas_keuangan_table')) {
+        ensure_kelas_keuangan_table($pdo);
+    }
+    if (!function_exists('ensure_wali_santri_table')) {
+        require_once __DIR__ . '/wali.php';
+    }
+    if (function_exists('ensure_wali_santri_table')) {
+        ensure_wali_santri_table($pdo);
+    }
+    if (!function_exists('ensure_surat_nomor_schema')) {
+        require_once __DIR__ . '/surat_nomor.php';
+    }
+    if (function_exists('ensure_surat_nomor_schema')) {
+        ensure_surat_nomor_schema($pdo);
+    }
+
+    $_SESSION['app_schema_ready_v1'] = 1;
+}
+
+function app_run_deferred_maintenance(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    static $ranThisRequest = false;
+    if ($ranThisRequest) {
+        return;
+    }
+    $ranThisRequest = true;
+
+    $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    if (app_request_path_is_lightweight($requestPath)) {
+        return;
+    }
+
+    $intervalSec = 600;
+    $now = time();
+    $lastAt = (int) app_setting($pdo, 'app_maintenance_last_at', '0');
+    if ($lastAt > 0 && ($now - $lastAt) < $intervalSec) {
+        return;
+    }
+
+    if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        sync_presence_for_active_schedules($pdo, date('Y-m-d'), date('H:i:s'), $userId);
+    }
+    ensure_point_tables($pdo);
+    sync_points_from_presensi($pdo, $userId);
+    trigger_auto_wa_notifications($pdo);
+    trigger_auto_wa_tagihan_wali($pdo);
+
+    save_setting($pdo, 'app_maintenance_last_at', (string) $now);
+}
+
 function save_setting(PDO $pdo, string $key, string $value): void
 {
     $statement = $pdo->prepare('
@@ -43,6 +214,18 @@ function save_setting(PDO $pdo, string $key, string $value): void
         'setting_key' => $key,
         'setting_value' => $value,
     ]);
+    if (function_exists('app_settings_cache_reset')) {
+        app_settings_cache_reset($pdo);
+    }
+}
+
+/** Reset cache pengaturan setelah simpan. */
+function app_settings_cache_reset(PDO $pdo): void
+{
+    if (!function_exists('app_performance_cache_clear')) {
+        require_once __DIR__ . '/app_cache.php';
+    }
+    app_performance_cache_clear($pdo, ['schema_flags' => false, 'opcache' => false, 'all_users_acl' => false]);
 }
 
 /** Nama pondok/pesantren untuk branding aplikasi dan surat. */
@@ -108,6 +291,8 @@ function pondok_settings_defaults(): array
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
         'app_tahun_masehi_mode' => 'BERJALAN',
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
+        'pondok_ta_bulan_awal_hijri' => '1',
+        'pondok_ta_bulan_awal_masehi' => '7',
     ];
 }
 
@@ -149,6 +334,22 @@ function ensure_cashless_nominal_qr_map_table(PDO $pdo): void
             is_aktif TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uk_cashless_nominal_qr_kode (kode_qr)
+        )
+    ');
+}
+
+function ensure_cashless_nominal_tokens_table(PDO $pdo): void
+{
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS cashless_nominal_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            token_code VARCHAR(80) NOT NULL UNIQUE,
+            nominal INT NOT NULL DEFAULT 0,
+            expires_at DATETIME NOT NULL,
+            is_used TINYINT(1) NOT NULL DEFAULT 0,
+            used_at DATETIME NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ');
 }
@@ -1031,6 +1232,23 @@ function sanitize_db_column_name(string $name): string
 
 function ensure_santri_identity_columns(PDO $pdo): void
 {
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_santri_identity_v1'])) {
+        return;
+    }
+    static $doneCli = false;
+    if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        return;
+    }
+    if (!table_exists($pdo, 'santri')) {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['pondok_santri_identity_v1'] = 1;
+        } else {
+            $doneCli = true;
+        }
+
+        return;
+    }
+
     $definitions = [
         'nik' => 'VARCHAR(40) NULL',
         'jenis_kelamin' => 'VARCHAR(20) NULL',
@@ -1107,6 +1325,12 @@ function ensure_santri_identity_columns(PDO $pdo): void
     if (function_exists('santri_status_migrate_legacy')) {
         require_once __DIR__ . '/santri_status.php';
         santri_status_migrate_legacy($pdo);
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pondok_santri_identity_v1'] = 1;
+    } else {
+        $doneCli = true;
     }
 }
 
@@ -1198,6 +1422,14 @@ function kelas_keuangan_cleanup_duplicate_rows(PDO $pdo): void
 
 function ensure_kelas_keuangan_table(PDO $pdo): void
 {
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_kelas_keuangan_v1'])) {
+        return;
+    }
+    static $doneCli = false;
+    if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        return;
+    }
+
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS kelas_keuangan (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1222,14 +1454,24 @@ function ensure_kelas_keuangan_table(PDO $pdo): void
             $ins->execute(['k' => $s[0], 'n' => $s[1], 't' => $s[2], 'u' => $s[3]]);
         }
     }
-    kelas_keuangan_cleanup_duplicate_rows($pdo);
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['kelas_keuangan_cleanup_v1'])) {
+        kelas_keuangan_cleanup_duplicate_rows($pdo);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['kelas_keuangan_cleanup_v1'] = 1;
+        }
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pondok_kelas_keuangan_v1'] = 1;
+    } else {
+        $doneCli = true;
+    }
 }
 
 /** @return list<array{id:int,kode:string,nama_tampilan:string,tarif_keuangan_tier:string,urutan:int,is_aktif:int}> */
 function kelas_keuangan_all_rows(PDO $pdo): array
 {
     ensure_kelas_keuangan_table($pdo);
-    kelas_keuangan_cleanup_duplicate_rows($pdo);
 
     return $pdo->query('SELECT id, kode, nama_tampilan, tarif_keuangan_tier, urutan, is_aktif FROM kelas_keuangan ORDER BY urutan ASC, nama_tampilan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
@@ -1238,9 +1480,32 @@ function kelas_keuangan_all_rows(PDO $pdo): array
 function kelas_keuangan_list_active(PDO $pdo): array
 {
     ensure_kelas_keuangan_table($pdo);
-    kelas_keuangan_cleanup_duplicate_rows($pdo);
 
     return $pdo->query('SELECT id, kode, nama_tampilan, tarif_keuangan_tier, urutan FROM kelas_keuangan WHERE is_aktif = 1 ORDER BY urutan ASC, nama_tampilan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Peta kode upper => label — sekali per request (hindari N+1 di daftar santri). @return array<string, string> */
+function kelas_keuangan_label_map(PDO $pdo): array
+{
+    static $map = null;
+    if (is_array($map)) {
+        return $map;
+    }
+    $map = [];
+    if (!table_exists($pdo, 'kelas_keuangan')) {
+        return $map;
+    }
+    ensure_kelas_keuangan_table($pdo);
+    foreach ($pdo->query('SELECT kode, nama_tampilan FROM kelas_keuangan') as $row) {
+        $k = strtoupper(trim((string) ($row['kode'] ?? '')));
+        if ($k === '') {
+            continue;
+        }
+        $label = trim((string) ($row['nama_tampilan'] ?? ''));
+        $map[$k] = $label !== '' ? $label : $k;
+    }
+
+    return $map;
 }
 
 /** Samakan input (kode atau nama tampilan persis) ke kode master, tanpa cek is_aktif. */
@@ -1291,21 +1556,9 @@ function kelas_keuangan_label_for_kode(PDO $pdo, string $kode): string
     if ($k === '') {
         return '';
     }
-    ensure_kelas_keuangan_table($pdo);
-    $st = $pdo->prepare('SELECT nama_tampilan FROM kelas_keuangan WHERE UPPER(TRIM(kode)) = :k LIMIT 1');
-    $st->execute(['k' => $k]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
-    if (is_array($row) && trim((string) ($row['nama_tampilan'] ?? '')) !== '') {
-        return trim((string) $row['nama_tampilan']);
-    }
-    $resolved = kelas_keuangan_resolve_kode($pdo, $kode);
-    if ($resolved !== null && $resolved !== $k) {
-        $st2 = $pdo->prepare('SELECT nama_tampilan FROM kelas_keuangan WHERE UPPER(TRIM(kode)) = :k LIMIT 1');
-        $st2->execute(['k' => $resolved]);
-        $row2 = $st2->fetch(PDO::FETCH_ASSOC);
-        if (is_array($row2) && trim((string) ($row2['nama_tampilan'] ?? '')) !== '') {
-            return trim((string) $row2['nama_tampilan']);
-        }
+    $map = kelas_keuangan_label_map($pdo);
+    if (isset($map[$k])) {
+        return $map[$k];
     }
 
     return $k;
@@ -2180,23 +2433,93 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     if ($userId <= 0) {
         return [];
     }
+
+    $cacheKey = 'acl_map_' . $userId;
+    if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        return $_SESSION[$cacheKey];
+    }
+
     $allowedPermissions = $pdo->prepare('SELECT permission_key FROM user_access_permissions WHERE user_id = :user_id');
     $allowedPermissions->execute(['user_id' => $userId]);
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
+    $map = array_flip($allowedKeys);
+    $_SESSION[$cacheKey] = $map;
+    unset($_SESSION['menu_items_acl_' . $userId]);
 
-    return array_flip($allowedKeys);
+    return $map;
+}
+
+/** Panggil setelah ubah izin user di pengaturan admin. */
+function app_acl_session_cache_clear(int $userId = 0): void
+{
+    if ($userId > 0) {
+        unset($_SESSION['acl_map_' . $userId], $_SESSION['menu_items_acl_' . $userId]);
+        app_menu_pack_invalidate();
+        return;
+    }
+    foreach (array_keys($_SESSION) as $sk) {
+        if (!is_string($sk)) {
+            continue;
+        }
+        if (str_starts_with($sk, 'acl_map_') || str_starts_with($sk, 'menu_items_acl_')) {
+            unset($_SESSION[$sk]);
+        }
+    }
+    app_menu_pack_invalidate();
+}
+
+/**
+ * Menu + ACL — satu kali parse menu_data.php per request.
+ *
+ * @return array{menuItems: array, menuStructure: array, permissionPathMap: array}
+ */
+/** @var array{menuItems: array, menuStructure: array, permissionPathMap: array}|null */
+$GLOBALS['__app_menu_pack_v1'] = $GLOBALS['__app_menu_pack_v1'] ?? null;
+
+function app_menu_pack_invalidate(): void
+{
+    $GLOBALS['__app_menu_pack_v1'] = null;
+}
+
+function app_menu_pack(PDO $pdo): array
+{
+    $pack = $GLOBALS['__app_menu_pack_v1'] ?? null;
+    if (is_array($pack)) {
+        return $pack;
+    }
+    $raw = require __DIR__ . '/../includes/menu_data.php';
+    $menuItems = filter_menu_items_by_acl($pdo, $raw['menuItems'], $raw['permissionPathMap']);
+    $pack = [
+        'menuItems' => $menuItems,
+        'menuStructure' => $raw['menuStructure'],
+        'permissionPathMap' => $raw['permissionPathMap'],
+    ];
+    $GLOBALS['__app_menu_pack_v1'] = $pack;
+
+    return $pack;
 }
 
 function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionPathMap): array
 {
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $cacheKey = 'menu_items_acl_' . $userId;
+    if ($userId > 0 && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        return $_SESSION[$cacheKey];
+    }
+
     $allowedMap = get_allowed_permission_key_map($pdo);
     if ($allowedMap === null) {
         return $menuItems;
     }
 
-    return array_filter(
+    $filtered = array_filter(
         $menuItems,
         static function (string $label, string $path) use ($permissionPathMap, $allowedMap): bool {
+            if ($path === '/pengasuh/nilai_keaktifan.php') {
+                require_once __DIR__ . '/../includes/auth.php';
+
+                return user_can_edit_keaktifan_nilai();
+            }
             if (!isset($permissionPathMap[$path])) {
                 return true;
             }
@@ -2204,6 +2527,11 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
         },
         ARRAY_FILTER_USE_BOTH
     );
+    if ($userId > 0) {
+        $_SESSION[$cacheKey] = $filtered;
+    }
+
+    return $filtered;
 }
 
 function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $permissionPathMap): void
@@ -2213,24 +2541,42 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         return;
     }
 
+    $matchedKey = null;
+    $matchedLen = 0;
     foreach ($permissionPathMap as $path => $permissionKey) {
-        if (str_contains($requestPath, $path) && !isset($allowedMap[$permissionKey])) {
-            set_flash('error', 'Anda tidak memiliki akses ke fitur ini. Hubungi admin super.');
-            require_once __DIR__ . '/app_path.php';
-            $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-            if ($role === 'petugas_absensi') {
-                app_redirect('presensi/scan.php');
-            }
-            $fallbackPath = '/dashboard.php';
-            foreach ($permissionPathMap as $candidatePath => $candidatePermission) {
-                if (isset($allowedMap[$candidatePermission])) {
-                    $fallbackPath = $candidatePath;
-                    break;
-                }
-            }
-            app_redirect_path($fallbackPath);
+        if ($path === '' || !str_contains($requestPath, $path)) {
+            continue;
+        }
+        $len = strlen($path);
+        if ($len >= $matchedLen) {
+            $matchedLen = $len;
+            $matchedKey = $permissionKey;
         }
     }
+    if ($matchedKey === null || isset($allowedMap[$matchedKey])) {
+        return;
+    }
+    if (str_contains($requestPath, '/pengasuh/nilai_keaktifan.php')) {
+        require_once __DIR__ . '/../includes/auth.php';
+        if (user_can_edit_keaktifan_nilai()) {
+            return;
+        }
+    }
+
+    set_flash('error', 'Anda tidak memiliki akses ke fitur ini. Hubungi admin super.');
+    require_once __DIR__ . '/app_path.php';
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'petugas_absensi') {
+        app_redirect('presensi/scan.php');
+    }
+    $fallbackPath = '/dashboard.php';
+    foreach ($permissionPathMap as $candidatePath => $candidatePermission) {
+        if (isset($allowedMap[$candidatePermission])) {
+            $fallbackPath = $candidatePath;
+            break;
+        }
+    }
+    app_redirect_path($fallbackPath);
 }
 
 function settings_pengaturan_hub_url(): string
@@ -2253,8 +2599,8 @@ function settings_pengaturan_nav_items(?PDO $pdo = null): array
         return $definitions;
     }
 
-    $pack = require __DIR__ . '/../includes/menu_data.php';
-    $menuItems = filter_menu_items_by_acl($pdo, $pack['menuItems'], $pack['permissionPathMap']);
+    $pack = app_menu_pack($pdo);
+    $menuItems = $pack['menuItems'];
     $out = [];
     foreach ($definitions as $item) {
         $path = (string) ($item['path'] ?? '');

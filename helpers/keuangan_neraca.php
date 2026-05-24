@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/keuangan_typography.php';
 require_once __DIR__ . '/keuangan_akun_mutasi.php';
 
 /**
@@ -390,12 +391,6 @@ function keuangan_neraca_baris_from_coa(array $coaMap, string $kelompok, array $
         ];
     }
     return $baris;
-}
-
-function keuangan_format_rupiah(int $nominal): string
-{
-    $prefix = $nominal < 0 ? '-Rp ' : 'Rp ';
-    return $prefix . number_format(abs($nominal), 0, ',', '.');
 }
 
 /** CSS bersama tampilan neraca 2 kolom (aktiva | pasiva), lebar penuh. */

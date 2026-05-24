@@ -110,7 +110,10 @@ function require_lihat_audit_operasional(): void
 /** Nilai keaktifan (Baik/Sedang/Buruk) — hanya super admin & pengasuh (role kiai). */
 function user_can_view_keaktifan_nilai(): bool
 {
-    if (isset($_SESSION['wali']) || isset($_SESSION['santri_portal']) || isset($_SESSION['mukimin'])) {
+    if (isset($_SESSION['wali']) || isset($_SESSION['mukimin'])) {
+        return false;
+    }
+    if (isset($_SESSION['santri_portal'])) {
         return false;
     }
     if (!isset($_SESSION['user'])) {
@@ -121,6 +124,34 @@ function user_can_view_keaktifan_nilai(): bool
     }
 
     return strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'kiai';
+}
+
+/** Input / ubah nilai keaktifan — super admin & pengasuh (role kiai). */
+function user_can_edit_keaktifan_nilai(): bool
+{
+    return user_can_view_keaktifan_nilai();
+}
+
+/** Lihat nilai keaktifan: pengasuh (semua) atau santri hanya data sendiri. */
+function user_can_view_keaktifan_nilai_for_santri(int $santriId): bool
+{
+    if ($santriId <= 0) {
+        return false;
+    }
+    if (isset($_SESSION['santri_portal']) && (int) ($_SESSION['santri_portal']['santri_id'] ?? 0) === $santriId) {
+        return true;
+    }
+
+    return user_can_view_keaktifan_nilai();
+}
+
+function require_keaktifan_nilai_edit(): void
+{
+    require_login();
+    if (!user_can_edit_keaktifan_nilai()) {
+        set_flash('error', 'Penilaian keaktifan hanya untuk pengasuh pondok.');
+        auth_redirect_access_denied();
+    }
 }
 
 /** @deprecated Gunakan user_can_view_keaktifan_nilai() atau user_can_view_pelanggaran_riwayat(). */
@@ -213,6 +244,8 @@ function permission_key_for_request(string $requestPath): ?string
         '/pembimbing/tugas/index.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/buat.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/nilai.php' => 'akademik_ikhtibar',
+        '/pembimbing/tugas/rekap.php' => 'akademik_ikhtibar',
+        '/akademik/ikhtibar_rekap.php' => 'akademik_ikhtibar',
         '/settings/pusat.php' => 'pengaturan',
         '/settings/pesantren.php' => 'pengaturan',
         '/settings/peraturan.php' => 'pengaturan',

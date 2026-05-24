@@ -19,6 +19,8 @@ function kalender_pengaturan_keys(): array
         'akademik_blokir_penilaian_libur',
         'app_tahun_masehi_mode',
         'app_tahun_masehi_tetap',
+        'pondok_ta_bulan_awal_hijri',
+        'pondok_ta_bulan_awal_masehi',
     ];
 }
 
@@ -40,6 +42,8 @@ function kalender_pengaturan_load(PDO $pdo): array
         ? ($dv === 'tahun' ? 'atur' : $dv)
         : 'bulan';
     $out['app_tahun_masehi_mode'] = ($out['app_tahun_masehi_mode'] ?? '') === 'TETAP' ? 'TETAP' : 'BERJALAN';
+    $out['pondok_ta_bulan_awal_hijri'] = (string) max(1, min(12, (int) ($out['pondok_ta_bulan_awal_hijri'] ?: 1)));
+    $out['pondok_ta_bulan_awal_masehi'] = (string) max(1, min(12, (int) ($out['pondok_ta_bulan_awal_masehi'] ?: 7)));
 
     return $out;
 }
@@ -81,6 +85,11 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
     save_setting($pdo, 'app_tahun_masehi_mode', $tmMode);
     $tmTetap = (int) ($post['app_tahun_masehi_tetap'] ?? date('Y'));
     save_setting($pdo, 'app_tahun_masehi_tetap', (string) max(1900, min(2100, $tmTetap)));
+
+    $awalH = max(1, min(12, (int) ($post['pondok_ta_bulan_awal_hijri'] ?? 1)));
+    $awalM = max(1, min(12, (int) ($post['pondok_ta_bulan_awal_masehi'] ?? 7)));
+    save_setting($pdo, 'pondok_ta_bulan_awal_hijri', (string) $awalH);
+    save_setting($pdo, 'pondok_ta_bulan_awal_masehi', (string) $awalM);
 
     $backfill = null;
     if ($calendar === 'HIJRIYAH' && $calendarLama !== 'HIJRIYAH') {

@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
 
 require_roles(['admin']);
@@ -88,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
+            app_acl_session_cache_clear($targetUserId);
             set_flash('success', 'Hak akses user berhasil diperbarui.');
         } else {
             set_flash('error', 'Hak akses hanya bisa diatur untuk user non super admin.');

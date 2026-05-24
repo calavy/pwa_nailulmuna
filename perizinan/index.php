@@ -345,7 +345,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $sqlAktifS = santri_sql_aktif_only('s');
-$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY nama_santri ASC')->fetchAll();
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
+$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 $izinList = $pdo->query('
     SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.alasan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis
@@ -366,6 +368,7 @@ $izinPerpanjanganMaxHari = max(1, (int) app_setting($pdo, 'izin_perpanjangan_max
 $izinPerpanjanganJenisArr = array_values(array_filter(array_map('trim', explode(',', strtoupper((string) app_setting($pdo, 'izin_perpanjangan_jenis', 'SAKIT,KELUAR'))))));
 
 $pageTitle = 'Perizinan Santri';
+$loadSantriSelectJs = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">

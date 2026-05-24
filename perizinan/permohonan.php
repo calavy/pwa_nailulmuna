@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
@@ -170,7 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $sqlAktifS = santri_sql_aktif_only('s');
-$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY nama_santri ASC')->fetchAll();
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
+$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
 $namaPengasuh = (string) app_setting($pdo, 'nama_pengasuh', '');
 
 $myIzinList = $pdo->query('

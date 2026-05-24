@@ -36,7 +36,10 @@ require_once __DIR__ . '/../../includes/header.php';
             <h1 class="h4 mb-1"><i class="fa-solid fa-list-check text-primary me-1"></i> Tugas Santri (Ikhtibar)</h1>
             <p class="text-muted mb-0">Buat tugas, atur soal PG &amp; esai, token keamanan, dan pantau nilai santri.</p>
         </div>
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas baru</a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i> Rekap nilai</a>
+            <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas baru</a>
+        </div>
     </div>
 </div>
 

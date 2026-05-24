@@ -86,7 +86,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
 
         <div class="alert alert-light border small mb-3">
             <i class="fa-solid fa-circle-info me-1 text-primary"></i>
-            <strong>Nilai keaktifan</strong> (Baik/Sedang/Buruk) hanya untuk pengasuh pondok.
+            <strong>Nilai keaktifan</strong> (Baik/Sedang/Buruk) ditetapkan pengasuh dan dapat dilihat santri di portal.
         </div>
 
 <?php

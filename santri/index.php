@@ -6,9 +6,10 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/rekap_periode.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/santri_status.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
-ensure_santri_identity_columns($pdo);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/kelas_ruangan.php';
 ensure_santri_keluar_columns($pdo);
@@ -23,13 +24,15 @@ $santri = $pdo->query('
     SELECT id, qr, nis, nama_santri, nik, jenis_kelamin, tingkatan, kategori_kelas, no_wa_wali, is_aktif, status_santri, keluar_kategori, alasan_keluar, tanggal_keluar, nama_kamar, no_ranjang, keluar_settled_at' . $extraRuanganSelect . '
     FROM santri
     WHERE ' . santri_sql_aktif_only('santri') . '
-    ORDER BY nama_santri ASC
+    ORDER BY ' . santri_list_order_sql('santri') . '
 ')->fetchAll();
 $totalSantri = count($santri);
 $totalAktif = $totalSantri;
 $totalNonAktif = (int) ($pdo->query('
     SELECT COUNT(*) FROM santri WHERE NOT (' . santri_sql_aktif_only('santri') . ')
 ')->fetchColumn() ?: 0);
+
+$kelasKeuanganLabels = kelas_keuangan_label_map($pdo);
 
 $kegiatanFilter = (int) ($_GET['kegiatan_id'] ?? 0);
 $periodeKeaktifan = rekap_resolve_periode($pdo, [
@@ -66,6 +69,8 @@ $kegiatanList = table_exists($pdo, 'kegiatan')
 $pageTitle = 'Data Santri Aktif';
 require_once __DIR__ . '/../includes/header.php';
 ?>
+
+<?php require __DIR__ . '/../includes/partials/santri_sort_toolbar.php'; ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="page-intro w-100 me-3">
@@ -184,7 +189,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 echo htmlspecialchars(($kamar !== '' ? $kamar : '-') . ($ranjang !== '' ? ' / ' . $ranjang : ''));
                                 ?>
                             </td>
-                            <td><?= htmlspecialchars(($item['kategori_kelas'] ?? '') !== '' ? kelas_keuangan_label_for_kode($pdo, (string) $item['kategori_kelas']) : '-') ?></td>
+                            <td><?php
+                                $katK = strtoupper(trim((string) ($item['kategori_kelas'] ?? '')));
+                                echo htmlspecialchars($katK !== '' ? ($kelasKeuanganLabels[$katK] ?? $katK) : '-');
+                            ?></td>
                             <td><?= htmlspecialchars(trim((string) ($item['nama_ruangan_kelas'] ?? '')) !== '' ? (string) $item['nama_ruangan_kelas'] : '-') ?></td>
                             <td><?= htmlspecialchars($item['no_wa_wali'] ?: '-') ?></td>
                             <td>

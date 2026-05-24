@@ -4,8 +4,10 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_riwayat.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 ensure_santri_riwayat_tables($pdo);
 
 $q = trim((string) ($_GET['q'] ?? ''));
@@ -30,7 +32,7 @@ if ($q !== '') {
         SELECT id, nis, nama_santri, tingkatan
         FROM santri
         WHERE LOWER(nama_santri) LIKE :q OR LOWER(nis) LIKE :q2
-        ORDER BY nama_santri ASC
+        ORDER BY ' . santri_list_order_sql('santri') . '
         LIMIT 30
     ');
     $st->execute(['q' => '%' . strtolower($q) . '%', 'q2' => '%' . strtolower($q) . '%']);

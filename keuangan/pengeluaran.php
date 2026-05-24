@@ -12,7 +12,7 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
-ensure_keuangan_transaksi_tables($pdo);
+keuangan_ensure_schema_deferred($pdo);
 
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);
 $userNama = trim((string) ($_SESSION['user']['nama'] ?? 'Petugas'));

@@ -7,7 +7,12 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/akademik_rapor.php';
+require_once __DIR__ . '/../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+
+ensure_akademik_ikhtibar_tables($pdo);
+santri_list_sort_mode($_GET['santri_sort'] ?? null);
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_identity_columns($pdo);
@@ -140,7 +145,7 @@ $sqlSantri .= ' FROM santri';
 if (column_exists($pdo, 'santri', 'is_aktif')) {
     $sqlSantri .= ' WHERE COALESCE(is_aktif, 1) = 1';
 }
-$sqlSantri .= ' ORDER BY nama_santri ASC LIMIT 600';
+$sqlSantri .= ' ORDER BY ' . santri_list_order_sql('santri') . ' LIMIT 600';
 $santriList = $pdo->query($sqlSantri)->fetchAll(PDO::FETCH_ASSOC);
 
 $listSql = '
@@ -184,6 +189,7 @@ if ($defPeriode['month'] < 1 || $defPeriode['year'] < 1) {
 $hijriMonths = hijri_nama_bulan_list();
 $masehiMonths = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $calDefault = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
+$ikhtibarSantri = $filterSantri > 0 ? ikhtibar_riwayat_hasil_santri($pdo, $filterSantri) : [];
 ?>
 
 <div class="page-intro mb-3">
@@ -195,6 +201,42 @@ $calDefault = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 
         — ubah nama tingkatan; data santri &amp; jadwal yang memakai nama lama ikut diselaraskan.
     </p>
 </div>
+
+<?php if ($filterSantri > 0): ?>
+<link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="fw-semibold"><i class="fa-solid fa-list-check text-primary me-1"></i> Nilai Tugas Ikhtibar (pembimbing)</span>
+        <a href="<?= htmlspecialchars(app_href('/akademik/ikhtibar_rekap.php?santri_id=' . $filterSantri)) ?>" class="btn btn-sm btn-outline-primary">Rekap lengkap</a>
+    </div>
+    <div class="card-body">
+        <?php if ($ikhtibarSantri === []): ?>
+            <p class="text-muted small mb-0">Belum ada riwayat tugas ikhtibar untuk santri ini.</p>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0 align-middle">
+                    <thead><tr><th>Tugas</th><th>Tanggal</th><th>PG</th><th>Esai</th><th>Total</th><th>Predikat</th></tr></thead>
+                    <tbody>
+                    <?php foreach (array_slice($ikhtibarSantri, 0, 8) as $ir): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) ($ir['judul'] ?? '')) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) ($ir['tanggal'] ?? '')) ?></td>
+                            <td><?= $ir['skor_pg'] !== null ? (string) $ir['skor_pg'] . '%' : '—' ?></td>
+                            <td><?= (int) ($ir['esai_pending'] ?? 0) > 0 ? 'Pending' : ($ir['skor_esai'] !== null ? (string) $ir['skor_esai'] : '—') ?></td>
+                            <td class="fw-semibold"><?= $ir['nilai_total'] !== null ? (string) $ir['nilai_total'] : '—' ?></td>
+                            <td><span class="badge text-bg-<?= htmlspecialchars((string) ($ir['predikat_class'] ?? 'secondary')) ?>"><?= htmlspecialchars((string) ($ir['predikat'] ?? '')) ?></span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php if (count($ikhtibarSantri) > 8): ?>
+                <p class="small text-muted mb-0 mt-2">Menampilkan 8 terbaru dari <?= count($ikhtibarSantri) ?> tugas.</p>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-4">
     <div class="col-lg-5" id="rapor-form">

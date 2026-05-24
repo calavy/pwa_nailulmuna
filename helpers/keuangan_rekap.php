@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/keuangan_alokasi.php';
+require_once __DIR__ . '/santri_list_sort.php';
+
 /**
  * Perhitungan target dana masuk per pos (rekap) dari santri aktif × tarif pengaturan.
  *
@@ -76,12 +79,21 @@ function keuangan_rekap_pos_with_expected(
 
     $aktifSql = santri_sql_aktif_only('s');
     $levelExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 's.kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''");
-    $santriRows = $pdo->query('SELECT s.id, ' . $levelExpr . ' AS kategori_kelas FROM santri s WHERE ' . $aktifSql)->fetchAll(PDO::FETCH_ASSOC);
+    $santriRows = $pdo->query('SELECT s.id, ' . $levelExpr . ' AS kategori_kelas, s.nis, s.nama_santri, s.tingkatan FROM santri s WHERE ' . $aktifSql . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll(PDO::FETCH_ASSOC);
 
     $useSyahriyahPotongan = $jenisPeriode === 'BULANAN'
         && isset($expectedBySlug['syahriyah']);
-    if ($useSyahriyahPotongan && !function_exists('keuangan_syahriyah_expected_dengan_potongan')) {
-        require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+    $syCtx = null;
+    $tarifWajib = null;
+    if ($useSyahriyahPotongan) {
+        if (!function_exists('keuangan_syahriyah_bulk_context')) {
+            require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+        }
+        $syCtx = keuangan_syahriyah_bulk_context($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+        if (!function_exists('tagihan_wajib_tarif_cache_by_tier')) {
+            require_once __DIR__ . '/tagihan_bulanan.php';
+        }
+        $tarifWajib = tagihan_wajib_tarif_cache_by_tier($pdo);
     }
 
     foreach ($santriRows as $sr) {
@@ -96,16 +108,21 @@ function keuangan_rekap_pos_with_expected(
             if ($slug === '' || !isset($expectedBySlug[$slug])) {
                 continue;
             }
-            if ($useSyahriyahPotongan && $slug === 'syahriyah' && $sid > 0) {
-                $syPot = keuangan_syahriyah_expected_dengan_potongan(
+            if ($useSyahriyahPotongan && $slug === 'syahriyah' && $sid > 0 && is_array($syCtx)) {
+                $syPot = keuangan_syahriyah_simulasi(
                     $pdo,
                     $sid,
                     $kat,
-                    $jenisPeriode === 'BULANAN' ? $bulanTagihan : 0,
+                    $bulanTagihan,
                     $tahunMulai,
-                    $tahunSelesai
+                    $tahunSelesai,
+                    $syCtx
                 );
                 $expectedBySlug[$slug]['expected'] += max(0, (int) ($syPot['expected'] ?? 0));
+                continue;
+            }
+            if ($jenisPeriode === 'BULANAN' && is_array($tarifWajib) && isset($tarifWajib[$slug][$tier])) {
+                $expectedBySlug[$slug]['expected'] += max(0, (int) $tarifWajib[$slug][$tier]);
                 continue;
             }
             $fallback = (int) ($def['default'][$tier] ?? 0);
@@ -258,6 +275,100 @@ function keuangan_tagihan_breakdown_for_santri(
             }
         }
         $out[$slug] = $row;
+    }
+
+    return $out;
+}
+
+/** Total pembayaran pos syahriyah (slug) untuk satu bulan tagihan. */
+function keuangan_syahriyah_terbayar_bulan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai
+): int {
+    if (
+        $bulanTagihan < 1
+        || $bulanTagihan > 12
+        || !table_exists($pdo, 'keuangan_pembayaran')
+        || !table_exists($pdo, 'keuangan_pembayaran_detail')
+    ) {
+        return 0;
+    }
+
+    $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan, 'p');
+    $st = $pdo->prepare('
+        SELECT COALESCE(SUM(d.nominal), 0)
+        FROM keuangan_pembayaran_detail d
+        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+        WHERE p.jenis_periode = \'BULANAN\'
+          AND p.tahun_ajaran_mulai = :tm
+          AND p.tahun_ajaran_selesai = :ts
+          AND LOWER(TRIM(d.pos_slug)) = \'syahriyah\'
+          AND ' . $bulanMatch['sql'] . '
+    ');
+    $st->execute(array_merge(['tm' => $tahunMulai, 'ts' => $tahunSelesai], $bulanMatch['params']));
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+/**
+ * Rekap masuk (alokasi dari pembayaran syahriyah) & keluar (pengeluaran) per komponen alokasi syahriyah.
+ *
+ * @return list<array{nama:string,kategori:string,persen:float,masuk:int,keluar:int,saldo:int}>
+ */
+function keuangan_rekap_alokasi_syahriyah_bulan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai
+): array {
+    $rows = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
+    if ($rows === []) {
+        return [];
+    }
+
+    $paguBulan = keuangan_syahriyah_terbayar_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+    [$tglAwal, $tglAkhir] = pondok_rentang_masehi_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan);
+
+    $keluarMap = [];
+    if (
+        $tglAwal !== ''
+        && $tglAkhir !== ''
+        && table_exists($pdo, 'keuangan_pengeluaran')
+        && column_exists($pdo, 'keuangan_pengeluaran', 'alokasi_nama')
+    ) {
+        $stKeluar = $pdo->prepare('
+            SELECT TRIM(alokasi_nama) AS nama, COALESCE(SUM(nominal), 0) AS total
+            FROM keuangan_pengeluaran
+            WHERE alokasi_nama IS NOT NULL
+              AND TRIM(alokasi_nama) <> \'\'
+              AND tanggal BETWEEN :awal AND :akhir
+            GROUP BY TRIM(alokasi_nama)
+        ');
+        $stKeluar->execute(['awal' => $tglAwal, 'akhir' => $tglAkhir]);
+        foreach ($stKeluar->fetchAll(PDO::FETCH_ASSOC) as $kr) {
+            $keluarMap[(string) ($kr['nama'] ?? '')] = (int) round((float) ($kr['total'] ?? 0));
+        }
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $nama = trim((string) ($row['nama_komponen'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $persen = (float) ($row['persen'] ?? 0);
+        $masuk = $paguBulan > 0 ? (int) floor($paguBulan * $persen / 100) : 0;
+        $keluar = (int) ($keluarMap[$nama] ?? 0);
+        $out[] = [
+            'nama' => $nama,
+            'kategori' => (string) ($row['kategori'] ?? ''),
+            'persen' => round($persen, 2),
+            'masuk' => $masuk,
+            'keluar' => $keluar,
+            'saldo' => $masuk - $keluar,
+        ];
     }
 
     return $out;

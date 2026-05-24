@@ -29,6 +29,12 @@ $err = get_flash('error');
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
+<link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
+<nav class="ikhtibar-portal-tabs" aria-label="Menu tugas">
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="active">Kerjakan</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>">Hasil saya</a>
+</nav>
+
 <?php if ($tugasList === []): ?>
     <div class="text-muted small">
         <p class="text-center mb-2">Belum ada tugas yang tampil untuk Anda.</p>
