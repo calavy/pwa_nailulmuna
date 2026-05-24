@@ -2417,6 +2417,11 @@ function user_has_acl_permission_matrix(PDO $pdo): bool
         return false;
     }
 
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if (in_array($role, ['kiai'], true)) {
+        return false;
+    }
+
     return (int) ($_SESSION['user']['is_super_admin'] ?? 0) !== 1
         && table_exists($pdo, 'user_access_permissions');
 }
@@ -2442,6 +2447,12 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     $allowedPermissions = $pdo->prepare('SELECT permission_key FROM user_access_permissions WHERE user_id = :user_id');
     $allowedPermissions->execute(['user_id' => $userId]);
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
+    if (
+        $allowedKeys === []
+        && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin'
+    ) {
+        return null;
+    }
     $map = app_acl_normalize_allowed_map(array_flip($allowedKeys));
     $_SESSION[$cacheKey] = $map;
     unset($_SESSION['menu_items_acl_' . $userId]);
@@ -2470,18 +2481,32 @@ function app_acl_normalize_allowed_map(array $map): array
 /**
  * Halaman pertama yang boleh diakses (hindari redirect ke dashboard tanpa izin).
  */
-function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap): ?string
+function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap, ?string $skipPath = null): ?string
 {
     if ($allowedMap === []) {
         return null;
     }
+
+    $candidates = [];
     if (isset($allowedMap['dashboard'])) {
-        return '/dashboard.php';
+        $candidates[] = '/dashboard.php';
     }
     foreach ($permissionPathMap as $path => $permissionKey) {
         if ($path !== '' && isset($allowedMap[$permissionKey])) {
-            return $path;
+            $candidates[] = $path;
         }
+    }
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'kiai' && !in_array('/pengasuh/nilai_keaktifan.php', $candidates, true)) {
+        array_unshift($candidates, '/pengasuh/nilai_keaktifan.php');
+    }
+
+    foreach ($candidates as $path) {
+        if ($skipPath !== null && app_acl_request_paths_equal($skipPath, $path)) {
+            continue;
+        }
+
+        return $path;
     }
 
     return null;
@@ -2489,13 +2514,81 @@ function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap)
 
 function app_acl_request_paths_equal(string $requestPath, string $targetPath): bool
 {
-    $a = $requestPath === '' ? '/' : $requestPath;
-    $b = $targetPath;
-    if (!str_starts_with($b, '/')) {
-        $b = '/' . ltrim($b, '/');
+    $normalize = static function (string $path): string {
+        $path = app_normalize_request_path($path);
+        if ($path === '') {
+            $path = '/';
+        }
+        if (!str_starts_with($path, '/')) {
+            $path = '/' . ltrim($path, '/');
+        }
+
+        return rtrim($path, '/') ?: '/';
+    };
+
+    $a = $normalize($requestPath);
+    $b = $normalize($targetPath);
+
+    return $a === $b;
+}
+
+/** Redirect aman setelah login / dari halaman login (hindari loop). */
+function app_post_login_redirect(PDO $pdo): void
+{
+    require_once __DIR__ . '/app_path.php';
+    unset($_SESSION['_acl_redirect_guard']);
+
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'petugas_absensi') {
+        app_redirect('presensi/scan.php');
+    }
+    if (function_exists('is_super_admin') && is_super_admin()) {
+        app_redirect('dashboard.php');
+    }
+    if ($role === 'kiai') {
+        app_redirect('pengasuh/nilai_keaktifan.php');
     }
 
-    return $a === $b || str_starts_with($a, $b . '?') || str_starts_with($a, $b . '#');
+    $allowedMap = get_allowed_permission_key_map($pdo);
+    if ($allowedMap === null) {
+        app_redirect('dashboard.php');
+    }
+    if ($allowedMap === []) {
+        unset($_SESSION['user']);
+        set_flash('error', 'Akun belum memiliki hak akses. Hubungi admin super.');
+        app_redirect('login.php');
+    }
+
+    if (!function_exists('user_permission_path_map')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    $fallback = app_acl_first_allowed_path(user_permission_path_map(), $allowedMap);
+    if ($fallback !== null) {
+        app_redirect_path($fallback);
+    }
+
+    app_redirect('dashboard.php');
+}
+
+/**
+ * Redirect ACL ke halaman lain; hentikan loop bila target sama atau sudah pernah dicoba.
+ */
+function app_acl_safe_redirect(string $fallbackPath, string $requestPath): bool
+{
+    require_once __DIR__ . '/app_path.php';
+    if ($fallbackPath === '' || app_acl_request_paths_equal($requestPath, $fallbackPath)) {
+        return false;
+    }
+
+    $guard = (string) ($_SESSION['_acl_redirect_guard'] ?? '');
+    if ($guard !== '' && app_acl_request_paths_equal($guard, $fallbackPath)) {
+        return false;
+    }
+
+    $_SESSION['_acl_redirect_guard'] = $fallbackPath;
+    app_redirect_path($fallbackPath);
+
+    return true;
 }
 
 /** Panggil setelah ubah izin user di pengaturan admin. */
@@ -2623,11 +2716,11 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         set_flash('error', 'Akun belum memiliki hak akses. Hubungi admin super.');
         app_redirect('login.php');
     }
-    $fallbackPath = app_acl_first_allowed_path($permissionPathMap, $allowedMap);
-    if ($fallbackPath !== null && !app_acl_request_paths_equal($requestPath, $fallbackPath)) {
-        app_redirect_path($fallbackPath);
+    $fallbackPath = app_acl_first_allowed_path($permissionPathMap, $allowedMap, $requestPath);
+    if ($fallbackPath !== null && app_acl_safe_redirect($fallbackPath, $requestPath)) {
+        return;
     }
-    unset($_SESSION['user']);
+    unset($_SESSION['_acl_redirect_guard'], $_SESSION['user']);
     app_redirect('login.php');
 }
 

@@ -14,7 +14,7 @@ require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi']);
+require_roles(['admin', 'pengurus', 'petugas_absensi', 'kiai']);
 
 $today = date('Y-m-d');
 

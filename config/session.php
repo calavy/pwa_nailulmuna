@@ -3,6 +3,19 @@
 require_once __DIR__ . '/../helpers/app_path.php';
 
 if (session_status() === PHP_SESSION_NONE) {
+    $cookiePath = app_base_path();
+    if ($cookiePath === '') {
+        $cookiePath = '/';
+    }
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => $cookiePath,
+        'secure' => $isSecure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 

@@ -59,6 +59,7 @@ if (isset($_SESSION['user'])) {
         keuangan_ensure_schema_deferred($pdo);
     }
     enforce_route_acl_or_redirect($pdo, $requestPath, $permissionPathMap);
+    unset($_SESSION['_acl_redirect_guard']);
     if (empty($_SESSION['acl_pengaturan_migrate_checked'])) {
         require_once __DIR__ . '/../helpers/pengaturan_acl.php';
         migrate_legacy_permissions_to_pengaturan($pdo);

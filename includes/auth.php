@@ -31,9 +31,15 @@ function require_login(): void
 function auth_redirect_access_denied(): void
 {
     require_once __DIR__ . '/../helpers/app_path.php';
-    $role = (string) ($_SESSION['user']['role'] ?? '');
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
+    }
+    if ($role === 'kiai') {
+        $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+        if (!app_acl_request_paths_equal($requestPath, '/pengasuh/nilai_keaktifan.php')) {
+            app_redirect('pengasuh/nilai_keaktifan.php');
+        }
     }
 
     global $pdo;
@@ -43,7 +49,7 @@ function auth_redirect_access_denied(): void
             app_redirect('dashboard.php');
         }
         if ($allowedMap === []) {
-            unset($_SESSION['user']);
+            unset($_SESSION['_acl_redirect_guard'], $_SESSION['user']);
             set_flash('error', 'Akun belum memiliki hak akses. Hubungi admin super.');
             app_redirect('login.php');
         }
@@ -51,13 +57,13 @@ function auth_redirect_access_denied(): void
             require_once __DIR__ . '/../helpers/user_permissions.php';
         }
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-        $fallbackPath = app_acl_first_allowed_path(user_permission_path_map(), $allowedMap);
-        if ($fallbackPath !== null && !app_acl_request_paths_equal($requestPath, $fallbackPath)) {
-            app_redirect_path($fallbackPath);
+        $fallbackPath = app_acl_first_allowed_path(user_permission_path_map(), $allowedMap, $requestPath);
+        if ($fallbackPath !== null && app_acl_safe_redirect($fallbackPath, $requestPath)) {
+            return;
         }
     }
 
-    unset($_SESSION['user']);
+    unset($_SESSION['_acl_redirect_guard'], $_SESSION['user']);
     set_flash('error', 'Anda tidak memiliki akses ke halaman ini.');
     app_redirect('login.php');
 }
@@ -69,7 +75,10 @@ function require_roles(array $roles): void
         return;
     }
 
-    $role = (string) ($_SESSION['user']['role'] ?? 'admin');
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? 'admin'));
+    if ($role === 'kiai' && !in_array('kiai', $roles, true)) {
+        $roles[] = 'kiai';
+    }
     require_once __DIR__ . '/../helpers/app_path.php';
     $permissionKey = permission_key_for_request(app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? '')));
     if ($permissionKey !== null) {

@@ -53,7 +53,19 @@ function app_base_path(): string
 
     $cfg = app_config();
     if (array_key_exists('base_path', $cfg) && $cfg['base_path'] !== null && is_string($cfg['base_path'])) {
-        $cached = rtrim($cfg['base_path'], '/');
+        $configured = rtrim($cfg['base_path'], '/');
+        $publicUrl = trim((string) ($cfg['public_url'] ?? ''));
+        $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+        // app.local.php XAMPP ikut ter-deploy ke domain production → loop redirect + sesi hilang
+        if (
+            $configured !== ''
+            && $publicUrl !== ''
+            && $host !== ''
+            && !str_contains(strtolower($publicUrl), $host)
+        ) {
+            $configured = '';
+        }
+        $cached = $configured;
 
         return $cached;
     }

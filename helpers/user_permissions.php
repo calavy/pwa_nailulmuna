@@ -197,6 +197,7 @@ function user_permission_path_map_base(): array
         '/pembimbing/presensi.php' => 'presensi_scan',
         '/pembimbing/perizinan.php' => 'pembimbing_perizinan',
         '/rekap/santri_bagus.php' => 'rekap_keaktifan',
+        '/pengasuh/nilai_keaktifan.php' => 'rekap_keaktifan',
         '/rekap/index.php' => 'rekap',
         '/rekap/izin_telat.php' => 'rekap_telat',
         '/rekap/pembimbing.php' => 'rekap_pembimbing',
