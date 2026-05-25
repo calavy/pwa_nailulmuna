@@ -81,7 +81,9 @@ function keuangan_pembayaran_audit_log(
     int $userId,
     string $alasan
 ): void {
-    ensure_keuangan_pembayaran_audit_table($pdo);
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_pembayaran_audit_table($pdo);
+    }
     operasional_audit_log(
         $pdo,
         OPERASIONAL_AUDIT_MODUL_KEUANGAN,
@@ -275,6 +277,8 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
         $statusLunas = $stillHasSisaWajib ? 'CICILAN' : 'LUNAS';
     }
 
+    ensure_operasional_audit_table($pdo);
+
     try {
         $pdo->beginTransaction();
 
@@ -345,6 +349,11 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
 
         $pdo->commit();
 
+        if (function_exists('keuangan_dashboard_cache_invalidate')) {
+            require_once __DIR__ . '/keuangan_dashboard.php';
+            keuangan_dashboard_cache_invalidate();
+        }
+
         return ['ok' => true, 'message' => 'Pembayaran #' . $pembayaranId . ' berhasil diperbarui.'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -369,6 +378,8 @@ function keuangan_delete_pembayaran(PDO $pdo, int $pembayaranId, int $userId, st
         return ['ok' => false, 'message' => 'Alasan penghapusan wajib diisi.'];
     }
 
+    ensure_operasional_audit_table($pdo);
+
     try {
         $pdo->beginTransaction();
 
@@ -378,6 +389,11 @@ function keuangan_delete_pembayaran(PDO $pdo, int $pembayaranId, int $userId, st
         $pdo->prepare('DELETE FROM keuangan_pembayaran WHERE id = :id')->execute(['id' => $pembayaranId]);
 
         $pdo->commit();
+
+        if (function_exists('keuangan_dashboard_cache_invalidate')) {
+            require_once __DIR__ . '/keuangan_dashboard.php';
+            keuangan_dashboard_cache_invalidate();
+        }
 
         return ['ok' => true, 'message' => 'Pembayaran #' . $pembayaranId . ' telah dihapus dan dicatat di log audit.'];
     } catch (Throwable $e) {

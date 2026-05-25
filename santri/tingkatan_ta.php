@@ -15,7 +15,7 @@ require_roles(['admin', 'pengurus']);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
 ensure_santri_riwayat_tables($pdo);
 
-$pondokTa = pondok_ta_resolve($pdo, array_merge($_GET, $_POST));
+$pondokTa = pondok_ta_resolve($pdo);
 $tahunAjaranMulai = (int) $pondokTa['mulai'];
 $tahunAjaranSelesai = (int) $pondokTa['selesai'];
 $q = trim((string) ($_GET['q'] ?? ''));
@@ -50,9 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $res = santri_tingkatan_bulk_save($pdo, $tmPost, $tsPost, $payload);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        if ($res['ok'] && function_exists('keuangan_dashboard_cache_invalidate')) {
+            require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+            keuangan_dashboard_cache_invalidate();
+        }
     }
 
-    header('Location: ' . app_href('/santri/tingkatan_ta.php?' . pondok_ta_query($pondokTa, $q !== '' ? ['q' => $q] : [])));
+    $redir = '/santri/tingkatan_ta.php';
+    if ($q !== '') {
+        $redir .= '?q=' . rawurlencode($q);
+    }
+    header('Location: ' . app_href($redir));
     exit;
 }
 
@@ -82,7 +90,7 @@ $ok = get_flash('success');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><i class="fa-solid fa-layer-group me-1"></i> Data Santri</p>
     <h1 class="h4 page-intro-title mb-1">Tingkatan per Tahun Ajaran</h1>
-    <p class="text-muted small mb-0">Kelas/tingkatan bisa berbeda tiap TA (ada yang naik, ada yang tetap). Dipakai tagihan syahriyah &amp; laporan keuangan untuk TA yang dipilih.</p>
+    <p class="text-muted small mb-0">Kelas/tingkatan per tahun ajaran aktif pondok. Mengikuti pengaturan di <a href="<?= htmlspecialchars(pondok_ta_central_settings_href()) ?>">Keuangan → Umum &amp; periode</a>.</p>
 </div>
 
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
@@ -90,7 +98,7 @@ $ok = get_flash('success');
 
 <?php
 $pondokTa = $pondokTa;
-$pondokTaSettingsHref = app_href('/settings/kalender.php');
+$pondokTaSettingsHref = pondok_ta_central_settings_href();
 require __DIR__ . '/../includes/partials/pondok_ta_toolbar.php';
 ?>
 

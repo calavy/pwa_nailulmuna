@@ -1,0 +1,21 @@
+.tagihan-list-card--ringkas .tagihan-col-detail {
+    display: none;
+}
+
+.tagihan-santri-table .tagihan-row-detail td {
+    border-top: none;
+}
+
+.tagihan-row-detail.is-open {
+    display: table-row !important;
+}
+
+.tagihan-btn-detail[aria-expanded="true"] i {
+    transform: rotate(180deg);
+}
+
+@media (max-width: 767.98px) {
+    .tagihan-list-card--ringkas .tagihan-btn-detail {
+        display: inline-flex !important;
+    }
+}

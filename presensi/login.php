@@ -63,7 +63,8 @@ $welcome = auth_portal_welcome_copy($pdo);
 auth_portal_layout_begin([
     'title' => 'Petugas presensi',
     'welcome_salam' => $welcome['salam'],
-    'welcome_tagline' => $welcome['tagline'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => $welcome['tagline_portal'],
     'subtitle' => 'Scan QR kehadiran santri & pembimbing. Izinkan akses kamera belakang setelah masuk.',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,

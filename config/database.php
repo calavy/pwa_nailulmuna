@@ -7,11 +7,12 @@
  *
  * Prioritas: getenv DB_* → database.local.php → default XAMPP.
  */
+/** Default XAMPP lokal — production wajib pakai config/database.local.php */
 $host = '127.0.0.1';
 $port = '3306';
-$dbName = 'u700125577_pwanailulmuna';
-$dbUser = 'u700125577_pwanailulmuna';
-$dbPass = 'Pwanailulmuna@1990';
+$dbName = 'pwa_nailulmuna';
+$dbUser = 'root';
+$dbPass = '';
 
 $envHost = getenv('DB_HOST');
 if ($envHost !== false && trim((string) $envHost) !== '') {

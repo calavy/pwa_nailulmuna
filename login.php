@@ -6,6 +6,7 @@ require_once __DIR__ . '/helpers/app.php';
 require_once __DIR__ . '/helpers/app_path.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/helpers/user_profil.php';
+require_once __DIR__ . '/helpers/login_pembimbing.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
 if (isset($_SESSION['user']) && $pdo instanceof PDO) {
@@ -47,23 +48,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         }
     }
 
-    if (!$isValidLogin && $username === 'admin' && $password === 'admin123') {
+    if (!$isValidLogin && app_is_local_dev() && $username === 'admin' && $password === 'admin123') {
         $isValidLogin = true;
     }
 
     if ($isValidLogin) {
+        session_regenerate_id(true);
         $isSuperAdmin = (int) ($userRow['is_super_admin'] ?? 0) === 1;
         if ($username === 'admin') {
             $isSuperAdmin = true;
         }
+        $userId = (int) ($userRow['id'] ?? 1);
         $_SESSION['user'] = [
-            'id' => (int) ($userRow['id'] ?? 1),
+            'id' => $userId,
             'nama' => $userName,
             'username' => $username,
             'role' => $userRow['role'] ?? 'admin',
             'is_super_admin' => $isSuperAdmin ? 1 : 0,
             'foto_profil' => trim((string) ($userRow['foto_profil'] ?? '')),
         ];
+        if ($peran === 'pembimbing' && $userId > 0) {
+            login_pembimbing_ensure_acl($pdo, $userId);
+        }
         set_flash('success', 'Login berhasil.');
         if ($peran === 'pembimbing') {
             app_redirect('pembimbing/tugas/index.php');
@@ -88,6 +94,8 @@ $peranLabel = $peran === 'pembimbing' ? 'Pembimbing' : ($peran === 'pengurus' ? 
 auth_portal_layout_begin([
     'title' => $peran === '' ? 'Portal Masuk' : 'Login ' . $peranLabel,
     'welcome_salam' => $welcome['salam'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => $peran === '' ? $welcome['tagline'] : $welcome['tagline_portal'],
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
     'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',

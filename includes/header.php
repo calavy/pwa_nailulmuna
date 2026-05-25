@@ -150,6 +150,7 @@ if (!function_exists('render_app_sidebar_nav')) {
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="<?= htmlspecialchars(app_href('/manifest.php')) ?>">
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

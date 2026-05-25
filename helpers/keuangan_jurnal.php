@@ -125,7 +125,10 @@ function keuangan_jurnal_ref_exists(PDO $pdo, string $refType, int $refId): bool
  */
 function keuangan_jurnal_post(PDO $pdo, string $tanggal, array $lines, string $refType, int $refId, int $userId, string $keterangan = ''): bool
 {
-    ensure_keuangan_jurnal_tables($pdo);
+    // DDL (CREATE/ALTER) meng-commit transaksi MySQL — jangan di dalam beginTransaction().
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
     if ($refId > 0 && keuangan_jurnal_ref_exists($pdo, $refType, $refId)) {
         return false;
     }

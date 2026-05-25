@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_riwayat.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
+require_once __DIR__ . '/../helpers/pondok_ta.php';
 
 require_roles(['admin', 'pengurus']);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
@@ -54,7 +55,7 @@ $recentHidmah = $pdo->query('
     LIMIT 50
 ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-$taAktif = santri_tahun_ajaran_for_date($pdo);
+$taAktif = pondok_ta_resolve($pdo);
 
 $pageTitle = 'Input hidmah santri';
 require_once __DIR__ . '/../includes/header.php';

@@ -48,6 +48,28 @@ function app_performance_cache_prune_expired(): int
         unset($_SESSION['keuangan_dash_snap_cache']);
         $removed++;
     }
+    if (isset($_SESSION['tagihan_syahriyah_list_v1']) && is_array($_SESSION['tagihan_syahriyah_list_v1'])) {
+        foreach ($_SESSION['tagihan_syahriyah_list_v1'] as $tk => $entry) {
+            if (!is_array($entry) || (int) ($entry['expires'] ?? 0) < $now) {
+                unset($_SESSION['tagihan_syahriyah_list_v1'][$tk]);
+                $removed++;
+            }
+        }
+        if ($_SESSION['tagihan_syahriyah_list_v1'] === []) {
+            unset($_SESSION['tagihan_syahriyah_list_v1']);
+        }
+    }
+    if (isset($_SESSION['pondok_bulan_slots_v1']) && is_array($_SESSION['pondok_bulan_slots_v1'])) {
+        foreach ($_SESSION['pondok_bulan_slots_v1'] as $sk => $entry) {
+            if (!is_array($entry) || (int) ($entry['expires'] ?? 0) < $now) {
+                unset($_SESSION['pondok_bulan_slots_v1'][$sk]);
+                $removed++;
+            }
+        }
+        if ($_SESSION['pondok_bulan_slots_v1'] === []) {
+            unset($_SESSION['pondok_bulan_slots_v1']);
+        }
+    }
     $ta = $_SESSION['pondok_ta_options_cache_v1'] ?? null;
     if (is_array($ta) && (int) ($ta['expires'] ?? 0) > 0 && (int) $ta['expires'] < $now) {
         unset($_SESSION['pondok_ta_options_cache_v1']);
@@ -71,6 +93,9 @@ function app_performance_cache_clear(PDO $pdo, array $options = []): array
     if (session_status() === PHP_SESSION_ACTIVE) {
         $exactKeys = [
             'keuangan_dash_snap_cache',
+            'keuangan_pos_options_v1',
+            'tagihan_syahriyah_list_v1',
+            'pondok_bulan_slots_v1',
             'pondok_ta_options_cache_v1',
             'app_header_brand_v1',
             'push_fcm_cfg_cache_v1',

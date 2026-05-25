@@ -26,16 +26,22 @@ function keuangan_save_periode_settings(PDO $pdo, array $post): array
     save_setting($pdo, 'keuangan_periode_mulai', (string) $mulai);
     save_setting($pdo, 'keuangan_periode_selesai', (string) $selesai);
     pondok_ta_persist_session($ta);
+    pondok_ta_clear_browse_session();
+    if (function_exists('pondok_bulan_slots_cache_invalidate')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+        pondok_bulan_slots_cache_invalidate();
+    }
     if (function_exists('keuangan_schema_cache_clear')) {
         require_once __DIR__ . '/keuangan_transaksi.php';
         keuangan_schema_cache_clear();
-    } else {
-        unset($_SESSION['keuangan_dash_snap_cache'], $_SESSION['pondok_ta_options_cache_v1']);
+    } elseif (function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+        keuangan_dashboard_cache_invalidate();
     }
 
     return [
         'ok' => true,
-        'message' => 'Periode tahun ajaran disimpan (' . pondok_tahun_ajaran_label($pdo, $ta) . ').',
+        'message' => 'Tahun ajaran aktif disimpan (' . pondok_tahun_ajaran_label($pdo, $ta) . '). Semua modul keuangan & tagihan mengikuti periode ini.',
     ];
 }
 
@@ -67,6 +73,10 @@ function keuangan_save_tarif_settings(PDO $pdo, array $post): array
     }
 
     app_settings_cache($pdo, true);
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
 
     return ['ok' => true, 'message' => 'Tarif komponen biaya berhasil disimpan.'];
 }

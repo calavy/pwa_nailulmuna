@@ -103,7 +103,7 @@ $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
                 <div class="wali-kicker mb-2">Tagihan bulan ini</div>
                 <div class="small text-muted mb-2">
                     <span class="badge text-bg-primary me-1" style="font-size:.65rem">Bulan ini</span>
-                    <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · Syahriyah + Makan
+                    <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?> · TA <?= htmlspecialchars($berjalan['ta_label']) ?> · Wajib: Syahriyah
                 </div>
                 <div class="d-flex justify-content-between mb-1 small">
                     <span class="wali-stat-label">Syahriyah</span>

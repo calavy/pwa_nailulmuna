@@ -5,16 +5,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/keuangan_neraca.php';
-require_once __DIR__ . '/../helpers/keuangan_aruskas.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
-
-keuangan_ensure_schema_deferred($pdo);
 
 /** Redirect tab lama ke halaman yang masih ada (tanpa rebuild modul besar). */
 $tabRedirects = [
@@ -81,8 +77,7 @@ require_once __DIR__ . '/../includes/header.php';
     $tag = $dashSnap['tagihan_bulan'];
     $wa = $dashSnap['wa_tagihan'];
     $seimbang = !empty($ner['seimbang']);
-    $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan']
-        . '&tm=' . (int) $tag['tm'] . '&ts=' . (int) $tag['ts'];
+    $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan'];
 ?>
 <section class="keu-dash-snapshot mb-4" aria-label="Kondisi keuangan terkini">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -246,7 +241,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($dashSnap !== null): ?>
 <?php
     $nerSnap = $dashSnap['neraca'];
-    $lakRingkas = keuangan_build_arus_kas($pdo, date('Y-01-01'), date('Y-m-d'));
+    $lakRingkas = $dashSnap['arus_kas_ringkas'] ?? ['kenaikan_kas' => 0, 'periode_label' => ''];
 ?>
 <div class="row g-3 mb-4" id="laporan">
     <div class="col-lg-6">

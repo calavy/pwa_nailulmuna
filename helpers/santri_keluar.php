@@ -243,6 +243,17 @@ function santri_settle_keuangan_on_exit(
         $lines[] = 'Sisa saldo cashless Rp ' . number_format($cleared, 0, ',', '.') . ' dinolkan (penutupan akun).';
     }
 
+    if (function_exists('keuangan_dashboard_cache_invalidate')) {
+        keuangan_dashboard_cache_invalidate();
+    } else {
+        if (is_file(__DIR__ . '/keuangan_dashboard.php')) {
+            require_once __DIR__ . '/keuangan_dashboard.php';
+            if (function_exists('keuangan_dashboard_cache_invalidate')) {
+                keuangan_dashboard_cache_invalidate();
+            }
+        }
+    }
+
     return [
         'lines' => $lines,
         'cashless_used' => $cashlessUsed,

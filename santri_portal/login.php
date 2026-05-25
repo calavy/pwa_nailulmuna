@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_portal.php';
+require_once __DIR__ . '/../includes/auth_portal_layout.php';
 
 ensure_santri_portal_pin_column($pdo);
 
@@ -35,14 +36,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     app_redirect('santri_portal/index.php');
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../includes/auth_portal_layout.php';
+$brandNama = auth_portal_brand_nama($pdo);
+$welcome = auth_portal_welcome_copy($pdo);
 
 auth_portal_layout_begin([
     'title' => 'Portal Santri',
-    'welcome' => 'Portal Santri',
+    'welcome_salam' => $welcome['salam'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => $welcome['tagline_portal'],
     'subtitle' => 'Masuk dengan NIS dan PIN (portal santri atau PIN cashless) untuk tugas ikhtibar dan riwayat pribadi.',
-    'nama_ponpes' => $namaPonpes,
+    'nama_ponpes' => $brandNama,
     'max_width' => '420px',
     'accent' => 'teal',
 ]);

@@ -60,7 +60,7 @@ $ringkasanPos = [];
 
 if ($tablesOk) {
     if ($detailOk) {
-        $posOptions = $pdo->query('SELECT DISTINCT pos_slug, pos_nama FROM keuangan_pembayaran_detail ORDER BY pos_nama ASC, pos_slug ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $posOptions = keuangan_pembayaran_pos_options($pdo);
     }
 
     $kkCol = column_exists($pdo, 'santri', 'kategori_kelas') ? 's.kategori_kelas' : "''";

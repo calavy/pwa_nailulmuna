@@ -26,17 +26,26 @@ function auth_portal_salam_waktu(?DateTimeInterface $when = null): string
     return 'Selamat malam';
 }
 
+/** Salam pembuka standar untuk halaman masuk. */
+function auth_portal_salam_islami(): string
+{
+    return 'Assalamu\'alaikum warahmatullahi wabarakatuh';
+}
+
 /**
- * @return array{salam:string,tagline:string,ponpes:string}
+ * @return array{salam:string,salam_waktu:string,tagline:string,tagline_portal:string,ponpes:string}
  */
 function auth_portal_welcome_copy(PDO $pdo): array
 {
     require_once __DIR__ . '/../helpers/app.php';
     $ponpes = app_brand_nama_ponpes($pdo, 'A.P.I Nailul Muna');
+    $waktu = auth_portal_salam_waktu();
 
     return [
-        'salam' => auth_portal_salam_waktu(),
-        'tagline' => 'Selamat datang di portal resmi pesantren',
+        'salam' => auth_portal_salam_islami(),
+        'salam_waktu' => $waktu . ' — semoga Allah mudahkan urusan kita.',
+        'tagline' => 'Barakallahu fiikum. Silakan pilih peran lalu masuk dengan akun yang telah diberikan.',
+        'tagline_portal' => 'Portal resmi ' . $ponpes,
         'ponpes' => $ponpes,
     ];
 }
@@ -59,6 +68,7 @@ function auth_portal_brand_nama(PDO $pdo): string
  *   welcome?: string,
  *   welcome_tagline?: string,
  *   welcome_salam?: string,
+ *   welcome_salam_waktu?: string,
  *   card_title?: string,
  *   card_meta?: string,
  *   subtitle_mobile?: string,
@@ -76,6 +86,9 @@ function auth_portal_layout_begin(array $ctx): void
     $welcomeSalam = isset($ctx['welcome_salam'])
         ? htmlspecialchars((string) $ctx['welcome_salam'])
         : (isset($ctx['welcome']) ? htmlspecialchars((string) $ctx['welcome']) : '');
+    $welcomeSalamWaktu = isset($ctx['welcome_salam_waktu'])
+        ? htmlspecialchars((string) $ctx['welcome_salam_waktu'])
+        : '';
     $welcomeTagline = isset($ctx['welcome_tagline']) ? htmlspecialchars((string) $ctx['welcome_tagline']) : '';
     $subtitleFallback = trim((string) ($ctx['subtitle'] ?? ''));
     $subtitleMobile = trim((string) ($ctx['subtitle_mobile'] ?? $subtitleFallback));
@@ -123,6 +136,7 @@ function auth_portal_layout_begin(array $ctx): void
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="<?= htmlspecialchars($accentHex) ?>">
+    <meta name="robots" content="noindex, nofollow">
     <title><?= $title ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -211,9 +225,12 @@ function auth_portal_layout_begin(array $ctx): void
             <div class="auth-portal-hero-text">
                 <div class="auth-portal-hero-lead">
                     <?php if ($welcomeSalam !== ''): ?>
-                        <h1 class="auth-portal-salam"><?= $welcomeSalam ?></h1>
+                        <h1 class="auth-portal-salam auth-portal-salam--utama"><?= $welcomeSalam ?></h1>
                     <?php elseif ($namaPonpes === '' && $title !== ''): ?>
                         <h1 class="auth-portal-salam"><?= $title ?></h1>
+                    <?php endif; ?>
+                    <?php if ($welcomeSalamWaktu !== ''): ?>
+                        <p class="auth-portal-salam-waktu mb-0"><?= $welcomeSalamWaktu ?></p>
                     <?php endif; ?>
                 </div>
                 <div class="auth-portal-hero-follow">
@@ -258,7 +275,11 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
         <?php if ($footerLinks !== []): ?>
             <nav class="auth-portal-links text-center mt-2 d-flex flex-wrap justify-content-center gap-3" aria-label="Tautan portal">
                 <?php foreach ($footerLinks as $lnk): ?>
-                    <a href="<?= htmlspecialchars((string) ($lnk['href'] ?? '#')) ?>"><?= htmlspecialchars((string) ($lnk['label'] ?? '')) ?></a>
+                    <?php
+                    $footerHref = (string) ($lnk['href'] ?? '#');
+                    $footerHrefOut = function_exists('app_href') ? app_href($footerHref) : $footerHref;
+                    ?>
+                    <a href="<?= htmlspecialchars($footerHrefOut) ?>"><?= htmlspecialchars((string) ($lnk['label'] ?? '')) ?></a>
                 <?php endforeach; ?>
             </nav>
         <?php endif; ?>

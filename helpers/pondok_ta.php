@@ -27,37 +27,54 @@ function pondok_ta_bulan_awal(PDO $pdo): int
         : pondok_ta_bulan_awal_masehi($pdo);
 }
 
+/** Hapus pilihan TA per-halaman (semua modul mengikuti pengaturan terpusat). */
+function pondok_ta_clear_browse_session(): void
+{
+    unset(
+        $_SESSION['pondok_ta_browse'],
+        $_SESSION['keuangan_ta_browse'],
+        $_SESSION['pondok_ta_options_cache_v1']
+    );
+}
+
+/** Satu-satunya tempat ubah TA aktif pondok. */
+function pondok_ta_central_settings_href(): string
+{
+    return app_href('/keuangan/pengaturan.php?bagian=umum');
+}
+
+/** Apakah user login boleh membuka halaman pengaturan TA terpusat. */
+function pondok_ta_user_can_edit_central(PDO $pdo): bool
+{
+    if (!isset($_SESSION['user'])) {
+        return false;
+    }
+    if (!empty($_SESSION['user']['is_super_admin'])) {
+        return true;
+    }
+    if (!function_exists('get_allowed_permission_key_map')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    $allowed = get_allowed_permission_key_map($pdo);
+    if ($allowed === null) {
+        $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+
+        return in_array($role, ['admin', 'pengurus'], true);
+    }
+
+    return isset($allowed['keuangan_pengaturan_modul']);
+}
+
 /**
- * Tahun ajaran yang sedang dilihat (sesi + URL). Dipakai di keuangan, santri, rekap, dll.
+ * Tahun ajaran operasional — selalu dari pengaturan terpusat (Keuangan → Umum & periode).
+ * Parameter URL/sesi tm/ts tidak lagi mengganti TA di tiap halaman.
  *
  * @return array{mulai:int,selesai:int,is_aktif:bool,label:string}
  */
 function pondok_ta_resolve(PDO $pdo, ?array $input = null): array
 {
+    unset($input);
     $aktif = pondok_tahun_ajaran_aktif($pdo);
-    $input = $input ?? [];
-
-    $tmRaw = $input['tm'] ?? $input['tahun_ajaran_mulai'] ?? $input['keuangan_periode_mulai'] ?? null;
-    $tsRaw = $input['ts'] ?? $input['tahun_ajaran_selesai'] ?? $input['keuangan_periode_selesai'] ?? null;
-
-    if ($tmRaw !== null && (int) $tmRaw > 0) {
-        $ta = pondok_normalisasi_tahun_ajaran_input($pdo, (int) $tmRaw, (int) ($tsRaw ?? 0));
-        pondok_ta_persist_session($ta);
-
-        return pondok_ta_enrich($pdo, $ta, $aktif);
-    }
-
-    $browse = $_SESSION['pondok_ta_browse'] ?? $_SESSION['keuangan_ta_browse'] ?? null;
-    if (is_array($browse) && (int) ($browse['mulai'] ?? 0) > 0) {
-        $ta = pondok_normalisasi_tahun_ajaran_input(
-            $pdo,
-            (int) $browse['mulai'],
-            (int) ($browse['selesai'] ?? 0)
-        );
-
-        return pondok_ta_enrich($pdo, $ta, $aktif);
-    }
-
     pondok_ta_persist_session($aktif);
 
     return pondok_ta_enrich($pdo, $aktif, $aktif);
@@ -179,12 +196,16 @@ function pondok_ta_pilihan_options(PDO $pdo): array
     return $out;
 }
 
+/** Query string tanpa tm/ts — TA aktif selalu dari pengaturan terpusat. */
+function pondok_ta_query_active(array $extra = []): string
+{
+    return http_build_query($extra);
+}
+
+/** @param array{mulai?:int,selesai?:int} $ta Diabaikan (kompatibilitas). */
 function pondok_ta_query(array $ta, array $extra = []): string
 {
-    return http_build_query(array_merge([
-        'tm' => (int) ($ta['mulai'] ?? 0),
-        'ts' => (int) ($ta['selesai'] ?? 0),
-    ], $extra));
+    return pondok_ta_query_active($extra);
 }
 
 /** Nomor slot tagihan 1–12 dari bulan kalender (Hijriyah/Masehi) dalam TA tertentu. */

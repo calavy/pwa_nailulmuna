@@ -509,23 +509,95 @@ function hijri_tanggal_penuh_dari_masehi(PDO $pdo, string $tanggalMasehi): strin
 }
 
 /**
+ * Muat pemetaan hijri_mappings untuk rentang tahun (sekali per request / preload slot TA).
+ */
+function hijri_preload_mappings_years(PDO $pdo, int $tahunDari, int $tahunSampai): void
+{
+    static $loaded = [];
+    $tahunDari = max(1, $tahunDari);
+    $tahunSampai = max($tahunDari, $tahunSampai);
+    $key = $tahunDari . ':' . $tahunSampai;
+    if (isset($loaded[$key])) {
+        return;
+    }
+    $loaded[$key] = true;
+
+    if (!table_exists($pdo, 'hijri_mappings')) {
+        return;
+    }
+    ensure_hijri_mappings_table($pdo);
+    $st = $pdo->prepare('
+        SELECT tahun_hijriah, nama_bulan, tanggal_masehi_awal_bulan, total_hari
+        FROM hijri_mappings
+        WHERE tahun_hijriah BETWEEN :y1 AND :y2
+    ');
+    $st->execute(['y1' => $tahunDari, 'y2' => $tahunSampai]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $y = (int) ($row['tahun_hijriah'] ?? 0);
+        $n = trim((string) ($row['nama_bulan'] ?? ''));
+        if ($y <= 0 || $n === '') {
+            continue;
+        }
+        hijri_mapping_row_cache_store($y, $n, $row);
+    }
+}
+
+/** @return array<string, array<string, mixed>> */
+function &hijri_mappings_row_cache_ref(): array
+{
+    static $cache = [];
+
+    return $cache;
+}
+
+/** @param array<string, mixed> $row */
+function hijri_mapping_row_cache_store(int $tahunHijriah, string $namaBulan, array $row): void
+{
+    $cache = &hijri_mappings_row_cache_ref();
+    $cache[$tahunHijriah . ':' . $namaBulan] = $row;
+}
+
+/** @return array<string, mixed>|null */
+function hijri_mapping_row_from_cache(int $tahunHijriah, string $namaBulan): ?array
+{
+    $cache = &hijri_mappings_row_cache_ref();
+    $key = $tahunHijriah . ':' . $namaBulan;
+
+    return $cache[$key] ?? null;
+}
+
+/**
  * Daftar tanggal Masehi dalam satu bulan H. menurut pemetaan DB.
  *
  * @return list<string>
  */
 function hijri_masehi_days_in_bulan(PDO $pdo, int $tahunHijriah, int $bulanHijriyah): array
 {
+    static $daysCache = [];
+    $cacheKey = $tahunHijriah . ':' . $bulanHijriyah;
+    if (isset($daysCache[$cacheKey])) {
+        return $daysCache[$cacheKey];
+    }
+
     $nama = hijri_indeks_ke_nama($bulanHijriyah);
-    ensure_hijri_mappings_table($pdo);
-    $st = $pdo->prepare('
-        SELECT tanggal_masehi_awal_bulan, total_hari
-        FROM hijri_mappings
-        WHERE tahun_hijriah = :y AND nama_bulan = :n
-        LIMIT 1
-    ');
-    $st->execute(['y' => $tahunHijriah, 'n' => $nama]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $row = hijri_mapping_row_from_cache($tahunHijriah, $nama);
+    if ($row === null) {
+        ensure_hijri_mappings_table($pdo);
+        $st = $pdo->prepare('
+            SELECT tanggal_masehi_awal_bulan, total_hari
+            FROM hijri_mappings
+            WHERE tahun_hijriah = :y AND nama_bulan = :n
+            LIMIT 1
+        ');
+        $st->execute(['y' => $tahunHijriah, 'n' => $nama]);
+        $row = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (is_array($row)) {
+            hijri_mapping_row_cache_store($tahunHijriah, $nama, $row);
+        }
+    }
     if (!$row || !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['tanggal_masehi_awal_bulan'] ?? ''))) {
+        $daysCache[$cacheKey] = [];
+
         return [];
     }
     $awal = (string) $row['tanggal_masehi_awal_bulan'];
@@ -539,6 +611,8 @@ function hijri_masehi_days_in_bulan(PDO $pdo, int $tahunHijriah, int $bulanHijri
         }
         $out[] = date('Y-m-d', $ts);
     }
+
+    $daysCache[$cacheKey] = $out;
 
     return $out;
 }

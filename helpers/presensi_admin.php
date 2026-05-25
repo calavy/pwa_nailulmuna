@@ -12,6 +12,8 @@ function ensure_presensi_jadwal_column(PDO $pdo): void
     try {
         $pdo->exec('ALTER TABLE presensi ADD COLUMN IF NOT EXISTS jadwal_kegiatan_id INT NULL AFTER kegiatan_id');
         $pdo->exec('ALTER TABLE presensi ADD INDEX IF NOT EXISTS idx_presensi_jadwal (jadwal_kegiatan_id)');
+        $pdo->exec('ALTER TABLE presensi ADD INDEX IF NOT EXISTS idx_presensi_tanggal_santri (tanggal_presensi, santri_id)');
+        $pdo->exec('ALTER TABLE presensi ADD INDEX IF NOT EXISTS idx_presensi_kegiatan_tanggal (kegiatan_id, tanggal_presensi)');
     } catch (PDOException $e) {
         // MariaDB versi lama mungkin tidak mendukung IF NOT EXISTS pada INDEX
         try {

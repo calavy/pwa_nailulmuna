@@ -211,6 +211,24 @@ function ikhtibar_resolve_mapel_dari_post(PDO $pdo, array $post, int $userId): ?
     ];
 }
 
+function ikhtibar_user_matches_pembimbing_nip(PDO $pdo): bool
+{
+    if (!isset($_SESSION['user']) || !table_exists($pdo, 'pembimbing')) {
+        return false;
+    }
+    $nip = trim((string) ($_SESSION['user']['username'] ?? ''));
+    if ($nip === '') {
+        return false;
+    }
+    $aktif = column_exists($pdo, 'pembimbing', 'is_aktif')
+        ? ' AND COALESCE(is_aktif, 1) = 1'
+        : '';
+    $st = $pdo->prepare('SELECT 1 FROM pembimbing WHERE TRIM(nip) = :nip' . $aktif . ' LIMIT 1');
+    $st->execute(['nip' => $nip]);
+
+    return (bool) $st->fetchColumn();
+}
+
 function ikhtibar_require_pembimbing_access(): void
 {
     require_once __DIR__ . '/../includes/auth.php';
@@ -220,6 +238,10 @@ function ikhtibar_require_pembimbing_access(): void
     }
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if (in_array($role, ['admin', 'pengurus'], true)) {
+        return;
+    }
+    global $pdo;
+    if ($pdo instanceof PDO && ikhtibar_user_matches_pembimbing_nip($pdo)) {
         return;
     }
     require_once __DIR__ . '/../helpers/app_path.php';

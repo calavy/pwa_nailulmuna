@@ -6,11 +6,12 @@ require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/pondok_kalender.php';
 require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
 require_once __DIR__ . '/santri_ta.php';
+require_once __DIR__ . '/santri_list_sort.php';
 
 /**
- * Tarif tagihan wajib per tier (syahriyah + makan) — sekali per request.
+ * Tarif pos bulanan per tier — sekali per request.
  *
- * @return array{syahriyah: array<string,int>, makan: array<string,int>}
+ * @return array<string, array<string, int>>
  */
 function tagihan_wajib_tarif_cache_by_tier(PDO $pdo): array
 {
@@ -22,29 +23,34 @@ function tagihan_wajib_tarif_cache_by_tier(PDO $pdo): array
     $sy = keuangan_syahriyah_tarif_cache_by_tier($pdo);
     $makanDefaults = ['muadalah' => 220000, 'wustho' => 220000, 'ulya' => 220000];
     $makan = [];
-    foreach ($makanDefaults as $tier => $fallback) {
-        $makan[$tier] = (int) app_setting($pdo, 'keuangan_fee_makan_' . $tier, (string) $fallback);
+    $sakuDefaults = ['muadalah' => 300000, 'wustho' => 300000, 'ulya' => 300000];
+    $saku = [];
+    foreach (['muadalah', 'wustho', 'ulya'] as $tier) {
+        $makan[$tier] = (int) app_setting($pdo, 'keuangan_fee_makan_' . $tier, (string) ($makanDefaults[$tier] ?? 0));
+        $saku[$tier] = (int) app_setting($pdo, 'keuangan_fee_saku_' . $tier, (string) ($sakuDefaults[$tier] ?? 0));
     }
 
-    $cache = ['syahriyah' => $sy, 'makan' => $makan];
+    $cache = ['syahriyah' => $sy, 'makan' => $makan, 'saku' => $saku];
 
     return $cache;
 }
 
 /**
- * Pembayaran wajib bulan ini: [santri_id][pos_slug] => nominal.
- *
+ * @param list<string> $slugs
  * @return array<int, array<string, int>>
  */
-function tagihan_paid_wajib_map_for_month(
+function tagihan_paid_map_for_month(
     PDO $pdo,
     int $bulanTagihan,
     int $tahunAjaranMulai,
-    int $tahunAjaranSelesai
+    int $tahunAjaranSelesai,
+    array $slugs
 ): array {
+    $slugs = array_values(array_unique(array_filter(array_map('strval', $slugs))));
     if (
         $bulanTagihan < 1
         || $bulanTagihan > 12
+        || $slugs === []
         || !table_exists($pdo, 'keuangan_pembayaran')
         || !table_exists($pdo, 'keuangan_pembayaran_detail')
     ) {
@@ -52,7 +58,6 @@ function tagihan_paid_wajib_map_for_month(
     }
 
     $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $bulanTagihan, 'p');
-    $slugs = keuangan_tagihan_wajib_slugs();
     $slugBinds = [];
     $slugParams = [];
     foreach ($slugs as $i => $slug) {
@@ -89,6 +94,165 @@ function tagihan_paid_wajib_map_for_month(
     }
 
     return $map;
+}
+
+/**
+ * Pembayaran wajib bulan ini: [santri_id][pos_slug] => nominal.
+ *
+ * @return array<int, array<string, int>>
+ */
+function tagihan_paid_wajib_map_for_month(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai
+): array {
+    return tagihan_paid_map_for_month(
+        $pdo,
+        $bulanTagihan,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        keuangan_tagihan_wajib_slugs()
+    );
+}
+
+/**
+ * Status pos opsional (makan, saku) untuk satu santri.
+ *
+ * @param array<string, int> $paidSantri
+ * @return array<string, array{expected:int,paid:int,sisa:int,status:string,statusClass:string}>
+ */
+function ensure_keuangan_santri_opsional_table(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    try {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS keuangan_santri_opsional (
+                santri_id INT UNSIGNED NOT NULL,
+                slug VARCHAR(20) NOT NULL,
+                aktif TINYINT(1) NOT NULL DEFAULT 1,
+                nominal INT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (santri_id, slug),
+                KEY idx_slug_aktif (slug, aktif)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+        $done = true;
+    } catch (Throwable $e) {
+        $done = true;
+    }
+}
+
+/**
+ * Peta opt-in/override opsional per santri dari tabel keuangan_santri_opsional.
+ *
+ * @return array<int, array<string, array{aktif:bool, nominal:?int}>>
+ */
+function keuangan_santri_opsional_map_cached(PDO $pdo): array
+{
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+    ensure_keuangan_santri_opsional_table($pdo);
+    $cache = [];
+    try {
+        $rows = $pdo->query('SELECT santri_id, slug, aktif, nominal FROM keuangan_santri_opsional')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $r) {
+            $sid = (int) ($r['santri_id'] ?? 0);
+            $slug = strtolower(trim((string) ($r['slug'] ?? '')));
+            if ($sid <= 0 || $slug === '') {
+                continue;
+            }
+            $nominal = $r['nominal'] === null ? null : max(0, (int) $r['nominal']);
+            $cache[$sid][$slug] = [
+                'aktif' => (int) ($r['aktif'] ?? 1) === 1,
+                'nominal' => $nominal,
+            ];
+        }
+    } catch (Throwable $e) {
+        $cache = [];
+    }
+
+    return $cache;
+}
+
+function keuangan_santri_opsional_cache_invalidate(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['tagihan_syahriyah_list_v1']);
+    }
+    if (function_exists('keuangan_dashboard_cache_invalidate')) {
+        keuangan_dashboard_cache_invalidate();
+    }
+}
+
+/**
+ * Resolve override opsional per santri (gunakan default tier bila tidak ada entri).
+ *
+ * @return array{aktif:bool, nominal_override:?int}
+ */
+function keuangan_santri_opsional_for(PDO $pdo, int $santriId, string $slug): array
+{
+    $map = keuangan_santri_opsional_map_cached($pdo);
+    if (isset($map[$santriId][$slug])) {
+        return [
+            'aktif' => (bool) $map[$santriId][$slug]['aktif'],
+            'nominal_override' => $map[$santriId][$slug]['nominal'],
+        ];
+    }
+
+    return ['aktif' => true, 'nominal_override' => null];
+}
+
+function tagihan_opsional_pos_for_month_bulk(
+    PDO $pdo,
+    string $kelasKategori,
+    array $paidSantri,
+    int $santriId = 0
+): array {
+    $tarif = tagihan_wajib_tarif_cache_by_tier($pdo);
+    $tier = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
+    $perPos = [];
+    $overridesMap = $santriId > 0 ? keuangan_santri_opsional_map_cached($pdo) : [];
+    foreach (keuangan_tagihan_opsional_bulanan_slugs() as $slug) {
+        $expected = max(0, (int) ($tarif[$slug][$tier] ?? 0));
+        if ($santriId > 0 && isset($overridesMap[$santriId][$slug])) {
+            $ov = $overridesMap[$santriId][$slug];
+            if (!$ov['aktif']) {
+                $expected = 0;
+            } elseif ($ov['nominal'] !== null) {
+                $expected = max(0, (int) $ov['nominal']);
+            }
+        }
+        $paid = (int) ($paidSantri[$slug] ?? 0);
+        $sisa = max(0, $expected - $paid);
+        if ($expected <= 0) {
+            $st = '—';
+            $stClass = 'secondary';
+        } elseif ($paid >= $expected) {
+            $st = 'Lunas';
+            $stClass = 'success';
+        } elseif ($paid <= 0) {
+            $st = 'Belum';
+            $stClass = 'danger';
+        } else {
+            $st = 'Sebagian';
+            $stClass = 'warning';
+        }
+        $perPos[$slug] = [
+            'expected' => $expected,
+            'paid' => $paid,
+            'sisa' => $sisa,
+            'status' => $st,
+            'statusClass' => $stClass,
+        ];
+    }
+
+    return $perPos;
 }
 
 /**
@@ -238,7 +402,13 @@ function tagihan_bulanan_page_context(
 
     $pageCache[$key] = [
         'sy_ctx' => $syCtx,
-        'paid_map' => tagihan_paid_wajib_map_for_month($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai),
+        'paid_map' => tagihan_paid_map_for_month(
+            $pdo,
+            $bulanTagihan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            keuangan_tagihan_bulanan_slugs()
+        ),
         'kelas_labels' => kelas_keuangan_label_map($pdo),
         'tingkatan_map' => santri_tingkatan_map_for_ta($pdo, $tahunAjaranMulai, $tahunAjaranSelesai),
     ];
@@ -247,7 +417,7 @@ function tagihan_bulanan_page_context(
 }
 
 /**
- * Total tagihan wajib (syahriyah + makan) semua santri aktif — tanpa loop query per santri.
+ * Total tagihan wajib (syahriyah) semua santri aktif — tanpa loop query per santri.
  *
  * @param list<array<string, mixed>> $santriRows
  */
@@ -261,8 +431,230 @@ function tagihan_wajib_total_expected_all_santri(PDO $pdo, array $santriRows): i
             $kat = (string) $s['tingkatan'];
         }
         $tier = keuangan_tier_key_from_kelas($kat, $pdo);
-        $total += (int) ($tarif['syahriyah'][$tier] ?? 0) + (int) ($tarif['makan'][$tier] ?? 0);
+        $total += (int) ($tarif['syahriyah'][$tier] ?? 0);
     }
 
     return $total;
+}
+
+function tagihan_syahriyah_cache_invalidate(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['tagihan_syahriyah_list_v1']);
+    }
+}
+
+/**
+ * Hitung daftar tagihan bulanan semua santri aktif (tanpa filter pencarian).
+ *
+ * @return array{
+ *   body: list<array<string, mixed>>,
+ *   sum_tagihan: int,
+ *   sum_bayar: int,
+ *   count_lunas: int,
+ *   count_belum: int,
+ *   count_sebagian: int,
+ *   tables_ok: bool
+ * }
+ */
+/**
+ * Cache daftar santri aktif untuk perhitungan keuangan (per request).
+ *
+ * @return list<array<string, mixed>>
+ */
+function tagihan_santri_aktif_rows_cached(PDO $pdo, bool $withWa = false): array
+{
+    static $cache = [];
+    $key = $withWa ? 'wa' : 'plain';
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+    $cols = ['id', 'nis', 'nama_santri', 'tingkatan', 'kategori_kelas'];
+    if ($withWa && column_exists($pdo, 'santri', 'no_wa_wali')) {
+        $cols[] = 'no_wa_wali';
+    }
+    $sql = 'SELECT ' . implode(', ', $cols) . ' FROM santri';
+    if (column_exists($pdo, 'santri', 'is_aktif')) {
+        $sql .= ' WHERE COALESCE(is_aktif, 1) = 1';
+    }
+    $sql .= ' ORDER BY ' . santri_list_order_sql('santri');
+    $cache[$key] = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    return $cache[$key];
+}
+
+function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunAjaranMulai, int $tahunAjaranSelesai, string $sortMode): array
+{
+    $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
+    $tagihanCtx = $tablesOk
+        ? tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)
+        : ['sy_ctx' => [], 'paid_map' => [], 'tingkatan_map' => []];
+    $syCtx = $tagihanCtx['sy_ctx'];
+    $paidMap = $tagihanCtx['paid_map'];
+    $tingkatanMap = $tagihanCtx['tingkatan_map'];
+
+    $rows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo) : [];
+
+    $body = [];
+    $sumTagihan = 0;
+    $sumBayar = 0;
+    $countLunas = 0;
+    $countBelum = 0;
+    $countSebagian = 0;
+    $tierByKelas = [];
+
+    foreach ($rows as $s) {
+        $kelasKategori = santri_kelas_untuk_ta(
+            $pdo,
+            (int) $s['id'],
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $s,
+            $tingkatanMap
+        );
+        $st = $tablesOk
+            ? tagihan_wajib_status_for_month_bulk(
+                $pdo,
+                (int) $s['id'],
+                $bulanTagihan,
+                $tahunAjaranMulai,
+                $tahunAjaranSelesai,
+                $kelasKategori,
+                $paidMap,
+                $syCtx
+            )
+            : [
+                'expected_total' => 0,
+                'paid_total' => 0,
+                'sisa_total' => 0,
+                'status' => '—',
+                'statusClass' => 'secondary',
+                'per_pos' => [],
+            ];
+        $expected = (int) ($st['expected_total'] ?? 0);
+        $paid = (int) ($st['paid_total'] ?? 0);
+        $sisa = (int) ($st['sisa_total'] ?? 0);
+        $status = (string) ($st['status'] ?? '—');
+        $statusClass = (string) ($st['statusClass'] ?? 'secondary');
+        if ($status === 'Lunas') {
+            $countLunas++;
+        } elseif ($status === 'Belum') {
+            $countBelum++;
+        } elseif ($status === 'Sebagian') {
+            $countSebagian++;
+        }
+        $sumTagihan += $expected;
+        $sumBayar += min($paid, $expected);
+
+        $perPos = (array) ($st['per_pos'] ?? []);
+        $paidSantri = $paidMap[(int) $s['id']] ?? [];
+        $opsPos = $tablesOk
+            ? tagihan_opsional_pos_for_month_bulk($pdo, $kelasKategori, $paidSantri, (int) $s['id'])
+            : [];
+        if (!array_key_exists($kelasKategori, $tierByKelas)) {
+            $tierByKelas[$kelasKategori] = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
+        }
+        $body[] = [
+            'id' => (int) $s['id'],
+            'nis' => (string) ($s['nis'] ?? ''),
+            'nama' => (string) ($s['nama_santri'] ?? ''),
+            'tingkatan' => trim((string) ($s['tingkatan'] ?? '')),
+            'kategori' => trim((string) ($s['kategori_kelas'] ?? '')),
+            'tier' => $tierByKelas[$kelasKategori],
+            'tagihan' => $expected,
+            'bayar' => $paid,
+            'sisa' => $sisa,
+            'status' => $status,
+            'statusClass' => $statusClass,
+            'sy_expected' => (int) (($perPos['syahriyah']['expected'] ?? 0)),
+            'sy_dasar' => (int) (($perPos['syahriyah']['expected_dasar'] ?? $perPos['syahriyah']['expected'] ?? 0)),
+            'sy_persen' => (float) (($perPos['syahriyah']['persen_potongan'] ?? 0)),
+            'sy_ket_potongan' => (string) (($perPos['syahriyah']['keterangan_potongan'] ?? '')),
+            'sy_dijeda' => !empty($perPos['syahriyah']['potongan_dijeda']),
+            'sy_paid' => (int) (($perPos['syahriyah']['paid'] ?? 0)),
+            'sy_sisa' => (int) (($perPos['syahriyah']['sisa'] ?? 0)),
+            'mk_expected' => (int) (($opsPos['makan']['expected'] ?? 0)),
+            'mk_paid' => (int) (($opsPos['makan']['paid'] ?? 0)),
+            'mk_sisa' => (int) (($opsPos['makan']['sisa'] ?? 0)),
+            'sk_expected' => (int) (($opsPos['saku']['expected'] ?? 0)),
+            'sk_paid' => (int) (($opsPos['saku']['paid'] ?? 0)),
+            'sk_sisa' => (int) (($opsPos['saku']['sisa'] ?? 0)),
+        ];
+    }
+
+    $body = santri_list_sort_rows($body, $sortMode);
+
+    return [
+        'body' => $body,
+        'sum_tagihan' => $sumTagihan,
+        'sum_bayar' => $sumBayar,
+        'count_lunas' => $countLunas,
+        'count_belum' => $countBelum,
+        'count_sebagian' => $countSebagian,
+        'tables_ok' => $tablesOk,
+    ];
+}
+
+/**
+ * Cache hasil tagihan bulanan per TA + bulan (pergantian dropdown cepat).
+ *
+ * @return array{
+ *   body: list<array<string, mixed>>,
+ *   sum_tagihan: int,
+ *   sum_bayar: int,
+ *   count_lunas: int,
+ *   count_belum: int,
+ *   count_sebagian: int,
+ *   tables_ok: bool
+ * }
+ */
+function tagihan_syahriyah_list_cached(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    string $sortMode,
+    int $ttlSec = 300
+): array {
+    static $requestCache = [];
+    if (!function_exists('pondok_ta_bulan_awal')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    $cacheKey = 'v2:' . $bulanTagihan . ':' . $tahunAjaranMulai . ':' . $tahunAjaranSelesai . ':'
+        . $sortMode . ':' . (pondok_kalender_hijriyah($pdo) ? 'h' : 'm') . ':' . pondok_ta_bulan_awal($pdo);
+    if (isset($requestCache[$cacheKey])) {
+        return $requestCache[$cacheKey];
+    }
+
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['tagihan_syahriyah_list_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                $requestCache[$cacheKey] = $entry['data'];
+
+                return $requestCache[$cacheKey];
+            }
+        }
+    }
+
+    $data = tagihan_syahriyah_list_compute($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $sortMode);
+    $requestCache[$cacheKey] = $data;
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['tagihan_syahriyah_list_v1']) || !is_array($_SESSION['tagihan_syahriyah_list_v1'])) {
+            $_SESSION['tagihan_syahriyah_list_v1'] = [];
+        }
+        $bucket = $_SESSION['tagihan_syahriyah_list_v1'];
+        $bucket[$cacheKey] = [
+            'expires' => time() + max(60, $ttlSec),
+            'data' => $data,
+        ];
+        if (count($bucket) > 6) {
+            uasort($bucket, static fn(array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 6, true);
+        }
+        $_SESSION['tagihan_syahriyah_list_v1'] = $bucket;
+    }
+
+    return $data;
 }

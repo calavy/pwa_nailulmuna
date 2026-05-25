@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/mukimin_portal.php';
+require_once __DIR__ . '/../includes/auth_portal_layout.php';
 
 ensure_mukimin_portal_columns($pdo);
 
@@ -37,15 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     app_redirect('mukimin/index.php');
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
+$brandNama = auth_portal_brand_nama($pdo);
+$welcome = auth_portal_welcome_copy($pdo);
 $pageTitle = 'Portal Mukimin';
-require_once __DIR__ . '/../includes/auth_portal_layout.php';
 
 auth_portal_layout_begin([
     'title' => 'Portal Mukimin',
-    'welcome' => 'Portal Mukimin',
+    'welcome_salam' => $welcome['salam'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => $welcome['tagline_portal'],
     'subtitle' => 'Masuk dengan username dan password yang diberikan pengurus.',
-    'nama_ponpes' => $namaPonpes,
+    'nama_ponpes' => $brandNama,
     'max_width' => '420px',
     'accent' => 'teal',
 ]);

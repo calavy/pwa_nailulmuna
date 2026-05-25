@@ -8,6 +8,7 @@ header('Cache-Control: no-cache');
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../helpers/push_fcm.php';
+require_once __DIR__ . '/../../helpers/app_path.php';
 
 $cfg = push_fcm_web_config($pdo);
 $apiKey = addslashes($cfg['apiKey'] ?? '');
@@ -15,6 +16,7 @@ $projectId = addslashes($cfg['projectId'] ?? '');
 $senderId = addslashes($cfg['senderId'] ?? '');
 $appId = addslashes($cfg['appId'] ?? '');
 $authDomain = addslashes($projectId !== '' ? $projectId . '.firebaseapp.com' : '');
+$basePath = addslashes(rtrim(app_base_path(), '/') . '/');
 
 echo <<<JS
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
@@ -38,7 +40,14 @@ messaging.onBackgroundMessage(function (payload) {
 });
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || '/';
+  var base = '{$basePath}';
+  var raw = (event.notification.data && event.notification.data.url) || base;
+  var url = raw;
+  try {
+    if (typeof raw === 'string' && raw.indexOf('://') < 0 && raw.charAt(0) === '/' && base !== '/' && raw.indexOf(base) !== 0) {
+      url = base.replace(/\/$/, '') + raw;
+    }
+  } catch (e) {}
   event.waitUntil(clients.openWindow(url));
 });
 JS;

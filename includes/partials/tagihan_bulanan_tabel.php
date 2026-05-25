@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Tabel tagihan bulanan Syahriyah + Makan.
+ * Tabel tagihan bulanan — wajib Syahriyah; kolom Makan opsional.
  *
  * @var list<array<string, mixed>> $rowsTagihan
  * @var string $mode 'wali'|'staff'
@@ -19,7 +19,7 @@ $mode = ($mode ?? 'wali') === 'staff' ? 'staff' : 'wali';
                 <th>Bulan</th>
                 <?php if ($mode === 'wali'): ?>
                     <th class="text-end">Syahriyah</th>
-                    <th class="text-end">Makan</th>
+                    <th class="text-end">Makan <span class="text-muted fw-normal">(ops.)</span></th>
                 <?php else: ?>
                     <th class="text-end">Tagihan</th>
                     <th class="text-end">Bayar</th>

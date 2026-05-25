@@ -36,6 +36,7 @@ return [
         '/settings/akses_mukimin.php' => 'Akses Portal Mukimin',
         '/settings/pesantren.php' => 'Pesantren',
         '/settings/peraturan.php' => 'Peraturan Poin',
+        '/settings/alpa_notif.php' => 'Notifikasi Alpa Bertahap',
         '/settings/tingkatan.php' => 'Master Tingkatan',
         '/settings/kamar_ranjang.php' => 'Kamar & Ranjang',
         '/settings/kelas_ruangan.php' => 'Ruangan Kelas',
@@ -71,8 +72,9 @@ return [
         '/pembayaran/rekap_pos.php' => 'Rekap per POS',
         '/rekap/pembimbing.php' => 'Payroll Pembimbing',
         '/settings/kelas_keuangan.php' => 'Kelas Keuangan',
+        '/settings/opsional_santri.php' => 'Opsional Santri (Makan & Saku)',
         '/rekap/izin_telat.php' => 'Rekap Telat',
-        '/settings/index.php' => 'Pesantren',
+        '/settings/push.php' => 'Push FCM',
         '/settings/admin.php' => 'Kelola Akses User',
         '/yayasan/pengurus.php' => 'Pengurus',
         '/yayasan/rapat.php' => 'Rapat',
@@ -93,6 +95,7 @@ return [
             ]],
             ['title' => 'Pembimbing', 'paths' => [
                 '/pembimbing/index.php',
+                '/pembimbing/perizinan.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-keuangan', 'label' => 'Keuangan', 'icon' => 'fa-solid fa-wallet', 'sections' => [
@@ -119,6 +122,7 @@ return [
             ]],
             ['title' => 'Pengaturan', 'paths' => [
                 '/keuangan/pengaturan.php',
+                '/settings/opsional_santri.php',
                 '/keuangan/cashless_pin.php',
                 '/keuangan/inventaris.php',
             ]],
@@ -172,12 +176,14 @@ return [
             ['title' => 'Umum', 'paths' => [
                 '/settings/pesantren.php',
                 '/settings/peraturan.php',
+                '/settings/alpa_notif.php',
             ]],
             ['title' => 'Master Data', 'paths' => [
                 '/settings/kalender.php',
                 '/settings/hijri_mappings.php',
                 '/settings/tingkatan.php',
                 '/settings/kelas_keuangan.php',
+                '/settings/opsional_santri.php',
                 '/settings/kelas_ruangan.php',
                 '/settings/kamar_ranjang.php',
             ]],
@@ -190,9 +196,11 @@ return [
     'pengaturanNav' => [
         ['path' => '/settings/pesantren.php', 'label' => 'Pesantren', 'icon' => 'fa-solid fa-mosque'],
         ['path' => '/settings/peraturan.php', 'label' => 'Peraturan Poin', 'icon' => 'fa-solid fa-scale-balanced'],
+        ['path' => '/settings/alpa_notif.php', 'label' => 'Notifikasi Alpa Bertahap', 'icon' => 'fa-solid fa-tower-broadcast'],
         ['path' => '/settings/kalender.php', 'label' => 'Pengaturan Kalender', 'icon' => 'fa-solid fa-calendar-days'],
         ['path' => '/settings/tingkatan.php', 'label' => 'Master Tingkatan', 'icon' => 'fa-solid fa-layer-group'],
         ['path' => '/settings/kelas_keuangan.php', 'label' => 'Kelas Keuangan', 'icon' => 'fa-solid fa-coins'],
+        ['path' => '/settings/opsional_santri.php', 'label' => 'Opsional Santri (Makan & Saku)', 'icon' => 'fa-solid fa-utensils'],
         ['path' => '/settings/kelas_ruangan.php', 'label' => 'Ruangan Kelas', 'icon' => 'fa-solid fa-door-open'],
         ['path' => '/settings/kamar_ranjang.php', 'label' => 'Kamar & Ranjang', 'icon' => 'fa-solid fa-bed'],
         ['path' => '/settings/admin.php', 'label' => 'Kelola Akses User', 'icon' => 'fa-solid fa-user-shield'],

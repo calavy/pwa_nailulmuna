@@ -20,7 +20,7 @@ if ($settingsNavItems === []) {
             $tileLabel = (string) ($item['label'] ?? '');
             ?>
             <div class="col-6 col-sm-5 col-md-4 col-lg-3">
-                <a href="<?= htmlspecialchars($path) ?>" class="menu-hub-tile card h-100 text-decoration-none shadow-sm border-0<?= $active ? ' menu-hub-tile--active' : '' ?>">
+                <a href="<?= htmlspecialchars(app_href($path)) ?>" class="menu-hub-tile card h-100 text-decoration-none shadow-sm border-0<?= $active ? ' menu-hub-tile--active' : '' ?>">
                     <div class="card-body d-flex align-items-start gap-3 p-3">
                         <span class="menu-hub-tile-icon" aria-hidden="true"><i class="<?= htmlspecialchars($tileIcon) ?>"></i></span>
                         <div class="min-w-0 flex-grow-1">

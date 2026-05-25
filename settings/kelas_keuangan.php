@@ -107,6 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    if (function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+        keuangan_dashboard_cache_invalidate();
+    }
     header('Location: ' . app_href('/settings/kelas_keuangan.php'));
     exit;
 }

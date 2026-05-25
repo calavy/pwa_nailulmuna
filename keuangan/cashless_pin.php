@@ -201,7 +201,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="alert alert-info small mb-3">
     <strong>Uang saku (opsional):</strong> jika wali membayar pos <em>Saku</em> (mis. Rp 100.000), nominal itu masuk saldo <strong>cashless</strong> santri.
     Santri memakai saldo untuk belanja di pondok; pengeluaran per hari dibatasi di bawah (standar Rp <?= number_format($dailyLimit, 0, ',', '.') ?>).
-    Tagihan wajib bulanan hanya <strong>Syahriyah</strong> dan <strong>Makan</strong>.
+    Tagihan wajib bulanan: <strong>Syahriyah</strong>. <strong>Makan</strong> dan <strong>Saku</strong> opsional.
 </div>
 <div class="row g-3">
     <div class="col-lg-5">

@@ -1,4 +1,23 @@
 (function () {
+    var submitTimer = null;
+
+    function submitFormDebounced(form, delayMs) {
+        if (!form) {
+            return;
+        }
+        if (submitTimer) {
+            clearTimeout(submitTimer);
+        }
+        submitTimer = setTimeout(function () {
+            submitTimer = null;
+            if (form.requestSubmit) {
+                form.requestSubmit();
+            } else {
+                form.submit();
+            }
+        }, delayMs);
+    }
+
     function syncTaSelesai(wrap) {
         const mulai = wrap.querySelector('.pondok-ta-mulai');
         const selesai = wrap.querySelector('.pondok-ta-selesai');
@@ -12,7 +31,7 @@
     }
 
     function syncTaFromSelect(select) {
-        const wrap = select.closest('.pondok-ta-field--dropdown, .keuangan-ta-toolbar-form');
+        const wrap = select.closest('.pondok-ta-field--dropdown, .pondok-ta-toolbar-form, .keuangan-ta-toolbar-form');
         if (!wrap) {
             return;
         }
@@ -24,10 +43,16 @@
         }
         if (select.getAttribute('data-auto-submit') === '1') {
             const form = select.closest('form');
-            if (form) {
-                form.requestSubmit ? form.requestSubmit() : form.submit();
-            }
+            submitFormDebounced(form, 350);
         }
+    }
+
+    function onBulanSelectChange(select) {
+        if (select.getAttribute('data-auto-submit') !== '1') {
+            return;
+        }
+        const form = select.closest('form');
+        submitFormDebounced(form, 200);
     }
 
     document.querySelectorAll('.pondok-ta-field[data-ta-hijri="1"]').forEach(function (wrap) {
@@ -48,6 +73,14 @@
         select.addEventListener('change', function () {
             syncTaFromSelect(select);
         });
-        syncTaFromSelect(select);
+    });
+
+    document.querySelectorAll('.pondok-bulan-select, select[name="bulan"], select[name="bulan_tagihan"], select[name="rekap_bulan"]').forEach(function (select) {
+        if (select.getAttribute('data-auto-submit') === '1' || select.classList.contains('pondok-bulan-select')) {
+            select.setAttribute('data-auto-submit', '1');
+            select.addEventListener('change', function () {
+                onBulanSelectChange(select);
+            });
+        }
     });
 })();

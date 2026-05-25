@@ -74,6 +74,13 @@ function bendahara_nav_cards(): array
             'color' => 'dark',
         ],
         [
+            'href' => '/settings/opsional_santri.php',
+            'title' => 'Opsional santri (Makan & Saku)',
+            'desc' => 'Aktifkan/nonaktifkan Makan & Saku per santri, set nominal khusus.',
+            'icon' => 'fa-utensils',
+            'color' => 'info',
+        ],
+        [
             'href' => '/keuangan/index.php',
             'title' => 'Dashboard keuangan',
             'desc' => 'Neraca, arus kas, pemasukan lain, pengeluaran.',

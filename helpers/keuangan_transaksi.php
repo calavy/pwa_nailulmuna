@@ -76,8 +76,25 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
         if ($m < 1 || $m > 12) {
             continue;
         }
-        $st = tagihan_wajib_status_for_month($pdo, $santriId, $m, $periode['mulai'], $periode['selesai'], $kelasKategori);
+        if (!function_exists('tagihan_bulanan_page_context')) {
+            require_once __DIR__ . '/tagihan_bulanan.php';
+        }
+        $ctx = tagihan_bulanan_page_context($pdo, $m, $periode['mulai'], $periode['selesai']);
+        $paidMap = $ctx['paid_map'];
+        $syCtx = $ctx['sy_ctx'];
+        $st = tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            $santriId,
+            $m,
+            $periode['mulai'],
+            $periode['selesai'],
+            $kelasKategori,
+            $paidMap,
+            $syCtx
+        );
         $perPos = (array) ($st['per_pos'] ?? []);
+        $paidSantri = $paidMap[$santriId] ?? [];
+        $ops = tagihan_opsional_pos_for_month_bulk($pdo, $kelasKategori, $paidSantri, $santriId);
         $rows[] = [
             'bulan' => $m,
             'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),
@@ -92,8 +109,8 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
             'is_bulan_ini' => $m === $bulanIni,
             'sy_expected' => (int) (($perPos['syahriyah']['expected'] ?? 0)),
             'sy_paid' => (int) (($perPos['syahriyah']['paid'] ?? 0)),
-            'mk_expected' => (int) (($perPos['makan']['expected'] ?? 0)),
-            'mk_paid' => (int) (($perPos['makan']['paid'] ?? 0)),
+            'mk_expected' => (int) (($ops['makan']['expected'] ?? 0)),
+            'mk_paid' => (int) (($ops['makan']['paid'] ?? 0)),
         ];
     }
 
@@ -236,6 +253,33 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
     ensure_keuangan_pembayaran_kalender_hijriyah($pdo);
     keuangan_transaksi_bootstrap_jurnal();
     ensure_keuangan_jurnal_tables($pdo);
+    keuangan_ensure_performance_indexes($pdo);
+}
+
+/** Indeks untuk filter tanggal / laporan arus kas (aman dijalankan berulang). */
+function keuangan_ensure_performance_indexes(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    $indexes = [
+        ['keuangan_pembayaran', 'idx_keu_bayar_tanggal', 'tanggal_bayar'],
+        ['keuangan_pengeluaran', 'idx_keu_pengeluaran_tanggal', 'tanggal'],
+        ['keuangan_pembayaran_detail', 'idx_keu_detail_pos_slug', 'pos_slug'],
+    ];
+    foreach ($indexes as [$table, $indexName, $column]) {
+        if (!table_exists($pdo, $table)) {
+            continue;
+        }
+        try {
+            $pdo->exec("ALTER TABLE {$table} ADD INDEX IF NOT EXISTS {$indexName} ({$column})");
+        } catch (Throwable $e) {
+            // Versi MySQL lama tanpa IF NOT EXISTS — abaikan jika indeks sudah ada.
+        }
+    }
 }
 
 function keuangan_transaksi_bootstrap_jurnal(): void
@@ -412,28 +456,72 @@ function keuangan_fetch_santri_aktif(PDO $pdo): array
 }
 
 /**
+ * @param list<array<string, mixed>>|null $santriRows baris dari keuangan_fetch_santri_aktif (hindari query ganda)
  * @return array<string, array{kelas_label:string,tier_key:string,tier_label:string,fees:array<string,int>}>
  */
-function keuangan_build_santri_keuangan_map(PDO $pdo, array $biayaDefinitions): array
+function keuangan_build_santri_keuangan_map(PDO $pdo, array $biayaDefinitions, ?array $santriRows = null): array
 {
+    if (!function_exists('keuangan_fee_matrix_from_settings')) {
+        require_once __DIR__ . '/keuangan_defs.php';
+    }
+    $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefinitions);
+    $tierByKelas = [];
     $map = [];
-    foreach (keuangan_fetch_santri_aktif($pdo) as $s) {
+    foreach ($santriRows ?? keuangan_fetch_santri_aktif($pdo) as $s) {
         $id = (int) ($s['id'] ?? 0);
         if ($id <= 0) {
             continue;
         }
         $kat = trim((string) ($s['kategori_kelas'] ?? $s['tingkatan'] ?? ''));
-        $tier = keuangan_tier_key_from_kelas($kat, $pdo);
+        if (!array_key_exists($kat, $tierByKelas)) {
+            $tierByKelas[$kat] = keuangan_tier_key_from_kelas($kat, $pdo);
+        }
+        $tier = $tierByKelas[$kat];
         $tierLabel = $tier === 'muadalah' ? 'Muadalah' : ($tier === 'ulya' ? 'Ulya' : 'Wustho');
         $fees = [];
         foreach ($biayaDefinitions as $def) {
-            $fees[$def['slug']] = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+            $slug = (string) ($def['slug'] ?? '');
+            if ($slug === '') {
+                continue;
+            }
+            $fees[$slug] = (int) ($feeMatrix[$slug][$tier] ?? 0);
         }
         $map[(string) $id] = [
             'kelas_label' => $kat !== '' ? $kat : 'Belum diset',
             'tier_key' => $tier,
             'tier_label' => $tierLabel,
             'fees' => $fees,
+        ];
+    }
+
+    return $map;
+}
+
+/**
+ * Peta ringan untuk form pembayaran (tanpa matriks tarif per santri).
+ *
+ * @param list<array<string, mixed>>|null $santriRows
+ * @return array<string, array{kelas_label:string,tier_key:string,tier_label:string}>
+ */
+function keuangan_build_santri_tier_label_map(PDO $pdo, ?array $santriRows = null): array
+{
+    $tierByKelas = [];
+    $map = [];
+    foreach ($santriRows ?? keuangan_fetch_santri_aktif($pdo) as $s) {
+        $id = (int) ($s['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $kat = trim((string) ($s['kategori_kelas'] ?? $s['tingkatan'] ?? ''));
+        if (!array_key_exists($kat, $tierByKelas)) {
+            $tierByKelas[$kat] = keuangan_tier_key_from_kelas($kat, $pdo);
+        }
+        $tier = $tierByKelas[$kat];
+        $tierLabel = $tier === 'muadalah' ? 'Muadalah' : ($tier === 'ulya' ? 'Ulya' : 'Wustho');
+        $map[(string) $id] = [
+            'kelas_label' => $kat !== '' ? $kat : 'Belum diset',
+            'tier_key' => $tier,
+            'tier_label' => $tierLabel,
         ];
     }
 
@@ -654,6 +742,11 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         $userId
     );
 
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
+
     return [
         'ok' => true,
         'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.',
@@ -726,6 +819,11 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pengeluaran($pdo, $pengeluaranId, $tanggal, $akunId, $nominal, $pos, $userId);
 
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
+
     return ['ok' => true, 'message' => 'Pengeluaran berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
 }
 
@@ -793,7 +891,51 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
     keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pemasukan($pdo, $pemasukanId, $tanggal, $akunId, $nominal, $sumber, $userId);
 
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
+
     return ['ok' => true, 'message' => 'Pemasukan berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
+}
+
+/**
+ * Daftar POS pembayaran untuk filter (cache sesi 10 menit — jarang berubah).
+ *
+ * @return list<array{pos_slug:string,pos_nama:string}>
+ */
+function keuangan_pembayaran_pos_options(PDO $pdo): array
+{
+    static $requestCache = null;
+    if (is_array($requestCache)) {
+        return $requestCache;
+    }
+
+    $sessionKey = 'keuangan_pos_options_v1';
+    $cached = $_SESSION[$sessionKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && is_array($cached['data'] ?? null)
+    ) {
+        $requestCache = $cached['data'];
+
+        return $requestCache;
+    }
+
+    $requestCache = [];
+    if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        $requestCache = $pdo->query(
+            'SELECT DISTINCT pos_slug, pos_nama FROM keuangan_pembayaran_detail ORDER BY pos_nama ASC, pos_slug ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $_SESSION[$sessionKey] = [
+        'expires' => time() + 600,
+        'data' => $requestCache,
+    ];
+
+    return $requestCache;
 }
 
 /** @return list<array<string, mixed>> */

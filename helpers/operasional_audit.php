@@ -57,7 +57,9 @@ function operasional_audit_log(
     int $userId,
     string $alasan
 ): void {
-    ensure_operasional_audit_table($pdo);
+    if (!$pdo->inTransaction()) {
+        ensure_operasional_audit_table($pdo);
+    }
     $aksi = strtoupper(trim($aksi));
     if (!in_array($aksi, ['CREATE', 'UPDATE', 'DELETE'], true)) {
         $aksi = 'UPDATE';

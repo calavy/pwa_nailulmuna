@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
 require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../helpers/alpa_tier.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -121,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jamAutoWa = trim((string) app_setting($pdo, 'jam_kirim_wa_auto', ''));
     $canSendNow = $jamAutoWa === '' || date('H:i') >= $jamAutoWa;
     $created = 0;
+    $newlyAlpaSantri = [];
 
     foreach ($santriList as $santri) {
         $santriId = (int) $santri['id'];
@@ -143,6 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $created++;
 
+        $newlyAlpaSantri[] = [
+            'id' => $santriId,
+            'nama_santri' => (string) ($santri['nama_santri'] ?? '-'),
+            'nis' => (string) ($santri['nis'] ?? ''),
+        ];
+
         $countStmt = $pdo->prepare('
             SELECT COUNT(*) FROM presensi
             WHERE santri_id = :santri_id
@@ -164,7 +172,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($waLaporanSantri !== [] && $pengurusWa !== '' && $canSendNow) {
+    $tierSummary = ['tiers' => [], 'sent_total' => 0];
+    if ($canSendNow && $newlyAlpaSantri !== []) {
+        $activeTiers = alpa_tier_list($pdo, true);
+        if ($activeTiers !== []) {
+            $tierSummary = alpa_tier_dispatch_batch(
+                $pdo,
+                $newlyAlpaSantri,
+                $tanggal,
+                $tanggalIdn,
+                $tingkatan,
+                $namaKegiatanLabel
+            );
+        }
+    }
+
+    if ($tierSummary['tiers'] === [] && $waLaporanSantri !== [] && $pengurusWa !== '' && $canSendNow) {
         $pesanLaporan = wa_format_laporan_alpa_generate(
             $pdo,
             $tanggalIdn,
@@ -176,12 +199,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         send_wa_bulk($pdo, $pengurusWa, $pesanLaporan);
     }
 
-    set_flash('success', 'Generate alpa selesai. Total tersimpan: ' . $created);
+    $msg = 'Generate alpa selesai. Total tersimpan: ' . $created . '.';
+    if (!empty($tierSummary['tiers'])) {
+        $parts = [];
+        foreach ($tierSummary['tiers'] as $row) {
+            $parts[] = 'ambang ' . $row['threshold'] . ' (' . $row['santri_count'] . ' santri → ' . ((trim($row['label']) !== '') ? $row['label'] : 'tier') . ')';
+        }
+        $msg .= ' Notifikasi tier terkirim: ' . implode(', ', $parts) . '.';
+    } elseif (!$canSendNow) {
+        $msg .= ' (WA otomatis ditunda hingga jam ' . $jamAutoWa . ')';
+    }
+    set_flash('success', $msg);
     header('Location: ' . app_href('/presensi/alpha.php'));
     exit;
 }
 
 $pageTitle = 'Generate Alpa Otomatis';
+$tierAktif = alpa_tier_list($pdo, true);
+$tierMode = alpa_tier_periode_mode($pdo);
+$tierTanggalMulai = alpa_tier_tanggal_mulai($pdo);
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="card shadow-sm">
@@ -193,6 +229,24 @@ require_once __DIR__ . '/../includes/header.php';
                 <a href="<?= htmlspecialchars(app_href('/presensi/bersihkan.php')) ?>">Bersihkan presensi tanpa kegiatan</a>
             <?php endif; ?>
         </p>
+
+        <div class="alert alert-light border small mb-3">
+            <?php if ($tierAktif): ?>
+                <strong>Notifikasi alpa bertahap aktif</strong> (periode: <?= htmlspecialchars(alpa_tier_periode_label($tierMode)) ?><?= $tierTanggalMulai !== '' ? ', sejak ' . htmlspecialchars($tierTanggalMulai) : '' ?>). Tier:
+                <?php
+                $bits = [];
+                foreach ($tierAktif as $t) {
+                    $lbl = trim((string) $t['label']);
+                    $bits[] = '≥ ' . (int) $t['threshold'] . ' → ' . ($lbl !== '' ? htmlspecialchars($lbl) : '<em>tanpa label</em>');
+                }
+                echo implode(' · ', $bits);
+                ?>.
+                <a href="<?= htmlspecialchars(app_href('/settings/alpa_notif.php')) ?>">Ubah pengaturan</a>.
+            <?php else: ?>
+                <strong>Notifikasi tier belum diatur.</strong> Sistem akan memakai notifikasi tunggal lama (≥ <?= (int) app_setting($pdo, 'batas_alpa_notif', '3') ?> kali alpa → <code>wa_pengurus</code>).
+                <a href="<?= htmlspecialchars(app_href('/settings/alpa_notif.php')) ?>">Aktifkan notifikasi alpa bertahap</a>.
+            <?php endif; ?>
+        </div>
         <form method="post" class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Tanggal</label>

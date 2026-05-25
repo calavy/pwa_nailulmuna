@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/pondok_ta.php';
 
 /**
- * Tahun ajaran yang sedang dilihat (alias ke pondok — sinkron seluruh modul).
+ * Tahun ajaran operasional — selalu sama dengan pengaturan terpusat (Keuangan → Umum & periode).
  *
- * @param array<string, mixed>|null $input
+ * @param array<string, mixed>|null $input Diabaikan (kompatibilitas lama).
  * @return array{mulai:int,selesai:int,is_aktif:bool,label:string}
  */
 function keuangan_ta_resolve(PDO $pdo, ?array $input = null): array

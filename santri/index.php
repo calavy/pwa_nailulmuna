@@ -3,7 +3,6 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/rekap_periode.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/santri_status.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
@@ -15,56 +14,52 @@ require_once __DIR__ . '/../helpers/kelas_ruangan.php';
 ensure_santri_keluar_columns($pdo);
 ensure_kelas_ruangan_table($pdo);
 
+$q = trim((string) ($_GET['q'] ?? ''));
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = min(100, max(20, (int) ($_GET['per_page'] ?? 50)));
+
 $extraRuanganSelect = '';
 if (column_exists($pdo, 'santri', 'kelas_ruangan_id') && table_exists($pdo, 'kelas_ruangan')) {
     $extraRuanganSelect = ', (SELECT kr.nama_ruangan FROM kelas_ruangan kr WHERE kr.id = santri.kelas_ruangan_id LIMIT 1) AS nama_ruangan_kelas';
 }
 
-$santri = $pdo->query('
+$aktifWhere = santri_sql_aktif_only('santri');
+$whereParts = [$aktifWhere];
+$params = [];
+if ($q !== '') {
+    $whereParts[] = '(LOWER(santri.nama_santri) LIKE :q OR LOWER(santri.nis) LIKE :q2 OR LOWER(COALESCE(santri.qr, \'\')) LIKE :q3)';
+    $like = '%' . mb_strtolower($q) . '%';
+    $params['q'] = $like;
+    $params['q2'] = $like;
+    $params['q3'] = $like;
+}
+$whereSql = implode(' AND ', $whereParts);
+
+$countStmt = $pdo->prepare('SELECT COUNT(*) FROM santri WHERE ' . $whereSql);
+$countStmt->execute($params);
+$totalFiltered = (int) ($countStmt->fetchColumn() ?: 0);
+$totalPages = max(1, (int) ceil($totalFiltered / $perPage));
+if ($page > $totalPages) {
+    $page = $totalPages;
+}
+$offset = ($page - 1) * $perPage;
+
+$listSql = '
     SELECT id, qr, nis, nama_santri, nik, jenis_kelamin, tingkatan, kategori_kelas, no_wa_wali, is_aktif, status_santri, keluar_kategori, alasan_keluar, tanggal_keluar, nama_kamar, no_ranjang, keluar_settled_at' . $extraRuanganSelect . '
     FROM santri
-    WHERE ' . santri_sql_aktif_only('santri') . '
+    WHERE ' . $whereSql . '
     ORDER BY ' . santri_list_order_sql('santri') . '
-')->fetchAll();
-$totalSantri = count($santri);
-$totalAktif = $totalSantri;
+    LIMIT ' . (int) $perPage . ' OFFSET ' . (int) $offset;
+$listStmt = $pdo->prepare($listSql);
+$listStmt->execute($params);
+$santri = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+$totalAktif = (int) ($pdo->query('SELECT COUNT(*) FROM santri WHERE ' . santri_sql_aktif_only('santri'))->fetchColumn() ?: 0);
 $totalNonAktif = (int) ($pdo->query('
     SELECT COUNT(*) FROM santri WHERE NOT (' . santri_sql_aktif_only('santri') . ')
 ')->fetchColumn() ?: 0);
 
 $kelasKeuanganLabels = kelas_keuangan_label_map($pdo);
-
-$kegiatanFilter = (int) ($_GET['kegiatan_id'] ?? 0);
-$periodeKeaktifan = rekap_resolve_periode($pdo, [
-    'mode' => $_GET['mode'] ?? 'masehi',
-    'month' => $_GET['month'] ?? date('n'),
-    'year' => $_GET['year'] ?? date('Y'),
-]);
-$keaktifanMap = [];
-if (table_exists($pdo, 'presensi')) {
-    $kgSql = $kegiatanFilter > 0 ? ' AND p.kegiatan_id = :kg' : '';
-    $paramsKg = ['s' => $periodeKeaktifan['start_date'], 'e' => $periodeKeaktifan['end_date']];
-    if ($kegiatanFilter > 0) {
-        $paramsKg['kg'] = $kegiatanFilter;
-    }
-    $stKg = $pdo->prepare('
-        SELECT p.santri_id,
-            SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END) AS hadir,
-            COUNT(p.id) AS total
-        FROM presensi p
-        WHERE p.tanggal_presensi BETWEEN :s AND :e' . $kgSql . '
-        GROUP BY p.santri_id
-    ');
-    $stKg->execute($paramsKg);
-    foreach ($stKg->fetchAll(PDO::FETCH_ASSOC) as $kr) {
-        $tot = (int) ($kr['total'] ?? 0);
-        $had = (int) ($kr['hadir'] ?? 0);
-        $keaktifanMap[(int) $kr['santri_id']] = $tot > 0 ? round($had / $tot * 100, 1) : null;
-    }
-}
-$kegiatanList = table_exists($pdo, 'kegiatan')
-    ? $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE is_active = 1 ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC)
-    : [];
 
 $pageTitle = 'Data Santri Aktif';
 require_once __DIR__ . '/../includes/header.php';
@@ -92,7 +87,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-4">
         <div class="app-mini-stat h-100">
             <div class="app-mini-stat-label">Total santri</div>
-            <div class="app-mini-stat-value"><?= $totalSantri ?></div>
+            <div class="app-mini-stat-value"><?= $totalAktif ?></div>
         </div>
     </div>
     <div class="col-6 col-md-4">
@@ -114,87 +109,74 @@ require_once __DIR__ . '/../includes/header.php';
         <form method="get" class="row g-2 align-items-end mb-3">
             <div class="col-md-4 col-lg-3">
                 <label class="form-label small text-muted mb-1" for="santri-aktif-cari">Cari nama atau NIS</label>
-                <input type="search" id="santri-aktif-cari" class="form-control" placeholder="Ketik nama atau NIS…" autocomplete="off">
+                <input type="search" name="q" id="santri-aktif-cari" class="form-control" value="<?= htmlspecialchars($q) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off">
+            </div>
+            <div class="col-auto d-flex align-items-end pb-1">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="santri-tampilan-ringkas" checked>
+                    <label class="form-check-label small" for="santri-tampilan-ringkas">Tampilan ringkas</label>
+                </div>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Kegiatan (keaktifan)</label>
-                <select name="kegiatan_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                    <option value="0">Semua</option>
-                    <?php foreach ($kegiatanList as $kg): ?>
-                        <option value="<?= (int) $kg['id'] ?>"<?= $kegiatanFilter === (int) $kg['id'] ? ' selected' : '' ?>><?= htmlspecialchars((string) $kg['nama_kegiatan']) ?></option>
+                <label class="form-label small mb-0">Per halaman</label>
+                <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <?php foreach ([30, 50, 80, 100] as $pp): ?>
+                        <option value="<?= $pp ?>" <?= $perPage === $pp ? 'selected' : '' ?>><?= $pp ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Periode</label>
-                <select name="mode" class="form-select form-select-sm">
-                    <option value="masehi" <?= $periodeKeaktifan['mode'] === 'masehi' ? 'selected' : '' ?>>Masehi</option>
-                    <option value="hijriyah" <?= $periodeKeaktifan['mode'] === 'hijriyah' ? 'selected' : '' ?>>Hijriyah</option>
-                </select>
-            </div>
-            <div class="col-4 col-md-1">
-                <input type="number" name="month" class="form-control form-control-sm" min="1" max="12" value="<?= (int) $periodeKeaktifan['month'] ?>" title="Bulan">
-            </div>
-            <div class="col-4 col-md-1">
-                <input type="number" name="year" class="form-control form-control-sm" value="<?= (int) $periodeKeaktifan['year'] ?>" title="Tahun">
-            </div>
-            <div class="col-4 col-md-1 d-flex align-items-end">
-                <button type="submit" class="btn btn-outline-primary btn-sm w-100">Filter</button>
+            <div class="col-auto d-flex align-items-end">
+                <button type="submit" class="btn btn-outline-primary btn-sm">Cari</button>
             </div>
             <div class="col-12">
-                <p class="small text-muted mb-0">Menampilkan <strong id="santri-aktif-visible"><?= $totalSantri ?></strong> santri · keaktifan <?= htmlspecialchars($periodeKeaktifan['label']) ?><?= $kegiatanFilter > 0 ? ' per kegiatan' : '' ?></p>
+                <p class="small text-muted mb-0">
+                    Menampilkan <strong><?= count($santri) ?></strong> dari <strong><?= $totalFiltered ?></strong> santri aktif
+                    (hal <?= $page ?> / <?= $totalPages ?>).
+                    Lihat skor keaktifan lengkap di <a href="/rekap/santri_bagus.php">Rekap Keaktifan</a>.
+                </p>
             </div>
         </form>
         <div class="table-responsive">
-            <table class="table table-striped table-hover align-middle mb-0" id="santri-aktif-table">
+            <table class="table table-striped table-hover align-middle mb-0 santri-aktif-table santri-aktif-table--ringkas" id="santri-aktif-table">
                 <thead>
                 <tr>
-                    <th>QR</th>
+                    <th class="santri-col-extra">QR</th>
                     <th>NIS</th>
                     <th>Nama</th>
-                    <th>NIK</th>
-                    <th>JK</th>
-                    <th>Tingkatan</th>
-                    <th>Kamar/Ranjang</th>
-                    <th>Kelas Keuangan</th>
-                    <th>Ruangan kelas</th>
-                    <th>WA Wali</th>
+                    <th class="santri-col-extra">NIK</th>
+                    <th class="santri-col-extra">JK</th>
+                    <th class="santri-col-detail">Tingkatan</th>
+                    <th class="santri-col-extra">Kamar/Ranjang</th>
+                    <th class="santri-col-detail">Kelas</th>
+                    <th class="santri-col-extra">Ruangan</th>
+                    <th class="santri-col-extra">WA Wali</th>
                     <th>Status</th>
-                    <th>Keaktifan</th>
                     <th class="text-end">Aksi</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if ($santri): ?>
                     <?php foreach ($santri as $item): ?>
-                        <?php
-                        $haystack = mb_strtolower(
-                            trim((string) ($item['nama_santri'] ?? '')) . ' '
-                            . trim((string) ($item['nis'] ?? '')) . ' '
-                            . trim((string) ($item['qr'] ?? '')) . ' '
-                            . trim((string) ($item['nik'] ?? ''))
-                        );
-                        ?>
-                        <tr class="santri-aktif-row" data-cari="<?= htmlspecialchars($haystack) ?>">
-                            <td><?= htmlspecialchars($item['qr'] ?: '-') ?></td>
-                            <td><?= htmlspecialchars($item['nis']) ?></td>
-                            <td><?= htmlspecialchars($item['nama_santri']) ?></td>
-                            <td><?= htmlspecialchars($item['nik'] ?: '-') ?></td>
-                            <td><?= htmlspecialchars($item['jenis_kelamin'] ?: '-') ?></td>
-                            <td><?= htmlspecialchars($item['tingkatan'] ?: '-') ?></td>
-                            <td>
+                        <tr class="santri-aktif-row">
+                            <td class="santri-col-extra"><?= htmlspecialchars($item['qr'] ?: '-') ?></td>
+                            <td class="font-monospace small"><?= htmlspecialchars($item['nis']) ?></td>
+                            <td class="fw-semibold"><?= htmlspecialchars($item['nama_santri']) ?></td>
+                            <td class="santri-col-extra"><?= htmlspecialchars($item['nik'] ?: '-') ?></td>
+                            <td class="santri-col-extra"><?= htmlspecialchars($item['jenis_kelamin'] ?: '-') ?></td>
+                            <td class="santri-col-detail"><?= htmlspecialchars($item['tingkatan'] ?: '-') ?></td>
+                            <td class="santri-col-extra">
                                 <?php
                                 $kamar = trim((string) ($item['nama_kamar'] ?? ''));
                                 $ranjang = trim((string) ($item['no_ranjang'] ?? ''));
                                 echo htmlspecialchars(($kamar !== '' ? $kamar : '-') . ($ranjang !== '' ? ' / ' . $ranjang : ''));
                                 ?>
                             </td>
-                            <td><?php
+                            <td class="santri-col-detail"><?php
                                 $katK = strtoupper(trim((string) ($item['kategori_kelas'] ?? '')));
                                 echo htmlspecialchars($katK !== '' ? ($kelasKeuanganLabels[$katK] ?? $katK) : '-');
                             ?></td>
-                            <td><?= htmlspecialchars(trim((string) ($item['nama_ruangan_kelas'] ?? '')) !== '' ? (string) $item['nama_ruangan_kelas'] : '-') ?></td>
-                            <td><?= htmlspecialchars($item['no_wa_wali'] ?: '-') ?></td>
+                            <td class="santri-col-extra"><?= htmlspecialchars(trim((string) ($item['nama_ruangan_kelas'] ?? '')) !== '' ? (string) $item['nama_ruangan_kelas'] : '-') ?></td>
+                            <td class="santri-col-extra"><?= htmlspecialchars($item['no_wa_wali'] ?: '-') ?></td>
                             <td>
                                 <?php $status = santri_status_from_row($item); ?>
                                 <span class="badge <?= santri_status_badge_class($status) ?>">
@@ -204,63 +186,101 @@ require_once __DIR__ . '/../includes/header.php';
                                     <div class="small text-muted mt-1"><?= htmlspecialchars((string) ($item['tanggal_keluar'] ?? '-')) ?> · <?= htmlspecialchars((string) ($item['alasan_keluar'] ?? '-')) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td class="small">
-                                <?php
-                                $kid = (int) $item['id'];
-                                $pct = $keaktifanMap[$kid] ?? null;
-                                if ($pct === null) {
-                                    echo '<span class="text-muted">—</span>';
-                                } else {
-                                    echo '<strong>' . htmlspecialchars((string) $pct) . '%</strong> hadir';
-                                }
-                                ?>
-                            </td>
                             <td class="text-end text-nowrap">
                                 <a href="<?= htmlspecialchars(app_href('/santri/riwayat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
                                 <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
                                    class="btn btn-sm btn-warning"
                                    data-sdm-modal="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
                                    data-sdm-title="Edit santri">Edit</a>
-                                <a href="<?= htmlspecialchars(app_href('/santri/nonaktif_cepat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-danger">Ubah status</a>
-                                <a href="<?= htmlspecialchars(app_href('/santri/delete.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
+                                <span class="santri-col-extra d-inline-flex flex-wrap gap-1 justify-content-end">
+                                    <a href="<?= htmlspecialchars(app_href('/santri/nonaktif_cepat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-danger">Status</a>
+                                    <a href="<?= htmlspecialchars(app_href('/santri/delete.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
+                                </span>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="12" class="text-center text-muted">Belum ada data santri aktif.</td>
+                        <td colspan="11" class="text-center text-muted">Belum ada data santri aktif.</td>
                     </tr>
                 <?php endif; ?>
-                <tr id="santri-aktif-no-match" class="d-none">
-                    <td colspan="12" class="text-center text-muted">Tidak ada santri yang cocok dengan pencarian.</td>
-                </tr>
                 </tbody>
             </table>
         </div>
+        <?php if ($totalPages > 1):
+            $pageBase = ['per_page' => $perPage];
+            if ($q !== '') {
+                $pageBase['q'] = $q;
+            }
+            ?>
+        <nav class="mt-3 d-flex flex-wrap justify-content-center gap-1" aria-label="Halaman santri">
+            <?php if ($page > 1):
+                $prev = $pageBase;
+                $prev['page'] = $page - 1;
+                ?>
+                <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($prev)) ?>">«</a>
+            <?php endif;
+            $startP = max(1, $page - 2);
+            $endP = min($totalPages, $startP + 4);
+            $startP = max(1, $endP - 4);
+            for ($p = $startP; $p <= $endP; $p++):
+                $pq = $pageBase;
+                $pq['page'] = $p;
+                ?>
+                <a class="btn btn-sm <?= $p === $page ? 'btn-primary' : 'btn-outline-secondary' ?>" href="?<?= htmlspecialchars(http_build_query($pq)) ?>"><?= $p ?></a>
+            <?php endfor;
+            if ($page < $totalPages):
+                $next = $pageBase;
+                $next['page'] = $page + 1;
+                ?>
+                <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($next)) ?>">»</a>
+            <?php endif; ?>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 
+<style>
+.santri-aktif-table--ringkas .santri-col-extra { display: none; }
+</style>
 <script>
 (function () {
     var inp = document.getElementById('santri-aktif-cari');
     var rows = document.querySelectorAll('.santri-aktif-row');
     var visibleEl = document.getElementById('santri-aktif-visible');
     var noMatch = document.getElementById('santri-aktif-no-match');
-    if (!inp || !rows.length) return;
-    function norm(s) { return (s || '').toLowerCase().trim(); }
-    function applyFilter() {
-        var q = norm(inp.value);
-        var shown = 0;
-        rows.forEach(function (tr) {
-            var hay = tr.getAttribute('data-cari') || '';
-            var ok = q === '' || hay.indexOf(q) !== -1;
-            tr.classList.toggle('d-none', !ok);
-            if (ok) shown++;
+    var table = document.getElementById('santri-aktif-table');
+    var ringkasToggle = document.getElementById('santri-tampilan-ringkas');
+    var storageKey = 'santri_aktif_ringkas_v1';
+
+    if (ringkasToggle && table) {
+        var saved = localStorage.getItem(storageKey);
+        if (saved === '0') {
+            ringkasToggle.checked = false;
+            table.classList.remove('santri-aktif-table--ringkas');
+        }
+        ringkasToggle.addEventListener('change', function () {
+            var on = ringkasToggle.checked;
+            table.classList.toggle('santri-aktif-table--ringkas', on);
+            localStorage.setItem(storageKey, on ? '1' : '0');
         });
-        if (visibleEl) visibleEl.textContent = String(shown);
-        if (noMatch) noMatch.classList.toggle('d-none', q === '' || shown > 0);
     }
-    inp.addEventListener('input', applyFilter);
+
+    if (inp) {
+        var debounce;
+        inp.addEventListener('input', function () {
+            clearTimeout(debounce);
+            debounce = setTimeout(function () {
+                if (inp.form) {
+                    if (inp.form.requestSubmit) {
+                        inp.form.requestSubmit();
+                    } else {
+                        inp.form.submit();
+                    }
+                }
+            }, 400);
+        });
+    }
 })();
 </script>
 

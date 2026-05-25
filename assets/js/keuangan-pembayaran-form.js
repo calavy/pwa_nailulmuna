@@ -14,8 +14,144 @@
     const statusLabel = document.getElementById('status_lunas_label');
     const statusHidden = document.getElementById('status_lunas');
     const summaryHint = document.getElementById('tagihan-summary-hint');
-    const map = window.keuanganSantriMap || {};
+    const opsPanel = document.getElementById('panel-komponen-opsional');
+    const opsStatusPill = document.getElementById('opsional-status-pill');
+    const opsBulkLink = document.getElementById('opsional-bulk-link');
+    const opsEditorCards = document.querySelectorAll('.opsional-editor-card');
+    const map = window.keuanganSantriTier || {};
+    const feeMatrix = window.keuanganFeeMatrix || {};
     let tagihanPos = {};
+    let savingSlug = null;
+
+    function appBase() {
+        var b = (typeof window !== 'undefined' && window.PONDOK_APP_BASE != null) ? String(window.PONDOK_APP_BASE) : '';
+        return b.replace(/\/$/, '');
+    }
+
+    function appUrl(path) {
+        var p = String(path || '');
+        if (/^https?:\/\//i.test(p)) return p;
+        if (p.charAt(0) !== '/') p = '/' + p;
+        var base = appBase();
+        return base === '' ? p : base + p;
+    }
+
+    function fmtThousand(n) {
+        return Number(n || 0).toLocaleString('id-ID');
+    }
+
+    function setOpsPill(text, cls) {
+        if (!opsStatusPill) return;
+        opsStatusPill.textContent = text;
+        opsStatusPill.className = 'badge ' + (cls || 'bg-light text-muted');
+    }
+
+    function getOpsEditor(slug) {
+        for (let i = 0; i < opsEditorCards.length; i++) {
+            if (opsEditorCards[i].getAttribute('data-slug') === slug) {
+                return opsEditorCards[i];
+            }
+        }
+        return null;
+    }
+
+    function resetOpsEditors(message) {
+        opsEditorCards.forEach(function (card) {
+            const slug = card.getAttribute('data-slug') || '';
+            const aktifInp = card.querySelector('.opsional-aktif-input');
+            const nomInp = card.querySelector('.opsional-nominal-input');
+            const saveBtn = card.querySelector('.opsional-save-btn');
+            const defaultHint = card.querySelector('[data-role="default-hint"]');
+            const status = card.querySelector('[data-role="status"]');
+            if (aktifInp) {
+                aktifInp.checked = false;
+                aktifInp.disabled = true;
+            }
+            if (nomInp) {
+                nomInp.value = '';
+                nomInp.disabled = true;
+            }
+            if (saveBtn) {
+                saveBtn.disabled = true;
+            }
+            if (defaultHint) {
+                defaultHint.textContent = 'Default tier: —';
+            }
+            if (status) {
+                status.textContent = message || 'Pilih santri untuk mengatur.';
+                status.className = 'opsional-editor-status small mt-1 text-muted';
+            }
+        });
+    }
+
+    function renderOpsEditor(slug, info) {
+        const card = getOpsEditor(slug);
+        if (!card) return;
+        const aktifInp = card.querySelector('.opsional-aktif-input');
+        const nomInp = card.querySelector('.opsional-nominal-input');
+        const saveBtn = card.querySelector('.opsional-save-btn');
+        const defaultHint = card.querySelector('[data-role="default-hint"]');
+        const status = card.querySelector('[data-role="status"]');
+        const expectedDefault = parseInt(info && info.expected_default, 10) || 0;
+        const overrideAktif = info ? !!info.override_aktif : true;
+        const overrideNominal = info && info.override_nominal != null ? parseInt(info.override_nominal, 10) : null;
+
+        if (aktifInp) {
+            aktifInp.disabled = false;
+            aktifInp.checked = overrideAktif;
+        }
+        if (nomInp) {
+            nomInp.disabled = !overrideAktif;
+            nomInp.value = overrideNominal != null ? fmtThousand(overrideNominal) : '';
+            nomInp.placeholder = expectedDefault > 0
+                ? 'Default tier Rp ' + fmtThousand(expectedDefault)
+                : 'kosong = pakai default tier';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = false;
+        }
+        if (defaultHint) {
+            defaultHint.textContent = expectedDefault > 0
+                ? 'Default tier: Rp ' + fmtThousand(expectedDefault)
+                : 'Default tier: belum diatur';
+        }
+        if (status) {
+            if (!overrideAktif) {
+                status.textContent = 'Nonaktif — tagihan ini tidak ditampilkan untuk santri ini.';
+                status.className = 'opsional-editor-status small mt-1 text-danger';
+            } else if (overrideNominal != null) {
+                status.textContent = 'Nominal khusus aktif (Rp ' + fmtThousand(overrideNominal) + ').';
+                status.className = 'opsional-editor-status small mt-1 text-success';
+            } else {
+                status.textContent = 'Aktif — pakai default tier kelas.';
+                status.className = 'opsional-editor-status small mt-1 text-muted';
+            }
+        }
+    }
+
+    function updateOpsPanelOpenState() {
+        let activeCount = 0;
+        let hasSisa = false;
+        Object.keys(tagihanPos || {}).forEach(function (slug) {
+            const info = tagihanPos[slug];
+            if (!info || !info.is_opsional) return;
+            if (info.override_aktif !== false && (info.expected_default || 0) > 0) {
+                activeCount++;
+            }
+            if ((info.sisa || 0) > 0) {
+                hasSisa = true;
+            }
+        });
+        if (opsStatusPill) {
+            if (activeCount === 0) {
+                setOpsPill('semua nonaktif', 'bg-light text-muted');
+            } else if (hasSisa) {
+                setOpsPill('ada sisa bayar', 'bg-warning-subtle text-warning');
+            } else {
+                setOpsPill(activeCount + ' pos aktif', 'bg-info-subtle text-info');
+            }
+        }
+    }
 
     function fmtRp(n) {
         return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -43,7 +179,12 @@
     function filterKomponenRows() {
         const kat = kategoriForJenis();
         document.querySelectorAll('#tabel-komponen tbody tr').forEach(function (tr) {
-            const show = tr.getAttribute('data-kategori') === kat;
+            let show = tr.getAttribute('data-kategori') === kat;
+            const slug = tr.getAttribute('data-slug') || '';
+            const info = tagihanPos[slug];
+            if (show && info && info.is_opsional && info.override_aktif === false) {
+                show = false;
+            }
             tr.style.display = show ? '' : 'none';
             if (!show) {
                 const cb = tr.querySelector('.bayar-pos-check');
@@ -155,8 +296,9 @@
             } else {
                 const sid = santriSel ? String(santriSel.value || '') : '';
                 const tierInfo = map[sid];
-                if (tierInfo && tierInfo.fees && tierInfo.fees[slug] != null) {
-                    nominal = parseInt(tierInfo.fees[slug], 10) || 0;
+                const tierKey = tierInfo ? tierInfo.tier_key : '';
+                if (tierKey && feeMatrix[slug] && feeMatrix[slug][tierKey] != null) {
+                    nominal = parseInt(feeMatrix[slug][tierKey], 10) || 0;
                 }
             }
             inp.value = nominal > 0 ? nominal.toLocaleString('id-ID') : '0';
@@ -174,12 +316,112 @@
                 tierHint.textContent = 'Tarif mengikuti kelas keuangan santri yang dipilih.';
             }
         }
+        if (opsBulkLink) {
+            const baseHref = appUrl('/settings/opsional_santri.php');
+            if (sid) {
+                opsBulkLink.href = baseHref + '?q=' + encodeURIComponent(santriSel.options[santriSel.selectedIndex].text || '');
+            } else {
+                opsBulkLink.href = baseHref;
+            }
+        }
         if (!sid) {
             tagihanPos = {};
+            resetOpsEditors('Pilih santri untuk mengatur.');
+            setOpsPill('tutup', 'bg-light text-muted');
             renderPaidHints();
             return;
         }
+        resetOpsEditors('Memuat pengaturan…');
         loadTagihanPreview();
+    }
+
+    function postOpsionalSave(slug, aktif, nominal) {
+        const sid = santriSel ? parseInt(santriSel.value, 10) : 0;
+        if (sid <= 0) {
+            return Promise.reject(new Error('Pilih santri terlebih dahulu.'));
+        }
+        const fd = new FormData();
+        fd.append('santri_id', String(sid));
+        fd.append('slug', slug);
+        if (aktif) fd.append('aktif', '1');
+        if (nominal != null && nominal !== '') fd.append('nominal', String(nominal));
+        return fetch(appUrl('/api/keuangan/opsional_save.php'), {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+        }).then(function (res) {
+            return res.json();
+        });
+    }
+
+    function handleOpsionalSaveClick(ev) {
+        const btn = ev.currentTarget;
+        const slug = btn.getAttribute('data-slug') || '';
+        const card = getOpsEditor(slug);
+        if (!card || savingSlug) return;
+        const aktifInp = card.querySelector('.opsional-aktif-input');
+        const nomInp = card.querySelector('.opsional-nominal-input');
+        const status = card.querySelector('[data-role="status"]');
+        const aktif = !!(aktifInp && aktifInp.checked);
+        const nominalRaw = nomInp ? nomInp.value : '';
+        const nominal = nominalRaw === '' ? '' : parseRpInput(nominalRaw);
+
+        savingSlug = slug;
+        btn.disabled = true;
+        if (status) {
+            status.textContent = 'Menyimpan…';
+            status.className = 'opsional-editor-status small mt-1 text-muted';
+        }
+
+        postOpsionalSave(slug, aktif, nominal === '' ? null : nominal)
+            .then(function (data) {
+                if (!data || !data.ok) {
+                    throw new Error((data && data.error) || 'Gagal menyimpan.');
+                }
+                if (status) {
+                    status.textContent = 'Tersimpan.';
+                    status.className = 'opsional-editor-status small mt-1 text-success';
+                }
+                loadTagihanPreview();
+            })
+            .catch(function (err) {
+                if (status) {
+                    status.textContent = (err && err.message) || 'Gagal menyimpan.';
+                    status.className = 'opsional-editor-status small mt-1 text-danger';
+                }
+            })
+            .finally(function () {
+                savingSlug = null;
+                btn.disabled = false;
+            });
+    }
+
+    function bindOpsionalEditorEvents() {
+        opsEditorCards.forEach(function (card) {
+            const slug = card.getAttribute('data-slug') || '';
+            const aktifInp = card.querySelector('.opsional-aktif-input');
+            const nomInp = card.querySelector('.opsional-nominal-input');
+            const saveBtn = card.querySelector('.opsional-save-btn');
+            if (aktifInp) {
+                aktifInp.addEventListener('change', function () {
+                    if (nomInp) {
+                        nomInp.disabled = !aktifInp.checked;
+                    }
+                });
+            }
+            if (saveBtn) {
+                saveBtn.addEventListener('click', handleOpsionalSaveClick);
+            }
+            if (nomInp) {
+                nomInp.addEventListener('blur', function () {
+                    const n = parseRpInput(nomInp.value);
+                    nomInp.value = n > 0 ? fmtThousand(n) : '';
+                });
+            }
+            if (saveBtn) {
+                saveBtn.setAttribute('data-slug', slug);
+            }
+        });
     }
 
     function loadTagihanPreview() {
@@ -196,7 +438,7 @@
             tahun_ajaran_mulai: String(tahunMulai()),
             tahun_ajaran_selesai: String(tahunSelesai()),
         });
-        fetch('/api/keuangan/tagihan_preview.php?' + params.toString(), {
+        fetch(appUrl('/api/keuangan/tagihan_preview.php') + '?' + params.toString(), {
             credentials: 'same-origin',
         })
             .then(function (res) {
@@ -205,10 +447,19 @@
             .then(function (data) {
                 if (!data || !data.ok) {
                     tagihanPos = {};
+                    resetOpsEditors('Gagal memuat pengaturan.');
                     renderPaidHints();
                     return;
                 }
                 tagihanPos = data.pos || {};
+                Object.keys(tagihanPos).forEach(function (slug) {
+                    const info = tagihanPos[slug];
+                    if (info && info.is_opsional) {
+                        renderOpsEditor(slug, info);
+                    }
+                });
+                updateOpsPanelOpenState();
+                filterKomponenRows();
                 renderPaidHints();
                 applyNominalFromTagihan();
                 if (summaryHint && data.summary) {
@@ -229,7 +480,7 @@
                 }
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('santri_id')) {
-                    ['syahriyah', 'makan'].forEach(function (slug) {
+                    ['syahriyah'].forEach(function (slug) {
                         const cb = document.querySelector('.bayar-pos-check[value="' + slug + '"]');
                         const info = tagihanPos[slug];
                         if (cb && info && info.sisa > 0 && !cb.checked) {
@@ -278,6 +529,7 @@
         el.addEventListener('input', updateStatusTransaksi);
     });
 
+    bindOpsionalEditorEvents();
     filterKomponenRows();
     applyTarifSantri();
     toggleRefRequired();

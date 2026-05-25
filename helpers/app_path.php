@@ -176,6 +176,30 @@ function app_redirect(string $relativePath): void
     exit;
 }
 
+/** Lingkungan pengembangan lokal (XAMPP/localhost) — bukan server production yang disebar. */
+function app_is_local_dev(): bool
+{
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if (
+        $host === 'localhost'
+        || $host === '127.0.0.1'
+        || str_ends_with($host, '.local')
+        || str_ends_with($host, '.test')
+    ) {
+        return true;
+    }
+    $bp = strtolower(app_base_path());
+    if ($bp !== '' && (str_contains($bp, 'pwa_nailulmuna') || str_contains($bp, 'xampp'))) {
+        return true;
+    }
+    $pub = strtolower(trim((string) (app_config()['public_url'] ?? '')));
+    if ($pub !== '' && (str_contains($pub, 'localhost') || str_contains($pub, '127.0.0.1'))) {
+        return true;
+    }
+
+    return false;
+}
+
 /** Ubah path absolut internal `/foo.php` agar menyertakan base_path (lokal XAMPP). */
 function app_rewrite_internal_url(string $url): string
 {

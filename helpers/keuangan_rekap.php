@@ -247,6 +247,21 @@ function keuangan_tagihan_breakdown_for_santri(
             $status = (string) ($perPosWajib[$slug]['status'] ?? '—');
         } else {
             $expected = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+            $expectedDefault = $expected;
+            $overrideAktif = true;
+            $overrideNominal = null;
+            $isOpsionalBulanan = $jenisPeriode === 'BULANAN'
+                && in_array($slug, keuangan_tagihan_opsional_bulanan_slugs(), true);
+            if ($isOpsionalBulanan && function_exists('keuangan_santri_opsional_for')) {
+                $ov = keuangan_santri_opsional_for($pdo, $santriId, $slug);
+                $overrideAktif = (bool) $ov['aktif'];
+                $overrideNominal = $ov['nominal_override'];
+                if (!$overrideAktif) {
+                    $expected = 0;
+                } elseif ($overrideNominal !== null) {
+                    $expected = max(0, (int) $overrideNominal);
+                }
+            }
             $paid = (int) ($paidMap[$slug] ?? 0);
             $sisa = max(0, $expected - $paid);
             if ($expected <= 0) {
@@ -266,6 +281,12 @@ function keuangan_tagihan_breakdown_for_santri(
             'status' => $status,
             'is_wajib' => in_array($slug, $wajibSlugs, true),
         ];
+        if (!isset($perPosWajib[$slug]) && isset($expectedDefault, $overrideAktif, $isOpsionalBulanan) && $isOpsionalBulanan) {
+            $row['is_opsional'] = true;
+            $row['expected_default'] = (int) $expectedDefault;
+            $row['override_aktif'] = (bool) $overrideAktif;
+            $row['override_nominal'] = $overrideNominal;
+        }
         if (isset($perPosWajib[$slug])) {
             $persenPot = (float) ($perPosWajib[$slug]['persen_potongan'] ?? 0);
             if ($persenPot > 0) {

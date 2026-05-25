@@ -503,6 +503,14 @@ function keuangan_syahriyah_potongan_simpan(PDO $pdo, array $post, int $userId):
     $n->execute(['id' => $santriId]);
     $nama = (string) ($n->fetchColumn() ?: '');
 
+    if (!function_exists('tagihan_syahriyah_cache_invalidate')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    tagihan_syahriyah_cache_invalidate();
+    if (function_exists('keuangan_dashboard_cache_invalidate')) {
+        keuangan_dashboard_cache_invalidate();
+    }
+
     return [
         'ok' => true,
         'message' => 'Potongan syahriyah untuk ' . ($nama !== '' ? $nama : 'santri') . ' disimpan'
@@ -522,6 +530,14 @@ function keuangan_syahriyah_potongan_hapus(PDO $pdo, int $santriId): array
     $pdo->prepare('DELETE FROM keuangan_santri_syahriyah_potongan WHERE santri_id = :sid')->execute(['sid' => $santriId]);
     if (table_exists($pdo, 'keuangan_syahriyah_potongan_jeda')) {
         $pdo->prepare('DELETE FROM keuangan_syahriyah_potongan_jeda WHERE santri_id = :sid')->execute(['sid' => $santriId]);
+    }
+
+    if (!function_exists('tagihan_syahriyah_cache_invalidate')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    tagihan_syahriyah_cache_invalidate();
+    if (function_exists('keuangan_dashboard_cache_invalidate')) {
+        keuangan_dashboard_cache_invalidate();
     }
 
     return ['ok' => true, 'message' => 'Potongan syahriyah dihapus; tagihan kembali tarif penuh.'];

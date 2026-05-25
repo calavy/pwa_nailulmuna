@@ -43,13 +43,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     app_redirect('koperasi/login.php?k=' . $koperasiId);
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', ''));
+$brandNama = auth_portal_brand_nama($pdo);
+$welcome = auth_portal_welcome_copy($pdo);
 
 auth_portal_layout_begin([
     'title' => 'Login ' . (string) $koperasi['nama'],
-    'welcome' => (string) $koperasi['nama'],
+    'welcome_salam' => $welcome['salam'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => (string) $koperasi['nama'] . ' — ' . $welcome['tagline_portal'],
     'subtitle' => 'Masuk sebagai petugas koperasi untuk scan belanja cashless santri.',
-    'nama_ponpes' => $namaPonpes,
+    'nama_ponpes' => $brandNama,
     'accent' => 'teal',
 ]);
 

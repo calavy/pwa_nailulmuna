@@ -23,22 +23,26 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $editSantriId = (int) ($_GET['santri_id'] ?? 0);
 $tampilSemua = isset($_GET['semua']) && (string) $_GET['semua'] === '1';
 $berjalan = keuangan_periode_berjalan($pdo);
-$keuanganTa = keuangan_ta_resolve($pdo, array_merge($_GET, $_POST));
+$keuanganTa = keuangan_ta_resolve($pdo);
 $bulanMap = keuangan_bulan_map($pdo);
 $bulanBerjalan = (int) $berjalan['bulan'];
 $taMulai = (int) $keuanganTa['mulai'];
 $taSelesai = (int) $keuanganTa['selesai'];
 $bulkCtx = keuangan_syahriyah_bulk_context($pdo, $bulanBerjalan, $taMulai, $taSelesai);
 $tierTarifMap = $bulkCtx['tarifByTier'];
-$redirectPotongan = static function (int $santriId = 0) use ($q, $taMulai, $taSelesai): void {
-    $params = ['tm' => $taMulai, 'ts' => $taSelesai];
+$redirectPotongan = static function (int $santriId = 0) use ($q): void {
+    $params = [];
     if ($santriId > 0) {
         $params['santri_id'] = $santriId;
     }
     if ($q !== '') {
         $params['q'] = $q;
     }
-    app_redirect_path('/keuangan/potongan_syahriyah.php?' . http_build_query($params));
+    $path = '/keuangan/potongan_syahriyah.php';
+    if ($params !== []) {
+        $path .= '?' . http_build_query($params);
+    }
+    app_redirect_path($path);
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

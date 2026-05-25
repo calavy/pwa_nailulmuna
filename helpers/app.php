@@ -1673,10 +1673,22 @@ function syahriyah_paid_nominal_for_month(PDO $pdo, int $santriId, int $bulanTag
     return tagihan_paid_nominal_for_pos_month($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, 'syahriyah');
 }
 
-/** Pos bulanan yang menimbulkan tagihan jika belum dibayar (bukan saku). */
+/** Pos bulanan wajib (status lunas/belum dihitung dari ini saja). */
 function keuangan_tagihan_wajib_slugs(): array
 {
-    return ['syahriyah', 'makan'];
+    return ['syahriyah'];
+}
+
+/** Pos bulanan opsional (makan & saku — tidak mempengaruhi status wajib). */
+function keuangan_tagihan_opsional_bulanan_slugs(): array
+{
+    return ['makan', 'saku'];
+}
+
+/** Semua pos tagihan bulanan untuk tampilan / pembayaran. */
+function keuangan_tagihan_bulanan_slugs(): array
+{
+    return array_merge(keuangan_tagihan_wajib_slugs(), keuangan_tagihan_opsional_bulanan_slugs());
 }
 
 /**
@@ -1950,6 +1962,12 @@ function trigger_auto_wa_tagihan_wali(PDO $pdo): void
     $periodeTa = keuangan_tahun_ajaran_aktif($pdo);
     $tahunAjaranMulai = (int) ($periodeTa['mulai'] ?? 0);
     $tahunAjaranSelesai = (int) ($periodeTa['selesai'] ?? 0);
+    if (!function_exists('tagihan_bulanan_page_context')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $paidMap = $tagihanCtx['paid_map'];
+    $syCtx = $tagihanCtx['sy_ctx'];
     $sentCount = 0;
     foreach ($santriRows as $row) {
         $santriId = (int) ($row['id'] ?? 0);
@@ -1961,7 +1979,16 @@ function trigger_auto_wa_tagihan_wali(PDO $pdo): void
         if ($components === []) {
             continue;
         }
-        $st = tagihan_wajib_status_for_month($pdo, $santriId, $bulan, $tahunAjaranMulai, $tahunAjaranSelesai, $kelas);
+        $st = tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            $santriId,
+            $bulan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $kelas,
+            $paidMap,
+            $syCtx
+        );
         $sisa = (int) ($st['sisa_total'] ?? 0);
         if ($sisa <= 0) {
             continue;
@@ -2644,8 +2671,15 @@ function app_menu_pack(PDO $pdo): array
 function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionPathMap): array
 {
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $menuSig = md5(implode('|', array_keys($menuItems)));
     $cacheKey = 'menu_items_acl_' . $userId;
-    if ($userId > 0 && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+    $sigKey = 'menu_items_acl_sig_' . $userId;
+    if (
+        $userId > 0
+        && isset($_SESSION[$cacheKey], $_SESSION[$sigKey])
+        && is_array($_SESSION[$cacheKey])
+        && (string) $_SESSION[$sigKey] === $menuSig
+    ) {
         return $_SESSION[$cacheKey];
     }
 
@@ -2671,6 +2705,7 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
     );
     if ($userId > 0) {
         $_SESSION[$cacheKey] = $filtered;
+        $_SESSION[$sigKey] = $menuSig;
     }
 
     return $filtered;
@@ -2770,6 +2805,7 @@ function menu_tile_icon_for_path(string $path): string
         '/settings/kamar_ranjang.php' => 'fa-solid fa-bed',
         '/settings/kelas_ruangan.php' => 'fa-solid fa-door-open',
         '/settings/kelas_keuangan.php' => 'fa-solid fa-coins',
+        '/settings/opsional_santri.php' => 'fa-solid fa-utensils',
         '/settings/admin.php' => 'fa-solid fa-user-shield',
         '/settings/push.php' => 'fa-solid fa-bell',
         '/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',

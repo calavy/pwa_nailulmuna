@@ -13,18 +13,34 @@ ensure_santri_keluar_columns($pdo);
 
 $q = trim((string) ($_GET['q'] ?? ''));
 $filterStatus = strtoupper(trim((string) ($_GET['status'] ?? '')));
-$sql = 'SELECT id, nis, nama_santri, tingkatan, tanggal_masuk, is_aktif, status_santri, keluar_kategori, tanggal_keluar, alasan_keluar FROM santri WHERE 1=1';
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = min(100, max(20, (int) ($_GET['per_page'] ?? 50)));
+
+$where = ' WHERE 1=1';
 $params = [];
 if ($q !== '') {
-    $sql .= ' AND (LOWER(nama_santri) LIKE :q OR LOWER(nis) LIKE :q2)';
+    $where .= ' AND (LOWER(nama_santri) LIKE :q OR LOWER(nis) LIKE :q2)';
     $params['q'] = '%' . strtolower($q) . '%';
     $params['q2'] = '%' . strtolower($q) . '%';
 }
 if ($filterStatus !== '' && in_array($filterStatus, santri_status_options(), true)) {
-    $sql .= ' AND UPPER(TRIM(COALESCE(status_santri, \'AKTIF\'))) = :st';
+    $where .= ' AND UPPER(TRIM(COALESCE(status_santri, \'AKTIF\'))) = :st';
     $params['st'] = $filterStatus;
 }
-$sql .= ' ORDER BY FIELD(UPPER(TRIM(COALESCE(status_santri, \'AKTIF\'))), \'AKTIF\', \'KHIDMAH\', \'NONAKTIF\', \'NON_AKTIF\'), nama_santri ASC';
+
+$countStmt = $pdo->prepare('SELECT COUNT(*) FROM santri' . $where);
+$countStmt->execute($params);
+$totalRows = (int) ($countStmt->fetchColumn() ?: 0);
+$totalPages = max(1, (int) ceil($totalRows / $perPage));
+if ($page > $totalPages) {
+    $page = $totalPages;
+}
+$offset = ($page - 1) * $perPage;
+
+$sql = 'SELECT id, nis, nama_santri, tingkatan, tanggal_masuk, is_aktif, status_santri, keluar_kategori, tanggal_keluar, alasan_keluar FROM santri'
+    . $where
+    . ' ORDER BY FIELD(UPPER(TRIM(COALESCE(status_santri, \'AKTIF\'))), \'AKTIF\', \'KHIDMAH\', \'NONAKTIF\', \'NON_AKTIF\'), nama_santri ASC'
+    . ' LIMIT ' . (int) $perPage . ' OFFSET ' . (int) $offset;
 $st = $pdo->prepare($sql);
 $st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -57,8 +73,18 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
         </select>
     </div>
+    <div class="col-6 col-md-2">
+        <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+            <?php foreach ([30, 50, 80, 100] as $pp): ?>
+                <option value="<?= $pp ?>" <?= $perPage === $pp ? 'selected' : '' ?>><?= $pp ?> / hal</option>
+            <?php endforeach; ?>
+        </select>
+    </div>
     <div class="col-auto">
         <button type="submit" class="btn btn-primary btn-sm">Cari</button>
+    </div>
+    <div class="col-12">
+        <p class="small text-muted mb-0">Menampilkan <strong><?= count($rows) ?></strong> dari <strong><?= $totalRows ?></strong> santri (hal <?= $page ?> / <?= $totalPages ?>).</p>
     </div>
 </form>
 
@@ -128,6 +154,34 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<?php if ($totalPages > 1):
+    $pageBase = ['per_page' => $perPage];
+    if ($q !== '') {
+        $pageBase['q'] = $q;
+    }
+    if ($filterStatus !== '') {
+        $pageBase['status'] = $filterStatus;
+    }
+    ?>
+<nav class="mt-3 d-flex flex-wrap justify-content-center gap-1" aria-label="Halaman data induk">
+    <?php if ($page > 1): $prev = $pageBase; $prev['page'] = $page - 1; ?>
+        <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($prev)) ?>">«</a>
+    <?php endif;
+    $startP = max(1, $page - 2);
+    $endP = min($totalPages, $startP + 4);
+    $startP = max(1, $endP - 4);
+    for ($p = $startP; $p <= $endP; $p++):
+        $pq = $pageBase;
+        $pq['page'] = $p;
+        ?>
+        <a class="btn btn-sm <?= $p === $page ? 'btn-primary' : 'btn-outline-secondary' ?>" href="?<?= htmlspecialchars(http_build_query($pq)) ?>"><?= $p ?></a>
+    <?php endfor;
+    if ($page < $totalPages): $next = $pageBase; $next['page'] = $page + 1; ?>
+        <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($next)) ?>">»</a>
+    <?php endif; ?>
+</nav>
+<?php endif; ?>
 
 <div class="mt-3 small text-muted">
     <a href="/santri/index.php">Santri aktif</a> ·

@@ -73,7 +73,7 @@ if ($section === 'umum') {
     }
 } elseif ($section === 'alokasi' || $section === 'alokasi_awal') {
     require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
-    $keuanganTa = keuangan_ta_resolve($pdo, $_GET);
+    $keuanganTa = keuangan_ta_resolve($pdo);
     $periode = ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']];
     $editAlokasiId = (int) ($_GET['edit_alokasi'] ?? 0);
     $alokasiRows = keuangan_fetch_alokasi_all($pdo);
@@ -123,16 +123,16 @@ require_once __DIR__ . '/../includes/header.php';
     </li>
 </ul>
 
-<?php if ($section === 'alokasi' || $section === 'alokasi_awal'): ?>
-    <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
-<?php endif; ?>
-
 <?php if ($section === 'umum'): ?>
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Tahun ajaran keuangan</div>
+            <div class="card-header fw-semibold">Tahun ajaran aktif (terpusat)</div>
             <div class="card-body">
+                <p class="small text-muted mb-3">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    Atur <strong>sekali di sini</strong>. Tagihan, pembayaran, laporan, tingkatan santri, dan modul lain otomatis memakai periode ini — tidak perlu memilih tahun ajaran di setiap menu.
+                </p>
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="save_periode">
                     <?php
@@ -147,7 +147,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-12">
                         <p class="small text-muted mb-2">
                             Tahun ajaran <?= $taMeta['suffix'] !== '' ? 'Hijriyah' : 'Masehi' ?> (12 bulan = Muharram–Dzulhijjah bila Hijriyah).
-                            Dipakai di tagihan, pembayaran, rekap presensi, dan laporan:
+                            Saat ini aktif:
                             <strong><?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, $periode)) ?></strong>.
                         </p>
                         <?php if (pondok_kalender_hijriyah($pdo)): ?>

@@ -124,7 +124,7 @@ require __DIR__ . '/partials/greeting.php';
                         </div>
                     </div>
                 </div>
-                <p class="small text-muted mt-2 mb-0">Estimasi 12 × tagihan bulanan (Syahriyah + Makan) TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?>.</p>
+                <p class="small text-muted mt-2 mb-0">Estimasi 12 × tagihan wajib (Syahriyah) TA <?= (int) $periodeMulai ?>/<?= (int) $periodeSelesai ?>. Makan &amp; Saku opsional.</p>
                 <a class="btn btn-sm btn-teal w-100 mt-2" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat Keuangan &amp; bukti</a>
             </div>
         </div>
@@ -162,7 +162,7 @@ require __DIR__ . '/partials/greeting.php';
 
         <div class="card shadow-sm wali-card">
             <div class="card-header bg-white small fw-semibold text-muted d-flex justify-content-between align-items-center flex-wrap gap-1">
-                <span>Tagihan bulanan (Syahriyah + Makan)</span>
+                <span>Tagihan bulanan (wajib: Syahriyah)</span>
                 <span class="badge text-bg-primary">Bulan ini: <?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></span>
             </div>
             <div class="card-body p-0">

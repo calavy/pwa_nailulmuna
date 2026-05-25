@@ -268,13 +268,38 @@ function pondok_kalender_hijriyah_ym(PDO $pdo, string $tanggalMasehi): string
  *   masehi_akhir:string
  * }>
  */
+function pondok_bulan_slots_cache_invalidate(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        unset($_SESSION['pondok_bulan_slots_v1']);
+    }
+}
+
 function pondok_bulan_slots_tahun_ajaran(PDO $pdo, int $tahunAjaranMulai, int $tahunAjaranSelesai): array
 {
+    static $requestCache = [];
     $ta = pondok_normalisasi_tahun_ajaran_input($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tahunAjaranMulai = $ta['mulai'];
     $tahunAjaranSelesai = $ta['selesai'];
+    if (!function_exists('pondok_ta_bulan_awal')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    $cacheKey = $tahunAjaranMulai . ':' . $tahunAjaranSelesai . ':'
+        . (pondok_kalender_hijriyah($pdo) ? 'h' : 'm') . ':' . pondok_ta_bulan_awal($pdo);
+    if (isset($requestCache[$cacheKey])) {
+        return $requestCache[$cacheKey];
+    }
+    if (isset($_SESSION['user'])) {
+        $sess = $_SESSION['pondok_bulan_slots_v1'][$cacheKey] ?? null;
+        if (is_array($sess) && (int) ($sess['expires'] ?? 0) > time() && is_array($sess['data'] ?? null)) {
+            $requestCache[$cacheKey] = $sess['data'];
+
+            return $requestCache[$cacheKey];
+        }
+    }
 
     if (pondok_kalender_hijriyah($pdo)) {
+        hijri_preload_mappings_years($pdo, $tahunAjaranMulai, $tahunAjaranMulai + 1);
         if (!function_exists('pondok_ta_bulan_awal_hijri')) {
             require_once __DIR__ . '/pondok_ta.php';
         }
@@ -304,6 +329,17 @@ function pondok_bulan_slots_tahun_ajaran(PDO $pdo, int $tahunAjaranMulai, int $t
             }
         }
 
+        $requestCache[$cacheKey] = $slots;
+        if (isset($_SESSION['user'])) {
+            if (!isset($_SESSION['pondok_bulan_slots_v1']) || !is_array($_SESSION['pondok_bulan_slots_v1'])) {
+                $_SESSION['pondok_bulan_slots_v1'] = [];
+            }
+            $_SESSION['pondok_bulan_slots_v1'][$cacheKey] = [
+                'expires' => time() + 600,
+                'data' => $slots,
+            ];
+        }
+
         return $slots;
     }
 
@@ -331,6 +367,17 @@ function pondok_bulan_slots_tahun_ajaran(PDO $pdo, int $tahunAjaranMulai, int $t
             'tahun_hijri' => 0,
             'masehi_awal' => $masehiAwal,
             'masehi_akhir' => $masehiAkhir,
+        ];
+    }
+
+    $requestCache[$cacheKey] = $slots;
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['pondok_bulan_slots_v1']) || !is_array($_SESSION['pondok_bulan_slots_v1'])) {
+            $_SESSION['pondok_bulan_slots_v1'] = [];
+        }
+        $_SESSION['pondok_bulan_slots_v1'][$cacheKey] = [
+            'expires' => time() + 600,
+            'data' => $slots,
         ];
     }
 

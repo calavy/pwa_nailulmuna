@@ -17,7 +17,7 @@ keuangan_ensure_schema_deferred($pdo);
 
 $berjalan = keuangan_periode_berjalan($pdo);
 $kalenderMode = pondok_kalender_mode($pdo);
-$keuanganTa = keuangan_ta_resolve($pdo, $_GET);
+$keuanganTa = keuangan_ta_resolve($pdo);
 $tahunAjaranMulai = (int) $keuanganTa['mulai'];
 $tahunAjaranSelesai = (int) $keuanganTa['selesai'];
 $bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
@@ -162,15 +162,13 @@ $iconLaporan = bendahara_page_icon('laporan');
 <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
 
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
-    <input type="hidden" name="tm" value="<?= (int) $tahunAjaranMulai ?>">
-    <input type="hidden" name="ts" value="<?= (int) $tahunAjaranSelesai ?>">
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Rekap per bulan</label>
-        <select class="form-select form-select-sm" name="rekap_bulan" onchange="this.form.submit()">
+        <select class="form-select form-select-sm pondok-bulan-select" name="rekap_bulan" data-auto-submit="1">
             <option value="0">— Pilih bulan —</option>
             <?php foreach ($bulanSlots as $slot): ?>
                 <?php $bRekap = (int) ($slot['bulan_tagihan'] ?? 0); ?>
-                <option value="<?= $bRekap ?>" <?= $rekapBulan === $bRekap ? 'selected' : '' ?>><?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?></option>
+                <option value="<?= $bRekap ?>" <?= $rekapBulan === $bRekap ? 'selected' : '' ?>><?= htmlspecialchars((string) ($slot['label'] ?? '')) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
@@ -180,7 +178,7 @@ $iconLaporan = bendahara_page_icon('laporan');
     </div>
     <div class="col-6 col-md-3">
         <?php if ($tablesOk): ?>
-            <a class="btn btn-outline-success btn-sm w-100" href="?tm=<?= (int) $tahunAjaranMulai ?>&amp;ts=<?= (int) $tahunAjaranSelesai ?>&amp;export=csv"><i class="fa-solid fa-file-csv me-1"></i> Unduh CSV</a>
+            <a class="btn btn-outline-success btn-sm w-100" href="?export=csv"><i class="fa-solid fa-file-csv me-1"></i> Unduh CSV</a>
         <?php endif; ?>
     </div>
 </form>
@@ -208,7 +206,7 @@ $iconLaporan = bendahara_page_icon('laporan');
                 <?php foreach ($rowsLaporan as $r): ?>
                     <?php
                     $bRow = (int) $r['bulan'];
-                    $rekapUrl = '?tm=' . (int) $tahunAjaranMulai . '&ts=' . (int) $tahunAjaranSelesai . '&rekap_bulan=' . $bRow;
+                    $rekapUrl = '?rekap_bulan=' . $bRow;
                     ?>
                     <tr class="<?= !empty($r['is_bulan_ini']) ? 'table-primary' : '' ?><?= $rekapBulan === $bRow ? ' table-info' : '' ?>">
                         <td>
@@ -251,7 +249,7 @@ $iconLaporan = bendahara_page_icon('laporan');
                 <?php endif; ?>
             </p>
         </div>
-        <a class="btn btn-sm btn-outline-secondary" href="/pembayaran/rekap_pos.php?bulan=<?= (int) $rekapBulan ?>&amp;tm=<?= (int) $tahunAjaranMulai ?>&amp;ts=<?= (int) $tahunAjaranSelesai ?>">
+        <a class="btn btn-sm btn-outline-secondary" href="/pembayaran/rekap_pos.php?bulan=<?= (int) $rekapBulan ?>">
             <i class="fa-solid fa-up-right-from-square me-1"></i> Halaman rekap POS
         </a>
     </div>

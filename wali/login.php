@@ -89,7 +89,8 @@ $hasSelected = $selectedSantri !== null;
 auth_portal_layout_begin([
     'title' => 'Portal Wali Santri',
     'welcome_salam' => $welcome['salam'],
-    'welcome_tagline' => $welcome['tagline'],
+    'welcome_salam_waktu' => $welcome['salam_waktu'],
+    'welcome_tagline' => $welcome['tagline_portal'],
     'subtitle_mobile' => 'Cari nama atau NIS anak, lalu masukkan PIN portal wali di bawah.',
     'subtitle_desktop' => 'Cari nama atau NIS anak di kartu ini, lalu masukkan PIN portal wali.',
     'kicker' => $jenisPendidikan,

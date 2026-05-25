@@ -24,8 +24,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && $filterTugas > 0) {
 
 $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 $santriList = $pdo->query('
-    SELECT id, nis, ' . $nameCol . ' AS nama_santri, tingkatan FROM santri
-    ' . (column_exists($pdo, 'santri', 'is_aktif') ? 'WHERE COALESCE(is_aktif, 1) = 1' : '') . '
+    SELECT s.id, s.nis, s.' . $nameCol . ' AS nama_santri, s.tingkatan FROM santri s
+    ' . (column_exists($pdo, 'santri', 'is_aktif') ? 'WHERE COALESCE(s.is_aktif, 1) = 1' : '') . '
     ORDER BY ' . santri_list_order_sql('s') . ' LIMIT 800
 ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 

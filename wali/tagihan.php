@@ -19,7 +19,7 @@ require __DIR__ . '/partials/greeting.php';
         <p class="small text-muted mb-3">
             <span class="badge text-bg-primary me-1">Bulan berjalan</span>
             <strong><?= htmlspecialchars((string) ($berjalan['periode_tampilan'] ?? $berjalan['bulan_label'])) ?></strong>
-            · Wajib: Syahriyah &amp; Makan. Saku opsional (cashless).
+            · Wajib: Syahriyah. Makan &amp; Saku opsional.
             <a href="/wali/pembayaran.php">Riwayat Keuangan</a>.
         </p>
 
