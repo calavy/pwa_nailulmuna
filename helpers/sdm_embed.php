@@ -24,7 +24,7 @@ function sdm_embed_done_redirect(string $url): void
 {
     if (sdm_is_embed()) {
         header('Content-Type: text/html; charset=utf-8');
-        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Selesai</title></head><body>';
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Selesai</title></head><body>';
         echo '<p class="small text-muted p-3">Berhasil disimpan. Menutup formulir…</p>';
         echo '<script>try{if(window.parent&&window.parent!==window){window.parent.dispatchEvent(new CustomEvent("sdmFormDone",{detail:{url:' . json_encode($url, JSON_UNESCAPED_UNICODE) . '}}));}}catch(e){}</script>';
         echo '</body></html>';
@@ -44,7 +44,7 @@ function sdm_embed_layout_start(string $pageTitle): void
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title><?= htmlspecialchars($pageTitle) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/assets/css/keuangan.css" rel="stylesheet">

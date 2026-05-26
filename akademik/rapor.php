@@ -327,8 +327,8 @@ $ikhtibarSantri = $filterSantri > 0 ? ikhtibar_riwayat_hasil_santri($pdo, $filte
             <div class="card-body">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                     <h2 class="h5 mb-0">Daftar rapor</h2>
-                    <form method="get" class="d-flex gap-2 align-items-center">
-                        <select name="santri_id" class="form-select form-select-sm" style="min-width:12rem;" onchange="this.form.submit()">
+                    <form method="get" class="d-flex flex-wrap gap-2 align-items-center w-100 w-sm-auto">
+                        <select name="santri_id" class="form-select form-select-sm flex-grow-1" style="flex-basis:12rem;min-width:8rem;max-width:18rem;" onchange="this.form.submit()">
                             <option value="0">Semua santri</option>
                             <?php foreach ($santriList as $s): ?>
                                 <option value="<?= (int) $s['id'] ?>" <?= $filterSantri === (int) $s['id'] ? 'selected' : '' ?>>

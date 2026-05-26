@@ -23,7 +23,7 @@ $ring = $neraca['ringkasan'] ?? [];
 
 if ($print) {
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Neraca — ' . htmlspecialchars($neraca['nama_lembaga']) . '</title>';
+    echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Neraca — ' . htmlspecialchars($neraca['nama_lembaga']) . '</title>';
     echo keuangan_typography_font_links();
     echo '<style>' . keuangan_typography_print_css() . keuangan_neraca_css_dua_kolom() . '</style></head><body class="' . htmlspecialchars(keuangan_body_class('neraca-page')) . '">';
     echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/keuangan/neraca.php?per=' . urlencode($neraca['as_of']) . '">Kembali</a></div>';

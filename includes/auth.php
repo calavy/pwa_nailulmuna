@@ -15,6 +15,7 @@ function user_role_label(string $role): string
         'pengurus' => 'Pengurus',
         'petugas_absensi' => 'Petugas Absensi',
         'kiai' => 'Pengasuh',
+        'pembimbing' => 'Pembimbing',
         default => $role !== '' ? ucfirst($role) : 'Pengurus',
     };
 }
@@ -25,6 +26,43 @@ function require_login(): void
         set_flash('error', 'Silakan login terlebih dahulu.');
         require_once __DIR__ . '/../helpers/app_path.php';
         app_redirect('login.php');
+    }
+    auth_pembimbing_acl_self_heal();
+}
+
+/**
+ * Pastikan ACL akun ber-role 'pembimbing' selalu memuat whitelist standar
+ * (dashboard, perizinan, ikhtibar, scan presensi). Dijalankan sekali per
+ * sesi via marker — supaya pembimbing yang login SEBELUM perubahan ACL
+ * baru tetap mendapatkan permission yang benar tanpa harus logout-login.
+ */
+function auth_pembimbing_acl_self_heal(): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role !== 'pembimbing') {
+        return;
+    }
+    $uid = (int) ($_SESSION['user']['id'] ?? 0);
+    if ($uid <= 0) {
+        return;
+    }
+    $marker = 'pembimbing_acl_healed_v2_' . $uid;
+    if (!empty($_SESSION[$marker])) {
+        return;
+    }
+    global $pdo;
+    if (!($pdo instanceof PDO)) {
+        return;
+    }
+    if (!function_exists('login_pembimbing_ensure_acl')) {
+        require_once __DIR__ . '/../helpers/login_pembimbing.php';
+    }
+    if (function_exists('login_pembimbing_ensure_acl')) {
+        login_pembimbing_ensure_acl($pdo, $uid);
+        $_SESSION[$marker] = 1;
     }
 }
 
@@ -41,8 +79,17 @@ function auth_redirect_access_denied(): void
             app_redirect('pengasuh/nilai_keaktifan.php');
         }
     }
+    if ($role === 'pembimbing') {
+        $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+        if (!app_acl_request_paths_equal($requestPath, '/pembimbing/dashboard.php')) {
+            app_redirect('pembimbing/dashboard.php');
+        }
+    }
 
     global $pdo;
+    if (!function_exists('get_allowed_permission_key_map')) {
+        require_once __DIR__ . '/../helpers/app.php';
+    }
     if ($pdo instanceof PDO && function_exists('get_allowed_permission_key_map')) {
         $allowedMap = get_allowed_permission_key_map($pdo);
         if ($allowedMap === null) {
@@ -285,6 +332,12 @@ function user_can_access_permission_key(string $permissionKey): bool
     }
     global $pdo;
     if (!$pdo instanceof PDO) {
+        return false;
+    }
+    if (!function_exists('get_allowed_permission_key_map')) {
+        require_once __DIR__ . '/../helpers/app.php';
+    }
+    if (!function_exists('get_allowed_permission_key_map')) {
         return false;
     }
     $allowed = get_allowed_permission_key_map($pdo);

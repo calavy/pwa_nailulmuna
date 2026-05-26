@@ -3,12 +3,15 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
+require_once __DIR__ . '/../helpers/login_pembimbing.php';
 
 require_login();
 user_profil_ensure_schema($pdo);
 
+const PROFIL_PASSWORD_MIN_LEN = 6;
+
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
-$st = $pdo->prepare('SELECT id, nama, username, role, foto_profil, jenis_kelamin FROM users WHERE id = :id LIMIT 1');
+$st = $pdo->prepare('SELECT id, nama, username, role, foto_profil, jenis_kelamin, password FROM users WHERE id = :id LIMIT 1');
 $st->execute(['id' => $userId]);
 $userRow = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -41,6 +44,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $_SESSION['user']['jenis_kelamin'] = $jk;
             set_flash('success', 'Foto default disesuaikan.');
+        header('Location: ' . app_href('/settings/profil.php'));
+        exit;
+    }
+
+    if ($action === 'change_password') {
+        $currentInput = (string) ($_POST['current_password'] ?? '');
+        $newPassword = (string) ($_POST['new_password'] ?? '');
+        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+        $storedHash = (string) ($userRow['password'] ?? '');
+
+        if ($currentInput === '' || $newPassword === '' || $confirmPassword === '') {
+            set_flash('error', 'Password lama, baru, dan konfirmasi wajib diisi.');
+        } elseif ($storedHash === '' || !password_verify($currentInput, $storedHash)) {
+            set_flash('error', 'Password lama salah.');
+        } elseif (strlen($newPassword) < PROFIL_PASSWORD_MIN_LEN) {
+            set_flash('error', 'Password baru minimal ' . PROFIL_PASSWORD_MIN_LEN . ' karakter.');
+        } elseif ($newPassword !== $confirmPassword) {
+            set_flash('error', 'Konfirmasi password baru tidak cocok.');
+        } elseif (password_verify($newPassword, $storedHash)) {
+            set_flash('error', 'Password baru sama dengan password lama. Pilih yang berbeda.');
+        } else {
+            try {
+                $pdo->prepare('UPDATE users SET password = :p WHERE id = :id')->execute([
+                    'p' => password_hash($newPassword, PASSWORD_DEFAULT),
+                    'id' => $userId,
+                ]);
+                // Privasi user: hapus salinan plaintext yang mungkin
+                // disimpan saat admin men-set/reset password sebelumnya.
+                if (function_exists('login_pembimbing_forget_password_plain')) {
+                    login_pembimbing_forget_password_plain($pdo, $userId);
+                }
+                set_flash('success', 'Password berhasil diubah. Password baru akan dipakai pada login berikutnya.');
+            } catch (Throwable $e) {
+                set_flash('error', 'Gagal menyimpan password: ' . $e->getMessage());
+            }
+        }
         header('Location: ' . app_href('/settings/profil.php'));
         exit;
     }
@@ -131,5 +170,117 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                        <i class="fa-solid fa-key" aria-hidden="true"></i>
+                    </span>
+                    <h2 class="h6 mb-0">Ubah password login</h2>
+                </div>
+                <p class="small text-muted mb-3">
+                    Password dipakai untuk login portal dengan username
+                    <span class="font-monospace fw-semibold">@<?= htmlspecialchars((string) $userRow['username']) ?></span>.
+                    Minimal <?= (int) PROFIL_PASSWORD_MIN_LEN ?> karakter — campur huruf &amp; angka untuk lebih aman.
+                </p>
+                <form method="post" class="row g-3" autocomplete="off" id="form-change-password">
+                    <input type="hidden" name="action" value="change_password">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="profil-pwd-cur">Password lama <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="profil-pwd-cur" name="current_password" autocomplete="current-password" required>
+                            <button type="button" class="btn btn-outline-secondary" data-pwd-toggle="profil-pwd-cur" aria-label="Tampilkan/sembunyikan password">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="profil-pwd-new">Password baru <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="profil-pwd-new" name="new_password" minlength="<?= (int) PROFIL_PASSWORD_MIN_LEN ?>" autocomplete="new-password" required>
+                            <button type="button" class="btn btn-outline-secondary" data-pwd-toggle="profil-pwd-new" aria-label="Tampilkan/sembunyikan password">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Minimal <?= (int) PROFIL_PASSWORD_MIN_LEN ?> karakter.</div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="profil-pwd-conf">Konfirmasi password baru <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="profil-pwd-conf" name="confirm_password" minlength="<?= (int) PROFIL_PASSWORD_MIN_LEN ?>" autocomplete="new-password" required>
+                            <button type="button" class="btn btn-outline-secondary" data-pwd-toggle="profil-pwd-conf" aria-label="Tampilkan/sembunyikan password">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text" id="profil-pwd-match-hint"></div>
+                    </div>
+                    <div class="col-12 d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fa-solid fa-key me-1" aria-hidden="true"></i> Ubah password
+                        </button>
+                        <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="btn btn-outline-secondary">Batal</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    document.querySelectorAll('[data-pwd-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-pwd-toggle');
+            var input = id ? document.getElementById(id) : null;
+            if (!input) { return; }
+            var isPwd = input.getAttribute('type') === 'password';
+            input.setAttribute('type', isPwd ? 'text' : 'password');
+            var icon = btn.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-eye');
+                icon.classList.toggle('fa-eye-slash');
+            }
+        });
+    });
+
+    var form = document.getElementById('form-change-password');
+    if (!form) { return; }
+    var pwdNew = document.getElementById('profil-pwd-new');
+    var pwdConf = document.getElementById('profil-pwd-conf');
+    var hint = document.getElementById('profil-pwd-match-hint');
+    function syncHint() {
+        if (!pwdNew || !pwdConf || !hint) { return; }
+        if (pwdConf.value === '') {
+            hint.textContent = '';
+            hint.className = 'form-text';
+            return;
+        }
+        if (pwdNew.value === pwdConf.value) {
+            hint.textContent = 'Cocok dengan password baru.';
+            hint.className = 'form-text text-success';
+        } else {
+            hint.textContent = 'Belum cocok dengan password baru.';
+            hint.className = 'form-text text-danger';
+        }
+    }
+    if (pwdNew) { pwdNew.addEventListener('input', syncHint); }
+    if (pwdConf) { pwdConf.addEventListener('input', syncHint); }
+
+    form.addEventListener('submit', function (e) {
+        if (!pwdNew || !pwdConf) { return; }
+        if (pwdNew.value !== pwdConf.value) {
+            e.preventDefault();
+            if (hint) {
+                hint.textContent = 'Konfirmasi password belum cocok dengan password baru.';
+                hint.className = 'form-text text-danger';
+            }
+            pwdConf.focus();
+        }
+    });
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

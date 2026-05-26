@@ -25,7 +25,7 @@ $blockPrint = $approvalStatus === 'DITOLAK' || ($approvalStatus === 'PENDING' &&
 if ($blockPrint) {
     http_response_code(403);
     $statusLabel = $approvalStatus === 'DITOLAK' ? 'ditolak' : 'belum disetujui';
-    echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Surat belum dapat dicetak</title>';
+    echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Surat belum dapat dicetak</title>';
     echo '<style>body{font-family:"Segoe UI",Arial,sans-serif;background:#f8fafc;color:#0f172a;margin:0;padding:0;}'
         . '.box{max-width:480px;margin:8vh auto;padding:28px 32px;background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 12px 30px rgba(15,23,42,.08);}'
         . 'h1{font-size:20px;margin:0 0 8px;color:#b45309;}'
@@ -98,6 +98,7 @@ $nbText = $jenisIzin === 'TUGAS'
 <html lang="id">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Surat Izin</title>
     <style>
         @page { size: A5 portrait; margin: 6mm; }

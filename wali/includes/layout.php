@@ -44,10 +44,15 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <?php if ($withManifest): ?>
         <link rel="manifest" href="<?= htmlspecialchars(app_href('/wali/manifest.php')) ?>">
         <meta name="theme-color" content="#0f766e">
+        <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <meta name="apple-mobile-web-app-title" content="Portal Wali">
     <?php endif; ?>
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
+    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
+    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
     <title><?= htmlspecialchars($title) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

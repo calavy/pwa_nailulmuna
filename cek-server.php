@@ -15,7 +15,7 @@ if (!app_is_local_dev()) {
 
 require_once __DIR__ . '/config/database.php';
 
-echo '<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Cek server</title></head><body style="font-family:sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;">';
+echo '<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Cek server</title></head><body style="font-family:sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;">';
 echo '<h1>Server OK</h1>';
 echo '<p>Folder proyek: <code>' . htmlspecialchars(__DIR__) . '</code></p>';
 echo '<p>Base path: <code>' . htmlspecialchars(app_base_path() !== '' ? app_base_path() : '(root domain)') . '</code></p>';

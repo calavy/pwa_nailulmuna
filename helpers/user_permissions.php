@@ -77,6 +77,7 @@ function user_permission_groups(): array
             'label' => 'Pembimbing',
             'permissions' => [
                 'pembimbing' => 'Data Pembimbing',
+                'pembimbing_dashboard' => 'Dashboard Pembimbing (santri & keaktifan per tingkatan)',
                 'pembimbing_perizinan' => 'Izin Pembimbing',
                 'rekap_pembimbing' => 'Payroll / Gaji Pembimbing',
             ],
@@ -181,6 +182,7 @@ function user_permission_path_map_base(): array
         '/settings/alpa_notif.php' => 'pengaturan',
         '/settings/kelas_ruangan.php' => 'pengaturan',
         '/settings/kelas_keuangan.php' => 'pengaturan',
+        '/settings/tarif_payroll.php' => 'pengaturan',
         '/settings/opsional_santri.php' => 'pengaturan',
         '/settings/tingkatan.php' => 'pengaturan',
         '/settings/kamar_ranjang.php' => 'pengaturan',
@@ -196,6 +198,7 @@ function user_permission_path_map_base(): array
         '/admin/rekap_surat_izin.php' => 'perizinan',
         '/admin/rekap_surat_sp.php' => 'perizinan',
         '/pembimbing/index.php' => 'pembimbing',
+        '/pembimbing/dashboard.php' => 'pembimbing_dashboard',
         '/pembimbing/presensi.php' => 'presensi_scan',
         '/pembimbing/perizinan.php' => 'pembimbing_perizinan',
         '/rekap/santri_bagus.php' => 'rekap_keaktifan',

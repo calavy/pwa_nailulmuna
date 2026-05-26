@@ -158,19 +158,20 @@ if (!column_exists($pdo, 'santri', 'tingkatan') && column_exists($pdo, 'santri',
     $santriLevelExpr = 'k.nama_kelas';
 }
 $whereAktif = column_exists($pdo, 'santri', 'is_aktif') ? ' WHERE s.is_aktif = 1 ' : '';
+$orderBySantri = santri_list_order_sql('s');
 $santriRows = $pdo->query("
     SELECT s.id, s.nis, {$santriNameExpr} AS nama_santri, {$santriLevelExpr} AS tingkatan
     FROM santri s
     {$joinKelas}
     {$whereAktif}
-    ORDER BY ' . santri_list_order_sql('s') . '
+    ORDER BY {$orderBySantri}
 ")->fetchAll();
 
 $pinRows = $pdo->query("
     SELECT ca.santri_id, ca.balance, {$santriNameExpr} AS nama_santri, s.nis, s.tingkatan
     FROM cashless_accounts ca
     INNER JOIN santri s ON s.id = ca.santri_id
-    ORDER BY ' . santri_list_order_sql('s') . '
+    ORDER BY {$orderBySantri}
 ")->fetchAll();
 
 $santriPinStatusRows = $pdo->query("
@@ -180,7 +181,7 @@ $santriPinStatusRows = $pdo->query("
     FROM santri s
     LEFT JOIN cashless_accounts ca ON ca.santri_id = s.id
     {$whereAktif}
-    ORDER BY ' . santri_list_order_sql('s') . '
+    ORDER BY {$orderBySantri}
 ")->fetchAll();
 
 $ubahPinSantriId = (int) ($_GET['ubah_pin'] ?? 0);
@@ -309,15 +310,15 @@ require_once __DIR__ . '/../includes/header.php';
                                             <form method="post" class="d-flex flex-wrap align-items-end gap-2 flex-grow-1">
                                                 <input type="hidden" name="action" value="update_qr_nominal_map">
                                                 <input type="hidden" name="map_id" value="<?= (int) $mr['id'] ?>">
-                                                <div style="min-width:6rem">
+                                                <div class="flex-grow-1" style="flex-basis:6rem;min-width:5rem">
                                                     <label class="form-label small mb-0 text-muted">Rp</label>
                                                     <input type="text" class="form-control form-control-sm" name="map_nominal" value="<?= number_format((int) ($mr['nominal'] ?? 0), 0, ',', '.') ?>" required>
                                                 </div>
-                                                <div style="min-width:10rem">
+                                                <div class="flex-grow-1" style="flex-basis:10rem;min-width:8rem">
                                                     <label class="form-label small mb-0 text-muted">Ket.</label>
                                                     <input type="text" class="form-control form-control-sm" name="map_keterangan" value="<?= htmlspecialchars((string) ($mr['keterangan'] ?? '')) ?>" placeholder="Opsional">
                                                 </div>
-                                                <div style="min-width:6rem">
+                                                <div class="flex-grow-1" style="flex-basis:6rem;min-width:5rem">
                                                     <label class="form-label small mb-0 text-muted">Status</label>
                                                     <select class="form-select form-select-sm" name="map_is_aktif">
                                                         <option value="1" <?= (int) ($mr['is_aktif'] ?? 0) === 1 ? 'selected' : '' ?>>Aktif</option>

@@ -24,7 +24,7 @@ $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 
 if ($print) {
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Arus Kas — ' . htmlspecialchars($lak['nama_lembaga']) . '</title>';
+    echo '<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Arus Kas — ' . htmlspecialchars($lak['nama_lembaga']) . '</title>';
     echo keuangan_typography_font_links();
     echo '<style>' . keuangan_typography_print_css() . keuangan_aruskas_css() . '</style></head><body class="' . htmlspecialchars(keuangan_body_class('aruskas-page')) . '">';
     echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/keuangan/arus-kas.php?dari=' . urlencode($lak['date_from']) . '&amp;sampai=' . urlencode($lak['date_to']) . '">Kembali</a></div>';

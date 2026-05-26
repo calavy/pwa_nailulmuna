@@ -41,8 +41,33 @@ $permissionOptions = user_permission_flat_options();
 
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
+/**
+ * Cek apakah target user adalah akun pembimbing. Kalau ya, halaman ini
+ * tidak boleh menyentuh datanya — admin diarahkan ke halaman data pembimbing.
+ */
+$settings_admin_is_pembimbing_account = static function (PDO $pdo, int $targetUserId): bool {
+    if ($targetUserId <= 0) {
+        return false;
+    }
+    $st = $pdo->prepare('SELECT role FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $targetUserId]);
+    $role = (string) ($st->fetchColumn() ?: '');
+    return strtolower($role) === 'pembimbing';
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? 'create_user'));
+    $targetUserIdForGuard = (int) ($_POST['target_user_id'] ?? 0);
+
+    if (
+        $targetUserIdForGuard > 0
+        && in_array($action, ['save_access', 'update_user', 'delete_user'], true)
+        && $settings_admin_is_pembimbing_account($pdo, $targetUserIdForGuard)
+    ) {
+        set_flash('error', 'Akun pembimbing dikelola di halaman Data Pembimbing, bukan di sini.');
+        header('Location: ' . app_href('/pembimbing/index.php'));
+        exit;
+    }
 
     if ($action === 'save_access') {
         $targetUserId = (int) ($_POST['target_user_id'] ?? 0);
@@ -240,7 +265,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$users = $pdo->query('SELECT id, nama, username, role, is_super_admin, foto_profil, created_at FROM users ORDER BY id DESC')->fetchAll();
+// Akun pembimbing tidak ditampilkan/diolah dari halaman ini — pengelolaannya
+// dipusatkan di /pembimbing/index.php & /pembimbing/edit.php agar admin
+// tidak perlu pindah-pindah halaman ketika membuat akun pembimbing.
+$users = $pdo->query("SELECT id, nama, username, role, is_super_admin, foto_profil, created_at FROM users WHERE COALESCE(role, '') <> 'pembimbing' ORDER BY id DESC")->fetchAll();
+$pembimbingUserCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE COALESCE(role, '') = 'pembimbing'")->fetchColumn();
 $accessRows = $pdo->query('SELECT user_id, permission_key FROM user_access_permissions')->fetchAll();
 $accessMap = [];
 foreach ($accessRows as $row) {
@@ -262,9 +291,49 @@ $settingsNavActive = '/settings/admin.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> Â· Akses</p>
+    <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> · Akses</p>
     <h1 class="h4 mb-1">Kelola user &amp; hak akses</h1>
-    <p class="text-muted mb-0">Buat akun lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
+    <p class="text-muted mb-0">Buat akun pengurus / admin / petugas lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
+</div>
+<div class="alert alert-info d-flex align-items-start gap-2 small mb-3">
+    <i class="fa-solid fa-circle-info mt-1" aria-hidden="true"></i>
+    <div>
+        <strong>Akun pembimbing tidak diatur di sini.</strong>
+        Kelola identitas pembimbing sekaligus akun loginnya (buat, reset password, hapus) dari
+        <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>" class="alert-link">Data Pembimbing</a>.
+        <?php if ($pembimbingUserCount > 0): ?>
+            Saat ini ada <strong><?= $pembimbingUserCount ?></strong> akun pembimbing tersembunyi dari daftar di bawah.
+        <?php endif; ?>
+    </div>
+</div>
+<div class="card shadow-sm mb-3 border-primary-subtle">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-center justify-content-lg-between gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle">
+                    <i class="fa-solid fa-bolt me-1"></i> Pintasan
+                </span>
+                <span class="small text-muted">Pengaturan terkait pengurus &amp; jadwal:</span>
+            </div>
+            <div class="d-grid d-sm-flex flex-sm-wrap gap-2">
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>" class="btn btn-sm btn-primary">
+                    <i class="fa-solid fa-id-card-clip me-1"></i> Data Pengurus
+                </a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-calendar-days me-1"></i> Jadwal Kegiatan
+                </a>
+                <a href="<?= htmlspecialchars(app_href('/settings/tingkatan.php')) ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-layer-group me-1"></i> Tingkatan
+                </a>
+                <a href="<?= htmlspecialchars(app_href('/settings/tarif_payroll.php')) ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-coins me-1"></i> Tarif Payroll
+                </a>
+                <a href="<?= htmlspecialchars(app_href('/pembayaran/edit_token.php')) ?>" class="btn btn-sm btn-outline-warning" title="Buat & kelola token sekali pakai untuk membuka mode edit pembayaran">
+                    <i class="fa-solid fa-key me-1"></i> Token Edit Pembayaran
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4">
@@ -473,7 +542,7 @@ require_once __DIR__ . '/../includes/header.php';
         $permTotal = count($permissionOptions);
         ?>
         <div class="modal fade modal-perm-access" id="accessUserModal<?= $uid ?>" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-md-down">
                 <div class="modal-content">
                     <form method="post" class="perm-form">
                         <input type="hidden" name="action" value="save_access">

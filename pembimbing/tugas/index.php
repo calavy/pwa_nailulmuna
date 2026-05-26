@@ -30,13 +30,17 @@ $pageTitle = 'Tugas Santri (Ikhtibar)';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/dashboard.php">Beranda</a> · Kajian · Tugas Ikhtibar</p>
+    <p class="page-intro-kicker mb-1">
+        <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php')) ?>">Dashboard Pembimbing</a>
+        · Kajian · Tugas Ikhtibar
+    </p>
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
             <h1 class="h4 mb-1"><i class="fa-solid fa-list-check text-primary me-1"></i> Tugas Santri (Ikhtibar)</h1>
             <p class="text-muted mb-0">Buat tugas, atur soal PG &amp; esai, token keamanan, dan pantau nilai santri.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
+            <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php')) ?>" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-gauge me-1"></i> Dashboard</a>
             <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i> Rekap nilai</a>
             <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas baru</a>
         </div>

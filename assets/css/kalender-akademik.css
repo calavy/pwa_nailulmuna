@@ -391,7 +391,8 @@ body.pondok-kalender-page .btn-success {
 .akad-cal-table-shell {
     border: 1px solid var(--cal-border);
     border-radius: 10px;
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     background: var(--cal-surface-muted);
 }
 

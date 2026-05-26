@@ -10,16 +10,47 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/keuangan_pembayaran_admin.php';
 require_once __DIR__ . '/../helpers/bendahara_ui.php';
+require_once __DIR__ . '/../helpers/pembayaran_edit_token.php';
 
 require_roles(['admin', 'pengurus']);
 require_koreksi_pembayaran();
 
 keuangan_ensure_schema_deferred($pdo);
+pembayaran_edit_token_ensure_schema($pdo);
 
 $pembayaranId = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 if ($pembayaranId <= 0) {
     set_flash('error', 'ID pembayaran tidak valid.');
     header('Location: ' . app_url('pembayaran/riwayat.php'));
+    exit;
+}
+
+// ---- Alur token: redeem terlebih dahulu jika user belum punya akses edit ----
+$currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
+$tokenRequired = pembayaran_edit_token_required_for_current_user();
+$tokenSessionAktif = pembayaran_edit_token_session_aktif($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'redeem_token') {
+    $tokenInput = (string) ($_POST['token_plain'] ?? '');
+    $result = pembayaran_edit_token_redeem($pdo, $currentUserId, $tokenInput);
+    if ($result['ok']) {
+        set_flash('success', $result['message']);
+    } else {
+        set_flash('error', $result['message']);
+    }
+    header('Location: ' . app_url('pembayaran/riwayat_edit.php?id=' . $pembayaranId));
+    exit;
+}
+
+// Tolak aksi edit/hapus jika butuh token tapi belum redeem.
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && in_array((string) ($_POST['action'] ?? ''), ['update_pembayaran', 'delete_pembayaran'], true)
+    && $tokenRequired
+    && !$tokenSessionAktif
+) {
+    set_flash('error', 'Mode edit terkunci. Masukkan token dari super admin terlebih dahulu.');
+    header('Location: ' . app_url('pembayaran/riwayat_edit.php?id=' . $pembayaranId));
     exit;
 }
 
@@ -99,6 +130,56 @@ $iconRiwayat = bendahara_page_icon('riwayat');
     Hanya <strong>admin</strong> yang dapat mengedit atau menghapus. Jurnal &amp; saldo saku (jika ada) disesuaikan otomatis.
 </div>
 
+<?php
+$flashOk = get_flash('success');
+$flashErr = get_flash('error');
+?>
+<?php if ($flashOk): ?><div class="alert alert-success py-2 small mb-3"><i class="fa-solid fa-circle-check me-1"></i><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
+<?php if ($flashErr): ?><div class="alert alert-danger py-2 small mb-3"><i class="fa-solid fa-circle-exclamation me-1"></i><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
+
+<?php if ($tokenRequired && !$tokenSessionAktif): ?>
+    <div class="card shadow-sm border-warning-subtle mb-4">
+        <div class="card-header bg-warning-subtle border-0 d-flex align-items-center gap-2 py-2">
+            <i class="fa-solid fa-lock text-warning-emphasis"></i>
+            <h2 class="h6 mb-0 text-warning-emphasis">Mode edit terkunci — masukkan token</h2>
+        </div>
+        <div class="card-body">
+            <p class="small text-muted mb-3">
+                Untuk membuka mode edit pembayaran, masukkan token sekali pakai yang diterbitkan oleh
+                <strong>super admin</strong>. Setelah berhasil, Anda bisa mengedit/hapus pembayaran sebanyak yang dibutuhkan
+                hingga Anda <strong>logout</strong> (atau token dibatalkan).
+            </p>
+            <form method="post" class="row g-2 align-items-end" autocomplete="off">
+                <input type="hidden" name="action" value="redeem_token">
+                <input type="hidden" name="id" value="<?= $pembayaranId ?>">
+                <div class="col-12 col-md-8 col-lg-6">
+                    <label class="form-label small text-muted mb-1">Token</label>
+                    <input type="text" name="token_plain" class="form-control font-monospace text-uppercase" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="40" required autofocus>
+                </div>
+                <div class="col-12 col-md-4 col-lg-3">
+                    <button type="submit" class="btn btn-warning w-100">
+                        <i class="fa-solid fa-lock-open me-1"></i>Buka mode edit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+<?php elseif ($tokenRequired && $tokenSessionAktif): ?>
+    <div class="alert alert-success py-2 small mb-3 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-lock-open"></i>
+        <div>
+            <strong>Mode edit terbuka.</strong>
+            Token aktif untuk session Anda. Berlaku hingga Anda <strong>logout</strong>.
+        </div>
+    </div>
+<?php endif; ?>
+
+<?php
+// Form edit hanya tampil jika user bypass (super admin) atau sudah redeem token.
+$canEditNow = !$tokenRequired || $tokenSessionAktif;
+?>
+
+<?php if ($canEditNow): ?>
 <form method="post" class="card shadow-sm mb-4" id="form-koreksi-pembayaran">
     <input type="hidden" name="action" value="update_pembayaran">
     <input type="hidden" name="id" value="<?= $pembayaranId ?>">
@@ -227,6 +308,15 @@ $iconRiwayat = bendahara_page_icon('riwayat');
         </form>
     </div>
 </div>
+<?php else: ?>
+    <div class="card shadow-sm border-secondary-subtle">
+        <div class="card-body text-center py-5">
+            <i class="fa-solid fa-lock fa-3x text-muted mb-3 d-block"></i>
+            <h2 class="h5 mb-2">Form edit dan tombol hapus terkunci</h2>
+            <p class="text-muted small mb-0">Masukkan token dari super admin di kotak di atas untuk membuka mode edit.</p>
+        </div>
+    </div>
+<?php endif; ?>
 
 <script>
 (function () {

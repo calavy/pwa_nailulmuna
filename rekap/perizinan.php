@@ -463,6 +463,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <h2 class="h5">Rekap Izin per Tingkatan</h2>
+        <div class="table-responsive">
         <table class="table table-sm table-striped">
             <thead><tr><th>Tingkatan</th><th>Total Izin</th><th>Tepat Waktu</th><th>Telat</th></tr></thead>
             <tbody>
@@ -480,6 +481,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -488,6 +490,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <h2 class="h5">Rekap Izin per Santri</h2>
+        <div class="table-responsive">
         <table class="table table-sm table-striped">
             <thead><tr><th>Santri</th><th>Tingkatan</th><th>Total Izin</th><th>Tepat Waktu</th><th>Telat</th></tr></thead>
             <tbody>
@@ -506,6 +509,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -513,6 +517,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <h2 class="h5">Siapa Saja yang Pernah Izin (Urutan Terbanyak)</h2>
+        <div class="table-responsive">
         <table class="table table-sm table-striped">
             <thead><tr><th>No</th><th>Santri</th><th>Tingkatan</th><th>Izin Sakit</th><th>Izin Keluar</th><th>Izin Tugas</th><th>Total Izin</th><th>Terakhir Izin</th></tr></thead>
             <tbody>
@@ -534,12 +539,14 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 
 <div class="card shadow-sm mb-4">
     <div class="card-body">
         <h2 class="h5">Data Santri Belum Hadir Kembali (Masih Izin)</h2>
+        <div class="table-responsive">
         <table class="table table-sm table-striped">
             <thead>
                 <tr>
@@ -568,12 +575,14 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 
 <div class="card shadow-sm">
     <div class="card-body">
         <h2 class="h5">Riwayat Perizinan</h2>
+        <div class="table-responsive">
         <table class="table table-sm table-bordered align-middle">
             <thead>
                 <tr>
@@ -627,6 +636,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
             </tbody>
         </table>
+        </div>
     </div>
 </div>
 <?php else: ?>

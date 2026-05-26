@@ -139,7 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
             <thead class="table-light">
             <tr>
                 <th>Pemeriksaan</th>
-                <th style="width: 130px;">Status</th>
+                <th class="text-nowrap">Status</th>
                 <th>Detail</th>
             </tr>
             </thead>

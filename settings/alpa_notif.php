@@ -178,50 +178,56 @@ require_once __DIR__ . '/../includes/header.php';
             </form>
         </div>
     </div>
+    <?php foreach ($tiers as $t): ?>
+        <form method="post" id="tier-form-<?= (int) $t['id'] ?>">
+            <input type="hidden" name="action" value="save_tier">
+            <input type="hidden" name="id" value="<?= (int) $t['id'] ?>">
+        </form>
+        <form method="post" id="tier-del-<?= (int) $t['id'] ?>" onsubmit="return confirm('Hapus tier ambang <?= (int) $t['threshold'] ?>?');">
+            <input type="hidden" name="action" value="delete_tier">
+            <input type="hidden" name="id" value="<?= (int) $t['id'] ?>">
+        </form>
+    <?php endforeach; ?>
+    <form method="post" id="tier-form-new">
+        <input type="hidden" name="action" value="save_tier">
+    </form>
+
     <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th style="width: 110px;">Ambang</th>
+                    <th class="text-nowrap">Ambang</th>
                     <th>Label / Penanggung jawab</th>
                     <th>Nomor WA (pisah koma)</th>
-                    <th style="width: 90px;" class="text-center">Aktif</th>
-                    <th style="width: 160px;" class="text-end">Aksi</th>
+                    <th class="text-nowrap text-center">Aktif</th>
+                    <th class="text-nowrap text-end">Aksi</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!$tiers): ?>
-                    <tr><td colspan="5" class="text-muted text-center py-3">Belum ada tier. Tambah di bawah.</td></tr>
+                    <tr><td colspan="5" class="text-muted text-center py-3">Belum ada tier. Tambah di baris terakhir.</td></tr>
                 <?php endif; ?>
-                <?php foreach ($tiers as $t): ?>
+                <?php foreach ($tiers as $t):
+                    $fid = 'tier-form-' . (int) $t['id'];
+                    $did = 'tier-del-' . (int) $t['id'];
+                    ?>
                     <tr>
-                        <form method="post">
-                            <input type="hidden" name="action" value="save_tier">
-                            <input type="hidden" name="id" value="<?= (int) $t['id'] ?>">
-                            <td><input type="number" name="threshold" class="form-control form-control-sm" min="1" value="<?= (int) $t['threshold'] ?>" required></td>
-                            <td><input type="text" name="label" class="form-control form-control-sm" value="<?= htmlspecialchars($t['label']) ?>" placeholder="Mis: Wali Kelas, Pengasuh, Pondok Pusat"></td>
-                            <td><input type="text" name="wa" class="form-control form-control-sm" value="<?= htmlspecialchars($t['wa']) ?>" placeholder="628xx, 628yy"></td>
-                            <td class="text-center"><input type="checkbox" name="is_active" value="1" <?= $t['is_active'] ? 'checked' : '' ?>></td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-primary" type="submit">Simpan</button>
-                        </form>
-                                <form method="post" class="d-inline" onsubmit="return confirm('Hapus tier ambang <?= (int) $t['threshold'] ?>?');">
-                                    <input type="hidden" name="action" value="delete_tier">
-                                    <input type="hidden" name="id" value="<?= (int) $t['id'] ?>">
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">Hapus</button>
-                                </form>
-                            </td>
+                        <td><input type="number" form="<?= $fid ?>" name="threshold" class="form-control form-control-sm" min="1" value="<?= (int) $t['threshold'] ?>" required></td>
+                        <td><input type="text" form="<?= $fid ?>" name="label" class="form-control form-control-sm" value="<?= htmlspecialchars($t['label']) ?>" placeholder="Mis: Wali Kelas, Pengasuh, Pondok Pusat"></td>
+                        <td><input type="text" form="<?= $fid ?>" name="wa" class="form-control form-control-sm" value="<?= htmlspecialchars($t['wa']) ?>" placeholder="628xx, 628yy"></td>
+                        <td class="text-center"><input type="checkbox" form="<?= $fid ?>" name="is_active" value="1" <?= $t['is_active'] ? 'checked' : '' ?>></td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-primary" type="submit" form="<?= $fid ?>">Simpan</button>
+                            <button class="btn btn-sm btn-outline-danger" type="submit" form="<?= $did ?>">Hapus</button>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 <tr class="table-light">
-                    <form method="post">
-                        <input type="hidden" name="action" value="save_tier">
-                        <td><input type="number" name="threshold" class="form-control form-control-sm" min="1" placeholder="Mis: 5" required></td>
-                        <td><input type="text" name="label" class="form-control form-control-sm" placeholder="Mis: Wali Kelas"></td>
-                        <td><input type="text" name="wa" class="form-control form-control-sm" placeholder="628xx, 628yy" required></td>
-                        <td class="text-center"><input type="checkbox" name="is_active" value="1" checked></td>
-                        <td class="text-end"><button class="btn btn-sm btn-success" type="submit">+ Tambah</button></td>
-                    </form>
+                    <td><input type="number" form="tier-form-new" name="threshold" class="form-control form-control-sm" min="1" placeholder="Mis: 5" required></td>
+                    <td><input type="text" form="tier-form-new" name="label" class="form-control form-control-sm" placeholder="Mis: Wali Kelas"></td>
+                    <td><input type="text" form="tier-form-new" name="wa" class="form-control form-control-sm" placeholder="628xx, 628yy" required></td>
+                    <td class="text-center"><input type="checkbox" form="tier-form-new" name="is_active" value="1" checked></td>
+                    <td class="text-end"><button class="btn btn-sm btn-success" type="submit" form="tier-form-new">+ Tambah</button></td>
                 </tr>
             </tbody>
         </table>

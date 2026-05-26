@@ -14,6 +14,15 @@ require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 
+// Pembimbing punya dashboard khusus — alihkan agar tidak menampilkan
+// data pondok secara umum (santri seluruh pondok, dll).
+if (isset($_SESSION['user'])) {
+    $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($currentRole === 'pembimbing' && !(function_exists('is_super_admin') && is_super_admin())) {
+        app_redirect('pembimbing/dashboard.php');
+    }
+}
+
 require_roles(['admin', 'pengurus', 'petugas_absensi', 'kiai']);
 
 $today = date('Y-m-d');

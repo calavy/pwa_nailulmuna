@@ -11,6 +11,7 @@ require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/alpa_tier.php';
 
 require_roles(['admin', 'pengurus']);
+ensure_alpa_tier_tables($pdo);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql.');
@@ -173,21 +174,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $tierSummary = ['tiers' => [], 'sent_total' => 0];
-    if ($canSendNow && $newlyAlpaSantri !== []) {
-        $activeTiers = alpa_tier_list($pdo, true);
-        if ($activeTiers !== []) {
-            $tierSummary = alpa_tier_dispatch_batch(
-                $pdo,
-                $newlyAlpaSantri,
-                $tanggal,
-                $tanggalIdn,
-                $tingkatan,
-                $namaKegiatanLabel
-            );
-        }
+    $activeTiers = alpa_tier_list($pdo, true);
+    if ($canSendNow && $newlyAlpaSantri !== [] && $activeTiers !== []) {
+        $tierSummary = alpa_tier_dispatch_batch(
+            $pdo,
+            $newlyAlpaSantri,
+            $tanggal,
+            $tanggalIdn,
+            $tingkatan,
+            $namaKegiatanLabel
+        );
     }
 
-    if ($tierSummary['tiers'] === [] && $waLaporanSantri !== [] && $pengurusWa !== '' && $canSendNow) {
+    if ($activeTiers === [] && $waLaporanSantri !== [] && $pengurusWa !== '' && $canSendNow) {
         $pesanLaporan = wa_format_laporan_alpa_generate(
             $pdo,
             $tanggalIdn,

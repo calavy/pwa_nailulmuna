@@ -77,7 +77,7 @@ $tglCetak = date('d/m/Y H:i');
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Ringkasan kekurangan — <?= htmlspecialchars((string) $row['nama_santri']) ?></title>
     <style>
         @page { size: A4; margin: 14mm; }

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../includes/auth.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi']);
+require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
 
 $menuPack = app_menu_pack($pdo);
 $menuItems = $menuPack['menuItems'];

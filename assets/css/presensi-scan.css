@@ -408,3 +408,13 @@
     font-weight: 600;
     line-height: 1.4;
 }
+
+@media (max-width: 359.98px) {
+    .presensi-scan-controls .btn-scan-ctl {
+        min-width: 4.5rem;
+        font-size: 0.78rem;
+    }
+    .presensi-scan-controls .btn-scan-ctl i {
+        font-size: 1rem;
+    }
+}

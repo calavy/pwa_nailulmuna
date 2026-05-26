@@ -41,7 +41,7 @@ if ($id > 0 && $sig !== '') {
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Verifikasi Kuitansi</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
@@ -57,7 +57,7 @@ if ($id > 0 && $sig !== '') {
             <?php if ($kuitansi): ?>
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered mb-0">
-                        <tr><th style="width:220px;">No Kuitansi</th><td><?= htmlspecialchars('KW-' . str_pad((string) $kuitansi['id'], 6, '0', STR_PAD_LEFT)) ?></td></tr>
+                        <tr><th class="text-nowrap">No Kuitansi</th><td><?= htmlspecialchars('KW-' . str_pad((string) $kuitansi['id'], 6, '0', STR_PAD_LEFT)) ?></td></tr>
                         <tr><th>NIS</th><td><?= htmlspecialchars((string) ($kuitansi['nis'] ?? '-')) ?></td></tr>
                         <tr><th>Nama Santri</th><td><?= htmlspecialchars((string) ($kuitansi['nama_santri'] ?? '-')) ?></td></tr>
                         <tr><th>Tanggal Bayar</th><td><?= htmlspecialchars((string) $kuitansi['tanggal_bayar']) ?></td></tr>

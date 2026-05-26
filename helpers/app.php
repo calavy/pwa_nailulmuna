@@ -164,6 +164,26 @@ function app_ensure_schema_deferred(PDO $pdo): void
     if (function_exists('ensure_surat_nomor_schema')) {
         ensure_surat_nomor_schema($pdo);
     }
+    if (!function_exists('ensure_alpa_tier_tables')) {
+        require_once __DIR__ . '/alpa_tier.php';
+    }
+    if (function_exists('ensure_alpa_tier_tables')) {
+        ensure_alpa_tier_tables($pdo);
+    }
+
+    if (!function_exists('payroll_pembimbing_ensure_schema')) {
+        require_once __DIR__ . '/payroll_pembimbing.php';
+    }
+    if (function_exists('payroll_pembimbing_ensure_schema')) {
+        payroll_pembimbing_ensure_schema($pdo);
+    }
+
+    if (!function_exists('login_pembimbing_ensure_password_plain_column')) {
+        require_once __DIR__ . '/login_pembimbing.php';
+    }
+    if (function_exists('login_pembimbing_ensure_password_plain_column')) {
+        login_pembimbing_ensure_password_plain_column($pdo);
+    }
 
     $_SESSION['app_schema_ready_v1'] = 1;
 }
@@ -2574,6 +2594,9 @@ function app_post_login_redirect(PDO $pdo): void
     }
     if ($role === 'kiai') {
         app_redirect('pengasuh/nilai_keaktifan.php');
+    }
+    if ($role === 'pembimbing') {
+        app_redirect('pembimbing/dashboard.php');
     }
 
     $allowedMap = get_allowed_permission_key_map($pdo);

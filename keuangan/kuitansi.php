@@ -128,18 +128,21 @@ require_once __DIR__ . '/../includes/header.php';
                 </table>
             </div>
             <div class="small text-muted">Catatan: <?= htmlspecialchars((string) ($row['keterangan'] !== '' ? $row['keterangan'] : '-')) ?></div>
-            <div class="mt-4 d-flex justify-content-between align-items-end gap-3">
+            <div class="mt-4 d-flex flex-wrap justify-content-between align-items-end gap-3">
                 <div>
                     <div class="small text-muted mb-1">Verifikasi online:</div>
                     <div id="qrcode-verify" style="width:96px;height:96px;"></div>
                     <div class="small text-muted mt-1">Scan QR untuk validasi kuitansi</div>
                 </div>
-                <div class="text-center" style="width:240px">
-                    <div class="small text-muted mb-1">Stempel Digital Keuangan</div>
-                    <div style="height:58px; border:2px solid #dc3545; border-radius:10px; color:#dc3545; display:flex; align-items:center; justify-content:center; font-weight:700;">
-                        SAH • <?= htmlspecialchars(date('d-m-Y', strtotime((string) $row['tanggal_bayar']))) ?>
+                <div class="text-center kuitansi-stempel" style="max-width:240px;width:100%">
+                    <div class="small mb-1" style="color:#4a3a5e;">Stempel Resmi</div>
+                    <img src="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>"
+                         alt="Stempel pondok"
+                         style="width:140px; height:140px; object-fit:contain;">
+                    <div class="mt-1" style="color:#4a3a5e; font-weight:700; letter-spacing:0.5px;">
+                        SAH &middot; <?= htmlspecialchars(date('d-m-Y', strtotime((string) $row['tanggal_bayar']))) ?>
                     </div>
-                    <div class="mt-2">Petugas: <strong><?= htmlspecialchars($namaPetugas) ?></strong></div>
+                    <div class="mt-2 small" style="color:#4a3a5e;">Petugas: <strong><?= htmlspecialchars($namaPetugas) ?></strong></div>
                 </div>
             </div>
         </div>
@@ -198,6 +201,7 @@ require_once __DIR__ . '/../includes/header.php';
     })();
 </script>
 <style>
+.kuitansi-stempel img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 @media print {
     body * { visibility: hidden !important; }
     body[data-print-mode="official"] #receipt-official,
@@ -206,6 +210,7 @@ require_once __DIR__ . '/../includes/header.php';
     body[data-print-mode="thermal"] #receipt-thermal * { visibility: visible !important; }
     #receipt-official, #receipt-thermal { position: absolute; left: 0; top: 0; width: 100%; margin: 0 !important; }
     body[data-print-mode="thermal"] #receipt-thermal .card-body { max-width: 302px !important; }
+    .kuitansi-stempel img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 

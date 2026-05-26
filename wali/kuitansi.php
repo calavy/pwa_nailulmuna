@@ -78,6 +78,7 @@ wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');
                 </div>
 
                 <?php if ($details !== []): ?>
+                    <div class="table-responsive">
                     <table class="table table-sm mb-2">
                         <thead><tr><th>Komponen</th><th class="text-end">Nominal</th></tr></thead>
                         <tbody>
@@ -93,6 +94,7 @@ wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');
                         </tr>
                         </tbody>
                     </table>
+                    </div>
                 <?php else: ?>
                     <p class="fw-bold text-end font-monospace mb-2">Total: <?= htmlspecialchars(wali_portal_format_rupiah($nominalTotal)) ?></p>
                 <?php endif; ?>

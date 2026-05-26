@@ -191,15 +191,15 @@ require_once __DIR__ . '/../includes/header.php';
                                         <form method="post" class="d-flex flex-wrap align-items-end gap-2 flex-grow-1">
                                             <input type="hidden" name="action" value="update">
                                             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
-                                            <div style="min-width:6rem">
+                                            <div class="flex-grow-1" style="flex-basis:6rem;min-width:5rem">
                                                 <label class="form-label small mb-0 text-muted">Kode</label>
                                                 <input type="text" class="form-control form-control-sm" name="kode" maxlength="40" required value="<?= htmlspecialchars((string) $row['kode']) ?>" title="Huruf, angka, garis bawah/tengah">
                                             </div>
-                                            <div style="min-width:12rem; flex:1">
+                                            <div class="flex-grow-1" style="flex-basis:12rem;min-width:8rem">
                                                 <label class="form-label small mb-0 text-muted">Nama</label>
                                                 <input type="text" class="form-control form-control-sm" name="nama_tampilan" value="<?= htmlspecialchars((string) $row['nama_tampilan']) ?>" required>
                                             </div>
-                                            <div style="min-width:7rem">
+                                            <div class="flex-grow-1" style="flex-basis:7rem;min-width:6rem">
                                                 <label class="form-label small mb-0 text-muted">Tarif</label>
                                                 <select class="form-select form-select-sm" name="tarif_keuangan_tier">
                                                     <?php foreach ($validTiers as $tk => $tl): ?>
@@ -207,11 +207,11 @@ require_once __DIR__ . '/../includes/header.php';
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
-                                            <div style="width:5rem">
+                                            <div style="flex-basis:5rem;min-width:4rem">
                                                 <label class="form-label small mb-0 text-muted">Urut</label>
                                                 <input type="number" class="form-control form-control-sm" name="urutan" value="<?= (int) $row['urutan'] ?>">
                                             </div>
-                                            <div style="min-width:6rem">
+                                            <div class="flex-grow-1" style="flex-basis:6rem;min-width:5rem">
                                                 <label class="form-label small mb-0 text-muted">Status</label>
                                                 <select class="form-select form-select-sm" name="is_aktif">
                                                     <option value="1" <?= (int) $row['is_aktif'] === 1 ? 'selected' : '' ?>>Aktif</option>

@@ -7,11 +7,16 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/bendahara_ui.php';
 require_once __DIR__ . '/../helpers/keuangan_pembayaran_admin.php';
+require_once __DIR__ . '/../helpers/pembayaran_edit_token.php';
 
 require_roles(['admin', 'pengurus']);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 keuangan_ensure_schema_deferred($pdo);
+pembayaran_edit_token_ensure_schema($pdo);
 $canKoreksiPembayaran = user_can_koreksi_pembayaran();
+$tokenEditRequired = pembayaran_edit_token_required_for_current_user();
+$tokenEditSessionAktif = pembayaran_edit_token_session_aktif($pdo);
+$tokenEditUnlocked = $canKoreksiPembayaran && (!$tokenEditRequired || $tokenEditSessionAktif);
 
 $tanggalDari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
 $tanggalSampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
@@ -180,12 +185,46 @@ $iconRiwayat = bendahara_page_icon('riwayat');
         Riwayat pembayaran (detail)
     </h1>
     <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Total dan rincian per POS dihitung otomatis sesuai filter.</p>
-    <?php if (user_can_lihat_audit_operasional()): ?>
-        <p class="small mb-0 mt-2">
-            <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_audit.php')) ?>"><i class="fa-solid fa-clipboard-list me-1"></i> Log audit operasional</a>
+    <?php if (user_can_lihat_audit_operasional() || is_super_admin()): ?>
+        <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
+            <?php if (user_can_lihat_audit_operasional()): ?>
+                <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_audit.php')) ?>"><i class="fa-solid fa-clipboard-list me-1"></i> Log audit operasional</a>
+            <?php endif; ?>
+            <?php if (is_super_admin()): ?>
+                <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_url('pembayaran/edit_token.php')) ?>"><i class="fa-solid fa-key me-1"></i> Token edit pembayaran</a>
+            <?php endif; ?>
         </p>
     <?php endif; ?>
 </div>
+
+<?php if ($canKoreksiPembayaran): ?>
+    <?php if (!$tokenEditRequired): ?>
+        <div class="alert alert-info py-2 small mb-3 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-shield-halved"></i>
+            <div>
+                <strong>Super admin</strong> — mode edit selalu terbuka untuk Anda. Token tidak diperlukan.
+            </div>
+        </div>
+    <?php elseif ($tokenEditSessionAktif): ?>
+        <div class="alert alert-success py-2 small mb-3 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-lock-open"></i>
+            <div class="flex-grow-1">
+                <strong>Mode edit terbuka.</strong>
+                Token aktif untuk session Anda — klik <i class="fa-solid fa-pen-to-square mx-1"></i> pada baris untuk mengedit.
+                <span class="text-muted">Berlaku sampai Anda logout.</span>
+            </div>
+        </div>
+    <?php else: ?>
+        <div class="alert alert-warning py-2 small mb-3 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-lock"></i>
+            <div class="flex-grow-1">
+                <strong>Mode edit terkunci.</strong>
+                Untuk mengedit/menghapus pembayaran, minta token sekali pakai ke <strong>super admin</strong>,
+                lalu klik <i class="fa-solid fa-pen-to-square mx-1"></i> pada baris untuk memasukkan token.
+            </div>
+        </div>
+    <?php endif; ?>
+<?php endif; ?>
 
 <?php if (!$tablesOk): ?>
     <div class="alert alert-warning">Tabel pembayaran keuangan belum ada. Buka <a href="/keuangan/index.php">Keuangan</a> untuk inisialisasi.</div>
@@ -217,17 +256,19 @@ $iconRiwayat = bendahara_page_icon('riwayat');
             <option value="TRANSFER" <?= $metode === 'TRANSFER' ? 'selected' : '' ?>>Transfer</option>
         </select>
     </div>
-    <div class="col-12 col-md-2">
-        <label class="form-label small mb-0">POS / komponen</label>
-        <select class="form-select form-select-sm" name="pos" <?= !$detailOk ? 'disabled title="Tabel rincian belum ada"' : '' ?>>
-            <option value="">Semua POS</option>
+    <div class="col-12 col-md-3 col-lg-2">
+        <label class="form-label small mb-0 fw-semibold text-primary">
+            <i class="fa-solid fa-tags me-1"></i>Filter POS
+        </label>
+        <select class="form-select form-select-sm border-primary-subtle" name="pos" <?= !$detailOk ? 'disabled title="Tabel rincian belum ada"' : '' ?>>
+            <option value="">Semua POS / komponen</option>
             <?php foreach ($posOptions as $po): ?>
                 <option value="<?= htmlspecialchars((string) $po['pos_slug']) ?>" <?= $posSlug === (string) $po['pos_slug'] ? 'selected' : '' ?>>
                     <?= htmlspecialchars((string) $po['pos_nama']) ?>
                 </option>
             <?php endforeach; ?>
         </select>
-        <div class="form-text">Hanya transaksi yang memuat baris rincian POS ini.</div>
+        <div class="form-text small">Pilih komponen rincian. <?= $posSlug !== '' ? '<span class="text-primary"><i class="fa-solid fa-filter"></i> Aktif</span>' : '' ?></div>
     </div>
     <div class="col-12 col-md-4">
         <label class="form-label small mb-0">Santri</label>
@@ -402,7 +443,15 @@ $iconRiwayat = bendahara_page_icon('riwayat');
                         </td>
                         <?php if ($canKoreksiPembayaran): ?>
                             <td class="text-end text-nowrap">
-                                <a class="btn btn-sm btn-outline-warning" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_edit.php?id=' . $pid)) ?>" title="Edit / hapus"><i class="fa-solid fa-pen-to-square"></i></a>
+                                <?php if ($tokenEditUnlocked): ?>
+                                    <a class="btn btn-sm btn-outline-warning" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_edit.php?id=' . $pid)) ?>" title="Edit / hapus (mode terbuka)">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </a>
+                                <?php else: ?>
+                                    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_url('pembayaran/riwayat_edit.php?id=' . $pid)) ?>" title="Buka untuk masukkan token edit">
+                                        <i class="fa-solid fa-lock"></i>
+                                    </a>
+                                <?php endif; ?>
                             </td>
                         <?php endif; ?>
                     </tr>

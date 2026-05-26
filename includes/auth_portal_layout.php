@@ -128,6 +128,10 @@ function auth_portal_layout_begin(array $ctx): void
     $cardTitle = isset($ctx['card_title']) ? htmlspecialchars((string) $ctx['card_title']) : $title;
     $cardMeta = isset($ctx['card_meta']) ? htmlspecialchars((string) $ctx['card_meta']) : '';
     $cssHref = function_exists('app_href') ? app_href('/assets/css/auth-portal.css') : '/assets/css/auth-portal.css';
+    $manifestHref = function_exists('app_href') ? app_href('/manifest.php') : '/manifest.php';
+    $iconHref = $logoUrl !== ''
+        ? $logoUrl
+        : (function_exists('app_href') ? app_href('/assets/img/stempel-pondok.png') : '/assets/img/stempel-pondok.png');
     ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -137,7 +141,16 @@ function auth_portal_layout_begin(array $ctx): void
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="<?= htmlspecialchars($accentHex) ?>">
     <meta name="robots" content="noindex, nofollow">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars($namaPonpesRaw !== '' ? $namaPonpesRaw : 'Nailul Muna') ?>">
     <title><?= $title ?></title>
+    <link rel="manifest" href="<?= htmlspecialchars($manifestHref) ?>">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars($iconHref) ?>">
+    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars($iconHref) ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars($iconHref) ?>">
+    <link rel="shortcut icon" href="<?= htmlspecialchars($iconHref) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">

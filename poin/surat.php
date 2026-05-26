@@ -79,6 +79,7 @@ $headerColor = $spLevel === 'SP2' ? '#b91c1c' : '#b45309';
 <html lang="id">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title><?= htmlspecialchars($judul) ?></title>
     <style>
         @page { size: A5 portrait; margin: 6mm; }

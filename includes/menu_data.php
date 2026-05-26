@@ -6,6 +6,55 @@
  */
 require_once __DIR__ . '/../helpers/user_permissions.php';
 
+$__currentRoleForMenu = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+$__isSuperAdminForMenu = (int) ($_SESSION['user']['is_super_admin'] ?? 0) === 1;
+
+// Struktur menu khusus untuk role pembimbing — sederhana, hanya berisi
+// modul yang relevan dengan tugas pembimbing (dashboard, tugas/penilaian,
+// izin pembimbing). Tidak menampilkan keuangan, gaji, yayasan, dll.
+if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
+    return [
+        'menuItems' => [
+            '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
+            '/presensi/scan.php' => 'Scan Presensi',
+            '/pembimbing/tugas/index.php' => 'Daftar Tugas Ikhtibar',
+            '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
+            '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas',
+            '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
+            '/akademik/ikhtibar_rekap.php' => 'Rekap Tugas Ikhtibar',
+            '/pembimbing/perizinan.php' => 'Izin Pembimbing',
+            '/settings/profil.php' => 'Profil & Password',
+        ],
+        'menuStructure' => [
+            ['type' => 'item', 'path' => '/pembimbing/dashboard.php', 'icon' => 'fa-solid fa-house'],
+            ['type' => 'item', 'path' => '/presensi/scan.php', 'icon' => 'fa-solid fa-qrcode'],
+            ['type' => 'group', 'id' => 'menu-grp-pb-tugas', 'label' => 'Tugas & Penilaian', 'icon' => 'fa-solid fa-list-check', 'sections' => [
+                ['title' => 'Soal & Tugas', 'paths' => [
+                    '/pembimbing/tugas/buat.php',
+                    '/pembimbing/tugas/index.php',
+                ]],
+                ['title' => 'Penilaian & Rekap', 'paths' => [
+                    '/pembimbing/tugas/nilai.php',
+                    '/pembimbing/tugas/rekap.php',
+                    '/akademik/ikhtibar_rekap.php',
+                ]],
+            ]],
+            ['type' => 'group', 'id' => 'menu-grp-pb-izin', 'label' => 'Perizinan', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'sections' => [
+                ['title' => 'Izin Pembimbing', 'paths' => [
+                    '/pembimbing/perizinan.php',
+                ]],
+            ]],
+            ['type' => 'group', 'id' => 'menu-grp-pb-akun', 'label' => 'Akun Saya', 'icon' => 'fa-solid fa-user-gear', 'sections' => [
+                ['title' => 'Profil & Password', 'paths' => [
+                    '/settings/profil.php',
+                ]],
+            ]],
+        ],
+        'pengaturanNav' => [],
+        'permissionPathMap' => user_permission_path_map(),
+    ];
+}
+
 return [
     'menuItems' => [
         '/dashboard.php' => 'Dashboard',
@@ -18,6 +67,7 @@ return [
         '/santri/keluar.php' => 'Administrasi keluar',
         '/data/wali.php' => 'Wali Santri',
         '/pembimbing/index.php' => 'Data Pembimbing',
+        '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
         '/pembimbing/perizinan.php' => 'Izin pembimbing',
         '/presensi/scan.php' => 'Scan Presensi',
         '/jadwal/index.php' => 'Jadwal',
@@ -71,6 +121,7 @@ return [
         '/pembayaran/laporan.php' => 'Laporan Syahriyah',
         '/pembayaran/rekap_pos.php' => 'Rekap per POS',
         '/rekap/pembimbing.php' => 'Payroll Pembimbing',
+        '/settings/tarif_payroll.php' => 'Master Tarif Payroll',
         '/settings/kelas_keuangan.php' => 'Kelas Keuangan',
         '/settings/opsional_santri.php' => 'Opsional Santri (Makan & Saku)',
         '/rekap/izin_telat.php' => 'Rekap Telat',
@@ -80,6 +131,7 @@ return [
         '/yayasan/rapat.php' => 'Rapat',
         '/yayasan/notulen.php' => 'Notulen',
         '/yayasan/executive.php' => 'Executive Summary',
+        '/settings/profil.php' => 'Profil & Password',
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],
@@ -94,6 +146,7 @@ return [
                 '/settings/akses_mukimin.php',
             ]],
             ['title' => 'Pembimbing', 'paths' => [
+                '/pembimbing/dashboard.php',
                 '/pembimbing/index.php',
                 '/pembimbing/perizinan.php',
             ]],
@@ -183,6 +236,7 @@ return [
                 '/settings/hijri_mappings.php',
                 '/settings/tingkatan.php',
                 '/settings/kelas_keuangan.php',
+                '/settings/tarif_payroll.php',
                 '/settings/opsional_santri.php',
                 '/settings/kelas_ruangan.php',
                 '/settings/kamar_ranjang.php',
@@ -200,6 +254,7 @@ return [
         ['path' => '/settings/kalender.php', 'label' => 'Pengaturan Kalender', 'icon' => 'fa-solid fa-calendar-days'],
         ['path' => '/settings/tingkatan.php', 'label' => 'Master Tingkatan', 'icon' => 'fa-solid fa-layer-group'],
         ['path' => '/settings/kelas_keuangan.php', 'label' => 'Kelas Keuangan', 'icon' => 'fa-solid fa-coins'],
+        ['path' => '/settings/tarif_payroll.php', 'label' => 'Master Tarif Payroll Pembimbing', 'icon' => 'fa-solid fa-sack-dollar'],
         ['path' => '/settings/opsional_santri.php', 'label' => 'Opsional Santri (Makan & Saku)', 'icon' => 'fa-solid fa-utensils'],
         ['path' => '/settings/kelas_ruangan.php', 'label' => 'Ruangan Kelas', 'icon' => 'fa-solid fa-door-open'],
         ['path' => '/settings/kamar_ranjang.php', 'label' => 'Kamar & Ranjang', 'icon' => 'fa-solid fa-bed'],

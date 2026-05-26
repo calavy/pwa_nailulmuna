@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca.php';
+require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
 
 require_roles(['admin']);
 
@@ -12,6 +13,8 @@ if (!table_exists($pdo, 'presensi_pembimbing')) {
     header('Location: ' . app_href('/dashboard.php'));
     exit;
 }
+
+payroll_pembimbing_ensure_schema($pdo);
 
 $month = (int) ($_GET['month'] ?? date('m'));
 $year = (int) ($_GET['year'] ?? app_tahun_masehi_default($pdo));
@@ -24,7 +27,8 @@ if (!in_array($paper, ['A4', 'F4'], true)) {
 
 $startDate = sprintf('%04d-%02d-01', $year, $month);
 $endDate = date('Y-m-t', strtotime($startDate));
-$hourlyRate = (int) app_setting($pdo, 'gaji_pembimbing_per_jam', '25000');
+$tarifMap = payroll_pembimbing_tarif_map($pdo);
+$kriteriaLabels = payroll_pembimbing_kriteria_labels();
 $periodLabel = $calendarMode === 'hijriyah'
     ? get_hijri_ym_from_gregorian_month($year, $month)
     : sprintf('%02d/%04d', $month, $year);
@@ -38,13 +42,15 @@ $stmt = $pdo->prepare('
         b.id AS pembimbing_id,
         b.nip,
         b.nama_pembimbing,
+        b.gaji_pokok,
+        b.tarif_kriteria,
         SUM(CASE WHEN p.jenis_scan = "DATANG" THEN 1 ELSE 0 END) AS total_datang,
         COUNT(p.id) AS total_scan
     FROM pembimbing b
     LEFT JOIN presensi_pembimbing p
         ON p.pembimbing_id = b.id
        AND p.tanggal BETWEEN :start_date AND :end_date
-    GROUP BY b.id, b.nip, b.nama_pembimbing
+    GROUP BY b.id, b.nip, b.nama_pembimbing, b.gaji_pokok, b.tarif_kriteria
     ORDER BY b.nama_pembimbing ASC
 ');
 $stmt->execute([
@@ -152,8 +158,19 @@ foreach ($rows as &$row) {
     $row['alpa'] = $alpa;
     $row['kategori'] = $kategori;
     $totalJam = (float) ($jamMap[(int) $row['pembimbing_id']] ?? 0);
-    $row['total_jam'] = $totalJam;
-    $row['gaji_bulanan'] = (int) round($totalJam * $hourlyRate);
+    $calc = payroll_pembimbing_compute(
+        $totalJam,
+        (float) ($row['gaji_pokok'] ?? 0),
+        (string) ($row['tarif_kriteria'] ?? ''),
+        $tarifMap
+    );
+    $row['total_jam'] = $calc['total_jam'];
+    $row['gaji_pokok_n'] = $calc['gaji_pokok'];
+    $row['tarif_per_jam'] = $calc['tarif_per_jam'];
+    $row['kriteria'] = $calc['kriteria'];
+    $row['kriteria_label'] = $calc['kriteria_label'];
+    $row['gaji_per_jam'] = $calc['gaji_per_jam'];
+    $row['gaji_bulanan'] = (int) round($calc['total_gaji']);
 }
 unset($row);
 
@@ -302,7 +319,11 @@ require_once __DIR__ . '/../includes/header.php';
                     <th class="text-center">Alpa</th>
                     <th class="text-center">Telat</th>
                     <th class="text-center">Jam Kegiatan</th>
-                    <th class="text-end">Gaji</th>
+                    <th class="text-nowrap">Kriteria</th>
+                    <th class="text-end text-nowrap">Tarif/jam</th>
+                    <th class="text-end text-nowrap">Gaji pokok</th>
+                    <th class="text-end text-nowrap">Gaji per jam</th>
+                    <th class="text-end text-nowrap">Total gaji</th>
                     <th class="text-end">Aksi</th>
                     <th>Kategori</th>
                 </tr>
@@ -327,15 +348,19 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-center"><?= (int) $row['alpa'] ?></td>
                             <td class="text-center"><?= (int) ($row['telat'] ?? 0) ?></td>
                             <td class="text-center"><?= number_format((float) ($row['total_jam'] ?? 0), 2, ',', '.') ?></td>
+                            <td><span class="badge text-bg-light border"><?= htmlspecialchars((string) ($row['kriteria_label'] ?? '-')) ?></span></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['tarif_per_jam'] ?? 0)))) ?></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_pokok_n'] ?? 0)))) ?></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_per_jam'] ?? 0)))) ?></td>
                             <td class="text-end fw-semibold"><?= htmlspecialchars(keuangan_format_rupiah((int) ($row['gaji_bulanan'] ?? 0))) ?></td>
                             <td class="text-end">
-                                <a class="btn btn-sm btn-outline-success" href="/keuangan/index.php?tab=k&pembimbing_id=<?= (int) ($row['pembimbing_id'] ?? 0) ?>&bulan=<?= (int) $month ?>&tahun=<?= (int) $year ?>&cal=<?= urlencode($calendarMode) ?>">Bayar</a>
+                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/keuangan/index.php?tab=k&pembimbing_id=' . (int) ($row['pembimbing_id'] ?? 0) . '&bulan=' . (int) $month . '&tahun=' . (int) $year . '&cal=' . urlencode($calendarMode))) ?>">Bayar</a>
                             </td>
                             <td><span class="badge text-bg-<?= $katBadge ?>"><?= htmlspecialchars($kat) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <tr><td colspan="11" class="text-center text-muted">Belum ada data pembimbing pada periode ini.</td></tr>
+                    <tr><td colspan="15" class="text-center text-muted">Belum ada data pembimbing pada periode ini.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>

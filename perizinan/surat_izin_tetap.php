@@ -22,7 +22,7 @@ if (!$izin) {
 
 if ((int) ($izin['is_aktif'] ?? 0) !== 1) {
     http_response_code(403);
-    echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Surat belum dapat dicetak</title>';
+    echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Surat belum dapat dicetak</title>';
     echo '<style>body{font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;padding:2rem;}'
         . '.box{max-width:480px;margin:auto;padding:24px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;}'
         . 'h1{font-size:18px;color:#b45309;} p{font-size:14px;color:#334155;line-height:1.5;}'
@@ -87,6 +87,7 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
 <html lang="id">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Surat Keterangan Izin Tetap</title>
     <style>
         @page { size: A5 portrait; margin: 6mm; }

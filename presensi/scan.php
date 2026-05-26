@@ -10,7 +10,7 @@ require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/presensi_scan_jadwal.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi']);
+require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');

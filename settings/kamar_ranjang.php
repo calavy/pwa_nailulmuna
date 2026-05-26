@@ -273,13 +273,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 <form method="post" class="d-flex flex-wrap gap-2 align-items-end flex-grow-1">
                                     <input type="hidden" name="action" value="update_kamar">
                                     <input type="hidden" name="id" value="<?= $kid ?>">
-                                    <div>
+                                    <div class="flex-grow-1" style="flex-basis:14rem;min-width:9rem">
                                         <label class="form-label small mb-0">Nama kamar</label>
-                                        <input type="text" name="nama_kamar" class="form-control form-control-sm" style="min-width:14rem;" maxlength="120" required value="<?= htmlspecialchars((string) $k['nama_kamar']) ?>">
+                                        <input type="text" name="nama_kamar" class="form-control form-control-sm" maxlength="120" required value="<?= htmlspecialchars((string) $k['nama_kamar']) ?>">
                                     </div>
-                                    <div>
+                                    <div style="flex-basis:5rem;min-width:4rem">
                                         <label class="form-label small mb-0">Urutan</label>
-                                        <input type="number" name="urutan_kamar" class="form-control form-control-sm" style="width:5rem;" value="<?= (int) $k['urutan'] ?>">
+                                        <input type="number" name="urutan_kamar" class="form-control form-control-sm" value="<?= (int) $k['urutan'] ?>">
                                     </div>
                                     <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
                                 </form>

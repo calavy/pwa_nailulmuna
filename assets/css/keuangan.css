@@ -307,7 +307,8 @@ body.keuangan-form-page .pembayaran-komponen-table .bayar-pos-check {
 body.keuangan-form-page .pembayaran-table-wrap {
     border: 1px solid #e9ecef;
     border-radius: 12px;
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 body.keuangan-form-page .pembayaran-nominal-group .input-group-text {
@@ -372,5 +373,24 @@ body.keuangan-form-page .opsional-editor-status {
         width: 1.75rem;
         height: 1.75rem;
         font-size: 0.85rem;
+    }
+    body.keuangan-module .table {
+        font-size: 0.82rem;
+    }
+    body.keuangan-module .table thead th,
+    body.keuangan-module .table tbody td {
+        padding: 0.45rem 0.5rem;
+    }
+    body.keuangan-form-page .pembayaran-card-title {
+        font-size: 0.92rem;
+    }
+    body.keuangan-form-page .pembayaran-komponen-table thead th {
+        font-size: 0.7rem;
+        letter-spacing: 0.02em;
+        padding: 0.4rem 0.45rem;
+    }
+    body.keuangan-form-page .pembayaran-actions {
+        padding: 0.55rem 0.65rem;
+        padding-bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
     }
 }

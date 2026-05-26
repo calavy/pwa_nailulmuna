@@ -130,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
                                     <input type="hidden" name="action" value="update">
                                     <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
-                                    <input type="text" name="nama_tingkatan" class="form-control form-control-sm" style="min-width:12rem;max-width:24rem;" maxlength="80" required value="<?= htmlspecialchars((string) $row['nama_tingkatan']) ?>">
+                                    <input type="text" name="nama_tingkatan" class="form-control form-control-sm flex-grow-1" style="flex-basis:12rem;min-width:8rem;max-width:24rem;" maxlength="80" required value="<?= htmlspecialchars((string) $row['nama_tingkatan']) ?>">
                                     <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
                                 </form>
                             </td>

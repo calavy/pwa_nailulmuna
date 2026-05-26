@@ -9,6 +9,38 @@ require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/login_pembimbing.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
+// Akses cepat "Scan Presensi" dari portal pembimbing — tanpa password.
+// Membentuk sesi sementara sebagai petugas_absensi lalu lompat ke halaman scan.
+// Diletakkan SEBELUM pengecekan sesi agar tetap berfungsi walau ada sesi lama.
+$_pbScanPeran = strtolower(trim((string) ($_GET['peran'] ?? '')));
+$_pbScanAct = strtolower(trim((string) ($_GET['act'] ?? '')));
+if (
+    $_pbScanPeran === 'pembimbing'
+    && $_pbScanAct === 'scan'
+    && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST'
+) {
+    $_pbCurrentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    // Kalau sudah login sebagai pembimbing/pengurus/petugas, langsung saja ke
+    // halaman scan — tidak perlu downgrade sesi.
+    if (in_array($_pbCurrentRole, ['pembimbing', 'pengurus', 'admin', 'petugas_absensi'], true)) {
+        app_redirect('presensi/scan.php');
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+    $_SESSION['user'] = [
+        'id' => 0,
+        'nama' => 'Pembimbing — Scan Presensi',
+        'username' => 'pembimbing_scan',
+        'role' => 'petugas_absensi',
+        'is_super_admin' => 0,
+    ];
+    if (function_exists('set_flash')) {
+        set_flash('success', 'Silakan mulai scan presensi & keaktifan.');
+    }
+    app_redirect('presensi/scan.php');
+}
+
 if (isset($_SESSION['user']) && $pdo instanceof PDO) {
     app_post_login_redirect($pdo);
 }
@@ -28,27 +60,72 @@ if ($peran === 'petugas' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pembimbing'], true)) {
+    $loginMethod = strtolower(trim((string) ($_POST['login_method'] ?? 'password')));
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
+    $qrCode = trim((string) ($_POST['qr_code'] ?? ''));
     $isValidLogin = false;
     $userName = 'Administrator';
     $userRow = null;
 
     if (table_exists($pdo, 'users')) {
         user_profil_ensure_schema($pdo);
-        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi') NOT NULL DEFAULT 'pengurus'");
+        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+        // Perluas enum role agar 'pembimbing' & 'kiai' valid pada DB existing.
+        try {
+            $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+        } catch (PDOException $e) { /* abaikan jika MySQL versi lama */ }
         $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
-        $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin, foto_profil FROM users WHERE username = :username LIMIT 1');
-        $statement->execute(['username' => $username]);
-        $userRow = $statement->fetch();
 
-        if ($userRow && password_verify($password, $userRow['password'])) {
-            $isValidLogin = true;
-            $userName = $userRow['nama'];
+        if ($peran === 'pembimbing' && $loginMethod === 'qr' && $qrCode !== '' && table_exists($pdo, 'pembimbing')) {
+            // Login via scan QR kartu pembimbing — cocokkan ke kolom qr/nip,
+            // lalu ambil akun users yang username-nya = pembimbing.nip.
+            $aktifSql = column_exists($pdo, 'pembimbing', 'is_aktif')
+                ? ' AND COALESCE(p.is_aktif, 1) = 1'
+                : '';
+            $stmtPb = $pdo->prepare('
+                SELECT p.id AS pembimbing_id, p.nip, p.nama_pembimbing
+                FROM pembimbing p
+                WHERE (p.qr = :code OR p.nip = :code)' . $aktifSql . '
+                LIMIT 1
+            ');
+            $stmtPb->execute(['code' => $qrCode]);
+            $pbRow = $stmtPb->fetch();
+            if ($pbRow) {
+                $stmtUser = $pdo->prepare('
+                    SELECT id, nama, username, role, is_super_admin, foto_profil
+                    FROM users
+                    WHERE TRIM(username) = :nip
+                    LIMIT 1
+                ');
+                $stmtUser->execute(['nip' => trim((string) $pbRow['nip'])]);
+                $userRow = $stmtUser->fetch();
+                if ($userRow) {
+                    $isValidLogin = true;
+                    $userName = (string) ($userRow['nama'] ?? $pbRow['nama_pembimbing']);
+                    $username = (string) $userRow['username'];
+                } else {
+                    // Akun users belum ada untuk NIP ini — beri pesan jelas.
+                    set_flash('error', 'Kartu QR dikenali (' . (string) $pbRow['nama_pembimbing'] . '), tetapi akun login pembimbing belum dibuat. Hubungi pengurus.');
+                    header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran));
+                    exit;
+                }
+            }
+        }
+
+        if (!$isValidLogin && $loginMethod !== 'qr') {
+            $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin, foto_profil FROM users WHERE username = :username LIMIT 1');
+            $statement->execute(['username' => $username]);
+            $userRow = $statement->fetch();
+
+            if ($userRow && password_verify($password, $userRow['password'])) {
+                $isValidLogin = true;
+                $userName = $userRow['nama'];
+            }
         }
     }
 
-    if (!$isValidLogin && app_is_local_dev() && $username === 'admin' && $password === 'admin123') {
+    if (!$isValidLogin && $loginMethod !== 'qr' && app_is_local_dev() && $username === 'admin' && $password === 'admin123') {
         $isValidLogin = true;
     }
 
@@ -59,25 +136,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             $isSuperAdmin = true;
         }
         $userId = (int) ($userRow['id'] ?? 1);
+
+        // Role efektif: jika user login lewat portal "Pembimbing" DAN
+        // username mereka memang terdaftar sebagai pembimbing (lewat NIP /
+        // QR), paksa role di session menjadi 'pembimbing'. Tujuannya supaya
+        // routing & menu mengikuti role baru. Sekaligus simpan permanen ke
+        // tabel users.
+        //
+        // Pengaman:
+        //  - super admin tidak pernah diturunkan role-nya
+        //  - akun yang tidak ada di tabel `pembimbing` tetap pakai role asli
+        //    (mis. pengurus biasa yang memilih portal pembimbing tanpa
+        //    benar-benar tercatat sebagai pembimbing → tetap pengurus)
+        $sessionRole = (string) ($userRow['role'] ?? 'admin');
+        $isRegisteredPembimbing = false;
+        if ($peran === 'pembimbing' && !$isSuperAdmin && $username !== '' && table_exists($pdo, 'pembimbing')) {
+            $aktifSql = column_exists($pdo, 'pembimbing', 'is_aktif')
+                ? ' AND COALESCE(is_aktif, 1) = 1'
+                : '';
+            $chk = $pdo->prepare('SELECT 1 FROM pembimbing WHERE TRIM(nip) = :u' . $aktifSql . ' LIMIT 1');
+            $chk->execute(['u' => $username]);
+            $isRegisteredPembimbing = (bool) $chk->fetchColumn();
+        }
+        if ($isRegisteredPembimbing) {
+            $sessionRole = 'pembimbing';
+            if ($userId > 0) {
+                try {
+                    $pdo->prepare('UPDATE users SET role = :r WHERE id = :id AND COALESCE(is_super_admin, 0) = 0')
+                        ->execute(['r' => 'pembimbing', 'id' => $userId]);
+                } catch (PDOException $e) { /* abaikan */ }
+            }
+        }
+
         $_SESSION['user'] = [
             'id' => $userId,
             'nama' => $userName,
             'username' => $username,
-            'role' => $userRow['role'] ?? 'admin',
+            'role' => $sessionRole,
             'is_super_admin' => $isSuperAdmin ? 1 : 0,
             'foto_profil' => trim((string) ($userRow['foto_profil'] ?? '')),
         ];
-        if ($peran === 'pembimbing' && $userId > 0) {
+        if ($isRegisteredPembimbing && $userId > 0) {
             login_pembimbing_ensure_acl($pdo, $userId);
         }
-        set_flash('success', 'Login berhasil.');
-        if ($peran === 'pembimbing') {
-            app_redirect('pembimbing/tugas/index.php');
+        set_flash('success', $loginMethod === 'qr' ? 'Scan kartu berhasil. Selamat datang.' : 'Login berhasil.');
+        if ($isRegisteredPembimbing) {
+            app_redirect('pembimbing/dashboard.php');
         }
         app_post_login_redirect($pdo);
     }
 
-    set_flash('error', 'Username atau password salah.');
+    set_flash('error', $loginMethod === 'qr'
+        ? 'Kartu QR tidak dikenali atau pembimbing tidak aktif.'
+        : 'Username atau password salah.');
     header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran));
     exit;
 }
@@ -91,6 +202,12 @@ $heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
 $welcome = auth_portal_welcome_copy($pdo);
 $peranLabel = $peran === 'pembimbing' ? 'Pembimbing' : ($peran === 'pengurus' ? 'Pengurus / Admin' : '');
 
+$pbActParam = strtolower(trim((string) ($_GET['act'] ?? '')));
+$pbCardTitle = 'Masuk ke akun';
+if ($peran === 'pembimbing') {
+    $pbCardTitle = $pbActParam === 'portal' ? 'Masuk Portal Pembimbing' : 'Pilih layanan pembimbing';
+}
+
 auth_portal_layout_begin([
     'title' => $peran === '' ? 'Portal Masuk' : 'Login ' . $peranLabel,
     'welcome_salam' => $welcome['salam'],
@@ -100,7 +217,7 @@ auth_portal_layout_begin([
     'nama_ponpes' => $brandNama,
     'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
     'layout' => $peran === '' ? 'split' : 'stack',
-    'card_title' => $peran === '' ? 'Pilih cara masuk' : 'Masuk ke akun',
+    'card_title' => $peran === '' ? 'Pilih cara masuk' : $pbCardTitle,
     'accent' => 'teal',
 ]);
 
@@ -129,7 +246,7 @@ $ok = get_flash('success');
                             'icon' => 'fa-chalkboard-user',
                             'icon_mod' => 'pembimbing',
                             'title' => 'Pembimbing',
-                            'desc' => 'Username & password',
+                            'desc' => 'Scan kartu QR · atau NIP & password',
                         ]);
                         auth_portal_role_link([
                             'href' => app_href('/presensi/login.php'),
@@ -173,26 +290,379 @@ $ok = get_flash('success');
                     <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" class="auth-portal-back">
                         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Kembali pilih peran
                     </a>
-                    <form method="post" class="auth-portal-form">
-                        <input type="hidden" name="peran" value="<?= htmlspecialchars($peran) ?>">
-                        <div class="mb-3">
-                            <label class="form-label" for="login-username">Username</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
-                                <input type="text" name="username" id="login-username" class="form-control" required autocomplete="username" placeholder="Masukkan username">
+
+                    <?php if ($peran === 'pembimbing'): ?>
+                        <?php $pbAction = strtolower(trim((string) ($_GET['act'] ?? ''))); ?>
+
+                        <?php if ($pbAction === ''): ?>
+                            <p class="small text-muted mb-3">
+                                Silakan pilih cara masuk yang Anda butuhkan.
+                            </p>
+                            <div class="login-pb-options">
+                                <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=scan')) ?>" class="login-pb-option login-pb-option--scan">
+                                    <span class="login-pb-option__icon" aria-hidden="true">
+                                        <i class="fa-solid fa-qrcode"></i>
+                                    </span>
+                                    <span class="login-pb-option__text">
+                                        <strong>Scan Presensi</strong>
+                                        <span>Langsung scan tanpa password — catat presensi &amp; keaktifan santri.</span>
+                                    </span>
+                                    <span class="login-pb-option__go" aria-hidden="true">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </span>
+                                </a>
+                                <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=portal')) ?>" class="login-pb-option login-pb-option--portal">
+                                    <span class="login-pb-option__icon" aria-hidden="true">
+                                        <i class="fa-solid fa-chalkboard-user"></i>
+                                    </span>
+                                    <span class="login-pb-option__text">
+                                        <strong>Masuk Portal Pembimbing</strong>
+                                        <span>Dashboard tingkatan, ikhtibar, penilaian, izin pembimbing.</span>
+                                    </span>
+                                    <span class="login-pb-option__go" aria-hidden="true">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </span>
+                                </a>
                             </div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="login-password">Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="fa-solid fa-lock" aria-hidden="true"></i></span>
-                                <input type="password" name="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="Masukkan password">
+                        <?php else: ?>
+                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="auth-portal-back">
+                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Pilih cara masuk lain
+                            </a>
+                            <div class="login-pb-qr">
+                                <div class="login-pb-qr__head">
+                                    <span class="login-pb-qr__title">
+                                        <i class="fa-solid fa-qrcode me-1" aria-hidden="true"></i>
+                                        Scan kartu pembimbing
+                                    </span>
+                                    <span id="login-pb-status" class="login-pb-qr__status is-waiting">Menyiapkan kamera…</span>
+                                </div>
+                                <div class="login-pb-qr__viewport">
+                                    <div id="login-pb-reader" aria-label="Kamera scan kartu pembimbing"></div>
+                                    <div class="login-pb-qr__frame" aria-hidden="true">
+                                        <div class="login-pb-qr__frame-box"></div>
+                                    </div>
+                                    <div id="login-pb-error" class="login-pb-qr__error d-none" role="alert">
+                                        <div>
+                                            <p class="fw-semibold mb-2" id="login-pb-error-text">Gagal membuka kamera</p>
+                                            <p class="small opacity-75 mb-3">Izinkan akses kamera lalu ketuk Ulangi.</p>
+                                            <button type="button" class="btn btn-light btn-sm" id="login-pb-retry">Coba lagi</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="login-pb-qr__hint small text-muted">
+                                    Arahkan QR kartu ke kotak hijau · login akan otomatis ke dashboard tingkatan Anda.
+                                </div>
+                                <div class="login-pb-qr__controls">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="login-pb-flip">
+                                        <i class="fa-solid fa-camera-rotate me-1"></i> Ganti kamera
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="login-pb-restart">
+                                        <i class="fa-solid fa-rotate-right me-1"></i> Ulangi
+                                    </button>
+                                </div>
+                                <form method="post" id="login-pb-qr-form" class="visually-hidden" autocomplete="off">
+                                    <input type="hidden" name="peran" value="pembimbing">
+                                    <input type="hidden" name="login_method" value="qr">
+                                    <input type="text" name="qr_code" id="login-pb-qr-code" readonly>
+                                </form>
                             </div>
-                        </div>
-                        <button type="submit" class="btn btn-auth-primary w-100">
-                            <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
-                        </button>
-                    </form>
+
+                            <div class="login-pb-divider"><span>atau</span></div>
+
+                            <button type="button" class="btn btn-outline-primary w-100 mb-3" id="login-pb-toggle-manual"
+                                aria-expanded="false" aria-controls="login-pb-manual">
+                                <i class="fa-solid fa-keyboard me-1" aria-hidden="true"></i>
+                                Masuk dengan NIP &amp; password
+                            </button>
+
+                            <div id="login-pb-manual" class="login-pb-manual" hidden>
+                                <form method="post" class="auth-portal-form" autocomplete="on">
+                                    <input type="hidden" name="peran" value="<?= htmlspecialchars($peran) ?>">
+                                    <input type="hidden" name="login_method" value="password">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="login-username">NIP / username</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+                                            <input type="text" name="username" id="login-username" class="form-control" required autocomplete="username" placeholder="NIP pembimbing">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="login-password">Password</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fa-solid fa-lock" aria-hidden="true"></i></span>
+                                            <input type="password" name="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="Masukkan password">
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-auth-primary w-100">
+                                        <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
+                                    </button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <form method="post" class="auth-portal-form">
+                            <input type="hidden" name="peran" value="<?= htmlspecialchars($peran) ?>">
+                            <input type="hidden" name="login_method" value="password">
+                            <div class="mb-3">
+                                <label class="form-label" for="login-username">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+                                    <input type="text" name="username" id="login-username" class="form-control" required autocomplete="username" placeholder="Masukkan username">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="login-password">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fa-solid fa-lock" aria-hidden="true"></i></span>
+                                    <input type="password" name="password" id="login-password" class="form-control" required autocomplete="current-password" placeholder="Masukkan password">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-auth-primary w-100">
+                                <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                <?php endif; ?>
+
+                <?php if ($peran === 'pembimbing'): ?>
+                <style>
+                    .login-pb-options {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.75rem;
+                        margin-bottom: 0.75rem;
+                    }
+                    .login-pb-option {
+                        display: flex;
+                        align-items: center;
+                        gap: 0.85rem;
+                        padding: 0.95rem 1rem;
+                        border-radius: 14px;
+                        border: 1px solid rgba(15, 23, 42, 0.08);
+                        background: #fff;
+                        text-decoration: none;
+                        color: #0f172a;
+                        transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+                    }
+                    .login-pb-option:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+                        border-color: rgba(15, 118, 110, 0.4);
+                        color: #0f172a;
+                    }
+                    .login-pb-option__icon {
+                        flex: 0 0 auto;
+                        width: 46px;
+                        height: 46px;
+                        border-radius: 12px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 1.25rem;
+                        color: #fff;
+                    }
+                    .login-pb-option--scan .login-pb-option__icon {
+                        background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+                    }
+                    .login-pb-option--portal .login-pb-option__icon {
+                        background: linear-gradient(135deg, #0f766e 0%, #0891b2 100%);
+                    }
+                    .login-pb-option__text {
+                        flex: 1 1 auto;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.1rem;
+                    }
+                    .login-pb-option__text strong {
+                        font-size: 0.98rem;
+                    }
+                    .login-pb-option__text span {
+                        font-size: 0.8rem;
+                        color: #64748b;
+                        line-height: 1.4;
+                    }
+                    .login-pb-option__go {
+                        color: #94a3b8;
+                        font-size: 1rem;
+                    }
+                    [data-theme="dark"] .login-pb-option {
+                        background: rgba(30, 41, 59, 0.7);
+                        border-color: rgba(71, 85, 105, 0.4);
+                        color: #e2e8f0;
+                    }
+                    [data-theme="dark"] .login-pb-option:hover { color: #fff; }
+                    [data-theme="dark"] .login-pb-option__text span { color: #cbd5e1; }
+
+                    .login-pb-qr {
+                        border-radius: 16px;
+                        border: 1px solid rgba(15, 118, 110, 0.18);
+                        background: linear-gradient(160deg, rgba(240, 253, 250, 0.96) 0%, #fff 100%);
+                        padding: 0.85rem 0.85rem 1rem;
+                        margin-bottom: 0.85rem;
+                    }
+                    .login-pb-qr__head {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 0.5rem;
+                        margin-bottom: 0.5rem;
+                    }
+                    .login-pb-qr__title {
+                        font-weight: 700;
+                        font-size: 0.92rem;
+                        color: #0f766e;
+                    }
+                    .login-pb-qr__status {
+                        font-size: 0.72rem;
+                        font-weight: 600;
+                        padding: 0.18rem 0.55rem;
+                        border-radius: 999px;
+                        background: rgba(15, 118, 110, 0.1);
+                        color: #115e59;
+                    }
+                    .login-pb-qr__status.is-waiting { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+                    .login-pb-qr__status.is-success { background: rgba(16, 185, 129, 0.18); color: #047857; }
+                    .login-pb-qr__status.is-error { background: rgba(220, 38, 38, 0.16); color: #b91c1c; }
+                    .login-pb-qr__viewport {
+                        position: relative;
+                        width: 100%;
+                        aspect-ratio: 1 / 1;
+                        max-width: 320px;
+                        margin: 0 auto;
+                        border-radius: 14px;
+                        overflow: hidden;
+                        background: #0f172a;
+                    }
+                    .login-pb-qr__viewport #login-pb-reader,
+                    .login-pb-qr__viewport #login-pb-reader video {
+                        width: 100% !important;
+                        height: 100% !important;
+                        object-fit: cover;
+                    }
+                    .login-pb-qr__frame {
+                        position: absolute;
+                        inset: 0;
+                        pointer-events: none;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .login-pb-qr__frame-box {
+                        width: 68%;
+                        height: 68%;
+                        border-radius: 18px;
+                        border: 2px dashed rgba(16, 185, 129, 0.9);
+                        box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.32);
+                    }
+                    .login-pb-qr__error {
+                        position: absolute;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        text-align: center;
+                        background: rgba(15, 23, 42, 0.82);
+                        color: #fff;
+                        padding: 1rem;
+                    }
+                    .login-pb-qr__hint {
+                        text-align: center;
+                        margin-top: 0.6rem;
+                    }
+                    .login-pb-qr__controls {
+                        display: flex;
+                        gap: 0.4rem;
+                        justify-content: center;
+                        margin-top: 0.7rem;
+                        flex-wrap: wrap;
+                    }
+                    .login-pb-divider {
+                        position: relative;
+                        text-align: center;
+                        margin: 0.5rem 0 0.85rem;
+                        color: #64748b;
+                        font-size: 0.78rem;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.08em;
+                    }
+                    .login-pb-divider::before,
+                    .login-pb-divider::after {
+                        content: '';
+                        position: absolute;
+                        top: 50%;
+                        width: 38%;
+                        height: 1px;
+                        background: rgba(15, 23, 42, 0.12);
+                    }
+                    .login-pb-divider::before { left: 0; }
+                    .login-pb-divider::after  { right: 0; }
+                    .login-pb-divider span { background: transparent; padding: 0 0.5rem; }
+                    [data-theme="dark"] .login-pb-qr {
+                        background: linear-gradient(160deg, rgba(15, 23, 42, 0.7) 0%, rgba(30, 41, 59, 0.78) 100%);
+                        border-color: rgba(71, 85, 105, 0.5);
+                    }
+                    [data-theme="dark"] .login-pb-qr__title { color: #5eead4; }
+                    [data-theme="dark"] .login-pb-qr__hint { color: #cbd5e1; }
+                    [data-theme="dark"] .login-pb-divider { color: #94a3b8; }
+                    [data-theme="dark"] .login-pb-divider::before,
+                    [data-theme="dark"] .login-pb-divider::after { background: rgba(148, 163, 184, 0.3); }
+                </style>
+                <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+                <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
+                <script>
+                (function () {
+                    var toggleBtn = document.getElementById('login-pb-toggle-manual');
+                    var manualPanel = document.getElementById('login-pb-manual');
+                    if (toggleBtn && manualPanel) {
+                        toggleBtn.addEventListener('click', function () {
+                            var open = !manualPanel.hasAttribute('hidden');
+                            if (open) {
+                                manualPanel.setAttribute('hidden', '');
+                                toggleBtn.setAttribute('aria-expanded', 'false');
+                                toggleBtn.innerHTML = '<i class="fa-solid fa-keyboard me-1" aria-hidden="true"></i> Masuk dengan NIP &amp; password';
+                            } else {
+                                manualPanel.removeAttribute('hidden');
+                                toggleBtn.setAttribute('aria-expanded', 'true');
+                                toggleBtn.innerHTML = '<i class="fa-solid fa-xmark me-1" aria-hidden="true"></i> Sembunyikan input manual';
+                                var firstInput = manualPanel.querySelector('input[name="username"]');
+                                if (firstInput) { try { firstInput.focus(); } catch (e) {} }
+                            }
+                        });
+                    }
+
+                    if (typeof window.PresensiScanCamera === 'undefined') {
+                        return;
+                    }
+                    var statusEl = document.getElementById('login-pb-status');
+                    var formEl = document.getElementById('login-pb-qr-form');
+                    var inputEl = document.getElementById('login-pb-qr-code');
+                    if (!formEl || !inputEl) return;
+
+                    var submitted = false;
+                    var scanner = new window.PresensiScanCamera({
+                        readerId: 'login-pb-reader',
+                        statusEl: statusEl,
+                        errorPanel: document.getElementById('login-pb-error'),
+                        errorText: document.getElementById('login-pb-error-text'),
+                        btnFlip: document.getElementById('login-pb-flip'),
+                        btnRestart: document.getElementById('login-pb-restart'),
+                        btnRetry: document.getElementById('login-pb-retry'),
+                        onSubmit: function (code) {
+                            if (submitted) return;
+                            submitted = true;
+                            inputEl.value = code;
+                            if (statusEl) {
+                                statusEl.textContent = 'Kartu terdeteksi — masuk…';
+                                statusEl.className = 'login-pb-qr__status is-success';
+                            }
+                            try { scanner.stop(); } catch (e) {}
+                            formEl.submit();
+                        }
+                    });
+                    scanner.init();
+                })();
+                </script>
                 <?php endif; ?>
 <?php
 auth_portal_layout_end();

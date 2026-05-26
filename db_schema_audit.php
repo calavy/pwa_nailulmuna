@@ -61,7 +61,7 @@ $allGood = $missingTables === 0 && $missingColumns === 0;
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Audit Skema DB</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 24px; background: #f7f8fa; color: #1f2937; }

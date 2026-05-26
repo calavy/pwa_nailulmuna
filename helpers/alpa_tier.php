@@ -100,38 +100,44 @@ function alpa_tier_window_where(string $mode, string $tanggal, string $tanggalMu
     return [$where, $params];
 }
 
-/** Buat / pastikan tabel skema ada. */
+/** Buat / pastikan tabel skema ada. Aman dipanggil berulang — gagal tidak fatal. */
 function ensure_alpa_tier_tables(PDO $pdo): void
 {
     static $done = false;
     if ($done) {
         return;
     }
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS alpa_tier_notif (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            threshold INT NOT NULL,
-            label VARCHAR(120) NOT NULL DEFAULT "",
-            wa VARCHAR(500) NOT NULL DEFAULT "",
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_alpa_tier_threshold (threshold),
-            INDEX idx_alpa_tier_active (is_active)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ');
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS alpa_tier_dispatch_log (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            santri_id INT NOT NULL,
-            tier_id INT NOT NULL,
-            periode_key VARCHAR(20) NOT NULL,
-            alpa_count INT NOT NULL,
-            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_santri_tier_periode (santri_id, tier_id, periode_key),
-            INDEX idx_santri_periode (santri_id, periode_key)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ');
+    try {
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS alpa_tier_notif (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                threshold INT NOT NULL,
+                label VARCHAR(120) NOT NULL DEFAULT "",
+                wa VARCHAR(500) NOT NULL DEFAULT "",
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_alpa_tier_threshold (threshold),
+                INDEX idx_alpa_tier_active (is_active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ');
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS alpa_tier_dispatch_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                santri_id INT NOT NULL,
+                tier_id INT NOT NULL,
+                periode_key VARCHAR(20) NOT NULL,
+                alpa_count INT NOT NULL,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_santri_tier_periode (santri_id, tier_id, periode_key),
+                INDEX idx_santri_periode (santri_id, periode_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ');
+    } catch (PDOException $e) {
+        // Kalau CREATE TABLE gagal (mis. hosting batasi DDL), jangan fatal — fitur tier
+        // sebagian tidak jalan, tapi sisa app tetap hidup.
+        error_log('[alpa_tier] ensure_alpa_tier_tables: ' . $e->getMessage());
+    }
     $done = true;
 }
 
@@ -143,12 +149,20 @@ function ensure_alpa_tier_tables(PDO $pdo): void
 function alpa_tier_list(PDO $pdo, bool $activeOnly = true): array
 {
     ensure_alpa_tier_tables($pdo);
+    if (!table_exists($pdo, 'alpa_tier_notif')) {
+        return [];
+    }
     $sql = 'SELECT id, threshold, label, wa, is_active FROM alpa_tier_notif';
     if ($activeOnly) {
         $sql .= ' WHERE is_active = 1';
     }
     $sql .= ' ORDER BY threshold ASC, id ASC';
-    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    try {
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (PDOException $e) {
+        error_log('[alpa_tier] alpa_tier_list: ' . $e->getMessage());
+        return [];
+    }
     return array_map(static function (array $r): array {
         return [
             'id' => (int) $r['id'],
@@ -175,20 +189,35 @@ function alpa_tier_count_alpa(PDO $pdo, int $santriId, string $mode, string $tan
 /** Apakah tier untuk (santri, tier, periode_key) sudah pernah dikirim? */
 function alpa_tier_dispatch_exists(PDO $pdo, int $santriId, int $tierId, string $periodeKey): bool
 {
-    $stmt = $pdo->prepare('SELECT 1 FROM alpa_tier_dispatch_log WHERE santri_id = :s AND tier_id = :t AND periode_key = :p LIMIT 1');
-    $stmt->execute(['s' => $santriId, 't' => $tierId, 'p' => $periodeKey]);
-    return (bool) $stmt->fetchColumn();
+    if (!table_exists($pdo, 'alpa_tier_dispatch_log')) {
+        return false;
+    }
+    try {
+        $stmt = $pdo->prepare('SELECT 1 FROM alpa_tier_dispatch_log WHERE santri_id = :s AND tier_id = :t AND periode_key = :p LIMIT 1');
+        $stmt->execute(['s' => $santriId, 't' => $tierId, 'p' => $periodeKey]);
+        return (bool) $stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log('[alpa_tier] dispatch_exists: ' . $e->getMessage());
+        return false;
+    }
 }
 
 /** Catat dispatch agar tidak dobel kirim. */
 function alpa_tier_dispatch_record(PDO $pdo, int $santriId, int $tierId, string $periodeKey, int $alpaCount): void
 {
-    $stmt = $pdo->prepare('
-        INSERT INTO alpa_tier_dispatch_log (santri_id, tier_id, periode_key, alpa_count)
-        VALUES (:s, :t, :p, :c)
-        ON DUPLICATE KEY UPDATE alpa_count = VALUES(alpa_count), sent_at = CURRENT_TIMESTAMP
-    ');
-    $stmt->execute(['s' => $santriId, 't' => $tierId, 'p' => $periodeKey, 'c' => $alpaCount]);
+    if (!table_exists($pdo, 'alpa_tier_dispatch_log')) {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare('
+            INSERT INTO alpa_tier_dispatch_log (santri_id, tier_id, periode_key, alpa_count)
+            VALUES (:s, :t, :p, :c)
+            ON DUPLICATE KEY UPDATE alpa_count = VALUES(alpa_count), sent_at = CURRENT_TIMESTAMP
+        ');
+        $stmt->execute(['s' => $santriId, 't' => $tierId, 'p' => $periodeKey, 'c' => $alpaCount]);
+    } catch (PDOException $e) {
+        error_log('[alpa_tier] dispatch_record: ' . $e->getMessage());
+    }
 }
 
 /** Label periode untuk dipakai di pesan WA. */
@@ -325,6 +354,10 @@ function alpa_tier_dispatch_batch(
         if ($entries === []) {
             continue;
         }
+        if (trim($tier['wa']) === '') {
+            continue;
+        }
+
         $waMessage = alpa_tier_wa_message(
             $pdo,
             $tanggalIdn,
@@ -335,10 +368,11 @@ function alpa_tier_dispatch_batch(
             $periodeLabel,
             $entries
         );
-        $sent = 0;
-        if (trim($tier['wa']) !== '') {
-            $sent = send_wa_bulk($pdo, $tier['wa'], $waMessage);
+        $sent = send_wa_bulk($pdo, $tier['wa'], $waMessage);
+        if ($sent <= 0) {
+            continue;
         }
+
         foreach ($entries as $entry) {
             alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
         }
