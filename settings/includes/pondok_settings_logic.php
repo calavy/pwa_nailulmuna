@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../helpers/app.php';
+require_once __DIR__ . '/../../helpers/kartu_brand_colors.php';
 
 require_roles(['admin', 'pengurus']);
 $waTestResult = null;
@@ -102,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (move_uploaded_file($tmpFile, $targetPath)) {
                 save_setting($pdo, 'logo_path', 'uploads/logos/' . $safeName);
+                kartu_brand_sync_from_logo($pdo);
             }
         } else {
             set_flash('error', 'Format logo tidak didukung. Gunakan JPG, PNG, atau WEBP.');

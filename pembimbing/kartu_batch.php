@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/kartu_brand_colors.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -63,6 +64,8 @@ $namaPonpes = app_brand_nama_ponpes($pdo);
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
 $logoUrl = $logoPath !== '' ? app_href('/' . ltrim($logoPath, '/')) : '';
+$brandTheme = kartu_brand_theme_for_cards($pdo, 'emerald');
+$cardStyleAttrs = kartu_brand_card_style_attrs($brandTheme);
 
 $pageTitle = 'Batch Cetak Kartu Pembimbing';
 require_once __DIR__ . '/../includes/header.php';
@@ -76,7 +79,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <label for="themePickerBatch" class="small text-muted mb-0">Tema warna</label>
         <select id="themePickerBatch" class="form-select form-select-sm" style="width: 220px;">
-            <option value="brand" selected>Brand Pondok (dari logo)</option>
+            <option value="brand" selected>Brand Pondok (Hijau Gelap)</option>
             <option value="ocean">Biru Ocean</option>
             <option value="emerald">Hijau Emerald</option>
             <option value="royal">Ungu Royal</option>
@@ -121,7 +124,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="pb-batch-grid">
     <?php foreach ($cards as $row): ?>
-        <div class="pb-id-card">
+        <div class="pb-id-card"<?= $cardStyleAttrs ?>>
             <div class="pb-id-top">
                 <?php if ($logoUrl !== ''): ?>
                     <img src="<?= htmlspecialchars($logoUrl) ?>" class="pb-id-logo" alt="Logo pondok">
@@ -149,111 +152,20 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endforeach; ?>
 </div>
 
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/kartu-brand-theme.js')) ?>"></script>
 <script>
 (function () {
-    var logoUrl = <?= json_encode($logoUrl, JSON_UNESCAPED_SLASHES) ?>;
     var picker = document.getElementById('themePickerBatch');
     var cards = Array.prototype.slice.call(document.querySelectorAll('.pb-id-card'));
-    if (!cards.length) return;
+    if (!cards.length || typeof KartuBrandTheme === 'undefined') return;
 
-    var themes = {
-        ocean: ['#1e3a8a', '#1d4ed8', '#0ea5e9', '#bfdbfe', '#93c5fd'],
-        emerald: ['#065f46', '#0f766e', '#0ea5a4', '#99f6e4', '#5eead4'],
-        royal: ['#312e81', '#5b21b6', '#7c3aed', '#d8b4fe', '#c4b5fd'],
-        sunset: ['#9a3412', '#c2410c', '#f97316', '#fdba74', '#fb923c']
-    };
-
-    function hexToRgb(hex) {
-        var h = String(hex || '').replace('#', '').trim();
-        if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
-        if (h.length !== 6) return null;
-        var n = parseInt(h, 16);
-        if (isNaN(n)) return null;
-        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-    }
-
-    function rgbToHex(r, g, b) {
-        function toHex(v) {
-            var s = Math.max(0, Math.min(255, Math.round(v))).toString(16);
-            return s.length < 2 ? '0' + s : s;
-        }
-        return '#' + toHex(r) + toHex(g) + toHex(b);
-    }
-
-    function adjust(hex, amount) {
-        var rgb = hexToRgb(hex);
-        if (!rgb) return hex;
-        return rgbToHex(rgb.r + amount, rgb.g + amount, rgb.b + amount);
-    }
-
-    function applyTheme(values) {
-        cards.forEach(function (card) {
-            card.style.setProperty('--card-grad-1', values[0]);
-            card.style.setProperty('--card-grad-2', values[1]);
-            card.style.setProperty('--card-grad-3', values[2]);
-            card.style.setProperty('--card-border', values[3]);
-            card.style.setProperty('--card-print-border', values[4]);
-        });
-    }
-
-    function applyThemeByName(name) {
-        var key = (name || '').toLowerCase();
-        if (themes[key]) {
-            applyTheme(themes[key]);
-            return;
-        }
-        applyBrandTheme();
-    }
-
-    function applyBrandTheme() {
-        if (!logoUrl) {
-            applyTheme(themes.ocean);
-            return;
-        }
-        var img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = function () {
-            try {
-                var canvas = document.createElement('canvas');
-                canvas.width = 24;
-                canvas.height = 24;
-                var ctx = canvas.getContext('2d');
-                if (!ctx) throw new Error('Canvas context tidak tersedia');
-                ctx.drawImage(img, 0, 0, 24, 24);
-                var data = ctx.getImageData(0, 0, 24, 24).data;
-                var total = 0, r = 0, g = 0, b = 0;
-                for (var i = 0; i < data.length; i += 4) {
-                    var a = data[i + 3];
-                    if (a < 24) continue;
-                    r += data[i];
-                    g += data[i + 1];
-                    b += data[i + 2];
-                    total++;
-                }
-                if (total < 20) throw new Error('Sampel warna logo terlalu kecil');
-                var base = rgbToHex(r / total, g / total, b / total);
-                var c1 = adjust(base, -58);
-                var c2 = adjust(base, -18);
-                var c3 = adjust(base, 34);
-                var border = adjust(base, 72);
-                var printBorder = adjust(base, 56);
-                applyTheme([c1, c2, c3, border, printBorder]);
-            } catch (e) {
-                applyTheme(themes.ocean);
-            }
-        };
-        img.onerror = function () { applyTheme(themes.ocean); };
-        img.src = logoUrl + (logoUrl.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now();
-    }
-
-    if (picker) {
-        picker.addEventListener('change', function () {
-            applyThemeByName(picker.value);
-        });
-        applyThemeByName(picker.value || 'brand');
-    } else {
-        applyThemeByName('brand');
-    }
+    KartuBrandTheme.init({
+        cards: cards,
+        picker: picker,
+        logoUrl: <?= json_encode($logoUrl, JSON_UNESCAPED_SLASHES) ?>,
+        brandTheme: <?= json_encode($brandTheme, JSON_UNESCAPED_SLASHES) ?>,
+        fallback: 'emerald'
+    });
 })();
 </script>
 
