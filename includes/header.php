@@ -86,6 +86,7 @@ if (isset($_SESSION['user'])) {
     $appLogoInitial = (string) ($brandCtx['initials'] ?? 'AP');
     $appAlamatPonpes = (string) ($brandCtx['alamat'] ?? '');
 }
+$pwaIconSrc = $appLogoSrc !== '' ? $appLogoSrc : '/assets/img/stempel-pondok.png';
 
 $roleLabels = [
     'admin' => 'Administrator',
@@ -151,12 +152,12 @@ if (!function_exists('render_app_sidebar_nav')) {
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars($appBrandTitle ?? 'A.P.I Nailul Muna') ?>">
+    <meta name="apple-mobile-web-app-title" content="Nailul Muna App">
     <link rel="manifest" href="<?= htmlspecialchars(app_href('/manifest.php')) ?>">
-    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
+    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
+    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
