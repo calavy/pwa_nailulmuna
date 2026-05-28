@@ -32,12 +32,19 @@ if ($tingkatanMilik === [] && $bolehSemua) {
     $tingkatanMilik = pembimbing_dashboard_semua_tingkatan($pdo);
 }
 
-$semuaTingkatanList = $tingkatanMilik;
+/** Tingkatan yang diasuh pembimbing (otomatis dari jadwal). */
+$tingkatanAsuhan = $tingkatanMilik;
+$semuaTingkatanList = $tingkatanAsuhan;
 $tingkatanFilter = trim((string) ($_GET['tingkatan'] ?? ''));
 if ($tingkatanFilter !== '' && !in_array($tingkatanFilter, $semuaTingkatanList, true)) {
     $tingkatanFilter = '';
 }
-$tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $semuaTingkatanList;
+$modeView = strtolower(trim((string) ($_GET['mode'] ?? 'ringkas')));
+if (!in_array($modeView, ['ringkas', 'detail'], true)) {
+    $modeView = 'ringkas';
+}
+/** Scope tampilan detail (filter manual atau semua tingkatan asuhan). */
+$tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
 
 $tahun = (int) ($_GET['tahun'] ?? (int) date('Y'));
 if ($tahun < 2000 || $tahun > 2100) {
@@ -59,16 +66,32 @@ $hijriBulanNama = [
 $pbDashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNama);
 $pbDashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 
-$statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAktif);
+// KPI & ringkasan per tingkatan: selalu dari SEMUA tingkatan yang diasuh (jadwal pembimbing).
+$statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
+$santriPerTingkatanMap = pembimbing_dashboard_jumlah_santri_map($pdo, $tingkatanAsuhan);
+$keaktivanRowsAsuhan = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAsuhan, $tahun, 300);
+$perTingkatan = pembimbing_dashboard_per_tingkatan_stats($pdo, $tingkatanAsuhan, $today, $keaktivanRowsAsuhan);
+
+// Detail harian / tabel: ikuti filter tingkatan atau mode mengajar.
+$kegiatanAktif = pembimbing_dashboard_kegiatan_aktif($pdo, $tingkatanAsuhan, $hariKe, $nowTime);
+$kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+$tingkatanMengajar = pembimbing_dashboard_tingkatan_dari_kegiatan_aktif($kegiatanAktif);
+$modeMengajar = !$bolehSemua && $tingkatanMengajar !== [] && $tingkatanFilter === '';
+if ($modeMengajar) {
+    $tingkatanAktif = $tingkatanMengajar;
+}
+
 $statIzinCount = pembimbing_dashboard_jumlah_izin_hari_ini($pdo, $tingkatanAktif, $today);
 $statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAktif, $today);
 $santriIzinList = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAktif, $today, 50);
 $keaktivanRows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAktif, $tahun, 300);
 $kategoriRingkas = pembimbing_dashboard_ringkasan_kategori($keaktivanRows);
-$kegiatanAktif = pembimbing_dashboard_kegiatan_aktif($pdo, $tingkatanAktif, $hariKe, $nowTime);
-$kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+
+$kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
+$rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
+$nilaiKelasHariIni = pembimbing_dashboard_nilai_kelas_hari_ini($pdo, $tingkatanAktif, $today, $userId, $bolehSemua);
+$pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
 $tugasStats = pembimbing_dashboard_tugas_stats($pdo, $userId, $bolehSemua);
-$perTingkatan = pembimbing_dashboard_per_tingkatan_stats($pdo, $tingkatanAktif, $today, $keaktivanRows);
 
 // Kelompokkan baris keaktifan per tingkatan untuk tabel berkelompok di bawah.
 $keaktivanByTingkatan = [];
@@ -93,111 +116,14 @@ $pbDashServerClockMs = (int) round(microtime(true) * 1000);
 
 $pageTitle = 'Dashboard Pembimbing';
 $bodyClass = 'dash-page';
+$loadPushFcm = true;
+$pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
+$baseDashQuery = 'tahun=' . (int) $tahun;
+if ($tingkatanFilter !== '') {
+    $baseDashQuery .= '&tingkatan=' . rawurlencode($tingkatanFilter);
+}
 ?>
-
-<style>
-    .pb-tingkatan-summary .pb-tingkatan-card {
-        display: flex;
-        flex-direction: column;
-        gap: 0.4rem;
-        padding: 1rem 1.1rem;
-        border-radius: 14px;
-        border: 1px solid rgba(15, 118, 110, 0.16);
-        background: linear-gradient(160deg, rgba(240, 253, 250, 0.95) 0%, #fff 100%);
-        color: #0f172a;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-        min-height: 11rem;
-    }
-    .pb-tingkatan-summary .pb-tingkatan-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(15, 118, 110, 0.45);
-        box-shadow: 0 10px 28px rgba(15, 118, 110, 0.14);
-        color: #0f172a;
-    }
-    .pb-tingkatan-card--active {
-        border-color: rgba(15, 118, 110, 0.55) !important;
-        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.18);
-    }
-    .pb-tingkatan-card__head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-    .pb-tingkatan-card__nama {
-        font-weight: 700;
-        font-size: 0.95rem;
-        color: #0f766e;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 100%;
-    }
-    .pb-tingkatan-card__big {
-        display: flex;
-        align-items: baseline;
-        gap: 0.45rem;
-        line-height: 1;
-        margin-top: 0.1rem;
-    }
-    .pb-tingkatan-card__big-val {
-        font-size: 2.4rem;
-        font-weight: 800;
-        color: #0f172a;
-        letter-spacing: -0.02em;
-    }
-    .pb-tingkatan-card__big-lbl {
-        font-size: 0.95rem;
-        color: #64748b;
-        font-weight: 600;
-    }
-    .pb-tingkatan-card__chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem;
-    }
-    .pb-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.18rem 0.5rem;
-        border-radius: 999px;
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        background: rgba(255, 255, 255, 0.7);
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #334155;
-    }
-    .pb-chip i { font-size: 0.72rem; opacity: 0.85; }
-    .pb-chip--warning { color: #b45309; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.25); }
-    .pb-chip--success { color: #047857; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25); }
-    .pb-chip--danger  { color: #b91c1c; background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.22); }
-    .pb-tingkatan-card__bar {
-        display: flex;
-        height: 8px;
-        border-radius: 999px;
-        overflow: hidden;
-        background: #e5e7eb;
-    }
-    .pb-tingkatan-card__bar > span { display: block; height: 100%; }
-    [data-theme="dark"] .pb-tingkatan-summary .pb-tingkatan-card {
-        background: linear-gradient(160deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.92) 100%);
-        border-color: rgba(71, 85, 105, 0.45);
-        color: #e2e8f0;
-    }
-    [data-theme="dark"] .pb-tingkatan-card__nama { color: #5eead4; }
-    [data-theme="dark"] .pb-tingkatan-card__big-val { color: #f8fafc; }
-    [data-theme="dark"] .pb-tingkatan-card__big-lbl { color: #cbd5e1; }
-    [data-theme="dark"] .pb-chip { background: rgba(15, 23, 42, 0.55); border-color: rgba(71, 85, 105, 0.45); color: #e2e8f0; }
-    [data-theme="dark"] .pb-tingkatan-card__bar { background: rgba(71, 85, 105, 0.5); }
-
-    .pb-keaktifan-table .pb-keaktifan-group-row td {
-        background: rgba(15, 118, 110, 0.06);
-        border-top: 1px solid rgba(15, 118, 110, 0.12);
-    }
-</style>
 
 <div class="dash-page">
     <div class="dash-hero mb-4">
@@ -205,9 +131,18 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="dash-hero-layout dash-hero-layout--slim">
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Portal Pembimbing</div>
-                    <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!</h1>
+                    <h1 class="h3 dash-hero-title mb-2 d-flex flex-wrap align-items-center gap-2">
+                        <?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!
+                        <?php if ($pbSudahHadir): ?>
+                            <span class="badge text-bg-success fs-6"><i class="fa-solid fa-circle-check me-1"></i>Hadir</span>
+                        <?php endif; ?>
+                    </h1>
                     <p class="dash-hero-sub mb-0 small text-white-50">
-                        Pantau santri pada tingkatan kajian Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
+                        <?php if ($modeMengajar): ?>
+                            <strong class="text-white">Sedang mengajar</strong> — data santri &amp; laporan dibatasi kelas: <?= htmlspecialchars(implode(', ', $tingkatanMengajar)) ?>.
+                        <?php else: ?>
+                            Pantau santri pada tingkatan kajian Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
+                        <?php endif; ?>
                     </p>
                     <?php if ($pbDashHijriLabel !== '' || $pbDashPasaran !== ''): ?>
                         <p class="dash-hero-hijri mb-0 mt-2 small text-white-50">
@@ -243,10 +178,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="col-12 col-md-auto">
                     <label class="form-label small mb-0" for="pb-dash-tingkatan">Tingkatan</label>
                     <select id="pb-dash-tingkatan" name="tingkatan" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">Semua tingkatan saya<?= $semuaTingkatanList !== [] ? ' (' . count($semuaTingkatanList) . ')' : '' ?></option>
-                        <?php foreach ($semuaTingkatanList as $tk): ?>
+                        <option value="">Semua tingkatan diasuh<?= $semuaTingkatanList !== [] ? ' (' . count($semuaTingkatanList) . ')' : '' ?></option>
+                        <?php foreach ($semuaTingkatanList as $tk):
+                            $jmlTk = (int) ($santriPerTingkatanMap[$tk]['total'] ?? 0);
+                        ?>
                             <option value="<?= htmlspecialchars((string) $tk) ?>"<?= $tingkatanFilter === (string) $tk ? ' selected' : '' ?>>
-                                <?= htmlspecialchars((string) $tk) ?>
+                                <?= htmlspecialchars((string) $tk) ?> (<?= $jmlTk ?> santri)
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -261,19 +198,63 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-filter me-1"></i> Terapkan
                     </button>
                 </div>
-                <?php if ($semuaTingkatanList !== []): ?>
-                <div class="col-12 col-md ms-md-auto text-md-end">
-                    <div class="small text-muted">Tingkatan Anda:</div>
-                    <div class="d-flex flex-wrap gap-1 justify-content-md-end">
-                        <?php foreach ($semuaTingkatanList as $tk): ?>
-                            <span class="badge text-bg-light border"><?= htmlspecialchars((string) $tk) ?></span>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="col-auto ms-md-auto">
+                    <?php if ($modeView === 'detail'): ?>
+                        <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=ringkas')) ?>" class="btn btn-outline-secondary btn-sm">
+                            <i class="fa-solid fa-minimize me-1"></i> Mode ringkas
+                        </a>
+                    <?php else: ?>
+                        <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=detail')) ?>" class="btn btn-outline-secondary btn-sm">
+                            <i class="fa-solid fa-maximize me-1"></i> Lihat detail
+                        </a>
+                    <?php endif; ?>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
     </form>
+
+    <?php if ($semuaTingkatanList !== []): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel pb-tingkatan-block">
+        <div class="card-body py-3 px-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <div>
+                    <h2 class="h6 mb-0 fw-bold">Tingkatan diasuh</h2>
+                    <p class="small text-muted mb-0"><?= count($semuaTingkatanList) ?> kelas · <?= (int) $totalSantri ?> santri</p>
+                </div>
+                <?php if ($tingkatanFilter !== ''): ?>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?tahun=' . (int) $tahun)) ?>"
+                       class="btn btn-sm btn-link text-decoration-none p-0">Semua tingkatan</a>
+                <?php endif; ?>
+            </div>
+            <div class="pb-tk-list" role="list">
+                <?php
+                $tingkatanBaris = $perTingkatan !== [] ? $perTingkatan : array_map(
+                    static function (string $tk) use ($santriPerTingkatanMap): array {
+                        return [
+                            'tingkatan' => $tk,
+                            'total' => (int) ($santriPerTingkatanMap[$tk]['total'] ?? 0),
+                        ];
+                    },
+                    $semuaTingkatanList
+                );
+                foreach ($tingkatanBaris as $tk):
+                    $tkName = (string) ($tk['tingkatan'] ?? '');
+                    $tkTotal = (int) ($tk['total'] ?? 0);
+                    $tkUrl = app_href('/pembimbing/dashboard.php?tingkatan=' . rawurlencode($tkName) . '&tahun=' . (int) $tahun);
+                    $isActive = $tingkatanFilter !== '' && strcasecmp($tingkatanFilter, $tkName) === 0;
+                ?>
+                <a href="<?= htmlspecialchars($tkUrl) ?>"
+                   class="pb-tk-row<?= $isActive ? ' is-active' : '' ?>"
+                   role="listitem"
+                   title="Filter ke <?= htmlspecialchars($tkName) ?>">
+                    <span class="pb-tk-row__name"><?= htmlspecialchars($tkName) ?></span>
+                    <span class="pb-tk-row__count"><?= $tkTotal ?></span>
+                </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <?php if ($semuaTingkatanList === []): ?>
         <div class="card border-0 shadow-sm mb-4 dash-panel">
@@ -299,10 +280,13 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="dash-kpi-grid__item" role="listitem">
             <div class="dash-kpi-box dash-kpi-box--putra h-100">
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-user-group"></i></div>
-                <div class="dash-kpi-box__label">Total santri</div>
+                <div class="dash-kpi-box__label">Total santri diasuh</div>
                 <div class="dash-kpi-box__value"><?= (int) $totalSantri ?></div>
                 <div class="dash-kpi-box__hint">
                     Putra <?= (int) $statSantri['putra'] ?> · Putri <?= (int) $statSantri['putri'] ?>
+                    <?php if ($tingkatanAsuhan !== []): ?>
+                        <span class="d-block mt-1"><?= count($tingkatanAsuhan) ?> tingkatan diasuh</span>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -439,6 +423,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php')) ?>" class="btn btn-outline-primary btn-sm text-start">
                         <i class="fa-solid fa-clipboard-check me-2"></i> Penilaian tugas
                     </a>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="btn btn-outline-primary btn-sm text-start">
+                        <i class="fa-solid fa-pen-ruler me-2"></i> Nilai manual (tanpa soal)
+                    </a>
                     <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="btn btn-outline-secondary btn-sm text-start">
                         <i class="fa-solid fa-list-check me-2"></i> Daftar Tugas Ikhtibar
                     </a>
@@ -453,106 +440,67 @@ require_once __DIR__ . '/../includes/header.php';
         </aside>
     </div>
 
-    <!-- Ringkasan per tingkatan (clickable filter) -->
-    <?php if ($perTingkatan !== []): ?>
-    <div class="card border-0 shadow-sm mb-4 dash-panel dash-panel--lift pb-tingkatan-summary">
-        <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4 px-4 pb-0">
-            <div>
-                <h2 class="h5 mb-1">
-                    <i class="fa-solid fa-layer-group text-primary me-1"></i>
-                    Ringkasan per tingkatan yang dibimbing
-                </h2>
-                <p class="small text-muted mb-0">
-                    <?= count($perTingkatan) ?> tingkatan · klik kartu untuk fokus ke salah satunya.
-                </p>
-            </div>
-            <?php if ($tingkatanFilter !== ''): ?>
-                <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?tahun=' . (int) $tahun)) ?>"
-                   class="btn btn-sm btn-outline-secondary rounded-pill">
-                    <i class="fa-solid fa-list me-1"></i> Lihat semua tingkatan
-                </a>
-            <?php endif; ?>
+    <?php if ($modeView === 'detail' && $rosterHariIni !== []): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel">
+        <div class="card-header bg-transparent border-0 pt-3 px-4 pb-0">
+            <h2 class="h5 mb-1">Daftar santri kelas<?= $modeMengajar ? ' (sedang mengajar)' : '' ?> — hari ini</h2>
+            <p class="small text-muted mb-0">Status presensi kegiatan aktif · hanya tingkatan <?= htmlspecialchars(implode(', ', $tingkatanAktif)) ?></p>
         </div>
-        <div class="card-body px-4 pb-4 pt-3">
-            <div class="row g-3">
-                <?php foreach ($perTingkatan as $tk):
-                    $tkName = (string) $tk['tingkatan'];
-                    $tkTotal = (int) $tk['total'];
-                    $tkUrl = app_href('/pembimbing/dashboard.php?tingkatan=' . rawurlencode($tkName) . '&tahun=' . (int) $tahun);
-                    $isActive = $tingkatanFilter !== '' && strcasecmp($tingkatanFilter, $tkName) === 0;
-                ?>
-                    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-                        <a href="<?= htmlspecialchars($tkUrl) ?>"
-                           class="pb-tingkatan-card text-decoration-none d-block h-100<?= $isActive ? ' pb-tingkatan-card--active' : '' ?>">
-                            <div class="pb-tingkatan-card__head">
-                                <span class="pb-tingkatan-card__nama" title="<?= htmlspecialchars($tkName) ?>">
-                                    <i class="fa-solid fa-graduation-cap me-1"></i>
-                                    <?= htmlspecialchars($tkName) ?>
-                                </span>
-                                <?php if ($isActive): ?>
-                                    <span class="badge text-bg-primary small">Aktif</span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="pb-tingkatan-card__big">
-                                <span class="pb-tingkatan-card__big-val"><?= $tkTotal ?></span>
-                                <span class="pb-tingkatan-card__big-lbl">santri</span>
-                            </div>
-                            <div class="pb-tingkatan-card__sub small text-muted">
-                                Putra <strong><?= (int) $tk['putra'] ?></strong>
-                                · Putri <strong><?= (int) $tk['putri'] ?></strong>
-                            </div>
-                            <div class="pb-tingkatan-card__chips">
-                                <span class="pb-chip pb-chip--warning" title="Sedang izin hari ini">
-                                    <i class="fa-solid fa-person-walking-luggage"></i>
-                                    Izin <?= (int) $tk['izin'] ?>
-                                </span>
-                                <span class="pb-chip pb-chip--success" title="Hadir hari ini">
-                                    <i class="fa-solid fa-circle-check"></i>
-                                    Hadir <?= (int) $tk['hadir_hari_ini'] ?>
-                                </span>
-                                <?php if ((int) $tk['alpa_hari_ini'] > 0): ?>
-                                    <span class="pb-chip pb-chip--danger" title="Alpa hari ini">
-                                        <i class="fa-solid fa-triangle-exclamation"></i>
-                                        Alpa <?= (int) $tk['alpa_hari_ini'] ?>
-                                    </span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="pb-tingkatan-card__bar mt-2" aria-hidden="true">
-                                <?php
-                                $sumKeaktifan = $tk['bagus'] + $tk['sedang'] + $tk['buruk'];
-                                $pcB = $sumKeaktifan > 0 ? round($tk['bagus'] / $sumKeaktifan * 100, 1) : 0;
-                                $pcS = $sumKeaktifan > 0 ? round($tk['sedang'] / $sumKeaktifan * 100, 1) : 0;
-                                $pcK = $sumKeaktifan > 0 ? round($tk['buruk'] / $sumKeaktifan * 100, 1) : 0;
-                                ?>
-                                <?php if ($sumKeaktifan > 0): ?>
-                                    <span style="width:<?= $pcB ?>%;background:#198754" title="Bagus <?= (int) $tk['bagus'] ?>"></span>
-                                    <span style="width:<?= $pcS ?>%;background:#f59e0b" title="Sedang <?= (int) $tk['sedang'] ?>"></span>
-                                    <span style="width:<?= $pcK ?>%;background:#dc3545" title="Buruk <?= (int) $tk['buruk'] ?>"></span>
-                                <?php else: ?>
-                                    <span style="width:100%;background:#e5e7eb" title="Belum ada data"></span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="pb-tingkatan-card__legend small text-muted mt-1">
-                                Keaktifan thn <?= (int) $tahun ?>:
-                                <span class="text-success">Bagus <strong><?= (int) $tk['bagus'] ?></strong></span>
-                                ·
-                                <span class="text-warning">Sedang <strong><?= (int) $tk['sedang'] ?></strong></span>
-                                ·
-                                <span class="text-danger">Buruk <strong><?= (int) $tk['buruk'] ?></strong></span>
-                                <?php if ((int) $tk['belum'] > 0): ?>
-                                    · <span class="text-secondary">Belum <strong><?= (int) $tk['belum'] ?></strong></span>
-                                <?php endif; ?>
-                            </div>
-                        </a>
-                    </div>
-                <?php endforeach; ?>
+        <div class="card-body px-4 pb-4 pt-2">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>Santri</th><th>Tingkatan</th><th>Status</th><th>Jam</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($rosterHariIni as $rs):
+                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? 'BELUM'));
+                        $badge = match ($st) {
+                            'HADIR' => 'success',
+                            'IZIN', 'SAKIT' => 'warning',
+                            'ALPA' => 'danger',
+                            default => 'secondary',
+                        };
+                    ?>
+                        <tr>
+                            <td><div class="fw-semibold small"><?= htmlspecialchars((string) $rs['nama_santri']) ?></div><div class="text-muted font-monospace" style="font-size:.7rem"><?= htmlspecialchars((string) $rs['nis']) ?></div></td>
+                            <td class="small"><?= htmlspecialchars((string) $rs['tingkatan']) ?></td>
+                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($st === 'BELUM' ? 'Belum scan' : $st) ?></span></td>
+                            <td class="small font-monospace"><?= !empty($rs['jam_presensi']) ? htmlspecialchars(substr((string) $rs['jam_presensi'], 0, 5)) : '—' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($modeView === 'detail' && $nilaiKelasHariIni !== []): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel">
+        <div class="card-header bg-transparent border-0 pt-3 px-4 pb-0">
+            <h2 class="h5 mb-1">Nilai tugas hari ini (kelas Anda)</h2>
+        </div>
+        <div class="card-body px-4 pb-4 pt-2">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Santri</th><th>Tugas</th><th>Nilai</th><th>Waktu</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($nilaiKelasHariIni as $nk): ?>
+                        <tr>
+                            <td class="small"><?= htmlspecialchars((string) $nk['nama_santri']) ?> <span class="text-muted">(<?= htmlspecialchars((string) $nk['tingkatan']) ?>)</span></td>
+                            <td class="small"><?= htmlspecialchars((string) ($nk['tugas_judul'] ?? '')) ?></td>
+                            <td class="fw-semibold"><?= htmlspecialchars((string) ($nk['nilai'] ?? '—')) ?></td>
+                            <td class="small text-muted"><?= !empty($nk['submitted_at']) ? htmlspecialchars(substr((string) $nk['submitted_at'], 11, 5)) : '—' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
     <?php endif; ?>
 
     <!-- Tabel santri sedang izin -->
-    <?php if ($santriIzinList !== []): ?>
+    <?php if ($modeView === 'detail' && $santriIzinList !== []): ?>
         <div class="card border-0 shadow-sm mb-4 dash-panel dash-panel--lift">
             <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4 px-4 pb-0">
                 <div>
@@ -599,7 +547,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <!-- Tabel keaktifan santri (grouped per tingkatan) -->
-    <?php if ($keaktivanByTingkatan !== []): ?>
+    <?php if ($modeView === 'detail' && $keaktivanByTingkatan !== []): ?>
         <div class="card border-0 shadow-sm dash-panel dash-panel--lift">
             <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4 px-4 pb-0">
                 <div>
@@ -684,6 +632,19 @@ require_once __DIR__ . '/../includes/header.php';
                 Kategori otomatis: <strong>Bagus</strong> jika tanpa alpa,
                 <strong>Sedang</strong> jika alpa ≤ ambang sedang, <strong>Jelek</strong> bila melebihi (sesuai pengaturan poin).
                 Pengasuh dapat menimpa nilai via menu <em>Nilai Keaktifan Santri</em>.
+            </div>
+        </div>
+    <?php endif; ?>
+    <?php if ($modeView === 'ringkas'): ?>
+        <div class="card border-0 shadow-sm dash-panel">
+            <div class="card-body py-3 px-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div>
+                    <h2 class="h6 mb-1">Tampilan ringkas aktif</h2>
+                    <p class="small text-muted mb-0">Dashboard disederhanakan agar fokus pada ringkasan utama dan aksi cepat.</p>
+                </div>
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=detail')) ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-table-list me-1"></i> Buka tabel detail
+                </a>
             </div>
         </div>
     <?php endif; ?>

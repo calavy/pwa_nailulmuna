@@ -94,7 +94,7 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
         );
         $perPos = (array) ($st['per_pos'] ?? []);
         $paidSantri = $paidMap[$santriId] ?? [];
-        $ops = tagihan_opsional_pos_for_month_bulk($pdo, $kelasKategori, $paidSantri, $santriId);
+        $ops = tagihan_opsional_pos_for_month_bulk($pdo, $kelasKategori, $paidSantri, $santriId, $m, $periode['mulai'], $periode['selesai']);
         $rows[] = [
             'bulan' => $m,
             'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),

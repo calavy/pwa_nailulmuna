@@ -90,6 +90,7 @@ require_once __DIR__ . '/includes/settings_nav.php';
 <div class="mb-3">
     <h1 class="h4 mb-1">Push Notifications (FCM)</h1>
     <p class="text-muted small mb-0">Ganti atau lengkapi WhatsApp Gateway dengan notifikasi real-time di layar kunci HP.</p>
+    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">← Kembali ke Pusat WA Otomatis</a></p>
 </div>
 
 <div class="row g-3 mb-3">

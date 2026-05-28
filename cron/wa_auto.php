@@ -26,6 +26,8 @@ app_run_deferred_maintenance($pdo, $sysUserId);
 
 trigger_auto_wa_notifications($pdo);
 trigger_auto_wa_tagihan_wali($pdo);
+trigger_wa_mudabir_belum_hadir($pdo);
+trigger_wa_kelas_kosong_bertahap($pdo);
 trigger_push_tagihan_wali_from_cron($pdo);
 trigger_push_daily_kiai($pdo);
 

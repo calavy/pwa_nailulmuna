@@ -32,7 +32,7 @@ if (!in_array($jenisPeriode, ['BULANAN', 'AWAL_TAHUN'], true)) {
 if ($jenisPeriode !== 'BULANAN') {
     $bulanTagihan = 0;
 } elseif ($bulanTagihan < 1 || $bulanTagihan > 12) {
-    $bulanTagihan = (int) date('n');
+    $bulanTagihan = keuangan_bulan_berjalan(null, $pdo);
 }
 
 if ($santriId <= 0) {

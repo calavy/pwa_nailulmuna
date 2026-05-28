@@ -106,6 +106,7 @@ require_once __DIR__ . '/../includes/header.php';
         Atur ambang batas alpa yang memicu pengiriman WA ke pengurus berbeda. Contoh: 5 → pengurus A, 10 → pengurus B, 15 → pengurus C.
         Perhitungan ALPA mengikuti <em>periode</em> yang dipilih: mingguan, bulanan, atau akumulasi sejak awal.
     </p>
+    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">← Kembali ke Pusat WA Otomatis</a></p>
 </div>
 
 <?php if ($msg = get_flash('success')): ?>

@@ -77,6 +77,15 @@ function keuangan_save_tarif_settings(PDO $pdo, array $post): array
         require_once __DIR__ . '/keuangan_dashboard.php';
     }
     keuangan_dashboard_cache_invalidate();
+    foreach (array_keys($fees) as $slugSaved) {
+        if (in_array((string) $slugSaved, keuangan_biaya_slugs_syahriyah_makan(), true)) {
+            if (!function_exists('keuangan_tarif_bulanan_invalidate')) {
+                require_once __DIR__ . '/keuangan_tarif_bulanan.php';
+            }
+            keuangan_tarif_bulanan_invalidate();
+            break;
+        }
+    }
 
     return ['ok' => true, 'message' => 'Tarif komponen biaya berhasil disimpan.'];
 }

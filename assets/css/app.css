@@ -88,7 +88,7 @@ body {
 
 .app-topbar {
     background: linear-gradient(118deg, var(--app-primary) 0%, var(--app-primary-dark) 38%, var(--app-secondary) 72%, #1d4ed8 100%) !important;
-    box-shadow: 0 8px 28px rgba(14, 116, 144, 0.28);
+    box-shadow: 0 4px 16px rgba(14, 116, 144, 0.2);
     border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     position: sticky;
     top: 0;
@@ -4380,6 +4380,87 @@ body {
     border-color: rgba(71, 85, 105, 0.5);
 }
 
+/* Submenu visual system (seragam lintas modul) */
+.app-main .card {
+    border: 1px solid var(--card-border);
+    box-shadow: var(--shadow-card);
+}
+
+.app-main .card-header {
+    position: relative;
+    background: linear-gradient(120deg, rgba(15, 118, 110, 0.08) 0%, rgba(8, 145, 178, 0.06) 100%);
+}
+
+.app-main .card-header::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    border-radius: 8px 0 0 8px;
+    background: linear-gradient(180deg, var(--app-primary) 0%, var(--app-secondary) 100%);
+}
+
+.app-main .card-header > *:last-child {
+    margin-bottom: 0;
+}
+
+.app-main .table thead th {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef6ff 100%);
+    color: #0f172a;
+    font-weight: 700;
+    border-bottom-width: 1px;
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+.app-main .table tbody tr:hover > * {
+    background-color: rgba(14, 165, 233, 0.06);
+}
+
+.app-main .form-label {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.app-main .alert {
+    border-left-width: 4px;
+}
+
+.app-main .alert-success {
+    border-left-color: #16a34a;
+}
+
+.app-main .alert-warning {
+    border-left-color: #d97706;
+}
+
+.app-main .alert-danger {
+    border-left-color: #dc2626;
+}
+
+.app-main .alert-info {
+    border-left-color: #0284c7;
+}
+
+[data-theme="dark"] .app-main .card-header {
+    background: linear-gradient(120deg, rgba(15, 118, 110, 0.2) 0%, rgba(30, 41, 59, 0.45) 100%);
+}
+
+[data-theme="dark"] .app-main .table thead th {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+    color: #f8fafc;
+    border-color: rgba(71, 85, 105, 0.8);
+}
+
+[data-theme="dark"] .app-main .table tbody tr:hover > * {
+    background-color: rgba(14, 165, 233, 0.12);
+}
+
+[data-theme="dark"] .app-main .form-label {
+    color: #e2e8f0;
+}
+
 @media (max-width: 768px) {
     .card .card-body {
         padding: 0.85rem;
@@ -4968,4 +5049,109 @@ body.dash-page .app-shell--wide {
 
 [data-theme="dark"] .dash-quick-details__summary:focus-visible {
     outline-color: rgba(45, 212, 191, 0.55);
+}
+
+/* === Kompatibilitas perangkat (HP santri, tablet, browser berbeda) === */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.app-main img,
+.app-main video,
+.app-main svg,
+.app-main canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.app-main pre,
+.app-main .table-responsive {
+    max-width: 100%;
+}
+
+.app-main .card-body:has(> table),
+.app-main .card-body:has(> .table),
+.app-main .table-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-main .btn-group,
+.app-main .input-group {
+    flex-wrap: wrap;
+}
+
+/* Backdrop menu/modal — jangan tertinggal menutupi layar */
+body:not(:has(.offcanvas.show)) .offcanvas-backdrop,
+body:not(.modal-open) .modal-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.offcanvas-backdrop {
+    opacity: 0.4 !important;
+}
+
+.modal-backdrop {
+    opacity: 0.35 !important;
+}
+
+/* PWA — indikator offline */
+#pondok-offline-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1090;
+    padding: 0.45rem 0.75rem;
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #b45309 0%, #d97706 100%);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.2);
+}
+
+html.pondok-offline body.app-body-shell #pondok-offline-banner,
+html.pondok-offline .auth-portal-page #pondok-offline-banner,
+html.pondok-offline body.wali-portal #pondok-offline-banner {
+    display: block;
+}
+
+@media (max-width: 575.98px) {
+    .app-topbar {
+        box-shadow: 0 2px 10px rgba(14, 116, 144, 0.16);
+    }
+
+    .app-main .row {
+        --bs-gutter-x: 0.65rem;
+    }
+
+    .app-main .card-header,
+    .app-main .card-body {
+        padding-left: 0.85rem;
+        padding-right: 0.85rem;
+    }
+
+    .app-main .table {
+        font-size: 0.82rem;
+    }
+
+    .app-main .table th,
+    .app-main .table td {
+        white-space: nowrap;
+    }
+
+    .app-main .table th.wrap,
+    .app-main .table td.wrap,
+    .app-main .table .text-wrap-cell {
+        white-space: normal;
+    }
+
+    .app-main .d-flex.flex-nowrap {
+        flex-wrap: wrap !important;
+    }
 }

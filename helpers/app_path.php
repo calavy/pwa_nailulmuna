@@ -150,6 +150,34 @@ function app_href(string $url): string
     return $base . $path . $suffix;
 }
 
+/** Versi cache-bust untuk file di /assets/ (mtime). */
+function app_asset_version(string $assetPath): string
+{
+    static $cache = [];
+    $assetPath = '/' . ltrim(str_replace('\\', '/', $assetPath), '/');
+    if (isset($cache[$assetPath])) {
+        return $cache[$assetPath];
+    }
+    $root = dirname(__DIR__);
+    $full = $root . $assetPath;
+    $cache[$assetPath] = is_file($full) ? (string) filemtime($full) : '1';
+
+    return $cache[$assetPath];
+}
+
+/** URL asset dengan ?v=mtime agar HP/PWA tidak memakai CSS/JS lama. */
+function app_asset_href(string $assetPath): string
+{
+    $assetPath = '/' . ltrim(str_replace('\\', '/', $assetPath), '/');
+    $url = app_href($assetPath);
+    if (!str_starts_with($assetPath, '/assets/')) {
+        return $url;
+    }
+    $sep = str_contains($url, '?') ? '&' : '?';
+
+    return $url . $sep . 'v=' . app_asset_version($assetPath);
+}
+
 /** Redirect ke path absolut aplikasi (mis. `/dashboard.php`). */
 function app_redirect_path(string $absolutePath): void
 {

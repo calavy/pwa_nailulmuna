@@ -14,6 +14,33 @@ require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 keuangan_ensure_schema_deferred($pdo);
 pembayaran_edit_token_ensure_schema($pdo);
 $canKoreksiPembayaran = user_can_koreksi_pembayaran();
+$currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
+
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && (string) ($_POST['action'] ?? '') === 'redeem_token'
+    && $canKoreksiPembayaran
+) {
+    $redeemResult = pembayaran_edit_token_redeem($pdo, $currentUserId, (string) ($_POST['token_plain'] ?? ''));
+    if ($redeemResult['ok']) {
+        set_flash('success', $redeemResult['message']);
+    } else {
+        set_flash('error', $redeemResult['message']);
+    }
+    $redirectQs = [];
+    foreach (['dari', 'sampai', 'jenis', 'santri_id', 'metode', 'pos', 'limit'] as $qk) {
+        if (isset($_POST[$qk]) && (string) $_POST[$qk] !== '') {
+            $redirectQs[$qk] = (string) $_POST[$qk];
+        }
+    }
+    $redirectUrl = app_url('pembayaran/riwayat.php');
+    if ($redirectQs !== []) {
+        $redirectUrl .= '?' . http_build_query($redirectQs);
+    }
+    header('Location: ' . $redirectUrl);
+    exit;
+}
+
 $tokenEditRequired = pembayaran_edit_token_required_for_current_user();
 $tokenEditSessionAktif = pembayaran_edit_token_session_aktif($pdo);
 $tokenEditUnlocked = $canKoreksiPembayaran && (!$tokenEditRequired || $tokenEditSessionAktif);
@@ -215,16 +242,45 @@ $iconRiwayat = bendahara_page_icon('riwayat');
             </div>
         </div>
     <?php else: ?>
-        <div class="alert alert-warning py-2 small mb-3 d-flex align-items-center gap-2">
-            <i class="fa-solid fa-lock"></i>
-            <div class="flex-grow-1">
-                <strong>Mode edit terkunci.</strong>
-                Untuk mengedit/menghapus pembayaran, minta token sekali pakai ke <strong>super admin</strong>,
-                lalu klik <i class="fa-solid fa-pen-to-square mx-1"></i> pada baris untuk memasukkan token.
+        <div class="card shadow-sm border-warning-subtle mb-3">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-start gap-2 mb-2">
+                    <i class="fa-solid fa-lock text-warning-emphasis mt-1"></i>
+                    <div>
+                        <strong class="d-block">Mode edit terkunci</strong>
+                        <span class="small text-muted">Minta token sekali pakai ke super admin, masukkan di bawah — setelah terbuka Anda bisa mengedit banyak pembayaran hingga logout.</span>
+                    </div>
+                </div>
+                <form method="post" class="row g-2 align-items-end" autocomplete="off">
+                    <input type="hidden" name="action" value="redeem_token">
+                    <input type="hidden" name="dari" value="<?= htmlspecialchars($tanggalDari) ?>">
+                    <input type="hidden" name="sampai" value="<?= htmlspecialchars($tanggalSampai) ?>">
+                    <?php if ($jenis !== ''): ?><input type="hidden" name="jenis" value="<?= htmlspecialchars($jenis) ?>"><?php endif; ?>
+                    <?php if ($santriId > 0): ?><input type="hidden" name="santri_id" value="<?= $santriId ?>"><?php endif; ?>
+                    <?php if ($metode !== ''): ?><input type="hidden" name="metode" value="<?= htmlspecialchars($metode) ?>"><?php endif; ?>
+                    <?php if ($posSlug !== ''): ?><input type="hidden" name="pos" value="<?= htmlspecialchars($posSlug) ?>"><?php endif; ?>
+                    <input type="hidden" name="limit" value="<?= $limit ?>">
+                    <div class="col-12 col-md-8 col-lg-5">
+                        <label class="form-label small text-muted mb-1">Token edit</label>
+                        <input type="text" name="token_plain" class="form-control form-control-sm font-monospace text-uppercase" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="40" required>
+                    </div>
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <button type="submit" class="btn btn-warning btn-sm w-100">
+                            <i class="fa-solid fa-lock-open me-1"></i>Buka mode edit
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     <?php endif; ?>
 <?php endif; ?>
+
+<?php
+$flashOk = get_flash('success');
+$flashErr = get_flash('error');
+?>
+<?php if ($flashOk): ?><div class="alert alert-success py-2 small mb-3"><i class="fa-solid fa-circle-check me-1"></i><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
+<?php if ($flashErr): ?><div class="alert alert-danger py-2 small mb-3"><i class="fa-solid fa-circle-exclamation me-1"></i><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
 
 <?php if (!$tablesOk): ?>
     <div class="alert alert-warning">Tabel pembayaran keuangan belum ada. Buka <a href="/keuangan/index.php">Keuangan</a> untuk inisialisasi.</div>

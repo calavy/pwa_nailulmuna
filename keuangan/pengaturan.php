@@ -7,6 +7,8 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_defs.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan.php';
+require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
+require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 
@@ -14,7 +16,13 @@ require_login();
 require_roles(['admin', 'pengurus']);
 
 $section = trim((string) ($_GET['bagian'] ?? 'umum'));
-$validSections = ['umum', 'tarif', 'akun', 'alokasi', 'alokasi_awal'];
+if ($section === 'tarif_bulan') {
+    $redirectQs = $_GET;
+    $redirectQs['bagian'] = 'syahriyah_makan';
+    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?' . http_build_query($redirectQs)));
+    exit;
+}
+$validSections = ['umum', 'syahriyah_makan', 'tarif', 'akun', 'alokasi', 'alokasi_awal'];
 if (!in_array($section, $validSections, true)) {
     $section = 'umum';
 }
@@ -26,13 +34,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = match ($action) {
         'save_periode' => keuangan_save_periode_settings($pdo, $_POST),
         'save_tarif' => keuangan_save_tarif_settings($pdo, $_POST),
+        'save_tarif_bulan' => keuangan_save_tarif_bulanan_settings($pdo, $_POST),
         'save_akun' => keuangan_save_akun($pdo, $_POST),
         'save_alokasi' => keuangan_save_alokasi($pdo, $_POST),
         default => ['ok' => false, 'message' => 'Aksi tidak dikenali.'],
     };
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
     $redirectSection = match ($action) {
-        'save_tarif' => 'tarif',
+        'save_tarif' => trim((string) ($_POST['redirect_bagian'] ?? '')) === 'syahriyah_makan'
+            ? 'syahriyah_makan'
+            : 'tarif',
+        'save_tarif_bulan' => 'syahriyah_makan',
         'save_akun' => 'akun',
         'save_alokasi' => keuangan_alokasi_section_for_jenis((string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH)),
         default => 'umum',
@@ -59,8 +71,21 @@ $editAlokasi = null;
 
 if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
+} elseif ($section === 'syahriyah_makan') {
+    ensure_keuangan_tarif_bulanan_table($pdo);
+    $periode = pondok_tahun_ajaran_aktif($pdo);
+    $taMeta = pondok_ta_form_meta($pdo);
+    $syMakanDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), true);
+    $feeMatrixSyMakan = keuangan_fee_matrix_from_settings($pdo, $syMakanDefs);
+    $taMulaiTarifBulan = (int) ($_GET['ta_mulai'] ?? $periode['mulai']);
+    $taSelesaiTarifBulan = (int) ($_GET['ta_selesai'] ?? $periode['selesai']);
+    $taNormBulan = pondok_normalisasi_tahun_ajaran_input($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
+    $taMulaiTarifBulan = (int) $taNormBulan['mulai'];
+    $taSelesaiTarifBulan = (int) $taNormBulan['selesai'];
+    $bulanSlotsTarif = pondok_bulan_slots_tahun_ajaran($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
+    $tarifBulanMap = keuangan_tarif_bulanan_map($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
 } elseif ($section === 'tarif') {
-    $biayaDefs = keuangan_biaya_definitions();
+    $biayaDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), false);
     $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefs);
 } elseif ($section === 'akun') {
     $editAkunId = (int) ($_GET['edit_akun'] ?? 0);
@@ -94,9 +119,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Pengaturan</p>
-    <h1 class="h4 mb-1">Pengaturan Keuangan &amp; Syahriyah</h1>
+    <h1 class="h4 mb-1">Pengaturan Keuangan</h1>
     <p class="text-muted mb-0">
-        Satu tempat untuk tahun ajaran, tarif, akun kas/bank, dan alokasi dana.
+        Tahun ajaran, <strong>syahriyah &amp; makan</strong>, tarif lainnya, akun kas/bank, dan alokasi dana — dalam satu halaman.
         Lainnya di menu pengaturan:
         <a href="/settings/kelas_keuangan.php">Kelas keuangan</a>,
         <a href="/keuangan/inventaris.php">Inventaris aset</a>,
@@ -110,7 +135,10 @@ require_once __DIR__ . '/../includes/header.php';
         <a class="nav-link <?= $section === 'umum' ? 'active' : '' ?>" href="?bagian=umum">Umum &amp; periode</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link <?= $section === 'tarif' ? 'active' : '' ?>" href="?bagian=tarif">Tarif biaya</a>
+        <a class="nav-link <?= $section === 'syahriyah_makan' ? 'active' : '' ?>" href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link <?= $section === 'tarif' ? 'active' : '' ?>" href="?bagian=tarif">Tarif lainnya</a>
     </li>
     <li class="nav-item">
         <a class="nav-link <?= $section === 'akun' ? 'active' : '' ?>" href="?bagian=akun">Akun kas/bank</a>
@@ -172,6 +200,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn btn-warning text-start" href="/keuangan/potongan_syahriyah.php">
                     <i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri (%)
                 </a>
+                <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan')) ?>">
+                    <i class="fa-solid fa-calendar-days me-2"></i>Tarif syahriyah &amp; makan
+                </a>
                 <a class="btn btn-outline-primary text-start" href="/pembayaran/tagihan_syahriyah.php">
                     <i class="fa-solid fa-receipt me-2"></i>Tagihan syahriyah per bulan
                 </a>
@@ -187,6 +218,10 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
+<?php if ($section === 'syahriyah_makan'): ?>
+<?php require __DIR__ . '/partials/syahriyah_makan_pengaturan.php'; ?>
+<?php endif; ?>
+
 <?php if ($section === 'tarif'): ?>
 <?php
     $byKategori = [];
@@ -196,9 +231,12 @@ require_once __DIR__ . '/../includes/header.php';
     }
 ?>
 <div class="card shadow-sm">
-    <div class="card-header fw-semibold">Tarif komponen biaya (per tier Muadalah / Wustho / Ulya)</div>
+    <div class="card-header fw-semibold">Tarif saku, awal tahun, dan komponen lain</div>
     <div class="card-body">
-        <p class="small text-muted">Tier diambil dari <strong>Kelas keuangan</strong> tiap santri. Nominal Rupiah tanpa titik — contoh: 200000.</p>
+        <p class="small text-muted">
+            Syahriyah &amp; makan di tab <a href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>.
+            Tier dari <strong>Kelas keuangan</strong> santri. Nominal tanpa titik — contoh: 200000.
+        </p>
         <form method="post">
             <input type="hidden" name="action" value="save_tarif">
             <?php foreach ($byKategori as $katNama => $defsKat): ?>
@@ -354,7 +392,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 <?php endif; ?>
 
-<?php if ($section === 'umum'): ?>
+<?php if ($section === 'umum' || $section === 'syahriyah_makan'): ?>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>" defer></script>
 <?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

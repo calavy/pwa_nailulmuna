@@ -16,11 +16,12 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
     return [
         'menuItems' => [
             '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
-            '/presensi/scan.php' => 'Scan Presensi',
+            '/presensi/scan.php' => 'Scan Satu Pintu',
             '/pembimbing/tugas/index.php' => 'Daftar Tugas Ikhtibar',
             '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
             '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas',
             '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
+            '/pembimbing/nilai_manual.php' => 'Nilai Manual',
             '/akademik/ikhtibar_rekap.php' => 'Rekap Tugas Ikhtibar',
             '/pembimbing/perizinan.php' => 'Izin Pembimbing',
             '/settings/profil.php' => 'Profil & Password',
@@ -35,6 +36,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
                 ]],
                 ['title' => 'Penilaian & Rekap', 'paths' => [
                     '/pembimbing/tugas/nilai.php',
+                    '/pembimbing/nilai_manual.php',
                     '/pembimbing/tugas/rekap.php',
                     '/akademik/ikhtibar_rekap.php',
                 ]],
@@ -69,8 +71,16 @@ return [
         '/pembimbing/index.php' => 'Data Pembimbing',
         '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
         '/pembimbing/perizinan.php' => 'Izin pembimbing',
-        '/presensi/scan.php' => 'Scan Presensi',
+        '/presensi/scan.php' => 'Scan Satu Pintu',
+        '/presensi/kegiatan_khusus.php' => 'Kegiatan Khusus (Sekali Pakai)',
         '/jadwal/index.php' => 'Jadwal',
+        '/jadwal/import.php' => 'Import Jadwal',
+        '/rekap/hub.php' => 'Pusat Rekap',
+        '/rekap/keaktivan_sdm.php' => 'Keaktivan SDM (Pembimbing & Munawib)',
+        '/rekap/keaktifan_hari.php' => 'Keaktifan Hari Ini',
+        '/rekap/munawib.php' => 'Laporan Munawib',
+        '/rekap/kegiatan_khusus.php' => 'Rekap Kegiatan Khusus',
+        '/pembimbing/munawib.php' => 'Data Munawib',
         '/akademik/hafalan.php' => 'Setoran Hafalan',
         '/akademik/bait_kitab.php' => 'Pengaturan Bait',
         '/akademik/kalender.php' => 'Kalender Akademik',
@@ -81,10 +91,14 @@ return [
         '/pembimbing/tugas/buat.php' => 'Buat Tugas Ikhtibar',
         '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas Ikhtibar',
         '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
+        '/pembimbing/nilai_manual.php' => 'Nilai Manual Pembimbing',
         '/akademik/ikhtibar_rekap.php' => 'Rekap Tugas Ikhtibar',
         '/santri/mukimin.php' => 'Data Mukimin',
         '/settings/akses_mukimin.php' => 'Akses Portal Mukimin',
         '/settings/pesantren.php' => 'Pesantren',
+        '/settings/wa_gateway.php' => 'WA Gateway',
+        '/settings/wa_otomatis.php' => 'Pusat WA Otomatis',
+        '/settings/wa_laporan_kelas_kosong.php' => 'Laporan WA Kelas Kosong',
         '/settings/peraturan.php' => 'Peraturan Poin',
         '/settings/alpa_notif.php' => 'Notifikasi Alpa Bertahap',
         '/settings/tingkatan.php' => 'Master Tingkatan',
@@ -150,6 +164,10 @@ return [
                 '/pembimbing/index.php',
                 '/pembimbing/perizinan.php',
             ]],
+            ['title' => 'Munawib', 'paths' => [
+                '/pembimbing/munawib.php',
+                '/rekap/munawib.php',
+            ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-keuangan', 'label' => 'Keuangan', 'icon' => 'fa-solid fa-wallet', 'sections' => [
             ['title' => 'Laporan', 'paths' => [
@@ -195,9 +213,18 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian', 'icon' => 'fa-solid fa-book-open', 'sections' => [
             ['title' => 'Jadwal & Presensi', 'paths' => [
                 '/jadwal/index.php',
+                '/jadwal/import.php',
                 '/presensi/scan.php',
+                '/presensi/kegiatan_khusus.php',
+            ]],
+            ['title' => 'Pusat Rekap', 'paths' => [
+                '/rekap/hub.php',
+                '/rekap/keaktivan_sdm.php',
                 '/rekap/index.php',
+                '/rekap/keaktifan_hari.php',
+                '/rekap/santri_bagus.php',
                 '/rekap/izin_telat.php',
+                '/rekap/kegiatan_khusus.php',
             ]],
             ['title' => 'Akademik', 'paths' => [
                 '/akademik/kalender.php',
@@ -206,13 +233,13 @@ return [
                 '/akademik/rapor.php',
                 '/pembimbing/tugas/index.php',
                 '/pembimbing/tugas/rekap.php',
+                '/pembimbing/nilai_manual.php',
                 '/akademik/ikhtibar_rekap.php',
             ]],
             ['title' => 'Poin & Keaktifan', 'paths' => [
                 '/poin/input.php',
                 '/poin/rekap.php',
                 '/pengasuh/nilai_keaktifan.php',
-                '/rekap/santri_bagus.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-yayasan', 'label' => 'Yayasan', 'icon' => 'fa-solid fa-building-columns', 'sections' => [
@@ -229,10 +256,11 @@ return [
             ['title' => 'Umum', 'paths' => [
                 '/settings/pesantren.php',
                 '/settings/peraturan.php',
-                '/settings/alpa_notif.php',
+            ]],
+            ['title' => 'WhatsApp Otomatis', 'paths' => [
+                '/settings/wa_otomatis.php',
             ]],
             ['title' => 'Master Data', 'paths' => [
-                '/settings/kalender.php',
                 '/settings/hijri_mappings.php',
                 '/settings/tingkatan.php',
                 '/settings/kelas_keuangan.php',
@@ -248,9 +276,8 @@ return [
         ]],
     ],
     'pengaturanNav' => [
-        ['path' => '/settings/pesantren.php', 'label' => 'Pesantren', 'icon' => 'fa-solid fa-mosque'],
+        ['path' => '/settings/wa_otomatis.php', 'label' => 'Pusat WA Otomatis', 'icon' => 'fa-solid fa-comments'],
         ['path' => '/settings/peraturan.php', 'label' => 'Peraturan Poin', 'icon' => 'fa-solid fa-scale-balanced'],
-        ['path' => '/settings/alpa_notif.php', 'label' => 'Notifikasi Alpa Bertahap', 'icon' => 'fa-solid fa-tower-broadcast'],
         ['path' => '/settings/kalender.php', 'label' => 'Pengaturan Kalender', 'icon' => 'fa-solid fa-calendar-days'],
         ['path' => '/settings/tingkatan.php', 'label' => 'Master Tingkatan', 'icon' => 'fa-solid fa-layer-group'],
         ['path' => '/settings/kelas_keuangan.php', 'label' => 'Kelas Keuangan', 'icon' => 'fa-solid fa-coins'],
@@ -260,7 +287,6 @@ return [
         ['path' => '/settings/kamar_ranjang.php', 'label' => 'Kamar & Ranjang', 'icon' => 'fa-solid fa-bed'],
         ['path' => '/settings/admin.php', 'label' => 'Kelola Akses User', 'icon' => 'fa-solid fa-user-shield'],
         ['path' => '/admin/cek_update.php', 'label' => 'Cek Update Sistem', 'icon' => 'fa-solid fa-arrows-rotate'],
-        ['path' => '/settings/push.php', 'label' => 'Push FCM', 'icon' => 'fa-solid fa-bell'],
     ],
     'permissionPathMap' => user_permission_path_map(),
 ];

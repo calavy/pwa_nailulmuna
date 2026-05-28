@@ -345,3 +345,28 @@ body.wali-portal {
         display: none !important;
     }
 }
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.wali-shell img,
+.wali-shell video {
+    max-width: 100%;
+    height: auto;
+}
+
+.wali-shell .table-responsive,
+.wali-shell .card-body:has(> table),
+.wali-shell .card-body:has(> .table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 575.98px) {
+    .wali-shell .table th,
+    .wali-shell .table td {
+        font-size: 0.82rem;
+    }
+}

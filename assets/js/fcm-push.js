@@ -50,9 +50,14 @@
         }
 
         var swScope = (appBase() === '' ? '/' : appBase() + '/');
-        var reg = await navigator.serviceWorker.register(appPath('api/push/messaging-sw.php'), {
-            scope: swScope,
-        });
+        var swUrl = appPath('api/pwa/app-sw.php');
+        var reg = await navigator.serviceWorker.getRegistration(swScope);
+        if (!reg) {
+            reg = await navigator.serviceWorker.register(swUrl, {
+                scope: swScope,
+                updateViaCache: 'none',
+            });
+        }
         var messaging = firebase.messaging();
         messaging.useServiceWorker(reg);
 

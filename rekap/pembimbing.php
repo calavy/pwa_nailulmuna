@@ -205,7 +205,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3 print-controls">
     <p class="page-intro-kicker mb-1">Modul Rekap Pembimbing</p>
     <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong>, toleransi telat <?= (int) $lateTolerance ?> menit.</p>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong>, toleransi telat <?= (int) $lateTolerance ?> menit. Pembimbing yang tidak tercatat hadir/izin/sakit pada periode ini dihitung otomatis sebagai ALPA.</p>
 </div>
 
 <div class="row g-3 mb-3 print-controls">

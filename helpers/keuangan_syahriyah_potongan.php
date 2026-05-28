@@ -197,20 +197,39 @@ function keuangan_syahriyah_potongan_for_santri(PDO $pdo, int $santriId): ?array
     return is_array($row) ? $row : null;
 }
 
-/** Tarif syahriyah dasar per tier (cache statis per request). */
-function keuangan_syahriyah_tarif_cache_by_tier(PDO $pdo): array
-{
-    static $cache = null;
-    if (is_array($cache)) {
-        return $cache;
-    }
-    $defaults = ['muadalah' => 200000, 'wustho' => 210000, 'ulya' => 215000];
-    $cache = [];
-    foreach ($defaults as $tier => $fallback) {
-        $cache[$tier] = (int) app_setting($pdo, 'keuangan_fee_syahriyah_' . $tier, (string) $fallback);
+/** Tarif syahriyah dasar per tier (cache statis per request; opsional per bulan tagihan). */
+function keuangan_syahriyah_tarif_cache_by_tier(
+    PDO $pdo,
+    int $bulanTagihan = 0,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
+): array {
+    static $cache = [];
+    $ts = max($tahunAjaranMulai, $tahunAjaranSelesai);
+    $key = ($bulanTagihan >= 1 && $tahunAjaranMulai > 0)
+        ? $tahunAjaranMulai . ':' . $ts . ':' . $bulanTagihan
+        : '_default';
+    if (isset($cache[$key])) {
+        return $cache[$key];
     }
 
-    return $cache;
+    if (!function_exists('keuangan_tarif_bulanan_resolve')) {
+        require_once __DIR__ . '/keuangan_tarif_bulanan.php';
+    }
+    $out = [];
+    foreach (['muadalah', 'wustho', 'ulya'] as $tier) {
+        $out[$tier] = keuangan_tarif_bulanan_resolve(
+            $pdo,
+            'syahriyah',
+            $tier,
+            $bulanTagihan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai
+        );
+    }
+    $cache[$key] = $out;
+
+    return $out;
 }
 
 /** Tarif dasar syahriyah dari kategori kelas (pakai cache tier). */
@@ -276,7 +295,7 @@ function keuangan_syahriyah_bulk_context(
         'potongan_preloaded' => true,
         'jeda' => $jeda,
         'jeda_preloaded' => $bulanTagihan >= 1 && $tahunAjaranMulai > 0,
-        'tarifByTier' => keuangan_syahriyah_tarif_cache_by_tier($pdo),
+        'tarifByTier' => keuangan_syahriyah_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai),
     ];
 
     return $requestCache[$cacheKey];

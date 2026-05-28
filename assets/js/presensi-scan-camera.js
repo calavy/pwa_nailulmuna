@@ -87,6 +87,7 @@
         this.btnSettings = options.btnSettings || null;
         this.btnRetry = options.btnRetry || null;
         this.btnTorch = options.btnTorch || null;
+        this.btnSuperFocus = options.btnSuperFocus || null;
 
         this.qr = null;
         this.scanning = false;
@@ -97,6 +98,8 @@
         this.lastTime = 0;
         this.hitCount = 0;
         this.torchOn = false;
+        this.superFocusOn = true;
+        this.focusInterval = null;
     }
 
     PresensiScanCamera.prototype.setStatus = function (state, text) {
@@ -173,6 +176,49 @@
         }
         this.scanning = false;
         this.setTorch(false);
+        if (this.focusInterval) {
+            global.clearInterval(this.focusInterval);
+            this.focusInterval = null;
+        }
+    };
+
+    PresensiScanCamera.prototype.applyFocusConstraints = async function () {
+        try {
+            var video = document.querySelector('#' + this.readerId + ' video');
+            if (!video || !video.srcObject) { return; }
+            var track = video.srcObject.getVideoTracks()[0];
+            if (!track || !track.getCapabilities || !this.superFocusOn) { return; }
+            var caps = track.getCapabilities() || {};
+            var adv = {};
+            if (Array.isArray(caps.focusMode) && caps.focusMode.indexOf('continuous') !== -1) {
+                adv.focusMode = 'continuous';
+            }
+            if (typeof caps.sharpness === 'object' && typeof caps.sharpness.max === 'number') {
+                adv.sharpness = caps.sharpness.max;
+            }
+            if (typeof caps.contrast === 'object' && typeof caps.contrast.max === 'number') {
+                adv.contrast = caps.contrast.max;
+            }
+            if (typeof caps.zoom === 'object' && typeof caps.zoom.max === 'number') {
+                var targetZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min || 1, 1.15));
+                adv.zoom = targetZoom;
+            }
+            if (Object.keys(adv).length > 0) {
+                await track.applyConstraints({ advanced: [adv] });
+            }
+        } catch (e) {
+            /* abaikan */
+        }
+    };
+
+    PresensiScanCamera.prototype.toggleSuperFocus = function () {
+        this.superFocusOn = !this.superFocusOn;
+        if (this.btnSuperFocus) {
+            this.btnSuperFocus.classList.toggle('is-active', this.superFocusOn);
+        }
+        if (this.superFocusOn) {
+            this.applyFocusConstraints();
+        }
     };
 
     PresensiScanCamera.prototype.start = async function (cameraId) {
@@ -197,6 +243,16 @@
             self.scanning = true;
             self.hideError();
             self.setStatus('', 'Memindai QR…');
+            if (self.btnSuperFocus) {
+                self.btnSuperFocus.classList.toggle('is-active', self.superFocusOn);
+            }
+            await self.applyFocusConstraints();
+            if (self.focusInterval) {
+                global.clearInterval(self.focusInterval);
+            }
+            self.focusInterval = global.setInterval(function () {
+                self.applyFocusConstraints();
+            }, 4500);
             if (typeof deviceId === 'string' && deviceId.indexOf('facingMode') === -1) {
                 try {
                     global.localStorage.setItem(STORAGE_KEY, deviceId);
@@ -339,6 +395,12 @@
             self.btnTorch.addEventListener('click', function () {
                 self.toggleTorch();
             });
+        }
+        if (self.btnSuperFocus) {
+            self.btnSuperFocus.addEventListener('click', function () {
+                self.toggleSuperFocus();
+            });
+            self.btnSuperFocus.classList.add('is-active');
         }
 
         try {

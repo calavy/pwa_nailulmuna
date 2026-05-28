@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * @deprecated Gunakan api/pwa/app-sw.php (offline + FCM). File ini dipertahankan agar
+ * instalasi lama tidak error; pendaftaran baru memakai app-sw.php via pwa-register.js / fcm-push.js.
+ */
+
 header('Content-Type: application/javascript; charset=utf-8');
 header('Service-Worker-Allowed: /');
 header('Cache-Control: no-cache');

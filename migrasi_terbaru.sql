@@ -359,3 +359,87 @@ CREATE TABLE IF NOT EXISTS yayasan_notulen (
     CONSTRAINT fk_yayasan_notulen_rapat FOREIGN KEY (rapat_id) REFERENCES yayasan_rapat(id) ON DELETE CASCADE
 );
 
+-- -----------------------------------------------------------------------------
+-- 2026-05-27 | Pembayaran — token sekali pakai untuk mode edit/koreksi
+-- Tabel juga dibuat otomatis saat pertama kali buka halaman Token Edit / Riwayat.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pembayaran_edit_token (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    token_plain VARCHAR(40) NOT NULL UNIQUE,
+    label VARCHAR(160) NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NULL,
+    redeemed_by INT NULL,
+    redeemed_at DATETIME NULL,
+    session_id VARCHAR(128) NULL,
+    consumed_at DATETIME NULL,
+    status ENUM('aktif','dipakai','habis','batal') NOT NULL DEFAULT 'aktif',
+    catatan VARCHAR(255) NULL,
+    KEY idx_pet_status (status),
+    KEY idx_pet_session (session_id),
+    KEY idx_pet_redeemed_by (redeemed_by)
+);
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-27 | Munawib + presensi munawib + setting WA izin pembimbing
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS munawib (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nama VARCHAR(120) NOT NULL,
+    nip VARCHAR(40) NULL,
+    qr VARCHAR(120) NULL,
+    no_wa VARCHAR(30) NULL,
+    is_aktif TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_munawib_nip (nip),
+    UNIQUE KEY uk_munawib_qr (qr)
+);
+
+CREATE TABLE IF NOT EXISTS munawib_penugasan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pembimbing_id INT NOT NULL,
+    munawib_id INT NOT NULL,
+    jadwal_kegiatan_id INT NULL,
+    kegiatan_id INT NULL,
+    tanggal_mulai DATE NOT NULL,
+    tanggal_selesai DATE NOT NULL,
+    alasan TEXT NULL,
+    status ENUM('AKTIF','SELESAI','BATAL') NOT NULL DEFAULT 'AKTIF',
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_mp_pembimbing (pembimbing_id),
+    KEY idx_mp_munawib (munawib_id)
+);
+
+CREATE TABLE IF NOT EXISTS presensi_munawib (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    munawib_id INT NOT NULL,
+    penugasan_id INT NULL,
+    kegiatan_id INT NULL,
+    tanggal DATE NOT NULL,
+    jam TIME NOT NULL,
+    created_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_pm_munawib_tgl (munawib_id, tanggal)
+);
+
+INSERT IGNORE INTO app_settings (setting_key, setting_value) VALUES ('wa_pembimbing_izin', '');
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-27 | Tarif syahriyah & makan per bulan tagihan (nominal bisa beda tiap bulan)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS keuangan_tarif_bulanan (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tahun_ajaran_mulai SMALLINT UNSIGNED NOT NULL,
+    tahun_ajaran_selesai SMALLINT UNSIGNED NOT NULL,
+    bulan_tagihan TINYINT UNSIGNED NOT NULL,
+    pos_slug VARCHAR(32) NOT NULL,
+    tier ENUM('muadalah', 'wustho', 'ulya') NOT NULL,
+    nominal INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tarif_bulan (tahun_ajaran_mulai, tahun_ajaran_selesai, bulan_tagihan, pos_slug, tier),
+    KEY idx_ta_bulan (tahun_ajaran_mulai, tahun_ajaran_selesai, bulan_tagihan)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

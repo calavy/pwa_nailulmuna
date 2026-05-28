@@ -93,7 +93,7 @@ function keuangan_rekap_pos_with_expected(
         if (!function_exists('tagihan_wajib_tarif_cache_by_tier')) {
             require_once __DIR__ . '/tagihan_bulanan.php';
         }
-        $tarifWajib = tagihan_wajib_tarif_cache_by_tier($pdo);
+        $tarifWajib = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
     }
 
     foreach ($santriRows as $sr) {
@@ -160,6 +160,25 @@ function keuangan_paid_pos_map_for_santri_month(
     if ($santriId <= 0 || !table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
         return [];
     }
+
+    $params = [
+        'sid' => $santriId,
+        'jenis' => $jenisPeriode,
+        'tm' => $tahunMulai,
+        'ts' => $tahunSelesai,
+    ];
+    if ($jenisPeriode === 'BULANAN' && $bulanTagihan >= 1 && $bulanTagihan <= 12) {
+        if (!function_exists('pondok_sql_match_bulan_tagihan')) {
+            require_once __DIR__ . '/pondok_kalender.php';
+        }
+        $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan, 'p');
+        $bulanSql = '(' . $bulanMatch['sql'] . ')';
+        $params = array_merge($params, $bulanMatch['params']);
+    } else {
+        $bulanSql = '(:bulan = 0 OR p.bulan_tagihan = :bulan)';
+        $params['bulan'] = $jenisPeriode === 'BULANAN' ? max(1, min(12, $bulanTagihan)) : 0;
+    }
+
     $stmt = $pdo->prepare('
         SELECT LOWER(TRIM(d.pos_slug)) AS pos_slug, COALESCE(SUM(d.nominal), 0) AS total
         FROM keuangan_pembayaran p
@@ -168,16 +187,10 @@ function keuangan_paid_pos_map_for_santri_month(
           AND p.jenis_periode = :jenis
           AND p.tahun_ajaran_mulai = :tm
           AND p.tahun_ajaran_selesai = :ts
-          AND (:bulan = 0 OR p.bulan_tagihan = :bulan)
+          AND ' . $bulanSql . '
         GROUP BY d.pos_slug
     ');
-    $stmt->execute([
-        'sid' => $santriId,
-        'jenis' => $jenisPeriode,
-        'tm' => $tahunMulai,
-        'ts' => $tahunSelesai,
-        'bulan' => $jenisPeriode === 'BULANAN' ? max(1, min(12, $bulanTagihan)) : 0,
-    ]);
+    $stmt->execute($params);
     $map = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $map[(string) $r['pos_slug']] = (int) ((float) ($r['total'] ?? 0));
@@ -247,6 +260,27 @@ function keuangan_tagihan_breakdown_for_santri(
             $status = (string) ($perPosWajib[$slug]['status'] ?? '—');
         } else {
             $expected = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+            if (
+                $jenisPeriode === 'BULANAN'
+                && $bulanTagihan >= 1
+                && $bulanTagihan <= 12
+                && $tahunMulai > 0
+            ) {
+                if (!function_exists('keuangan_tarif_bulanan_resolve')) {
+                    require_once __DIR__ . '/keuangan_tarif_bulanan.php';
+                }
+                $slugLower = strtolower($slug);
+                if (in_array($slugLower, keuangan_tarif_bulanan_pos_slugs(), true)) {
+                    $expected = keuangan_tarif_bulanan_resolve(
+                        $pdo,
+                        $slugLower,
+                        $tier,
+                        $bulanTagihan,
+                        $tahunMulai,
+                        $tahunSelesai
+                    );
+                }
+            }
             $expectedDefault = $expected;
             $overrideAktif = true;
             $overrideNominal = null;
@@ -433,4 +467,58 @@ function keuangan_syahriyah_harus_masuk_bulan(
     }
 
     return 0;
+}
+
+/**
+ * Ringkasan laporan syahriyah satu bulan: target, terbayar, alokasi per persen.
+ *
+ * @return array{
+ *   bulan:int,
+ *   label:string,
+ *   harus_masuk:int,
+ *   terbayar:int,
+ *   sisa:int,
+ *   capai_persen:float,
+ *   alokasi:list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int}>
+ * }
+ */
+function keuangan_laporan_syahriyah_bulan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai
+): array {
+    $empty = [
+        'bulan' => $bulanTagihan,
+        'label' => '',
+        'harus_masuk' => 0,
+        'terbayar' => 0,
+        'sisa' => 0,
+        'capai_persen' => 0.0,
+        'alokasi' => [],
+    ];
+    if ($bulanTagihan < 1 || $bulanTagihan > 12) {
+        return $empty;
+    }
+
+    $harusMasuk = keuangan_syahriyah_harus_masuk_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+    $terbayar = keuangan_syahriyah_terbayar_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+    $sisa = max(0, $harusMasuk - $terbayar);
+    $capai = $harusMasuk > 0 ? min(100.0, round($terbayar / $harusMasuk * 100, 1)) : 0.0;
+
+    return [
+        'bulan' => $bulanTagihan,
+        'label' => '',
+        'harus_masuk' => $harusMasuk,
+        'terbayar' => $terbayar,
+        'sisa' => $sisa,
+        'capai_persen' => $capai,
+        'alokasi' => keuangan_rekap_alokasi_syahriyah_bulan(
+            $pdo,
+            $bulanTagihan,
+            $tahunMulai,
+            $tahunSelesai,
+            $harusMasuk
+        ),
+    ];
 }

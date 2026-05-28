@@ -14,6 +14,29 @@ body.keuangan-module .app-main {
     font-feature-settings: "kern" 1, "liga" 1;
 }
 
+body.keuangan-module,
+body.keuangan-module .app-main,
+body.keuangan-module .card,
+body.keuangan-module .table,
+body.keuangan-module .btn,
+body.keuangan-module .form-control,
+body.keuangan-module .form-select,
+body.keuangan-module .input-group-text {
+    font-family: var(--font-sans);
+}
+
+body.keuangan-module .card {
+    border-radius: 14px;
+}
+
+body.keuangan-module .card-body {
+    color: #0f172a;
+}
+
+body.keuangan-module .text-muted {
+    color: #64748b !important;
+}
+
 /* Judul & intro */
 body.keuangan-module .page-intro h1,
 body.keuangan-module .page-intro .h4 {
@@ -53,9 +76,18 @@ body.keuangan-module .table {
 
 body.keuangan-module .table thead th {
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.03em;
     text-transform: none;
+    color: #0f172a;
+}
+
+body.keuangan-module .table tbody td {
+    color: #0f172a;
+}
+
+body.keuangan-module .table tbody tr:hover > * {
+    background: rgba(14, 165, 233, 0.06);
 }
 
 body.keuangan-module .table td.text-end,
@@ -81,7 +113,7 @@ body.keuangan-module .app-mini-stat-value {
 
 body.keuangan-module .card-header {
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 /* Tab navigasi pengaturan */
@@ -145,6 +177,19 @@ body.keuangan-module [inputmode="numeric"] {
 
 [data-theme="dark"] body.keuangan-module .form-label {
     color: #cbd5e1;
+}
+
+[data-theme="dark"] body.keuangan-module .card-body,
+[data-theme="dark"] body.keuangan-module .table tbody td {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] body.keuangan-module .table thead th {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] body.keuangan-module .text-muted {
+    color: #94a3b8 !important;
 }
 
 [data-theme="dark"] body.keuangan-module .neraca-sheet,

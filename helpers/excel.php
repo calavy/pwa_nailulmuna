@@ -117,6 +117,98 @@ function normalize_santri_import_rows(array $rows): array
     return $result;
 }
 
+function normalize_import_header_key(string $raw): string
+{
+    $key = strtolower(trim($raw));
+    $key = str_replace(['.', '/', '-'], ' ', $key);
+    $key = preg_replace('/\s+/', '_', $key) ?? $key;
+    $key = preg_replace('/[^a-z0-9_]/', '', $key) ?? $key;
+    return trim($key, '_');
+}
+
+/**
+ * Normalisasi baris import agar bisa dipakai dengan key kolom konsisten.
+ * Mendukung:
+ * - hasil parse_xlsx_rows() (kolom A/B/C, header di baris pertama)
+ * - baris asosiatif biasa (mis. hasil array_combine dari CSV)
+ *
+ * @return list<array<string, string>>
+ */
+function normalize_import_rows(array $rows): array
+{
+    if ($rows === []) {
+        return [];
+    }
+    $first = $rows[0] ?? null;
+    if (!is_array($first) || $first === []) {
+        return [];
+    }
+
+    $firstKeys = array_keys($first);
+    $looksLikeSheetColumns = true;
+    foreach ($firstKeys as $k) {
+        $ks = (string) $k;
+        if (!preg_match('/^[A-Z]+$/i', $ks)) {
+            $looksLikeSheetColumns = false;
+            break;
+        }
+    }
+
+    $result = [];
+    if ($looksLikeSheetColumns) {
+        $headerMap = [];
+        foreach ($first as $col => $labelRaw) {
+            $label = normalize_import_header_key((string) $labelRaw);
+            if ($label !== '') {
+                $headerMap[$col] = $label;
+            }
+        }
+        if ($headerMap === []) {
+            return [];
+        }
+        for ($i = 1; $i < count($rows); $i++) {
+            $r = is_array($rows[$i]) ? $rows[$i] : [];
+            $entry = [];
+            $hasValue = false;
+            foreach ($headerMap as $col => $field) {
+                $value = trim((string) ($r[$col] ?? ''));
+                $entry[$field] = $value;
+                if ($value !== '') {
+                    $hasValue = true;
+                }
+            }
+            if ($hasValue) {
+                $result[] = $entry;
+            }
+        }
+        return $result;
+    }
+
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $entry = [];
+        $hasValue = false;
+        foreach ($r as $k => $v) {
+            $field = normalize_import_header_key((string) $k);
+            if ($field === '') {
+                continue;
+            }
+            $value = trim((string) $v);
+            $entry[$field] = $value;
+            if ($value !== '') {
+                $hasValue = true;
+            }
+        }
+        if ($hasValue) {
+            $result[] = $entry;
+        }
+    }
+
+    return $result;
+}
+
 /** @return array<string, list<string>> */
 function alumni_import_header_aliases(): array
 {

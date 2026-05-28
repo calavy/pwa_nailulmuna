@@ -282,6 +282,11 @@
     color: #fff;
 }
 
+#btn-super-focus.is-active {
+    background: rgba(16, 185, 129, 0.32);
+    border-color: #34d399;
+}
+
 .presensi-scan-settings {
     display: none;
     padding: 0 0.75rem 0.5rem;

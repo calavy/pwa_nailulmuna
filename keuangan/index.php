@@ -17,7 +17,7 @@ $tabRedirects = [
     'a' => '/keuangan/pengaturan.php',
     'b' => '/keuangan/pembayaran.php',
     'c' => '/pembayaran/laporan.php',
-    'd' => '/keuangan/pengaturan.php?bagian=tarif',
+    'd' => '/keuangan/pengaturan.php?bagian=syahriyah_makan',
     'e' => '/keuangan/pengeluaran.php',
     'f' => '/pembayaran/riwayat.php',
     'g' => '/keuangan/cashless_scan.php',
@@ -273,44 +273,44 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="row g-3">
+<div class="row g-3 keu-modern-nav">
     <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-primary border-opacity-25">
-            <div class="card-header bg-primary bg-opacity-10 fw-semibold text-primary">Laporan</div>
+        <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--laporan">
+            <div class="card-header fw-semibold">Laporan</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-primary text-start" href="/keuangan/neraca.php"><i class="fa-solid fa-scale-balanced me-2"></i>Neraca</a>
-                <a class="btn btn-outline-primary text-start" href="/keuangan/arus-kas.php"><i class="fa-solid fa-money-bill-transfer me-2"></i>Arus kas</a>
-                <a class="btn btn-outline-primary text-start" href="/pembayaran/rekap_pos.php"><i class="fa-solid fa-chart-pie me-2"></i>Rekap per POS</a>
-                <a class="btn btn-outline-primary text-start" href="/pembayaran/laporan.php"><i class="fa-solid fa-chart-column me-2"></i>Laporan syahriyah</a>
+                <a class="keu-modern-link" href="/keuangan/neraca.php"><i class="fa-solid fa-scale-balanced"></i><span>Neraca</span></a>
+                <a class="keu-modern-link" href="/keuangan/arus-kas.php"><i class="fa-solid fa-money-bill-transfer"></i><span>Arus kas</span></a>
+                <a class="keu-modern-link" href="/pembayaran/rekap_pos.php"><i class="fa-solid fa-chart-pie"></i><span>Rekap per POS</span></a>
+                <a class="keu-modern-link" href="/pembayaran/laporan.php"><i class="fa-solid fa-chart-column"></i><span>Laporan syahriyah</span></a>
             </div>
         </div>
     </div>
     <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-success border-opacity-25">
-            <div class="card-header bg-success bg-opacity-10 fw-semibold text-success">Transaksi</div>
+        <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--transaksi">
+            <div class="card-header fw-semibold">Transaksi</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-success text-start" href="/keuangan/pembayaran.php"><i class="fa-solid fa-user-graduate me-2"></i>Input pembayaran santri</a>
-                <a class="btn btn-outline-success text-start" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt me-2"></i>Tagihan bulanan</a>
-                <a class="btn btn-outline-success text-start" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left me-2"></i>Riwayat pembayaran</a>
-                <a class="btn btn-outline-success text-start" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar me-2"></i>Pemasukan lain</a>
-                <a class="btn btn-outline-success text-start" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle me-2"></i>Input pengeluaran</a>
-                <a class="btn btn-success text-start" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right me-2"></i>Dana talangan antar-POS</a>
-                <a class="btn btn-outline-success text-start" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode me-2"></i>Top up cashless</a>
-                <a class="btn btn-outline-success text-start" href="/rekap/pembimbing.php"><i class="fa-solid fa-chalkboard-user me-2"></i>Gaji pembimbing</a>
+                <a class="keu-modern-link" href="/keuangan/pembayaran.php"><i class="fa-solid fa-user-graduate"></i><span>Input pembayaran santri</span></a>
+                <a class="keu-modern-link" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt"></i><span>Tagihan bulanan</span></a>
+                <a class="keu-modern-link" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat pembayaran</span></a>
+                <a class="keu-modern-link" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar"></i><span>Pemasukan lain</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>
+                <a class="keu-modern-link" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right"></i><span>Dana talangan antar-POS</span></a>
+                <a class="keu-modern-link" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode"></i><span>Top up cashless</span></a>
+                <a class="keu-modern-link" href="/rekap/pembimbing.php"><i class="fa-solid fa-chalkboard-user"></i><span>Gaji pembimbing</span></a>
             </div>
         </div>
     </div>
     <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-secondary border-opacity-25">
-            <div class="card-header bg-secondary bg-opacity-10 fw-semibold text-secondary">Pengaturan</div>
+        <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--pengaturan">
+            <div class="card-header fw-semibold">Pengaturan</div>
             <div class="card-body d-grid gap-2">
-                <a class="btn btn-secondary text-start" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders me-2"></i>Pengaturan keuangan &amp; tarif</a>
-                <a class="btn btn-outline-secondary text-start" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie me-2"></i>Alokasi syahriyah</a>
-                <a class="btn btn-outline-secondary text-start" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie me-2"></i>Alokasi awal tahun</a>
-                <a class="btn btn-outline-secondary text-start" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri</a>
-                <a class="btn btn-outline-secondary text-start" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan</a>
-                <a class="btn btn-outline-secondary text-start" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse me-2"></i>Inventaris aset</a>
-                <a class="btn btn-outline-secondary text-start" href="/keuangan/cashless_pin.php"><i class="fa-solid fa-key me-2"></i>Cashless &amp; uang saku</a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi syahriyah</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie"></i><span>Alokasi awal tahun</span></a>
+                <a class="keu-modern-link" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent"></i><span>Potongan syahriyah per santri</span></a>
+                <a class="keu-modern-link" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group"></i><span>Kelas keuangan</span></a>
+                <a class="keu-modern-link" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse"></i><span>Inventaris aset</span></a>
+                <a class="keu-modern-link" href="/keuangan/cashless_pin.php"><i class="fa-solid fa-key"></i><span>Cashless &amp; uang saku</span></a>
             </div>
         </div>
     </div>
@@ -330,6 +330,42 @@ require_once __DIR__ . '/../includes/header.php';
 .keu-dash-snapshot .dash-kpi--tertagih .dash-kpi-ico { color: #059669; background: rgba(5,150,105,.12); }
 .keu-dash-tindakan a:hover { background: rgba(15,118,110,.06); }
 .keu-dash-wa-dl dt { font-weight: 500; }
+.keu-modern-section { border-radius: 14px; overflow: hidden; }
+.keu-modern-section .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.keu-modern-section--laporan .card-header { color: #1d4ed8; }
+.keu-modern-section--transaksi .card-header { color: #047857; }
+.keu-modern-section--pengaturan .card-header { color: #475569; }
+.keu-modern-link {
+    display: flex; align-items: center; gap: .55rem;
+    text-decoration: none; color: #0f172a;
+    border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: .58rem .65rem; background: #fff;
+    transition: all .16s ease;
+}
+.keu-modern-link i { width: 1rem; text-align: center; color: #0f766e; }
+.keu-modern-link:hover { background: #f0fdfa; border-color: #99f6e4; transform: translateY(-1px); }
+@media (max-width: 768px) {
+    .keu-modern-nav .col-lg-4 + .col-lg-4 { margin-top: .15rem; }
+    .keu-modern-section { border-radius: 12px; }
+    .keu-modern-section .card-header {
+        font-size: .86rem;
+        padding: .55rem .75rem;
+    }
+    .keu-modern-section .card-body {
+        padding: .6rem .55rem;
+    }
+    .keu-modern-link {
+        padding: .5rem .55rem;
+        border-radius: 9px;
+        gap: .45rem;
+        font-size: .83rem;
+        line-height: 1.25;
+    }
+    .keu-modern-link i {
+        width: .95rem;
+        font-size: .88rem;
+    }
+}
 </style>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/login_pembimbing.php';
 require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
 require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
+require_once __DIR__ . '/../helpers/excel.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -33,7 +34,98 @@ if (table_exists($pdo, 'users')) {
     } catch (PDOException $e) { /* abaikan MySQL lama */ }
 }
 
+if (($_GET['template'] ?? '') === 'xlsx') {
+    send_xlsx_download('template_sdm_pembimbing.xlsx', [
+        ['nip', 'nama_pembimbing', 'no_wa', 'qr', 'password_awal'],
+        ['PB001', 'Ahmad Fauzi', '081234567890', 'PB001', 'abc123'],
+    ], 'Template Pembimbing');
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'import_pembimbing') {
+        if (!isset($_FILES['file_import_sdm']) || (int) ($_FILES['file_import_sdm']['error'] ?? 1) !== UPLOAD_ERR_OK) {
+            set_flash('error', 'File import SDM tidak valid.');
+            header('Location: ' . app_href('/pembimbing/index.php'));
+            exit;
+        }
+        $name = strtolower((string) $_FILES['file_import_sdm']['name']);
+        $tmp = (string) $_FILES['file_import_sdm']['tmp_name'];
+        $rowsImport = [];
+        try {
+            if (str_ends_with($name, '.xlsx')) {
+                $rowsImport = normalize_import_rows(parse_xlsx_rows($tmp));
+            } elseif (str_ends_with($name, '.csv')) {
+                if (($h = fopen($tmp, 'r')) !== false) {
+                    $header = fgetcsv($h);
+                    while (($data = fgetcsv($h)) !== false) {
+                        if (!$header) { continue; }
+                        $item = array_combine($header, $data);
+                        if (is_array($item)) { $rowsImport[] = $item; }
+                    }
+                    fclose($h);
+                }
+                $rowsImport = normalize_import_rows($rowsImport);
+            } else {
+                throw new RuntimeException('Format file harus .xlsx atau .csv');
+            }
+        } catch (Throwable $e) {
+            set_flash('error', 'Import gagal: ' . $e->getMessage());
+            header('Location: ' . app_href('/pembimbing/index.php'));
+            exit;
+        }
+
+        $ok = 0;
+        $skip = 0;
+        foreach ($rowsImport as $raw) {
+            $nip = trim((string) ($raw['nip'] ?? ''));
+            $nama = trim((string) ($raw['nama_pembimbing'] ?? ''));
+            $wa = trim((string) ($raw['no_wa'] ?? ''));
+            $qr = trim((string) ($raw['qr'] ?? ''));
+            $pwd = trim((string) ($raw['password_awal'] ?? ''));
+            if ($nip === '' || $nama === '') {
+                $skip++;
+                continue;
+            }
+            if ($qr === '') {
+                $qr = $nip;
+            }
+            try {
+                $stC = $pdo->prepare('SELECT id FROM pembimbing WHERE nip = :nip LIMIT 1');
+                $stC->execute(['nip' => $nip]);
+                $existingId = (int) ($stC->fetchColumn() ?: 0);
+                if ($existingId > 0) {
+                    $stU = $pdo->prepare('UPDATE pembimbing SET nama_pembimbing = :nama, no_wa = :wa, qr = :qr WHERE id = :id');
+                    $stU->execute(['nama' => $nama, 'wa' => $wa !== '' ? $wa : null, 'qr' => $qr, 'id' => $existingId]);
+                } else {
+                    $stI = $pdo->prepare('INSERT INTO pembimbing (qr, nip, nama_pembimbing, no_wa) VALUES (:qr,:nip,:nama,:wa)');
+                    $stI->execute(['qr' => $qr, 'nip' => $nip, 'nama' => $nama, 'wa' => $wa !== '' ? $wa : null]);
+                }
+                if (table_exists($pdo, 'users')) {
+                    $stUser = $pdo->prepare('SELECT id FROM users WHERE TRIM(username)=:u LIMIT 1');
+                    $stUser->execute(['u' => $nip]);
+                    if (!$stUser->fetch()) {
+                        $realPwd = $pwd !== '' ? $pwd : login_pembimbing_buat_password_acak();
+                        $insU = $pdo->prepare("INSERT INTO users (nama, username, password, role) VALUES (:nama,:u,:p,'pembimbing')");
+                        $insU->execute(['nama' => $nama, 'u' => $nip, 'p' => password_hash($realPwd, PASSWORD_DEFAULT)]);
+                        $newUid = (int) $pdo->lastInsertId();
+                        if ($newUid > 0) {
+                            login_pembimbing_set_password_by_admin($pdo, $newUid, $realPwd);
+                            login_pembimbing_ensure_acl($pdo, $newUid);
+                        }
+                    }
+                }
+                $ok++;
+            } catch (Throwable $e) {
+                $skip++;
+            }
+        }
+        set_flash('success', "Import SDM pembimbing selesai: {$ok} diproses, {$skip} dilewati.");
+        header('Location: ' . app_href('/pembimbing/index.php'));
+        exit;
+    }
+
     $data = [
         'qr' => trim((string) ($_POST['qr'] ?? '')),
         'nip' => trim((string) ($_POST['nip'] ?? '')),
@@ -48,6 +140,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('error', 'NIP dan nama pengurus wajib diisi.');
         header('Location: ' . app_href('/pembimbing/index.php'));
         exit;
+    }
+    if ($data['qr'] === '') {
+        $data['qr'] = $data['nip'] !== '' ? $data['nip'] : ('PB-' . date('ymdHis'));
     }
 
     try {
@@ -143,6 +238,20 @@ require_once __DIR__ . '/../includes/header.php';
     <button class="btn btn-sm btn-primary flex-shrink-0" type="button" data-bs-toggle="collapse" data-bs-target="#pengurusFormCard" aria-expanded="false" aria-controls="pengurusFormCard">
         <i class="fa-solid fa-plus me-1"></i> Formulir
     </button>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center gap-2">
+        <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php?template=xlsx')) ?>" class="btn btn-outline-success btn-sm">
+            <i class="fa-solid fa-file-arrow-down me-1"></i> Template Excel Pembimbing
+        </a>
+        <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap align-items-center gap-2">
+            <input type="hidden" name="action" value="import_pembimbing">
+            <input type="file" name="file_import_sdm" class="form-control form-control-sm" accept=".xlsx,.csv" style="max-width:260px" required>
+            <button class="btn btn-success btn-sm" type="submit"><i class="fa-solid fa-file-import me-1"></i> Import SDM</button>
+        </form>
+        <span class="small text-muted">Kolom: nip, nama_pembimbing, no_wa, qr, password_awal</span>
+    </div>
 </div>
 
 <?php
@@ -271,17 +380,26 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
                 <h2 class="h5 mb-0">Daftar pengurus</h2>
                 <p class="small text-muted mb-0"><?= $totalPembimbing ?> akun terdaftar · cari cepat di kanan.</p>
             </div>
-            <div class="position-relative w-100 w-sm-auto" style="max-width:300px">
-                <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-2 text-muted small" aria-hidden="true"></i>
-                <input type="search" id="pengurus-search" class="form-control form-control-sm ps-4" placeholder="Cari NIP, nama, atau kelas…">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <button type="button" class="btn btn-outline-success btn-sm" id="btn-cetak-kartu-batch" disabled>
+                    <i class="fa-solid fa-id-card me-1"></i> Cetak Kartu Terpilih
+                </button>
+                <div class="position-relative w-100 w-sm-auto" style="max-width:300px">
+                    <i class="fa-solid fa-magnifying-glass position-absolute top-50 start-0 translate-middle-y ms-2 text-muted small" aria-hidden="true"></i>
+                    <input type="search" id="pengurus-search" class="form-control form-control-sm ps-4" placeholder="Cari NIP, nama, atau kelas…">
+                </div>
             </div>
         </div>
     </div>
     <div class="card-body pt-2">
+        <form id="form-kartu-batch" method="get" action="<?= htmlspecialchars(app_href('/pembimbing/kartu_batch.php')) ?>">
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0" id="pengurus-table">
                 <thead class="table-light">
                     <tr class="text-uppercase small text-muted">
+                        <th class="text-center" style="width:38px">
+                            <input type="checkbox" id="chk-all-pembimbing" title="Pilih semua">
+                        </th>
                         <th class="text-nowrap">QR</th>
                         <th class="text-nowrap">NIP</th>
                         <th>Nama</th>
@@ -304,6 +422,9 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
                     $qrVal = trim((string) ($row['qr'] ?? ''));
                 ?>
                     <tr>
+                        <td class="text-center">
+                            <input type="checkbox" class="chk-pembimbing-batch" name="ids[]" value="<?= $pid ?>">
+                        </td>
                         <td class="font-monospace small text-muted">
                             <?= $qrVal !== '' ? htmlspecialchars($qrVal) : '<span class="text-muted">—</span>' ?>
                         </td>
@@ -368,6 +489,9 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
                         </td>
                         <td class="text-end text-nowrap">
                             <div class="btn-group btn-group-sm" role="group" aria-label="Aksi pengurus">
+                                <a href="<?= htmlspecialchars(app_href('/pembimbing/kartu.php?id=' . $pid)) ?>" class="btn btn-outline-success" title="Cetak kartu pembimbing (QR)">
+                                    <i class="fa-solid fa-id-card"></i><span class="d-none d-md-inline ms-1">Kartu</span>
+                                </a>
                                 <a href="<?= htmlspecialchars(app_href('/pembimbing/edit.php?id=' . $pid)) ?>" class="btn btn-outline-primary" title="Edit pengurus & akun login">
                                     <i class="fa-solid fa-pen-to-square"></i><span class="d-none d-md-inline ms-1">Edit</span>
                                 </a>
@@ -388,7 +512,7 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($rows === []): ?>
-                    <tr><td colspan="8" class="text-center py-5">
+                    <tr><td colspan="9" class="text-center py-5">
                         <i class="fa-regular fa-folder-open fa-2x text-muted mb-2 d-block"></i>
                         <div class="text-muted">Belum ada pengurus terdaftar.</div>
                         <button type="button" class="btn btn-sm btn-primary mt-2" data-bs-toggle="collapse" data-bs-target="#pengurusFormCard">
@@ -399,6 +523,7 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
                 </tbody>
             </table>
         </div>
+        </form>
     </div>
 </div>
 
@@ -494,6 +619,38 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
             });
         });
     }
+
+    var formBatch = document.getElementById('form-kartu-batch');
+    var btnBatch = document.getElementById('btn-cetak-kartu-batch');
+    var chkAll = document.getElementById('chk-all-pembimbing');
+    var chkRows = Array.prototype.slice.call(document.querySelectorAll('.chk-pembimbing-batch'));
+    function syncBatchButton() {
+        var selected = chkRows.filter(function (el) { return el.checked; }).length;
+        if (btnBatch) {
+            btnBatch.disabled = selected === 0;
+            btnBatch.innerHTML = '<i class="fa-solid fa-id-card me-1"></i> Cetak Kartu Terpilih' + (selected > 0 ? ' (' + selected + ')' : '');
+        }
+        if (chkAll) {
+            chkAll.checked = selected > 0 && selected === chkRows.length;
+        }
+    }
+    if (chkAll) {
+        chkAll.addEventListener('change', function () {
+            chkRows.forEach(function (el) { el.checked = chkAll.checked; });
+            syncBatchButton();
+        });
+    }
+    chkRows.forEach(function (el) {
+        el.addEventListener('change', syncBatchButton);
+    });
+    if (btnBatch && formBatch) {
+        btnBatch.addEventListener('click', function () {
+            if (!btnBatch.disabled) {
+                formBatch.submit();
+            }
+        });
+    }
+    syncBatchButton();
 })();
 </script>
 

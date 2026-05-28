@@ -60,7 +60,7 @@ function bendahara_nav_cards(): array
             'color' => 'warning',
         ],
         [
-            'href' => '/keuangan/pengaturan.php?bagian=tarif',
+            'href' => '/keuangan/pengaturan.php?bagian=syahriyah_makan',
             'title' => 'Pengaturan tarif',
             'desc' => 'Nominal syahriyah, makan, saku, dan komponen lain.',
             'icon' => 'fa-sliders',

@@ -12,12 +12,14 @@ $scope = app_public_url() . app_url('');
 $iconUrl = app_public_url() . app_url('assets/img/stempel-pondok.png');
 
 echo json_encode([
+    'id' => $scope,
     'name' => 'Manajemen Pondok',
     'short_name' => 'Pondok',
     'description' => 'Aplikasi manajemen santri, keuangan, dan presensi pondok.',
     'start_url' => $startUrl,
     'scope' => $scope,
     'display' => 'standalone',
+    'categories' => ['education', 'productivity'],
     'orientation' => 'portrait-primary',
     'background_color' => '#f1f5f9',
     'theme_color' => '#0f766e',

@@ -47,6 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'wa_gateway_token',
         'wa_sender',
         'wa_pengurus',
+        'wa_petugas_pendidikan',
+        'wa_notif_mudabir_enabled',
+        'mudabir_batas_menit',
+        'wa_kelas_kosong_enabled',
+        'wa_kelas_kosong_batas_menit',
+        'wa_kelas_kosong_target_1',
+        'wa_kelas_kosong_target_3',
         'jam_kirim_wa_auto',
         'wa_tagihan_auto_enabled',
         'keterangan_pengurus_bidang_keuangan',
@@ -59,9 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 
     foreach ($fields as $field) {
+        if (!array_key_exists($field, $_POST)) {
+            continue;
+        }
         save_setting($pdo, $field, trim((string) ($_POST[$field] ?? '')));
     }
-    save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($_POST['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
+    if (array_key_exists('wa_tagihan_auto_enabled', $_POST)) {
+        save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($_POST['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
+    }
+    if (array_key_exists('wa_notif_mudabir_enabled', $_POST)) {
+        save_setting($pdo, 'wa_notif_mudabir_enabled', (string) ((int) ($_POST['wa_notif_mudabir_enabled'] ?? 0) === 1 ? 1 : 0));
+    }
+    if (array_key_exists('wa_kelas_kosong_enabled', $_POST)) {
+        save_setting($pdo, 'wa_kelas_kosong_enabled', (string) ((int) ($_POST['wa_kelas_kosong_enabled'] ?? 0) === 1 ? 1 : 0));
+    }
 
     if (trim((string) ($_POST['presensi_password'] ?? '')) !== '') {
         save_setting($pdo, 'presensi_password', password_hash(trim((string) $_POST['presensi_password']), PASSWORD_DEFAULT));
@@ -109,6 +127,15 @@ foreach ([
     'wa_gateway_token',
     'wa_sender',
     'wa_pengurus',
+    'wa_petugas_pendidikan',
+    'wa_notif_mudabir_enabled',
+    'mudabir_batas_menit',
+    'wa_kelas_kosong_enabled',
+    'wa_kelas_kosong_batas_menit',
+    'wa_kelas_kosong_target_1',
+    'wa_kelas_kosong_target_3',
+    'wa_kelas_kosong_last_sent_at',
+    'wa_kelas_kosong_last_level',
     'jam_kirim_wa_auto',
     'wa_tagihan_auto_enabled',
     'keterangan_pengurus_bidang_keuangan',
@@ -128,3 +155,5 @@ if (trim((string) ($values['wa_pengurus'] ?? '')) !== '') {
     $pengurusWaCount = count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
 }
 $values['wa_tagihan_auto_enabled'] = ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? '1' : '0';
+$values['wa_notif_mudabir_enabled'] = ($values['wa_notif_mudabir_enabled'] ?? '') === '1' ? '1' : '0';
+$values['wa_kelas_kosong_enabled'] = ($values['wa_kelas_kosong_enabled'] ?? '') === '1' ? '1' : '0';

@@ -9,7 +9,7 @@ function push_default_categories_for_audience(string $audienceType): array
 {
     return match ($audienceType) {
         'wali' => ['syahriyah', 'izin_keluar', 'laporan_sakit'],
-        'staff' => ['izin_pengajuan', 'rapat', 'tugas_keamanan'],
+        'staff' => ['izin_pengajuan', 'rapat', 'tugas_keamanan', 'presensi_scan'],
         'kiai' => ['keuangan_harian', 'pelanggaran_berat'],
         default => [],
     };
@@ -26,6 +26,7 @@ function push_category_labels(): array
         'tugas_keamanan' => 'Tugas keamanan',
         'keuangan_harian' => 'Ringkasan keuangan harian',
         'pelanggaran_berat' => 'Pelanggaran berat / SP',
+        'presensi_scan' => 'Scan presensi (santri & pembimbing)',
     ];
 }
 

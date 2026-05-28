@@ -90,6 +90,43 @@ function push_event_tugas_keamanan(PDO $pdo, string $title, string $body): void
     push_notify_all_staff($pdo, 'tugas_keamanan', $title, $body, [], '/dashboard.php');
 }
 
+function push_event_presensi_santri_scan(
+    PDO $pdo,
+    string $namaSantri,
+    string $body,
+    string $nis = '',
+    ?int $pembimbingUserId = null
+): void {
+    $title = 'Scan santri: ' . $namaSantri;
+    if ($pembimbingUserId !== null && $pembimbingUserId > 0) {
+        push_notify($pdo, 'staff', 'presensi_scan', $title, $body, ['nis' => $nis], '/pembimbing/dashboard.php', null, $pembimbingUserId);
+    } else {
+        push_notify_all_staff($pdo, 'presensi_scan', $title, $body, ['nis' => $nis], '/rekap/keaktifan_hari.php');
+    }
+}
+
+function push_event_presensi_pembimbing_scan(PDO $pdo, string $namaPembimbing, string $body): void
+{
+    $title = 'Scan pembimbing: ' . $namaPembimbing;
+    push_notify_all_staff($pdo, 'presensi_scan', $title, $body, [], '/pembimbing/dashboard.php');
+}
+
+function push_event_pembimbing_izin_baru(
+    PDO $pdo,
+    string $namaPembimbing,
+    string $jenisIzin,
+    string $tanggalMulai,
+    string $tanggalSelesai,
+    string $alasan
+): void {
+    $title = 'Izin pembimbing: ' . $namaPembimbing;
+    $body = $jenisIzin . ' ' . $tanggalMulai . ' s/d ' . $tanggalSelesai;
+    if ($alasan !== '') {
+        $body .= ' — ' . mb_substr($alasan, 0, 120);
+    }
+    push_notify_all_staff($pdo, 'izin_pengajuan', $title, $body, [], '/pembimbing/perizinan.php');
+}
+
 function trigger_push_daily_kiai(PDO $pdo): void
 {
     if (!push_should_send_fcm($pdo)) {

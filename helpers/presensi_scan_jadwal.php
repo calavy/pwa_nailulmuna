@@ -45,25 +45,31 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
     }
 
     ensure_jadwal_kegiatan_tempat($pdo);
+    ensure_kegiatan_kategori_column($pdo);
     $tanggal = $tanggal ?? date('Y-m-d');
     $jam = $jam ?? date('H:i:s');
     $hariKe = (int) date('N', strtotime($tanggal));
 
     ensure_akademik_libur_table($pdo);
     $libur = akademik_libur_info($pdo, $tanggal, 'presensi');
-    if ($libur !== null && akademik_blokir_presensi_libur($pdo)) {
+    $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
+    if ($modeLiburAktif === 'ALL_BLOCKED') {
         return array_merge($empty, [
             'state' => 'libur',
             'libur_nama' => (string) ($libur['nama'] ?? 'Hari libur'),
         ]);
     }
+    $kategoriFilterSql = $modeLiburAktif !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
 
     $st = $pdo->prepare('
-        SELECT k.id AS kegiatan_id, k.nama_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+        SELECT k.id AS kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
         FROM jadwal_kegiatan j
         INNER JOIN kegiatan k ON k.id = j.kegiatan_id
         WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND k.is_active = 1
+          ' . $kategoriFilterSql . '
         ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC
     ');
     $st->execute(['hari_ke' => $hariKe]);

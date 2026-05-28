@@ -250,11 +250,23 @@
     border: 1px solid rgba(255, 255, 255, 0.28);
     background: var(--ap-auth-surface);
     box-shadow:
-        0 24px 60px rgba(15, 23, 42, 0.22),
+        0 12px 32px rgba(15, 23, 42, 0.14),
         0 0 0 1px rgba(255, 255, 255, 0.06) inset;
     backdrop-filter: blur(14px);
     overflow: hidden;
     width: 100%;
+}
+
+@media (max-width: 575.98px) {
+    .auth-portal-card {
+        box-shadow:
+            0 8px 20px rgba(15, 23, 42, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    }
+
+    .auth-portal-hero .logo-ring img {
+        filter: drop-shadow(0 2px 8px rgba(15, 23, 42, 0.2));
+    }
 }
 
 .auth-portal-card__head {
@@ -878,4 +890,22 @@
         padding-top: max(1rem, env(safe-area-inset-top, 0px));
         padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
     }
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.auth-portal-page img,
+.auth-portal-page video {
+    max-width: 100%;
+    height: auto;
+}
+
+.auth-portal-page .table-responsive,
+.auth-portal-page .card-body:has(> table),
+.auth-portal-page .card-body:has(> .table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }

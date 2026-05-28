@@ -289,7 +289,37 @@
                 flashViewport('presensi-scan-flash-warning');
             }
         });
+        showOverlayResult(type, message);
+    }
 
+    function showOverlayResult(type, message) {
+        var old = document.getElementById('presensi-result-overlay');
+        if (old && old.parentNode) {
+            old.parentNode.removeChild(old);
+        }
+        var wrap = document.createElement('div');
+        wrap.id = 'presensi-result-overlay';
+        wrap.className = 'presensi-scan-result is-visible';
+        var toneClass = type === 'success'
+            ? 'presensi-scan-result--success'
+            : (type === 'warning' ? 'presensi-scan-result--warning' : 'presensi-scan-result--danger');
+        var icon = type === 'success'
+            ? 'fa-circle-check'
+            : (type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-xmark');
+        wrap.innerHTML = ''
+            + '<div class="presensi-scan-result-card ' + toneClass + '">'
+            + '  <span class="presensi-scan-result-icon"><i class="fa-solid ' + icon + '"></i></span>'
+            + '  <div class="presensi-scan-result-text">' + escapeHtml(message || '') + '</div>'
+            + '</div>';
+        document.body.appendChild(wrap);
+        setTimeout(function () {
+            wrap.classList.remove('is-visible');
+            setTimeout(function () {
+                if (wrap.parentNode) {
+                    wrap.parentNode.removeChild(wrap);
+                }
+            }, 260);
+        }, type === 'success' ? 2200 : 2800);
     }
 
     document.addEventListener('touchstart', function () {

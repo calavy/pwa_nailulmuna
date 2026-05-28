@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/push_events.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
 
@@ -40,7 +42,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ins = $pdo->prepare('INSERT INTO perizinan_pembimbing (pembimbing_id, kegiatan_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan) VALUES (:id, :kegiatan_id, :jenis, :mulai, :selesai, :jam_mulai, :jam_selesai, :durasi, :alasan)');
     $ins->execute($data);
     $pdo->prepare('UPDATE pembimbing SET is_aktif = 0 WHERE id = :id')->execute(['id' => $data['id']]);
-    set_flash('success', 'Perizinan pembimbing berhasil dibuat.');
+
+    $namaPb = '';
+    $stN = $pdo->prepare('SELECT nama_pembimbing FROM pembimbing WHERE id = :id LIMIT 1');
+    $stN->execute(['id' => $data['id']]);
+    $namaPb = trim((string) ($stN->fetchColumn() ?: ''));
+
+    $waTujuan = trim((string) app_setting($pdo, 'wa_pembimbing_izin', ''));
+    if ($waTujuan === '') {
+        $waTujuan = trim((string) app_setting($pdo, 'wa_petugas_pendidikan', ''));
+    }
+    if ($waTujuan === '') {
+        $waTujuan = trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    }
+    $waMsg = "📋 Izin pembimbing\n"
+        . ($namaPb !== '' ? $namaPb : 'Pembimbing #' . $data['id']) . "\n"
+        . 'Jenis: ' . $data['jenis'] . "\n"
+        . 'Periode: ' . $data['mulai'] . ' s/d ' . $data['selesai'] . "\n"
+        . 'Alasan: ' . $data['alasan'];
+    if ($waTujuan !== '' && function_exists('send_wa_bulk')) {
+        send_wa_bulk($pdo, $waTujuan, $waMsg);
+    }
+    if ($namaPb !== '' && function_exists('push_event_pembimbing_izin_baru')) {
+        try {
+            push_event_pembimbing_izin_baru($pdo, $namaPb, $data['jenis'], $data['mulai'], $data['selesai'], $data['alasan']);
+        } catch (Throwable $e) {
+            // abaikan
+        }
+    }
+
+    set_flash('success', 'Perizinan pembimbing berhasil dibuat.' . ($waTujuan !== '' ? ' Notifikasi WA terkirim.' : ''));
     header('Location: ' . app_href('/pembimbing/perizinan.php'));
     exit;
 }

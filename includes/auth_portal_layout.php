@@ -127,7 +127,9 @@ function auth_portal_layout_begin(array $ctx): void
     $accentMid = $accent === 'indigo' ? '#6366f1' : '#0891b2';
     $cardTitle = isset($ctx['card_title']) ? htmlspecialchars((string) $ctx['card_title']) : $title;
     $cardMeta = isset($ctx['card_meta']) ? htmlspecialchars((string) $ctx['card_meta']) : '';
-    $cssHref = function_exists('app_href') ? app_href('/assets/css/auth-portal.css') : '/assets/css/auth-portal.css';
+    $cssHref = function_exists('app_asset_href')
+        ? app_asset_href('/assets/css/auth-portal.css')
+        : (function_exists('app_href') ? app_href('/assets/css/auth-portal.css') : '/assets/css/auth-portal.css');
     $manifestHref = function_exists('app_href') ? app_href('/manifest.php') : '/manifest.php';
     $iconHref = $logoUrl !== ''
         ? $logoUrl
@@ -138,6 +140,7 @@ function auth_portal_layout_begin(array $ctx): void
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="<?= htmlspecialchars($accentHex) ?>">
     <meta name="robots" content="noindex, nofollow">
@@ -299,6 +302,11 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
     </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <?php if (function_exists('app_asset_href')): ?>
+    <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
+    <?php endif; ?>
     <?php if ($enableFcm && (isset($_SESSION['santri_portal']) || isset($_SESSION['wali']))): ?>
     <?php require_once __DIR__ . '/partials/push_fcm_bootstrap.php'; ?>
     <?php endif; ?>

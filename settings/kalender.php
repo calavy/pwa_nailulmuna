@@ -129,6 +129,14 @@ render_kalender_page_hero([
                         <label class="form-label">Jam kirim tagihan (WA)</label>
                         <input type="time" name="wa_tagihan_send_time" class="form-control" value="<?= htmlspecialchars($v['wa_tagihan_send_time']) ?>">
                     </div>
+                    <div class="col-12" id="wrap-custom-masehi-dates" <?= $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'style="display:none"' : '' ?>>
+                        <label class="form-label">Tanggal Masehi custom (opsional, untuk dadakan)</label>
+                        <input type="text" name="wa_tagihan_custom_masehi_dates" class="form-control" value="<?= htmlspecialchars((string) ($v['wa_tagihan_custom_masehi_dates'] ?? '')) ?>" placeholder="2026-05-28, 2026-06-02">
+                        <div class="form-text">
+                            Jika diisi, mode Masehi akan kirim hanya di tanggal ini (format YYYY-MM-DD, pisahkan koma/spasi).
+                            Jika kosong, sistem pakai tanggal kirim bulanan di atas.
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -166,6 +174,14 @@ render_kalender_page_hero([
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" name="blok_presensi" id="bp" <?= $blokP ? 'checked' : '' ?>>
                     <label class="form-check-label" for="bp">Blokir presensi</label>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="mode-presensi-libur">Mode presensi saat libur</label>
+                    <select class="form-select" name="akademik_libur_presensi_mode" id="mode-presensi-libur">
+                        <option value="ALL_BLOCKED" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'ALL_BLOCKED' ? 'selected' : '' ?>>Semua jalur presensi libur</option>
+                        <option value="TAALIM_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'TAALIM_ONLY' ? 'selected' : '' ?>>Ta'lim/Ta'alum libur, Jama'ah aktif</option>
+                        <option value="JAMAAH_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'JAMAAH_ONLY' ? 'selected' : '' ?>>Jama'ah libur, Ta'lim/Ta'alum aktif</option>
+                    </select>
                 </div>
                 <div class="form-check mb-2">
                     <input class="form-check-input" type="checkbox" name="blok_setoran" id="bs" <?= $blokS ? 'checked' : '' ?>>
@@ -214,11 +230,13 @@ render_kalender_page_hero([
     const sel = document.getElementById('sel-kalender-mode');
     const wh = document.getElementById('wrap-ta-awal-hijri');
     const wm = document.getElementById('wrap-ta-awal-masehi');
+    const wc = document.getElementById('wrap-custom-masehi-dates');
     if (!sel || !wh || !wm) return;
     function sync() {
         const h = sel.value === 'HIJRIYAH';
         wh.style.display = h ? '' : 'none';
         wm.style.display = h ? 'none' : '';
+        if (wc) wc.style.display = h ? 'none' : '';
     }
     sel.addEventListener('change', sync);
 })();

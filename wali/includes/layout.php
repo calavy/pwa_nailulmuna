@@ -40,6 +40,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
     <meta name="color-scheme" content="light">
     <?php if ($withManifest): ?>
         <link rel="manifest" href="<?= htmlspecialchars(app_href('/wali/manifest.php')) ?>">
@@ -59,7 +60,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="<?= htmlspecialchars(app_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="container wali-shell px-3">
@@ -134,6 +135,13 @@ function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActiv
     <?php endif; ?>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+        window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;
+        window.PONDOK_PWA_SCOPE = <?= json_encode(rtrim(app_base_path(), '/') . '/wali/') ?>;
+        window.PONDOK_PWA_SW = <?= json_encode(app_href('/wali/sw.php')) ?>;
+    </script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
     <?php if ($registerServiceWorker): ?>
     <?php require_once __DIR__ . '/../../includes/partials/push_fcm_bootstrap.php'; ?>
     <?php endif; ?>

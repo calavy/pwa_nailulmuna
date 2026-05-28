@@ -146,6 +146,7 @@ if (!function_exists('render_app_sidebar_nav')) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
     <meta name="theme-color" content="#0f766e">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -162,21 +163,74 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
-    <link href="<?= htmlspecialchars(app_href('/assets/css/app.css')) ?>" rel="stylesheet">
-    <link rel="preload" href="<?= htmlspecialchars(app_href('/assets/css/app.css')) ?>" as="style">
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
+    <link rel="preload" href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" as="style">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">
         <?php endforeach; ?>
     <?php endif; ?>
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
-    <link href="<?= htmlspecialchars(app_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
     <script>
         (function () {
             const saved = localStorage.getItem('theme-mode');
             const mode = saved === 'dark' ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', mode);
+        })();
+    </script>
+    <script>
+        (function () {
+            function pad2(n) {
+                return String(n).padStart(2, '0');
+            }
+
+            function normalizeTime24(raw) {
+                const value = String(raw || '').trim();
+                if (value === '') return '';
+
+                // Already 24-hour with optional seconds.
+                const m24 = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+                if (m24) {
+                    const h = Math.max(0, Math.min(23, parseInt(m24[1], 10) || 0));
+                    const m = Math.max(0, Math.min(59, parseInt(m24[2], 10) || 0));
+                    return pad2(h) + ':' + pad2(m);
+                }
+
+                // Convert "7:05 PM" / "07:05am" -> "19:05".
+                const m12 = value.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+                if (!m12) return value;
+                let h = parseInt(m12[1], 10) || 0;
+                const m = Math.max(0, Math.min(59, parseInt(m12[2], 10) || 0));
+                const ap = m12[3].toLowerCase();
+                if (ap === 'pm' && h < 12) h += 12;
+                if (ap === 'am' && h === 12) h = 0;
+                h = Math.max(0, Math.min(23, h));
+                return pad2(h) + ':' + pad2(m);
+            }
+
+            function force24HourInputs() {
+                const inputs = document.querySelectorAll('input[type="time"]');
+                inputs.forEach(function (input) {
+                    if (!input.getAttribute('step')) {
+                        input.setAttribute('step', '60');
+                    }
+                    input.placeholder = 'HH:MM';
+                    input.addEventListener('change', function () {
+                        input.value = normalizeTime24(input.value);
+                    });
+                    input.addEventListener('blur', function () {
+                        input.value = normalizeTime24(input.value);
+                    });
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', force24HourInputs);
+            } else {
+                force24HourInputs();
+            }
         })();
     </script>
 </head>

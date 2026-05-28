@@ -16,6 +16,28 @@ function keuangan_money_input_to_int(string $raw): int
  *
  * @return list<array{slug:string,nama:string,kategori:string,default:array<string,int>}>
  */
+/** @return list<string> */
+function keuangan_biaya_slugs_syahriyah_makan(): array
+{
+    return ['syahriyah', 'makan'];
+}
+
+/**
+ * @param list<array{slug:string,nama:string,kategori:string,default:array<string,int>}> $defs
+ * @return list<array{slug:string,nama:string,kategori:string,default:array<string,int>}>
+ */
+function keuangan_biaya_filter_syahriyah_makan(array $defs, bool $onlySyMakan): array
+{
+    $slugs = keuangan_biaya_slugs_syahriyah_makan();
+
+    return array_values(array_filter(
+        $defs,
+        static fn (array $d): bool => $onlySyMakan
+            ? in_array((string) ($d['slug'] ?? ''), $slugs, true)
+            : !in_array((string) ($d['slug'] ?? ''), $slugs, true)
+    ));
+}
+
 function keuangan_biaya_definitions(): array
 {
     return [

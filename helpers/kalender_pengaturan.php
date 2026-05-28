@@ -13,8 +13,11 @@ function kalender_pengaturan_keys(): array
         'wa_tagihan_calendar',
         'wa_tagihan_day',
         'wa_tagihan_send_time',
+        'wa_tagihan_custom_masehi_dates',
         'akademik_kalender_default_view',
         'akademik_blokir_presensi_libur',
+        'akademik_libur_presensi_mode',
+        'akademik_libur_taalim_only',
         'akademik_blokir_setoran_libur',
         'akademik_blokir_penilaian_libur',
         'app_tahun_masehi_mode',
@@ -37,11 +40,13 @@ function kalender_pengaturan_load(PDO $pdo): array
         ? strtoupper($out['wa_tagihan_calendar'])
         : 'HIJRIYAH';
     $out['wa_tagihan_day'] = (string) max(1, min(30, (int) ($out['wa_tagihan_day'] ?: 5)));
+    $out['wa_tagihan_custom_masehi_dates'] = trim((string) ($out['wa_tagihan_custom_masehi_dates'] ?? ''));
     $dv = strtolower(trim($out['akademik_kalender_default_view']));
     $out['akademik_kalender_default_view'] = in_array($dv, ['bulan', 'masehi', 'atur', 'tahun'], true)
         ? ($dv === 'tahun' ? 'atur' : $dv)
         : 'bulan';
     $out['app_tahun_masehi_mode'] = ($out['app_tahun_masehi_mode'] ?? '') === 'TETAP' ? 'TETAP' : 'BERJALAN';
+    $out['akademik_libur_presensi_mode'] = akademik_libur_presensi_mode($pdo);
     $out['pondok_ta_bulan_awal_hijri'] = (string) max(1, min(12, (int) ($out['pondok_ta_bulan_awal_hijri'] ?: 1)));
     $out['pondok_ta_bulan_awal_masehi'] = (string) max(1, min(12, (int) ($out['pondok_ta_bulan_awal_masehi'] ?: 7)));
 
@@ -67,6 +72,7 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
     $dueDay = max(1, min(30, (int) ($post['wa_tagihan_day'] ?? 5)));
     save_setting($pdo, 'wa_tagihan_day', (string) $dueDay);
     save_setting($pdo, 'wa_tagihan_send_time', trim((string) ($post['wa_tagihan_send_time'] ?? '08:00')));
+    save_setting($pdo, 'wa_tagihan_custom_masehi_dates', trim((string) ($post['wa_tagihan_custom_masehi_dates'] ?? '')));
 
     $dv = strtolower(trim((string) ($post['akademik_kalender_default_view'] ?? 'bulan')));
     if (!in_array($dv, ['bulan', 'masehi', 'atur'], true)) {
@@ -75,6 +81,13 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
     save_setting($pdo, 'akademik_kalender_default_view', $dv);
 
     save_setting($pdo, 'akademik_blokir_presensi_libur', isset($post['blok_presensi']) ? '1' : '0');
+    $modePresensi = strtoupper(trim((string) ($post['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY')));
+    if (!in_array($modePresensi, ['ALL_BLOCKED', 'TAALIM_ONLY', 'JAMAAH_ONLY'], true)) {
+        $modePresensi = 'TAALIM_ONLY';
+    }
+    save_setting($pdo, 'akademik_libur_presensi_mode', $modePresensi);
+    // legacy key tetap disimpan agar kompatibel
+    save_setting($pdo, 'akademik_libur_taalim_only', $modePresensi === 'TAALIM_ONLY' ? '1' : '0');
     save_setting($pdo, 'akademik_blokir_setoran_libur', isset($post['blok_setoran']) ? '1' : '0');
     save_setting($pdo, 'akademik_blokir_penilaian_libur', isset($post['blok_penilaian']) ? '1' : '0');
 

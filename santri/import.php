@@ -6,13 +6,11 @@ require_once __DIR__ . '/../helpers/excel.php';
 
 require_roles(['admin', 'pengurus']);
 
-if (($_GET['template'] ?? '') === 'csv') {
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="template_import_santri.csv"');
-    $out = fopen('php://output', 'w');
-    fputcsv($out, ['qr', 'nis', 'nama_santri', 'tingkatan', 'no_wa_wali']);
-    fputcsv($out, ['QR-001', '2024001', 'Contoh Santri', 'SMP', '6281234567890']);
-    fclose($out);
+if (($_GET['template'] ?? '') === 'xlsx') {
+    send_xlsx_download('template_import_santri.xlsx', [
+        ['qr', 'nis', 'nama_santri', 'tingkatan', 'no_wa_wali'],
+        ['QR-001', '2024001', 'Contoh Santri', 'SMP', '6281234567890'],
+    ], 'Template Santri');
     exit;
 }
 
@@ -122,6 +120,11 @@ require_once __DIR__ . '/../includes/header.php';
         <hr>
         <h2 class="h6">Template Header Excel/CSV</h2>
         <code>qr,nis,nama_santri,tingkatan,no_wa_wali</code>
+        <div class="mt-2">
+            <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/santri/import.php?template=xlsx')) ?>">
+                <i class="fa-solid fa-file-arrow-down me-1"></i> Download template Excel
+            </a>
+        </div>
     </div>
 </div>
 

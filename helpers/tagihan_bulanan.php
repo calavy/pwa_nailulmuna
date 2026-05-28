@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/pondok_kalender.php';
 require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+require_once __DIR__ . '/keuangan_tarif_bulanan.php';
 require_once __DIR__ . '/santri_ta.php';
 require_once __DIR__ . '/santri_list_sort.php';
 
@@ -13,26 +14,33 @@ require_once __DIR__ . '/santri_list_sort.php';
  *
  * @return array<string, array<string, int>>
  */
-function tagihan_wajib_tarif_cache_by_tier(PDO $pdo): array
-{
-    static $cache = null;
-    if (is_array($cache)) {
-        return $cache;
+function tagihan_wajib_tarif_cache_by_tier(
+    PDO $pdo,
+    int $bulanTagihan = 0,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
+): array {
+    static $cache = [];
+    $ts = max($tahunAjaranMulai, $tahunAjaranSelesai);
+    $key = ($bulanTagihan >= 1 && $tahunAjaranMulai > 0)
+        ? $tahunAjaranMulai . ':' . $ts . ':' . $bulanTagihan
+        : '_default';
+    if (isset($cache[$key])) {
+        return $cache[$key];
     }
 
-    $sy = keuangan_syahriyah_tarif_cache_by_tier($pdo);
-    $makanDefaults = ['muadalah' => 220000, 'wustho' => 220000, 'ulya' => 220000];
+    $sy = keuangan_syahriyah_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $makan = [];
     $sakuDefaults = ['muadalah' => 300000, 'wustho' => 300000, 'ulya' => 300000];
     $saku = [];
     foreach (['muadalah', 'wustho', 'ulya'] as $tier) {
-        $makan[$tier] = (int) app_setting($pdo, 'keuangan_fee_makan_' . $tier, (string) ($makanDefaults[$tier] ?? 0));
+        $makan[$tier] = keuangan_tarif_bulanan_resolve($pdo, 'makan', $tier, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
         $saku[$tier] = (int) app_setting($pdo, 'keuangan_fee_saku_' . $tier, (string) ($sakuDefaults[$tier] ?? 0));
     }
 
-    $cache = ['syahriyah' => $sy, 'makan' => $makan, 'saku' => $saku];
+    $cache[$key] = ['syahriyah' => $sy, 'makan' => $makan, 'saku' => $saku];
 
-    return $cache;
+    return $cache[$key];
 }
 
 /**
@@ -212,9 +220,12 @@ function tagihan_opsional_pos_for_month_bulk(
     PDO $pdo,
     string $kelasKategori,
     array $paidSantri,
-    int $santriId = 0
+    int $santriId = 0,
+    int $bulanTagihan = 0,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
 ): array {
-    $tarif = tagihan_wajib_tarif_cache_by_tier($pdo);
+    $tarif = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tier = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
     $perPos = [];
     $overridesMap = $santriId > 0 ? keuangan_santri_opsional_map_cached($pdo) : [];
@@ -271,7 +282,7 @@ function tagihan_wajib_status_for_month_bulk(
     array $paidMap,
     array $syCtx
 ): array {
-    $tarif = tagihan_wajib_tarif_cache_by_tier($pdo);
+    $tarif = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tier = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
     $paidSantri = $paidMap[$santriId] ?? [];
 
@@ -417,12 +428,63 @@ function tagihan_bulanan_page_context(
 }
 
 /**
- * Total tagihan wajib (syahriyah) semua santri aktif — tanpa loop query per santri.
+ * Total tagihan syahriyah semua santri untuk satu bulan (tarif per bulan + potongan).
  *
  * @param list<array<string, mixed>> $santriRows
  */
-function tagihan_wajib_total_expected_all_santri(PDO $pdo, array $santriRows): int
-{
+function tagihan_wajib_expected_all_santri_for_month(
+    PDO $pdo,
+    array $santriRows,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai
+): int {
+    if ($bulanTagihan < 1 || $bulanTagihan > 12 || $santriRows === [] || $tahunAjaranMulai <= 0) {
+        return 0;
+    }
+
+    $syCtx = keuangan_syahriyah_bulk_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $total = 0;
+    foreach ($santriRows as $s) {
+        $sid = (int) ($s['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+        if ($kat === '' && !empty($s['tingkatan'])) {
+            $kat = (string) $s['tingkatan'];
+        }
+        $syPot = keuangan_syahriyah_simulasi(
+            $pdo,
+            $sid,
+            $kat,
+            $bulanTagihan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $syCtx
+        );
+        $total += max(0, (int) ($syPot['expected'] ?? 0));
+    }
+
+    return $total;
+}
+
+/**
+ * Total tagihan wajib (syahriyah) semua santri aktif — selaras daftar tagihan bulanan.
+ *
+ * @param list<array<string, mixed>> $santriRows
+ */
+function tagihan_wajib_total_expected_all_santri(
+    PDO $pdo,
+    array $santriRows,
+    int $bulanTagihan = 0,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
+): int {
+    if ($bulanTagihan >= 1 && $bulanTagihan <= 12 && $tahunAjaranMulai > 0) {
+        return tagihan_wajib_expected_all_santri_for_month($pdo, $santriRows, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    }
+
     $tarif = tagihan_wajib_tarif_cache_by_tier($pdo);
     $total = 0;
     foreach ($santriRows as $s) {
@@ -549,7 +611,15 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
         $perPos = (array) ($st['per_pos'] ?? []);
         $paidSantri = $paidMap[(int) $s['id']] ?? [];
         $opsPos = $tablesOk
-            ? tagihan_opsional_pos_for_month_bulk($pdo, $kelasKategori, $paidSantri, (int) $s['id'])
+            ? tagihan_opsional_pos_for_month_bulk(
+                $pdo,
+                $kelasKategori,
+                $paidSantri,
+                (int) $s['id'],
+                $bulanTagihan,
+                $tahunAjaranMulai,
+                $tahunAjaranSelesai
+            )
             : [];
         if (!array_key_exists($kelasKategori, $tierByKelas)) {
             $tierByKelas[$kelasKategori] = keuangan_tier_key_from_kelas($kelasKategori, $pdo);

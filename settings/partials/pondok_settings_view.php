@@ -112,10 +112,70 @@
                 <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
                 <div class="form-text">Bisa lebih dari satu nomor. Pisahkan dengan koma, titik koma, atau spasi.</div>
             </div>
+            <div class="col-md-6">
+                <label class="form-label">No WA Petugas Pendidikan (izin pembimbing / mudabir)</label>
+                <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
+                <div class="form-text">Tujuan laporan saat pembimbing izin dan saat mudabir belum scan. Kosong = pakai No WA Pengurus.</div>
+            </div>
             <div class="col-md-4">
                 <label class="form-label">Jam Kirim WA Otomatis</label>
                 <input type="time" class="form-control" name="jam_kirim_wa_auto" value="<?= htmlspecialchars($values['jam_kirim_wa_auto']) ?>">
                 <div class="form-text">Kosongkan jika kirim langsung saat trigger.</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Notif mudabir belum hadir</label>
+                <select class="form-select" name="wa_notif_mudabir_enabled">
+                    <option value="1" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Aktif</option>
+                    <option value="0" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Batas mudabir (menit)</label>
+                <input type="number" min="5" max="180" class="form-control" name="mudabir_batas_menit" value="<?= htmlspecialchars((string) (($values['mudabir_batas_menit'] ?? '') !== '' ? $values['mudabir_batas_menit'] : '30')) ?>">
+                <div class="form-text">Contoh 30 = kirim laporan jika 30 menit dari jam mulai belum ada scan mudabir.</div>
+            </div>
+            <div class="col-12 mt-1">
+                <h3 class="h6 text-primary border-bottom pb-2 mb-0">Notifikasi kelas kosong (pembimbing &amp; munawib tidak masuk)</h3>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Aktifkan notifikasi</label>
+                <select class="form-select" name="wa_kelas_kosong_enabled">
+                    <option value="1" <?= ($values['wa_kelas_kosong_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Aktif</option>
+                    <option value="0" <?= ($values['wa_kelas_kosong_enabled'] ?? '1') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Batas awal (menit)</label>
+                <input type="number" min="5" max="180" class="form-control" name="wa_kelas_kosong_batas_menit" value="<?= htmlspecialchars((string) (($values['wa_kelas_kosong_batas_menit'] ?? '') !== '' ? $values['wa_kelas_kosong_batas_menit'] : '20')) ?>">
+                <div class="form-text">Mulai hitung laporan setelah X menit dari jam mulai jadwal.</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Tujuan laporan ke-1</label>
+                <input type="text" class="form-control" name="wa_kelas_kosong_target_1" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_1'] ?? '')) ?>" placeholder="08xxxxxxxxxx">
+                <div class="form-text">Nomor khusus laporan kelas kosong (bisa beda dari WA notifikasi alpa santri).</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Tujuan laporan ke-3</label>
+                <input type="text" class="form-control" name="wa_kelas_kosong_target_3" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_3'] ?? '')) ?>" placeholder="08xxxxxxxxxx">
+                <div class="form-text">Bisa isi lebih dari satu nomor (pisahkan koma/spasi).</div>
+            </div>
+            <div class="col-12">
+                <?php
+                $kelasKosongLastAtRaw = trim((string) ($values['wa_kelas_kosong_last_sent_at'] ?? ''));
+                $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? ''));
+                $kelasKosongLastLabel = '-';
+                if ($kelasKosongLastAtRaw !== '') {
+                    $tsKelasKosong = strtotime($kelasKosongLastAtRaw);
+                    $kelasKosongLastLabel = $tsKelasKosong ? date('d/m/Y H:i', $tsKelasKosong) : $kelasKosongLastAtRaw;
+                }
+                ?>
+                <div class="alert alert-light border py-2 small mb-0">
+                    <strong>Status kirim terakhir kelas kosong:</strong>
+                    <?= htmlspecialchars($kelasKosongLastLabel) ?>
+                    <?php if ($kelasKosongLastLevel !== ''): ?>
+                        · level laporan ke-<?= htmlspecialchars($kelasKosongLastLevel) ?>
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="col-12">
                 <h3 class="h6 text-primary border-bottom pb-2 mb-0 mt-2">Tagihan otomatis ke wali (WA)</h3>
