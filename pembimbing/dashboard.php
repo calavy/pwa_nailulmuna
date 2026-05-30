@@ -122,8 +122,6 @@ $kehadiranPersen = $statPresensi['total'] > 0
     ? round($statPresensi['hadir'] / $statPresensi['total'] * 100, 1)
     : 0.0;
 
-$hour = (int) date('H');
-$salam = $hour < 11 ? 'Selamat pagi' : ($hour < 15 ? 'Selamat siang' : ($hour < 18 ? 'Selamat sore' : 'Selamat malam'));
 $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';
 $pbDashServerClockMs = (int) round(microtime(true) * 1000);
 
@@ -145,7 +143,7 @@ if ($tingkatanFilter !== '') {
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Portal Pembimbing</div>
                     <h1 class="h3 dash-hero-title mb-2 d-flex flex-wrap align-items-center gap-2">
-                        <?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!
+                        <?= htmlspecialchars($labelUser) ?>
                         <?php if ($pbSudahHadir): ?>
                             <span class="badge text-bg-success fs-6"><i class="fa-solid fa-circle-check me-1"></i>Hadir</span>
                         <?php endif; ?>
@@ -183,6 +181,66 @@ if ($tingkatanFilter !== '') {
             </div>
         </div>
     </div>
+
+    <?php if (!$bolehSemua): ?>
+    <div class="pb-hub-menu mb-4">
+        <div class="pb-hub-menu__inner">
+            <div class="pb-hub-menu__group">
+                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-clipboard-check me-1"></i> Presensi</h2>
+                <div class="pb-hub-menu__items">
+                    <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=qr')) ?>" class="pb-hub-menu__item pb-hub-menu__item--qr">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span>Masuk dengan QR</span>
+                    </a>
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="pb-hub-menu__item">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        <span>Jadwal Kegiatan</span>
+                    </a>
+                </div>
+            </div>
+            <div class="pb-hub-menu__group">
+                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-star me-1"></i> Penilaian</h2>
+                <div class="pb-hub-menu__items">
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-list-check"></i><span>Daftar Tugas</span></a>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-pen-to-square"></i><span>Buat Tugas</span></a>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-marker"></i><span>Penilaian</span></a>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-chart-column"></i><span>Rekap Nilai</span></a>
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-keyboard"></i><span>Nilai Manual</span></a>
+                </div>
+            </div>
+            <div class="pb-hub-menu__group">
+                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-sliders me-1"></i> Perizinan</h2>
+                <div class="pb-hub-menu__items">
+                    <a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="pb-hub-menu__item pb-hub-menu__item--accent">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>Atur Kegiatan Hari Ini</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!$bolehSemua && $semuaTingkatanList !== []): ?>
+    <div class="pb-mini-stats mb-4" aria-label="Ringkasan singkat">
+        <div class="pb-mini-stat">
+            <span class="pb-mini-stat__value"><?= (int) $totalSantri ?></span>
+            <span class="pb-mini-stat__label">Santri</span>
+        </div>
+        <div class="pb-mini-stat">
+            <span class="pb-mini-stat__value"><?= (int) $statPresensi['hadir'] ?></span>
+            <span class="pb-mini-stat__label">Hadir</span>
+        </div>
+        <div class="pb-mini-stat">
+            <span class="pb-mini-stat__value"><?= (int) $statIzinCount ?></span>
+            <span class="pb-mini-stat__label">Izin</span>
+        </div>
+        <div class="pb-mini-stat">
+            <span class="pb-mini-stat__value"><?= (int) $statPresensi['alpa'] ?></span>
+            <span class="pb-mini-stat__label">Alpa</span>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Filter ringkas (tingkatan + tahun) -->
     <form method="get" class="card border-0 shadow-sm mb-4 dash-panel">
@@ -280,16 +338,18 @@ if ($tingkatanFilter !== '') {
                     Akun pembimbing Anda<?php if ($pembimbingNama !== ''): ?> (<strong><?= htmlspecialchars($pembimbingNama) ?></strong>)<?php endif; ?>
                     belum diset sebagai pembimbing pada jadwal kegiatan apa pun.
                 </p>
-                <p class="small text-muted mb-0">
-                    Hubungi pengurus untuk menetapkan kelas / kajian Anda di <em>Jadwal Kegiatan</em>.
-                    Data santri, izin, dan keaktifan akan otomatis muncul di sini setelah kelas tersedia.
+                <p class="small text-muted mb-3">
+                    Hubungi pengurus bila kelas belum muncul, atau tambahkan sendiri lewat tombol di bawah.
                 </p>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?panel=kegiatan')) ?>" class="btn btn-warning">
+                    <i class="fa-solid fa-plus me-1"></i> Tambah kegiatan
+                </a>
             </div>
         </div>
     <?php endif; ?>
 
     <?php if ($modeView === 'ringkas' && $semuaTingkatanList !== []): ?>
-    <div class="card border-0 shadow-sm mb-4 dash-panel pb-dash-unified">
+    <div class="card border-0 shadow-sm mb-4 dash-panel pb-dash-unified d-none d-lg-block">
         <div class="card-body p-3 p-md-4">
             <div class="row g-3 align-items-stretch pb-dash-unified-top">
                 <div class="col-md-4 col-lg-3">

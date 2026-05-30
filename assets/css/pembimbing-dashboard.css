@@ -244,3 +244,164 @@
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.2);
 }
+
+/* Menu hub tengah — Presensi, Penilaian, Perizinan */
+.pb-hub-menu {
+    display: flex;
+    justify-content: center;
+}
+
+.pb-hub-menu__inner {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    width: 100%;
+    max-width: 920px;
+}
+
+.pb-hub-menu__group {
+    background: #fff;
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.pb-hub-menu__title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #0f766e;
+    margin: 0 0 0.75rem;
+    text-align: center;
+}
+
+.pb-hub-menu__items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.pb-hub-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: #f8fafc;
+    color: #0f172a;
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 600;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.pb-hub-menu__item i {
+    width: 1.1rem;
+    text-align: center;
+    color: #0f766e;
+}
+
+.pb-hub-menu__item:hover {
+    border-color: #0f766e;
+    background: rgba(15, 118, 110, 0.06);
+    color: #0f172a;
+}
+
+.pb-hub-menu__item--accent {
+    border-color: rgba(15, 118, 110, 0.35);
+    background: rgba(15, 118, 110, 0.08);
+}
+
+.pb-hub-menu__item--qr {
+    border-color: rgba(79, 70, 229, 0.35);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.pb-hub-menu__item--qr i {
+    color: #4f46e5;
+}
+
+.pb-perizinan-choice {
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.pb-perizinan-choice:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.1) !important;
+}
+
+@media (max-width: 767.98px) {
+    .pb-hub-menu__inner {
+        grid-template-columns: 1fr;
+        max-width: 24rem;
+    }
+}
+
+[data-theme="dark"] .pb-hub-menu__group {
+    background: rgba(30, 41, 59, 0.7);
+    border-color: rgba(71, 85, 105, 0.5);
+}
+
+[data-theme="dark"] .pb-hub-menu__item {
+    background: rgba(15, 23, 42, 0.5);
+    color: #f1f5f9;
+    border-color: rgba(71, 85, 105, 0.45);
+}
+
+.pb-mini-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    max-width: 920px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.pb-mini-stat {
+    background: #fff;
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 0.65rem 0.5rem;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pb-mini-stat__value {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #0f766e;
+    font-variant-numeric: tabular-nums;
+}
+
+.pb-mini-stat__label {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #64748b;
+}
+
+@media (max-width: 575.98px) {
+    .pb-mini-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pb-mini-stat__value {
+        font-size: 1.2rem;
+    }
+}
+
+[data-theme="dark"] .pb-mini-stat {
+    background: rgba(30, 41, 59, 0.7);
+    border-color: rgba(71, 85, 105, 0.45);
+}
+
+[data-theme="dark"] .pb-mini-stat__value { color: #5eead4; }
+[data-theme="dark"] .pb-mini-stat__label { color: #94a3b8; }

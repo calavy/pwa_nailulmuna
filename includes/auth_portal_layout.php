@@ -101,10 +101,10 @@ function auth_portal_welcome_copy(PDO $pdo): array
     $waktu = auth_portal_salam_waktu();
 
     return [
-        'salam' => auth_portal_salam_islami(),
-        'salam_waktu' => $waktu . ' — semoga Allah mudahkan urusan kita.',
-        'tagline' => 'Barakallahu fiikum. Silakan pilih peran lalu masuk dengan akun yang telah diberikan.',
-        'tagline_portal' => 'Portal resmi ' . $ponpes,
+        'salam' => '',
+        'salam_waktu' => '',
+        'tagline' => 'Silakan pilih peran lalu masuk dengan akun yang telah diberikan.',
+        'tagline_portal' => 'Portal ' . $ponpes,
         'ponpes' => $ponpes,
     ];
 }
@@ -357,7 +357,7 @@ function auth_portal_layout_begin(array $ctx): void
                 <?php endif; ?>
                 <?php if ($headlineHtml !== ''): ?>
                     <h1 class="auth-portal-headline"><?= $headlineHtml ?></h1>
-                <?php elseif ($welcomeSalam === '' && $title !== ''): ?>
+                <?php elseif ($welcomeSalam === '' && $headlineHtml === '' && $title !== '' && $layout === 'stack'): ?>
                     <h1 class="auth-portal-headline"><?= $title ?></h1>
                 <?php endif; ?>
                 <?php if ($welcomeSalamWaktu !== ''): ?>

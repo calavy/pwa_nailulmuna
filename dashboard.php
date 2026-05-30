@@ -158,16 +158,6 @@ $iconForPath = static function (string $path): string {
     return 'fa-solid fa-arrow-right';
 };
 
-$hour = (int) date('H');
-if ($hour >= 5 && $hour < 11) {
-    $salam = 'Selamat pagi';
-} elseif ($hour >= 11 && $hour < 15) {
-    $salam = 'Selamat siang';
-} elseif ($hour >= 15 && $hour < 18) {
-    $salam = 'Selamat sore';
-} else {
-    $salam = 'Selamat malam';
-}
 $jamServerLabel = substr($nowTime, 0, 5);
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Bapak/Ibu';
@@ -198,7 +188,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="dash-hero-layout dash-hero-layout--slim">
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Beranda</div>
-                    <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!</h1>
+                    <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($labelUser) ?></h1>
                     <?php if ($dashHijriLabel !== '' || $dashPasaran !== ''): ?>
                         <p class="dash-hero-hijri mb-0 small text-white-50">
                             <?php if ($dashHijriLabel !== ''): ?>

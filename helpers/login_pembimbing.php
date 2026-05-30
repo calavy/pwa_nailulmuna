@@ -45,8 +45,8 @@ function login_pembimbing_default_acl_keys(): array
     return [
         'pembimbing_dashboard',
         'pembimbing_perizinan',
+        'pembimbing_jadwal',
         'akademik_ikhtibar',
-        'presensi_scan',
     ];
 }
 

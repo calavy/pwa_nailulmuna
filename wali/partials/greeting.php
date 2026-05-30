@@ -6,11 +6,17 @@ declare(strict_types=1);
 if (!isset($waliPortalGreeting) || !is_array($waliPortalGreeting)) {
     return;
 }
+$line = trim((string) ($waliPortalGreeting['line'] ?? ''));
+$subline = trim((string) ($waliPortalGreeting['subline'] ?? ''));
+if ($line === '' && $subline === '') {
+    return;
+}
 ?>
 <div class="wali-greeting mb-3">
-    <div class="wali-kicker mb-1">Assalamu&rsquo;alaikum</div>
-    <p class="wali-greeting-line mb-1"><?= htmlspecialchars((string) $waliPortalGreeting['line']) ?></p>
-    <?php if (trim((string) ($waliPortalGreeting['subline'] ?? '')) !== ''): ?>
-        <p class="small text-muted mb-0"><?= htmlspecialchars((string) $waliPortalGreeting['subline']) ?></p>
+    <?php if ($line !== ''): ?>
+        <p class="wali-greeting-line mb-1 fw-semibold"><?= htmlspecialchars($line) ?></p>
+    <?php endif; ?>
+    <?php if ($subline !== ''): ?>
+        <p class="small text-muted mb-0"><?= htmlspecialchars($subline) ?></p>
     <?php endif; ?>
 </div>

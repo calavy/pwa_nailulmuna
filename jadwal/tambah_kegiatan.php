@@ -3,8 +3,9 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
 
-require_roles(['admin', 'pengurus']);
+jadwal_require_module_access();
 
 if (!table_exists($pdo, 'kegiatan')) {
     set_flash('error', 'Tabel kegiatan belum ada.');
@@ -21,7 +22,7 @@ if ($editId > 0) {
     $editRow = $stEdit->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($editRow === null) {
         set_flash('error', 'Kegiatan yang akan diedit tidak ditemukan.');
-        header('Location: ' . app_href('/jadwal/tambah_kegiatan.php'));
+        header('Location: ' . app_href('/jadwal/index.php?panel=kegiatan'));
         exit;
     }
 }
@@ -36,14 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($namaKegiatan === '') {
         set_flash('error', 'Nama kegiatan wajib diisi.');
-        header('Location: ' . app_href('/jadwal/tambah_kegiatan.php'));
+        header('Location: ' . app_href('/jadwal/index.php?panel=kegiatan'));
         exit;
     }
     if ($action === 'edit') {
         $idEditPost = (int) ($_POST['id'] ?? 0);
         if ($idEditPost <= 0) {
             set_flash('error', 'ID kegiatan tidak valid.');
-            header('Location: ' . app_href('/jadwal/tambah_kegiatan.php'));
+            header('Location: ' . app_href('/jadwal/index.php?panel=kegiatan'));
             exit;
         }
         $pdo->prepare('UPDATE kegiatan SET nama_kegiatan = :nama, kategori_kegiatan = :kat, is_active = :aktif WHERE id = :id')
@@ -52,7 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->prepare('INSERT INTO kegiatan (nama_kegiatan, kategori_kegiatan, is_active) VALUES (:nama, :kat, 1)')
             ->execute(['nama' => $namaKegiatan, 'kat' => $kategoriKegiatan]);
-        set_flash('success', 'Kegiatan "' . $namaKegiatan . '" berhasil ditambahkan.');
+        $newKegiatanId = (int) $pdo->lastInsertId();
+        set_flash('success', 'Kegiatan "' . $namaKegiatan . '" berhasil ditambahkan. Lanjut buat jadwal.');
+        header('Location: ' . app_href('/jadwal/index.php?panel=jadwal&kegiatan_id=' . $newKegiatanId));
+        exit;
     }
     header('Location: ' . app_href('/jadwal/index.php'));
     exit;
@@ -68,6 +72,7 @@ $kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiata
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Jadwal</a></p>
     <h1 class="h4 mb-0"><?= $editRow ? 'Edit kegiatan' : 'Tambah kegiatan baru' ?></h1>
+    <p class="text-muted small mb-0 mt-1">Master kegiatan dipakai saat membuat jadwal baru. Setelah disimpan, lanjut ke formulir tambah jadwal.</p>
 </div>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
@@ -99,8 +104,11 @@ $kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiata
                     </select>
                 </div>
             <?php endif; ?>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk me-1"></i> <?= $editRow ? 'Update' : 'Simpan' ?></button>
+                <?php if (!$editRow): ?>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-outline-primary">Lanjut tambah jadwal</a>
+                <?php endif; ?>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-outline-secondary">Batal</a>
                 <?php if ($editRow): ?>
                     <a href="<?= htmlspecialchars(app_href('/jadwal/tambah_kegiatan.php')) ?>" class="btn btn-outline-primary">Mode tambah</a>

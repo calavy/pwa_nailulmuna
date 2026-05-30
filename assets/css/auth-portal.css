@@ -487,6 +487,24 @@
     padding: clamp(1rem, 3.5vw, 1.35rem);
 }
 
+.auth-portal-role-grid--compact {
+    gap: 0.45rem;
+}
+
+.auth-portal-role-grid--compact .auth-portal-role {
+    min-height: 3.75rem;
+    padding: 0.65rem 0.75rem;
+}
+
+.auth-portal-hub__section + .auth-portal-hub__section {
+    padding-top: 0.25rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="dark"] .auth-portal-hub__section + .auth-portal-hub__section {
+    border-top-color: rgba(148, 163, 184, 0.2);
+}
+
 /* Grid peran — mobile */
 .auth-portal-role-grid {
     display: grid;

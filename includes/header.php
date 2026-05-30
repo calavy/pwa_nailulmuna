@@ -98,6 +98,12 @@ $roleLabels = [
 $currentRoleLabel = $roleLabels[$currentRole] ?? user_role_label((string) $currentRole);
 $pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
+$hideAppSidebar = (bool) ($hideAppSidebar ?? false);
+if (!$hideAppSidebar && strtolower((string) $currentRole) === 'pembimbing' && !is_super_admin()) {
+    $hideAppSidebar = true;
+}
+$bodyClassExtra = $hideAppSidebar ? ' app-body-shell--no-sidebar' : '';
+
 if (!function_exists('render_app_sidebar_nav')) {
     function render_app_sidebar_nav(array $structure, array $items, string $requestPath): void
     {
@@ -126,6 +132,28 @@ if (!function_exists('render_app_sidebar_nav')) {
                 }
                 $icon = (string) ($node['icon'] ?? 'fa-solid fa-layer-group');
                 $label = (string) ($node['label'] ?? 'Grup');
+                $expandInline = !empty($node['expand']);
+
+                if ($expandInline) {
+                    echo '<div class="app-side-nav-group app-side-nav-group--expanded">';
+                    echo '<div class="app-side-nav-group__label">';
+                    echo '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>';
+                    echo '<span class="app-side-nav-text">' . htmlspecialchars($label) . '</span>';
+                    echo '</div>';
+                    foreach ($visible as $cp) {
+                        if (!array_key_exists($cp, $items)) {
+                            continue;
+                        }
+                        $active = str_contains($requestPath, $cp);
+                        echo '<a class="app-side-nav-item app-side-nav-item--child' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($cp)) . '">'
+                            . '<span class="app-side-nav-ico" aria-hidden="true"><i class="fa-solid fa-angle-right"></i></span>'
+                            . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$cp]) . '</span>'
+                            . '</a>';
+                    }
+                    echo '</div>';
+                    continue;
+                }
+
                 $href = '/menu/menu_hub.php?id=' . rawurlencode($gid);
                 $active = menu_sidebar_group_is_active($node, $requestPath, $items);
                 echo '<a class="app-side-nav-item app-side-nav-item--hub' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($href)) . '">'
@@ -135,8 +163,17 @@ if (!function_exists('render_app_sidebar_nav')) {
                     . '</a>';
             }
         }
+        $hasHubOnly = false;
+        foreach ($structure as $sn) {
+            if (($sn['type'] ?? '') === 'group' && empty($sn['expand'])) {
+                $hasHubOnly = true;
+                break;
+            }
+        }
         echo '</nav>';
-        echo '<div class="app-sidebar-nav-hint text-muted small">Grup membuka halaman berisi submenu. Item lain langsung ke halaman.</div>';
+        if ($hasHubOnly) {
+            echo '<div class="app-sidebar-nav-hint text-muted small">Grup membuka halaman berisi submenu. Item lain langsung ke halaman.</div>';
+        }
     }
 }
 
@@ -250,8 +287,9 @@ if (!function_exists('render_app_sidebar_nav')) {
         })();
     </script>
 </head>
-<body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . ' app-body-shell"' : ' class="app-body-shell"' ?>>
+<body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . ' app-body-shell' . $bodyClassExtra . '"' : ' class="app-body-shell' . $bodyClassExtra . '"' ?>>
 <div class="app-frame" id="app-frame">
+    <?php if (!$hideAppSidebar): ?>
     <aside class="app-sidebar app-sidebar--desktop d-none d-lg-flex" aria-label="Menu samping">
         <?php
         $compact = false;
@@ -262,15 +300,18 @@ if (!function_exists('render_app_sidebar_nav')) {
             <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
         </div>
     </aside>
+    <?php endif; ?>
 
     <div class="app-frame-main">
         <header class="app-topbar">
             <div class="app-topbar-inner">
                 <div class="app-topbar-left">
+                    <?php if (!$hideAppSidebar): ?>
                     <button class="btn btn-light btn-sm app-topbar-menu-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-label="Buka menu">
                         <i class="fa-solid fa-bars" aria-hidden="true"></i>
                         <span class="d-none d-sm-inline ms-1">Menu</span>
                     </button>
+                    <?php endif; ?>
                     <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none" title="<?= htmlspecialchars($appBrandTitle) ?>">
                         <?php if ($appLogoSrc !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
@@ -318,6 +359,7 @@ if (!function_exists('render_app_sidebar_nav')) {
             </div>
         </header>
 
+        <?php if (!$hideAppSidebar): ?>
         <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar">
             <div class="offcanvas-header border-0 pb-0">
                 <button type="button" class="btn-close ms-auto" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
@@ -333,6 +375,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <div class="app-shell app-shell--wide" id="app-shell">
             <main class="app-content app-main">

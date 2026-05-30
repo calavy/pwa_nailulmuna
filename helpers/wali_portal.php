@@ -40,23 +40,22 @@ function wali_portal_resolve_nama_wali(PDO $pdo, array $santriRow): string
  */
 function wali_portal_build_greeting(PDO $pdo, array $santriRow): array
 {
-    $salam = wali_portal_salam_waktu();
     $namaAnak = trim((string) ($santriRow['nama_tampil'] ?? $santriRow['nama_santri'] ?? ''));
     $namaWali = wali_portal_resolve_nama_wali($pdo, $santriRow);
 
     if ($namaWali !== '' && $namaAnak !== '') {
-        $line = $salam . ', Bapak/Ibu ' . $namaWali . ' wali dari ' . $namaAnak . '.';
+        $line = 'Bapak/Ibu ' . $namaWali . ' — wali ' . $namaAnak;
         $subline = 'Berikut ringkasan untuk putra/putri Anda.';
     } elseif ($namaAnak !== '') {
-        $line = $salam . ', Bapak/Ibu wali santri ' . $namaAnak . '.';
+        $line = 'Wali santri ' . $namaAnak;
         $subline = 'Berikut ringkasan untuk putra/putri Anda.';
     } else {
-        $line = $salam . ', Bapak/Ibu wali santri.';
+        $line = 'Portal wali santri';
         $subline = 'Berikut ringkasan keuangan dan keaktifan.';
     }
 
     return [
-        'salam' => $salam,
+        'salam' => '',
         'nama_wali' => $namaWali,
         'nama_anak' => $namaAnak,
         'line' => $line,

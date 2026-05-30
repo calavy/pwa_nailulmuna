@@ -16,38 +16,32 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
     return [
         'menuItems' => [
             '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
-            '/presensi/scan.php' => 'Scan Presensi',
             '/pembimbing/tugas/index.php' => 'Daftar Tugas Ikhtibar',
             '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
             '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas',
             '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
             '/pembimbing/nilai_manual.php' => 'Nilai Manual',
             '/akademik/ikhtibar_rekap.php' => 'Rekap Tugas Ikhtibar',
-            '/pembimbing/perizinan.php' => 'Izin Pembimbing',
+            '/pembimbing/perizinan.php' => 'Atur Kegiatan Hari Ini',
+            '/jadwal/index.php' => 'Jadwal Kegiatan',
             '/settings/profil.php' => 'Profil & Password',
         ],
         'menuStructure' => [
             ['type' => 'item', 'path' => '/pembimbing/dashboard.php', 'icon' => 'fa-solid fa-house'],
-            ['type' => 'item', 'path' => '/presensi/scan.php', 'icon' => 'fa-solid fa-qrcode'],
-            ['type' => 'group', 'id' => 'menu-grp-pb-tugas', 'label' => 'Tugas & Penilaian', 'icon' => 'fa-solid fa-list-check', 'sections' => [
-                ['title' => 'Soal & Tugas', 'paths' => [
-                    '/pembimbing/tugas/buat.php',
+            ['type' => 'group', 'id' => 'menu-grp-kajian-pb', 'label' => 'Kajian', 'expand' => true, 'icon' => 'fa-solid fa-book-open', 'sections' => [
+                ['title' => 'Jadwal', 'paths' => [
+                    '/jadwal/index.php',
+                ]],
+            ]],
+            ['type' => 'group', 'id' => 'menu-grp-pb', 'label' => 'Pembimbing', 'expand' => true, 'icon' => 'fa-solid fa-chalkboard-user', 'sections' => [
+                ['title' => '', 'paths' => [
                     '/pembimbing/tugas/index.php',
-                ]],
-                ['title' => 'Penilaian & Rekap', 'paths' => [
+                    '/pembimbing/tugas/buat.php',
                     '/pembimbing/tugas/nilai.php',
-                    '/pembimbing/nilai_manual.php',
                     '/pembimbing/tugas/rekap.php',
+                    '/pembimbing/nilai_manual.php',
                     '/akademik/ikhtibar_rekap.php',
-                ]],
-            ]],
-            ['type' => 'group', 'id' => 'menu-grp-pb-izin', 'label' => 'Perizinan', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'sections' => [
-                ['title' => 'Izin Pembimbing', 'paths' => [
                     '/pembimbing/perizinan.php',
-                ]],
-            ]],
-            ['type' => 'group', 'id' => 'menu-grp-pb-akun', 'label' => 'Akun Saya', 'icon' => 'fa-solid fa-user-gear', 'sections' => [
-                ['title' => 'Profil & Password', 'paths' => [
                     '/settings/profil.php',
                 ]],
             ]],
@@ -74,6 +68,7 @@ return [
         '/presensi/scan.php' => 'Scan Presensi',
         '/presensi/kegiatan_khusus.php' => 'Kegiatan Khusus (Sekali Pakai)',
         '/jadwal/index.php' => 'Jadwal',
+        '/jadwal/tambah_kegiatan.php' => 'Tambah Kegiatan',
         '/jadwal/import.php' => 'Import Jadwal',
         '/rekap/hub.php' => 'Pusat Rekap',
         '/rekap/keaktivan_sdm.php' => 'Keaktivan SDM (Pembimbing & Munawib)',
@@ -226,7 +221,6 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian', 'icon' => 'fa-solid fa-book-open', 'sections' => [
             ['title' => 'Jadwal & Presensi', 'paths' => [
                 '/jadwal/index.php',
-                '/jadwal/tambah.php',
                 '/jadwal/edit.php',
                 '/jadwal/import.php',
                 '/pkpps/jadwal.php',

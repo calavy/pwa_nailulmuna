@@ -5,9 +5,13 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/operasional_audit.php';
 require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
+require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
+require_once __DIR__ . '/../helpers/jadwal_form_handlers.php';
 
-require_roles(['admin', 'pengurus']);
+jadwal_require_module_access();
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
+$jadwalPembimbingScope = jadwal_is_pembimbing_scope();
+$pembimbingScopeId = $jadwalPembimbingScope ? jadwal_current_pembimbing_id($pdo) : 0;
 
 if (!table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
     set_flash('error', 'Tabel jadwal belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
@@ -48,8 +52,17 @@ function jadwal_hapus_satu(PDO $pdo, int $id, int $auditUserId): array
     return ['ok' => true, 'presensi' => $hapusPresensi];
 }
 
+if (jadwal_handle_post($pdo, $auditUserId, $jadwalPembimbingScope, $pembimbingScopeId)) {
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus_jadwal') {
     $id = (int) ($_POST['id'] ?? 0);
+    if ($jadwalPembimbingScope && !jadwal_slot_owned_by_pembimbing($pdo, $id, $pembimbingScopeId)) {
+        set_flash('error', 'Anda hanya dapat menghapus jadwal milik sendiri.');
+        header('Location: ' . app_href('/jadwal/index.php'));
+        exit;
+    }
     $result = jadwal_hapus_satu($pdo, $id, $auditUserId);
     if ($result['ok']) {
         $msg = 'Jadwal berhasil dihapus.';
@@ -88,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus
     $presensiTotal = 0;
     $gagal = 0;
     foreach ($ids as $id) {
+        if ($jadwalPembimbingScope && !jadwal_slot_owned_by_pembimbing($pdo, $id, $pembimbingScopeId)) {
+            $gagal++;
+            continue;
+        }
         $result = jadwal_hapus_satu($pdo, $id, $auditUserId);
         if ($result['ok']) {
             $terhapus++;
@@ -126,8 +143,25 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
     ? $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN)
     : [];
 array_unshift($tingkatanList, 'Semua Tingkatan');
-$kegiatanList = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
-$jadwalList = $pdo->query("SELECT j.id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC")->fetchAll();
+$kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, COALESCE(is_active, 1) AS is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$kegiatanListAktif = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll();
+$pembimbingList = (!$jadwalPembimbingScope && table_exists($pdo, 'pembimbing'))
+    ? $pdo->query('SELECT id, nama_pembimbing FROM pembimbing ORDER BY nama_pembimbing ASC')->fetchAll()
+    : [];
+$panelOpen = trim((string) ($_GET['panel'] ?? ''));
+if (!in_array($panelOpen, ['kegiatan', 'jadwal'], true)) {
+    $panelOpen = '';
+}
+$showJadwalPeta = (($_GET['show'] ?? '') === 'jadwal');
+$preselectKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
+$jadwalListSql = "SELECT j.id, j.pembimbing_id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id";
+if ($jadwalPembimbingScope && $pembimbingScopeId > 0) {
+    $stJadwal = $pdo->prepare($jadwalListSql . ' WHERE j.pembimbing_id = :pb ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC');
+    $stJadwal->execute(['pb' => $pembimbingScopeId]);
+    $jadwalList = $stJadwal->fetchAll();
+} else {
+    $jadwalList = $pdo->query($jadwalListSql . ' ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC')->fetchAll();
+}
 
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
@@ -141,7 +175,7 @@ if ($filterHari >= 1 && $filterHari <= 7) {
         return (int) ($row['hari_ke'] ?? 0) === $filterHari;
     }));
 }
-$totalKegiatan = count($kegiatanList);
+$totalKegiatan = count($kegiatanRows);
 $totalJadwal = count($jadwalList);
 $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string => (string) ($r['tingkatan'] ?? '-'), $jadwalList)));
 
@@ -183,10 +217,11 @@ $ok = get_flash('success');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Jadwal</p>
     <h1 class="h4 mb-1">Jadwal kegiatan santri</h1>
-    <p class="text-muted mb-0">Ringkasan visual per kegiatan. Penambahan lewat formulir terpisah — jadwal bentrok ditolak otomatis.</p>
+    <p class="text-muted mb-0"><?= $jadwalPembimbingScope ? 'Kelola kegiatan dan slot jadwal Anda. Tambah kegiatan dulu, lalu buat jadwal baru.' : 'Ringkasan visual per kegiatan. Penambahan lewat formulir terpisah — jadwal bentrok ditolak otomatis.' ?></p>
     <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
+        <?php if (!$jadwalPembimbingScope): ?>
         <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/import.php')) ?>"><i class="fa-solid fa-file-import me-1"></i> Import Excel</a>
-        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/import.php?template=xlsx')) ?>"><i class="fa-solid fa-file-arrow-down me-1"></i> Download template jadwal</a>
+        <?php endif; ?>
         <?php if ($viewRingkas): ?>
             <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>"><i class="fa-solid fa-table me-1"></i> Tampilan lengkap</a>
         <?php else: ?>
@@ -202,6 +237,8 @@ $ok = get_flash('success');
 
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+
+<?php require __DIR__ . '/../includes/partials/jadwal_inline_panels.php'; ?>
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body py-2">
@@ -232,8 +269,9 @@ $ok = get_flash('success');
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . ($viewRingkas ? '?view=ringkas' : ''))) ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
             <div class="col-auto ms-md-auto">
-                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-success btn-sm"><i class="fa-solid fa-calendar-plus me-1"></i> Tambah jadwal</a>
+                <?php if (!$jadwalPembimbingScope): ?>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-pen me-1"></i> Edit slot</a>
+                <?php endif; ?>
             </div>
         </form>
     </div>
@@ -244,16 +282,32 @@ $ok = get_flash('success');
         <div class="jadwal-peta-card__head px-3 px-md-4 py-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
             <div>
                 <h2 class="h6 mb-1">Peta jadwal per kegiatan</h2>
-                <p class="text-muted small mb-0">Kelola slot jadwal langsung dari tabel — edit atau hapus per baris.</p>
+                <p class="text-muted small mb-0"><?= (int) $totalJadwal ?> slot jadwal<?= $totalKegiatan > 0 ? ' · ' . (int) $totalKegiatan . ' kegiatan' : '' ?></p>
             </div>
-            <div class="btn-group btn-group-sm" role="group">
-                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-success"><i class="fa-solid fa-calendar-plus me-1"></i> Tambah</a>
-            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="jadwal-toggle-peta" aria-expanded="<?= $showJadwalPeta ? 'true' : 'false' ?>">
+                <i class="fa-solid fa-calendar-days me-1"></i> <?= $showJadwalPeta ? 'Sembunyikan jadwal' : 'Lihat jadwal' ?>
+            </button>
         </div>
-        <div class="jadwal-peta-card__body px-2 px-md-3 pb-3">
-            <?php require __DIR__ . '/../includes/partials/jadwal_matrix_kegiatan.php'; ?>
+        <div class="jadwal-peta-card__body px-2 px-md-3 pb-3<?= $showJadwalPeta ? '' : ' d-none' ?>" id="jadwal-peta-body">
+            <?php $showJadwalAksi = !$jadwalPembimbingScope; require __DIR__ . '/../includes/partials/jadwal_matrix_kegiatan.php'; ?>
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    var btn = document.getElementById('jadwal-toggle-peta');
+    var body = document.getElementById('jadwal-peta-body');
+    if (!btn || !body) return;
+    btn.addEventListener('click', function () {
+        var show = body.classList.contains('d-none');
+        body.classList.toggle('d-none', !show);
+        btn.setAttribute('aria-expanded', show ? 'true' : 'false');
+        btn.innerHTML = show
+            ? '<i class="fa-solid fa-calendar-days me-1"></i> Sembunyikan jadwal'
+            : '<i class="fa-solid fa-calendar-days me-1"></i> Lihat jadwal';
+    });
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

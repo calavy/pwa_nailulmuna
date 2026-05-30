@@ -823,7 +823,49 @@ function pembimbing_dashboard_kegiatan_dari_jadwal(PDO $pdo, ?int $pembimbingId,
 }
 
 /**
- * Daftar kelas (kategori_kelas) santri aktif pada tingkatan tertentu.
+ * Slot jadwal yang diampu pembimbing (untuk izin & ubah jam).
+ *
+ * @return list<array{id:int,kegiatan_id:int,nama_kegiatan:string,tingkatan:string,hari_ke:int,jam_mulai:string,jam_selesai:string}>
+ */
+function pembimbing_dashboard_jadwal_slots(PDO $pdo, int $pembimbingId): array
+{
+    if ($pembimbingId <= 0 || !table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    try {
+        $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS pembimbing_id INT NULL');
+    } catch (PDOException $e) {
+        // ignore
+    }
+    $st = $pdo->prepare('
+        SELECT j.id, j.kegiatan_id, k.nama_kegiatan, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE j.pembimbing_id = :pid
+        ORDER BY j.hari_ke ASC, j.jam_mulai ASC, k.nama_kegiatan ASC
+    ');
+    $st->execute(['pid' => $pembimbingId]);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $out[] = [
+            'id' => $id,
+            'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+            'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+            'tingkatan' => (string) ($row['tingkatan'] ?? ''),
+            'hari_ke' => (int) ($row['hari_ke'] ?? 0),
+            'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
+            'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
  *
  * @param list<string> $tingkatanList
  * @return list<string>

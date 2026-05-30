@@ -81,6 +81,7 @@ function user_permission_groups(): array
                 'pembimbing' => 'Data Pembimbing',
                 'pembimbing_dashboard' => 'Dashboard Pembimbing (santri & keaktifan per tingkatan)',
                 'pembimbing_perizinan' => 'Izin Pembimbing',
+                'pembimbing_jadwal' => 'Jadwal Kegiatan Pembimbing',
                 'rekap_pembimbing' => 'Payroll / Gaji Pembimbing',
             ],
         ],

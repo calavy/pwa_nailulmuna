@@ -524,8 +524,15 @@ body {
     padding: 0 clamp(0.65rem, 2vw, 1.25rem) 2.5rem;
 }
 
-.app-shell--wide {
-    max-width: none;
+.app-body-shell--no-sidebar .app-sidebar--desktop,
+.app-body-shell--no-sidebar .app-topbar-menu-btn {
+    display: none !important;
+}
+
+@media (min-width: 992px) {
+    .app-body-shell--no-sidebar .app-frame {
+        flex-direction: column;
+    }
 }
 
 .app-sidebar {
@@ -1238,6 +1245,37 @@ body {
     line-height: 1.35;
     color: var(--app-nav-muted) !important;
     font-size: 0.72rem;
+}
+
+.app-side-nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-bottom: 0.35rem;
+}
+
+.app-side-nav-group__label {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.65rem 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--app-nav-muted);
+}
+
+.app-side-nav-item--child {
+    padding-left: 1.35rem;
+    font-size: 0.84rem;
+}
+
+.app-side-nav-item--child .app-side-nav-ico {
+    width: 1.35rem;
+    height: 1.35rem;
+    font-size: 0.65rem;
+    opacity: 0.65;
 }
 
 #mobileSidebar.offcanvas {

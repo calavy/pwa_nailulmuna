@@ -10,13 +10,15 @@ declare(strict_types=1);
  */
 $jadwalList = $jadwalList ?? [];
 $hari = $hari ?? [];
+$showJadwalAksi = $showJadwalAksi ?? true;
+$jadwalPembimbingScope = $jadwalPembimbingScope ?? false;
 $petaRows = jadwal_peta_rows_sorted($jadwalList);
 $prevKegiatan = '';
 ?>
 <?php if ($petaRows === []): ?>
     <div class="jadwal-peta-empty text-center py-4">
         <div class="jadwal-peta-empty__ico mb-2"><i class="fa-regular fa-calendar-xmark"></i></div>
-        <p class="text-muted small mb-0">Belum ada jadwal. Tambah lewat tombol <strong>+ Jadwal</strong>.</p>
+        <p class="text-muted small mb-0">Belum ada jadwal. Tambah <a href="<?= htmlspecialchars(app_href('/jadwal/tambah_kegiatan.php')) ?>">kegiatan</a> lalu buat <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>">jadwal baru</a>.</p>
     </div>
 <?php else: ?>
     <div class="jadwal-peta">
@@ -90,8 +92,10 @@ $prevKegiatan = '';
                         </td>
                         <td class="jadwal-peta-td jadwal-peta-td--aksi text-end text-nowrap" data-label="Aksi">
                             <?php $jid = (int) ($row['id'] ?? 0); ?>
-                            <?php if ($jid > 0): ?>
+                            <?php if ($jid > 0 && ($showJadwalAksi || $jadwalPembimbingScope)): ?>
+                                <?php if ($showJadwalAksi): ?>
                                 <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $jid)) ?>" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit jadwal"><i class="fa-solid fa-pen"></i></a>
+                                <?php endif; ?>
                                 <form method="post" class="d-inline" onsubmit="return confirm('Hapus slot jadwal ini? Presensi terkait ikut dihapus.')">
                                     <input type="hidden" name="action" value="hapus_jadwal">
                                     <input type="hidden" name="id" value="<?= $jid ?>">
