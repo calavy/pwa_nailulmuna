@@ -3,13 +3,16 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../helpers/app_path.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../helpers/app.php';
 
 header('Content-Type: application/manifest+json; charset=utf-8');
 header('Cache-Control: public, max-age=3600');
 
 $startUrl = app_public_url() . app_url('wali/index.php');
 $scope = app_public_url() . app_url('wali/');
-$iconUrl = app_public_url() . app_url('assets/img/stempel-pondok.png');
+$iconUrl = app_pwa_manifest_icon_url($pdo);
+$iconType = app_pwa_icon_mime($pdo);
 
 echo json_encode([
     'name' => 'Portal Wali Santri',
@@ -27,19 +30,19 @@ echo json_encode([
         [
             'src' => $iconUrl,
             'sizes' => '192x192',
-            'type' => 'image/png',
+            'type' => $iconType,
             'purpose' => 'any',
         ],
         [
             'src' => $iconUrl,
             'sizes' => '512x512',
-            'type' => 'image/png',
+            'type' => $iconType,
             'purpose' => 'any',
         ],
         [
             'src' => $iconUrl,
             'sizes' => '512x512',
-            'type' => 'image/png',
+            'type' => $iconType,
             'purpose' => 'maskable',
         ],
     ],

@@ -10,4 +10,4 @@ if (isset($_SESSION['user'])) {
     app_post_login_redirect($pdo);
 }
 
-app_redirect('login.php');
+app_redirect('beranda.php');

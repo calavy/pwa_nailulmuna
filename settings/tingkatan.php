@@ -2,8 +2,11 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
 
 require_roles(['admin', 'pengurus']);
+pkpps_ensure_schema($pdo);
 
 $pdo->exec('
     CREATE TABLE IF NOT EXISTS tingkatan (
@@ -12,19 +15,61 @@ $pdo->exec('
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
 ');
+require_once __DIR__ . '/../helpers/santri_list_sort.php';
+tingkatan_ensure_urutan_column($pdo);
+
+pkpps_sync_from_kelas_keuangan($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    if ($action === 'save_pkpps_syahriyah') {
+        $res = keuangan_pkpps_syahriyah_save_settings($pdo, $_POST);
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/settings/tingkatan.php#syahriyah-pkpps'));
+        exit;
+    }
+    if ($action === 'sync_pkpps') {
+        pkpps_sync_from_kelas_keuangan($pdo);
+        set_flash('success', 'Tingkatan PKPPS diselaraskan dari kelas keuangan aktif.');
+        header('Location: ' . app_href('/settings/tingkatan.php#pkpps'));
+        exit;
+    }
+    if ($action === 'save_pkpps_tingkatan') {
+        $tid = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
+        $nama = mb_substr(trim((string) ($_POST['nama_tingkatan'] ?? '')), 0, 120);
+        $urut = (int) ($_POST['urutan'] ?? 0);
+        $aktif = (int) ($_POST['is_aktif'] ?? 1) === 1 ? 1 : 0;
+        if ($tid <= 0 || $nama === '') {
+            set_flash('error', 'Data tingkatan PKPPS tidak valid.');
+        } else {
+            $res = pkpps_tingkatan_update($pdo, $tid, $nama, $urut, $aktif);
+            set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        }
+        header('Location: ' . app_href('/settings/tingkatan.php#pkpps'));
+        exit;
+    }
+    if ($action === 'delete_pkpps_tingkatan') {
+        $tid = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
+        $res = pkpps_tingkatan_delete($pdo, $tid);
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/settings/tingkatan.php#pkpps'));
+        exit;
+    }
     if ($action === 'create') {
         $nama = mb_substr(trim((string) ($_POST['nama_tingkatan'] ?? '')), 0, 80);
+        $urut = (int) ($_POST['urutan'] ?? 0);
         if ($nama !== '') {
-            $insert = $pdo->prepare('INSERT IGNORE INTO tingkatan (nama_tingkatan) VALUES (:nama)');
-            $insert->execute(['nama' => $nama]);
+            if ($urut <= 0) {
+                $urut = (int) $pdo->query('SELECT COALESCE(MAX(urutan), 0) + 1 FROM tingkatan')->fetchColumn();
+            }
+            $insert = $pdo->prepare('INSERT IGNORE INTO tingkatan (nama_tingkatan, urutan) VALUES (:nama, :u)');
+            $insert->execute(['nama' => $nama, 'u' => $urut]);
             set_flash('success', 'Tingkatan berhasil ditambahkan.');
         }
     } elseif ($action === 'update') {
         $id = (int) ($_POST['id'] ?? 0);
         $namaBaru = mb_substr(trim((string) ($_POST['nama_tingkatan'] ?? '')), 0, 80);
+        $urut = (int) ($_POST['urutan'] ?? 0);
         if ($id <= 0 || $namaBaru === '') {
             set_flash('error', 'Nama tingkatan tidak valid.');
         } else {
@@ -45,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         try {
                             $pdo->beginTransaction();
-                            $pdo->prepare('UPDATE tingkatan SET nama_tingkatan = :n WHERE id = :id')->execute(['n' => $namaBaru, 'id' => $id]);
+                            $pdo->prepare('UPDATE tingkatan SET nama_tingkatan = :n, urutan = :u WHERE id = :id')->execute(['n' => $namaBaru, 'u' => $urut, 'id' => $id]);
                             if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) {
                                 $pdo->prepare('UPDATE santri SET tingkatan = :baru WHERE tingkatan = :lama')->execute(['baru' => $namaBaru, 'lama' => $namaLama]);
                             }
@@ -76,10 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$rows = $pdo->query('SELECT id, nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll();
+$rows = $pdo->query('SELECT id, nama_tingkatan, urutan FROM tingkatan ORDER BY urutan ASC, nama_tingkatan ASC')->fetchAll();
 $totalTingkatan = count($rows);
 
-$pageTitle = 'Master Tingkatan';
+$pageTitle = 'Tingkatan & PKPPS';
 $bodyClass = 'settings-module-page';
 $settingsNavActive = '/settings/tingkatan.php';
 require_once __DIR__ . '/../includes/header.php';
@@ -87,8 +132,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
-    <h1 class="h4 mb-1">Kelola tingkatan</h1>
-    <p class="text-muted mb-0">Tambah, ubah nama, atau hapus master tingkatan. Mengubah nama akan menyamakan teks tingkatan di data santri dan baris jadwal kegiatan yang memakai nama lama.</p>
+    <h1 class="h4 mb-1">Tingkatan kajian &amp; PKPPS</h1>
+    <p class="text-muted mb-0">Master tingkatan kajian santri/jadwal. Tingkatan PKPPS otomatis mengikuti <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a> aktif (sub-level 1–3 per kelas).</p>
 </div>
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4">
@@ -110,6 +155,10 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="text" class="form-control" name="nama_tingkatan" placeholder="Contoh: SMP Kelas 7" required>
                     </div>
                     <div class="col-12">
+                        <label class="form-label small mb-0">Urutan tampil</label>
+                        <input type="number" class="form-control" name="urutan" value="0" min="0">
+                    </div>
+                    <div class="col-12">
                         <button class="btn btn-success">Simpan</button>
                     </div>
                 </form>
@@ -122,14 +171,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <h2 class="h5">Daftar Tingkatan</h2>
                 <div class="table-responsive">
                 <table class="table table-sm table-striped table-hover align-middle">
-                    <thead><tr><th>Ubah nama</th><th class="text-end">Aksi</th></tr></thead>
+                    <thead><tr><th>Urut</th><th>Ubah nama</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
                     <?php foreach ($rows as $row): ?>
                         <tr>
+                            <td class="text-center" style="width:4rem"><?= (int) ($row['urutan'] ?? 0) ?></td>
                             <td>
                                 <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
                                     <input type="hidden" name="action" value="update">
                                     <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
+                                    <input type="number" name="urutan" class="form-control form-control-sm" style="width:4rem" min="0" value="<?= (int) ($row['urutan'] ?? 0) ?>" title="Urutan">
                                     <input type="text" name="nama_tingkatan" class="form-control form-control-sm flex-grow-1" style="flex-basis:12rem;min-width:8rem;max-width:24rem;" maxlength="80" required value="<?= htmlspecialchars((string) $row['nama_tingkatan']) ?>">
                                     <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
                                 </form>
@@ -148,6 +199,114 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<?php
+$pkppsRows = pkpps_tingkatan_list($pdo, false);
+$defaultPkppsSy = keuangan_pkpps_syahriyah_nominal($pdo, 0);
+$bulanLabels = [
+    1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
+    7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
+];
+?>
+<div class="card shadow-sm mt-4" id="pkpps">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h2 class="h6 mb-0 fw-bold">Tingkatan PKPPS</h2>
+            <p class="small text-muted mb-0">Disinkronkan dari kelas keuangan · dipakai data santri PKPPS &amp; jadwal khusus.</p>
+        </div>
+        <form method="post" class="m-0">
+            <input type="hidden" name="action" value="sync_pkpps">
+            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-rotate me-1"></i> Sinkron ulang</button>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+                <th style="width:4rem">Urut</th>
+                <th>Nama &amp; status</th>
+                <th class="text-end" style="width:8rem">Aksi</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if ($pkppsRows === []): ?>
+                <tr><td colspan="3" class="text-center text-muted py-3 small">Belum ada tingkatan PKPPS. Tambah/aktifkan kelas keuangan lalu klik sinkron.</td></tr>
+            <?php endif; ?>
+            <?php foreach ($pkppsRows as $prow): ?>
+                <tr>
+                    <td>
+                        <form method="post" class="d-inline">
+                            <input type="hidden" name="action" value="save_pkpps_tingkatan">
+                            <input type="hidden" name="pkpps_tingkatan_id" value="<?= (int) ($prow['id'] ?? 0) ?>">
+                            <input type="number" name="urutan" class="form-control form-control-sm" style="width:4rem" min="0" value="<?= (int) ($prow['urutan'] ?? 0) ?>">
+                    </td>
+                    <td>
+                            <input type="text" name="nama_tingkatan" class="form-control form-control-sm" maxlength="120" required value="<?= htmlspecialchars((string) ($prow['nama_tingkatan'] ?? '')) ?>">
+                            <select name="is_aktif" class="form-select form-select-sm mt-1" style="max-width:8rem">
+                                <option value="1" <?= (int) ($prow['is_aktif'] ?? 0) === 1 ? 'selected' : '' ?>>Aktif</option>
+                                <option value="0" <?= (int) ($prow['is_aktif'] ?? 0) !== 1 ? 'selected' : '' ?>>Nonaktif</option>
+                            </select>
+                    </td>
+                    <td class="text-end">
+                            <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
+                        </form>
+                        <form method="post" class="d-inline" onsubmit="return confirm('Hapus tingkatan PKPPS ini?');">
+                            <input type="hidden" name="action" value="delete_pkpps_tingkatan">
+                            <input type="hidden" name="pkpps_tingkatan_id" value="<?= (int) ($prow['id'] ?? 0) ?>">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card shadow-sm mt-4" id="syahriyah-pkpps">
+    <div class="card-header fw-semibold">Tambahan syahriyah PKPPS</div>
+    <div class="card-body">
+        <p class="small text-muted">
+            Nominal tambahan per bulan untuk santri PKPPS aktif, digabung ke tagihan <strong>Syahriyah</strong>.
+            Bagian ini tidak masuk pembagian % syahriyah — lihat <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">laporan PKPPS</a> untuk alokasi gaji pembimbing.
+        </p>
+        <form method="post">
+            <input type="hidden" name="action" value="save_pkpps_syahriyah">
+            <div class="mb-3">
+                <label class="form-label small">Default global (fallback)</label>
+                <input type="number" name="pkpps_syahriyah_default" class="form-control form-control-sm" style="max-width:12rem"
+                       min="0" step="1000" value="<?= (int) $defaultPkppsSy ?>">
+            </div>
+            <?php foreach ($pkppsRows as $prow):
+                $tid = (int) ($prow['id'] ?? 0);
+                if ($tid <= 0) {
+                    continue;
+                }
+                $tierDefault = keuangan_pkpps_syahriyah_nominal($pdo, 0, 0, 0, $tid);
+            ?>
+            <div class="border rounded p-2 mb-3">
+                <div class="fw-semibold small mb-2"><?= htmlspecialchars((string) ($prow['nama_tingkatan'] ?? '')) ?></div>
+                <div class="mb-2">
+                    <label class="form-label small mb-0">Default tingkatan</label>
+                    <input type="number" class="form-control form-control-sm" style="max-width:12rem" min="0" step="1000"
+                           name="pkpps_syahriyah_tingkatan[<?= $tid ?>][default]" value="<?= (int) $tierDefault ?>">
+                </div>
+                <div class="row g-2">
+                    <?php for ($b = 1; $b <= 12; $b++): ?>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small mb-0"><?= htmlspecialchars($bulanLabels[$b] ?? (string) $b) ?></label>
+                            <input type="number" class="form-control form-control-sm" min="0" step="1000"
+                                   name="pkpps_syahriyah_tingkatan[<?= $tid ?>][bulan][<?= $b ?>]"
+                                   value="<?= (int) keuangan_pkpps_syahriyah_nominal($pdo, $b, 0, 0, $tid) ?>">
+                        </div>
+                    <?php endfor; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <button type="submit" class="btn btn-primary btn-sm">Simpan tambahan PKPPS</button>
+        </form>
     </div>
 </div>
 

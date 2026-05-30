@@ -84,6 +84,129 @@ function munawib_list_aktif(PDO $pdo): array
 /**
  * @return array<string, mixed>|null
  */
+/**
+ * Tingkatan kelas yang diwakili munawib (dari penugasan aktif + jadwal).
+ *
+ * @return list<string>
+ */
+function munawib_tingkatan_aktif_list(PDO $pdo, int $munawibId, ?string $tanggal = null): array
+{
+    munawib_ensure_schema($pdo);
+    if ($munawibId <= 0 || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    $tgl = $tanggal ?: date('Y-m-d');
+    $sql = '
+        SELECT DISTINCT TRIM(j.tingkatan) AS tingkatan
+        FROM munawib_penugasan mp
+        INNER JOIN jadwal_kegiatan j ON j.kegiatan_id = mp.kegiatan_id
+            AND (mp.pembimbing_id IS NULL OR j.pembimbing_id = mp.pembimbing_id)
+        WHERE mp.munawib_id = :mid
+          AND mp.status = "AKTIF"
+          AND :tgl BETWEEN mp.tanggal_mulai AND mp.tanggal_selesai
+          AND j.tingkatan IS NOT NULL
+          AND TRIM(j.tingkatan) <> ""
+          AND TRIM(j.tingkatan) <> "Semua Tingkatan"
+        ORDER BY tingkatan ASC
+    ';
+    if (column_exists($pdo, 'munawib_penugasan', 'jadwal_kegiatan_id')) {
+        $sql = '
+            SELECT DISTINCT TRIM(j.tingkatan) AS tingkatan
+            FROM munawib_penugasan mp
+            LEFT JOIN jadwal_kegiatan j ON (
+                (mp.jadwal_kegiatan_id IS NOT NULL AND mp.jadwal_kegiatan_id > 0 AND j.id = mp.jadwal_kegiatan_id)
+                OR (
+                    (mp.jadwal_kegiatan_id IS NULL OR mp.jadwal_kegiatan_id = 0)
+                    AND j.kegiatan_id = mp.kegiatan_id
+                    AND (mp.pembimbing_id IS NULL OR j.pembimbing_id = mp.pembimbing_id)
+                )
+            )
+            WHERE mp.munawib_id = :mid
+              AND mp.status = "AKTIF"
+              AND :tgl BETWEEN mp.tanggal_mulai AND mp.tanggal_selesai
+              AND j.tingkatan IS NOT NULL
+              AND TRIM(j.tingkatan) <> ""
+              AND TRIM(j.tingkatan) <> "Semua Tingkatan"
+            ORDER BY tingkatan ASC
+        ';
+    }
+    $st = $pdo->prepare($sql);
+    $st->execute(['mid' => $munawibId, 'tgl' => $tgl]);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $tk) {
+        $t = trim((string) $tk);
+        if ($t !== '' && !in_array($t, $out, true)) {
+            $out[] = $t;
+        }
+    }
+
+    return $out;
+}
+
+/** Pembimbing pengganti utama untuk portal (dari penugasan aktif). */
+function munawib_pembimbing_id_portal(PDO $pdo, int $munawibId, ?string $tanggal = null): int
+{
+    munawib_ensure_schema($pdo);
+    if ($munawibId <= 0) {
+        return 0;
+    }
+    $tgl = $tanggal ?: date('Y-m-d');
+    $st = $pdo->prepare('
+        SELECT pembimbing_id
+        FROM munawib_penugasan
+        WHERE munawib_id = :mid
+          AND status = "AKTIF"
+          AND :tgl BETWEEN tanggal_mulai AND tanggal_selesai
+          AND pembimbing_id IS NOT NULL
+          AND pembimbing_id > 0
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $st->execute(['mid' => $munawibId, 'tgl' => $tgl]);
+
+    return (int) ($st->fetchColumn() ?: 0);
+}
+
+/**
+ * @return array{ok:bool,message:string,session?:array<string,mixed>}
+ */
+function munawib_buat_sesi_portal(PDO $pdo, string $qrCode): array
+{
+    $row = munawib_find_by_code($pdo, $qrCode);
+    if ($row === null) {
+        return ['ok' => false, 'message' => 'Kartu QR munawib tidak dikenali atau tidak aktif.'];
+    }
+    $mid = (int) ($row['id'] ?? 0);
+    $tingkatan = munawib_tingkatan_aktif_list($pdo, $mid);
+    if ($tingkatan === []) {
+        return [
+            'ok' => false,
+            'message' => 'Munawib belum punya penugasan aktif dengan kelas/tingkatan. Hubungi pengurus.',
+        ];
+    }
+    $pbId = munawib_pembimbing_id_portal($pdo, $mid);
+    $nama = trim((string) ($row['nama'] ?? 'Munawib'));
+    $nip = trim((string) ($row['nip'] ?? ''));
+
+    return [
+        'ok' => true,
+        'message' => 'Login munawib berhasil.',
+        'session' => [
+            'user' => [
+                'id' => 0,
+                'nama' => $nama . ' (Munawib)',
+                'username' => $nip !== '' ? $nip : ('munawib:' . $mid),
+                'role' => 'pembimbing',
+                'is_super_admin' => 0,
+                'foto_profil' => '',
+            ],
+            'munawib_id' => $mid,
+            'munawib_tingkatan' => $tingkatan,
+            'munawib_pembimbing_id' => $pbId,
+        ],
+    ];
+}
+
 function munawib_find_by_code(PDO $pdo, string $code): ?array
 {
     munawib_ensure_schema($pdo);

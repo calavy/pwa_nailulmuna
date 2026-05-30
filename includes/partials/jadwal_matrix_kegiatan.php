@@ -36,6 +36,7 @@ $prevKegiatan = '';
                         <th class="jadwal-peta-th jadwal-peta-th--tingkatan">Tingkatan</th>
                         <th class="jadwal-peta-th jadwal-peta-th--extra d-none d-lg-table-cell">Lokasi</th>
                         <th class="jadwal-peta-th jadwal-peta-th--extra d-none d-xl-table-cell">Pembimbing</th>
+                        <th class="jadwal-peta-th jadwal-peta-th--aksi text-end">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -85,6 +86,17 @@ $prevKegiatan = '';
                                 <span class="jadwal-peta-meta"><i class="fa-solid fa-user"></i> <?= htmlspecialchars($pem) ?></span>
                             <?php else: ?>
                                 <span class="jadwal-peta-meta jadwal-peta-meta--empty">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="jadwal-peta-td jadwal-peta-td--aksi text-end text-nowrap" data-label="Aksi">
+                            <?php $jid = (int) ($row['id'] ?? 0); ?>
+                            <?php if ($jid > 0): ?>
+                                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $jid)) ?>" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit jadwal"><i class="fa-solid fa-pen"></i></a>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Hapus slot jadwal ini? Presensi terkait ikut dihapus.')">
+                                    <input type="hidden" name="action" value="hapus_jadwal">
+                                    <input type="hidden" name="id" value="<?= $jid ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Hapus jadwal"><i class="fa-solid fa-trash"></i></button>
+                                </form>
                             <?php endif; ?>
                         </td>
                     </tr>

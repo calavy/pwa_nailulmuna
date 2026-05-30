@@ -42,6 +42,12 @@ File yang **tidak** ikut GitHub (tetap hanya di PC/server):
 - `config/app.local.php`
 - `config/firebase.local.php` (jika ada)
 
+**Aman untuk production (domain root, tanpa `/pwa_nailulmuna/`):**
+
+- `config/app.php` memakai `base_path` null → deteksi otomatis folder kosong di hosting.
+- Jangan commit `app.local.php` yang berisi `base_path` `/pwa_nailulmuna` atau `public_url` localhost — file itu hanya untuk XAMPP lokal.
+- Setelah deploy, buka **Pengaturan → Identitas pesantren** → simpan ulang logo/warna PWA agar ikon install terbarui di HP.
+
 ---
 
 ## Langkah 2 — Update file di live server

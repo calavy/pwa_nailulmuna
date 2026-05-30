@@ -56,18 +56,16 @@ function app_base_path(): string
         $configured = rtrim($cfg['base_path'], '/');
         $publicUrl = trim((string) ($cfg['public_url'] ?? ''));
         $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
-        // app.local.php XAMPP ikut ter-deploy ke domain production → loop redirect + sesi hilang
-        if (
-            $configured !== ''
-            && $publicUrl !== ''
-            && $host !== ''
-            && !str_contains(strtolower($publicUrl), $host)
-        ) {
-            $configured = '';
-        }
-        $cached = $configured;
+        $hostMatchesPublic = $publicUrl === ''
+            || $host === ''
+            || str_contains(strtolower($publicUrl), $host);
+        // Host cocok (localhost / production) — pakai base_path dari config
+        if ($configured !== '' && $hostMatchesPublic) {
+            $cached = $configured;
 
-        return $cached;
+            return $cached;
+        }
+        // Host beda (ngrok, domain production saat app.local masih localhost) → deteksi folder di bawah
     }
 
     $docRoot = realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '';
@@ -89,14 +87,18 @@ function app_public_url(): string
 {
     $cfg = app_config();
     $url = trim((string) ($cfg['public_url'] ?? ''));
-    if ($url !== '') {
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if ($url !== '' && $host !== '' && str_contains(strtolower($url), $host)) {
         return rtrim($url, '/');
     }
 
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+        ? 'https'
+        : 'http';
+    $requestHost = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
 
-    return $scheme . '://' . $host . app_base_path();
+    return $scheme . '://' . $requestHost . app_base_path();
 }
 
 /** Normalisasi REQUEST_URI untuk ACL/menu (hilangkan base_path di lokal). */
@@ -213,6 +215,10 @@ function app_is_local_dev(): bool
         || $host === '127.0.0.1'
         || str_ends_with($host, '.local')
         || str_ends_with($host, '.test')
+        || str_ends_with($host, '.ngrok-free.dev')
+        || str_ends_with($host, '.ngrok-free.app')
+        || str_ends_with($host, '.ngrok.io')
+        || str_contains($host, 'ngrok')
     ) {
         return true;
     }

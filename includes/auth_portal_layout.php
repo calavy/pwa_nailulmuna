@@ -32,6 +32,65 @@ function auth_portal_salam_islami(): string
     return 'Assalamu\'alaikum warahmatullahi wabarakatuh';
 }
 
+/** Teks sambutan formal portal — per paragraf agar mudah dibaca sekaligus. */
+function auth_portal_formal_body_paragraphs(): array
+{
+    return [
+        'Selamat datang di pusat layanan informasi, akademik, dan administrasi digital Pondok Pesantren API Nailul Muna.',
+        'Platform ini menyelaraskan tradisi luhur pesantren dengan teknologi modern untuk komunikasi, pemantauan santri, dan tata kelola yang efisien serta transparan.',
+        'Semoga digitalisasi ini memudahkan civitas, pengurus, dan wali santri dalam satu pintu genggaman demi kelancaran khidmah bersama.',
+    ];
+}
+
+function auth_portal_formal_body(): string
+{
+    return implode(' ', auth_portal_formal_body_paragraphs());
+}
+
+/**
+ * URL logo pondok untuk halaman portal (path relatif / eksternal).
+ */
+function auth_portal_logo_href(PDO $pdo, string $override = ''): string
+{
+    require_once __DIR__ . '/../helpers/app.php';
+    require_once __DIR__ . '/../helpers/app_path.php';
+
+    $raw = trim($override);
+    if ($raw === '') {
+        $raw = app_pondok_logo_src($pdo);
+    }
+    if ($raw === '') {
+        return app_href(app_pwa_default_icon_src());
+    }
+    if (preg_match('#^https?://#i', $raw)) {
+        return $raw;
+    }
+
+    return app_href('/' . ltrim($raw, '/'));
+}
+
+/**
+ * Data kop portal login: logo, nama, jenis, alamat.
+ *
+ * @return array{logo_url:string,nama:string,jenis:string,alamat:string,initials:string}
+ */
+function auth_portal_kop_context(PDO $pdo, string $logoUrl = ''): array
+{
+    require_once __DIR__ . '/../helpers/app.php';
+    $nama = auth_portal_brand_nama($pdo);
+    $jenis = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
+    $alamat = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
+    $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $nama);
+
+    return [
+        'logo_url' => auth_portal_logo_href($pdo, $logoUrl),
+        'nama' => $nama,
+        'jenis' => $jenis,
+        'alamat' => $alamat,
+        'initials' => strtoupper(substr($lettersOnly !== '' ? $lettersOnly : 'AP', 0, 2)),
+    ];
+}
+
 /**
  * @return array{salam:string,salam_waktu:string,tagline:string,tagline_portal:string,ponpes:string}
  */
@@ -69,6 +128,8 @@ function auth_portal_brand_nama(PDO $pdo): string
  *   welcome_tagline?: string,
  *   welcome_salam?: string,
  *   welcome_salam_waktu?: string,
+ *   headline?: string,
+ *   formal_body?: string,
  *   card_title?: string,
  *   card_meta?: string,
  *   subtitle_mobile?: string,
@@ -90,6 +151,14 @@ function auth_portal_layout_begin(array $ctx): void
         ? htmlspecialchars((string) $ctx['welcome_salam_waktu'])
         : '';
     $welcomeTagline = isset($ctx['welcome_tagline']) ? htmlspecialchars((string) $ctx['welcome_tagline']) : '';
+    $headlineRaw = trim((string) ($ctx['headline'] ?? ''));
+    $headlineHtml = $headlineRaw !== '' ? htmlspecialchars($headlineRaw) : '';
+    $formalBodyRaw = trim((string) ($ctx['formal_body'] ?? ''));
+    $formalParagraphs = [];
+    if ($formalBodyRaw !== '') {
+        $formalParagraphs = auth_portal_formal_body_paragraphs();
+    }
+    $kopCtx = ['logo_url' => '', 'nama' => '', 'jenis' => '', 'alamat' => '', 'initials' => 'AP'];
     $subtitleFallback = trim((string) ($ctx['subtitle'] ?? ''));
     $subtitleMobile = trim((string) ($ctx['subtitle_mobile'] ?? $subtitleFallback));
     $subtitleDesktop = trim((string) ($ctx['subtitle_desktop'] ?? $subtitleFallback));
@@ -112,6 +181,14 @@ function auth_portal_layout_begin(array $ctx): void
     $lettersOnly = preg_replace('/[^A-Za-z]/u', '', $namaPonpesRaw);
     $initials = strtoupper(substr($lettersOnly !== '' ? $lettersOnly : 'AP', 0, 2));
     $logoUrl = trim((string) ($ctx['logo_url'] ?? ''));
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $kopCtx = auth_portal_kop_context($pdo, $logoUrl);
+        $logoUrl = (string) ($kopCtx['logo_url'] ?? $logoUrl);
+    }
+    $kopNama = htmlspecialchars((string) ($kopCtx['nama'] ?? ''));
+    $kopJenis = htmlspecialchars((string) ($kopCtx['jenis'] ?? ''));
+    $kopAlamat = htmlspecialchars((string) ($kopCtx['alamat'] ?? ''));
+    $kopInitials = htmlspecialchars((string) ($kopCtx['initials'] ?? 'AP'));
     $layout = ($ctx['layout'] ?? 'stack') === 'split' ? 'split' : 'stack';
     $shellClass = 'auth-portal-shell';
     $shellClass .= $layout === 'split' ? ' auth-portal-shell--wide' : ' auth-portal-shell--narrow';
@@ -131,9 +208,17 @@ function auth_portal_layout_begin(array $ctx): void
         ? app_asset_href('/assets/css/auth-portal.css')
         : (function_exists('app_href') ? app_href('/assets/css/auth-portal.css') : '/assets/css/auth-portal.css');
     $manifestHref = function_exists('app_href') ? app_href('/manifest.php') : '/manifest.php';
-    $iconHref = $logoUrl !== ''
-        ? $logoUrl
-        : (function_exists('app_href') ? app_href('/assets/img/stempel-pondok.png') : '/assets/img/stempel-pondok.png');
+    $pwaTheme = function_exists('app_pwa_theme') ? app_pwa_theme(isset($pdo) && $pdo instanceof PDO ? $pdo : null) : [
+        'theme_color' => $accentHex,
+        'background_color' => '#0d9488',
+    ];
+    $logoFallbackHref = function_exists('app_href')
+        ? app_href(app_pwa_default_icon_src())
+        : app_pwa_default_icon_src();
+    $iconHref = function_exists('app_pwa_icon_href') && isset($pdo) && $pdo instanceof PDO
+        ? app_pwa_icon_href($pdo)
+        : ($logoUrl !== '' ? $logoUrl : $logoFallbackHref);
+    $splashBgHref = function_exists('app_href') ? app_href('/assets/img/pwa-splash-bg.svg') : '/assets/img/pwa-splash-bg.svg';
     ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -142,7 +227,8 @@ function auth_portal_layout_begin(array $ctx): void
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="<?= htmlspecialchars($accentHex) ?>">
+    <meta name="theme-color" content="<?= htmlspecialchars((string) ($pwaTheme['theme_color'] ?? $accentHex)) ?>">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="robots" content="noindex, nofollow">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -156,9 +242,14 @@ function auth_portal_layout_begin(array $ctx): void
     <link rel="shortcut icon" href="<?= htmlspecialchars($iconHref) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
+    <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
+    <?php if ($logoUrl !== ''): ?>
+    <meta name="pondok-pwa-logo" content="<?= htmlspecialchars($logoUrl) ?>">
+    <?php endif; ?>
+    <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars($logoFallbackHref) ?>">
+    <link rel="preload" href="<?= htmlspecialchars($cssHref) ?>" as="style">
     <link href="<?= htmlspecialchars($cssHref) ?>" rel="stylesheet">
     <style>
         :root {
@@ -170,12 +261,16 @@ function auth_portal_layout_begin(array $ctx): void
         [data-theme="dark"] {
             --ap-auth-surface: rgba(30, 41, 59, 0.96);
         }
+        html {
+            background-color: <?= htmlspecialchars((string) ($pwaTheme['background_color'] ?? $gradMid)) ?>;
+        }
         body.auth-portal-page {
             font-family: "Plus Jakarta Sans", system-ui, sans-serif;
             min-height: 100dvh;
             margin: 0;
             background: linear-gradient(145deg, <?= htmlspecialchars($gradStart) ?> 0%, <?= htmlspecialchars($gradMid) ?> 42%, <?= htmlspecialchars($gradEnd) ?> 100%);
             background-attachment: fixed;
+            background-color: <?= htmlspecialchars((string) ($pwaTheme['background_color'] ?? $gradMid)) ?>;
             padding: max(1rem, env(safe-area-inset-top, 0px)) max(0.85rem, env(safe-area-inset-right, 0px)) max(1.25rem, env(safe-area-inset-bottom, 0px)) max(0.85rem, env(safe-area-inset-left, 0px));
         }
         @media (min-width: 992px) {
@@ -205,8 +300,15 @@ function auth_portal_layout_begin(array $ctx): void
     </style>
     <script>
         (function () {
-            const saved = localStorage.getItem('theme-mode');
-            document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+            try {
+                var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
+                var d = document.documentElement;
+                d.setAttribute('data-theme', m);
+                d.style.colorScheme = m;
+                d.style.backgroundColor = m === 'dark' ? '#0f172a' : <?= json_encode($gradMid, JSON_UNESCAPED_UNICODE) ?>;
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
         })();
     </script>
 </head>
@@ -219,51 +321,67 @@ function auth_portal_layout_begin(array $ctx): void
     <div class="auth-portal-viewport">
     <div class="<?= htmlspecialchars($shellClass) ?>">
         <header class="auth-portal-hero">
-            <?php if ($logoUrl !== '' || $namaPonpesRaw !== '' || $welcomeSalam !== ''): ?>
-                <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>" aria-hidden="<?= $logoUrl === '' ? 'true' : 'false' ?>">
-                    <?php if ($logoUrl !== ''): ?>
-                        <img src="<?= htmlspecialchars($logoUrl) ?>" alt="Logo <?= htmlspecialchars(strip_tags($namaPonpesRaw !== '' ? $namaPonpesRaw : 'pesantren')) ?>" class="auth-portal-logo-img" decoding="async" fetchpriority="high">
-                    <?php else: ?>
-                        <span class="logo-fallback"><?= htmlspecialchars($initials) ?></span>
+            <div class="auth-portal-kop">
+                <div class="auth-portal-kop__logo">
+                    <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>">
+                        <?php if ($logoUrl !== ''): ?>
+                            <img
+                                src="<?= htmlspecialchars($logoUrl) ?>"
+                                alt="Logo <?= $kopNama ?>"
+                                class="auth-portal-logo-img"
+                                decoding="async"
+                                fetchpriority="high"
+                                data-pondok-cache="1"
+                                data-fallback-src="<?= htmlspecialchars($logoFallbackHref) ?>"
+                            >
+                        <?php else: ?>
+                            <span class="logo-fallback"><?= $kopInitials ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="auth-portal-kop__teks">
+                    <?php if ($kopJenis !== ''): ?>
+                        <p class="auth-portal-kop__jenis mb-0"><?= $kopJenis ?></p>
+                    <?php elseif ($kicker !== ''): ?>
+                        <p class="auth-portal-kop__jenis mb-0"><?= $kicker ?></p>
+                    <?php endif; ?>
+                    <p class="auth-portal-kop__nama mb-0"><?= $kopNama !== '' ? $kopNama : ($namaPonpes !== '' ? $namaPonpes : 'Pondok Pesantren') ?></p>
+                    <?php if ($kopAlamat !== ''): ?>
+                        <p class="auth-portal-kop__alamat mb-0"><i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><?= $kopAlamat ?></p>
                     <?php endif; ?>
                 </div>
-            <?php endif; ?>
-            <?php if ($kicker !== '' || $namaPonpes !== ''): ?>
-                <div class="auth-portal-pondok-identity">
-                    <?php if ($kicker !== ''): ?>
-                        <div class="kicker auth-portal-brand-kicker"><?= $kicker ?></div>
-                    <?php endif; ?>
-                    <?php if ($namaPonpes !== ''): ?>
-                        <p class="auth-portal-brand mb-0"><?= $namaPonpes ?></p>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
+            </div>
             <div class="auth-portal-hero-text">
-                <div class="auth-portal-hero-lead">
-                    <?php if ($welcomeSalam !== ''): ?>
-                        <h1 class="auth-portal-salam auth-portal-salam--utama"><?= $welcomeSalam ?></h1>
-                    <?php elseif ($namaPonpes === '' && $title !== ''): ?>
-                        <h1 class="auth-portal-salam"><?= $title ?></h1>
-                    <?php endif; ?>
-                    <?php if ($welcomeSalamWaktu !== ''): ?>
-                        <p class="auth-portal-salam-waktu mb-0"><?= $welcomeSalamWaktu ?></p>
-                    <?php endif; ?>
-                </div>
-                <div class="auth-portal-hero-follow">
-                    <?php if ($welcomeTagline !== ''): ?>
-                        <p class="auth-portal-tagline"><?= $welcomeTagline ?></p>
-                    <?php endif; ?>
-                    <?php if ($subtitleMobileHtml !== '' || $subtitleDesktopHtml !== ''): ?>
-                        <p class="sub mb-0">
-                            <?php if ($subtitleMobileHtml !== ''): ?>
-                                <span class="auth-portal-sub-line auth-portal-sub-line--mobile"><?= $subtitleMobileHtml ?></span>
-                            <?php endif; ?>
-                            <?php if ($subtitleDesktopHtml !== ''): ?>
-                                <span class="auth-portal-sub-line auth-portal-sub-line--desktop"><?= $subtitleDesktopHtml ?></span>
-                            <?php endif; ?>
-                        </p>
-                    <?php endif; ?>
-                </div>
+                <?php if ($welcomeSalam !== ''): ?>
+                    <p class="auth-portal-salam auth-portal-salam--utama"><?= $welcomeSalam ?></p>
+                <?php endif; ?>
+                <?php if ($headlineHtml !== ''): ?>
+                    <h1 class="auth-portal-headline"><?= $headlineHtml ?></h1>
+                <?php elseif ($welcomeSalam === '' && $title !== ''): ?>
+                    <h1 class="auth-portal-headline"><?= $title ?></h1>
+                <?php endif; ?>
+                <?php if ($welcomeSalamWaktu !== ''): ?>
+                    <p class="auth-portal-salam-waktu"><?= $welcomeSalamWaktu ?></p>
+                <?php endif; ?>
+                <?php if ($formalParagraphs !== []): ?>
+                    <div class="auth-portal-formal-body">
+                        <?php foreach ($formalParagraphs as $para): ?>
+                            <p><?= htmlspecialchars($para) ?></p>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($welcomeTagline !== ''): ?>
+                    <p class="auth-portal-tagline"><?= $welcomeTagline ?></p>
+                <?php endif; ?>
+                <?php if ($subtitleMobileHtml !== '' || $subtitleDesktopHtml !== ''): ?>
+                    <p class="auth-portal-pintu-hint">
+                        <?php if ($subtitleMobileHtml !== ''): ?>
+                            <span class="auth-portal-sub-line auth-portal-sub-line--mobile"><?= $subtitleMobileHtml ?></span>
+                        <?php endif; ?>
+                        <?php if ($subtitleDesktopHtml !== ''): ?>
+                            <span class="auth-portal-sub-line auth-portal-sub-line--desktop"><?= $subtitleDesktopHtml ?></span>
+                        <?php endif; ?>
+                    </p>
+                <?php endif; ?>
             </div>
         </header>
         <div class="auth-portal-card">
@@ -301,9 +419,12 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
         <?php endif; ?>
     </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <?php require_once __DIR__ . '/../helpers/app_vendor.php'; ?>
+    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
     <?php if (function_exists('app_asset_href')): ?>
     <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
     <?php endif; ?>

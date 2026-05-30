@@ -439,3 +439,142 @@ body.keuangan-form-page .opsional-editor-status {
         padding-bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
     }
 }
+
+/* Laporan cashless — kartu ringkasan per koperasi */
+.cashless-kop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.cashless-kop-card {
+    position: relative;
+    border: none;
+    border-radius: 16px;
+    overflow: hidden;
+    color: #fff;
+    min-height: 148px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+    transition: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .cashless-kop-card:hover {
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+    }
+}
+
+.cashless-kop-card.is-active {
+    outline: 3px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+.cashless-kop-card__bg {
+    position: absolute;
+    inset: 0;
+    background: var(--kop-gradient);
+    opacity: 1;
+}
+
+.cashless-kop-card__bg::after {
+    content: "";
+    position: absolute;
+    right: -18%;
+    top: -30%;
+    width: 58%;
+    height: 140%;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.cashless-kop-card__body {
+    position: relative;
+    z-index: 1;
+    padding: 1rem 1.1rem 1.05rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.cashless-kop-card__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+}
+
+.cashless-kop-card__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.cashless-kop-card__chip {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.cashless-kop-card__name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0 0 0.35rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.cashless-kop-card__amount {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+.cashless-kop-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    opacity: 0.92;
+    margin-top: 0.35rem;
+}
+
+.cashless-kop-card__meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.cashless-kop-card__link {
+    margin-top: auto;
+    padding-top: 0.65rem;
+}
+
+.cashless-kop-card__link a {
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.cashless-kop-card__link a:hover {
+    color: #fff;
+    border-bottom-color: #fff;
+}
+
+.cashless-laporan-period {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin-bottom: 0.75rem;
+}

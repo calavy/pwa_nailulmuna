@@ -205,6 +205,128 @@ function keuangan_syahriyah_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?int
     });
 }
 
+/**
+ * Realisasi bagian dana umum syahriyah (PKPPS + tambahan kelas) pada TA aktif.
+ * Disinkronkan dengan pembagian di laporan alokasi per santri.
+ */
+function keuangan_syahriyah_realisasi_umum_ta(PDO $pdo, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
+{
+    $total = keuangan_syahriyah_realisasi_ta($pdo, $tahunMulai, $tahunSelesai);
+    if ($total <= 0) {
+        return 0;
+    }
+
+    return max(0, $total - keuangan_syahriyah_realisasi_dasar_ta($pdo, $tahunMulai, $tahunSelesai));
+}
+
+/** Realisasi syahriyah untuk pembagian % alokasi (setelah dana umum PKPPS/kelas). */
+function keuangan_syahriyah_realisasi_dasar_ta(PDO $pdo, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
+{
+    if (!table_exists($pdo, 'santri') || !table_exists($pdo, 'keuangan_pembayaran')) {
+        return keuangan_syahriyah_realisasi_ta($pdo, $tahunMulai, $tahunSelesai);
+    }
+    if (!function_exists('keuangan_syahriyah_split_pembayaran_tambahan')) {
+        require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
+    }
+    if (!function_exists('tagihan_paid_map_for_month')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (!function_exists('pondok_bulan_slots_tahun_ajaran')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
+    }
+
+    $periode = pondok_tahun_ajaran_aktif($pdo);
+    $mulai = $tahunMulai ?? $periode['mulai'];
+    $selesai = $tahunSelesai ?? $periode['selesai'];
+
+    return keuangan_alokasi_realisasi_cached($pdo, 'syahriyah_dasar', $mulai, $selesai, static function () use ($pdo, $mulai, $selesai): int {
+        $slots = pondok_bulan_slots_tahun_ajaran($pdo, $mulai, $selesai);
+        $dasar = 0;
+        $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+        $aktif = santri_sql_aktif_only('s');
+        $st = $pdo->query('SELECT s.id, s.kategori_kelas FROM santri s WHERE ' . $aktif);
+        $santriRows = $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+
+        foreach ($slots as $slot) {
+            $bulan = (int) ($slot['bulan'] ?? 0);
+            if ($bulan < 1 || $bulan > 12) {
+                continue;
+            }
+            $paidMap = tagihan_paid_map_for_month($pdo, $bulan, $mulai, $selesai, ['syahriyah']);
+            foreach ($santriRows as $s) {
+                $sid = (int) ($s['id'] ?? 0);
+                if ($sid <= 0) {
+                    continue;
+                }
+                $bayar = (int) ($paidMap[$sid]['syahriyah'] ?? 0);
+                if ($bayar <= 0) {
+                    continue;
+                }
+                $split = keuangan_syahriyah_split_pembayaran_tambahan(
+                    $pdo,
+                    $sid,
+                    trim((string) ($s['kategori_kelas'] ?? '')),
+                    $bayar,
+                    $bulan,
+                    $mulai,
+                    $selesai
+                );
+                $dasar += (int) ($split['dasar'] ?? $bayar);
+            }
+        }
+
+        return $dasar;
+    });
+}
+
+/**
+ * Opsi alokasi untuk formulir pengeluaran (komponen % + dana umum PKPPS/kelas).
+ *
+ * @return list<array{value:string,label:string,group:string}>
+ */
+function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
+{
+    $out = [];
+    foreach (keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH) as $ar) {
+        $nama = trim((string) ($ar['nama_komponen'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $out[] = [
+            'value' => $nama,
+            'label' => $nama . ' (' . (string) ($ar['persen'] ?? '0') . '%)',
+            'group' => 'Dana syahriyah (alokasi %)',
+        ];
+    }
+    foreach (keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN) as $ar) {
+        $nama = trim((string) ($ar['nama_komponen'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $out[] = [
+            'value' => $nama,
+            'label' => $nama . ' (' . (string) ($ar['persen'] ?? '0') . '%)',
+            'group' => 'Dana awal tahun',
+        ];
+    }
+    if (!function_exists('keuangan_pkpps_alokasi_umum_label')) {
+        require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
+    }
+    if (!function_exists('keuangan_kelas_syahriyah_alokasi_umum_label')) {
+        require_once __DIR__ . '/keuangan_kelas_syahriyah.php';
+    }
+    $pkppsLabel = keuangan_pkpps_alokasi_umum_label();
+    $kelasLabel = keuangan_kelas_syahriyah_alokasi_umum_label();
+    $out[] = ['value' => $pkppsLabel, 'label' => $pkppsLabel . ' — bagian PKPPS dari syahriyah', 'group' => 'Dana umum syahriyah'];
+    $out[] = ['value' => $kelasLabel, 'label' => $kelasLabel . ' — tambahan per kelas', 'group' => 'Dana umum syahriyah'];
+    $out[] = ['value' => 'Dana Umum', 'label' => 'Dana Umum (gabungan PKPPS + kelas)', 'group' => 'Dana umum syahriyah'];
+
+    return $out;
+}
+
 /** Realisasi pembayaran santri periode awal tahun (semua komponen) pada TA aktif. */
 function keuangan_awal_tahun_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
 {
@@ -255,7 +377,9 @@ function keuangan_alokasi_simulasi(PDO $pdo, array $persenMap = [], string $jeni
 {
     $jenisDana = keuangan_alokasi_normalize_jenis($jenisDana);
     $rows = keuangan_fetch_alokasi_aktif($pdo, $jenisDana);
-    $realisasi = keuangan_alokasi_realisasi_ta($pdo, $jenisDana);
+    $realisasi = $jenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
+        ? keuangan_syahriyah_realisasi_dasar_ta($pdo)
+        : keuangan_alokasi_realisasi_ta($pdo, $jenisDana);
     $baris = [];
     $totalPersen = 0.0;
 

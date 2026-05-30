@@ -98,6 +98,13 @@ if ($q !== '') {
     $queryBase['q'] = $q;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim_wa_tagihan') {
+    $res = wa_tagihan_kirim_manual($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
+    header('Location: ' . app_href('/pembayaran/tagihan_syahriyah.php?' . http_build_query(array_merge($queryBase, ['page' => $page]))));
+    exit;
+}
+
 $pageTitle = 'Tagihan Bulanan';
 $bodyClass = keuangan_body_class('bendahara-page');
 require_once __DIR__ . '/../includes/header.php';
@@ -186,6 +193,10 @@ $iconTagihan = bendahara_page_icon('tagihan');
     <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="btn-tagihan-ringkas" aria-pressed="<?= $ringkas ? 'true' : 'false' ?>">
         <?= $ringkas ? 'Tampilkan detail kolom' : 'Mode ringkas' ?>
     </button>
+    <form method="post" class="d-inline ms-2" onsubmit="return confirm('Kirim WA tagihan ke wali santri yang masih punya tagihan belum lunas? (Tidak mengganggu jadwal otomatis.)')">
+        <input type="hidden" name="action" value="kirim_wa_tagihan">
+        <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i>Kirim WA tagihan</button>
+    </form>
 </p>
 
 <div class="row g-2 mb-3">

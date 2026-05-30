@@ -328,6 +328,16 @@ function keuangan_tagihan_breakdown_for_santri(
                 $row['persen_potongan'] = $persenPot;
                 $row['keterangan_potongan'] = (string) ($perPosWajib[$slug]['keterangan_potongan'] ?? '');
             }
+            if ($slug === 'syahriyah') {
+                $row['pkpps_tambahan'] = (int) ($perPosWajib[$slug]['pkpps_tambahan'] ?? 0);
+                $row['kelas_syahriyah_tambahan'] = (int) ($perPosWajib[$slug]['kelas_syahriyah_tambahan'] ?? 0);
+                $row['expected_setelah_potongan'] = (int) ($perPosWajib[$slug]['expected_setelah_potongan'] ?? $expected);
+                $tierKey = trim((string) ($perPosWajib[$slug]['tier_key'] ?? $tier));
+                if ($tierKey !== '') {
+                    $row['tier_key'] = $tierKey;
+                    $row['tier_label'] = $tierKey === 'muadalah' ? 'Muadalah' : ($tierKey === 'ulya' ? 'Ulya' : 'Wustho');
+                }
+            }
         }
         $out[$slug] = $row;
     }

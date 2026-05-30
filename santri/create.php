@@ -21,7 +21,9 @@ ensure_kelas_ruangan_table($pdo);
 
 $tingkatanList = [];
 if (table_exists($pdo, 'tingkatan')) {
-    $tingkatanList = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN);
+    require_once __DIR__ . '/../helpers/santri_list_sort.php';
+    tingkatan_ensure_urutan_column($pdo);
+    $tingkatanList = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY urutan ASC, nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN);
 }
 
 $kelasKeuanganList = kelas_keuangan_list_active($pdo);

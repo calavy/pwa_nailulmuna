@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/pkpps.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -111,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
         keuangan_dashboard_cache_invalidate();
     }
+    pkpps_sync_from_kelas_keuangan($pdo);
     header('Location: ' . app_href('/settings/kelas_keuangan.php'));
     exit;
 }
@@ -138,11 +140,17 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<div class="row g-4">
+<div class="alert alert-light border small mb-3">
+    <strong>Hubungan keuangan:</strong> Kode kelas tersimpan di <code>kategori_kelas</code> santri → tarif Muadalah/Wustho/Ulya → tagihan &amp; pembayaran.
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif')) ?>">Tarif keuangan</a>
+    · <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>
+</div>
+
+<div class="row g-3">
     <div class="col-lg-4">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm h-100">
+            <div class="card-header py-2 fw-semibold small">Tambah kelas</div>
             <div class="card-body">
-                <h2 class="h5">Tambah kelas keuangan</h2>
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="create">
                     <div class="col-12">
@@ -174,20 +182,14 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="col-lg-8">
         <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Daftar kelas keuangan</h2>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th>Kode, nama, tarif &amp; status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+            <div class="card-header py-2 fw-semibold small d-flex justify-content-between align-items-center">
+                <span>Daftar kelas keuangan</span>
+                <span class="badge text-bg-secondary"><?= $total ?> entri</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
                         <?php foreach ($rows as $row): ?>
-                            <tr>
-                                <td>
-                                    <div class="d-flex flex-wrap align-items-end gap-2">
+                                    <div class="list-group-item d-flex flex-wrap align-items-end gap-2">
                                         <form method="post" class="d-flex flex-wrap align-items-end gap-2 flex-grow-1">
                                             <input type="hidden" name="action" value="update">
                                             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
@@ -207,10 +209,11 @@ require_once __DIR__ . '/../includes/header.php';
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
-                                            <div style="flex-basis:5rem;min-width:4rem">
+                                            <div style="flex-basis:4rem;min-width:3.5rem">
                                                 <label class="form-label small mb-0 text-muted">Urut</label>
                                                 <input type="number" class="form-control form-control-sm" name="urutan" value="<?= (int) $row['urutan'] ?>">
                                             </div>
+                                            <span class="badge text-bg-light border d-md-none"><?= htmlspecialchars((string) $row['kode']) ?></span>
                                             <div class="flex-grow-1" style="flex-basis:6rem;min-width:5rem">
                                                 <label class="form-label small mb-0 text-muted">Status</label>
                                                 <select class="form-select form-select-sm" name="is_aktif">
@@ -226,13 +229,9 @@ require_once __DIR__ . '/../includes/header.php';
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
                                         </form>
                                     </div>
-                                </td>
-                            </tr>
                         <?php endforeach; ?>
-                        </tbody>
-                    </table>
                 </div>
-                <p class="small text-muted mb-0">Santri hanya dapat memilih entri berstatus Aktif. Data lama dengan kode nonaktif tetap dikenali untuk perhitungan tarif.</p>
+                <p class="small text-muted mb-0 px-3 py-2">Santri hanya dapat memilih entri berstatus Aktif. Data lama dengan kode nonaktif tetap dikenali untuk perhitungan tarif.</p>
             </div>
         </div>
     </div>

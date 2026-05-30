@@ -3,6 +3,8 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
+require_once __DIR__ . '/../helpers/datetime_display.php';
+require_once __DIR__ . '/../helpers/pondok_cetak.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 
@@ -39,16 +41,12 @@ if ($blockPrint) {
     exit;
 }
 
-$namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
-$jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$logoPath = app_setting($pdo, 'logo_path', '');
-$logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
-$namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
-$telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
-$websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');
-$jamTerbit = date('d-m-Y H:i');
+$kop = pondok_kop_data($pdo);
+$namaPonpes = (string) $kop['nama_ponpes'];
+$namaPengasuhDefault = (string) $kop['nama_pengasuh'];
+$kotaPonpes = (string) $kop['kota_ponpes'];
+$logoHref = (string) ($kop['logo_href'] ?? '');
+$jamTerbit = app_format_datetime_id(date('Y-m-d H:i:s'));
 $returnCode = trim((string) ($izin['qr_token'] ?? ''));
 if ($returnCode === '') {
     $returnCode = bin2hex(random_bytes(16));
@@ -87,9 +85,9 @@ $tanggalMulai = (string) ($izin['tanggal_mulai'] ?? '-');
 $tanggalSelesai = (string) ($izin['tanggal_selesai'] ?? '-');
 $jamMulai = trim((string) ($izin['jam_mulai'] ?? ''));
 $jamSelesai = trim((string) ($izin['jam_selesai'] ?? ''));
-$jamMulaiTampil = $jamMulai !== '' ? substr($jamMulai, 0, 5) : '-';
-$jamSelesaiTampil = $jamSelesai !== '' ? substr($jamSelesai, 0, 5) : '-';
-$harusDatang = $tanggalSelesai . ' pukul ' . $jamSelesaiTampil;
+$jamMulaiTampil = app_format_jam($jamMulai);
+$jamSelesaiTampil = app_format_jam($jamSelesai);
+$harusDatang = app_format_tanggal_id($tanggalSelesai) . ' pukul ' . $jamSelesaiTampil;
 $nbText = $jenisIzin === 'TUGAS'
     ? 'Jika ingin melakukan perpanjangan izin tugas, harap sowan pengasuh terlebih dahulu.'
     : 'Jika ingin melakukan perpanjangan izin sakit/keluar, harap konfirmasi kepada petugas.';
@@ -133,7 +131,7 @@ $nbText = $jenisIzin === 'TUGAS'
             transform: translate(-50%, -50%) rotate(-30deg);
             width: 230px;
             height: 230px;
-            background-image: url("<?= htmlspecialchars($logo) ?>");
+            background-image: url("<?= htmlspecialchars($logoHref) ?>");
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain;
@@ -142,32 +140,7 @@ $nbText = $jenisIzin === 'TUGAS'
             pointer-events: none;
         }
 
-        .header {
-            display: flex; 
-            gap: 10px;
-            align-items: center; 
-            border-bottom: 2px solid var(--izin-accent, #0f172a);
-            padding-bottom: 7px;
-            margin-bottom: 4px;
-            position: relative;
-            z-index: 1;
-        }
-        .header::after {
-            content: "";
-            display: block;
-            border-bottom: 1px solid #334155;
-            margin-top: 2px;
-            width: 100%;
-            position: absolute;
-            bottom: -6px;
-        }
-
-        .logo { width: 58px; height: 58px; object-fit: cover; border-radius: 999px; border: 1px solid #d1d5db; }
-        .brand { flex: 1; text-align: center; }
-        .brand .small { margin: 0; font-size: 8.7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-        .brand h2 { margin: 0; font-size: 14.5pt; color: #065f46; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
-        .brand .addr { margin: 0; font-size: 7.7pt; font-style: italic; color: #334155; }
-        .brand .contact { margin-top: 1px; font-size: 7.4pt; color: #475569; }
+        <?= pondok_kop_surat_css($headerColor, $logoHref) ?>
 
         .meta { margin-top: 8px; font-size: 7.3pt; color: #64748b; font-style: italic; text-align: right; }
         
@@ -273,18 +246,8 @@ $nbText = $jenisIzin === 'TUGAS'
     </style>
 </head>
 <body onload="window.print()" style="--izin-accent: <?= htmlspecialchars($headerColor) ?>;">
-    <div class="sheet">
-        <div class="header">
-            <?php if ($logo): ?>
-                <img src="<?= htmlspecialchars($logo) ?>" alt="logo" class="logo">
-            <?php endif; ?>
-            <div class="brand">
-                <p class="small"><?= htmlspecialchars($jenisPendidikan !== '' ? $jenisPendidikan : 'Lembaga Pondok Pesantren') ?></p>
-                <h2><?= htmlspecialchars($namaPonpes) ?></h2>
-                <p class="addr"><?= htmlspecialchars($alamatPonpes) ?></p>
-                <p class="contact">Telp: <?= htmlspecialchars($telpPonpes) ?> | Website: <?= htmlspecialchars($websitePonpes) ?></p>
-            </div>
-        </div>
+    <div class="sheet sheet--kop-watermark">
+        <?= pondok_kop_surat_html($kop, $headerColor) ?>
 
         <div class="title">
             <strong>SURAT IZIN SANTRI</strong>
@@ -319,7 +282,7 @@ $nbText = $jenisIzin === 'TUGAS'
 
         <div class="ttd-wrap">
             <div class="ttd-meta">
-                Muntilan, <?= htmlspecialchars(date('d-m-Y')) ?>
+                <?= htmlspecialchars($kotaPonpes) ?>, <?= htmlspecialchars(app_format_tanggal_id(date('Y-m-d'))) ?>
             </div>
             <div class="ttd">
                 <div class="box">

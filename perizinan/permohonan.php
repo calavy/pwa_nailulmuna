@@ -264,11 +264,11 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam mulai</label>
-                        <input type="time" name="jam_mulai" class="form-control" value="<?= date('H:i') ?>" required>
+                        <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam selesai</label>
-                        <input type="time" name="jam_selesai" class="form-control" value="<?= date('H:i') ?>" required>
+                        <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Durasi (jam)</label>
@@ -357,8 +357,12 @@ require_once __DIR__ . '/../includes/header.php';
                                         <td class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?> <span class="text-muted small">(<?= htmlspecialchars((string) $r['nis']) ?>)</span></td>
                                         <td><span class="badge text-bg-<?= $jb ?>"><?= htmlspecialchars(jenis_izin_label($jenis)) ?></span></td>
                                         <td class="small">
-                                            <?= htmlspecialchars((string) $r['tanggal_mulai']) ?> <?= htmlspecialchars(substr((string) ($r['jam_mulai'] ?? ''), 0, 5)) ?><br>
-                                            s/d <?= htmlspecialchars((string) $r['tanggal_selesai']) ?> <?= htmlspecialchars(substr((string) ($r['jam_selesai'] ?? ''), 0, 5)) ?>
+                                            <?= htmlspecialchars(app_format_periode_izin_tabel(
+                                                (string) $r['tanggal_mulai'],
+                                                (string) $r['tanggal_selesai'],
+                                                (string) ($r['jam_mulai'] ?? ''),
+                                                (string) ($r['jam_selesai'] ?? '')
+                                            )) ?>
                                         </td>
                                         <td class="small"><?= htmlspecialchars((string) ($r['pemberi_izin'] ?? '-')) ?></td>
                                         <td>

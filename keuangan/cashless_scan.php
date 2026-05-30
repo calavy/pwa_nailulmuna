@@ -217,6 +217,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+
+    require_once __DIR__ . '/../helpers/offline_sync_http.php';
+    if (offline_sync_wants_json()) {
+        $jsonType = $resultType === 'danger' ? 'error' : $resultType;
+        offline_sync_json_response($jsonType, $resultMessage ?? 'OK', [
+            'action' => $action,
+            'verified' => isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verified']),
+            'auto_nominal' => ($action === 'verify_cashless_pin' && $resultType === 'success'),
+        ]);
+    }
 }
 
 $autoStartNominalScan = false;
@@ -379,7 +389,7 @@ if ($koperasiPortal) {
     </div>
 </div>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
 <script>
     (function () {
         const CFG = {
@@ -525,6 +535,9 @@ if ($koperasiPortal) {
                         nominalScanInput.value = raw;
                         if (moneyStatus) moneyStatus.textContent = 'Memproses transaksi...';
                         await stopMoneyScanner();
+                        if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {
+                            return;
+                        }
                         moneyForm.submit();
                     },
                     function () {},

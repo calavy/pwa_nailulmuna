@@ -55,12 +55,14 @@
     position: relative;
     z-index: 1;
     width: 100%;
+    max-width: 100%;
     margin: 0 auto;
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-inline: 0;
+    padding-inline: clamp(0.5rem, 2.5vw, 1.25rem);
+    box-sizing: border-box;
 }
 
 .auth-portal-shell {
@@ -84,8 +86,35 @@
     }
 }
 
+/* Halaman pilih peran — mobile/tablet: satu kolom vertikal, lebar penuh */
 .auth-portal-shell--wide {
+    width: 100%;
     max-width: 100%;
+    margin-inline: auto;
+}
+
+@media (min-width: 576px) and (max-width: 991.98px) {
+    .auth-portal-shell--wide {
+        max-width: min(520px, 94vw);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .auth-portal-shell--wide .auth-portal-hero {
+        text-align: center;
+    }
+
+    .auth-portal-shell--wide .auth-portal-headline {
+        margin-inline: auto;
+        text-align: center;
+    }
+
+    .auth-portal-shell--wide .auth-portal-formal-body {
+        font-size: 0.8rem;
+        max-height: 12rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
 /* Hero — mobile */
@@ -135,6 +164,168 @@
     opacity: 0.88;
     margin-bottom: 0.4rem;
     font-weight: 600;
+}
+
+/* Kop — logo + identitas + alamat */
+.auth-portal-kop {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: clamp(0.65rem, 3vw, 1rem);
+    width: min(100%, 32rem);
+    margin: 0 auto 0.85rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+}
+
+.auth-portal-kop__logo {
+    flex-shrink: 0;
+}
+
+.auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback) {
+    margin: 0;
+    width: clamp(68px, 17vw, 84px);
+    height: clamp(68px, 17vw, 84px);
+    min-width: clamp(68px, 17vw, 84px);
+    min-height: clamp(68px, 17vw, 84px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.auth-portal-kop__logo .logo-ring img,
+.auth-portal-kop__logo .auth-portal-logo-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+    object-position: center center;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    transform: none;
+    transform-origin: center center;
+    background: transparent;
+    filter: drop-shadow(0 2px 10px rgba(15, 23, 42, 0.28));
+}
+
+.auth-portal-kop__logo .logo-ring--fallback {
+    width: clamp(68px, 17vw, 84px);
+    height: clamp(68px, 17vw, 84px);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.4);
+    padding: 0;
+}
+
+.auth-portal-kop__logo .logo-ring--fallback .logo-fallback {
+    transform: none;
+}
+
+[data-theme="dark"] .auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback) {
+    background: transparent;
+    border: none;
+}
+
+.auth-portal-kop__teks {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+}
+
+.auth-portal-kop__jenis {
+    font-size: clamp(0.68rem, 2.2vw, 0.78rem);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.9;
+    line-height: 1.3;
+}
+
+.auth-portal-kop__nama {
+    font-size: clamp(0.92rem, 3vw, 1.08rem);
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    margin-top: 0.15rem !important;
+}
+
+.auth-portal-kop__alamat {
+    font-size: clamp(0.72rem, 2.4vw, 0.82rem);
+    font-weight: 500;
+    line-height: 1.45;
+    opacity: 0.9;
+    margin-top: 0.35rem !important;
+    overflow-wrap: anywhere;
+}
+
+.auth-portal-headline {
+    font-size: clamp(1rem, 3.2vw, 1.28rem);
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(15, 23, 42, 0.2);
+    margin: 0 0 0.5rem;
+    max-width: min(100%, 34rem);
+}
+
+.auth-portal-hero-text {
+    width: min(100%, 34rem);
+    margin-inline: auto;
+}
+
+.auth-portal-hero .auth-portal-salam--utama {
+    font-size: clamp(1rem, 3.5vw, 1.22rem);
+    font-weight: 700;
+    line-height: 1.4;
+    margin: 0 0 0.5rem;
+    max-width: none;
+    text-align: center;
+}
+
+.auth-portal-formal-body {
+    font-size: clamp(0.8rem, 2.5vw, 0.875rem);
+    line-height: 1.55;
+    width: 100%;
+    max-width: min(100%, 34rem);
+    margin: 0 auto 0.65rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.11);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.96);
+    text-align: left;
+}
+
+.auth-portal-formal-body p {
+    margin: 0 0 0.5rem;
+}
+
+.auth-portal-formal-body p:last-child {
+    margin-bottom: 0;
+}
+
+.auth-portal-pintu-hint {
+    font-size: clamp(0.8rem, 2.4vw, 0.88rem);
+    font-weight: 600;
+    line-height: 1.5;
+    opacity: 0.94;
+    max-width: min(100%, 34rem);
+    margin-inline: auto;
+    text-align: center;
 }
 
 .auth-portal-pondok-identity {
@@ -313,27 +504,29 @@
     display: flex;
     align-items: center;
     gap: 0.65rem;
-    padding: 0.75rem 0.85rem;
+    padding: 0.75rem 0.9rem 0.85rem;
     border-radius: 14px;
-    border: 1px solid rgba(15, 118, 110, 0.2);
-    background: linear-gradient(145deg, rgba(240, 253, 250, 0.95) 0%, #fff 100%);
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #0f766e;
+    background: #ffffff;
     text-decoration: none;
-    color: inherit;
-    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
-    min-height: 4.25rem;
+    color: #0f172a;
+    transition: none;
+    min-height: 4.5rem;
+    height: 100%;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
 }
 
 @media (hover: hover) and (pointer: fine) {
     .auth-portal-role:hover {
-        transform: translateY(-2px);
-        border-color: rgba(15, 118, 110, 0.45);
-        box-shadow: 0 10px 24px rgba(15, 118, 110, 0.14);
-        color: inherit;
+        border-color: #99f6e4;
+        box-shadow: 0 6px 18px rgba(15, 118, 110, 0.12);
+        color: #0f172a;
     }
 
     .auth-portal-role:hover .auth-portal-role__go {
-        opacity: 0.85;
-        transform: translateX(3px);
+        opacity: 1;
+        color: #0f766e;
     }
 }
 
@@ -363,17 +556,19 @@
 
 .auth-portal-role__text strong {
     display: block;
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: 0.88rem;
+    font-weight: 800;
     line-height: 1.25;
+    color: #0f172a;
 }
 
 .auth-portal-role__text span {
     display: block;
-    font-size: 0.72rem;
-    color: #64748b;
-    margin-top: 0.12rem;
-    line-height: 1.3;
+    font-size: 0.74rem;
+    color: #475569;
+    margin-top: 0.15rem;
+    line-height: 1.4;
+    padding-bottom: 0.05rem;
 }
 
 .auth-portal-role__go {
@@ -458,12 +653,14 @@
 
     .auth-portal-shell--wide {
         display: grid;
-        grid-template-columns: minmax(300px, 1.08fr) minmax(420px, 520px);
+        grid-template-columns: minmax(0, 1.15fr) minmax(380px, 480px);
         grid-template-rows: auto auto;
         align-items: center;
-        column-gap: clamp(2rem, 4vw, 3.5rem);
+        column-gap: clamp(2rem, 4vw, 3.25rem);
         row-gap: 1.25rem;
         width: 100%;
+        max-width: none;
+        margin-inline: auto;
     }
 
     .auth-portal-shell--wide .auth-portal-hero {
@@ -471,18 +668,56 @@
         grid-row: 1;
         text-align: left;
         align-self: center;
-        padding-right: clamp(0.5rem, 2vw, 1.5rem);
+        padding: clamp(0.5rem, 2vw, 1.25rem) clamp(1rem, 3vw, 2rem) clamp(0.5rem, 2vw, 1rem) clamp(1.25rem, 3.5vw, 2.5rem);
     }
 
-    .auth-portal-shell--wide .auth-portal-hero .logo-ring {
+    .auth-portal-shell--wide .auth-portal-kop {
         margin-left: 0;
-        margin-right: auto;
-        max-width: 200px;
+        margin-right: 0;
+        width: 100%;
+        max-width: min(100%, 520px);
+        padding: 0.85rem 1rem;
     }
 
-    .auth-portal-shell--wide .auth-portal-hero .logo-ring img {
-        max-width: 200px;
-        max-height: 150px;
+    .auth-portal-shell--wide .auth-portal-kop__logo .logo-ring {
+        width: 84px;
+        height: 84px;
+        min-width: 84px;
+        min-height: 84px;
+    }
+
+    .auth-portal-shell--wide .auth-portal-kop__nama {
+        font-size: 1.05rem;
+    }
+
+    .auth-portal-shell--wide .auth-portal-headline {
+        font-size: clamp(1.15rem, 1.5vw, 1.4rem);
+        max-width: 520px;
+        text-align: left;
+    }
+
+    .auth-portal-shell--wide .auth-portal-hero-text {
+        width: 100%;
+        max-width: min(100%, 520px);
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .auth-portal-shell--wide .auth-portal-salam--utama {
+        text-align: left;
+    }
+
+    .auth-portal-shell--wide .auth-portal-formal-body {
+        margin-left: 0;
+        margin-right: 0;
+        max-width: 520px;
+        font-size: 0.875rem;
+    }
+
+    .auth-portal-shell--wide .auth-portal-pintu-hint {
+        margin-left: 0;
+        text-align: left;
+        max-width: 520px;
     }
 
     .auth-portal-shell--wide .auth-portal-hero .logo-ring--fallback {
@@ -502,37 +737,6 @@
         max-width: 20ch;
     }
 
-    .auth-portal-shell--wide .auth-portal-hero-text {
-        flex-direction: row;
-        align-items: flex-start;
-        gap: clamp(1.25rem, 3vw, 2rem);
-        margin-top: 0.35rem;
-    }
-
-    .auth-portal-shell--wide .auth-portal-hero-lead {
-        flex: 0 1 auto;
-        min-width: min(100%, 16rem);
-    }
-
-    .auth-portal-shell--wide .auth-portal-hero-follow {
-        flex: 1 1 16rem;
-        padding-top: 0.15rem;
-        border-left: 1px solid rgba(255, 255, 255, 0.28);
-        padding-left: clamp(1rem, 2vw, 1.5rem);
-    }
-
-    .auth-portal-shell--wide .auth-portal-tagline {
-        font-size: clamp(0.95rem, 1.1vw, 1.05rem);
-        max-width: none;
-        line-height: 1.5;
-        margin-bottom: 0.45rem;
-    }
-
-    .auth-portal-shell--wide .auth-portal-hero .sub {
-        margin-inline: 0;
-        max-width: none;
-        font-size: 0.95rem;
-    }
 
     .auth-portal-shell--wide .auth-portal-sub-line--mobile {
         display: none;
@@ -574,12 +778,14 @@
 
     .auth-portal-shell--wide .auth-portal-role-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: 1fr;
         gap: 0.65rem;
+        align-items: stretch;
     }
 
     .auth-portal-shell--wide .auth-portal-role {
-        min-height: 4.5rem;
-        padding: 0.8rem 0.95rem;
+        min-height: 4.6rem;
+        padding: 0.75rem 0.95rem 0.9rem;
     }
 
     .auth-portal-shell--wide .auth-portal-role__text strong {
@@ -648,6 +854,7 @@
 
     .auth-portal-shell--wide .auth-portal-role-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-auto-rows: 1fr;
         gap: 0.7rem;
     }
 
@@ -863,6 +1070,21 @@
 
 /* HP / Android — logo & nama pondok di halaman login */
 @media (max-width: 480px) {
+    .auth-portal-kop {
+        padding: 0.65rem 0.75rem;
+    }
+
+    .auth-portal-kop__logo .logo-ring {
+        width: clamp(64px, 18vw, 80px);
+        height: clamp(64px, 18vw, 80px);
+        min-width: clamp(64px, 18vw, 80px);
+        min-height: clamp(64px, 18vw, 80px);
+    }
+
+    .auth-portal-kop__logo .auth-portal-logo-img {
+        transform: none;
+    }
+
     .auth-portal-hero .logo-ring {
         max-width: min(168px, 44vw);
         margin-bottom: 0.85rem;

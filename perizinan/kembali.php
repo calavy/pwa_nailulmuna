@@ -3,8 +3,10 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_roles(['admin', 'pengurus']);
+perizinan_rombongan_ensure_schema($pdo);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada.');
@@ -14,6 +16,7 @@ if (!table_exists($pdo, 'perizinan')) {
 
 $message = null;
 $type = 'success';
+$redirectAfterPost = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['scan_source'] ?? '') !== 'camera') {
@@ -21,6 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = 'Input manual dinonaktifkan. Gunakan scan kamera.';
     } else {
         $code = trim((string) ($_POST['kode_qr'] ?? ''));
+        $rombonganMeta = perizinan_rombongan_by_qr($pdo, $code);
+        if ($rombonganMeta) {
+            $rid = (int) ($rombonganMeta['id'] ?? 0);
+            if (empty($rombonganMeta['waktu_keluar'])) {
+                perizinan_rombongan_scan_checkout($pdo, $rid);
+                $type = 'success';
+                $message = 'Check-out rombongan tercatat. Saat kembali, scan lagi lalu centang santri yang sudah tiba.';
+            } else {
+                header('Location: ' . app_href('/perizinan/kembali_rombongan.php?id=' . $rid));
+                exit;
+            }
+        } else {
         $izin = $pdo->prepare('
             SELECT i.id, i.tanggal_selesai, i.jam_selesai, i.waktu_keluar, i.grace_menit, i.santri_id, s.nama_santri
             FROM perizinan i
@@ -28,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             WHERE i.qr_token = :qr_token
               AND i.status_izin = "IZIN"
               AND (i.approval_status = "DISETUJUI" OR i.approval_status IS NULL)
+              AND (i.rombongan_id IS NULL OR i.rombongan_id = 0)
             ORDER BY i.id DESC
             LIMIT 1
         ');
@@ -79,6 +95,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Check-in selesai: ' . $activeIzin['nama_santri'] . ($latePoint > 0 ? ' (terlambat, poin pelanggaran +' . $latePoint . ')' : '');
             }
         }
+        }
+    }
+
+    require_once __DIR__ . '/../helpers/offline_sync_http.php';
+    if (offline_sync_wants_json()) {
+        offline_sync_json_response($type, $message ?: 'OK', [
+            'redirect' => $redirectAfterPost,
+        ]);
     }
 }
 
@@ -118,7 +142,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
 <script>
     (function () {
         const input = document.getElementById('kode_qr');
@@ -238,6 +262,9 @@ require_once __DIR__ . '/../includes/header.php';
             beepSuccess();
             input.value = decodedText;
             document.getElementById('scan_source').value = 'camera';
+            if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Izin: ' + decodedText })) {
+                return;
+            }
             form.submit();
         }
 

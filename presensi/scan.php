@@ -411,6 +411,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 end_scan_process:
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/../helpers/offline_sync_http.php';
+    if (offline_sync_wants_json()) {
+        $pending = $_SESSION['munawib_scan_pending'] ?? null;
+        $extra = [];
+        if (is_array($pending)) {
+            $extra['munawib_pending'] = true;
+            $extra['munawib_id'] = (int) ($pending['munawib_id'] ?? 0);
+            $extra['munawib_slots'] = $pending['slots'] ?? [];
+            $extra['munawib_nama'] = (string) ($pending['munawib_nama'] ?? '');
+        } else {
+            $extra['munawib_pending'] = false;
+        }
+        offline_sync_json_response(
+            $resultType ?: 'success',
+            $resultMessage ?: 'OK',
+            $extra
+        );
+    }
+}
+
 $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 
 $todayDate = date('Y-m-d');
@@ -462,7 +483,7 @@ usort($todayRows, static function ($a, $b): int {
 });
 $todayRows = array_slice($todayRows, 0, 30);
 
-$pageTitle = 'Scan Satu Pintu';
+$pageTitle = 'Scan Presensi';
 $bodyClass = 'scan-simple-page';
 $pageStylesheets = ['/assets/css/presensi-scan.css'];
 $isPetugasAbsensi = (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
@@ -488,9 +509,16 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
                 <a href="/dashboard.php"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
             <?php endif; ?>
         </div>
-        <strong class="small">Scan Satu Pintu</strong>
+        <strong class="small">Scan Presensi</strong>
         <span id="scan-status-badge" class="presensi-scan-status is-waiting">Menyiapkan…</span>
     </header>
+
+    <?php if ($resultMessage): ?>
+    <div class="presensi-scan-banner presensi-scan-banner--<?= htmlspecialchars($resultType) ?>" role="alert" aria-live="assertive">
+        <i class="fa-solid <?= $resultType === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?>" aria-hidden="true"></i>
+        <span><?= htmlspecialchars($resultMessage) ?></span>
+    </div>
+    <?php endif; ?>
 
     <p class="presensi-scan-hint mb-0">
         Scan multi-guna: santri · pembimbing · munawib
@@ -619,12 +647,12 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
 </div>
 
 <?php if ($resultMessage): ?>
-<div id="presensi-scan-result" class="visually-hidden" data-type="<?= htmlspecialchars($resultType) ?>" aria-hidden="true">
+<div id="presensi-scan-result" class="visually-hidden" data-type="<?= htmlspecialchars($resultType) ?>" data-speak="<?= htmlspecialchars($resultMessage) ?>" aria-hidden="true">
     <span class="presensi-scan-result-text"><?= htmlspecialchars($resultMessage) ?></span>
 </div>
 <?php endif; ?>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-feedback.js')) ?>"></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-timer.js')) ?>"></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
@@ -648,6 +676,9 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
         onSubmit: function (code) {
             input.value = code;
             document.getElementById('scan_source').value = 'camera';
+            if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Scan: ' + code })) {
+                return;
+            }
             form.submit();
         },
     });

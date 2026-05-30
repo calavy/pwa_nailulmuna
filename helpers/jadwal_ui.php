@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/datetime_display.php';
+
 require_once __DIR__ . '/app.php';
 
 function jadwal_tampilan_grup(PDO $pdo): string
@@ -233,16 +235,13 @@ function jadwal_hari_badge_slug(int $hariKe): string
     };
 }
 
-/** Format jam jadwal singkat: 07:00–08:30 */
+/** Format jam jadwal singkat: 07:00–08:30 (24 jam). */
 function jadwal_jam_ringkas(array $row): string
 {
-    $m = substr((string) ($row['jam_mulai'] ?? ''), 0, 5);
-    $s = substr((string) ($row['jam_selesai'] ?? ''), 0, 5);
-    if ($m === '' && $s === '') {
-        return '—';
-    }
-
-    return $m . ($s !== '' ? '–' . $s : '');
+    return app_format_jam_rentang(
+        (string) ($row['jam_mulai'] ?? ''),
+        (string) ($row['jam_selesai'] ?? '')
+    );
 }
 
 function jadwal_norm_jam(string $jam): string

@@ -102,6 +102,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('success', 'Munawib "' . $nama . '" ditambahkan.');
         }
     }
+    if ($action === 'update_munawib') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $nama = trim((string) ($_POST['nama'] ?? ''));
+        $nip = trim((string) ($_POST['nip'] ?? ''));
+        $qr = trim((string) ($_POST['qr'] ?? ''));
+        $wa = trim((string) ($_POST['no_wa'] ?? ''));
+        if ($id > 0 && $nama !== '') {
+            $st = $pdo->prepare('UPDATE munawib SET nama = :n, nip = :nip, qr = :qr, no_wa = :wa WHERE id = :id');
+            $st->execute(['n' => $nama, 'nip' => $nip !== '' ? $nip : null, 'qr' => $qr !== '' ? $qr : null, 'wa' => $wa !== '' ? $wa : null, 'id' => $id]);
+            set_flash('success', 'Data munawib diperbarui.');
+        }
+    }
+    if ($action === 'hapus_munawib') {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $pdo->prepare('DELETE FROM munawib WHERE id = :id')->execute(['id' => $id]);
+            set_flash('success', 'Munawib dihapus.');
+        }
+    }
+    if ($action === 'update_penugasan') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $mulai = (string) ($_POST['tanggal_mulai'] ?? '');
+        $selesai = (string) ($_POST['tanggal_selesai'] ?? '');
+        $alasan = trim((string) ($_POST['alasan'] ?? ''));
+        if ($id > 0 && $mulai !== '' && $selesai !== '') {
+            $st = $pdo->prepare('UPDATE munawib_penugasan SET tanggal_mulai = :mul, tanggal_selesai = :sel, alasan = :a WHERE id = :id');
+            $st->execute(['mul' => $mulai, 'sel' => $selesai, 'a' => $alasan !== '' ? $alasan : null, 'id' => $id]);
+            set_flash('success', 'Penugasan diperbarui.');
+        }
+    }
+    if ($action === 'hapus_penugasan') {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $pdo->prepare('UPDATE munawib_penugasan SET status = "NONAKTIF" WHERE id = :id')->execute(['id' => $id]);
+            set_flash('success', 'Penugasan dinonaktifkan.');
+        }
+    }
     if ($action === 'tambah_penugasan') {
         $pbId = (int) ($_POST['pembimbing_id'] ?? 0);
         $mId = (int) ($_POST['munawib_id'] ?? 0);
@@ -127,7 +164,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $munawibList = munawib_list_aktif($pdo);
-$pembimbingList = $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY nama_pembimbing')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$editMunawibId = (int) ($_GET['edit'] ?? 0);
+$editMunawib = null;
+if ($editMunawibId > 0) {
+    foreach ($munawibList as $mw) {
+        if ((int) ($mw['id'] ?? 0) === $editMunawibId) {
+            $editMunawib = $mw;
+            break;
+        }
+    }
+}
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
+$pembimbingList = $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $kegiatanList = table_exists($pdo, 'kegiatan') ? $pdo->query('SELECT id, nama_kegiatan FROM kegiatan ORDER BY nama_kegiatan')->fetchAll(PDO::FETCH_ASSOC) : [];
 $penugasan = $pdo->query('
     SELECT mp.*, m.nama AS munawib_nama, b.nama_pembimbing, k.nama_kegiatan
@@ -168,15 +216,23 @@ $flashOk = get_flash('success');
 <div class="row g-3">
     <div class="col-lg-4">
         <div class="card shadow-sm">
-            <div class="card-header py-2"><strong>Tambah munawib</strong></div>
+            <div class="card-header py-2"><strong><?= $editMunawib ? 'Ubah munawib' : 'Tambah munawib' ?></strong></div>
             <div class="card-body">
                 <form method="post" class="row g-2">
-                    <input type="hidden" name="action" value="tambah_munawib">
-                    <div class="col-12"><input class="form-control form-control-sm" name="nama" placeholder="Nama *" required></div>
-                    <div class="col-6"><input class="form-control form-control-sm" name="nip" placeholder="NIP"></div>
-                    <div class="col-6"><input class="form-control form-control-sm" name="qr" placeholder="Kode QR"></div>
-                    <div class="col-12"><input class="form-control form-control-sm" name="no_wa" placeholder="No WA"></div>
-                    <div class="col-12"><button class="btn btn-primary btn-sm w-100">Simpan</button></div>
+                    <input type="hidden" name="action" value="<?= $editMunawib ? 'update_munawib' : 'tambah_munawib' ?>">
+                    <?php if ($editMunawib): ?>
+                        <input type="hidden" name="id" value="<?= (int) ($editMunawib['id'] ?? 0) ?>">
+                    <?php endif; ?>
+                    <div class="col-12"><input class="form-control form-control-sm" name="nama" placeholder="Nama *" required value="<?= htmlspecialchars((string) ($editMunawib['nama'] ?? '')) ?>"></div>
+                    <div class="col-6"><input class="form-control form-control-sm" name="nip" placeholder="NIP" value="<?= htmlspecialchars((string) ($editMunawib['nip'] ?? '')) ?>"></div>
+                    <div class="col-6"><input class="form-control form-control-sm" name="qr" placeholder="Kode QR" value="<?= htmlspecialchars((string) ($editMunawib['qr'] ?? '')) ?>"></div>
+                    <div class="col-12"><input class="form-control form-control-sm" name="no_wa" placeholder="No WA" value="<?= htmlspecialchars((string) ($editMunawib['no_wa'] ?? '')) ?>"></div>
+                    <div class="col-12 d-flex gap-2">
+                        <button class="btn btn-primary btn-sm"><?= $editMunawib ? 'Simpan perubahan' : 'Simpan' ?></button>
+                        <?php if ($editMunawib): ?>
+                            <a href="<?= htmlspecialchars(app_href('/pembimbing/munawib.php')) ?>" class="btn btn-outline-secondary btn-sm">Batal</a>
+                        <?php endif; ?>
+                    </div>
                 </form>
             </div>
         </div>
@@ -231,10 +287,18 @@ $flashOk = get_flash('success');
                             <td class="small"><?= htmlspecialchars((string) (($mw['nip'] ?? '') !== '' ? $mw['nip'] : '-')) ?></td>
                             <td class="small font-monospace"><?= htmlspecialchars((string) (($mw['qr'] ?? '') !== '' ? $mw['qr'] : '-')) ?></td>
                             <td class="small"><?= htmlspecialchars((string) (($mw['no_wa'] ?? '') !== '' ? $mw['no_wa'] : '-')) ?></td>
-                            <td class="text-end">
-                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/pembimbing/munawib_kartu.php?id=' . (int) ($mw['id'] ?? 0))) ?>">
-                                    <i class="fa-solid fa-id-card me-1"></i>Kartu
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembimbing/munawib.php?edit=' . (int) ($mw['id'] ?? 0))) ?>" title="Ubah">
+                                    <i class="fa-solid fa-pen"></i>
                                 </a>
+                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/pembimbing/munawib_kartu.php?id=' . (int) ($mw['id'] ?? 0))) ?>">
+                                    <i class="fa-solid fa-id-card"></i>
+                                </a>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Hapus munawib ini?');">
+                                    <input type="hidden" name="action" value="hapus_munawib">
+                                    <input type="hidden" name="id" value="<?= (int) ($mw['id'] ?? 0) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                                </form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -249,15 +313,31 @@ $flashOk = get_flash('success');
             </div>
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Periode</th><th>Pembimbing</th><th>Munawib</th><th>Kegiatan</th></tr></thead>
+                    <thead class="table-light"><tr><th>Periode</th><th>Pembimbing</th><th>Munawib</th><th>Kegiatan</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
-                    <?php if ($penugasan === []): ?><tr><td colspan="4" class="text-muted text-center py-3">Belum ada penugasan.</td></tr><?php endif; ?>
+                    <?php if ($penugasan === []): ?><tr><td colspan="5" class="text-muted text-center py-3">Belum ada penugasan.</td></tr><?php endif; ?>
                     <?php foreach ($penugasan as $pg): ?>
                         <tr>
-                            <td class="small"><?= htmlspecialchars((string) $pg['tanggal_mulai']) ?> – <?= htmlspecialchars((string) $pg['tanggal_selesai']) ?></td>
+                            <td class="small">
+                                <form method="post" class="d-flex flex-column gap-1">
+                                    <input type="hidden" name="action" value="update_penugasan">
+                                    <input type="hidden" name="id" value="<?= (int) ($pg['id'] ?? 0) ?>">
+                                    <input type="date" name="tanggal_mulai" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($pg['tanggal_mulai'] ?? '')) ?>" required>
+                                    <input type="date" name="tanggal_selesai" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($pg['tanggal_selesai'] ?? '')) ?>" required>
+                            </td>
                             <td class="small"><?= htmlspecialchars((string) (($pg['nama_pembimbing'] ?? '') !== '' ? $pg['nama_pembimbing'] : 'Fleksibel / belum ditentukan')) ?></td>
                             <td class="small"><?= htmlspecialchars((string) $pg['munawib_nama']) ?></td>
                             <td class="small"><?= htmlspecialchars((string) ($pg['nama_kegiatan'] ?? 'Semua')) ?></td>
+                            <td class="text-end align-top">
+                                    <textarea name="alasan" class="form-control form-control-sm mb-1" rows="2" placeholder="Alasan"><?= htmlspecialchars((string) ($pg['alasan'] ?? '')) ?></textarea>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary w-100 mb-1">Simpan</button>
+                                </form>
+                                <form method="post" onsubmit="return confirm('Nonaktifkan penugasan ini?');">
+                                    <input type="hidden" name="action" value="hapus_penugasan">
+                                    <input type="hidden" name="id" value="<?= (int) ($pg['id'] ?? 0) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">Nonaktifkan</button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

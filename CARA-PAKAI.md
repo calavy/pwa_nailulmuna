@@ -61,3 +61,21 @@ Instalasi **pertama kali** saja: impor `impor_lengkap_pwa_nailulmuna.sql` + `mig
 | Portal wali | http://localhost/pwa_nailulmuna/wali/login.php |
 
 **Jangan** buka URL dengan `...` di akhir — itu hanya contoh, bukan link asli.
+
+---
+
+## Preview dari HP (ngrok)
+
+1. Nyalakan **Apache** di XAMPP.
+2. Jalankan ngrok ke port 80, misalnya: `ngrok http 80`
+3. Di HP buka **salah satu** URL ini (ganti `SUBDOMAIN` dengan domain ngrok Anda):
+   - `https://SUBDOMAIN.ngrok-free.dev/pwa_nailulmuna/login.php` ← disarankan
+   - atau cukup `https://SUBDOMAIN.ngrok-free.dev/` — akan dialihkan otomatis ke beranda aplikasi
+
+**Penting:** Jangan mengandalkan path `/dashboard/` — itu bukan bagian aplikasi ini.
+
+Jika pernah **pasang PWA** dari URL lama/salah: hapus pintasan di layar utama, buka ulang link di atas, lalu pasang lagi.
+
+Opsional (ikon/logo PWA konsisten di ngrok): salin `config/app.local.example.php` → `app.local.php`, isi `public_url` dengan URL ngrok lengkap + `/pwa_nailulmuna`.
+
+Logo & PWA di layar utama: **Pengaturan → Identitas pesantren** → unggah logo → atur warna tema/latar PWA → **Simpan**. Hapus pintasan PWA lama di HP, pasang ulang dari browser agar ikon & splash ikut logo baru.

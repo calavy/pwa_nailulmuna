@@ -95,8 +95,19 @@ if ($flashOk): ?>
                     <tr>
                         <td class="fw-semibold"><?= htmlspecialchars((string) $r['judul']) ?></td>
                         <td class="small"><?= htmlspecialchars(trim((string) ($r['mapel_label'] ?? '')) !== '' ? (string) $r['mapel_label'] : '—') ?></td>
-                        <td class="small text-nowrap"><?= htmlspecialchars(ikhtibar_hari_label((int) ($r['hari_ke'] ?? 0))) ?><br><?= htmlspecialchars((string) $r['tanggal']) ?></td>
-                        <td><?= (int) ($r['durasi_menit'] ?? 0) ?> mnt</td>
+                        <td class="small text-nowrap">
+                            <?= htmlspecialchars(ikhtibar_hari_label((int) ($r['hari_ke'] ?? 0))) ?><br>
+                            <?php
+                            $tglAkhir = trim((string) ($r['tanggal_selesai'] ?? ''));
+                            $tglAwal = (string) ($r['tanggal'] ?? '');
+                            if ($tglAkhir !== '' && $tglAkhir !== $tglAwal) {
+                                echo htmlspecialchars($tglAwal . ' – ' . $tglAkhir);
+                            } else {
+                                echo htmlspecialchars($tglAwal);
+                            }
+                            ?>
+                        </td>
+                        <td><?= (int) ($r['durasi_menit'] ?? 0) > 0 ? (int) $r['durasi_menit'] . ' mnt' : '—' ?></td>
                         <td class="small">PG <?= (int) ($r['jumlah_pg'] ?? 0) ?><br>Esai <?= (int) ($r['jumlah_esai'] ?? 0) ?></td>
                         <td class="small">
                             <?php if ((int) ($r['pakai_token'] ?? 0) === 1): ?>

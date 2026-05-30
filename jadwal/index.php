@@ -128,6 +128,19 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
 array_unshift($tingkatanList, 'Semua Tingkatan');
 $kegiatanList = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
 $jadwalList = $pdo->query("SELECT j.id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC")->fetchAll();
+
+$filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
+$filterHari = (int) ($_GET['filter_hari'] ?? 0);
+if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
+    $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterTingkatan): bool {
+        return strcasecmp(trim((string) ($row['tingkatan'] ?? '')), $filterTingkatan) === 0;
+    }));
+}
+if ($filterHari >= 1 && $filterHari <= 7) {
+    $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterHari): bool {
+        return (int) ($row['hari_ke'] ?? 0) === $filterHari;
+    }));
+}
 $totalKegiatan = count($kegiatanList);
 $totalJadwal = count($jadwalList);
 $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string => (string) ($r['tingkatan'] ?? '-'), $jadwalList)));
@@ -190,70 +203,56 @@ $ok = get_flash('success');
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
 
-<?php if (!$viewRingkas): ?>
-<div class="row g-3 mb-4 jadwal-stat-row">
-    <div class="col-6 col-md-3">
-        <div class="jadwal-stat-card jadwal-stat-card--kegiatan">
-            <div class="jadwal-stat-ico"><i class="fa-solid fa-list-check"></i></div>
-            <div class="jadwal-stat-val"><?= $totalKegiatan ?></div>
-            <div class="jadwal-stat-lbl">Kegiatan</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="jadwal-stat-card jadwal-stat-card--jadwal">
-            <div class="jadwal-stat-ico"><i class="fa-solid fa-calendar-days"></i></div>
-            <div class="jadwal-stat-val"><?= $totalJadwal ?></div>
-            <div class="jadwal-stat-lbl">Slot jadwal</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="jadwal-stat-card jadwal-stat-card--tingkat">
-            <div class="jadwal-stat-ico"><i class="fa-solid fa-layer-group"></i></div>
-            <div class="jadwal-stat-val"><?= $tingkatanTerjadwal ?></div>
-            <div class="jadwal-stat-lbl">Tingkatan</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="jadwal-stat-card jadwal-stat-card--aksi">
-            <div class="jadwal-stat-lbl mb-2">Penambahan</div>
-            <div class="d-flex flex-column gap-1">
-                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah_kegiatan.php')) ?>" class="btn btn-sm btn-light fw-semibold"><i class="fa-solid fa-plus me-1"></i> Kegiatan</a>
-                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-sm btn-success fw-semibold"><i class="fa-solid fa-calendar-plus me-1"></i> Jadwal</a>
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+            <?php if ($viewRingkas): ?><input type="hidden" name="view" value="ringkas"><?php endif; ?>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-0">Tingkatan</label>
+                <select name="filter_tingkatan" class="form-select form-select-sm">
+                    <option value="">Semua tingkatan</option>
+                    <?php foreach ($tingkatanList as $tkOpt): ?>
+                        <?php if ((string) $tkOpt === 'Semua Tingkatan') { continue; } ?>
+                        <option value="<?= htmlspecialchars((string) $tkOpt) ?>" <?= $filterTingkatan === (string) $tkOpt ? 'selected' : '' ?>><?= htmlspecialchars((string) $tkOpt) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
-        </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-0">Hari</label>
+                <select name="filter_hari" class="form-select form-select-sm">
+                    <option value="0">Semua hari</option>
+                    <?php foreach ($hari as $hk => $hn): ?>
+                        <?php if ((int) $hk === 0) { continue; } ?>
+                        <option value="<?= (int) $hk ?>" <?= $filterHari === (int) $hk ? 'selected' : '' ?>><?= htmlspecialchars((string) $hn) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Filter</button>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . ($viewRingkas ? '?view=ringkas' : ''))) ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+            <div class="col-auto ms-md-auto">
+                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-success btn-sm"><i class="fa-solid fa-calendar-plus me-1"></i> Tambah jadwal</a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-pen me-1"></i> Edit slot</a>
+            </div>
+        </form>
     </div>
 </div>
-<?php endif; ?>
 
-<?php if (!$viewRingkas): ?>
 <div class="card shadow-sm mb-4 border-0 jadwal-peta-card">
     <div class="card-body p-0">
-        <div class="jadwal-peta-card__head px-3 px-md-4 py-3">
-            <h2 class="h6 mb-1">Peta jadwal per kegiatan</h2>
-            <p class="text-muted small mb-0">Kolom terpisah: hari, waktu, nama kegiatan, dan tingkatan — mudah dibaca sekilas.</p>
+        <div class="jadwal-peta-card__head px-3 px-md-4 py-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+                <h2 class="h6 mb-1">Peta jadwal per kegiatan</h2>
+                <p class="text-muted small mb-0">Kelola slot jadwal langsung dari tabel — edit atau hapus per baris.</p>
+            </div>
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="<?= htmlspecialchars(app_href('/jadwal/tambah.php')) ?>" class="btn btn-success"><i class="fa-solid fa-calendar-plus me-1"></i> Tambah</a>
+            </div>
         </div>
         <div class="jadwal-peta-card__body px-2 px-md-3 pb-3">
             <?php require __DIR__ . '/../includes/partials/jadwal_matrix_kegiatan.php'; ?>
         </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<div class="card shadow-sm">
-    <div class="card-body">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-            <div>
-                <h2 class="h5 mb-1"><?= $viewRingkas ? 'Jadwal (ringkas)' : 'Detail &amp; kelola' ?></h2>
-                <p class="text-muted small mb-0">Centang beberapa baris lalu hapus bersamaan, atau edit/hapus per baris.</p>
-            </div>
-            <div class="btn-group btn-group-sm" role="group">
-                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?grup=kegiatan')) ?>"
-                   class="btn <?= $tampilanGrup === 'kegiatan' ? 'btn-primary' : 'btn-outline-primary' ?>">Per kegiatan</a>
-                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?grup=tingkatan')) ?>"
-                   class="btn <?= $tampilanGrup === 'tingkatan' ? 'btn-primary' : 'btn-outline-primary' ?>">Per tingkatan</a>
-            </div>
-        </div>
-        <?php require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php'; ?>
     </div>
 </div>
 

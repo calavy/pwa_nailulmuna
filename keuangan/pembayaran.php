@@ -196,6 +196,11 @@ require_once __DIR__ . '/../includes/header.php';
                     <p class="small text-muted mb-2" id="tagihan-summary-hint">
                         Pilih santri dan bulan untuk melihat sisa tagihan wajib (Syahriyah).
                     </p>
+                    <div id="syahriyah-breakdown-box" class="alert alert-light border py-2 px-3 small mb-2 d-none" role="status" aria-live="polite">
+                        <div class="fw-semibold mb-1"><i class="fa-solid fa-calculator me-1"></i> Rincian tagihan syahriyah</div>
+                        <div id="syahriyah-breakdown-lines" class="text-muted"></div>
+                        <div id="syahriyah-breakdown-total" class="fw-bold text-primary mt-1"></div>
+                    </div>
                     <div class="table-responsive pembayaran-table-wrap">
                         <table class="table table-sm align-middle mb-0 pembayaran-komponen-table" id="tabel-komponen">
                             <thead>
@@ -214,7 +219,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </table>
                     </div>
 
-                    <div class="opsional-inline-panel mt-3" id="panel-komponen-opsional">
+                    <div class="opsional-inline-panel mt-3 d-none" id="panel-komponen-opsional" aria-hidden="true">
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                             <i class="fa-solid fa-utensils text-info"></i>
                             <span class="fw-semibold">Pengaturan Makan &amp; Saku</span>
@@ -349,7 +354,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     </td>
                                     <td class="text-end small fw-semibold"><?= htmlspecialchars($formatRupiah((int) ((float) $r['total_nominal']))) ?></td>
                                     <td class="text-end">
-                                        <a class="btn btn-outline-primary btn-sm py-0" href="/keuangan/kuitansi.php?id=<?= (int) $r['id'] ?>">KW</a>
+                                        <a class="btn btn-outline-primary btn-sm py-0" href="<?= htmlspecialchars(app_href('/keuangan/kuitansi.php?id=' . (int) $r['id'])) ?>">KW</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

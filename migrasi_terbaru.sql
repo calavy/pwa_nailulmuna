@@ -443,3 +443,59 @@ CREATE TABLE IF NOT EXISTS keuangan_tarif_bulanan (
     KEY idx_ta_bulan (tahun_ajaran_mulai, tahun_ajaran_selesai, bulan_tagihan)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -----------------------------------------------------------------------------
+-- 2026-05-30 | Izin rombongan + urutan tingkatan kajian
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS perizinan_rombongan_meta (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    jenis_izin VARCHAR(20) NOT NULL DEFAULT 'KELUAR',
+    tanggal_mulai DATE NOT NULL,
+    tanggal_selesai DATE NOT NULL,
+    jam_mulai TIME NULL,
+    jam_selesai TIME NULL,
+    durasi_jam DECIMAL(5,2) NULL,
+    alasan TEXT NOT NULL,
+    pemberi_izin VARCHAR(100) NOT NULL,
+    penandatangan_pengasuh VARCHAR(100) NOT NULL,
+    approval_status ENUM('PENDING','DISETUJUI','DITOLAK') NOT NULL DEFAULT 'PENDING',
+    approved_by INT NULL,
+    approved_at DATETIME NULL,
+    rejected_reason VARCHAR(255) NULL,
+    qr_token VARCHAR(120) NULL,
+    waktu_keluar DATETIME NULL,
+    grace_menit INT NOT NULL DEFAULT 15,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_id INT UNSIGNED NULL;
+ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_kembali TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL DEFAULT 0;
+
+-- -----------------------------------------------------------------------------
+-- 2026-05-30 | Izin rombongan + urutan tingkatan kajian
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS perizinan_rombongan_meta (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    jenis_izin VARCHAR(20) NOT NULL DEFAULT 'KELUAR',
+    tanggal_mulai DATE NOT NULL,
+    tanggal_selesai DATE NOT NULL,
+    jam_mulai TIME NULL,
+    jam_selesai TIME NULL,
+    durasi_jam DECIMAL(5,2) NULL,
+    alasan TEXT NOT NULL,
+    pemberi_izin VARCHAR(100) NOT NULL,
+    penandatangan_pengasuh VARCHAR(100) NOT NULL,
+    approval_status ENUM('PENDING','DISETUJUI','DITOLAK') NOT NULL DEFAULT 'PENDING',
+    approved_by INT NULL,
+    approved_at DATETIME NULL,
+    rejected_reason VARCHAR(255) NULL,
+    qr_token VARCHAR(120) NULL,
+    waktu_keluar DATETIME NULL,
+    grace_menit INT NOT NULL DEFAULT 15,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_id INT UNSIGNED NULL;
+ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_kembali TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL DEFAULT 0;
+

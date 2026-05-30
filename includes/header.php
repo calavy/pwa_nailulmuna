@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
 require_once __DIR__ . '/auth.php';
@@ -86,8 +87,6 @@ if (isset($_SESSION['user'])) {
     $appLogoInitial = (string) ($brandCtx['initials'] ?? 'AP');
     $appAlamatPonpes = (string) ($brandCtx['alamat'] ?? '');
 }
-$pwaIconSrc = $appLogoSrc !== '' ? $appLogoSrc : '/assets/img/stempel-pondok.png';
-
 $roleLabels = [
     'admin' => 'Administrator',
     'pengurus' => 'Pengurus',
@@ -148,22 +147,20 @@ if (!function_exists('render_app_sidebar_nav')) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
-    <meta name="theme-color" content="#0f766e">
+    <?php $pwaThemeHeader = app_pwa_theme(isset($pdo) && $pdo instanceof PDO ? $pdo : null); ?>
+    <meta name="theme-color" content="<?= htmlspecialchars((string) ($pwaThemeHeader['theme_color'] ?? '#0f766e')) ?>">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Nailul Muna App">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars(app_pwa_short_name(isset($pdo) && $pdo instanceof PDO ? $pdo : null)) ?>">
     <link rel="manifest" href="<?= htmlspecialchars(app_href('/manifest.php')) ?>">
-    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
-    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
-    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
-    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href($pwaIconSrc)) ?>">
+    <?= app_pwa_icon_link_tags(isset($pdo) && $pdo instanceof PDO ? $pdo : null) ?>
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
+    <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <link rel="preload" href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" as="style">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
@@ -174,11 +171,29 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
+    <?php
+    $pwaLogoFallbackHref = app_href(app_pwa_default_icon_src());
+    $pwaAvatarFallbackHref = user_profil_default_avatar_href($currentUserRow['jenis_kelamin'] ?? null);
+    ?>
+    <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars($pwaLogoFallbackHref) ?>">
+    <meta name="pondok-pwa-avatar-fallback" content="<?= htmlspecialchars($pwaAvatarFallbackHref) ?>">
+    <?php if ($appLogoSrc !== ''): ?>
+    <meta name="pondok-pwa-logo" content="<?= htmlspecialchars(app_href($appLogoSrc)) ?>">
+    <?php endif; ?>
+    <?php if (trim((string) ($currentUserRow['foto_profil'] ?? '')) !== ''): ?>
+    <meta name="pondok-pwa-avatar" content="<?= htmlspecialchars(user_profil_url((string) $currentUserRow['foto_profil'])) ?>">
+    <?php endif; ?>
     <script>
         (function () {
-            const saved = localStorage.getItem('theme-mode');
-            const mode = saved === 'dark' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', mode);
+            try {
+                var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
+                var d = document.documentElement;
+                d.setAttribute('data-theme', m);
+                d.style.colorScheme = m;
+                d.style.backgroundColor = m === 'dark' ? '#0f172a' : '#eef5ff';
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
         })();
     </script>
     <script>
@@ -259,7 +274,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                     <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none" title="<?= htmlspecialchars($appBrandTitle) ?>">
                         <?php if ($appLogoSrc !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
-                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-brand-logo" decoding="async" fetchpriority="high">
+                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-brand-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
                             </span>
                         <?php else: ?>
                             <span class="app-brand-mark app-brand-mark--fallback" aria-hidden="true"><?= htmlspecialchars($appLogoInitial) ?></span>

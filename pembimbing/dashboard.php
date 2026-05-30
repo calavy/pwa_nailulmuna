@@ -43,6 +43,10 @@ $modeView = strtolower(trim((string) ($_GET['mode'] ?? 'ringkas')));
 if (!in_array($modeView, ['ringkas', 'detail'], true)) {
     $modeView = 'ringkas';
 }
+$keaktifanView = strtolower(trim((string) ($_GET['keaktifan_view'] ?? 'kegiatan')));
+if (!in_array($keaktifanView, ['kegiatan', 'santri'], true)) {
+    $keaktifanView = 'kegiatan';
+}
 /** Scope tampilan detail (filter manual atau semua tingkatan asuhan). */
 $tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
 
@@ -86,6 +90,15 @@ $statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAktif, $t
 $santriIzinList = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAktif, $today, 50);
 $keaktivanRows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAktif, $tahun, 300);
 $kategoriRingkas = pembimbing_dashboard_ringkasan_kategori($keaktivanRows);
+$rekapPerKegiatan = pembimbing_dashboard_presensi_rekap_per_kegiatan($pdo, $tingkatanAsuhan, $tahun);
+$rekapKegiatanTotal = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+foreach ($rekapPerKegiatan as $rk) {
+    $rekapKegiatanTotal['hadir'] += (int) ($rk['hadir'] ?? 0);
+    $rekapKegiatanTotal['izin'] += (int) ($rk['izin'] ?? 0);
+    $rekapKegiatanTotal['sakit'] += (int) ($rk['sakit'] ?? 0);
+    $rekapKegiatanTotal['alpa'] += (int) ($rk['alpa'] ?? 0);
+    $rekapKegiatanTotal['total'] += (int) ($rk['total'] ?? 0);
+}
 
 $kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
 $rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
@@ -119,7 +132,7 @@ $bodyClass = 'dash-page';
 $loadPushFcm = true;
 $pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
-$baseDashQuery = 'tahun=' . (int) $tahun;
+$baseDashQuery = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($keaktifanView);
 if ($tingkatanFilter !== '') {
     $baseDashQuery .= '&tingkatan=' . rawurlencode($tingkatanFilter);
 }
@@ -213,7 +226,7 @@ if ($tingkatanFilter !== '') {
         </div>
     </form>
 
-    <?php if ($semuaTingkatanList !== []): ?>
+    <?php if ($semuaTingkatanList !== [] && $modeView === 'detail'): ?>
     <div class="card border-0 shadow-sm mb-4 dash-panel pb-tingkatan-block">
         <div class="card-body py-3 px-3">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -275,7 +288,224 @@ if ($tingkatanFilter !== '') {
         </div>
     <?php endif; ?>
 
-    <!-- KPI utama (mirip dashboard utama) -->
+    <?php if ($modeView === 'ringkas' && $semuaTingkatanList !== []): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel pb-dash-unified">
+        <div class="card-body p-3 p-md-4">
+            <div class="row g-3 align-items-stretch pb-dash-unified-top">
+                <div class="col-md-4 col-lg-3">
+                    <div class="dash-kpi-box dash-kpi-box--putra h-100 text-center py-3 pb-dash-kpi-compact">
+                        <div class="dash-kpi-box__label">Santri dibimbing</div>
+                        <div class="dash-kpi-box__value display-6"><?= (int) $totalSantri ?></div>
+                        <div class="dash-kpi-box__hint">
+                            <?= count($tingkatanAsuhan) ?> tingkatan · Putra <?= (int) $statSantri['putra'] ?> · Putri <?= (int) $statSantri['putri'] ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8 col-lg-9">
+                    <div class="pb-dash-kegiatan-live h-100">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-circle-play text-success me-1"></i> Kegiatan kelas berlangsung</h2>
+                            <span class="badge text-bg-light border small font-monospace"><?= htmlspecialchars(app_format_jam(date('H:i:s'))) ?> WIB</span>
+                        </div>
+                        <?php if ($kegiatanAktifGrouped === []): ?>
+                            <p class="small text-muted mb-0 py-2">Belum ada kegiatan di jam ini.</p>
+                        <?php else: ?>
+                            <div class="d-flex flex-column gap-1">
+                                <?php foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows): ?>
+                                    <div class="pb-dash-kegiatan-chip">
+                                        <span class="fw-semibold small"><?= htmlspecialchars((string) $namaKegiatan) ?></span>
+                                        <span class="text-muted small">
+                                            <?= htmlspecialchars(substr((string) ($slotRows[0]['jam_mulai'] ?? ''), 0, 5)) ?>–<?= htmlspecialchars(substr((string) ($slotRows[0]['jam_selesai'] ?? ''), 0, 5)) ?>
+                                        </span>
+                                        <?php foreach ($slotRows as $kg): ?>
+                                            <span class="badge text-bg-light border"><?= htmlspecialchars((string) ($kg['tingkatan'] ?? '—')) ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-3 opacity-25">
+
+            <div class="pb-keaktifan-hari-panel mb-0">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-sun text-warning me-1"></i> Keaktifan hari ini</h2>
+                <span class="badge text-bg-light border font-monospace"><?= htmlspecialchars(app_format_jam(date('H:i:s'))) ?> WIB</span>
+            </div>
+            <div class="pb-keaktifan-hari-stats" aria-label="Presensi hari ini">
+                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--hadir">
+                    Hadir
+                    <strong><?= (int) $statPresensi['hadir'] ?></strong>
+                    <span class="opacity-75">/ <?= (int) $statPresensi['total'] ?></span>
+                </div>
+                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--izin">
+                    Izin
+                    <strong><?= (int) $statIzinCount ?></strong>
+                </div>
+                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--alpa">
+                    Alpa
+                    <strong><?= (int) $statPresensi['alpa'] ?></strong>
+                </div>
+            </div>
+
+            <div class="pb-keaktifan-kpi" role="list" aria-label="Ringkasan keaktifan tahun">
+                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--bagus" role="listitem">
+                    <div class="pb-keaktifan-kpi__label">Bagus</div>
+                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['bagus'] ?></div>
+                </div>
+                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--sedang" role="listitem">
+                    <div class="pb-keaktifan-kpi__label">Sedang</div>
+                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['sedang'] ?></div>
+                </div>
+                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--buruk" role="listitem">
+                    <div class="pb-keaktifan-kpi__label">Buruk</div>
+                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['buruk'] ?></div>
+                </div>
+                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--alpa" role="listitem">
+                    <div class="pb-keaktifan-kpi__label">Alpa hari ini</div>
+                    <div class="pb-keaktifan-kpi__value"><?= (int) $statPresensi['alpa'] ?></div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <div>
+                    <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-chart-line text-success me-1"></i> Rekap keaktifan · tahun <?= (int) $tahun ?></h2>
+                    <p class="small text-muted mb-0">Kategori keaktifan santri berdasarkan presensi tahun berjalan</p>
+                </div>
+                <form method="get" class="d-flex flex-wrap align-items-center gap-2 m-0">
+                    <?php if ($tingkatanFilter !== ''): ?><input type="hidden" name="tingkatan" value="<?= htmlspecialchars($tingkatanFilter) ?>"><?php endif; ?>
+                    <input type="hidden" name="tahun" value="<?= (int) $tahun ?>">
+                    <input type="hidden" name="mode" value="ringkas">
+                    <label class="small text-muted mb-0" for="pb-keaktifan-view">Tampilan</label>
+                    <select id="pb-keaktifan-view" name="keaktifan_view" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+                        <option value="kegiatan"<?= $keaktifanView === 'kegiatan' ? ' selected' : '' ?>>Per kegiatan</option>
+                        <option value="santri"<?= $keaktifanView === 'santri' ? ' selected' : '' ?>>Per santri</option>
+                    </select>
+                </form>
+            </div>
+
+            <?php if ($keaktifanView === 'kegiatan'): ?>
+                <?php if ($rekapPerKegiatan === []): ?>
+                    <p class="text-muted small text-center py-3 mb-0">Belum ada data presensi tahun ini.</p>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0 pb-keaktifan-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-2">Kegiatan</th>
+                                    <th class="text-center">Hadir</th>
+                                    <th class="text-center">Izin</th>
+                                    <th class="text-center">Sakit</th>
+                                    <th class="text-center">Alpa</th>
+                                    <th class="text-center pe-2">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($rekapPerKegiatan as $rk): ?>
+                                <tr>
+                                    <td class="ps-2 small fw-semibold"><?= htmlspecialchars((string) ($rk['nama_kegiatan'] ?? '—')) ?></td>
+                                    <td class="text-center small text-success"><?= (int) ($rk['hadir'] ?? 0) ?></td>
+                                    <td class="text-center small"><?= (int) ($rk['izin'] ?? 0) ?></td>
+                                    <td class="text-center small"><?= (int) ($rk['sakit'] ?? 0) ?></td>
+                                    <td class="text-center small text-danger"><?= (int) ($rk['alpa'] ?? 0) ?></td>
+                                    <td class="text-center pe-2 small fw-semibold"><?= (int) ($rk['total'] ?? 0) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            <?php elseif ($keaktivanByTingkatan === []): ?>
+                <p class="text-muted small text-center py-3 mb-0">Belum ada data keaktifan santri.</p>
+            <?php else: ?>
+                <div class="table-responsive" style="max-height:18rem;overflow-y:auto">
+                    <table class="table table-sm table-hover align-middle mb-0 pb-keaktifan-table">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-2">Santri</th>
+                                <th class="text-center">Hadir</th>
+                                <th class="text-center">Alpa</th>
+                                <th class="text-center">%</th>
+                                <th class="pe-2">Kategori</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($keaktivanRows as $r):
+                            $kat = strtoupper((string) ($r['kategori'] ?? ''));
+                            $badgeClass = match (true) {
+                                $kat === 'BAIK' || $kat === 'BAGUS' => 'badge-kat-bagus',
+                                $kat === 'SEDANG' => 'badge-kat-sedang',
+                                $kat === 'BURUK' || $kat === 'JELEK' => 'badge-kat-buruk',
+                                default => 'text-bg-secondary',
+                            };
+                        ?>
+                            <tr>
+                                <td class="ps-2 small">
+                                    <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></div>
+                                    <div class="text-muted" style="font-size:.72rem"><?= htmlspecialchars((string) $r['tingkatan']) ?></div>
+                                </td>
+                                <td class="text-center small text-success"><?= (int) $r['hadir'] ?></td>
+                                <td class="text-center small text-danger"><?= (int) $r['alpa'] ?></td>
+                                <td class="text-center small"><?= $r['total'] > 0 ? number_format((float) $r['persen_hadir'], 0, ',', '.') . '%' : '—' ?></td>
+                                <td class="pe-2"><span class="badge <?= htmlspecialchars($badgeClass) ?>"><?= htmlspecialchars((string) $r['label']) ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <?php if ($rosterHariIni !== []): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel">
+        <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
+            <h2 class="h6 mb-1 fw-bold">Daftar santri scan hari ini</h2>
+            <p class="small text-muted mb-0">Status presensi kegiatan aktif · <?= htmlspecialchars(implode(', ', $tingkatanAktif)) ?></p>
+        </div>
+        <div class="card-body px-0 pb-3 pt-2">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr><th class="ps-3">Santri</th><th>Tingkatan</th><th>Status</th><th class="pe-3">Jam</th></tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($rosterHariIni as $rs):
+                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? 'BELUM'));
+                        $badge = match ($st) {
+                            'HADIR' => 'success',
+                            'IZIN', 'SAKIT' => 'warning',
+                            'ALPA' => 'danger',
+                            default => 'secondary',
+                        };
+                    ?>
+                        <tr>
+                            <td class="ps-3"><div class="fw-semibold small"><?= htmlspecialchars((string) $rs['nama_santri']) ?></div><div class="text-muted font-monospace" style="font-size:.7rem"><?= htmlspecialchars((string) $rs['nis']) ?></div></td>
+                            <td class="small"><?= htmlspecialchars((string) $rs['tingkatan']) ?></td>
+                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($st === 'BELUM' ? 'Belum scan' : $st) ?></span></td>
+                            <td class="pe-3 small font-monospace"><?= !empty($rs['jam_presensi']) ? htmlspecialchars(substr((string) $rs['jam_presensi'], 0, 5)) : '—' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="text-end mb-4">
+        <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=detail')) ?>" class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-table-list me-1"></i> Lihat dashboard detail
+        </a>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($modeView === 'detail'): ?>
+    <!-- KPI detail (hanya mode detail) -->
     <div class="dash-kpi-grid mb-4" role="list" aria-label="Ringkasan tingkatan saya">
         <div class="dash-kpi-grid__item" role="listitem">
             <div class="dash-kpi-box dash-kpi-box--putra h-100">
@@ -321,45 +551,26 @@ if ($tingkatanFilter !== '') {
         </div>
     </div>
 
-    <!-- Ringkasan keaktifan kategori -->
-    <div class="dash-kpi-grid mb-4" role="list" aria-label="Kategori keaktifan tahun ini">
-        <div class="dash-kpi-grid__item" role="listitem">
-            <div class="dash-kpi-box h-100">
-                <div class="dash-kpi-box__icon" aria-hidden="true" style="background:linear-gradient(135deg,#198754,#10b981)"><i class="fa-solid fa-circle-check"></i></div>
-                <div class="dash-kpi-box__label">Keaktifan Bagus</div>
-                <div class="dash-kpi-box__value text-success"><?= (int) $kategoriRingkas['bagus'] ?></div>
-                <div class="dash-kpi-box__hint">Santri</div>
-            </div>
+    <div class="pb-keaktifan-kpi mb-4" role="list" aria-label="Kategori keaktifan tahun ini">
+        <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--bagus" role="listitem">
+            <div class="pb-keaktifan-kpi__label">Keaktifan bagus</div>
+            <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['bagus'] ?></div>
         </div>
-        <div class="dash-kpi-grid__item" role="listitem">
-            <div class="dash-kpi-box h-100">
-                <div class="dash-kpi-box__icon" aria-hidden="true" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)"><i class="fa-solid fa-circle-minus"></i></div>
-                <div class="dash-kpi-box__label">Keaktifan Sedang</div>
-                <div class="dash-kpi-box__value text-warning"><?= (int) $kategoriRingkas['sedang'] ?></div>
-                <div class="dash-kpi-box__hint">Santri</div>
-            </div>
+        <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--sedang" role="listitem">
+            <div class="pb-keaktifan-kpi__label">Sedang</div>
+            <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['sedang'] ?></div>
         </div>
-        <div class="dash-kpi-grid__item" role="listitem">
-            <div class="dash-kpi-box h-100">
-                <div class="dash-kpi-box__icon" aria-hidden="true" style="background:linear-gradient(135deg,#dc3545,#ef4444)"><i class="fa-solid fa-circle-xmark"></i></div>
-                <div class="dash-kpi-box__label">Keaktifan Buruk</div>
-                <div class="dash-kpi-box__value text-danger"><?= (int) $kategoriRingkas['buruk'] ?></div>
-                <div class="dash-kpi-box__hint">Santri</div>
-            </div>
+        <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--buruk" role="listitem">
+            <div class="pb-keaktifan-kpi__label">Buruk</div>
+            <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['buruk'] ?></div>
         </div>
-        <div class="dash-kpi-grid__item" role="listitem">
-            <div class="dash-kpi-box h-100">
-                <div class="dash-kpi-box__icon" aria-hidden="true" style="background:linear-gradient(135deg,#dc2626,#f87171)"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                <div class="dash-kpi-box__label">Alpa hari ini</div>
-                <div class="dash-kpi-box__value text-danger"><?= (int) $statPresensi['alpa'] ?></div>
-                <div class="dash-kpi-box__hint">
-                    Izin <?= (int) $statPresensi['izin'] ?> · Sakit <?= (int) $statPresensi['sakit'] ?>
-                </div>
-            </div>
+        <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--alpa" role="listitem">
+            <div class="pb-keaktifan-kpi__label">Alpa hari ini</div>
+            <div class="pb-keaktifan-kpi__value"><?= (int) $statPresensi['alpa'] ?></div>
         </div>
     </div>
 
-    <!-- Layout 2-kolom: Kegiatan + Aksi cepat (mengikuti dashboard utama) -->
+    <!-- Kegiatan berlangsung (detail) -->
     <div class="dash-layout-grid mb-4">
         <section class="dash-layout-main">
             <div class="card border-0 shadow-sm h-100 dash-panel dash-panel--lift">
@@ -372,9 +583,11 @@ if ($tingkatanFilter !== '') {
                 <div class="card-body px-4 pb-4 pt-3">
                     <?php if ($kegiatanAktifGrouped === []): ?>
                         <div class="dash-empty-chart py-5 text-center text-muted">
-                            <div class="display-6 mb-2 opacity-50"><i class="fa-regular fa-calendar"></i></div>
-                            <p class="mb-0 fw-semibold">Belum ada kegiatan di jam ini</p>
-                            <p class="small mb-0 mt-1">Silakan cek jadwal atau waktu lain.</p>
+                            <div class="dash-empty-chart__inner">
+                                <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
+                                <p class="mb-0 fw-semibold">Belum ada kegiatan di jam ini.</p>
+                                <p class="small mb-0 mt-1">Silakan cek jadwal atau waktu lain.</p>
+                            </div>
                         </div>
                     <?php else: ?>
                         <div class="d-flex flex-column gap-2">
@@ -410,35 +623,8 @@ if ($tingkatanFilter !== '') {
                 </div>
             </div>
         </section>
-        <aside class="dash-layout-aside">
-            <div class="card border-0 shadow-sm h-100 dash-panel dash-panel-side dash-panel--lift">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h2 class="h5 mb-1">Aksi cepat</h2>
-                    <p class="small text-muted mb-0">Modul pembimbing yang sering dipakai</p>
-                </div>
-                <div class="card-body px-4 pb-4 pt-3 d-flex flex-column gap-2">
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm text-start">
-                        <i class="fa-solid fa-pen-to-square me-2"></i> Buat soal / tugas baru
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php')) ?>" class="btn btn-outline-primary btn-sm text-start">
-                        <i class="fa-solid fa-clipboard-check me-2"></i> Penilaian tugas
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="btn btn-outline-primary btn-sm text-start">
-                        <i class="fa-solid fa-pen-ruler me-2"></i> Nilai manual (tanpa soal)
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="btn btn-outline-secondary btn-sm text-start">
-                        <i class="fa-solid fa-list-check me-2"></i> Daftar Tugas Ikhtibar
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="btn btn-outline-secondary btn-sm text-start">
-                        <i class="fa-solid fa-chart-pie me-2"></i> Rekap nilai tugas
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="btn btn-outline-secondary btn-sm text-start">
-                        <i class="fa-solid fa-person-walking-arrow-right me-2"></i> Izin pembimbing
-                    </a>
-                </div>
-            </div>
-        </aside>
     </div>
+    <?php endif; ?>
 
     <?php if ($modeView === 'detail' && $rosterHariIni !== []): ?>
     <div class="card border-0 shadow-sm mb-4 dash-panel">
@@ -635,42 +821,9 @@ if ($tingkatanFilter !== '') {
             </div>
         </div>
     <?php endif; ?>
-    <?php if ($modeView === 'ringkas'): ?>
-        <div class="card border-0 shadow-sm dash-panel">
-            <div class="card-body py-3 px-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div>
-                    <h2 class="h6 mb-1">Tampilan ringkas aktif</h2>
-                    <p class="small text-muted mb-0">Dashboard disederhanakan agar fokus pada ringkasan utama dan aksi cepat.</p>
-                </div>
-                <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=detail')) ?>" class="btn btn-sm btn-outline-primary">
-                    <i class="fa-solid fa-table-list me-1"></i> Buka tabel detail
-                </a>
-            </div>
-        </div>
-    <?php endif; ?>
 
 </div>
 
-<script>
-(function () {
-    var clockEl = document.getElementById('dashboard-live-clock');
-    var dateEl = document.getElementById('dashboard-live-date');
-    if (!clockEl) return;
-    var serverMs = <?= (int) $pbDashServerClockMs ?>;
-    var driftMs = serverMs - Date.now();
-    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
-    var hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
-    var bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    function tick() {
-        var now = new Date(Date.now() + driftMs);
-        clockEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
-        if (dateEl) {
-            dateEl.textContent = hari[now.getDay()] + ', ' + now.getDate() + ' ' + bulan[now.getMonth()] + ' ' + now.getFullYear();
-        }
-    }
-    tick();
-    setInterval(tick, 1000);
-})();
-</script>
+<script>window.PONDOK_SERVER_CLOCK_MS = <?= (int) $pbDashServerClockMs ?>;</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

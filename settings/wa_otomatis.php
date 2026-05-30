@@ -74,12 +74,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="d-flex align-items-start gap-3">
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-gears"></i></span>
                     <div>
-                        <h2 class="h6 mb-1 text-dark">Gateway &amp; Jadwal WA</h2>
+                        <h2 class="h6 mb-1 app-card-title">Gateway &amp; Jadwal WA</h2>
                         <p class="small text-muted mb-2">Token gateway, sender, nomor tujuan, jam kirim, WA mudabir, dan WA tagihan otomatis.</p>
-                        <span class="badge text-bg-light border text-dark">
+                        <span class="badge app-badge-muted">
                             <?= $waTagihanAuto ? 'Tagihan: Aktif' : 'Tagihan: Nonaktif' ?>
                         </span>
-                        <span class="badge text-bg-light border text-dark ms-1">
+                        <span class="badge app-badge-muted ms-1">
                             <?= $waMudabirAuto ? 'Mudabir: Aktif' : 'Mudabir: Nonaktif' ?>
                         </span>
                     </div>
@@ -93,7 +93,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="d-flex align-items-start gap-3">
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-tower-broadcast"></i></span>
                     <div>
-                        <h2 class="h6 mb-1 text-dark">Notifikasi Alpa Bertahap</h2>
+                        <h2 class="h6 mb-1 app-card-title">Notifikasi Alpa Bertahap</h2>
                         <p class="small text-muted mb-2">Atur tier penerima WA berdasarkan ambang alpa dan periode hitung.</p>
                         <span class="badge text-bg-info-subtle text-info border"><?= htmlspecialchars($alpaModeLabel) ?></span>
                     </div>
@@ -107,7 +107,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="d-flex align-items-start gap-3">
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span>
                     <div>
-                        <h2 class="h6 mb-1 text-dark">Kalender &amp; Jadwal Kirim Tagihan</h2>
+                        <h2 class="h6 mb-1 app-card-title">Kalender &amp; Jadwal Kirim Tagihan</h2>
                         <p class="small text-muted mb-0">Atur kalender, tanggal kirim, dan parameter periode untuk WA tagihan otomatis ke wali.</p>
                     </div>
                 </div>
@@ -120,7 +120,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="d-flex align-items-start gap-3">
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-bell"></i></span>
                     <div>
-                        <h2 class="h6 mb-1 text-dark">Push FCM</h2>
+                        <h2 class="h6 mb-1 app-card-title">Push FCM</h2>
                         <p class="small text-muted mb-0">Kelola push notifikasi aplikasi untuk melengkapi kanal WA otomatis.</p>
                     </div>
                 </div>
@@ -133,7 +133,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="d-flex align-items-start gap-3">
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-clipboard-list"></i></span>
                     <div>
-                        <h2 class="h6 mb-1 text-dark">Laporan WA Kelas Kosong</h2>
+                        <h2 class="h6 mb-1 app-card-title">Laporan WA Kelas Kosong</h2>
                         <p class="small text-muted mb-0">Riwayat kirim WA saat dalam satu kelas/jam tidak ada pembimbing maupun munawib yang masuk.</p>
                     </div>
                 </div>

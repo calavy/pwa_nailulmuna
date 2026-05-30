@@ -75,7 +75,7 @@ $ok = get_flash('success');
     <?php if ($tugas): ?><input type="hidden" name="id" value="<?= (int) $tugas['id'] ?>"><?php endif; ?>
 
     <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold small">1. Jadwal &amp; durasi</div>
+        <div class="card-header fw-semibold small">1. Jadwal &amp; periode</div>
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-6">
@@ -99,9 +99,15 @@ $ok = get_flash('success');
                     <label class="form-label">Judul tugas</label>
                     <input type="text" name="judul" class="form-control" required maxlength="200" value="<?= htmlspecialchars((string) ($tugas['judul'] ?? '')) ?>">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Tanggal pelaksanaan</label>
-                    <input type="date" name="tanggal" class="form-control" required value="<?= htmlspecialchars((string) ($tugas['tanggal'] ?? date('Y-m-d'))) ?>">
+                <div class="col-md-3" id="wrap-tgl-mulai">
+                    <label class="form-label">Tanggal mulai</label>
+                    <input type="date" name="tanggal" id="tanggal_mulai" class="form-control" required value="<?= htmlspecialchars((string) ($tugas['tanggal'] ?? date('Y-m-d'))) ?>">
+                </div>
+                <div class="col-md-3 d-none" id="wrap-tgl-selesai">
+                    <label class="form-label">Tanggal selesai</label>
+                    <input type="date" name="tanggal_selesai" id="tanggal_selesai" class="form-control"
+                           value="<?= htmlspecialchars((string) ($tugas['tanggal_selesai'] ?? ($tugas['tanggal'] ?? date('Y-m-d', strtotime('+3 days'))))) ?>">
+                    <div class="form-text">Tugas tanpa esai dapat dikerjakan beberapa hari.</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Hari</label>
@@ -111,10 +117,10 @@ $ok = get_flash('success');
                         <?php endfor; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-3" id="wrap-durasi">
                     <label class="form-label">Durasi (menit)</label>
-                    <input type="number" name="durasi_menit" class="form-control" min="5" max="300" required value="<?= (int) ($tugas['durasi_menit'] ?? 60) ?>">
-                    <div class="form-text">Hitung mundur dimulai saat santri klik <strong>Mulai Tugas</strong>.</div>
+                    <input type="number" name="durasi_menit" id="durasi_menit" class="form-control" min="5" max="300" value="<?= (int) ($tugas['durasi_menit'] ?? 60) ?>">
+                    <div class="form-text">Hitung mundur saat santri mulai (hanya tugas ber-esai).</div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Filter tingkatan</label>
@@ -249,9 +255,24 @@ $ok = get_flash('success');
         wrapEsai.innerHTML = html;
     }
 
+    var wrapDurasi = document.getElementById('wrap-durasi');
+    var wrapTglSelesai = document.getElementById('wrap-tgl-selesai');
+    var inpDurasi = document.getElementById('durasi_menit');
+
+    function syncTanpaEsai() {
+        var tanpaEsai = parseInt(selEsai.value, 10) === 0;
+        if (wrapDurasi) wrapDurasi.classList.toggle('d-none', tanpaEsai);
+        if (wrapTglSelesai) wrapTglSelesai.classList.toggle('d-none', !tanpaEsai);
+        if (inpDurasi) {
+            inpDurasi.required = !tanpaEsai;
+            if (tanpaEsai) inpDurasi.value = '0';
+        }
+    }
+
     function refresh() {
         renderPg(parseInt(selPg.value, 10) || 0);
         renderEsai(parseInt(selEsai.value, 10) || 0);
+        syncTanpaEsai();
     }
     selPg.addEventListener('change', refresh);
     selEsai.addEventListener('change', refresh);

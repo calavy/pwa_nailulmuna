@@ -271,6 +271,119 @@ function app_pondok_logo_src(PDO $pdo): string
     return trim((string) app_setting($pdo, 'logo_url', ''));
 }
 
+function app_pwa_resolve_pdo(?PDO $pdo = null): ?PDO
+{
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+    if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) {
+        return $GLOBALS['pdo'];
+    }
+
+    return null;
+}
+
+function app_pwa_default_icon_src(): string
+{
+    return '/assets/img/stempel-pondok.png';
+}
+
+/** Path relatif ikon PWA (ikon install 192px, logo pondok, atau fallback). */
+function app_pwa_icon_src(?PDO $pdo = null): string
+{
+    $pdo = app_pwa_resolve_pdo($pdo);
+    if ($pdo !== null) {
+        if (function_exists('pwa_brand_icon_relative_path')) {
+            $pwa192 = pwa_brand_icon_relative_path($pdo, 192);
+            if ($pwa192 !== '') {
+                return '/' . ltrim($pwa192, '/');
+            }
+        }
+        $src = app_pondok_logo_src($pdo);
+        if ($src !== '') {
+            return '/' . ltrim($src, '/');
+        }
+    }
+
+    return app_pwa_default_icon_src();
+}
+
+function app_pwa_icon_href(?PDO $pdo = null): string
+{
+    require_once __DIR__ . '/app_path.php';
+
+    return app_href(app_pwa_icon_src($pdo));
+}
+
+function app_pwa_icon_mime(?PDO $pdo = null): string
+{
+    $ext = strtolower(pathinfo(app_pwa_icon_src($pdo), PATHINFO_EXTENSION));
+
+    return match ($ext) {
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        default => 'image/png',
+    };
+}
+
+/** URL absolut ikon untuk manifest.json (512px). */
+function app_pwa_manifest_icon_url(?PDO $pdo = null): string
+{
+    require_once __DIR__ . '/app_path.php';
+    $pdo = app_pwa_resolve_pdo($pdo);
+    if ($pdo !== null && function_exists('pwa_brand_icon_absolute_url')) {
+        return pwa_brand_icon_absolute_url($pdo, 512);
+    }
+
+    return app_public_url() . app_url(ltrim(app_pwa_icon_src($pdo), '/'));
+}
+
+function app_pwa_app_name(?PDO $pdo = null): string
+{
+    $pdo = app_pwa_resolve_pdo($pdo);
+    if ($pdo !== null) {
+        $nama = app_brand_nama_ponpes($pdo, '');
+        if ($nama !== '') {
+            return $nama . ' App';
+        }
+    }
+
+    return 'Nailul Muna App';
+}
+
+function app_pwa_short_name(?PDO $pdo = null): string
+{
+    $pdo = app_pwa_resolve_pdo($pdo);
+    if ($pdo !== null) {
+        $nama = app_brand_nama_ponpes($pdo, '');
+        if ($nama !== '') {
+            return mb_strlen($nama) > 14 ? 'Nailul Muna' : $nama;
+        }
+    }
+
+    return 'Nailul Muna';
+}
+
+/** URL absolut latar splash PWA (gradien tema). */
+function app_pwa_splash_bg_url(?PDO $pdo = null): string
+{
+    require_once __DIR__ . '/app_path.php';
+
+    return app_public_url() . app_url('assets/img/pwa-splash-bg.svg');
+}
+
+/** Tag <link> ikon install PWA (favicon + Apple touch). */
+function app_pwa_icon_link_tags(?PDO $pdo = null): string
+{
+    $href = htmlspecialchars(app_pwa_icon_href($pdo), ENT_QUOTES, 'UTF-8');
+    $mime = htmlspecialchars(app_pwa_icon_mime($pdo), ENT_QUOTES, 'UTF-8');
+
+    return '<link rel="icon" type="' . $mime . '" sizes="192x192" href="' . $href . '">' . "\n"
+        . '    <link rel="icon" type="' . $mime . '" sizes="512x512" href="' . $href . '">' . "\n"
+        . '    <link rel="apple-touch-icon" sizes="180x180" href="' . $href . '">' . "\n"
+        . '    <link rel="shortcut icon" href="' . $href . '">';
+}
+
 /** Inisial 2 huruf dari nama pondok (fallback logo). */
 function app_pondok_logo_initials(PDO $pdo, string $fallbackTitle = 'A.P.I Nailul Muna'): string
 {
@@ -293,6 +406,11 @@ function pondok_settings_defaults(): array
         'alamat_ponpes' => '',
         'nama_pengasuh' => '',
         'logo_path' => '',
+        'pwa_theme_color' => '',
+        'pwa_background_color' => '',
+        'pwa_icon_192' => '',
+        'pwa_icon_512' => '',
+        'pwa_icon_maskable_512' => '',
         'wa_gateway_url' => '',
         'wa_gateway_token' => '',
         'wa_sender' => '',
@@ -2228,6 +2346,10 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
         $keteranganPotongan = '';
         $potonganNominal = 0;
         $potonganDijeda = false;
+        $pkppsTambahan = 0;
+        $kelasSyTambahan = 0;
+        $expectedSetelahPotongan = $expected;
+        $tierKey = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
         if ($slug === 'syahriyah' && $santriId > 0) {
             $syPot = keuangan_syahriyah_expected_dengan_potongan(
                 $pdo,
@@ -2243,6 +2365,9 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
             $keteranganPotongan = (string) ($syPot['keterangan'] ?? '');
             $potonganNominal = (int) ($syPot['potongan_nominal'] ?? 0);
             $potonganDijeda = !empty($syPot['potongan_dijeda']);
+            $pkppsTambahan = (int) ($syPot['pkpps_tambahan'] ?? 0);
+            $kelasSyTambahan = (int) ($syPot['kelas_syahriyah_tambahan'] ?? 0);
+            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan - $kelasSyTambahan);
         }
         $paid = $santriId > 0
             ? tagihan_paid_nominal_for_pos_month($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $slug)
@@ -2270,7 +2395,7 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
             $st = 'Sebagian';
             $stClass = 'warning';
         }
-        $perPos[$slug] = [
+        $posRow = [
             'expected' => $expected,
             'expected_dasar' => $expectedDasar,
             'persen_potongan' => $persenPotongan,
@@ -2282,6 +2407,13 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
             'status' => $st,
             'statusClass' => $stClass,
         ];
+        if ($slug === 'syahriyah') {
+            $posRow['expected_setelah_potongan'] = $expectedSetelahPotongan;
+            $posRow['pkpps_tambahan'] = $pkppsTambahan;
+            $posRow['kelas_syahriyah_tambahan'] = $kelasSyTambahan;
+            $posRow['tier_key'] = $tierKey;
+        }
+        $perPos[$slug] = $posRow;
         $expectedTotal += $expected;
         $paidTotal += $paid;
         $sisaTotal += $sisa;
@@ -2308,6 +2440,86 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
         'status' => $status,
         'statusClass' => $statusClass,
         'per_pos' => $perPos,
+    ];
+}
+
+/** Kirim WA tagihan manual (tanpa cek jadwal otomatis). */
+function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMulai, int $tahunAjaranSelesai, ?array $santriIdsFilter = null): array
+{
+    if (!function_exists('tagihan_bulanan_page_context')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (!function_exists('keuangan_tahun_ajaran_aktif')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+    }
+    ensure_santri_identity_columns($pdo);
+    if (!column_exists($pdo, 'santri', 'no_wa_wali')) {
+        return ['ok' => false, 'sent' => 0, 'skipped' => 0, 'message' => 'Kolom no_wa_wali belum tersedia.'];
+    }
+
+    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
+    $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND is_aktif = 1 ' : '';
+    $sql = 'SELECT id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas, no_wa_wali FROM santri WHERE COALESCE(no_wa_wali, "") <> "" ' . $activeExpr;
+    $params = [];
+    if (is_array($santriIdsFilter) && $santriIdsFilter !== []) {
+        $ids = array_values(array_filter(array_map('intval', $santriIdsFilter)));
+        if ($ids !== []) {
+            $sql .= ' AND id IN (' . implode(',', $ids) . ')';
+        }
+    }
+    $sql .= ' ORDER BY id ASC LIMIT 500';
+    $santriRows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($santriRows === []) {
+        return ['ok' => false, 'sent' => 0, 'skipped' => 0, 'message' => 'Tidak ada santri dengan nomor WA wali.'];
+    }
+
+    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $paidMap = $tagihanCtx['paid_map'];
+    $syCtx = $tagihanCtx['sy_ctx'];
+    $sent = 0;
+    $skipped = 0;
+    foreach ($santriRows as $row) {
+        $santriId = (int) ($row['id'] ?? 0);
+        if ($santriId <= 0) {
+            continue;
+        }
+        $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
+        $components = keuangan_tagihan_wajib_components($pdo, $kelas);
+        if ($components === []) {
+            $skipped++;
+            continue;
+        }
+        $st = tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            $santriId,
+            $bulanTagihan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $kelas,
+            $paidMap,
+            $syCtx
+        );
+        $sisa = (int) ($st['sisa_total'] ?? 0);
+        if ($sisa <= 0) {
+            $skipped++;
+            continue;
+        }
+        $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
+        $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
+        $message = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
+        if (send_wa_message($pdo, (string) ($row['no_wa_wali'] ?? ''), $message)) {
+            $sent++;
+        }
+    }
+
+    return [
+        'ok' => $sent > 0,
+        'sent' => $sent,
+        'skipped' => $skipped,
+        'message' => $sent > 0
+            ? $sent . ' WA tagihan terkirim (' . $skipped . ' dilewati: lunas/tanpa tagihan).'
+            : 'Tidak ada WA terkirim. Periksa tagihan belum lunas dan nomor wali.',
     ];
 }
 
@@ -3245,6 +3457,7 @@ function settings_pengaturan_nav_items(?PDO $pdo = null): array
                 'path' => $path,
                 'label' => (string) ($menuItems[$path] ?? ($item['label'] ?? '')),
                 'icon' => (string) ($item['icon'] ?? 'fa-solid fa-circle'),
+                'group' => (string) ($item['group'] ?? ''),
             ];
         }
     }
@@ -3377,3 +3590,5 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
     }
     return false;
 }
+
+require_once __DIR__ . '/pwa_brand.php';

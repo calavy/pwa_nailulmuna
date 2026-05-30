@@ -13,6 +13,7 @@ function koperasi_portal_layout_begin(array $ctx): void
     $kopNama = htmlspecialchars((string) ($ctx['koperasi_nama'] ?? 'Koperasi'));
     $active = (string) ($ctx['active'] ?? '');
     require_once __DIR__ . '/../helpers/app_path.php';
+    require_once __DIR__ . '/../helpers/app.php';
     ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -23,15 +24,14 @@ function koperasi_portal_layout_begin(array $ctx): void
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="<?= $kopNama ?>">
+    <meta name="apple-mobile-web-app-title" content="<?= htmlspecialchars(app_pwa_app_name()) ?>">
     <title><?= $title ?></title>
     <link rel="manifest" href="<?= htmlspecialchars(app_href('/manifest.php')) ?>">
-    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <?= app_pwa_icon_link_tags() ?>
+    <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars(app_href(app_pwa_default_icon_src())) ?>">
+    <meta name="pondok-pwa-logo" content="<?= htmlspecialchars(app_pwa_icon_href()) ?>">
+    <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
     <style>
         body { background: #f1f5f9; min-height: 100dvh; }
         .koperasi-topbar {
@@ -49,12 +49,24 @@ function koperasi_portal_layout_begin(array $ctx): void
             background: rgba(255,255,255,.18);
             color: #fff;
         }
+        .koperasi-topbar-logo {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: rgba(255,255,255,.92);
+            padding: 2px;
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
 <header class="koperasi-topbar">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div class="fw-semibold"><i class="fa-solid fa-store me-2"></i><?= $kopNama ?></div>
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            <img src="<?= htmlspecialchars(app_pwa_icon_href()) ?>" alt="" class="koperasi-topbar-logo" width="36" height="36" decoding="async" data-pondok-cache="1">
+            <div class="fw-semibold min-w-0"><i class="fa-solid fa-store me-1"></i><?= $kopNama ?></div>
+        </div>
         <a href="<?= htmlspecialchars(app_href('/koperasi/logout.php')) ?>" class="btn btn-sm btn-light">Keluar</a>
     </div>
     <nav class="koperasi-nav">
@@ -76,8 +88,12 @@ function koperasi_portal_layout_end(): void
 {
     ?>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<?php require_once __DIR__ . '/../helpers/app_vendor.php'; ?>
+<script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
 <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
 </body>
 </html>

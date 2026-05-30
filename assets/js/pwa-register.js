@@ -46,17 +46,45 @@
         el.setAttribute('role', 'status');
         el.setAttribute('aria-live', 'polite');
         el.hidden = true;
-        el.textContent = 'Mode offline — data baru membutuhkan koneksi internet.';
+        el.textContent = 'Mode offline — scan, penilaian & cashless masuk antrian; logo tampil dari cache perangkat.';
         document.body.appendChild(el);
     }
 
     function updateOnlineClass() {
         var offline = !navigator.onLine;
-        document.documentElement.classList.toggle('pondok-offline', offline);
+        var root = document.documentElement;
+        if (offline) {
+            root.classList.add('pondok-offline');
+        } else {
+            root.classList.remove('pondok-offline');
+        }
         var banner = document.getElementById('pondok-offline-banner');
         if (banner) {
             banner.hidden = !offline;
         }
+    }
+
+    function warmUiCacheWhenOnline() {
+        if (!navigator.onLine) {
+            return;
+        }
+        var base = appBase();
+        [
+            '/assets/vendor/bootstrap/5.3.3/bootstrap.min.css',
+            '/assets/vendor/bootstrap/5.3.3/bootstrap.bundle.min.js',
+            '/api/vendor/fontawesome.css.php',
+            '/assets/vendor/fontawesome/6.5.2/all.min.css',
+            '/assets/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2',
+            '/assets/vendor/html5-qrcode/2.3.8/html5-qrcode.min.js',
+            '/assets/css/app.css',
+            '/assets/css/offline-sync.css',
+            '/assets/css/presensi-scan.css',
+            '/assets/js/offline-sync.js',
+            '/assets/js/pwa-register.js',
+        ].forEach(function (rel) {
+            var url = (base === '' ? '' : base) + rel;
+            fetch(url, { credentials: 'same-origin' }).catch(function () {});
+        });
     }
 
     async function registerPwa() {
@@ -67,6 +95,11 @@
         var scope = swScope();
         try {
             var reg = await navigator.serviceWorker.register(url, { scope: scope, updateViaCache: 'none' });
+            try {
+                await reg.update();
+            } catch (updateErr) {
+                /* abaikan */
+            }
             reg.addEventListener('updatefound', function () {
                 var worker = reg.installing;
                 if (!worker) {
@@ -98,12 +131,21 @@
     }
 
     updateOnlineClass();
-    window.addEventListener('online', updateOnlineClass);
+    window.addEventListener('online', function () {
+        updateOnlineClass();
+        warmUiCacheWhenOnline();
+    });
     window.addEventListener('offline', updateOnlineClass);
 
     if (document.readyState === 'complete') {
-        registerPwa();
+        registerPwa().then(function () {
+            warmUiCacheWhenOnline();
+        });
     } else {
-        window.addEventListener('load', registerPwa);
+        window.addEventListener('load', function () {
+            registerPwa().then(function () {
+                warmUiCacheWhenOnline();
+            });
+        });
     }
 })(window);

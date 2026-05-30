@@ -5,8 +5,10 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
+perizinan_rombongan_ensure_schema($pdo);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
@@ -45,6 +47,24 @@ $pdo->exec('
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'create_izin';
+    if ($action === 'create_rombongan') {
+        $santriIds = array_map('intval', (array) ($_POST['santri_ids_rombongan'] ?? []));
+        $res = perizinan_rombongan_create($pdo, $_POST, $santriIds, (int) ($_SESSION['user']['id'] ?? 0));
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/perizinan/index.php'));
+        exit;
+    }
+    if ($action === 'approve_rombongan') {
+        $rid = (int) ($_POST['rombongan_id'] ?? 0);
+        $res = perizinan_rombongan_approve($pdo, $rid, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        if ($res['ok'] && $rid > 0) {
+            header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . $rid));
+            exit;
+        }
+        header('Location: ' . app_href('/perizinan/index.php'));
+        exit;
+    }
     if ($action === 'approve_izin') {
         $id = (int) ($_POST['izin_id'] ?? 0);
         if ($id > 0) {
@@ -348,13 +368,23 @@ $sqlAktifS = santri_sql_aktif_only('s');
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
 $santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
+$rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 $izinList = $pdo->query('
-    SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.alasan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis
+    SELECT i.id, i.rombongan_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.alasan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis
     FROM perizinan i
     INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifS . '
-    ORDER BY i.id DESC
+    ORDER BY COALESCE(i.rombongan_id, i.id) DESC, i.rombongan_id DESC, i.id DESC
 ')->fetchAll();
+$rombonganPending = [];
+if (table_exists($pdo, 'perizinan_rombongan_meta')) {
+    $rombonganPending = $pdo->query('
+        SELECT m.*, (SELECT COUNT(*) FROM perizinan i WHERE i.rombongan_id = m.id) AS jumlah_santri
+        FROM perizinan_rombongan_meta m
+        WHERE m.approval_status = "PENDING"
+        ORDER BY m.id DESC
+    ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 $healthList = $pdo->query('
     SELECT h.id, h.gejala, h.suhu_tubuh, h.status_kesehatan, h.notifikasi_wali, h.created_at, s.nama_santri, s.nis
     FROM ehealth_records h
@@ -407,6 +437,67 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h5">Input Izin Santri</h1>
+                <div class="mb-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-toggle-rombongan">
+                        <i class="fa-solid fa-users me-1"></i> Izin rombongan
+                    </button>
+                </div>
+                <form method="post" class="row g-2 d-none" id="form-izin-rombongan" data-rombongan-min="2" data-rombongan-target="rombongan-input">
+                    <input type="hidden" name="action" value="create_rombongan">
+                    <div class="col-12">
+                        <label class="form-label">Pilih santri rombongan <span class="text-muted fw-normal">(min. 2)</span></label>
+                        <?php
+                        $rombonganPickerName = 'santri_ids_rombongan[]';
+                        $rombonganPickerId = 'rombongan-input';
+                        $rombonganPickerShowToolbar = true;
+                        require __DIR__ . '/partials/rombongan_santri_picker.php';
+                        ?>
+                        <div class="form-text">Urutan tingkatan → NIS. Satu surat A4 &amp; satu QR saat kembali.</div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Jenis Izin</label>
+                        <select class="form-select" name="jenis_izin" required>
+                            <option value="KELUAR">Keluar</option>
+                            <option value="TUGAS">Tugas</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Mulai</label>
+                        <input type="date" name="tanggal_mulai" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Selesai</label>
+                        <input type="date" name="tanggal_selesai" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Alasan</label>
+                        <textarea class="form-control" name="alasan" rows="2" required></textarea>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Jam mulai</label>
+                        <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Jam selesai</label>
+                        <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Durasi (jam)</label>
+                        <input type="number" step="0.25" min="0" name="durasi_jam" class="form-control">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Pemberi izin</label>
+                        <input type="text" class="form-control" name="pemberi_izin" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Pengasuh</label>
+                        <input type="text" class="form-control" name="penandatangan_pengasuh" value="<?= htmlspecialchars($namaPengasuh) ?>" <?= $namaPengasuh !== '' ? 'readonly' : '' ?> required>
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Simpan izin rombongan</button>
+                        <button type="button" class="btn btn-outline-secondary" id="btn-batal-rombongan">Batal</button>
+                    </div>
+                </form>
                 <form method="post" class="row g-2" id="form-izin-santri">
                     <input type="hidden" name="action" value="create_izin">
                     <div class="col-12">
@@ -440,11 +531,11 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam Mulai</label>
-                        <input type="time" name="jam_mulai" class="form-control" value="<?= date('H:i') ?>" required>
+                        <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam Selesai</label>
-                        <input type="time" name="jam_selesai" class="form-control" value="<?= date('H:i') ?>" required>
+                        <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Durasi (jam)</label>
@@ -516,14 +607,53 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-lg-7">
         <div class="card shadow-sm">
             <div class="card-body">
+                <?php if ($rombonganPending !== []): ?>
+                <div class="alert alert-warning py-2 mb-3">
+                    <strong>Izin rombongan menunggu persetujuan</strong>
+                    <span class="d-block small fw-normal text-muted">Satu surat A4 berlaku untuk semua santri dalam rombongan yang sama.</span>
+                    <ul class="mb-0 small ps-3">
+                        <?php foreach ($rombonganPending as $rm): ?>
+                            <li class="mt-1">
+                                #<?= (int) $rm['id'] ?> — <?= (int) ($rm['jumlah_santri'] ?? 0) ?> santri · <?= htmlspecialchars(jenis_izin_label((string) ($rm['jenis_izin'] ?? ''))) ?>
+                                <form method="post" class="d-inline ms-1">
+                                    <input type="hidden" name="action" value="approve_rombongan">
+                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
+                                    <input type="hidden" name="tanggal_mulai" value="<?= htmlspecialchars((string) ($rm['tanggal_mulai'] ?? '')) ?>">
+                                    <input type="hidden" name="tanggal_selesai" value="<?= htmlspecialchars((string) ($rm['tanggal_selesai'] ?? '')) ?>">
+                                    <input type="hidden" name="jam_mulai" value="<?= htmlspecialchars(substr((string) ($rm['jam_mulai'] ?? ''), 0, 5)) ?>">
+                                    <input type="hidden" name="jam_selesai" value="<?= htmlspecialchars(substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)) ?>">
+                                    <button type="submit" class="btn btn-sm btn-success">Setujui</button>
+                                    <a class="btn btn-sm btn-outline-dark" target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . (int) $rm['id'])) ?>">Cetak A4</a>
+                                </form>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php endif; ?>
                 <h2 class="h5">Daftar Izin</h2>
                 <div class="table-responsive">
                 <table class="table table-sm table-striped table-hover">
                     <thead><tr><th>Santri</th><th>Jenis</th><th>Tanggal/Jam</th><th>Persetujuan</th><th>Status</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
-                    <?php foreach ($izinList as $i): ?>
+                    <?php
+                    $rombonganCetakTampil = [];
+                    foreach ($izinList as $i):
+                        $ridCetak = (int) ($i['rombongan_id'] ?? 0);
+                        $tampilkanCetakRombongan = false;
+                        if ($ridCetak > 0) {
+                            if (!isset($rombonganCetakTampil[$ridCetak])) {
+                                $rombonganCetakTampil[$ridCetak] = true;
+                                $tampilkanCetakRombongan = true;
+                            }
+                        }
+                    ?>
                         <tr>
-                            <td><?= htmlspecialchars($i['nama_santri']) ?> (<?= htmlspecialchars($i['nis']) ?>)</td>
+                            <td>
+                                <?= htmlspecialchars($i['nama_santri']) ?> (<?= htmlspecialchars($i['nis']) ?>)
+                                <?php if (!empty($i['rombongan_id'])): ?>
+                                    <span class="badge text-bg-info ms-1" style="font-size:.65rem">Rombongan #<?= (int) $i['rombongan_id'] ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php
                                 $badge = 'secondary';
@@ -533,10 +663,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 ?>
                                 <span class="badge text-bg-<?= $badge ?>"><?= htmlspecialchars(jenis_izin_label((string) ($i['jenis_izin'] ?? 'KELUAR'))) ?></span>
                             </td>
-                            <td>
-                                <?= htmlspecialchars($i['tanggal_mulai']) ?> <?= htmlspecialchars(substr((string) ($i['jam_mulai'] ?? ''), 0, 5)) ?>
-                                <br>
-                                s/d <?= htmlspecialchars($i['tanggal_selesai']) ?> <?= htmlspecialchars(substr((string) ($i['jam_selesai'] ?? ''), 0, 5)) ?>
+                            <td class="small js-time-24">
+                                <?= htmlspecialchars(app_format_periode_izin_tabel(
+                                    (string) $i['tanggal_mulai'],
+                                    (string) $i['tanggal_selesai'],
+                                    (string) ($i['jam_mulai'] ?? ''),
+                                    (string) ($i['jam_selesai'] ?? '')
+                                )) ?>
                             </td>
                             <td>
                                 <span class="badge text-bg-<?= ($i['approval_status'] ?? 'PENDING') === 'DISETUJUI' ? 'success' : (($i['approval_status'] ?? 'PENDING') === 'DITOLAK' ? 'danger' : 'warning') ?>">
@@ -556,8 +689,8 @@ require_once __DIR__ . '/../includes/header.php';
                                             data-alasan="<?= htmlspecialchars((string) ($i['alasan'] ?? '')) ?>"
                                             data-tgl-mulai="<?= htmlspecialchars((string) ($i['tanggal_mulai'] ?? '')) ?>"
                                             data-tgl-selesai="<?= htmlspecialchars((string) ($i['tanggal_selesai'] ?? '')) ?>"
-                                            data-jam-mulai="<?= htmlspecialchars(substr((string) ($i['jam_mulai'] ?? ''), 0, 5)) ?>"
-                                            data-jam-selesai="<?= htmlspecialchars(substr((string) ($i['jam_selesai'] ?? ''), 0, 5)) ?>"
+                                            data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($i['jam_mulai'] ?? ''))) ?>"
+                                            data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($i['jam_selesai'] ?? ''))) ?>"
                                             data-durasi="<?= htmlspecialchars((string) ($i['durasi_jam'] ?? '')) ?>">
                                         Setujui
                                     </button>
@@ -593,7 +726,11 @@ require_once __DIR__ . '/../includes/header.php';
                                 $apTok = trim((string) ($i['qr_token'] ?? ''));
                                 $canPrint = !($apStat === 'DITOLAK' || ($apStat === 'PENDING' && $apTok === ''));
                                 ?>
-                                <?php if ($canPrint): ?>
+                                <?php if ($canPrint && $ridCetak > 0 && $tampilkanCetakRombongan): ?>
+                                    <a target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . $ridCetak)) ?>" class="btn btn-sm btn-outline-dark" title="Satu surat untuk seluruh rombongan"><i class="fa-solid fa-print me-1"></i> Surat rombongan (A4)</a>
+                                <?php elseif ($canPrint && $ridCetak > 0): ?>
+                                    <span class="small text-muted">↳ Satu surat rombongan</span>
+                                <?php elseif ($canPrint): ?>
                                     <a target="_blank" href="/perizinan/surat.php?id=<?= $i['id'] ?>" class="btn btn-sm btn-outline-dark">Cetak A5</a>
                                 <?php else: ?>
                                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Surat dapat dicetak setelah izin disetujui.">Cetak A5</button>
@@ -658,11 +795,11 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam mulai</label>
-                        <input type="time" name="jam_mulai" id="approve-jam-mulai" class="form-control" required>
+                        <input type="text" name="jam_mulai" id="approve-jam-mulai" <?= app_time_input_attrs() ?> required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Jam selesai</label>
-                        <input type="time" name="jam_selesai" id="approve-jam-selesai" class="form-control" required>
+                        <input type="text" name="jam_selesai" id="approve-jam-selesai" <?= app_time_input_attrs() ?> required>
                     </div>
                     <div class="col-4">
                         <label class="form-label">Durasi (jam)</label>
@@ -714,7 +851,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="fw-semibold mb-1"><?= htmlspecialchars((string) $i['nama_santri']) ?></div>
                     <div class="small text-muted mb-3">
                         <?= htmlspecialchars(jenis_izin_label((string) ($i['jenis_izin'] ?? 'KELUAR'))) ?>
-                        · berlaku sampai <?= htmlspecialchars((string) $i['tanggal_selesai']) ?> <?= htmlspecialchars(substr((string) ($i['jam_selesai'] ?? ''), 0, 5)) ?>
+                        · berlaku sampai <?= htmlspecialchars(app_format_tanggal_id((string) $i['tanggal_selesai'])) ?> <?= htmlspecialchars(app_format_jam((string) ($i['jam_selesai'] ?? ''))) ?>
                     </div>
                     <div class="d-inline-flex p-3 bg-white border rounded-4 shadow-sm mb-3">
                         <div class="izin-qr-box" data-token="<?= htmlspecialchars((string) $i['qr_token']) ?>" id="izin-qr-<?= (int) $i['id'] ?>"></div>
@@ -730,8 +867,22 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 <?php endforeach; ?>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-rombongan-picker.js')) ?>" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
+(function () {
+    var btnR = document.getElementById('btn-toggle-rombongan');
+    var btnBatal = document.getElementById('btn-batal-rombongan');
+    var formR = document.getElementById('form-izin-rombongan');
+    var formS = document.getElementById('form-izin-santri');
+    function showRombongan(show) {
+        if (!formR || !formS) return;
+        formR.classList.toggle('d-none', !show);
+        formS.classList.toggle('d-none', show);
+    }
+    if (btnR) btnR.addEventListener('click', function () { showRombongan(true); });
+    if (btnBatal) btnBatal.addEventListener('click', function () { showRombongan(false); });
+})();
 (function () {
     var jenis = document.getElementById('jenis-izin-input');
     var panelInput = document.getElementById('ehealth-input-card');

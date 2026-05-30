@@ -190,8 +190,10 @@ function user_profil_render_avatar(array $user, string $sizeClass = 'app-user-av
 
     if ($foto !== '') {
         $src = htmlspecialchars(user_profil_url($foto), ENT_QUOTES, 'UTF-8');
+        $fb = htmlspecialchars(user_profil_default_avatar_href($user['jenis_kelamin'] ?? null), ENT_QUOTES, 'UTF-8');
+
         return '<span class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . ' app-user-avatar--uploaded" title="' . $title . '">'
-            . '<img src="' . $src . '" alt="" class="app-user-avatar__img" loading="lazy" decoding="async">'
+            . '<img src="' . $src . '" alt="" class="app-user-avatar__img" loading="lazy" decoding="async" data-pondok-cache="1" data-fallback-src="' . $fb . '">'
             . '</span>';
     }
 

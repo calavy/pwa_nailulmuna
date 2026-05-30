@@ -79,17 +79,51 @@ function santri_list_sort_col(string $alias, string $column): string
     return $alias !== '' ? $alias . '.' . $column : $column;
 }
 
-/** Ekspresi SQL urutan tingkatan (Muadalah → Wustho → Ulya → lainnya). */
-function santri_list_tingkatan_order_expr(string $alias = 's'): string
+/** Pastikan kolom urutan pada master tingkatan. */
+function tingkatan_ensure_urutan_column(?PDO $pdo = null): void
 {
-    $t = 'UPPER(TRIM(COALESCE(' . santri_list_sort_col($alias, 'tingkatan') . ", '')))";
+    if ($pdo === null) {
+        global $pdo;
+    }
+    if (!($pdo instanceof PDO) || !table_exists($pdo, 'tingkatan')) {
+        return;
+    }
+    if (!column_exists($pdo, 'tingkatan', 'urutan')) {
+        try {
+            $pdo->exec('ALTER TABLE tingkatan ADD COLUMN urutan SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER nama_tingkatan');
+        } catch (Throwable $e) {
+            return;
+        }
+        $rows = $pdo->query('SELECT id FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $u = $pdo->prepare('UPDATE tingkatan SET urutan = :u WHERE id = :id');
+        $n = 1;
+        foreach ($rows as $r) {
+            $u->execute(['u' => $n++, 'id' => (int) ($r['id'] ?? 0)]);
+        }
+    }
+}
 
-    return "CASE
+/** Ekspresi SQL urutan tingkatan (master urutan, lalu Muadalah → Wustho → Ulya). */
+function santri_list_tingkatan_order_expr(string $alias = 's', ?PDO $pdo = null): string
+{
+    if ($pdo === null) {
+        global $pdo;
+    }
+    $tCol = santri_list_sort_col($alias, 'tingkatan');
+    $t = 'UPPER(TRIM(COALESCE(' . $tCol . ", '')))";
+    $fallback = "CASE
         WHEN {$t} LIKE '%MUAD%' OR {$t} LIKE '%MTS%' OR {$t} LIKE '%SMP%' OR {$t} = 'M' THEN 1
         WHEN {$t} LIKE '%WUST%' OR {$t} LIKE '%WUSTO%' OR {$t} = 'W' THEN 2
         WHEN {$t} LIKE '%ULY%' OR {$t} LIKE '%ALIYAH%' OR {$t} LIKE '%SMA%' OR {$t} LIKE '%SMK%' OR {$t} = 'U' THEN 3
         ELSE 9
     END";
+    if ($pdo instanceof PDO && table_exists($pdo, 'tingkatan') && column_exists($pdo, 'tingkatan', 'urutan')) {
+        tingkatan_ensure_urutan_column($pdo);
+
+        return '(SELECT COALESCE(tk.urutan, 99) FROM tingkatan tk WHERE tk.nama_tingkatan = ' . $tCol . ' LIMIT 1) ASC, ' . $fallback . ' ASC';
+    }
+
+    return $fallback . ' ASC';
 }
 
 /** Klausa ORDER BY untuk query daftar santri (tanpa kata ORDER BY). */
@@ -102,7 +136,7 @@ function santri_list_order_sql(string $alias = 's', ?PDO $pdo = null): string
 
     return match ($mode) {
         'nis' => "{$nisOrder}, {$nama} ASC",
-        'tingkatan' => santri_list_tingkatan_order_expr($alias) . " ASC, {$nama} ASC, {$nisOrder}",
+        'tingkatan' => santri_list_tingkatan_order_expr($alias, $pdo) . ", {$nama} ASC, {$nisOrder}",
         default => "{$nama} ASC, {$nisOrder}",
     };
 }

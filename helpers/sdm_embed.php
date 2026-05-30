@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/app_vendor.php';
+
 function sdm_is_embed(): bool
 {
     return isset($_GET['embed']) && (string) $_GET['embed'] === '1';
@@ -46,7 +48,7 @@ function sdm_embed_layout_start(string $pageTitle): void
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title><?= htmlspecialchars($pageTitle) ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_vendor_bootstrap_css_href()) ?>" rel="stylesheet" crossorigin="anonymous">
     <link href="/assets/css/keuangan.css" rel="stylesheet">
     <style>body{background:#f8f9fa}.sdm-embed-close{position:sticky;top:0;z-index:5}</style>
 </head>
@@ -64,7 +66,7 @@ function sdm_embed_layout_end(): void
         return;
     }
     ?>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
 </body></html>
 <?php
     exit;

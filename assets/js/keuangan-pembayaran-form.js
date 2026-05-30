@@ -14,6 +14,9 @@
     const statusLabel = document.getElementById('status_lunas_label');
     const statusHidden = document.getElementById('status_lunas');
     const summaryHint = document.getElementById('tagihan-summary-hint');
+    const syBreakdownBox = document.getElementById('syahriyah-breakdown-box');
+    const syBreakdownLines = document.getElementById('syahriyah-breakdown-lines');
+    const syBreakdownTotal = document.getElementById('syahriyah-breakdown-total');
     const opsPanel = document.getElementById('panel-komponen-opsional');
     const opsStatusPill = document.getElementById('opsional-status-pill');
     const opsBulkLink = document.getElementById('opsional-bulk-link');
@@ -230,6 +233,33 @@
         }
     }
 
+    function renderSyahriyahBreakdown(summary) {
+        if (!syBreakdownBox || !syBreakdownLines || !syBreakdownTotal) {
+            return;
+        }
+        const bd = summary && summary.syahriyah_breakdown ? summary.syahriyah_breakdown : null;
+        if (!bd || (bd.total || 0) <= 0) {
+            syBreakdownBox.classList.add('d-none');
+            return;
+        }
+        const tier = bd.tier_label ? ' (' + bd.tier_label + ')' : '';
+        const lines = [];
+        lines.push('Syahriyah pokok' + tier + ': <strong>' + fmtRp(bd.dasar || 0) + '</strong>');
+        if ((bd.pkpps || 0) > 0) {
+            lines.push('Tambahan PKPPS: <strong>' + fmtRp(bd.pkpps) + '</strong>');
+        }
+        if ((bd.kelas_syahriyah || 0) > 0) {
+            lines.push('Tambahan kelas syahriyah: <strong>' + fmtRp(bd.kelas_syahriyah) + '</strong>');
+        }
+        syBreakdownLines.innerHTML = lines.join('<br>');
+        const sisaLine = (bd.sisa || 0) > 0
+            ? ' · Sisa bayar: <strong>' + fmtRp(bd.sisa) + '</strong>'
+            : ' · <span class="text-success">Lunas</span>';
+        syBreakdownTotal.innerHTML =
+            'Total tagihan: <strong>' + fmtRp(bd.total) + '</strong>' + sisaLine;
+        syBreakdownBox.classList.remove('d-none');
+    }
+
     function renderPaidHints() {
         document.querySelectorAll('.paid-hint').forEach(function (cell) {
             const slug = cell.getAttribute('data-slug');
@@ -258,6 +288,17 @@
                     (info.keterangan_potongan || 'potongan') +
                     '</span>';
             }
+            let rincianLine = '';
+            if (slug === 'syahriyah' && ((info.pkpps_tambahan || 0) > 0 || (info.kelas_syahriyah_tambahan || 0) > 0)) {
+                const dasar = (info.expected_setelah_potongan != null)
+                    ? info.expected_setelah_potongan
+                    : Math.max(0, (info.expected || 0) - (info.pkpps_tambahan || 0) - (info.kelas_syahriyah_tambahan || 0));
+                rincianLine = '<br><span style="font-size:.72rem">' +
+                    fmtRp(dasar) +
+                    ((info.pkpps_tambahan || 0) > 0 ? ' + PKPPS ' + fmtRp(info.pkpps_tambahan) : '') +
+                    ((info.kelas_syahriyah_tambahan || 0) > 0 ? ' + kelas ' + fmtRp(info.kelas_syahriyah_tambahan) : '') +
+                    '</span>';
+            }
             if (info.sisa > 0) {
                 cell.innerHTML =
                     'Sisa ' +
@@ -265,12 +306,14 @@
                     '<br><span class="text-muted">/' +
                     fmtRp(info.expected) +
                     '</span>' +
+                    rincianLine +
                     potonganLine;
             } else {
                 cell.innerHTML =
                     '<span class="text-success">Lunas</span><br><span class="text-muted">' +
                     fmtRp(info.expected) +
                     '</span>' +
+                    rincianLine +
                     potonganLine;
             }
         });
@@ -329,6 +372,7 @@
             resetOpsEditors('Pilih santri untuk mengatur.');
             setOpsPill('tutup', 'bg-light text-muted');
             renderPaidHints();
+            renderSyahriyahBreakdown(null);
             return;
         }
         resetOpsEditors('Memuat pengaturan…');
@@ -462,6 +506,7 @@
                 filterKomponenRows();
                 renderPaidHints();
                 applyNominalFromTagihan();
+                renderSyahriyahBreakdown(data.summary || null);
                 if (summaryHint && data.summary) {
                     const sisa = parseInt(data.summary.sisa_wajib, 10) || 0;
                     const exp = parseInt(data.summary.expected_wajib, 10) || 0;

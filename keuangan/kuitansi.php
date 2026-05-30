@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
@@ -61,14 +62,20 @@ $formatRupiah = static fn(int $nominal): string => 'Rp ' . number_format($nomina
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$logoPath = app_setting($pdo, 'logo_path', '');
-$logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
+$logoSrc = function_exists('app_pondok_logo_src') ? app_pondok_logo_src($pdo) : '';
+if ($logoSrc === '') {
+    $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
+    $logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
+    $logoSrc = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
+}
+$logo = $logoSrc !== '' ? app_href($logoSrc) : '';
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+$tanggalBayarFmt = app_format_tanggal_id((string) ($row['tanggal_bayar'] ?? ''));
 $verifySecret = (string) app_setting($pdo, 'kuitansi_verify_secret', 'pwa_nailulmuna_secret');
 $verifySig = substr(hash('sha256', $id . '|' . (string) $row['tanggal_bayar'] . '|' . (string) $row['total_nominal'] . '|' . $verifySecret), 0, 16);
-$verifyUrl = 'http://localhost/keuangan/verifikasi_kuitansi.php?id=' . $id . '&sig=' . $verifySig;
+$verifyUrl = app_public_url() . app_href('/keuangan/verifikasi_kuitansi.php?id=' . $id . '&sig=' . $verifySig);
 $namaPetugas = trim((string) ($row['nama_petugas'] ?? ($_SESSION['user']['nama'] ?? 'Petugas')));
+$metodeBayar = trim((string) ($row['metode_bayar'] ?? ''));
 
 $pageTitle = 'Kuitansi Pembayaran';
 require_once __DIR__ . '/../includes/header.php';
@@ -79,7 +86,7 @@ require_once __DIR__ . '/../includes/header.php';
         <button class="btn btn-sm btn-outline-secondary" onclick="printMode('official')">Print Resmi</button>
         <button class="btn btn-sm btn-outline-dark" onclick="printMode('thermal')">Print Termal</button>
         <button class="btn btn-sm btn-success" onclick="downloadPng()">Download PNG</button>
-        <a class="btn btn-sm btn-outline-primary" href="/pembayaran/riwayat.php">Kembali</a>
+        <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembayaran/riwayat.php')) ?>">Kembali</a>
     </div>
 </div>
 
@@ -101,7 +108,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="small text-muted">No. Kuitansi</div>
                     <div class="fw-bold"><?= htmlspecialchars($noKuitansi) ?></div>
                     <div class="small text-muted mt-2">Tanggal Bayar</div>
-                    <div><?= htmlspecialchars((string) $row['tanggal_bayar']) ?></div>
+                    <div><?= htmlspecialchars($tanggalBayarFmt) ?></div>
                 </div>
             </div>
             <div class="row g-2 mb-3">
@@ -109,6 +116,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="col-md-6"><strong>Nama:</strong> <?= htmlspecialchars((string) $row['nama_santri']) ?></div>
                 <div class="col-md-6"><strong>Tingkatan:</strong> <?= htmlspecialchars((string) (($row['tingkatan'] ?? '') !== '' ? $row['tingkatan'] : '-')) ?></div>
                 <div class="col-md-6"><strong>Periode:</strong> <?= htmlspecialchars((string) $row['jenis_periode']) ?> - <?= htmlspecialchars($periodeLabel) ?></div>
+                <?php if ($metodeBayar !== ''): ?>
+                <div class="col-md-6"><strong>Metode:</strong> <?= htmlspecialchars($metodeBayar) ?></div>
+                <?php endif; ?>
             </div>
             <div class="table-responsive mb-3">
                 <table class="table table-sm table-bordered mb-0">
@@ -140,7 +150,7 @@ require_once __DIR__ . '/../includes/header.php';
                          alt="Stempel pondok"
                          style="width:140px; height:140px; object-fit:contain;">
                     <div class="mt-1" style="color:#4a3a5e; font-weight:700; letter-spacing:0.5px;">
-                        SAH &middot; <?= htmlspecialchars(date('d-m-Y', strtotime((string) $row['tanggal_bayar']))) ?>
+                        SAH &middot; <?= htmlspecialchars($tanggalBayarFmt) ?>
                     </div>
                     <div class="mt-2 small" style="color:#4a3a5e;">Petugas: <strong><?= htmlspecialchars($namaPetugas) ?></strong></div>
                 </div>
@@ -152,7 +162,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card-body p-3" style="max-width:320px;margin:0 auto;font-size:12px">
             <div class="text-center fw-bold"><?= htmlspecialchars($namaPonpes) ?></div>
             <div class="text-center mb-2">KUITANSI <?= htmlspecialchars($noKuitansi) ?></div>
-            <div>Tgl: <?= htmlspecialchars((string) $row['tanggal_bayar']) ?></div>
+            <div>Tgl: <?= htmlspecialchars($tanggalBayarFmt) ?></div>
             <div>NIS: <?= htmlspecialchars((string) ($row['nis'] ?: '-')) ?></div>
             <div>Nama: <?= htmlspecialchars((string) $row['nama_santri']) ?></div>
             <div>Periode: <?= htmlspecialchars((string) $row['jenis_periode']) ?> / <?= htmlspecialchars($periodeLabel) ?></div>

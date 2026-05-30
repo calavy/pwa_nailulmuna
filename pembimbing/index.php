@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/login_pembimbing.php';
 require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
 require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 require_once __DIR__ . '/../helpers/excel.php';
 
 require_roles(['admin', 'pengurus']);
@@ -202,10 +203,10 @@ if ($hasUsersTable) {
                {$selectUserCols}
         FROM pembimbing p
         LEFT JOIN users u ON TRIM(u.username) = TRIM(p.nip)
-        ORDER BY p.nama_pembimbing ASC
+        ORDER BY " . pembimbing_list_order_sql('p') . "
     ")->fetchAll();
 } else {
-    $rows = $pdo->query('SELECT id, qr, nip, nama_pembimbing, no_wa, is_aktif, gaji_pokok, tarif_kriteria, NULL AS user_id, NULL AS user_username, NULL AS user_password_plain, NULL AS user_role FROM pembimbing ORDER BY nama_pembimbing ASC')->fetchAll();
+    $rows = $pdo->query('SELECT id, qr, nip, nama_pembimbing, no_wa, is_aktif, gaji_pokok, tarif_kriteria, NULL AS user_id, NULL AS user_username, NULL AS user_password_plain, NULL AS user_role FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll();
 }
 
 $payrollTarifMap = payroll_pembimbing_tarif_map($pdo);

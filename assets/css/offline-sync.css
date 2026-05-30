@@ -1,0 +1,175 @@
+/* Antrian offline & cache rekap */
+#pondok-offline-banner {
+    position: sticky;
+    top: 0;
+    z-index: 1035;
+    background: #b45309;
+    color: #fffbeb;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.4rem 0.75rem;
+}
+
+html.pondok-offline #pondok-offline-banner {
+    display: block;
+}
+
+.pondok-offline-queue-panel {
+    position: fixed;
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.85rem, env(safe-area-inset-bottom));
+    z-index: 1050;
+}
+
+.pondok-offline-queue-btn {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(145deg, #0f766e, #0891b2);
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.28);
+    position: relative;
+    cursor: pointer;
+}
+
+.pondok-offline-queue-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.pondok-offline-queue-drawer {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.5rem);
+    width: min(300px, calc(100vw - 1.5rem));
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, rgba(148, 163, 184, 0.35));
+    border-radius: 12px;
+    padding: 0.85rem;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.pondok-offline-queue-list {
+    list-style: none;
+    margin: 0 0 0.65rem;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.pondok-offline-queue-item {
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.pondok-offline-queue-empty {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.pondok-offline-toast {
+    position: fixed;
+    left: 50%;
+    bottom: max(4.5rem, calc(4.5rem + env(safe-area-inset-bottom)));
+    transform: translateX(-50%);
+    z-index: 1060;
+    max-width: min(420px, calc(100vw - 1.5rem));
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+}
+
+.pondok-offline-toast--success { background: #047857; color: #ecfdf5; }
+.pondok-offline-toast--warning { background: #b45309; color: #fffbeb; }
+.pondok-offline-toast--error { background: #b91c1c; color: #fef2f2; }
+.pondok-offline-toast--info { background: #0e7490; color: #ecfeff; }
+
+.pondok-offline-rekap-panel {
+    margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .pondok-offline-rekap-panel.alert-warning {
+    background: rgba(120, 53, 15, 0.55);
+    border-color: rgba(251, 191, 36, 0.45);
+    color: #fef3c7;
+}
+
+[data-theme="dark"] .pondok-offline-rekap-panel .table {
+    --bs-table-bg: rgba(15, 23, 42, 0.5);
+    --bs-table-color: #e2e8f0;
+    --bs-table-border-color: rgba(71, 85, 105, 0.5);
+}
+
+.pondok-offline-rekap-html-sandbox {
+    background: var(--card-bg, #fff);
+    font-size: 0.85rem;
+}
+
+[data-theme="dark"] .pondok-offline-rekap-html-sandbox {
+    background: rgba(15, 23, 42, 0.65);
+    color: #e2e8f0;
+}
+
+html.pondok-offline-syncing .pondok-offline-queue-btn {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+[data-theme="dark"] .pondok-offline-queue-drawer {
+    background: var(--card-bg);
+    color: var(--app-text);
+}
+
+[data-theme="dark"] .pondok-offline-queue-item {
+    border-bottom-color: rgba(71, 85, 105, 0.45);
+}
+
+/* Logo & avatar tetap proporsional saat offline / gambar dari cache */
+html.pondok-offline .app-brand-logo,
+html.pondok-offline .app-sidebar-pondok-logo,
+html.pondok-offline .app-user-avatar__img,
+html.pondok-offline .koperasi-topbar-logo,
+html.pondok-offline .auth-portal-logo-img,
+html.pondok-offline .wali-login-logo {
+    opacity: 1;
+    visibility: visible;
+}
+
+.app-brand-logo,
+.app-sidebar-pondok-logo,
+.app-user-avatar__img {
+    object-fit: contain;
+    background-color: rgba(255, 255, 255, 0.92);
+}
+
+.app-user-avatar__img {
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+}
+
+[data-theme="dark"] .app-brand-logo,
+[data-theme="dark"] .app-sidebar-pondok-logo {
+    background-color: rgba(30, 41, 59, 0.65);
+}
+
+.app-user-avatar--uploaded,
+.app-user-avatar--default {
+    background: rgba(241, 245, 249, 0.95);
+}

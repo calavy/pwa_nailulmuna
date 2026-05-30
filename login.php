@@ -7,6 +7,7 @@ require_once __DIR__ . '/helpers/app_path.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/login_pembimbing.php';
+require_once __DIR__ . '/helpers/munawib.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
 // Akses cepat "Scan Presensi" dari portal pembimbing — tanpa password.
@@ -77,37 +78,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         } catch (PDOException $e) { /* abaikan jika MySQL versi lama */ }
         $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
 
-        if ($peran === 'pembimbing' && $loginMethod === 'qr' && $qrCode !== '' && table_exists($pdo, 'pembimbing')) {
-            // Login via scan QR kartu pembimbing — cocokkan ke kolom qr/nip,
-            // lalu ambil akun users yang username-nya = pembimbing.nip.
-            $aktifSql = column_exists($pdo, 'pembimbing', 'is_aktif')
-                ? ' AND COALESCE(p.is_aktif, 1) = 1'
-                : '';
-            $stmtPb = $pdo->prepare('
-                SELECT p.id AS pembimbing_id, p.nip, p.nama_pembimbing
-                FROM pembimbing p
-                WHERE (p.qr = :code OR p.nip = :code)' . $aktifSql . '
-                LIMIT 1
-            ');
-            $stmtPb->execute(['code' => $qrCode]);
-            $pbRow = $stmtPb->fetch();
-            if ($pbRow) {
-                $stmtUser = $pdo->prepare('
-                    SELECT id, nama, username, role, is_super_admin, foto_profil
-                    FROM users
-                    WHERE TRIM(username) = :nip
+        if ($peran === 'pembimbing' && $loginMethod === 'qr' && $qrCode !== '') {
+            if (table_exists($pdo, 'pembimbing')) {
+                // Login via scan QR kartu pembimbing — cocokkan ke kolom qr/nip,
+                // lalu ambil akun users yang username-nya = pembimbing.nip.
+                $aktifSql = column_exists($pdo, 'pembimbing', 'is_aktif')
+                    ? ' AND COALESCE(p.is_aktif, 1) = 1'
+                    : '';
+                $stmtPb = $pdo->prepare('
+                    SELECT p.id AS pembimbing_id, p.nip, p.nama_pembimbing
+                    FROM pembimbing p
+                    WHERE (p.qr = :code OR p.nip = :code)' . $aktifSql . '
                     LIMIT 1
                 ');
-                $stmtUser->execute(['nip' => trim((string) $pbRow['nip'])]);
-                $userRow = $stmtUser->fetch();
-                if ($userRow) {
-                    $isValidLogin = true;
-                    $userName = (string) ($userRow['nama'] ?? $pbRow['nama_pembimbing']);
-                    $username = (string) $userRow['username'];
-                } else {
-                    // Akun users belum ada untuk NIP ini — beri pesan jelas.
-                    set_flash('error', 'Kartu QR dikenali (' . (string) $pbRow['nama_pembimbing'] . '), tetapi akun login pembimbing belum dibuat. Hubungi pengurus.');
-                    header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran));
+                $stmtPb->execute(['code' => $qrCode]);
+                $pbRow = $stmtPb->fetch();
+                if ($pbRow) {
+                    $stmtUser = $pdo->prepare('
+                        SELECT id, nama, username, role, is_super_admin, foto_profil
+                        FROM users
+                        WHERE TRIM(username) = :nip
+                        LIMIT 1
+                    ');
+                    $stmtUser->execute(['nip' => trim((string) $pbRow['nip'])]);
+                    $userRow = $stmtUser->fetch();
+                    if ($userRow) {
+                        $isValidLogin = true;
+                        $userName = (string) ($userRow['nama'] ?? $pbRow['nama_pembimbing']);
+                        $username = (string) $userRow['username'];
+                    } else {
+                        set_flash('error', 'Kartu QR dikenali (' . (string) $pbRow['nama_pembimbing'] . '), tetapi akun login pembimbing belum dibuat. Hubungi pengurus.');
+                        header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran) . '&act=portal');
+                        exit;
+                    }
+                }
+            }
+            if (!$isValidLogin) {
+                munawib_ensure_schema($pdo);
+                $mwLogin = munawib_buat_sesi_portal($pdo, $qrCode);
+                if ($mwLogin['ok'] && isset($mwLogin['session']['user']) && is_array($mwLogin['session']['user'])) {
+                    session_regenerate_id(true);
+                    $_SESSION['user'] = $mwLogin['session']['user'];
+                    $_SESSION['munawib_id'] = (int) ($mwLogin['session']['munawib_id'] ?? 0);
+                    $_SESSION['munawib_tingkatan'] = $mwLogin['session']['munawib_tingkatan'] ?? [];
+                    $_SESSION['munawib_pembimbing_id'] = (int) ($mwLogin['session']['munawib_pembimbing_id'] ?? 0);
+                    set_flash('success', 'Kartu munawib dikenali. Kelas: ' . implode(', ', $_SESSION['munawib_tingkatan']));
+                    app_redirect('pembimbing/dashboard.php');
+                }
+                if (!$isValidLogin && ($mwLogin['message'] ?? '') !== '' && str_contains((string) $mwLogin['message'], 'penugasan')) {
+                    set_flash('error', (string) $mwLogin['message']);
+                    header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran) . '&act=portal');
                     exit;
                 }
             }
@@ -158,6 +178,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             $chk->execute(['u' => $username]);
             $isRegisteredPembimbing = (bool) $chk->fetchColumn();
         }
+        unset($_SESSION['munawib_id'], $_SESSION['munawib_tingkatan'], $_SESSION['munawib_pembimbing_id']);
+
         if ($isRegisteredPembimbing) {
             $sessionRole = 'pembimbing';
             if ($userId > 0) {
@@ -187,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
     }
 
     set_flash('error', $loginMethod === 'qr'
-        ? 'Kartu QR tidak dikenali atau pembimbing tidak aktif.'
+        ? 'Kartu QR tidak dikenali (pembimbing/munawib) atau tidak aktif.'
         : 'Username atau password salah.');
     header('Location: ' . app_url('login.php') . '?peran=' . urlencode($peran));
     exit;
@@ -195,11 +217,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
 
 $brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
-
 $welcome = auth_portal_welcome_copy($pdo);
+$portalHeadline = 'Selamat Datang di Portal Digital Ponpes API Nailul Muna';
+$portalFormalBody = auth_portal_formal_body();
+$portalHintMobile = 'Silakan ketuk dan pilih pintu masuk di bawah sesuai klasifikasi portal Anda.';
+$portalHintDesktop = 'Silakan klik dan pilih pintu masuk di samping sesuai klasifikasi portal Anda.';
 $peranLabel = $peran === 'pembimbing' ? 'Pembimbing' : ($peran === 'pengurus' ? 'Pengurus / Admin' : '');
 
 $pbActParam = strtolower(trim((string) ($_GET['act'] ?? '')));
@@ -210,12 +232,16 @@ if ($peran === 'pembimbing') {
 
 auth_portal_layout_begin([
     'title' => $peran === '' ? 'Portal Masuk' : 'Login ' . $peranLabel,
+    'headline' => $peran === '' ? $portalHeadline : '',
     'welcome_salam' => $welcome['salam'],
-    'welcome_salam_waktu' => $welcome['salam_waktu'],
-    'welcome_tagline' => $peran === '' ? $welcome['tagline'] : $welcome['tagline_portal'],
+    'welcome_salam_waktu' => $peran === '' ? '' : $welcome['salam_waktu'],
+    'welcome_tagline' => $peran === '' ? '' : $welcome['tagline_portal'],
+    'formal_body' => $peran === '' ? $portalFormalBody : '',
+    'subtitle_mobile' => $peran === '' ? $portalHintMobile : '',
+    'subtitle_desktop' => $peran === '' ? $portalHintDesktop : '',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
-    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
+    'logo_url' => '',
     'layout' => $peran === '' ? 'split' : 'stack',
     'card_title' => $peran === '' ? 'Pilih cara masuk' : $pbCardTitle,
     'accent' => 'teal',
@@ -232,6 +258,7 @@ $ok = get_flash('success');
                 <?php endif; ?>
 
                 <?php if ($peran === ''): ?>
+                    <p class="small text-muted mb-3 mb-md-2">Pilih portal sesuai peran Anda. Semua layanan memakai satu pintu masuk yang rapi.</p>
                     <div class="auth-portal-role-grid">
                         <?php
                         auth_portal_role_link([
@@ -246,7 +273,7 @@ $ok = get_flash('success');
                             'icon' => 'fa-chalkboard-user',
                             'icon_mod' => 'pembimbing',
                             'title' => 'Pembimbing',
-                            'desc' => 'Scan kartu QR · atau NIP & password',
+                            'desc' => 'QR pembimbing/munawib · NIP & password',
                         ]);
                         auth_portal_role_link([
                             'href' => app_href('/presensi/login.php'),
@@ -332,7 +359,7 @@ $ok = get_flash('success');
                                 <div class="login-pb-qr__head">
                                     <span class="login-pb-qr__title">
                                         <i class="fa-solid fa-qrcode me-1" aria-hidden="true"></i>
-                                        Scan kartu pembimbing
+                                        Scan kartu pembimbing / munawib
                                     </span>
                                     <span id="login-pb-status" class="login-pb-qr__status is-waiting">Menyiapkan kamera…</span>
                                 </div>
@@ -350,7 +377,7 @@ $ok = get_flash('success');
                                     </div>
                                 </div>
                                 <div class="login-pb-qr__hint small text-muted">
-                                    Arahkan QR kartu ke kotak hijau · login akan otomatis ke dashboard tingkatan Anda.
+                                    Arahkan QR kartu pembimbing atau munawib ke kotak hijau · masuk ke portal kelas yang diwakili.
                                 </div>
                                 <div class="login-pb-qr__controls">
                                     <button type="button" class="btn btn-sm btn-outline-secondary" id="login-pb-flip">
@@ -438,18 +465,21 @@ $ok = get_flash('success');
                         gap: 0.85rem;
                         padding: 0.95rem 1rem;
                         border-radius: 14px;
-                        border: 1px solid rgba(15, 23, 42, 0.08);
+                        border: 1px solid #e2e8f0;
+                        border-left: 4px solid #0f766e;
                         background: #fff;
                         text-decoration: none;
                         color: #0f172a;
-                        transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+                        transition: none;
+                        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
                     }
                     .login-pb-option:hover {
-                        transform: translateY(-1px);
-                        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
-                        border-color: rgba(15, 118, 110, 0.4);
+                        box-shadow: 0 6px 16px rgba(15, 118, 110, 0.1);
+                        border-color: #99f6e4;
                         color: #0f172a;
                     }
+                    .login-pb-option--scan { border-left-color: #4f46e5; }
+                    .login-pb-option--portal { border-left-color: #0f766e; }
                     .login-pb-option__icon {
                         flex: 0 0 auto;
                         width: 46px;
@@ -475,10 +505,12 @@ $ok = get_flash('success');
                     }
                     .login-pb-option__text strong {
                         font-size: 0.98rem;
+                        font-weight: 800;
+                        color: #0f172a;
                     }
                     .login-pb-option__text span {
                         font-size: 0.8rem;
-                        color: #64748b;
+                        color: #475569;
                         line-height: 1.4;
                     }
                     .login-pb-option__go {
@@ -608,7 +640,7 @@ $ok = get_flash('success');
                     [data-theme="dark"] .login-pb-divider::before,
                     [data-theme="dark"] .login-pb-divider::after { background: rgba(148, 163, 184, 0.3); }
                 </style>
-                <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+                <?php require_once __DIR__ . '/helpers/app_vendor.php'; require __DIR__ . '/includes/partials/app_html5_qrcode_script.php'; ?>
                 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
                 <script>
                 (function () {

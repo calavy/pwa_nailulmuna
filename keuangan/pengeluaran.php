@@ -25,8 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 $akunRows = keuangan_fetch_akun_aktif($pdo);
-$alokasiSyahriyah = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
-$alokasiAwalTahun = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN);
+$alokasiPengeluaranOpts = keuangan_pengeluaran_alokasi_options($pdo);
 $defaultAkunId = 0;
 foreach ($akunRows as $ar) {
     if ((int) ($ar['is_default'] ?? 0) === 1) {
@@ -85,26 +84,28 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Alokasi dana (opsional)</label>
                         <select class="form-select" name="alokasi_nama">
                             <option value="">— Tidak terkait alokasi —</option>
-                            <?php if ($alokasiSyahriyah !== []): ?>
-                                <optgroup label="Dana syahriyah">
-                                    <?php foreach ($alokasiSyahriyah as $ar): ?>
-                                        <option value="<?= htmlspecialchars((string) $ar['nama_komponen']) ?>">
-                                            <?= htmlspecialchars((string) $ar['nama_komponen']) ?> (<?= htmlspecialchars((string) $ar['persen']) ?>%)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </optgroup>
-                            <?php endif; ?>
-                            <?php if ($alokasiAwalTahun !== []): ?>
-                                <optgroup label="Dana awal tahun">
-                                    <?php foreach ($alokasiAwalTahun as $ar): ?>
-                                        <option value="<?= htmlspecialchars((string) $ar['nama_komponen']) ?>">
-                                            <?= htmlspecialchars((string) $ar['nama_komponen']) ?> (<?= htmlspecialchars((string) $ar['persen']) ?>%)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </optgroup>
-                            <?php endif; ?>
+                            <?php
+                            $lastGroup = '';
+                            foreach ($alokasiPengeluaranOpts as $opt):
+                                $grp = (string) ($opt['group'] ?? '');
+                                if ($grp !== $lastGroup):
+                                    if ($lastGroup !== '') {
+                                        echo '</optgroup>';
+                                    }
+                                    echo '<optgroup label="' . htmlspecialchars($grp) . '">';
+                                    $lastGroup = $grp;
+                                endif;
+                                ?>
+                                <option value="<?= htmlspecialchars((string) ($opt['value'] ?? '')) ?>">
+                                    <?= htmlspecialchars((string) ($opt['label'] ?? '')) ?>
+                                </option>
+                            <?php endforeach;
+                            if ($lastGroup !== '') {
+                                echo '</optgroup>';
+                            }
+                            ?>
                         </select>
-                        <div class="form-text">Pilih komponen alokasi bila pengeluaran dari dana syahriyah atau awal tahun.</div>
+                        <div class="form-text">Termasuk dana umum syahriyah PKPPS/kelas — selaras dengan laporan alokasi &amp; pengaturan syahriyah.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Metode</label>

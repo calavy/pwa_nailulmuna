@@ -53,11 +53,27 @@ $breakdown = keuangan_tagihan_breakdown_for_santri(
 
 $sisaWajib = 0;
 $expectedWajib = 0;
+$syBreakdown = null;
 foreach ($breakdown as $row) {
     if (!empty($row['is_wajib'])) {
         $expectedWajib += (int) ($row['expected'] ?? 0);
         $sisaWajib += (int) ($row['sisa'] ?? 0);
     }
+}
+if (isset($breakdown['syahriyah']) && is_array($breakdown['syahriyah'])) {
+    $sy = $breakdown['syahriyah'];
+    $pkpps = (int) ($sy['pkpps_tambahan'] ?? 0);
+    $kelasSy = (int) ($sy['kelas_syahriyah_tambahan'] ?? 0);
+    $total = (int) ($sy['expected'] ?? 0);
+    $dasar = (int) ($sy['expected_setelah_potongan'] ?? max(0, $total - $pkpps - $kelasSy));
+    $syBreakdown = [
+        'tier_label' => (string) ($sy['tier_label'] ?? ''),
+        'dasar' => $dasar,
+        'pkpps' => $pkpps,
+        'kelas_syahriyah' => $kelasSy,
+        'total' => $total,
+        'sisa' => (int) ($sy['sisa'] ?? 0),
+    ];
 }
 
 echo json_encode([
@@ -67,5 +83,6 @@ echo json_encode([
         'expected_wajib' => $expectedWajib,
         'sisa_wajib' => $sisaWajib,
         'status' => $sisaWajib <= 0 && $expectedWajib > 0 ? 'Lunas' : ($sisaWajib < $expectedWajib ? 'Sebagian' : 'Belum'),
+        'syahriyah_breakdown' => $syBreakdown,
     ],
 ], JSON_UNESCAPED_UNICODE);

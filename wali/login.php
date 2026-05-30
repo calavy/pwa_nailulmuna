@@ -79,10 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
-
 $welcome = auth_portal_welcome_copy($pdo);
 $hasSelected = $selectedSantri !== null;
 
@@ -95,7 +91,7 @@ auth_portal_layout_begin([
     'subtitle_desktop' => 'Cari nama atau NIS anak di kartu ini, lalu masukkan PIN portal wali.',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
-    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
+    'logo_url' => '',
     'layout' => 'stack',
     'shell_mod' => 'wali',
     'card_title' => 'Portal Wali Santri',

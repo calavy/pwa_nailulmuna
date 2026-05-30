@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../helpers/app_path.php';
+require_once __DIR__ . '/../../helpers/app.php';
 
 /** @return list<array{href:string,icon:string,label:string,key:string}> */
 function wali_bottom_nav_items(): array
@@ -50,16 +51,13 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
         <meta name="apple-mobile-web-app-title" content="Portal Wali">
     <?php endif; ?>
-    <link rel="icon" type="image/png" sizes="192x192" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="icon" type="image/png" sizes="512x512" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
-    <link rel="shortcut icon" href="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>">
+    <?= app_pwa_icon_link_tags() ?>
     <title><?= htmlspecialchars($title) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+    <?php require __DIR__ . '/../../includes/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
@@ -134,12 +132,14 @@ function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActiv
     </nav>
     <?php endif; ?>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <?php require_once __DIR__ . '/../../helpers/app_vendor.php'; ?>
+    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
     <script>
         window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;
         window.PONDOK_PWA_SCOPE = <?= json_encode(rtrim(app_base_path(), '/') . '/wali/') ?>;
         window.PONDOK_PWA_SW = <?= json_encode(app_href('/wali/sw.php')) ?>;
     </script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
     <?php if ($registerServiceWorker): ?>

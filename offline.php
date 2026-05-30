@@ -3,26 +3,30 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config/session.php';
+require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/helpers/app_path.php';
+require_once __DIR__ . '/helpers/app.php';
 
-$homeHref = function_exists('app_href') ? app_href('/login.php') : '/login.php';
-$iconHref = function_exists('app_href') ? app_href('/assets/img/stempel-pondok.png') : '/assets/img/stempel-pondok.png';
+$homeHref = app_href('/login.php');
+$iconHref = app_pwa_icon_href($pdo);
+$pwaAppName = app_pwa_app_name($pdo);
+$pwaTheme = app_pwa_theme($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="<?= htmlspecialchars((string) ($pwaTheme['theme_color'] ?? '#0f766e')) ?>">
     <meta name="robots" content="noindex">
-    <title>Tidak ada koneksi — Pondok</title>
+    <title>Tidak ada koneksi — <?= htmlspecialchars($pwaAppName) ?></title>
     <style>
         * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100dvh;
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(145deg, #0f766e 0%, #0891b2 50%, #1d4ed8 100%);
+            background: linear-gradient(145deg, #0f766e 0%, <?= htmlspecialchars((string) ($pwaTheme['background_color'] ?? '#0d9488')) ?> 48%, #0891b2 100%);
             color: #fff;
             display: flex;
             align-items: center;
@@ -63,8 +67,12 @@ $iconHref = function_exists('app_href') ? app_href('/assets/img/stempel-pondok.p
         <img src="<?= htmlspecialchars($iconHref) ?>" alt="" width="72" height="72" decoding="async">
         <h1>Tidak ada koneksi internet</h1>
         <p>
-            Halaman ini disimpan di perangkat Anda. Sambungkan Wi‑Fi atau data seluler,
-            lalu muat ulang untuk melanjutkan ke aplikasi pondok.
+            Halaman ini disimpan di perangkat Anda. Beberapa layar bisa dibuka tanpa internet,
+            tetapi <strong>input data baru</strong> (presensi, pembayaran, nilai, dan sejenisnya)
+            baru tersimpan setelah ada koneksi.
+        </p>
+        <p style="font-size:0.85rem;margin-bottom:1rem;">
+            Sambungkan Wi‑Fi atau data seluler, lalu muat ulang untuk melanjutkan.
         </p>
         <button type="button" class="btn" id="btn-retry">Coba lagi</button>
         <a class="btn" href="<?= htmlspecialchars($homeHref) ?>" style="margin-left:0.35rem;background:#475569;">Ke login</a>

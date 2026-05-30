@@ -18,7 +18,25 @@
         document.body.style.paddingRight = '';
     }
 
-    document.addEventListener('DOMContentLoaded', cleanupStaleOverlays);
+    function dismissFlashAlerts() {
+        document.querySelectorAll('.app-flash[role="alert"]').forEach(function (el) {
+            if (el.dataset.flashDismissBound === '1') {
+                return;
+            }
+            el.dataset.flashDismissBound = '1';
+            window.setTimeout(function () {
+                el.classList.add('app-flash--hide');
+                window.setTimeout(function () {
+                    el.remove();
+                }, 320);
+            }, 6000);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        cleanupStaleOverlays();
+        dismissFlashAlerts();
+    });
     window.addEventListener('pageshow', cleanupStaleOverlays);
     document.addEventListener('hidden.bs.offcanvas', cleanupStaleOverlays);
     document.addEventListener('hidden.bs.modal', cleanupStaleOverlays);

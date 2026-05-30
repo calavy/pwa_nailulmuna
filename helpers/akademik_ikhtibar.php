@@ -102,6 +102,7 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
         akademik_add_column($pdo, 'ikhtibar_tugas', 'kegiatan_id', 'INT NULL');
         akademik_add_column($pdo, 'ikhtibar_tugas', 'jadwal_kegiatan_id', 'INT NULL');
         akademik_add_column($pdo, 'ikhtibar_tugas', 'mapel_label', 'VARCHAR(200) NULL');
+        akademik_add_column($pdo, 'ikhtibar_tugas', 'tanggal_selesai', 'DATE NULL');
     }
 }
 
@@ -418,7 +419,7 @@ function ikhtibar_mulai_sesi(PDO $pdo, int $tugasId, int $santriId): array
         return ['ok' => true, 'message' => 'Sesi sudah berjalan.', 'sesi_id' => (int) $sesi['id']];
     }
     $urutan = ikhtibar_shuffle_soal_ids($pdo, $tugasId);
-    $durasi = (int) ($tugas['durasi_menit'] ?? 60);
+    $durasi = max(0, (int) ($tugas['durasi_menit'] ?? 60));
     if ($sesi) {
         $pdo->prepare('
             UPDATE ikhtibar_sesi SET urutan_soal_json = :u, waktu_mulai = NOW(), status = "berjalan", durasi_menit = :d
@@ -545,9 +546,13 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     $id = (int) ($post['id'] ?? 0);
     $judul = trim((string) ($post['judul'] ?? ''));
     $tanggal = trim((string) ($post['tanggal'] ?? ''));
-    $durasi = max(5, min(300, (int) ($post['durasi_menit'] ?? 60)));
+    $tanggalSelesai = trim((string) ($post['tanggal_selesai'] ?? $tanggal));
     $jumlahPg = (int) ($post['jumlah_pg'] ?? 0);
     $jumlahEsai = (int) ($post['jumlah_esai'] ?? 0);
+    $tanpaTertulis = $jumlahEsai === 0;
+    $durasi = $tanpaTertulis
+        ? 0
+        : max(5, min(300, (int) ($post['durasi_menit'] ?? 60)));
     $pakaiToken = isset($post['pakai_token']) ? 1 : 0;
     $filterTingkat = trim((string) ($post['filter_tingkatan'] ?? ''));
     $catatan = trim((string) ($post['catatan'] ?? ''));
@@ -562,6 +567,15 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
         return ['ok' => false, 'message' => 'Tanggal tidak valid.'];
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalSelesai)) {
+        $tanggalSelesai = $tanggal;
+    }
+    if ($tanggalSelesai < $tanggal) {
+        [$tanggal, $tanggalSelesai] = [$tanggalSelesai, $tanggal];
+    }
+    if ($tanpaTertulis) {
+        $tanggalSelesai = $tanggalSelesai !== $tanggal ? $tanggalSelesai : $tanggal;
     }
     if (!in_array($jumlahPg, ikhtibar_kuota_pg(), true)) {
         $jumlahPg = 0;
@@ -587,12 +601,12 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     $status = $publish ? 'published' : 'draft';
     if ($id > 0) {
         $pdo->prepare('
-            UPDATE ikhtibar_tugas SET judul=:j, tanggal=:t, hari_ke=:h, durasi_menit=:d, pakai_token=:pt,
+            UPDATE ikhtibar_tugas SET judul=:j, tanggal=:t, tanggal_selesai=:ts, hari_ke=:h, durasi_menit=:d, pakai_token=:pt,
                 jumlah_pg=:jpg, jumlah_esai=:je, filter_tingkatan=:ft, catatan=:c, status=:st,
                 kegiatan_id=:kid, jadwal_kegiatan_id=:jid, mapel_label=:ml, updated_at=NOW()
             WHERE id=:id
         ')->execute([
-            'j' => $judul, 't' => $tanggal, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
+            'j' => $judul, 't' => $tanggal, 'ts' => $tanggalSelesai, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
             'jpg' => $jumlahPg, 'je' => $jumlahEsai, 'ft' => $filterTingkat !== '' ? $filterTingkat : null,
             'c' => $catatan !== '' ? $catatan : null, 'st' => $status, 'id' => $id,
             'kid' => $mapel['kegiatan_id'] ?? null,
@@ -603,11 +617,11 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
         $tugasId = $id;
     } else {
         $pdo->prepare('
-            INSERT INTO ikhtibar_tugas (judul, tanggal, hari_ke, durasi_menit, pakai_token, jumlah_pg, jumlah_esai,
+            INSERT INTO ikhtibar_tugas (judul, tanggal, tanggal_selesai, hari_ke, durasi_menit, pakai_token, jumlah_pg, jumlah_esai,
                 filter_tingkatan, catatan, status, created_by, kegiatan_id, jadwal_kegiatan_id, mapel_label)
-            VALUES (:j,:t,:h,:d,:pt,:jpg,:je,:ft,:c,:st,:uid,:kid,:jid,:ml)
+            VALUES (:j,:t,:ts,:h,:d,:pt,:jpg,:je,:ft,:c,:st,:uid,:kid,:jid,:ml)
         ')->execute([
-            'j' => $judul, 't' => $tanggal, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
+            'j' => $judul, 't' => $tanggal, 'ts' => $tanggalSelesai, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
             'jpg' => $jumlahPg, 'je' => $jumlahEsai, 'ft' => $filterTingkat !== '' ? $filterTingkat : null,
             'c' => $catatan !== '' ? $catatan : null, 'st' => $status, 'uid' => $userId > 0 ? $userId : null,
             'kid' => $mapel['kegiatan_id'] ?? null,

@@ -159,7 +159,16 @@ $iconForPath = static function (string $path): string {
 };
 
 $hour = (int) date('H');
-$salam = $hour < 11 ? 'Selamat pagi' : ($hour < 15 ? 'Selamat siang' : ($hour < 18 ? 'Selamat sore' : 'Selamat malam'));
+if ($hour >= 5 && $hour < 11) {
+    $salam = 'Selamat pagi';
+} elseif ($hour >= 11 && $hour < 15) {
+    $salam = 'Selamat siang';
+} elseif ($hour >= 15 && $hour < 18) {
+    $salam = 'Selamat sore';
+} else {
+    $salam = 'Selamat malam';
+}
+$jamServerLabel = substr($nowTime, 0, 5);
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Bapak/Ibu';
 $brandDash = app_header_brand_context($pdo);
@@ -191,13 +200,13 @@ require_once __DIR__ . '/includes/header.php';
                     <div class="dash-hero-kicker text-white-50">Beranda</div>
                     <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($salam) ?>, <?= htmlspecialchars($labelUser) ?>!</h1>
                     <?php if ($dashHijriLabel !== '' || $dashPasaran !== ''): ?>
-                        <p class="dash-hero-hijri mb-0 mt-1 small text-white-50">
+                        <p class="dash-hero-hijri mb-0 small text-white-50">
                             <?php if ($dashHijriLabel !== ''): ?>
-                                <i class="fa-solid fa-moon me-1" aria-hidden="true"></i>
+                                <i class="fa-solid fa-moon" aria-hidden="true"></i>
                                 <strong class="text-white"><?= htmlspecialchars($dashHijriLabel) ?></strong>
                             <?php endif; ?>
                             <?php if ($dashPasaran !== ''): ?>
-                                <span class="<?= $dashHijriLabel !== '' ? 'ms-2' : '' ?>"><i class="fa-solid fa-sun me-1" aria-hidden="true"></i>Pasaran <strong class="text-white"><?= htmlspecialchars($dashPasaran) ?></strong></span>
+                                <span class="<?= $dashHijriLabel !== '' ? 'ms-2' : '' ?>"><i class="fa-solid fa-sun" aria-hidden="true"></i>Pasaran <strong class="text-white"><?= htmlspecialchars($dashPasaran) ?></strong></span>
                             <?php endif; ?>
                         </p>
                     <?php endif; ?>
@@ -255,18 +264,20 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-start gap-2 pt-4 px-4 pb-0">
                     <div>
                         <h2 class="h5 mb-1">Kegiatan berlangsung</h2>
-                        <p class="small text-muted mb-0">Jadwal pada slot waktu sekarang</p>
+                        <p class="small text-muted mb-0">Jadwal pada slot waktu server sekarang (<?= htmlspecialchars($jamServerLabel) ?> WIB)</p>
                     </div>
                     <?php if ($canJadwal): ?>
-                    <a href="/jadwal/index.php" class="btn btn-sm btn-outline-primary rounded-pill">Jadwal lengkap</a>
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill">Jadwal lengkap</a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
                     <?php if ($kegiatanAktifGrouped === []): ?>
                         <div class="dash-empty-chart py-5 text-center text-muted">
-                            <div class="display-6 mb-2 opacity-50"><i class="fa-regular fa-calendar"></i></div>
-                            <p class="mb-0 fw-semibold">Belum ada kegiatan di jam ini</p>
-                            <p class="small mb-0 mt-1">Silakan cek jadwal atau waktu lain.</p>
+                            <div class="dash-empty-chart__inner">
+                                <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
+                                <p class="mb-0 fw-semibold">Belum ada kegiatan di jam <?= htmlspecialchars($jamServerLabel) ?>.</p>
+                                <p class="small mb-0 mt-1">Ini normal jika tidak ada jadwal aktif di database untuk slot ini — bukan karena offline. Cek <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="alert-link">jadwal lengkap</a> atau ubah jam di jadwal kegiatan.</p>
+                            </div>
                         </div>
                     <?php else: ?>
                         <div class="d-flex flex-column gap-2">
@@ -357,7 +368,7 @@ require_once __DIR__ . '/includes/header.php';
                     <p class="small text-muted mb-0">Disetujui · hari ini</p>
                 </div>
                 <?php if ($canPerizinan): ?>
-                <a href="/perizinan/index.php" class="btn btn-sm btn-outline-secondary rounded-pill">Kelola perizinan</a>
+                <a href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>" class="btn btn-sm btn-outline-secondary rounded-pill">Kelola perizinan</a>
                 <?php endif; ?>
             </div>
             <div class="card-body px-4 pb-4 pt-2">
@@ -490,25 +501,7 @@ require_once __DIR__ . '/includes/header.php';
             });
         }
 
-        const clockEl = document.getElementById('dashboard-live-clock');
-        const dateEl = document.getElementById('dashboard-live-date');
-        if (!clockEl || !dateEl) return;
-        const serverAtLoad = <?= (int) $dashServerClockMs ?>;
-        const perfAtLoad = performance.now();
-        function nowSynced() {
-            return new Date(serverAtLoad + (performance.now() - perfAtLoad));
-        }
-        const tz = 'Asia/Jakarta';
-        const fmtTime = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        const fmtDate = new Intl.DateTimeFormat('id-ID', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        function tick() {
-            const d = nowSynced();
-            clockEl.textContent = fmtTime.format(d);
-            const dateStr = fmtDate.format(d);
-            dateEl.textContent = dateStr;
-        }
-        tick();
-        setInterval(tick, 1000);
+        window.PONDOK_SERVER_CLOCK_MS = <?= (int) $dashServerClockMs ?>;
     })();
 </script>
 

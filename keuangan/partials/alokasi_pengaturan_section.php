@@ -16,12 +16,20 @@ $alokasiAktifRows = keuangan_fetch_alokasi_aktif($pdo, $alokasiJenisDana);
 $periodeTa = isset($keuanganTa) && is_array($keuanganTa)
     ? ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']]
     : pondok_tahun_ajaran_aktif($pdo);
-$realisasiPagu = keuangan_alokasi_realisasi_ta($pdo, $alokasiJenisDana, $periodeTa['mulai'], $periodeTa['selesai']);
+$realisasiPagu = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
+    ? keuangan_syahriyah_realisasi_dasar_ta($pdo, $periodeTa['mulai'], $periodeTa['selesai'])
+    : keuangan_alokasi_realisasi_ta($pdo, $alokasiJenisDana, $periodeTa['mulai'], $periodeTa['selesai']);
+$realisasiSyahriyahTotal = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
+    ? keuangan_syahriyah_realisasi_ta($pdo, $periodeTa['mulai'], $periodeTa['selesai'])
+    : 0;
+$realisasiSyahriyahUmum = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
+    ? keuangan_syahriyah_realisasi_umum_ta($pdo, $periodeTa['mulai'], $periodeTa['selesai'])
+    : 0;
 $simulasi = keuangan_alokasi_simulasi($pdo, [], $alokasiJenisDana);
 $simSuffix = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN ? 'at' : 'sy';
 $paguSumber = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
     ? 'pembayaran awal tahun santri'
-    : 'syahriyah bulanan';
+    : 'syahriyah bulanan (dasar setelah dana umum PKPPS/kelas)';
 ?>
 <div class="row g-3">
     <div class="col-lg-5">
@@ -130,6 +138,12 @@ $paguSumber = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
         <p class="small text-muted mb-3">
             Pagu dari realisasi <strong><?= htmlspecialchars($paguSumber) ?></strong> TA <?= (int) $periodeTa['mulai'] ?>/<?= (int) $periodeTa['selesai'] ?>:
             <strong><?= htmlspecialchars($formatRupiah($realisasiPagu)) ?></strong>.
+            <?php if ($alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH && $realisasiSyahriyahTotal > 0): ?>
+                <span class="d-block mt-1">Total syahriyah masuk: <strong><?= htmlspecialchars($formatRupiah($realisasiSyahriyahTotal)) ?></strong>
+                · Dana umum (PKPPS/kelas): <strong><?= htmlspecialchars($formatRupiah($realisasiSyahriyahUmum)) ?></strong>
+                · Dasar untuk alokasi %: <strong><?= htmlspecialchars($formatRupiah($realisasiPagu)) ?></strong>.
+                Pengeluaran dana umum dapat dipilih di <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a>.</span>
+            <?php endif; ?>
             Ubah persen untuk melihat nominal per pos <em>sebelum</em> disimpan.
             <?php if ($alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN): ?>
                 <span class="d-block mt-1">Catat pembayaran santri dengan jenis periode <strong>Awal tahun</strong> di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>.</span>

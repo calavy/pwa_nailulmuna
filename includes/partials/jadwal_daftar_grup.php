@@ -88,7 +88,7 @@ $byKegiatan = $tampilanGrup === 'kegiatan';
                                                     aria-label="Pilih jadwal #<?= $jid ?>">
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-nowrap small"><?= htmlspecialchars(substr((string) $item['jam_mulai'], 0, 5)) ?>–<?= htmlspecialchars(substr((string) $item['jam_selesai'], 0, 5)) ?></td>
+                                        <td class="text-nowrap small font-monospace js-time-24"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></td>
                                         <td class="small">
                                             <?php if ($byKegiatan): ?>
                                                 <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge"><?= htmlspecialchars((string) ($item['tingkatan'] ?? '—')) ?></span>

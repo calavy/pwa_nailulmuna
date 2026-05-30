@@ -16,6 +16,24 @@ require_once __DIR__ . '/akademik_ikhtibar.php';
  */
 function pembimbing_dashboard_current_pembimbing(PDO $pdo, int $userId): ?array
 {
+    $munawibId = (int) ($_SESSION['munawib_id'] ?? 0);
+    if ($munawibId > 0) {
+        require_once __DIR__ . '/munawib.php';
+        $pbId = (int) ($_SESSION['munawib_pembimbing_id'] ?? 0);
+        if ($pbId <= 0) {
+            $pbId = munawib_pembimbing_id_portal($pdo, $munawibId);
+        }
+        $nama = trim((string) ($_SESSION['user']['nama'] ?? 'Munawib'));
+        $nip = trim((string) ($_SESSION['user']['username'] ?? ''));
+
+        return [
+            'id' => $pbId > 0 ? $pbId : $munawibId,
+            'nama' => $nama,
+            'nip' => $nip,
+            'munawib_id' => $munawibId,
+        ];
+    }
+
     if ($userId <= 0 || !table_exists($pdo, 'users') || !table_exists($pdo, 'pembimbing')) {
         return null;
     }
@@ -78,6 +96,11 @@ function pembimbing_dashboard_ampu_semua_tingkatan(PDO $pdo, int $pembimbingId):
  */
 function pembimbing_dashboard_tingkatan_list(PDO $pdo, ?int $pembimbingId, bool $bolehSemua): array
 {
+    $munawibTk = $_SESSION['munawib_tingkatan'] ?? null;
+    if (is_array($munawibTk) && $munawibTk !== []) {
+        return array_values(array_filter(array_map(static fn ($t): string => trim((string) $t), $munawibTk)));
+    }
+
     if ($bolehSemua || $pembimbingId === null || $pembimbingId <= 0) {
         return pembimbing_dashboard_semua_tingkatan($pdo);
     }
@@ -860,4 +883,39 @@ function pembimbing_dashboard_santri_dalam_scope(
     $tk = trim((string) ($st->fetchColumn() ?: ''));
 
     return $tk !== '' && in_array($tk, $tingkatanAllowed, true);
+}
+
+/**
+ * Rekap presensi santri diasuh per kegiatan (tahun berjalan).
+ *
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
+ */
+function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingkatanList, int $tahun): array
+{
+    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || $tingkatanList === []) {
+        return [];
+    }
+    [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
+    $params['th'] = $tahun;
+    $sql = '
+        SELECT
+            COALESCE(p.kegiatan_id, 0) AS kegiatan_id,
+            COALESCE(k.nama_kegiatan, "Lainnya / tanpa kegiatan") AS nama_kegiatan,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+            COALESCE(COUNT(p.id), 0) AS total
+        FROM presensi p
+        INNER JOIN santri s ON s.id = p.santri_id
+        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        WHERE YEAR(p.tanggal_presensi) = :th
+          AND s.tingkatan IN (' . $inSql . ')
+        GROUP BY p.kegiatan_id, k.nama_kegiatan
+        ORDER BY k.nama_kegiatan ASC
+    ';
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }

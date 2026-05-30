@@ -19,7 +19,7 @@ $compact = !empty($compact);
         <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-sidebar-pondok-link"<?= $compact ? ' data-bs-dismiss="offcanvas"' : '' ?>>
             <?php if ($appLogoSrc !== ''): ?>
                 <div class="app-sidebar-pondok-logo-wrap">
-                    <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-sidebar-pondok-logo" decoding="async" fetchpriority="high">
+                    <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-sidebar-pondok-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
                 </div>
             <?php else: ?>
                 <div class="app-sidebar-pondok-logo-wrap app-sidebar-pondok-logo-wrap--fallback" aria-hidden="true">

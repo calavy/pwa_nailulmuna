@@ -93,6 +93,36 @@ function cashless_koperasi_by_id(PDO $pdo, int $koperasiId): ?array
     return null;
 }
 
+/** Tema warna kartu laporan per koperasi (id 1–3). */
+function cashless_koperasi_card_theme(int $koperasiId): array
+{
+    $themes = [
+        1 => [
+            'accent' => '#0d9488',
+            'accent_dark' => '#0f766e',
+            'gradient' => 'linear-gradient(145deg, #0f766e 0%, #14b8a6 55%, #5eead4 100%)',
+            'icon' => 'fa-store',
+            'chip' => '01',
+        ],
+        2 => [
+            'accent' => '#4f46e5',
+            'accent_dark' => '#4338ca',
+            'gradient' => 'linear-gradient(145deg, #4338ca 0%, #6366f1 55%, #a5b4fc 100%)',
+            'icon' => 'fa-basket-shopping',
+            'chip' => '02',
+        ],
+        3 => [
+            'accent' => '#d97706',
+            'accent_dark' => '#b45309',
+            'gradient' => 'linear-gradient(145deg, #b45309 0%, #f59e0b 55%, #fcd34d 100%)',
+            'icon' => 'fa-cart-shopping',
+            'chip' => '03',
+        ],
+    ];
+
+    return $themes[max(1, min(3, $koperasiId))] ?? $themes[1];
+}
+
 function cashless_koperasi_resolve_id_from_request(): int
 {
     $fromGet = (int) ($_GET['k'] ?? $_GET['koperasi_id'] ?? $_GET['koperasi'] ?? 0);

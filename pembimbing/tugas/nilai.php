@@ -34,6 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'nilai
         ikhtibar_nilai_esai_manual($pdo, $sesiId, $soalId, max(0, min(100, $nilai)), $catatan);
         set_flash('success', 'Nilai esai disimpan.');
     }
+
+    require_once __DIR__ . '/../../helpers/offline_sync_http.php';
+    if (offline_sync_wants_json()) {
+        $flash = offline_sync_take_flash();
+        offline_sync_json_response($flash['type'], $flash['message'], [
+            'tugas_id' => $tugasId,
+            'sesi_id' => $sesiId,
+        ]);
+    }
+
     header('Location: ' . app_href('/pembimbing/tugas/nilai.php?tugas_id=' . $tugasId . '&sesi_id=' . $sesiId));
     exit;
 }

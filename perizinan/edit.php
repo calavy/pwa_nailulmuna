@@ -85,11 +85,11 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-2">
                 <label class="form-label">Jam Mulai</label>
-                <input type="time" name="jam_mulai" class="form-control" value="<?= htmlspecialchars(substr($izin['jam_mulai'] ?? '', 0, 5)) ?>" required>
+                <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam((string) ($izin['jam_mulai'] ?? ''))) ?>" required>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Jam Selesai</label>
-                <input type="time" name="jam_selesai" class="form-control" value="<?= htmlspecialchars(substr($izin['jam_selesai'] ?? '', 0, 5)) ?>" required>
+                <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam((string) ($izin['jam_selesai'] ?? ''))) ?>" required>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Durasi (jam)</label>

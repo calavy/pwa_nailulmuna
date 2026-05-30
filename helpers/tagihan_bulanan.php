@@ -345,9 +345,22 @@ function tagihan_wajib_status_for_month_bulk(
             $stClass = 'warning';
         }
 
+        $pkppsTambahan = 0;
+        $kelasSyTambahan = 0;
+        $expectedSetelahPotongan = $expected;
+        if ($slug === 'syahriyah') {
+            $pkppsTambahan = (int) ($syPot['pkpps_tambahan'] ?? 0);
+            $kelasSyTambahan = (int) ($syPot['kelas_syahriyah_tambahan'] ?? 0);
+            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan - $kelasSyTambahan);
+        }
+
         $perPos[$slug] = [
             'expected' => $expected,
             'expected_dasar' => $expectedDasar,
+            'expected_setelah_potongan' => $expectedSetelahPotongan,
+            'pkpps_tambahan' => $pkppsTambahan,
+            'kelas_syahriyah_tambahan' => $kelasSyTambahan,
+            'tier_key' => $slug === 'syahriyah' ? $tier : '',
             'persen_potongan' => $persenPotongan,
             'keterangan_potongan' => $keteranganPotongan,
             'potongan_nominal' => $potonganNominal,

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../includes/koperasi_portal_layout.php';
 
 cashless_koperasi_ensure_schema($pdo);
@@ -27,6 +28,8 @@ if ($dari > $sampai) {
 }
 
 $laporan = cashless_koperasi_laporan_ringkas($pdo, $koperasiId, $dari, $sampai);
+$kopTheme = cashless_koperasi_card_theme($koperasiId);
+$periodeLabel = app_format_tanggal_id($dari) . ' — ' . app_format_tanggal_id($sampai);
 
 koperasi_portal_layout_begin([
     'title' => 'Laporan — ' . $koperasiNama,
@@ -34,8 +37,18 @@ koperasi_portal_layout_begin([
     'active' => 'laporan',
 ]);
 ?>
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 mb-0">Laporan Cashless</h1>
+<div class="rounded-4 text-white p-3 mb-3 shadow-sm" style="background:<?= htmlspecialchars($kopTheme['gradient']) ?>">
+    <div class="d-flex justify-content-between align-items-start gap-2">
+        <div>
+            <div class="small opacity-75 mb-1"><i class="fa-solid <?= htmlspecialchars($kopTheme['icon']) ?> me-1"></i> Koperasi <?= htmlspecialchars($kopTheme['chip']) ?></div>
+            <h1 class="h5 mb-1 fw-bold"><?= htmlspecialchars($koperasiNama) ?></h1>
+            <div class="small opacity-90"><?= htmlspecialchars($periodeLabel) ?></div>
+        </div>
+        <div class="text-end">
+            <div class="small opacity-75">Total debit</div>
+            <div class="fs-5 fw-bold">Rp <?= number_format((int) $laporan['total_debit'], 0, ',', '.') ?></div>
+        </div>
+    </div>
 </div>
 
 <form method="get" class="row g-2 align-items-end mb-3">
@@ -87,7 +100,7 @@ koperasi_portal_layout_begin([
                 <tbody>
                 <?php if ($laporan['rows'] !== []): foreach ($laporan['rows'] as $r): ?>
                     <tr>
-                        <td><?= htmlspecialchars((string) $r['tanggal']) ?></td>
+                        <td class="text-nowrap"><?= htmlspecialchars(app_format_datetime_id((string) $r['tanggal'])) ?></td>
                         <td><?= htmlspecialchars((string) $r['nis']) ?></td>
                         <td><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
                         <td><?= htmlspecialchars((string) ($r['tingkatan'] ?? '-')) ?></td>

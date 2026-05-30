@@ -335,7 +335,7 @@ function keuangan_syahriyah_simulasi(
     $pot = $santriId > 0 ? ($ctx['potongan'][$santriId] ?? null) : null;
 
     if (!$pot || (int) ($pot['is_aktif'] ?? 0) !== 1) {
-        return [
+        $base = [
             'expected_dasar' => $dasar,
             'expected' => $dasar,
             'persen' => 0.0,
@@ -344,6 +344,8 @@ function keuangan_syahriyah_simulasi(
             'punya_potongan' => false,
             'potongan_dijeda' => false,
         ];
+
+        return keuangan_syahriyah_apply_pkpps_tambahan($pdo, $base, $santriId, $kelasKategori, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     }
 
     $persen = (float) ($pot['persen'] ?? 0);
@@ -351,7 +353,7 @@ function keuangan_syahriyah_simulasi(
     $dijeda = $santriId > 0 && !empty($ctx['jeda'][$santriId]);
 
     if ($dijeda || $persen <= 0) {
-        return [
+        $paused = [
             'expected_dasar' => $dasar,
             'expected' => $dasar,
             'persen' => $persen,
@@ -360,11 +362,13 @@ function keuangan_syahriyah_simulasi(
             'punya_potongan' => false,
             'potongan_dijeda' => $dijeda,
         ];
+
+        return keuangan_syahriyah_apply_pkpps_tambahan($pdo, $paused, $santriId, $kelasKategori, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     }
 
     $expected = keuangan_syahriyah_nominal_setelah_potongan($dasar, $persen);
 
-    return [
+    $result = [
         'expected_dasar' => $dasar,
         'expected' => $expected,
         'persen' => $persen,
@@ -373,6 +377,30 @@ function keuangan_syahriyah_simulasi(
         'punya_potongan' => true,
         'potongan_dijeda' => false,
     ];
+
+    return keuangan_syahriyah_apply_pkpps_tambahan($pdo, $result, $santriId, $kelasKategori, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+}
+
+/** Gabungkan tambahan syahriyah (kelas pembayaran + PKPPS) ke simulasi tagihan. */
+function keuangan_syahriyah_apply_pkpps_tambahan(
+    PDO $pdo,
+    array $sim,
+    int $santriId,
+    string $kelasKategori,
+    int $bulanTagihan = 0,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
+): array {
+    if (!function_exists('keuangan_kelas_syahriyah_apply_to_simulasi')) {
+        require_once __DIR__ . '/keuangan_kelas_syahriyah.php';
+    }
+    if (!function_exists('keuangan_pkpps_syahriyah_apply_to_simulasi')) {
+        require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
+    }
+
+    $sim = keuangan_kelas_syahriyah_apply_to_simulasi($pdo, $sim, $kelasKategori, $bulanTagihan);
+
+    return keuangan_pkpps_syahriyah_apply_to_simulasi($pdo, $sim, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
 }
 
 /** Terapkan potongan persen ke nominal dasar syahriyah. */

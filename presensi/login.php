@@ -55,10 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrlSetting = trim((string) app_setting($pdo, 'logo_url', ''));
-$heroLogo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrlSetting;
-
 $welcome = auth_portal_welcome_copy($pdo);
 auth_portal_layout_begin([
     'title' => 'Petugas presensi',
@@ -68,7 +64,7 @@ auth_portal_layout_begin([
     'subtitle' => 'Scan QR kehadiran santri & pembimbing. Izinkan akses kamera belakang setelah masuk.',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
-    'logo_url' => $heroLogo !== '' ? app_href($heroLogo) : '',
+    'logo_url' => '',
     'card_title' => 'Masuk presensi',
     'card_meta' => 'Password dari menu Pengaturan pondok',
     'accent' => 'indigo',

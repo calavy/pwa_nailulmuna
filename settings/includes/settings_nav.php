@@ -8,30 +8,52 @@ $settingsNavItems = settings_pengaturan_nav_items(isset($pdo) && $pdo instanceof
 if ($settingsNavItems === []) {
     return;
 }
+
+$grouped = [];
+$groupOrder = [];
+foreach ($settingsNavItems as $item) {
+    $group = trim((string) ($item['group'] ?? 'Lainnya'));
+    if ($group === '') {
+        $group = 'Lainnya';
+    }
+    if (!isset($grouped[$group])) {
+        $grouped[$group] = [];
+        $groupOrder[] = $group;
+    }
+    $grouped[$group][] = $item;
+}
+$navId = 'settings-subnav-' . substr(md5($settingsNavActive), 0, 8);
 ?>
-<section class="settings-subnav-hub menu-hub-section my-4 py-3" aria-label="Submenu pengaturan">
-    <p class="text-center text-muted small text-uppercase fw-bold mb-3 settings-subnav-hub-title">Menu pengaturan</p>
-    <div class="row g-3 justify-content-center">
-        <?php foreach ($settingsNavItems as $item): ?>
-            <?php
-            $path = (string) ($item['path'] ?? '');
-            $active = $settingsNavActive !== '' && $path === $settingsNavActive;
-            $tileIcon = menu_tile_icon_for_path($path);
-            $tileLabel = (string) ($item['label'] ?? '');
-            ?>
-            <div class="col-6 col-sm-5 col-md-4 col-lg-3">
-                <a href="<?= htmlspecialchars(app_href($path)) ?>" class="menu-hub-tile card h-100 text-decoration-none shadow-sm border-0<?= $active ? ' menu-hub-tile--active' : '' ?>">
-                    <div class="card-body d-flex align-items-start gap-3 p-3">
-                        <span class="menu-hub-tile-icon" aria-hidden="true"><i class="<?= htmlspecialchars($tileIcon) ?>"></i></span>
-                        <div class="min-w-0 flex-grow-1">
-                            <div class="fw-bold text-dark menu-hub-tile-label"><?= htmlspecialchars($tileLabel) ?></div>
-                        </div>
-                        <?php if (!$active): ?>
-                            <span class="menu-hub-tile-go text-muted" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
-                        <?php endif; ?>
-                    </div>
-                </a>
-            </div>
-        <?php endforeach; ?>
+<nav class="settings-subnav-compact mt-4 pt-3 border-top" aria-label="Submenu pengaturan">
+    <button class="settings-subnav-compact__toggle btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-between gap-2"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#<?= htmlspecialchars($navId) ?>"
+            aria-expanded="false"
+            aria-controls="<?= htmlspecialchars($navId) ?>">
+        <span><i class="fa-solid fa-sliders me-1"></i> Menu pengaturan</span>
+        <span class="small text-muted"><?= count($settingsNavItems) ?> halaman</span>
+        <i class="fa-solid fa-chevron-down settings-subnav-compact__chevron" aria-hidden="true"></i>
+    </button>
+    <div class="collapse" id="<?= htmlspecialchars($navId) ?>">
+        <div class="settings-subnav-compact__grid pt-2">
+            <?php foreach ($groupOrder as $groupLabel): ?>
+                <p class="settings-subnav-compact__group small text-muted mb-1 mt-2"><?= htmlspecialchars($groupLabel) ?></p>
+                <?php foreach ($grouped[$groupLabel] as $item): ?>
+                    <?php
+                    $path = (string) ($item['path'] ?? '');
+                    $active = $settingsNavActive !== '' && $path === $settingsNavActive;
+                    $tileIcon = menu_tile_icon_for_path($path);
+                    $tileLabel = (string) ($item['label'] ?? '');
+                    ?>
+                    <a href="<?= htmlspecialchars(app_href($path)) ?>"
+                       class="settings-subnav-compact__link<?= $active ? ' is-active' : '' ?>"
+                       <?= $active ? ' aria-current="page"' : '' ?>>
+                        <i class="<?= htmlspecialchars($tileIcon) ?>" aria-hidden="true"></i>
+                        <span><?= htmlspecialchars($tileLabel) ?></span>
+                    </a>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+        </div>
     </div>
-</section>
+</nav>

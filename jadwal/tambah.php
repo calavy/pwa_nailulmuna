@@ -173,11 +173,11 @@ $ok = get_flash('success');
             </div>
             <div class="col-md-4">
                 <label class="form-label">Jam mulai</label>
-                <input type="time" class="form-control" name="jam_mulai" required>
+                <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="07:00" required>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Jam selesai</label>
-                <input type="time" class="form-control" name="jam_selesai" required>
+                <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="08:00" required>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Tempat / lokasi</label>
