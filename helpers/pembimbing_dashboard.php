@@ -334,6 +334,10 @@ function pembimbing_dashboard_presensi_hari_ini(PDO $pdo, array $tingkatanList, 
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || $tingkatanList === []) {
         return $empty;
     }
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $today, $today, $auditUserId > 0 ? $auditUserId : 1);
+
     $aktifSql = santri_sql_aktif_only('s');
     [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
     $params['today'] = $today;
@@ -386,6 +390,17 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
 {
     if (!table_exists($pdo, 'santri') || $tingkatanList === []) {
         return [];
+    }
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $yearStart = sprintf('%04d-01-01', $tahun);
+    $yearEnd = sprintf('%04d-12-31', $tahun);
+    $today = date('Y-m-d');
+    if ($yearEnd > $today) {
+        $yearEnd = $today;
+    }
+    if ($yearStart <= $yearEnd) {
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $yearStart, $yearEnd, $auditUserId > 0 ? $auditUserId : 1);
     }
     require_once __DIR__ . '/pembimbing_pkpps.php';
     $kajianList = [];
@@ -1039,10 +1054,15 @@ function pembimbing_dashboard_roster_hari_ini(PDO $pdo, array $tingkatanList, st
     }
 
     if (table_exists($pdo, 'presensi') && $kegiatanId > 0) {
+        require_once __DIR__ . '/presensi_jadwal.php';
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $today, $today, $auditUserId > 0 ? $auditUserId : 1);
+
         $params['today'] = $today;
         $params['kid'] = $kegiatanId;
         $sql = '
             SELECT s.id, s.nis, s.nama_santri, s.tingkatan,
+                   :kid AS kegiatan_id,
                    COALESCE(p.status_presensi, "BELUM") AS status_hari_ini,
                    p.jam_presensi
             FROM santri s
@@ -1069,8 +1089,15 @@ function pembimbing_dashboard_roster_hari_ini(PDO $pdo, array $tingkatanList, st
 
     $st = $pdo->prepare($sql);
     $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($kegiatanId > 0 && $rows !== []) {
+        require_once __DIR__ . '/presensi_jadwal.php';
+
+        return presensi_apply_status_efektif_rows($pdo, $rows, $today);
+    }
+
+    return $rows;
 }
 
 /**
@@ -1284,6 +1311,17 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
 {
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || $tingkatanList === []) {
         return [];
+    }
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $yearStart = sprintf('%04d-01-01', $tahun);
+    $yearEnd = sprintf('%04d-12-31', $tahun);
+    $today = date('Y-m-d');
+    if ($yearEnd > $today) {
+        $yearEnd = $today;
+    }
+    if ($yearStart <= $yearEnd) {
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $yearStart, $yearEnd, $auditUserId > 0 ? $auditUserId : 1);
     }
     require_once __DIR__ . '/pembimbing_pkpps.php';
     $kajianList = [];

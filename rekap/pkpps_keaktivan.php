@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 pkpps_ensure_schema($pdo);
@@ -28,6 +29,16 @@ $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
 $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 $aktifSql = santri_sql_aktif_only('s');
 $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+
+$finalizeEnd = $sampai;
+$today = date('Y-m-d');
+if ($finalizeEnd > $today) {
+    $finalizeEnd = $today;
+}
+if ($dari <= $finalizeEnd) {
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $dari, $finalizeEnd, $auditUserId > 0 ? $auditUserId : 1);
+}
 
 $santriRows = [];
 if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'presensi')) {

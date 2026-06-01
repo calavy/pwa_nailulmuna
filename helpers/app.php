@@ -213,7 +213,10 @@ function app_run_deferred_maintenance(PDO $pdo, int $userId): void
     }
 
     if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
-        sync_presence_for_active_schedules($pdo, date('Y-m-d'), date('H:i:s'), $userId);
+        $today = date('Y-m-d');
+        $jamNow = date('H:i:s');
+        sync_presence_for_active_schedules($pdo, $today, $jamNow, $userId);
+        sync_presence_for_ended_schedules($pdo, $today, $jamNow, $userId);
     }
     ensure_point_tables($pdo);
     sync_points_from_presensi($pdo, $userId);
@@ -2731,7 +2734,7 @@ function wa_tagihan_parse_custom_masehi_dates(string $raw): array
     return array_values($out);
 }
 
-function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $tingkatan, ?int $kegiatanId, int $createdBy): void
+function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $tingkatan, ?int $kegiatanId, int $createdBy, bool $tandaiAlpa = true): void
 {
     if ($tingkatan === '' || !table_exists($pdo, 'presensi') || !table_exists($pdo, 'perizinan')) {
         return;
@@ -2831,6 +2834,9 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         } elseif (santri_izin_tetap_berlaku($pdo, $santriId, $tanggal, $jamMulaiKeg, $jamSelesaiKeg)) {
             $desiredStatus = 'IZIN';
         }
+        if (!$tandaiAlpa && $desiredStatus === 'ALPA') {
+            continue;
+        }
 
         $existingStmt->execute([
             'santri_id' => $santriId,
@@ -2902,13 +2908,63 @@ function sync_presence_for_active_schedules(PDO $pdo, string $tanggal, string $j
             }
             $tingkatanList = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN);
             foreach ($tingkatanList as $tg) {
-                sync_daily_presence_for_tingkatan($pdo, $tanggal, (string) $tg, $kegiatanId, $createdBy);
+                sync_daily_presence_for_tingkatan($pdo, $tanggal, (string) $tg, $kegiatanId, $createdBy, false);
                 $synced++;
             }
             continue;
         }
 
-        sync_daily_presence_for_tingkatan($pdo, $tanggal, $tingkatan, $kegiatanId, $createdBy);
+        sync_daily_presence_for_tingkatan($pdo, $tanggal, $tingkatan, $kegiatanId, $createdBy, false);
+        $synced++;
+    }
+
+    return $synced;
+}
+
+/**
+ * Setelah jam selesai kegiatan: santri belum scan → status ALPA (untuk rekap & notifikasi).
+ */
+function sync_presence_for_ended_schedules(PDO $pdo, string $tanggal, string $jam, int $createdBy): int
+{
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return 0;
+    }
+
+    $hariKe = (int) date('N', strtotime($tanggal));
+    $stmt = $pdo->prepare('
+        SELECT DISTINCT j.kegiatan_id, j.tingkatan
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+          AND :jam_now > j.jam_selesai
+          AND k.is_active = 1
+    ');
+    $stmt->execute([
+        'hari_ke' => $hariKe,
+        'jam_now' => $jam,
+    ]);
+    $rows = $stmt->fetchAll();
+    if (!$rows) {
+        return 0;
+    }
+
+    $synced = 0;
+    foreach ($rows as $row) {
+        $tingkatan = trim((string) ($row['tingkatan'] ?? ''));
+        $kegiatanId = isset($row['kegiatan_id']) ? (int) $row['kegiatan_id'] : null;
+        if ($tingkatan === '' || strtolower($tingkatan) === 'semua tingkatan') {
+            if (!table_exists($pdo, 'tingkatan')) {
+                continue;
+            }
+            $tingkatanList = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($tingkatanList as $tg) {
+                sync_daily_presence_for_tingkatan($pdo, $tanggal, (string) $tg, $kegiatanId, $createdBy, true);
+                $synced++;
+            }
+            continue;
+        }
+
+        sync_daily_presence_for_tingkatan($pdo, $tanggal, $tingkatan, $kegiatanId, $createdBy, true);
         $synced++;
     }
 

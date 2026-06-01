@@ -277,6 +277,8 @@ function yayasan_dashboard_presensi_hari(PDO $pdo, string $today): array
     if (!table_exists($pdo, 'presensi')) {
         return $out;
     }
+    require_once __DIR__ . '/presensi_jadwal.php';
+    presensi_finalize_date_range($pdo, $today, $today, 1);
     try {
         $row = $pdo->prepare('
             SELECT

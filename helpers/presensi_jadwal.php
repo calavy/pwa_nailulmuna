@@ -160,6 +160,159 @@ function presensi_filter_rows_eligible(PDO $pdo, array $rows, string $startDate,
     return $out;
 }
 
+/** Apakah waktu acuan sudah melewati jam selesai kegiatan pada tanggal tersebut. */
+function presensi_jam_selesai_lewat(string $tanggal, string $jamSelesai, ?string $asOfDatetime = null): bool
+{
+    $tanggal = trim($tanggal);
+    $jamSelesai = trim($jamSelesai);
+    if ($tanggal === '' || $jamSelesai === '') {
+        return false;
+    }
+    $asOf = $asOfDatetime ?? date('Y-m-d H:i:s');
+    $batas = strtotime($tanggal . ' ' . substr($jamSelesai, 0, 8));
+    $now = strtotime($asOf);
+
+    return $batas !== false && $now !== false && $now > $batas;
+}
+
+/**
+ * Status tampilan/rekap: belum scan selama kegiatan → BELUM; setelah jam selesai → ALPA.
+ */
+function presensi_status_efektif(?string $statusDb, string $tanggal, ?string $jamSelesai, ?string $asOfDatetime = null): string
+{
+    $st = strtoupper(trim((string) $statusDb));
+    if ($st === '') {
+        $st = 'BELUM';
+    }
+    if (in_array($st, ['HADIR', 'IZIN', 'SAKIT'], true)) {
+        return $st;
+    }
+    $jamSelesai = $jamSelesai !== null ? trim($jamSelesai) : '';
+    $lewat = $jamSelesai !== '' && presensi_jam_selesai_lewat($tanggal, $jamSelesai, $asOfDatetime);
+    if ($st === 'ALPA' && !$lewat) {
+        return 'BELUM';
+    }
+    if (($st === 'BELUM' || $st === 'ALPA') && $lewat) {
+        return 'ALPA';
+    }
+    if ($st === 'ALPA') {
+        return 'ALPA';
+    }
+
+    return $st === '' ? 'BELUM' : $st;
+}
+
+/**
+ * Peta jam_selesai per kegiatan+tingkatan pada satu tanggal.
+ *
+ * @return array<string, string> kunci "kegiatan_id|tingkatan_lower" atau "kegiatan_id|*"
+ */
+function presensi_jadwal_jam_selesai_map(PDO $pdo, string $tanggal): array
+{
+    $map = [];
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return $map;
+    }
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time);
+    $st = $pdo->prepare('
+        SELECT j.kegiatan_id, j.tingkatan, j.jam_selesai
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+        WHERE j.hari_ke = 0 OR j.hari_ke = :hk
+    ');
+    $st->execute(['hk' => $hariKe]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        if ($kid <= 0) {
+            continue;
+        }
+        $js = (string) ($row['jam_selesai'] ?? '');
+        if ($js === '') {
+            continue;
+        }
+        $tg = trim((string) ($row['tingkatan'] ?? ''));
+        if (strcasecmp($tg, 'Semua Tingkatan') === 0) {
+            $map[$kid . '|*'] = $js;
+        } elseif ($tg !== '') {
+            $map[$kid . '|' . strtolower($tg)] = $js;
+        }
+    }
+
+    return $map;
+}
+
+function presensi_jadwal_jam_selesai_for(PDO $pdo, string $tanggal, int $kegiatanId, string $tingkatan, ?array $map = null): ?string
+{
+    if ($kegiatanId <= 0) {
+        return null;
+    }
+    $map ??= presensi_jadwal_jam_selesai_map($pdo, $tanggal);
+    $tk = strtolower(trim($tingkatan));
+    if (isset($map[$kegiatanId . '|' . $tk])) {
+        return $map[$kegiatanId . '|' . $tk];
+    }
+
+    return $map[$kegiatanId . '|*'] ?? null;
+}
+
+/**
+ * Finalisasi ALPA: sinkronkan presensi untuk slot yang jam selesainya sudah lewat.
+ */
+function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDate, int $createdBy = 1): void
+{
+    if (!function_exists('sync_presence_for_ended_schedules')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'jadwal_kegiatan')) {
+        return;
+    }
+    $startTs = strtotime($startDate) ?: time();
+    $endTs = strtotime($endDate) ?: $startTs;
+    $today = date('Y-m-d');
+    $nowJam = date('H:i:s');
+    for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
+        $tanggal = date('Y-m-d', $ts);
+        if ($tanggal > $today) {
+            continue;
+        }
+        $jam = $tanggal === $today ? $nowJam : '23:59:59';
+        sync_presence_for_ended_schedules($pdo, $tanggal, $jam, $createdBy);
+        if ($tanggal === $today && function_exists('sync_presence_for_active_schedules')) {
+            sync_presence_for_active_schedules($pdo, $tanggal, $jam, $createdBy);
+        }
+    }
+}
+
+/**
+ * Terapkan status efektif (BELUM→ALPA setelah jam selesai) pada baris rekap harian.
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function presensi_apply_status_efektif_rows(PDO $pdo, array $rows, string $tanggal, ?string $asOfDatetime = null): array
+{
+    if ($rows === []) {
+        return [];
+    }
+    $map = presensi_jadwal_jam_selesai_map($pdo, $tanggal);
+    foreach ($rows as &$row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        $tk = (string) ($row['tingkatan'] ?? '');
+        $jamSelesai = presensi_jadwal_jam_selesai_for($pdo, $tanggal, $kid, $tk, $map);
+        $raw = (string) ($row['status_hari_ini'] ?? $row['status_presensi'] ?? 'BELUM');
+        $efektif = presensi_status_efektif($raw, $tanggal, $jamSelesai, $asOfDatetime);
+        if (isset($row['status_hari_ini'])) {
+            $row['status_hari_ini'] = $efektif;
+        }
+        if (isset($row['status_presensi'])) {
+            $row['status_presensi'] = $efektif;
+        }
+    }
+    unset($row);
+
+    return $rows;
+}
+
 /**
  * Ambil baris presensi mentah untuk rekap keaktifan.
  *
@@ -170,6 +323,9 @@ function presensi_fetch_rows_rekap(PDO $pdo, string $startDate, string $endDate,
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
         return [];
     }
+
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
 
     require_once __DIR__ . '/santri_operasional.php';
     $sqlAktif = santri_sql_aktif_only('s');

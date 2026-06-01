@@ -279,6 +279,14 @@ if ($show && $chartLabelsYm !== [] && table_exists($pdo, 'presensi')) {
     $chartKeaktifanAvailable = true;
     $rangeStart = $chartLabelsYm[0] . '-01';
     $rangeEnd = date('Y-m-t', strtotime(end($chartLabelsYm) . '-01'));
+    require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+    $todayChart = date('Y-m-d');
+    if ($rangeEnd > $todayChart) {
+        $rangeEnd = $todayChart;
+    }
+    if ($rangeStart <= $rangeEnd) {
+        presensi_finalize_date_range($pdo, $rangeStart, $rangeEnd, (int) ($_SESSION['user']['id'] ?? 1) ?: 1);
+    }
     $sqlPres = '
         SELECT DATE_FORMAT(p.tanggal_presensi, "%Y-%m") AS ym, p.santri_id,
             SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END) AS hadir,

@@ -115,6 +115,11 @@ $sqlAktifSantriRekap = santri_sql_aktif_only('s');
 
 $rows = [];
 if ($show) {
+    $filterStartPre = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
+    $filterEndPre = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStartPre));
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $filterStartPre, $filterEndPre, $auditUserId > 0 ? $auditUserId : 1);
+
     if ($mode === 'hijriyah') {
         $statement = $pdo->prepare('
             SELECT

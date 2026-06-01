@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/santri_operasional.php';
+require_once __DIR__ . '/presensi_jadwal.php';
 
 /**
  * Filter kategori kegiatan untuk rekap keaktifan: null|'' = semua, JAMAAH, TAALIM.
@@ -68,10 +69,14 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
           {$katWhere}
         ORDER BY k.nama_kegiatan ASC, s.tingkatan ASC, s.nama_santri ASC
     ";
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+
     $st = $pdo->prepare($sql);
     $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return presensi_apply_status_efektif_rows($pdo, $rows, $tanggal);
 }
 
 /**
@@ -104,6 +109,7 @@ function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?str
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
+            'BELUM' => $byKeg[$kid]['belum']++,
             default => $byKeg[$kid]['belum']++,
         };
     }
@@ -167,7 +173,11 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
         }
         $st = strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM'));
         if (!isset($byKeg[$kid]['santri'][$st])) {
-            $st = 'BELUM';
+            if ($st === 'ALPA') {
+                $byKeg[$kid]['santri']['ALPA'] ??= [];
+            } else {
+                $st = 'BELUM';
+            }
         }
         $byKeg[$kid]['total']++;
         match ($st) {
@@ -175,6 +185,7 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
+            'BELUM' => $byKeg[$kid]['belum']++,
             default => $byKeg[$kid]['belum']++,
         };
         $jam = $r['jam_presensi'] ?? null;
@@ -252,7 +263,8 @@ function rekap_keaktifan_hari_ghaib_per_kegiatan(array $rows): array
                     'keterangan' => $cat !== '' ? $cat : match ($st) {
                         'IZIN' => 'Izin',
                         'SAKIT' => 'Sakit',
-                        'ALPA' => 'Alpa',
+                        'ALPA' => 'Alpa (tidak scan hingga akhir kegiatan)',
+                        'BELUM' => 'Belum scan',
                         default => 'Belum scan',
                     },
                 ]);
