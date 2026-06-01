@@ -95,7 +95,7 @@ function wa_tagihan_tanggal_hari(PDO $pdo, string $tanggalMasehi, string $calend
         }
     }
 
-    return (int) date('j', strtotime($tanggalMasehi) ?: time);
+    return (int) date('j', strtotime($tanggalMasehi) ?: time());
 }
 
 /**

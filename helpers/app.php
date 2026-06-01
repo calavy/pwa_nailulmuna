@@ -1003,20 +1003,21 @@ function send_wa_message_with_result(PDO $pdo, string $phone, string $message, a
     if ($isSuccess && is_string($response) && $response !== '') {
         $decoded = json_decode($response, true);
         if (is_array($decoded)) {
-        if (array_key_exists('status', $decoded)) {
-            $statusValue = $decoded['status'];
-            if ($statusValue === false || $statusValue === 0 || $statusValue === 'false' || $statusValue === 'failed' || $statusValue === 'error') {
+            if (array_key_exists('status', $decoded)) {
+                $statusValue = $decoded['status'];
+                if ($statusValue === false || $statusValue === 0 || $statusValue === 'false' || $statusValue === 'failed' || $statusValue === 'error') {
+                    $isSuccess = false;
+                }
+                if (is_string($statusValue) && in_array(strtolower($statusValue), ['success', 'sent', 'ok', 'true'], true)) {
+                    $isSuccess = true;
+                }
+            }
+            if (isset($decoded['success']) && ($decoded['success'] === false || $decoded['success'] === 0 || $decoded['success'] === 'false')) {
                 $isSuccess = false;
             }
-            if (is_string($statusValue) && in_array(strtolower($statusValue), ['success', 'sent', 'ok', 'true'], true)) {
-                $isSuccess = true;
+            if (isset($decoded['error']) && $decoded['error'] !== '' && $decoded['error'] !== null) {
+                $isSuccess = false;
             }
-        }
-        if (isset($decoded['success']) && ($decoded['success'] === false || $decoded['success'] === 0 || $decoded['success'] === 'false')) {
-            $isSuccess = false;
-        }
-        if (isset($decoded['error']) && $decoded['error'] !== '' && $decoded['error'] !== null) {
-            $isSuccess = false;
         }
     }
 

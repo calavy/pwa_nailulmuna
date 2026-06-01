@@ -31,7 +31,7 @@ function presensi_tingkatan_terjadwal(PDO $pdo, string $tingkatan, int $kegiatan
         return false;
     }
 
-    $hariKe = (int) date('N', strtotime($tanggal) ?: time);
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time());
     $stmt = $pdo->prepare('
         SELECT j.tingkatan
         FROM jadwal_kegiatan j
@@ -213,7 +213,7 @@ function presensi_jadwal_jam_selesai_map(PDO $pdo, string $tanggal): array
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
         return $map;
     }
-    $hariKe = (int) date('N', strtotime($tanggal) ?: time);
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time());
     $st = $pdo->prepare('
         SELECT j.kegiatan_id, j.tingkatan, j.jam_selesai
         FROM jadwal_kegiatan j
