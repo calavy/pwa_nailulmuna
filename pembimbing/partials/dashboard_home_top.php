@@ -17,6 +17,7 @@ declare(strict_types=1);
 /** @var string $keaktivanUrl */
 
 /** @var array<string,list<array<string,mixed>>> $santriMapPerTingkatan */
+/** @var string $pbSantriMapApiUrl */
 
 /** @var list<array<string,mixed>> $tingkatanBaris */
 
@@ -224,4 +225,7 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
 
 <script type="application/json" id="pb-santri-map-json"><?= json_encode($santriMapPerTingkatan, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+<?php if (($pbSantriMapApiUrl ?? '') !== ''): ?>
+<script type="application/json" id="pb-santri-map-config"><?= json_encode(['api' => $pbSantriMapApiUrl], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+<?php endif; ?>
 

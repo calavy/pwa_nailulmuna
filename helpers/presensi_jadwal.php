@@ -260,6 +260,13 @@ function presensi_jadwal_jam_selesai_for(PDO $pdo, string $tanggal, int $kegiata
  */
 function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDate, int $createdBy = 1): void
 {
+    static $finalizedRanges = [];
+    $key = $startDate . '|' . $endDate;
+    if (isset($finalizedRanges[$key])) {
+        return;
+    }
+    $finalizedRanges[$key] = true;
+
     if (!function_exists('sync_presence_for_ended_schedules')) {
         require_once __DIR__ . '/app.php';
     }

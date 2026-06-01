@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
-$rekap = keuangan_kopsa_rekap_per_santri_bulan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+$rekap = keuangan_kopsa_rekap_per_santri_bulan_cached($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
 $komponen = $rekap['komponen'];
 $persen = (float) ($rekap['persen'] ?? 0);
 $bulanSlots = $rekap['bulan_slots'] ?? [];

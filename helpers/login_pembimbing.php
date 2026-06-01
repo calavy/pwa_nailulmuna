@@ -169,4 +169,6 @@ function login_pembimbing_ensure_acl(PDO $pdo, int $userId): void
     if (function_exists('app_menu_pack_invalidate')) {
         app_menu_pack_invalidate();
     }
+
+    $_SESSION['pembimbing_acl_healed_v3_' . $userId] = 1;
 }

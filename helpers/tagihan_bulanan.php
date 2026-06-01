@@ -512,10 +512,186 @@ function tagihan_wajib_total_expected_all_santri(
     return $total;
 }
 
+/**
+ * Hitung expected + terbayar syahriyah per bulan (satu pass konteks per bulan).
+ *
+ * @param list<int> $bulanList
+ * @param list<array<string, mixed>> $bulanSlots
+ * @return array{expected_by_month: array<int, int>, paid_by_month: array<int, int>, tables_ok: bool}
+ */
+function tagihan_laporan_12bulan_compute(
+    PDO $pdo,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    array $bulanSlots,
+    array $bulanList,
+    array $santriRows
+): array {
+    $expectedByMonth = array_fill(1, 12, 0);
+    $paidByMonth = array_fill(1, 12, 0);
+    $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
+
+    if (!$tablesOk || $tahunAjaranMulai <= 0 || $bulanList === []) {
+        return [
+            'expected_by_month' => $expectedByMonth,
+            'paid_by_month' => $paidByMonth,
+            'tables_ok' => $tablesOk,
+        ];
+    }
+
+    if ($santriRows !== []) {
+        if (!function_exists('keuangan_syahriyah_bulk_context')) {
+            require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+        }
+        $ctxByMonth = [];
+        foreach ($bulanList as $b) {
+            $ctxByMonth[$b] = keuangan_syahriyah_bulk_context($pdo, $b, $tahunAjaranMulai, $tahunAjaranSelesai);
+        }
+        foreach ($santriRows as $s) {
+            $sid = (int) ($s['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+            if ($kat === '' && !empty($s['tingkatan'])) {
+                $kat = (string) $s['tingkatan'];
+            }
+            foreach ($bulanList as $b) {
+                $syPot = keuangan_syahriyah_simulasi(
+                    $pdo,
+                    $sid,
+                    $kat,
+                    $b,
+                    $tahunAjaranMulai,
+                    $tahunAjaranSelesai,
+                    $ctxByMonth[$b]
+                );
+                $expectedByMonth[$b] += max(0, (int) ($syPot['expected'] ?? 0));
+            }
+        }
+    }
+
+    if (!function_exists('pondok_sql_match_bulan_tagihan')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    foreach ($bulanSlots as $slot) {
+        $b = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($b < 1 || $b > 12) {
+            continue;
+        }
+        $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $b, 'p');
+        $st = $pdo->prepare('
+            SELECT COALESCE(SUM(d.nominal), 0) AS total
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            WHERE p.jenis_periode = \'BULANAN\'
+              AND p.tahun_ajaran_mulai = :tm
+              AND p.tahun_ajaran_selesai = :ts
+              AND LOWER(TRIM(d.pos_slug)) = \'syahriyah\'
+              AND ' . $bulanMatch['sql'] . '
+        ');
+        $st->execute(array_merge(['tm' => $tahunAjaranMulai, 'ts' => $tahunAjaranSelesai], $bulanMatch['params']));
+        $paidByMonth[$b] = (int) ((float) ($st->fetchColumn() ?: 0));
+    }
+
+    return [
+        'expected_by_month' => $expectedByMonth,
+        'paid_by_month' => $paidByMonth,
+        'tables_ok' => true,
+    ];
+}
+
+/**
+ * Ringkas tagihan syahriyah 12 bulan TA — cache sesi (halaman Laporan Syahriyah).
+ *
+ * @param list<array<string, mixed>> $bulanSlots
+ * @return array{expected_by_month: array<int, int>, paid_by_month: array<int, int>, tables_ok: bool}
+ */
+function tagihan_laporan_12bulan_cached(
+    PDO $pdo,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    array $bulanSlots,
+    int $ttlSec = 600
+): array {
+    $empty = [
+        'expected_by_month' => array_fill(1, 12, 0),
+        'paid_by_month' => array_fill(1, 12, 0),
+        'tables_ok' => false,
+    ];
+    if ($tahunAjaranMulai <= 0) {
+        return $empty;
+    }
+
+    $bulanList = [];
+    foreach ($bulanSlots as $slot) {
+        $b = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($b >= 1 && $b <= 12) {
+            $bulanList[$b] = true;
+        }
+    }
+    $bulanList = array_map('intval', array_keys($bulanList));
+    sort($bulanList);
+    if ($bulanList === []) {
+        return $empty;
+    }
+
+    if (!function_exists('pondok_ta_bulan_awal')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    $cacheKey = 'v1:' . $tahunAjaranMulai . ':' . $tahunAjaranSelesai . ':'
+        . implode(',', $bulanList) . ':'
+        . (pondok_kalender_hijriyah($pdo) ? 'h' : 'm') . ':'
+        . pondok_ta_bulan_awal($pdo);
+
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['tagihan_laporan_12bulan_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                return $entry['data'];
+            }
+        }
+    }
+
+    $sqlSantri = 'SELECT id, tingkatan, kategori_kelas FROM santri';
+    if (column_exists($pdo, 'santri', 'is_aktif')) {
+        $sqlSantri .= ' WHERE COALESCE(is_aktif, 1) = 1';
+    }
+    $santriRows = table_exists($pdo, 'santri') ? ($pdo->query($sqlSantri)->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+
+    $data = tagihan_laporan_12bulan_compute(
+        $pdo,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $bulanSlots,
+        $bulanList,
+        $santriRows
+    );
+
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['tagihan_laporan_12bulan_v1']) || !is_array($_SESSION['tagihan_laporan_12bulan_v1'])) {
+            $_SESSION['tagihan_laporan_12bulan_v1'] = [];
+        }
+        $bucket = $_SESSION['tagihan_laporan_12bulan_v1'];
+        $bucket[$cacheKey] = [
+            'expires' => time() + max(60, $ttlSec),
+            'data' => $data,
+        ];
+        if (count($bucket) > 4) {
+            uasort($bucket, static fn (array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 4, true);
+        }
+        $_SESSION['tagihan_laporan_12bulan_v1'] = $bucket;
+    }
+
+    return $data;
+}
+
 function tagihan_syahriyah_cache_invalidate(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
-        unset($_SESSION['tagihan_syahriyah_list_v1']);
+        unset($_SESSION['tagihan_syahriyah_list_v1'], $_SESSION['tagihan_laporan_12bulan_v1']);
     }
 }
 
@@ -698,7 +874,7 @@ function tagihan_syahriyah_list_cached(
     int $tahunAjaranMulai,
     int $tahunAjaranSelesai,
     string $sortMode,
-    int $ttlSec = 300
+    int $ttlSec = 600
 ): array {
     static $requestCache = [];
     if (!function_exists('pondok_ta_bulan_awal')) {

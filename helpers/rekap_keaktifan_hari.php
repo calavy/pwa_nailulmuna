@@ -69,8 +69,12 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
           {$katWhere}
         ORDER BY k.nama_kegiatan ASC, s.tingkatan ASC, s.nama_santri ASC
     ";
-    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+    static $finalizedDates = [];
+    if (!isset($finalizedDates[$tanggal])) {
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+        $finalizedDates[$tanggal] = true;
+    }
 
     $st = $pdo->prepare($sql);
     $st->execute($params);
@@ -84,9 +88,14 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
  *
  * @return list<array<string, mixed>>
  */
-function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?string $tingkatanFilter = null, ?string $kategoriKegiatan = null): array
+/**
+ * Ringkasan per kegiatan dari baris mentah (tanpa query ulang).
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_hari_ringkasan_from_rows(array $rows): array
 {
-    $rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatanFilter, $kategoriKegiatan);
     $byKeg = [];
     foreach ($rows as $r) {
         $kid = (int) ($r['kegiatan_id'] ?? 0);
@@ -115,6 +124,38 @@ function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?str
     }
 
     return array_values($byKeg);
+}
+
+/**
+ * Ringkasan per kegiatan dari hasil detail (hindari iterasi ganda).
+ *
+ * @param list<array<string, mixed>> $detailKeg
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_hari_ringkasan_from_detail(array $detailKeg): array
+{
+    $out = [];
+    foreach ($detailKeg as $d) {
+        $out[] = [
+            'kegiatan_id' => (int) ($d['kegiatan_id'] ?? 0),
+            'nama_kegiatan' => (string) ($d['nama_kegiatan'] ?? ''),
+            'hadir' => (int) ($d['hadir'] ?? 0),
+            'izin' => (int) ($d['izin'] ?? 0),
+            'sakit' => (int) ($d['sakit'] ?? 0),
+            'alpa' => (int) ($d['alpa'] ?? 0),
+            'belum' => (int) ($d['belum'] ?? 0),
+            'total' => (int) ($d['total'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?string $tingkatanFilter = null, ?string $kategoriKegiatan = null): array
+{
+    return rekap_keaktifan_hari_ringkasan_from_rows(
+        rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatanFilter, $kategoriKegiatan)
+    );
 }
 
 /**

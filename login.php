@@ -44,11 +44,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
 
     if (table_exists($pdo, 'users')) {
         user_profil_ensure_schema($pdo);
-        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-        try {
-            $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-        } catch (PDOException $e) { /* abaikan */ }
-        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
+        if (empty($_SESSION['users_role_enum_v2'])) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+            try {
+                $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+            } catch (PDOException $e) { /* abaikan */ }
+            $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
+            $_SESSION['users_role_enum_v2'] = 1;
+        }
 
         if ($peran === 'pembimbing' && $loginMethod === 'qr' && $qrCode !== '') {
             if (table_exists($pdo, 'pembimbing')) {

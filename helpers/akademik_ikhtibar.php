@@ -238,7 +238,7 @@ function ikhtibar_require_pembimbing_access(): void
         return;
     }
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-    if (in_array($role, ['admin', 'pengurus'], true)) {
+    if (in_array($role, ['admin', 'pengurus', 'pembimbing'], true)) {
         return;
     }
     global $pdo;

@@ -17,11 +17,20 @@ require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
 
 ikhtibar_require_pembimbing_access();
-ensure_akademik_ikhtibar_tables($pdo);
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
 $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 $bolehSemua = is_super_admin() || in_array($role, ['admin', 'pengurus'], true);
+
+$pbDashViewEarly = strtolower(trim((string) ($_GET['view'] ?? 'home')));
+if (!in_array($pbDashViewEarly, ['home', 'keaktivan'], true)) {
+    $pbDashViewEarly = 'home';
+}
+$isPbHomeRingkasEarly = !$bolehSemua && $pbDashViewEarly === 'home';
+$isPbKeaktivanOnly = !$bolehSemua && $pbDashViewEarly === 'keaktivan';
+if (!$isPbHomeRingkasEarly && !$isPbKeaktivanOnly) {
+    ensure_akademik_ikhtibar_tables($pdo);
+}
 
 $pembimbingInfo = $bolehSemua ? null : pembimbing_dashboard_current_pembimbing($pdo, $userId);
 $pembimbingId = $pembimbingInfo !== null ? (int) ($pembimbingInfo['id'] ?? 0) : 0;
@@ -66,66 +75,174 @@ $today = date('Y-m-d');
 $nowTime = date('H:i:s');
 $hariKe = (int) date('N');
 
-// Konteks hijri & pasaran agar header dashboard pembimbing selaras dengan
-// dashboard utama (tanpa membebani query kalau belum ada tingkatan).
-ensure_hijri_mappings_table($pdo);
-ensure_akademik_hijri_awal_bulan_table($pdo);
-$hijriBulanNama = [
-    1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
-    7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
-];
-$pbDashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNama);
-$pbDashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
-
-// KPI & ringkasan per tingkatan: selalu dari SEMUA tingkatan yang diasuh (jadwal pembimbing).
-$statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
-$santriPerTingkatanMap = pembimbing_dashboard_jumlah_santri_map($pdo, $tingkatanAsuhan);
-$keaktivanRowsAsuhan = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAsuhan, $tahun, 300);
-$perTingkatan = pembimbing_dashboard_per_tingkatan_stats($pdo, $tingkatanAsuhan, $today, $keaktivanRowsAsuhan);
-
-// Detail harian / tabel: ikuti filter tingkatan atau mode mengajar.
-$kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
-    $pdo,
-    $tingkatanAsuhan,
-    $hariKe,
-    $nowTime,
-    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
-);
-$kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
-$tingkatanMengajar = pembimbing_dashboard_tingkatan_dari_kegiatan_aktif($kegiatanAktif);
-$modeMengajar = !$bolehSemua && $tingkatanMengajar !== [] && $tingkatanFilter === '';
-if ($modeMengajar) {
-    $tingkatanAktif = $tingkatanMengajar;
+$isPbHomeRingkas = $isPbHomeRingkasEarly;
+$pbDashHijriLabel = '';
+$pbDashPasaran = '';
+if (!$isPbKeaktivanOnly) {
+    ensure_hijri_mappings_table($pdo);
+    ensure_akademik_hijri_awal_bulan_table($pdo);
+    $hijriBulanNama = [
+        1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
+        7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
+    ];
+    $pbDashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNama);
+    $pbDashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 }
 
-$statIzinCount = pembimbing_dashboard_jumlah_izin_hari_ini($pdo, $tingkatanAktif, $today);
-$statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAktif, $today);
-$santriIzinList = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAktif, $today, 50);
-$keaktivanRows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAktif, $tahun, 300);
-$kategoriRingkas = pembimbing_dashboard_ringkasan_kategori($keaktivanRows);
-$rekapPerKegiatan = pembimbing_dashboard_presensi_rekap_per_kegiatan($pdo, $tingkatanAsuhan, $tahun);
+require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+$pbAuditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+
+$statSantri = ['total' => 0, 'putra' => 0, 'putri' => 0];
+$santriPerTingkatanMap = [];
+$keaktivanRowsAsuhan = [];
+$perTingkatan = [];
+$kegiatanAktif = [];
+$kegiatanAktifGrouped = [];
+$tingkatanMengajar = [];
+$modeMengajar = false;
+$statIzinCount = 0;
+$statPresensi = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+$santriIzinList = [];
+$keaktivanRows = [];
+$kategoriRingkas = ['bagus' => 0, 'sedang' => 0, 'buruk' => 0, 'belum' => 0];
+$rekapPerKegiatan = [];
 $rekapKegiatanTotal = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
-foreach ($rekapPerKegiatan as $rk) {
-    $rekapKegiatanTotal['hadir'] += (int) ($rk['hadir'] ?? 0);
-    $rekapKegiatanTotal['izin'] += (int) ($rk['izin'] ?? 0);
-    $rekapKegiatanTotal['sakit'] += (int) ($rk['sakit'] ?? 0);
-    $rekapKegiatanTotal['alpa'] += (int) ($rk['alpa'] ?? 0);
-    $rekapKegiatanTotal['total'] += (int) ($rk['total'] ?? 0);
-}
+$rosterHariIni = [];
+$belumScanCount = 0;
+$nilaiKelasHariIni = [];
+$pbSudahHadir = false;
+$tugasStats = ['total' => 0, 'published' => 0, 'draft' => 0, 'sesi_selesai' => 0];
+$kegiatanMendekati = [];
+$pbDashTickerItems = [];
+$santriMapPerTingkatan = [];
+$pbSantriMapApiUrl = '';
 
-$kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
-$rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
-$rosterBelumScan = array_values(array_filter(
-    $rosterHariIni,
-    static fn (array $r): bool => strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM')) === 'BELUM'
-));
-$belumScanCount = count($rosterBelumScan);
-$nilaiKelasHariIni = pembimbing_dashboard_nilai_kelas_hari_ini($pdo, $tingkatanAktif, $today, $userId, $bolehSemua);
-$pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
-$tugasStats = pembimbing_dashboard_tugas_stats($pdo, $userId, $bolehSemua);
-$belumDinilaiCount = !$bolehSemua && $pembimbingId > 0 && $tingkatanAsuhan !== []
-    ? pembimbing_dashboard_belum_dinilai_manual($pdo, $pembimbingId, $tingkatanAsuhan)
-    : 0;
+if ($isPbKeaktivanOnly) {
+    $tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
+    $keaktivanScope = $tingkatanFilter !== '' ? $tingkatanAktif : $tingkatanAsuhan;
+    $alpaHariIni = 0;
+    foreach (pembimbing_dashboard_presensi_hari_ini_map($pdo, $tingkatanAktif, $today) as $row) {
+        $alpaHariIni += (int) ($row['alpa'] ?? 0);
+    }
+    $statPresensi = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => $alpaHariIni, 'total' => 0];
+    $useKeaktivanCache = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+        && !isset($_GET['refresh']);
+    $keaktivanBundle = pembimbing_dashboard_keaktivan_bundle(
+        $pdo,
+        $keaktivanScope,
+        $tahun,
+        $userId,
+        300,
+        $useKeaktivanCache
+    );
+    $keaktivanRows = $keaktivanBundle['rows'];
+    $kategoriRingkas = $keaktivanBundle['kategori'];
+    $rekapPerKegiatan = $keaktivanBundle['rekap'];
+    foreach ($rekapPerKegiatan as $rk) {
+        $rekapKegiatanTotal['hadir'] += (int) ($rk['hadir'] ?? 0);
+        $rekapKegiatanTotal['izin'] += (int) ($rk['izin'] ?? 0);
+        $rekapKegiatanTotal['sakit'] += (int) ($rk['sakit'] ?? 0);
+        $rekapKegiatanTotal['alpa'] += (int) ($rk['alpa'] ?? 0);
+        $rekapKegiatanTotal['total'] += (int) ($rk['total'] ?? 0);
+    }
+} elseif (!$isPbHomeRingkas) {
+    presensi_finalize_date_range($pdo, $today, $today, $pbAuditUserId > 0 ? $pbAuditUserId : 1);
+
+    $statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
+    $santriPerTingkatanMap = pembimbing_dashboard_jumlah_santri_map($pdo, $tingkatanAsuhan);
+    $keaktivanRowsAsuhan = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAsuhan, $tahun, 300);
+    $perTingkatan = pembimbing_dashboard_per_tingkatan_stats($pdo, $tingkatanAsuhan, $today, $keaktivanRowsAsuhan);
+
+    $kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
+        $pdo,
+        $tingkatanAsuhan,
+        $hariKe,
+        $nowTime,
+        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+    );
+    $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+    $tingkatanMengajar = pembimbing_dashboard_tingkatan_dari_kegiatan_aktif($kegiatanAktif);
+    $modeMengajar = !$bolehSemua && $tingkatanMengajar !== [] && $tingkatanFilter === '';
+    if ($modeMengajar) {
+        $tingkatanAktif = $tingkatanMengajar;
+    }
+
+    $statIzinCount = pembimbing_dashboard_jumlah_izin_hari_ini($pdo, $tingkatanAktif, $today);
+    $statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAktif, $today, false);
+    $santriIzinList = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAktif, $today, 50);
+
+    $tingkatanAktifKey = array_values(array_map(static fn (string $t): string => trim($t), $tingkatanAktif));
+    $tingkatanAsuhanKey = array_values(array_map(static fn (string $t): string => trim($t), $tingkatanAsuhan));
+    sort($tingkatanAktifKey);
+    sort($tingkatanAsuhanKey);
+    if ($tingkatanAktifKey === $tingkatanAsuhanKey) {
+        $keaktivanRows = $keaktivanRowsAsuhan;
+    } elseif ($keaktivanRowsAsuhan !== []) {
+        $aktifFlip = array_fill_keys($tingkatanAktif, true);
+        $keaktivanRows = array_values(array_filter(
+            $keaktivanRowsAsuhan,
+            static fn (array $r): bool => isset($aktifFlip[trim((string) ($r['tingkatan'] ?? ''))])
+        ));
+    } else {
+        $keaktivanRows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAktif, $tahun, 300);
+    }
+    $kategoriRingkas = pembimbing_dashboard_ringkasan_kategori($keaktivanRows);
+    $rekapPerKegiatan = pembimbing_dashboard_presensi_rekap_per_kegiatan($pdo, $tingkatanAsuhan, $tahun);
+    foreach ($rekapPerKegiatan as $rk) {
+        $rekapKegiatanTotal['hadir'] += (int) ($rk['hadir'] ?? 0);
+        $rekapKegiatanTotal['izin'] += (int) ($rk['izin'] ?? 0);
+        $rekapKegiatanTotal['sakit'] += (int) ($rk['sakit'] ?? 0);
+        $rekapKegiatanTotal['alpa'] += (int) ($rk['alpa'] ?? 0);
+        $rekapKegiatanTotal['total'] += (int) ($rk['total'] ?? 0);
+    }
+
+    $kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
+    $rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
+    $belumScanCount = count(array_values(array_filter(
+        $rosterHariIni,
+        static fn (array $r): bool => strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM')) === 'BELUM'
+    )));
+    $nilaiKelasHariIni = pembimbing_dashboard_nilai_kelas_hari_ini($pdo, $tingkatanAktif, $today, $userId, $bolehSemua);
+    $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
+    $tugasStats = pembimbing_dashboard_tugas_stats($pdo, $userId, $bolehSemua);
+    $kegiatanMendekati = pembimbing_dashboard_kegiatan_mendekati(
+        $pdo,
+        $tingkatanAsuhan,
+        $hariKe,
+        $nowTime,
+        5,
+        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+    );
+    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
+    $santriMapPerTingkatan = pembimbing_dashboard_santri_list_map(
+        $pdo,
+        $tingkatanAsuhan,
+        400,
+        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+    );
+} else {
+    $statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
+    $santriPerTingkatanMap = pembimbing_dashboard_jumlah_santri_map($pdo, $tingkatanAsuhan);
+    $kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
+        $pdo,
+        $tingkatanAsuhan,
+        $hariKe,
+        $nowTime,
+        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+    );
+    $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+    $kegiatanMendekati = pembimbing_dashboard_kegiatan_mendekati(
+        $pdo,
+        $tingkatanAsuhan,
+        $hariKe,
+        $nowTime,
+        5,
+        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+    );
+    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
+    $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
+    $pbSantriMapApiUrl = app_href('/api/pembimbing/santri_map.php');
+}
 
 // Kelompokkan baris keaktifan per tingkatan untuk tabel berkelompok di bawah.
 $keaktivanByTingkatan = [];
@@ -147,23 +264,16 @@ $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';
 $pbDashServerClockMs = (int) round(microtime(true) * 1000);
 $jumlahTingkatanHome = count($tingkatanAsuhan);
 
-$kegiatanMendekati = pembimbing_dashboard_kegiatan_mendekati(
-    $pdo,
-    $tingkatanAsuhan,
-    $hariKe,
-    $nowTime,
-    5,
-    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
-);
-$pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
-$santriMapPerTingkatan = pembimbing_dashboard_santri_list_map(
-    $pdo,
-    $tingkatanAsuhan,
-    400,
-    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
-);
-$tingkatanBarisHome = $perTingkatan !== [] ? $perTingkatan : array_map(
-    static function (string $tk) use ($santriPerTingkatanMap): array {
+$tingkatanBarisHome = array_map(
+    static function (string $tk) use ($santriPerTingkatanMap, $perTingkatan): array {
+        if ($perTingkatan !== []) {
+            foreach ($perTingkatan as $row) {
+                if ((string) ($row['tingkatan'] ?? '') === $tk) {
+                    return $row;
+                }
+            }
+        }
+
         return [
             'tingkatan' => $tk,
             'total' => (int) ($santriPerTingkatanMap[$tk]['total'] ?? 0),
@@ -173,7 +283,7 @@ $tingkatanBarisHome = $perTingkatan !== [] ? $perTingkatan : array_map(
 );
 $pageTitle = 'Dashboard Pembimbing';
 $bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih' : '');
-$loadPushFcm = true;
+$loadPushFcm = !$isPbHomeRingkas && !$isPbKeaktivanOnly;
 $pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
 $baseDashQuery = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($keaktifanView);
@@ -789,7 +899,43 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
 
     var santriMap = {};
     try { santriMap = JSON.parse(mapEl.textContent || '{}'); } catch (e) { santriMap = {}; }
-    var multiTk = Object.keys(santriMap).length > 1;
+    var mapLoadPromise = null;
+    var mapApiUrl = '';
+    var cfgEl = document.getElementById('pb-santri-map-config');
+    if (cfgEl) {
+        try {
+            var cfg = JSON.parse(cfgEl.textContent || '{}');
+            mapApiUrl = cfg.api || '';
+        } catch (e) { /* abaikan */ }
+    }
+    function ensureMapLoaded() {
+        if (!mapApiUrl) {
+            return Promise.resolve(santriMap);
+        }
+        if (Object.keys(santriMap).length > 0) {
+            return Promise.resolve(santriMap);
+        }
+        if (!mapLoadPromise) {
+            mapLoadPromise = fetch(mapApiUrl, { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.ok && data.map) {
+                        santriMap = data.map;
+                    }
+                    mapApiUrl = '';
+                    return santriMap;
+                })
+                .catch(function () {
+                    mapApiUrl = '';
+                    return santriMap;
+                });
+        }
+        return mapLoadPromise;
+    }
+    function refreshMultiTk() {
+        return Object.keys(santriMap).length > 1;
+    }
+    var multiTk = refreshMultiTk();
 
     function renderList(tk) {
         var rows = santriMap[tk] || [];
@@ -839,6 +985,20 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     lihatBtn.addEventListener('click', function () {
         if (!santriPanel.classList.contains('d-none') && !santriPanel.hidden) {
             closePanel();
+            return;
+        }
+        if (mapApiUrl || (mapLoadPromise && Object.keys(santriMap).length === 0)) {
+            santriTitle.textContent = 'Memuat daftar santri…';
+            santriList.innerHTML = '<li class="pb-dash-santri-panel__empty">Memuat…</li>';
+            santriPanel.classList.remove('d-none');
+            santriPanel.hidden = false;
+            lihatBtn.setAttribute('aria-expanded', 'true');
+            lihatBtn.classList.add('is-active');
+            ensureMapLoaded().then(function () {
+                multiTk = refreshMultiTk();
+                closePanel();
+                lihatBtn.click();
+            });
             return;
         }
         var keys = Object.keys(santriMap);

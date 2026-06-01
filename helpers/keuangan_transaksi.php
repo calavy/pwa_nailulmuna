@@ -350,6 +350,7 @@ function keuangan_ensure_schema_deferred(PDO $pdo): void
     }
 
     $_SESSION['keuangan_schema_ready_v1'] = 1;
+    $_SESSION['keuangan_neraca_opening_v1'] = 1;
 }
 
 /** Reset flag skema keuangan setelah migrasi manual / deploy skema baru. */

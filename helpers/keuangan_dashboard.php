@@ -14,7 +14,14 @@ require_once __DIR__ . '/santri_ta.php';
 function keuangan_dashboard_cache_invalidate(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
-        unset($_SESSION['keuangan_dash_snap_cache'], $_SESSION['keuangan_pos_options_v1']);
+        unset(
+            $_SESSION['keuangan_dash_snap_cache'],
+            $_SESSION['keuangan_pos_options_v1'],
+            $_SESSION['keuangan_kopsa_rekap_v1'],
+            $_SESSION['keuangan_neraca_cache_v1'],
+            $_SESSION['keuangan_aruskas_cache_v1'],
+            $_SESSION['keuangan_rekap_pos_cache_v1']
+        );
     }
     if (!function_exists('tagihan_syahriyah_cache_invalidate')) {
         require_once __DIR__ . '/tagihan_bulanan.php';
@@ -36,7 +43,47 @@ function keuangan_dashboard_cache_invalidate(): void
  *
  * @return array<string, mixed>|null
  */
-function keuangan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 300): ?array
+/**
+ * Cache laporan syahriyah (12 bulan + daftar bulan berjalan).
+ */
+function keuangan_preload_laporan_caches(PDO $pdo, int $ttlSec = 600): void
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'santri')) {
+        return;
+    }
+    if (!function_exists('keuangan_ta_resolve')) {
+        require_once __DIR__ . '/keuangan_ta_context.php';
+    }
+    $ta = keuangan_ta_resolve($pdo);
+    $tm = (int) ($ta['mulai'] ?? 0);
+    $ts = (int) ($ta['selesai'] ?? 0);
+    if ($tm <= 0) {
+        return;
+    }
+    if (!function_exists('pondok_bulan_slots_tahun_ajaran')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $tm, $ts);
+    tagihan_laporan_12bulan_cached($pdo, $tm, $ts, $slots, $ttlSec);
+    $berjalan = keuangan_periode_berjalan($pdo);
+    $bulan = max(1, min(12, (int) ($berjalan['bulan'] ?? 1)));
+    tagihan_syahriyah_list_cached($pdo, $bulan, $tm, $ts, 'nama', $ttlSec);
+}
+
+/**
+ * Isi cache berat modul keuangan (panggil dari hub / dashboard agar submenu langsung cepat).
+ */
+function keuangan_preload_session_caches(PDO $pdo, int $ttlSec = 600): void
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'santri')) {
+        return;
+    }
+    keuangan_ensure_schema_deferred($pdo);
+    keuangan_preload_laporan_caches($pdo, $ttlSec);
+    keuangan_dashboard_snapshot_cached($pdo, $ttlSec);
+}
+
+function keuangan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 600): ?array
 {
     $aktif = pondok_tahun_ajaran_aktif($pdo);
     $periode = keuangan_periode_berjalan($pdo);
@@ -79,7 +126,13 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     ensure_santri_identity_columns($pdo);
 
     $today = date('Y-m-d');
-    $neraca = keuangan_build_neraca($pdo, $today);
+    if (!function_exists('keuangan_build_neraca_cached')) {
+        require_once __DIR__ . '/keuangan_neraca.php';
+    }
+    if (!function_exists('keuangan_build_arus_kas_cached')) {
+        require_once __DIR__ . '/keuangan_aruskas.php';
+    }
+    $neraca = keuangan_build_neraca_cached($pdo, $today);
     $selisih = (int) ($neraca['selisih'] ?? 0);
     $seimbang = abs($selisih) < 1;
 
@@ -88,66 +141,33 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $tm = (int) $periode['mulai'];
     $ts = (int) $periode['selesai'];
 
-    if (!function_exists('tagihan_santri_aktif_rows_cached')) {
-        require_once __DIR__ . '/tagihan_bulanan.php';
-    }
-    $rows = tagihan_santri_aktif_rows_cached($pdo, true);
-    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tm, $ts);
-    $syCtx = $tagihanCtx['sy_ctx'];
-    $paidMap = $tagihanCtx['paid_map'];
-    $tingkatanMap = $tagihanCtx['tingkatan_map'] ?? [];
-
-    $totalTagihan = 0;
-    $totalTerbayar = 0;
-    $totalPiutang = 0;
-    $jumlahPenunggak = 0;
-    $jumlahLunas = 0;
-    $jumlahSebagian = 0;
+    $listPack = tagihan_syahriyah_list_cached($pdo, $bulan, $tm, $ts, 'nama');
+    $totalTagihan = (int) ($listPack['sum_tagihan'] ?? 0);
+    $totalTerbayar = (int) ($listPack['sum_bayar'] ?? 0);
+    $jumlahLunas = (int) ($listPack['count_lunas'] ?? 0);
+    $jumlahSebagian = (int) ($listPack['count_sebagian'] ?? 0);
+    $jumlahPenunggak = (int) ($listPack['count_belum'] ?? 0) + $jumlahSebagian;
+    $totalPiutang = max(0, $totalTagihan - $totalTerbayar);
     $penunggakDenganWa = 0;
     $penunggakTanpaWa = 0;
     $topPenunggak = [];
-
-    foreach ($rows as $s) {
-        $sid = (int) ($s['id'] ?? 0);
-        if ($sid <= 0) {
-            continue;
-        }
-        $kat = santri_kelas_untuk_ta($pdo, $sid, $tm, $ts, $s, $tingkatanMap);
-        $st = tagihan_wajib_status_for_month_bulk($pdo, $sid, $bulan, $tm, $ts, $kat, $paidMap, $syCtx);
-        $expected = (int) ($st['expected_total'] ?? 0);
-        if ($expected <= 0) {
-            continue;
-        }
-        $paid = (int) ($st['paid_total'] ?? 0);
-        $sisa = (int) ($st['sisa_total'] ?? 0);
-        $status = (string) ($st['status'] ?? '');
-
-        $totalTagihan += $expected;
-        $totalTerbayar += min($paid, $expected);
-        $totalPiutang += $sisa;
-
+    foreach ($listPack['body'] ?? [] as $r) {
+        $sisa = (int) ($r['sisa'] ?? 0);
         if ($sisa <= 0) {
-            $jumlahLunas++;
             continue;
         }
-
-        $jumlahPenunggak++;
-        if ($status === 'Sebagian') {
-            $jumlahSebagian++;
-        }
-
-        $wa = trim((string) ($s['no_wa_wali'] ?? ''));
+        $sid = (int) ($r['id'] ?? 0);
+        $wa = trim((string) ($r['no_wa_wali'] ?? ''));
         if ($wa !== '') {
             $penunggakDenganWa++;
         } else {
             $penunggakTanpaWa++;
         }
-
         if (count($topPenunggak) < 8) {
             $topPenunggak[] = [
                 'id' => $sid,
-                'nama' => (string) ($s['nama_santri'] ?? ''),
-                'nis' => (string) ($s['nis'] ?? ''),
+                'nama' => (string) ($r['nama'] ?? ''),
+                'nis' => (string) ($r['nis'] ?? ''),
                 'sisa' => $sisa,
             ];
         } else {
@@ -162,15 +182,14 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             if ($sisa > $minSisa) {
                 $topPenunggak[$minIdx] = [
                     'id' => $sid,
-                    'nama' => (string) ($s['nama_santri'] ?? ''),
-                    'nis' => (string) ($s['nis'] ?? ''),
+                    'nama' => (string) ($r['nama'] ?? ''),
+                    'nis' => (string) ($r['nis'] ?? ''),
                     'sisa' => $sisa,
                 ];
             }
         }
     }
-
-    usort($topPenunggak, static fn(array $a, array $b): int => ($b['sisa'] <=> $a['sisa']));
+    usort($topPenunggak, static fn (array $a, array $b): int => ($b['sisa'] <=> $a['sisa']));
 
     $persenTertagih = $totalTagihan > 0
         ? round(($totalTerbayar / $totalTagihan) * 100, 1)
@@ -225,7 +244,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     );
 
     $yearStart = date('Y') . '-01-01';
-    $lakRingkas = keuangan_build_arus_kas($pdo, $yearStart, $today);
+    $lakRingkas = keuangan_build_arus_kas_cached($pdo, $yearStart, $today);
 
     return [
         'neraca' => [

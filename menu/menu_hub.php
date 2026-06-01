@@ -32,6 +32,14 @@ if ($visiblePaths === []) {
     exit;
 }
 
+if ($hubId === 'menu-grp-keuangan') {
+    require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+    require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+    if (table_exists($pdo, 'keuangan_pembayaran')) {
+        keuangan_preload_session_caches($pdo);
+    }
+}
+
 $hubSections = [];
 $sections = $groupNode['sections'] ?? null;
 if (is_array($sections) && $sections !== []) {

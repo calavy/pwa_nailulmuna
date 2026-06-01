@@ -147,6 +147,58 @@ function keuangan_rekap_pos_with_expected(
 }
 
 /**
+ * Rekap POS + expected dengan cache sesi (halaman laporan syahriyah).
+ *
+ * @return list<array{pos_slug:string,pos_nama:string,expected:int,paid:int}>
+ */
+function keuangan_rekap_pos_with_expected_cached(
+    PDO $pdo,
+    string $jenisPeriode,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai,
+    array $biayaDefinitions,
+    int $ttlSec = 600
+): array {
+    if (!function_exists('pondok_kalender_hijriyah')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    $cacheKey = 'pos_' . $jenisPeriode . '_' . $bulanTagihan . '_' . $tahunMulai . '_' . $tahunSelesai
+        . (pondok_kalender_hijriyah($pdo) ? '_h' : '_m');
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['keuangan_rekap_pos_cache_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                return $entry['data'];
+            }
+        }
+    }
+    $data = keuangan_rekap_pos_with_expected(
+        $pdo,
+        $jenisPeriode,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $biayaDefinitions
+    );
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['keuangan_rekap_pos_cache_v1']) || !is_array($_SESSION['keuangan_rekap_pos_cache_v1'])) {
+            $_SESSION['keuangan_rekap_pos_cache_v1'] = [];
+        }
+        $bucket = $_SESSION['keuangan_rekap_pos_cache_v1'];
+        $bucket[$cacheKey] = ['expires' => time() + max(60, $ttlSec), 'data' => $data];
+        if (count($bucket) > 8) {
+            uasort($bucket, static fn (array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 8, true);
+        }
+        $_SESSION['keuangan_rekap_pos_cache_v1'] = $bucket;
+    }
+
+    return $data;
+}
+
+/**
  * @return array<string, int> slug => sudah dibayar
  */
 function keuangan_paid_pos_map_for_santri_month(

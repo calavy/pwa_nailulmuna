@@ -44,6 +44,10 @@ $neracaRingkas = null;
 $lakRingkas = null;
 $dashSnap = null;
 if (!$needsImport) {
+    if (!empty($_GET['refresh'])) {
+        keuangan_dashboard_cache_invalidate();
+    }
+    keuangan_preload_session_caches($pdo);
     $dashSnap = keuangan_dashboard_snapshot_cached($pdo);
 }
 

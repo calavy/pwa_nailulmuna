@@ -324,7 +324,52 @@ function ensure_keuangan_neraca_tables(PDO $pdo): void
     if (!table_exists($pdo, 'keuangan_akun')) {
         return;
     }
+    if (!empty($_SESSION['keuangan_neraca_opening_v1'])) {
+        return;
+    }
     $pdo->exec("ALTER TABLE keuangan_akun ADD COLUMN IF NOT EXISTS opening_balance DECIMAL(12,2) NOT NULL DEFAULT 0");
+    $_SESSION['keuangan_neraca_opening_v1'] = 1;
+}
+
+/**
+ * Neraca per tanggal dengan cache sesi (dashboard & laporan).
+ *
+ * @return array<string, mixed>
+ */
+function keuangan_build_neraca_cached(PDO $pdo, ?string $asOfDate = null, int $ttlSec = 600): array
+{
+    $asOf = $asOfDate !== null && $asOfDate !== '' ? $asOfDate : date('Y-m-d');
+    $ts = strtotime($asOf);
+    if ($ts === false) {
+        $asOf = date('Y-m-d');
+    } else {
+        $asOf = date('Y-m-d', $ts);
+    }
+    $cacheKey = 'neraca_' . $asOf;
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['keuangan_neraca_cache_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                return $entry['data'];
+            }
+        }
+    }
+    $data = keuangan_build_neraca($pdo, $asOf);
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['keuangan_neraca_cache_v1']) || !is_array($_SESSION['keuangan_neraca_cache_v1'])) {
+            $_SESSION['keuangan_neraca_cache_v1'] = [];
+        }
+        $bucket = $_SESSION['keuangan_neraca_cache_v1'];
+        $bucket[$cacheKey] = ['expires' => time() + max(60, $ttlSec), 'data' => $data];
+        if (count($bucket) > 5) {
+            uasort($bucket, static fn (array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 5, true);
+        }
+        $_SESSION['keuangan_neraca_cache_v1'] = $bucket;
+    }
+
+    return $data;
 }
 
 /**

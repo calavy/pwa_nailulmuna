@@ -293,6 +293,41 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
 }
 
 /**
+ * Arus kas per rentang tanggal dengan cache sesi.
+ *
+ * @return array<string, mixed>
+ */
+function keuangan_build_arus_kas_cached(PDO $pdo, ?string $dateFrom = null, ?string $dateTo = null, int $ttlSec = 600): array
+{
+    [$dateFrom, $dateTo] = keuangan_aruskas_normalisasi_periode($dateFrom, $dateTo);
+    $cacheKey = 'lak_' . $dateFrom . '_' . $dateTo;
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['keuangan_aruskas_cache_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                return $entry['data'];
+            }
+        }
+    }
+    $data = keuangan_build_arus_kas($pdo, $dateFrom, $dateTo);
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['keuangan_aruskas_cache_v1']) || !is_array($_SESSION['keuangan_aruskas_cache_v1'])) {
+            $_SESSION['keuangan_aruskas_cache_v1'] = [];
+        }
+        $bucket = $_SESSION['keuangan_aruskas_cache_v1'];
+        $bucket[$cacheKey] = ['expires' => time() + max(60, $ttlSec), 'data' => $data];
+        if (count($bucket) > 6) {
+            uasort($bucket, static fn (array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 6, true);
+        }
+        $_SESSION['keuangan_aruskas_cache_v1'] = $bucket;
+    }
+
+    return $data;
+}
+
+/**
  * @return array{0: string, 1: string}
  */
 function keuangan_aruskas_normalisasi_periode(?string $dateFrom, ?string $dateTo): array

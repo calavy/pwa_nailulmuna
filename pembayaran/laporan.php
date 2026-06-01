@@ -14,6 +14,13 @@ require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 require_once __DIR__ . '/../helpers/tagihan_bulanan.php';
 
 keuangan_ensure_schema_deferred($pdo);
+require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+if (!empty($_GET['refresh'])) {
+    keuangan_dashboard_cache_invalidate();
+}
+if (table_exists($pdo, 'keuangan_pembayaran')) {
+    keuangan_preload_laporan_caches($pdo);
+}
 
 $berjalan = keuangan_periode_berjalan($pdo);
 $kalenderMode = pondok_kalender_mode($pdo);
@@ -26,45 +33,12 @@ if ($rekapBulan === 0) {
     $rekapBulan = max(1, min(12, (int) ($berjalan['bulan'] ?? 1)));
 }
 
-$tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
-
-$sqlSantri = 'SELECT id, tingkatan, kategori_kelas, is_aktif FROM santri';
-if (column_exists($pdo, 'santri', 'is_aktif')) {
-    $sqlSantri .= ' WHERE COALESCE(is_aktif, 1) = 1';
-}
-$santriRows = $tablesOk ? $pdo->query($sqlSantri)->fetchAll() : [];
+$laporan12 = tagihan_laporan_12bulan_cached($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $bulanSlots);
+$tablesOk = (bool) ($laporan12['tables_ok'] ?? false);
+$expectedByMonth = $laporan12['expected_by_month'] ?? array_fill(1, 12, 0);
+$paidByMonth = $laporan12['paid_by_month'] ?? array_fill(1, 12, 0);
 
 $bulanBerjalan = $berjalan['bulan'];
-$expectedByMonth = array_fill(1, 12, 0);
-$paidByMonth = array_fill(1, 12, 0);
-if ($tablesOk) {
-    foreach ($bulanSlots as $slot) {
-        $b = (int) ($slot['bulan_tagihan'] ?? 0);
-        if ($b < 1 || $b > 12) {
-            continue;
-        }
-        $expectedByMonth[$b] = tagihan_wajib_expected_all_santri_for_month(
-            $pdo,
-            $santriRows,
-            $b,
-            $tahunAjaranMulai,
-            $tahunAjaranSelesai
-        );
-        $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $b, 'p');
-        $st = $pdo->prepare('
-            SELECT COALESCE(SUM(d.nominal), 0) AS total
-            FROM keuangan_pembayaran_detail d
-            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-            WHERE p.jenis_periode = \'BULANAN\'
-              AND p.tahun_ajaran_mulai = :tm
-              AND p.tahun_ajaran_selesai = :ts
-              AND LOWER(TRIM(d.pos_slug)) = \'syahriyah\'
-              AND ' . $bulanMatch['sql'] . '
-        ');
-        $st->execute(array_merge(['tm' => $tahunAjaranMulai, 'ts' => $tahunAjaranSelesai], $bulanMatch['params']));
-        $paidByMonth[$b] = (int) ((float) ($st->fetchColumn() ?: 0));
-    }
-}
 
 $rowsLaporan = [];
 foreach ($bulanSlots as $slot) {
@@ -92,22 +66,23 @@ $rekapSyahriyahMasuk = 0;
 $rekapSyahriyahHarusMasuk = 0;
 $rekapSyahriyahSisa = 0;
 $rekapCapaiPersen = 0.0;
-$laporanBulanAktif = null;
 if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
-    $laporanBulanAktif = keuangan_laporan_syahriyah_bulan(
+    $rekapSyahriyahHarusMasuk = (int) ($expectedByMonth[$rekapBulan] ?? 0);
+    $rekapSyahriyahMasuk = (int) ($paidByMonth[$rekapBulan] ?? 0);
+    $rekapSyahriyahSisa = max(0, $rekapSyahriyahHarusMasuk - $rekapSyahriyahMasuk);
+    $rekapCapaiPersen = $rekapSyahriyahHarusMasuk > 0
+        ? min(100.0, round($rekapSyahriyahMasuk / $rekapSyahriyahHarusMasuk * 100, 1))
+        : 0.0;
+    $rekapAlokasiRows = keuangan_rekap_alokasi_syahriyah_bulan(
         $pdo,
         $rekapBulan,
         $tahunAjaranMulai,
-        $tahunAjaranSelesai
+        $tahunAjaranSelesai,
+        $rekapSyahriyahHarusMasuk
     );
-    $rekapSyahriyahHarusMasuk = (int) ($laporanBulanAktif['harus_masuk'] ?? 0);
-    $rekapSyahriyahMasuk = (int) ($laporanBulanAktif['terbayar'] ?? 0);
-    $rekapSyahriyahSisa = (int) ($laporanBulanAktif['sisa'] ?? 0);
-    $rekapCapaiPersen = (float) ($laporanBulanAktif['capai_persen'] ?? 0);
-    $rekapAlokasiRows = $laporanBulanAktif['alokasi'] ?? [];
 
     $biayaDefs = keuangan_biaya_definitions();
-    $rekapPosRows = keuangan_rekap_pos_with_expected(
+    $rekapPosRows = keuangan_rekap_pos_with_expected_cached(
         $pdo,
         'BULANAN',
         $rekapBulan,

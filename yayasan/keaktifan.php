@@ -22,9 +22,14 @@ $kegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
 
 $tkFilter = $tingkatan !== '' ? $tingkatan : null;
 $rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tkFilter, $kategori);
-$ringkasan = rekap_keaktifan_hari_ringkasan_kegiatan($pdo, $tanggal, $tkFilter, $kategori);
-$totals = rekap_keaktifan_hari_totals($ringkasan);
 $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
+$ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
+$totals = rekap_keaktifan_hari_totals($ringkasan);
+$totalPerhatian = (int) ($totals['alpa'] ?? 0) + (int) ($totals['belum'] ?? 0);
+$kegiatanPerhatian = array_values(array_filter(
+    $detailKeg,
+    static fn (array $dk): bool => ((int) ($dk['alpa'] ?? 0) + (int) ($dk['belum'] ?? 0)) > 0
+));
 $byTingkatan = rekap_keaktifan_hari_by_tingkatan($rows);
 $sdm = rekap_keaktifan_hari_sdm($pdo, $tanggal);
 $riwayatPembimbingMasuk = rekap_keaktifan_hari_riwayat_pembimbing_masuk($pdo, $tanggal);
@@ -111,6 +116,12 @@ $mwPct = (int) $mw['total'] > 0 ? round(100 * (int) $mw['masuk'] / (int) $mw['to
 
 $pageTitle = 'Rekap Keaktifan Hari Ini';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css'), app_asset_href('/assets/css/keaktifan-hari.css')];
+$bodyClass = 'page-keaktifan-hari';
+$labelKegiatan = static function (string $nama): string {
+    $nama = trim($nama);
+
+    return $nama === '' ? '' : mb_convert_case($nama, MB_CASE_TITLE, 'UTF-8');
+};
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -118,7 +129,12 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="page-intro mb-3 d-flex flex-wrap justify-content-between gap-2">
         <div>
             <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a></p>
-            <h1 class="h4 mb-1">Rekap Keaktifan Hari Ini</h1>
+            <h1 class="h4 mb-1 d-flex align-items-center flex-wrap gap-2">
+                Rekap Keaktifan Hari Ini
+                <button type="button" class="btn btn-link btn-sm p-0 kh-panduan-btn d-md-none" data-bs-toggle="modal" data-bs-target="#khPanduanModal" aria-label="Cara membaca halaman ini">
+                    <i class="fa-solid fa-circle-info fa-lg"></i>
+                </button>
+            </h1>
             <p class="text-muted mb-0 small">Scan gerbang · Santri, Pembimbing, Munawib, Jama'ah & Ta'lim</p>
         </div>
         <a class="btn btn-sm btn-outline-secondary align-self-start" href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">
@@ -126,12 +142,12 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
 
-    <form class="row g-2 align-items-end mb-3 yp-filter-bar" method="get">
-        <div class="col-6 col-md-2">
+    <form class="row g-2 align-items-end mb-3 yp-filter-bar kh-filter-form kh-section" method="get">
+        <div class="col-12 col-md-2">
             <label class="form-label small mb-0">Tanggal</label>
             <input type="date" name="tanggal" class="form-control form-control-sm" value="<?= htmlspecialchars($tanggal) ?>">
         </div>
-        <div class="col-6 col-md-2">
+        <div class="col-12 col-md-2">
             <label class="form-label small mb-0">Kategori</label>
             <select name="kategori" class="form-select form-select-sm">
                 <option value="" <?= $kategori === null ? 'selected' : '' ?>>Semua</option>
@@ -139,7 +155,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <option value="TAALIM" <?= $kategori === 'TAALIM' ? 'selected' : '' ?>>Ta'lim saja</option>
             </select>
         </div>
-        <div class="col-6 col-md-2">
+        <div class="col-12 col-md-2">
             <label class="form-label small mb-0">Tingkatan</label>
             <select name="tingkatan" class="form-select form-select-sm">
                 <option value="">Semua kelas</option>
@@ -148,24 +164,22 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-auto">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Terapkan</button>
+        <div class="col-12 col-md-auto">
+            <button type="submit" class="btn btn-primary btn-sm kh-filter-submit"><i class="fa-solid fa-filter me-1"></i>Terapkan</button>
         </div>
     </form>
 
-    <div class="kh-hero mb-3">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-            <div>
-                <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?> · <?= htmlspecialchars($kategoriLabel) ?><?= $tingkatan !== '' ? ' · ' . htmlspecialchars($tingkatan) : '' ?></div>
-                <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> entri (santri × kegiatan)</div>
-            </div>
-            <div class="text-end">
-                <div class="kh-hero__pct text-success"><?= number_format($totals['persen'], 1, ',', '.') ?>%</div>
-                <div class="small text-muted">tingkat hadir</div>
-            </div>
+    <div class="kh-hero kh-section">
+        <div class="kh-hero__top">
+            <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?> · <?= htmlspecialchars($kategoriLabel) ?><?= $tingkatan !== '' ? ' · ' . htmlspecialchars($tingkatan) : '' ?></div>
+            <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> entri (santri × kegiatan)</div>
         </div>
-        <div class="kh-totals mb-2">
-            <div class="kh-total-pill kh-total-pill--hadir"><div class="kh-total-pill__n"><?= (int) $totals['hadir'] ?></div><div class="kh-total-pill__l">Hadir</div></div>
+        <div class="kh-totals">
+            <div class="kh-total-pill kh-total-pill--hadir">
+                <div class="kh-total-pill__n"><?= (int) $totals['hadir'] ?></div>
+                <div class="kh-total-pill__pct"><?= number_format($totals['persen'], 1, ',', '.') ?>% hadir</div>
+                <div class="kh-total-pill__l">Hadir</div>
+            </div>
             <div class="kh-total-pill kh-total-pill--izin"><div class="kh-total-pill__n"><?= (int) $totals['izin'] ?></div><div class="kh-total-pill__l">Izin</div></div>
             <div class="kh-total-pill kh-total-pill--sakit"><div class="kh-total-pill__n"><?= (int) $totals['sakit'] ?></div><div class="kh-total-pill__l">Sakit</div></div>
             <div class="kh-total-pill kh-total-pill--alpa"><div class="kh-total-pill__n"><?= (int) $totals['alpa'] ?></div><div class="kh-total-pill__l">Alpa</div></div>
@@ -318,120 +332,13 @@ require_once __DIR__ . '/../includes/header.php';
     <?php else: ?>
 
     <section class="mb-2">
-        <h2 class="yp-section-title"><i class="fa-solid fa-mosque me-2"></i>Shalat & Kegiatan <span class="fw-normal text-muted">— klik kartu untuk detail ghaib</span></h2>
+        <h2 class="yp-section-title"><i class="fa-solid fa-mosque me-2"></i>Shalat & Kegiatan</h2>
     </section>
 
-    <button type="button" class="btn yp-mobile-toggle mb-2" data-target="yp-detail-kegiatan" aria-expanded="false">
-        <i class="fa-solid fa-list me-1"></i>Lihat detail kegiatan
-    </button>
-    <div id="yp-detail-kegiatan" class="yp-mobile-detail">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div class="kh-chips">
-            <a class="kh-chip <?= $kegiatanId === 0 ? 'is-active' : '' ?>" href="<?= htmlspecialchars($filterBase(['kegiatan_id' => null])) ?>">Semua kegiatan</a>
-            <?php foreach ($ringkasan as $rg): ?>
-                <?php $kid = (int) ($rg['kegiatan_id'] ?? 0); ?>
-                <a class="kh-chip <?= $kegiatanId === $kid ? 'is-active' : '' ?>" href="<?= htmlspecialchars($filterBase(['kegiatan_id' => $kid])) ?>">
-                    <?= htmlspecialchars((string) $rg['nama_kegiatan']) ?>
-                    <span class="badge rounded-pill <?= $kegiatanId === $kid ? 'text-bg-light' : 'text-bg-secondary' ?>"><?= (int) $rg['hadir'] ?>/<?= (int) $rg['total'] ?></span>
-                </a>
-            <?php endforeach; ?>
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="khToggleAll" data-expanded="0">Buka semua detail</button>
-    </div>
-
-    <div class="kh-grid" id="khGrid">
-        <?php foreach ($detailKeg as $dk):
-            $kid = (int) ($dk['kegiatan_id'] ?? 0);
-            $total = (int) ($dk['total'] ?? 0);
-            $hadir = (int) ($dk['hadir'] ?? 0);
-            $pctHadir = $total > 0 ? round(100 * $hadir / $total, 0) : 0;
-            $santri = $dk['santri'] ?? [];
-            $perlu = (int) ($dk['alpa'] ?? 0) + (int) ($dk['belum'] ?? 0);
-            $preview = $previewNames(is_array($santri) ? $santri : []);
-            $focus = $kegiatanId > 0 && $kegiatanId === $kid;
-            $ghaibList = array_merge($santri['ALPA'] ?? [], $santri['BELUM'] ?? [], $santri['IZIN'] ?? [], $santri['SAKIT'] ?? []);
-        ?>
-        <article class="kh-card<?= $focus ? ' is-focus' : '' ?>" id="keg-<?= $kid ?>" data-kegiatan-id="<?= $kid ?>">
-            <div class="kh-card__head">
-                <h2 class="kh-card__title"><?= htmlspecialchars((string) $dk['nama_kegiatan']) ?></h2>
-                <div class="kh-card__meta"><strong><?= $hadir ?>/<?= $total ?></strong> masuk · <?= (int) $pctHadir ?>% hadir</div>
-                <div class="kh-bar" role="img" aria-label="Distribusi presensi">
-                    <?php foreach (['hadir' => 'hadir', 'izin' => 'izin', 'sakit' => 'sakit', 'alpa' => 'alpa', 'belum' => 'belum'] as $key => $cls):
-                        $n = (int) ($dk[$key] ?? 0);
-                        $w = $barPct($n, $total);
-                        if ($w <= 0) {
-                            continue;
-                        }
-                    ?>
-                    <span class="kh-bar__seg kh-bar__seg--<?= $cls ?>" style="width:<?= $w ?>%" title="<?= ucfirst($key) ?> <?= $n ?>"></span>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="kh-stats">
-                <div class="kh-stat kh-stat--hadir"><span class="kh-stat__n"><?= (int) $dk['hadir'] ?></span><span class="kh-stat__l">Hadir</span></div>
-                <div class="kh-stat kh-stat--izin"><span class="kh-stat__n"><?= (int) $dk['izin'] ?></span><span class="kh-stat__l">Izin</span></div>
-                <div class="kh-stat kh-stat--sakit"><span class="kh-stat__n"><?= (int) $dk['sakit'] ?></span><span class="kh-stat__l">Sakit</span></div>
-                <div class="kh-stat kh-stat--alpa"><span class="kh-stat__n"><?= (int) $dk['alpa'] ?></span><span class="kh-stat__l">Alpa</span></div>
-                <div class="kh-stat kh-stat--belum"><span class="kh-stat__n"><?= (int) $dk['belum'] ?></span><span class="kh-stat__l">Belum</span></div>
-            </div>
-            <?php if ($perlu > 0): ?>
-            <div class="kh-card__alert" title="Santri ghaib / belum scan">
-                <i class="fa-solid fa-triangle-exclamation me-1"></i>
-                <?= count($ghaibList) ?> ghaib<?= $preview !== '' ? ': ' . htmlspecialchars($preview) : '' ?>
-            </div>
-            <?php else: ?>
-            <div class="kh-card__alert kh-card__alert--ok">
-                <i class="fa-solid fa-circle-check me-1"></i>Semua santri sudah tercatat
-            </div>
-            <?php endif; ?>
-            <div class="kh-card__body">
-                <button type="button" class="kh-detail-toggle" data-bs-toggle="collapse" data-bs-target="#kh-detail-<?= $kid ?>" aria-expanded="<?= $focus ? 'true' : 'false' ?>">
-                    <i class="fa-solid fa-chevron-down me-1"></i> Detail ghaib & daftar santri
-                </button>
-            </div>
-            <div class="collapse<?= $focus ? ' show' : '' ?>" id="kh-detail-<?= $kid ?>">
-                <div class="kh-detail-panel">
-                    <div class="kh-tabs" role="tablist">
-                        <button type="button" class="kh-tab is-active" data-kh-tab="perlu" data-kh-card="<?= $kid ?>">Ghaib (<?= count($ghaibList) ?>)</button>
-                        <button type="button" class="kh-tab" data-kh-tab="HADIR" data-kh-card="<?= $kid ?>">Hadir (<?= (int) $dk['hadir'] ?>)</button>
-                        <button type="button" class="kh-tab" data-kh-tab="ALPA" data-kh-card="<?= $kid ?>">Alpa (<?= (int) $dk['alpa'] ?>)</button>
-                        <button type="button" class="kh-tab" data-kh-tab="BELUM" data-kh-card="<?= $kid ?>">Belum (<?= (int) $dk['belum'] ?>)</button>
-                        <button type="button" class="kh-tab" data-kh-tab="IZIN" data-kh-card="<?= $kid ?>">Izin</button>
-                        <button type="button" class="kh-tab" data-kh-tab="SAKIT" data-kh-card="<?= $kid ?>">Sakit</button>
-                    </div>
-                    <?php
-                    $lists = [
-                        'perlu' => $ghaibList,
-                        'HADIR' => $santri['HADIR'] ?? [],
-                        'ALPA' => $santri['ALPA'] ?? [],
-                        'BELUM' => $santri['BELUM'] ?? [],
-                        'IZIN' => $santri['IZIN'] ?? [],
-                        'SAKIT' => $santri['SAKIT'] ?? [],
-                    ];
-                    foreach ($lists as $tabKey => $list):
-                    ?>
-                    <ul class="kh-list<?= $tabKey === 'perlu' ? '' : ' d-none' ?>" data-kh-list="<?= htmlspecialchars((string) $tabKey) ?>" data-kh-card="<?= $kid ?>">
-                        <?php if ($list === []): ?>
-                            <li class="text-muted">Tidak ada data.</li>
-                        <?php endif; ?>
-                        <?php foreach ($list as $s): ?>
-                        <li>
-                            <span class="kh-list__name"><?= htmlspecialchars((string) ($s['nama_santri'] ?? '')) ?></span>
-                            <span class="kh-list__sub">
-                                <?= htmlspecialchars((string) ($s['tingkatan'] ?? '')) ?>
-                                <?php if (!empty($s['catatan'])): ?> · <?= htmlspecialchars((string) $s['catatan']) ?><?php endif; ?>
-                                <?php if (!empty($s['jam_presensi'])): ?> · <?= htmlspecialchars((string) $s['jam_presensi']) ?><?php endif; ?>
-                            </span>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </article>
-        <?php endforeach; ?>
-    </div>
-    </div>
+    <?php
+    $khShowHero = false;
+    require __DIR__ . '/../includes/partials/keaktifan_hari_kegiatan_cards.php';
+    ?>
 
     <?php endif; ?>
 </div>
@@ -495,44 +402,26 @@ require_once __DIR__ . '/../includes/header.php';
         window.addEventListener('resize', syncMobileDetails);
     }
 
-    document.querySelectorAll('.kh-tabs').forEach(function (tabs) {
-        tabs.addEventListener('click', function (e) {
-            var btn = e.target.closest('.kh-tab');
-            if (!btn) return;
-            var cardId = btn.getAttribute('data-kh-card');
-            var tab = btn.getAttribute('data-kh-tab');
-            tabs.querySelectorAll('.kh-tab').forEach(function (t) { t.classList.toggle('is-active', t === btn); });
-            document.querySelectorAll('.kh-list[data-kh-card="' + cardId + '"]').forEach(function (ul) {
-                ul.classList.toggle('d-none', ul.getAttribute('data-kh-list') !== tab);
-            });
-        });
-    });
-
-    var toggleAll = document.getElementById('khToggleAll');
-    if (toggleAll) {
-        toggleAll.addEventListener('click', function () {
-            var expanded = toggleAll.getAttribute('data-expanded') === '1';
-            document.querySelectorAll('.kh-card .collapse').forEach(function (el) {
-                if (expanded) {
-                    bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide();
-                } else {
-                    bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show();
-                }
-            });
-            toggleAll.setAttribute('data-expanded', expanded ? '0' : '1');
-            toggleAll.textContent = expanded ? 'Buka semua detail' : 'Tutup semua detail';
-        });
-    }
-
-    if (location.hash && location.hash.indexOf('keg-') === 1) {
-        var el = document.querySelector(location.hash);
-        if (el) {
-            var col = el.querySelector('.collapse');
-            if (col) bootstrap.Collapse.getOrCreateInstance(col, { toggle: false }).show();
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }
 })();
 </script>
+
+<div class="modal fade" id="khPanduanModal" tabindex="-1" aria-labelledby="khPanduanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h2 class="modal-title h6 mb-0" id="khPanduanModalLabel"><i class="fa-solid fa-circle-info me-1 text-primary"></i> Cara membaca</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body small">
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> — santri sudah scan.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> — ada keterangan resmi.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--belum">Belum</span> — kegiatan masih berlangsung, belum scan.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai.</p>
+                <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk <strong>Daftar santri</strong> pada kartu untuk melihat nama lengkap.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/keaktifan-hari.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

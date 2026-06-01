@@ -33,7 +33,8 @@ try {
             }
             $tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
             $rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatan !== '' ? $tingkatan : null);
-            $ringkasan = rekap_keaktifan_hari_ringkasan_kegiatan($pdo, $tanggal, $tingkatan !== '' ? $tingkatan : null);
+            $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
+            $ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
             echo json_encode([
                 'ok' => true,
                 'page' => $page,
@@ -42,7 +43,7 @@ try {
                 'params' => ['tanggal' => $tanggal, 'tingkatan' => $tingkatan],
                 'totals' => rekap_keaktifan_hari_totals($ringkasan),
                 'ringkasan' => $ringkasan,
-                'detail_kegiatan' => rekap_keaktifan_hari_detail_by_kegiatan($rows),
+                'detail_kegiatan' => $detailKeg,
             ], JSON_UNESCAPED_UNICODE);
             break;
         }

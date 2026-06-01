@@ -101,6 +101,51 @@ function keuangan_kopsa_nominal_dari_pembayaran(
  *   }>
  * }
  */
+/**
+ * @return array{komponen:?array,persen:float,bulan_slots:list<array<string,mixed>>,rows:list<array<string,mixed>>}
+ */
+function keuangan_kopsa_rekap_per_santri_bulan_cached(
+    PDO $pdo,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    int $ttlSec = 300
+): array {
+    if ($tahunAjaranMulai <= 0) {
+        return keuangan_kopsa_rekap_per_santri_bulan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    }
+    if (!function_exists('pondok_ta_bulan_awal')) {
+        require_once __DIR__ . '/pondok_ta.php';
+    }
+    require_once __DIR__ . '/pondok_kalender.php';
+    $cacheKey = 'kopsa_rekap_v1:' . $tahunAjaranMulai . ':' . $tahunAjaranSelesai . ':'
+        . (pondok_kalender_hijriyah($pdo) ? 'h' : 'm') . ':'
+        . pondok_ta_bulan_awal($pdo);
+    if (isset($_SESSION['user'])) {
+        $bucket = $_SESSION['keuangan_kopsa_rekap_v1'] ?? null;
+        if (is_array($bucket)) {
+            $entry = $bucket[$cacheKey] ?? null;
+            if (is_array($entry) && (int) ($entry['expires'] ?? 0) > time() && is_array($entry['data'] ?? null)) {
+                return $entry['data'];
+            }
+        }
+    }
+    $data = keuangan_kopsa_rekap_per_santri_bulan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    if (isset($_SESSION['user'])) {
+        if (!isset($_SESSION['keuangan_kopsa_rekap_v1']) || !is_array($_SESSION['keuangan_kopsa_rekap_v1'])) {
+            $_SESSION['keuangan_kopsa_rekap_v1'] = [];
+        }
+        $bucket = $_SESSION['keuangan_kopsa_rekap_v1'];
+        $bucket[$cacheKey] = ['expires' => time() + max(60, $ttlSec), 'data' => $data];
+        if (count($bucket) > 3) {
+            uasort($bucket, static fn (array $a, array $b): int => (int) ($b['expires'] ?? 0) <=> (int) ($a['expires'] ?? 0));
+            $bucket = array_slice($bucket, 0, 3, true);
+        }
+        $_SESSION['keuangan_kopsa_rekap_v1'] = $bucket;
+    }
+
+    return $data;
+}
+
 function keuangan_kopsa_rekap_per_santri_bulan(
     PDO $pdo,
     int $tahunAjaranMulai,
