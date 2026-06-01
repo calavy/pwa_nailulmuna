@@ -3599,6 +3599,14 @@ html[data-theme-transitioning] .app-theme-switch {
     margin-bottom: 0.35rem;
 }
 
+.jadwal-slot-jam-blok {
+    margin-left: 0.15rem;
+}
+
+.jadwal-slot-jam-label {
+    color: var(--bs-secondary-color, #64748b);
+}
+
 .jadwal-tabel-ringkas th,
 .jadwal-tabel-ringkas td {
     font-size: 0.8rem;

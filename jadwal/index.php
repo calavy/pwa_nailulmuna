@@ -132,10 +132,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus
 
 if (isset($_GET['grup'])) {
     $g = strtolower(trim((string) $_GET['grup']));
-    if (in_array($g, ['kegiatan', 'tingkatan'], true)) {
+    if (in_array($g, ['kegiatan', 'tingkatan', 'pembimbing'], true)) {
         jadwal_simpan_tampilan_grup($pdo, $g);
     }
-    header('Location: ' . app_href('/jadwal/index.php'));
+    $redir = '/jadwal/index.php';
+    if (($_GET['view'] ?? '') === 'ringkas') {
+        $redir .= '?view=ringkas';
+    }
+    header('Location: ' . app_href($redir));
     exit;
 }
 
@@ -182,12 +186,13 @@ $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string 
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
 $tampilanGrup = jadwal_tampilan_grup($pdo);
-$jadwalGrouped = $tampilanGrup === 'kegiatan'
-    ? jadwal_kelompokkan_per_kegiatan($jadwalList)
-    : jadwal_kelompokkan_per_tingkatan($jadwalList);
-jadwal_urutkan_grup_hari($jadwalGrouped);
-
-if ($tampilanGrup === 'tingkatan') {
+if ($tampilanGrup === 'pembimbing') {
+    $jadwalGrouped = jadwal_kelompokkan_per_pembimbing($jadwalList);
+    jadwal_urutkan_grup_slot_jam($jadwalGrouped);
+    ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
+} elseif ($tampilanGrup === 'tingkatan') {
+    $jadwalGrouped = jadwal_kelompokkan_per_tingkatan($jadwalList);
+    jadwal_urutkan_grup_hari($jadwalGrouped);
     $tingkatanSortIndex = array_flip(array_values($tingkatanList));
     uksort($jadwalGrouped, static function (string $a, string $b) use ($tingkatanSortIndex): int {
         $ia = $tingkatanSortIndex[$a] ?? PHP_INT_MAX;
@@ -199,6 +204,8 @@ if ($tampilanGrup === 'tingkatan') {
         return strcmp($a, $b);
     });
 } else {
+    $jadwalGrouped = jadwal_kelompokkan_per_kegiatan($jadwalList);
+    jadwal_urutkan_grup_slot_jam($jadwalGrouped);
     ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
 }
 
@@ -268,12 +275,43 @@ $ok = get_flash('success');
                 <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Filter</button>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . ($viewRingkas ? '?view=ringkas' : ''))) ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
-            <div class="col-auto ms-md-auto">
-                <?php if (!$jadwalPembimbingScope): ?>
-                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-pen me-1"></i> Edit slot</a>
-                <?php endif; ?>
+            <div class="col-auto ms-md-auto d-flex flex-wrap gap-1 align-items-center">
+                <span class="small text-muted me-1">Kelompok:</span>
+                <?php
+                $grupQs = static function (string $g) use ($viewRingkas, $filterTingkatan, $filterHari): string {
+                    $q = ['grup' => $g];
+                    if ($viewRingkas) {
+                        $q['view'] = 'ringkas';
+                    }
+                    if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
+                        $q['filter_tingkatan'] = $filterTingkatan;
+                    }
+                    if ($filterHari >= 1 && $filterHari <= 7) {
+                        $q['filter_hari'] = (string) $filterHari;
+                    }
+
+                    return '?' . http_build_query($q);
+                };
+                ?>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $grupQs('kegiatan'))) ?>"
+                   class="btn btn-sm <?= $tampilanGrup === 'kegiatan' ? 'btn-primary' : 'btn-outline-secondary' ?>">Kegiatan</a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $grupQs('pembimbing'))) ?>"
+                   class="btn btn-sm <?= $tampilanGrup === 'pembimbing' ? 'btn-primary' : 'btn-outline-secondary' ?>">Pembimbing</a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $grupQs('tingkatan'))) ?>"
+                   class="btn btn-sm <?= $tampilanGrup === 'tingkatan' ? 'btn-primary' : 'btn-outline-secondary' ?>">Tingkatan</a>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4 border-0">
+    <div class="card-body">
+        <h2 class="h6 mb-1">Daftar jadwal terkelompok</h2>
+        <p class="text-muted small mb-3">
+            Otomatis per <?= $tampilanGrup === 'pembimbing' ? 'pembimbing' : ($tampilanGrup === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
+            Jam berbeda = blok terpisah; hari masuk langsung di bawah slot jam yang sama.
+        </p>
+        <?php require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php'; ?>
     </div>
 </div>
 

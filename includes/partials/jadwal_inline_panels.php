@@ -59,6 +59,7 @@ $showJadwal = $panelOpen === 'jadwal';
 
         <div id="jadwal-panel-jadwal" class="jadwal-inline-panel mt-3<?= $showJadwal ? '' : ' d-none' ?>">
             <h3 class="h6 mb-2">Form tambah slot jadwal</h3>
+            <p class="text-muted small mb-2">Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Jam berbeda untuk kegiatan yang sama = slot/blok terpisah di daftar jadwal.</p>
             <?php if ($kegiatanListAktif === []): ?>
                 <p class="text-warning small mb-0">Belum ada kegiatan aktif. Tambah kegiatan dulu.</p>
             <?php else: ?>

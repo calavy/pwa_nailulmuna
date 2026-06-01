@@ -10,16 +10,22 @@ function jadwal_tampilan_grup(PDO $pdo): string
 {
     $g = strtolower(trim((string) app_setting($pdo, 'jadwal_tampilan_grup', 'kegiatan')));
 
-    return in_array($g, ['kegiatan', 'tingkatan'], true) ? $g : 'kegiatan';
+    return in_array($g, ['kegiatan', 'tingkatan', 'pembimbing'], true) ? $g : 'kegiatan';
 }
 
 function jadwal_simpan_tampilan_grup(PDO $pdo, string $grup): void
 {
     $grup = strtolower(trim($grup));
-    if (!in_array($grup, ['kegiatan', 'tingkatan'], true)) {
+    if (!in_array($grup, ['kegiatan', 'tingkatan', 'pembimbing'], true)) {
         $grup = 'kegiatan';
     }
     save_setting($pdo, 'jadwal_tampilan_grup', $grup);
+}
+
+/** Kunci slot jam untuk pengelompokan (jam berbeda = baris grup terpisah). */
+function jadwal_slot_jam_key(array $row): string
+{
+    return jadwal_jam_ringkas($row);
 }
 
 /**
@@ -28,17 +34,21 @@ function jadwal_simpan_tampilan_grup(PDO $pdo, string $grup): void
  */
 function jadwal_kelompokkan_per_tingkatan(array $jadwalList): array
 {
+    $flat = jadwal_kelompokkan_dengan_slot_jam($jadwalList, static function (array $row): string {
+        return (string) ($row['tingkatan'] ?? '-');
+    });
     $out = [];
-    foreach ($jadwalList as $row) {
-        $tg = (string) ($row['tingkatan'] ?? '-');
-        $hk = (int) ($row['hari_ke'] ?? 0);
-        if (!isset($out[$tg])) {
-            $out[$tg] = [];
+    foreach ($flat as $tg => $byJam) {
+        foreach ($byJam as $byHari) {
+            foreach ($byHari as $hk => $items) {
+                if (!isset($out[$tg][$hk])) {
+                    $out[$tg][$hk] = [];
+                }
+                foreach ($items as $item) {
+                    $out[$tg][$hk][] = $item;
+                }
+            }
         }
-        if (!isset($out[$tg][$hk])) {
-            $out[$tg][$hk] = [];
-        }
-        $out[$tg][$hk][] = $row;
     }
 
     return $out;
@@ -50,23 +60,84 @@ function jadwal_kelompokkan_per_tingkatan(array $jadwalList): array
  */
 function jadwal_kelompokkan_per_kegiatan(array $jadwalList): array
 {
+    return jadwal_kelompokkan_dengan_slot_jam($jadwalList, static function (array $row): string {
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+
+        return $nama !== '' ? $nama : '—';
+    });
+}
+
+/**
+ * @param list<array<string, mixed>> $jadwalList
+ * @return array<string, array<string, array<int, list<array<string, mixed>>>>>
+ */
+function jadwal_kelompokkan_per_pembimbing(array $jadwalList): array
+{
+    return jadwal_kelompokkan_dengan_slot_jam($jadwalList, static function (array $row): string {
+        $nama = trim((string) ($row['nama_pembimbing'] ?? ''));
+        if ($nama === '' || $nama === '-') {
+            return 'Belum ada pembimbing';
+        }
+
+        return $nama;
+    });
+}
+
+/**
+ * Grup utama → slot jam → hari → baris jadwal (hari langsung masuk per blok).
+ *
+ * @param list<array<string, mixed>> $jadwalList
+ * @param callable(array<string, mixed>): string $grupLabelFn
+ * @return array<string, array<string, array<int, list<array<string, mixed>>>>>
+ */
+function jadwal_kelompokkan_dengan_slot_jam(array $jadwalList, callable $grupLabelFn): array
+{
     $out = [];
     foreach ($jadwalList as $row) {
-        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
-        if ($nama === '') {
-            $nama = '—';
-        }
+        $grup = $grupLabelFn($row);
+        $jamKey = jadwal_slot_jam_key($row);
         $hk = (int) ($row['hari_ke'] ?? 0);
-        if (!isset($out[$nama])) {
-            $out[$nama] = [];
+        if (!isset($out[$grup])) {
+            $out[$grup] = [];
         }
-        if (!isset($out[$nama][$hk])) {
-            $out[$nama][$hk] = [];
+        if (!isset($out[$grup][$jamKey])) {
+            $out[$grup][$jamKey] = [];
         }
-        $out[$nama][$hk][] = $row;
+        if (!isset($out[$grup][$jamKey][$hk])) {
+            $out[$grup][$jamKey][$hk] = [];
+        }
+        $out[$grup][$jamKey][$hk][] = $row;
     }
 
     return $out;
+}
+
+/**
+ * @param array<string, array<string, array<int, list<array<string, mixed>>>>> $grouped
+ */
+function jadwal_urutkan_grup_slot_jam(array &$grouped): void
+{
+    foreach ($grouped as &$byJam) {
+        uksort($byJam, static function (string $a, string $b): int {
+            return strcmp($a, $b);
+        });
+        foreach ($byJam as &$byHari) {
+            ksort($byHari, SORT_NUMERIC);
+            foreach ($byHari as &$items) {
+                usort($items, static function (array $x, array $y): int {
+                    $c = strcmp((string) ($x['jam_mulai'] ?? ''), (string) ($y['jam_mulai'] ?? ''));
+                    if ($c !== 0) {
+                        return $c;
+                    }
+
+                    return strcmp((string) ($x['tingkatan'] ?? ''), (string) ($y['tingkatan'] ?? ''));
+                });
+            }
+            unset($items);
+        }
+        unset($byHari);
+    }
+    unset($byJam);
 }
 
 /**
@@ -326,6 +397,55 @@ function jadwal_cek_bentrok(PDO $pdo, string $tingkatan, int $hariKe, string $ja
 }
 
 /** @param array<int,string> $hariLabels */
+/**
+ * Slot jadwal sejenis (kegiatan + pembimbing + jam sama) untuk edit massal hari/tingkatan.
+ *
+ * @return list<array<string, mixed>>
+ */
+function jadwal_slot_sejenis(PDO $pdo, int $jadwalId): array
+{
+    if ($jadwalId <= 0 || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    $st = $pdo->prepare('SELECT kegiatan_id, pembimbing_id, jam_mulai, jam_selesai FROM jadwal_kegiatan WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $jadwalId]);
+    $base = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($base)) {
+        return [];
+    }
+    $st2 = $pdo->prepare('
+        SELECT id, tingkatan, hari_ke, jam_mulai, jam_selesai, pembimbing_id, kegiatan_id, tempat
+        FROM jadwal_kegiatan
+        WHERE kegiatan_id = :kg
+          AND COALESCE(pembimbing_id, 0) = COALESCE(:pb, 0)
+          AND jam_mulai = :jm
+          AND jam_selesai = :js
+        ORDER BY hari_ke ASC, tingkatan ASC, id ASC
+    ');
+    $st2->execute([
+        'kg' => (int) ($base['kegiatan_id'] ?? 0),
+        'pb' => $base['pembimbing_id'] ?? null,
+        'jm' => (string) ($base['jam_mulai'] ?? ''),
+        'js' => (string) ($base['jam_selesai'] ?? ''),
+    ]);
+
+    return $st2->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** @param list<array<string, mixed>> $slots */
+function jadwal_slot_sejenis_ids(array $slots): array
+{
+    $ids = [];
+    foreach ($slots as $row) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+
+    return array_values($ids);
+}
+
 function jadwal_pesan_bentrok(array $bentrok, array $hariLabels): string
 {
     $hk = (int) ($bentrok['hari_ke'] ?? 0);

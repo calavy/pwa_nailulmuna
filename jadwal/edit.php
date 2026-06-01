@@ -27,11 +27,15 @@ if (!$jadwal) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/../helpers/presensi_admin.php';
     $beforeAudit = jadwal_kegiatan_audit_fetch($pdo, $id);
+    $siblingsBefore = jadwal_slot_sejenis($pdo, $id);
+    $siblingIdsBefore = jadwal_slot_sejenis_ids($siblingsBefore);
+
     $tingkatanInput = $_POST['tingkatan'] ?? [];
     $hariInput = $_POST['hari_ke'] ?? [];
-    $tingkatanDipilih = is_array($tingkatanInput) ? array_values(array_filter(array_map('trim', $tingkatanInput), static fn($v): bool => $v !== '')) : [];
-    $hariDipilih = is_array($hariInput) ? array_values(array_filter(array_map('intval', $hariInput), static fn($v): bool => $v >= 0 && $v <= 7)) : [];
+    $tingkatanDipilih = is_array($tingkatanInput) ? array_values(array_filter(array_map('trim', $tingkatanInput), static fn ($v): bool => $v !== '')) : [];
+    $hariDipilih = is_array($hariInput) ? array_values(array_filter(array_map('intval', $hariInput), static fn ($v): bool => $v >= 0 && $v <= 7)) : [];
     if (!$tingkatanDipilih || !$hariDipilih) {
         set_flash('error', 'Pilih minimal 1 tingkatan dan 1 hari.');
         header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
@@ -50,18 +54,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tempatVal = trim((string) ($_POST['tempat'] ?? ''));
     $tempatVal = $tempatVal !== '' ? $tempatVal : null;
 
+    $origKg = (int) ($jadwal['kegiatan_id'] ?? 0);
+    $origPb = isset($jadwal['pembimbing_id']) && $jadwal['pembimbing_id'] !== null && $jadwal['pembimbing_id'] !== ''
+        ? (int) $jadwal['pembimbing_id']
+        : null;
+    $origJamMulai = (string) ($jadwal['jam_mulai'] ?? '');
+    $origJamSelesai = (string) ($jadwal['jam_selesai'] ?? '');
+    $slotSignatureChanged = $kegiatanId !== $origKg
+        || $pembimbingId !== $origPb
+        || jadwal_norm_jam($jamMulai) !== jadwal_norm_jam($origJamMulai)
+        || jadwal_norm_jam($jamSelesai) !== jadwal_norm_jam($origJamSelesai);
+
+    $idsToReplace = $slotSignatureChanged ? [$id] : $siblingIdsBefore;
+
     $hariLabels = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
-    $firstCombo = true;
+    $excludeIds = array_fill_keys($idsToReplace, true);
     foreach ($tingkatanDipilih as $tingkatan) {
         foreach ($hariDipilih as $hariKe) {
-            $exclude = $firstCombo ? $id : 0;
-            $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai, $exclude);
-            if ($bentrok !== null) {
+            $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai);
+            if ($bentrok !== null && !isset($excludeIds[(int) ($bentrok['id'] ?? 0)])) {
                 set_flash('error', jadwal_pesan_bentrok($bentrok, $hariLabels));
                 header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
                 exit;
             }
-            $firstCombo = false;
+        }
+    }
+
+    foreach ($idsToReplace as $delId) {
+        if ($delId !== $id) {
+            presensi_hapus_untuk_jadwal($pdo, $delId);
+            $pdo->prepare('DELETE FROM jadwal_kegiatan WHERE id = :id')->execute(['id' => $delId]);
         }
     }
 
@@ -101,11 +123,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         [
             'jadwal_utama' => $afterAudit,
             'jadwal_tambahan_dibuat' => $created,
+            'slot_sejenis_diganti' => count($idsToReplace),
         ],
         $auditUserId,
         'Perubahan jadwal #' . $id . ($created > 0 ? ' (+ ' . $created . ' baris baru)' : '')
     );
-    set_flash('success', 'Data jadwal berhasil diperbarui. Jadwal tambahan dibuat: ' . $created . '.');
+    $msg = 'Data jadwal berhasil diperbarui.';
+    if ($created > 0) {
+        $msg .= ' Baris baru: ' . $created . '.';
+    }
+    if ($slotSignatureChanged) {
+        $msg .= ' Jam/kegiatan/pembimbing berubah — disimpan sebagai slot terpisah.';
+    }
+    set_flash('success', $msg);
     header('Location: ' . app_href('/jadwal/index.php'));
     exit;
 }
@@ -119,8 +149,26 @@ $pembimbingList = table_exists($pdo, 'pembimbing')
     : [];
 $kegiatanList = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
-$selectedTingkatan = [(string) ($jadwal['tingkatan'] ?? '')];
-$selectedHari = [(int) ($jadwal['hari_ke'] ?? 0)];
+$siblingSlots = jadwal_slot_sejenis($pdo, $id);
+$selectedTingkatan = [];
+$selectedHari = [];
+foreach ($siblingSlots as $slot) {
+    $tk = trim((string) ($slot['tingkatan'] ?? ''));
+    if ($tk !== '' && !in_array($tk, $selectedTingkatan, true)) {
+        $selectedTingkatan[] = $tk;
+    }
+    $hk = (int) ($slot['hari_ke'] ?? 0);
+    if (!in_array($hk, $selectedHari, true)) {
+        $selectedHari[] = $hk;
+    }
+}
+if ($selectedTingkatan === []) {
+    $selectedTingkatan = [(string) ($jadwal['tingkatan'] ?? '')];
+}
+if ($selectedHari === []) {
+    $selectedHari = [(int) ($jadwal['hari_ke'] ?? 0)];
+}
+$siblingCount = count($siblingSlots);
 
 $pageTitle = 'Edit Jadwal Kegiatan';
 require_once __DIR__ . '/../includes/header.php';
@@ -128,8 +176,17 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Edit Jadwal Kegiatan</h1>
-    <a href="/jadwal/index.php" class="btn btn-outline-secondary">Kembali</a>
+    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-outline-secondary">Kembali</a>
 </div>
+
+<?php if ($siblingCount > 1): ?>
+<div class="alert alert-info py-2 small mb-3">
+    <i class="fa-solid fa-layer-group me-1"></i>
+    Slot ini terhubung dengan <strong><?= (int) $siblingCount ?></strong> baris jadwal (hari & tingkatan sama, jam
+    <span class="font-monospace"><?= htmlspecialchars(jadwal_jam_ringkas($jadwal)) ?></span>).
+    Centang hari/tingkatan untuk mengubah sekaligus. Ubah jam untuk menyimpan sebagai slot terpisah.
+</div>
+<?php endif; ?>
 
 <div class="card shadow-sm">
     <div class="card-body">
