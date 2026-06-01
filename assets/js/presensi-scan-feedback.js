@@ -177,6 +177,16 @@
             return 'Sudah tercatat. ' + s.slice(0, 100);
         }
 
+        if (type === 'info') {
+            if (/Munawib terdeteksi/i.test(s)) {
+                return 'Munawib terdeteksi. Silakan pilih jadwal kegiatan.';
+            }
+            if (/Pilih jadwal/i.test(s)) {
+                return 'Silakan pilih jadwal kegiatan.';
+            }
+            return s.slice(0, 110);
+        }
+
         return s.slice(0, 120);
     }
 
@@ -272,6 +282,17 @@
         vibrate([50, 30, 50]);
     }
 
+    function playBeepInfo() {
+        var ctx = getAudioContext();
+        if (!ctx) {
+            return;
+        }
+        var t = ctx.currentTime;
+        tone(392, t, 0.1, 0.14, 'sine');
+        tone(494, t + 0.11, 0.12, 0.14, 'sine');
+        vibrate([35, 25, 35]);
+    }
+
     /** Suara sukses: TTS pesan hasil, fallback bip jika TTS tidak ada. */
     function playSuccess(message) {
         playBeepSuccess();
@@ -296,6 +317,12 @@
         speakSoon('Stop. Anda sudah scan.');
     }
 
+    function playInfo(message) {
+        playBeepInfo();
+        var speech = textForSpeech(message, 'info');
+        speakSoon(speech);
+    }
+
     function normalizeType(type, message) {
         var t = String(type || 'success');
         if (t === 'warning') {
@@ -310,6 +337,9 @@
         if (t === 'error') {
             return 'danger';
         }
+        if (t === 'info') {
+            return 'info';
+        }
         return t;
     }
 
@@ -323,6 +353,9 @@
         if (type === 'danger') {
             return 'presensi-scan-flash-danger';
         }
+        if (type === 'info') {
+            return 'presensi-scan-flash-info';
+        }
         return 'presensi-scan-flash-warning';
     }
 
@@ -334,6 +367,8 @@
             playDuplicate(message);
         } else if (type === 'danger') {
             playDanger(message);
+        } else if (type === 'info') {
+            playInfo(message);
         } else {
             playWarning(message);
         }
@@ -349,7 +384,8 @@
             'presensi-scan-flash-success',
             'presensi-scan-flash-warning',
             'presensi-scan-flash-danger',
-            'presensi-scan-flash-duplicate'
+            'presensi-scan-flash-duplicate',
+            'presensi-scan-flash-info'
         );
         void vp.offsetWidth;
         vp.classList.add(className);
@@ -409,7 +445,7 @@
         var wrap = document.createElement('div');
         wrap.id = 'presensi-result-overlay';
         wrap.className = 'presensi-scan-result is-visible';
-        var duration = type === 'success' ? 2200 : (type === 'duplicate' ? 2600 : 2800);
+        var duration = type === 'success' ? 2200 : (type === 'duplicate' ? 2600 : (type === 'info' ? 3200 : 2800));
         var displayMessage = String(message || '');
         if (type === 'success') {
             displayMessage = 'Berhasil';
@@ -453,6 +489,7 @@
         warning: playWarning,
         danger: playDanger,
         duplicate: playDuplicate,
+        info: playInfo,
         speak: speakText,
         show: showResult,
         onPageLoad: handlePageResult,

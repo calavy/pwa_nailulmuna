@@ -3394,6 +3394,39 @@ function app_menu_pack(PDO $pdo): array
     return $pack;
 }
 
+/**
+ * Path dasar menu tanpa fragment (#) dan query (?).
+ * Tidak memakai strtok — state internal strtok bisa merusak pemanggilan berikutnya.
+ */
+function app_menu_acl_normalize_path_base(string $path): string
+{
+    $withoutFragment = explode('#', $path, 2)[0];
+    $base = $withoutFragment !== '' ? $withoutFragment : $path;
+    $withoutQuery = explode('?', $base, 2)[0];
+
+    return $withoutQuery !== '' ? $withoutQuery : $base;
+}
+
+/**
+ * Cocokkan path menu ke entri permissionPathMap (coba utuh, tanpa #, tanpa ?).
+ */
+function app_menu_acl_lookup_path(string $path, array $permissionPathMap): string
+{
+    if (isset($permissionPathMap[$path])) {
+        return $path;
+    }
+    $withoutFragment = explode('#', $path, 2)[0];
+    if ($withoutFragment !== '' && isset($permissionPathMap[$withoutFragment])) {
+        return $withoutFragment;
+    }
+    $base = app_menu_acl_normalize_path_base($path);
+    if ($base !== $path && isset($permissionPathMap[$base])) {
+        return $base;
+    }
+
+    return $path;
+}
+
 function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionPathMap): array
 {
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -3422,13 +3455,7 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
 
                 return user_can_edit_keaktifan_nilai();
             }
-            $permPath = $path;
-            if (!isset($permissionPathMap[$permPath])) {
-                $permPath = strtok($path, '#') ?: $path;
-            }
-            if (!isset($permissionPathMap[$permPath])) {
-                $permPath = strtok($path, '?') ?: $path;
-            }
+            $permPath = app_menu_acl_lookup_path($path, $permissionPathMap);
             if (!isset($permissionPathMap[$permPath])) {
                 return true;
             }
@@ -3649,7 +3676,7 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
         }
     }
     foreach (menu_group_visible_paths($node, $menuItems) as $cp) {
-        $pathBase = strtok($cp, '?#') ?: $cp;
+        $pathBase = app_menu_acl_normalize_path_base($cp);
         if (str_contains($requestPath, $pathBase)) {
             return true;
         }
