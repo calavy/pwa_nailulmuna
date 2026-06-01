@@ -108,14 +108,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim
             set_flash('error', 'Gagal mengirim WA (periksa gateway).');
         }
     } else {
-        set_flash('error', (string) ($preview['message'] ?? 'Tidak bisa mengirim tagihan untuk santri ini.'));
+        set_flash('error', (string) ($preview['error'] ?? $preview['message'] ?? 'Tidak bisa mengirim tagihan untuk santri ini.'));
     }
     header('Location: ' . app_href('/pembayaran/tagihan_syahriyah.php?' . http_build_query($queryBase)));
     exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim_wa_tagihan') {
-    $res = wa_tagihan_kirim_manual($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    require_once __DIR__ . '/../helpers/wa_tagihan.php';
+    $res = wa_tagihan_jalankan_kirim($pdo, true, $bulanTagihan);
     set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
     header('Location: ' . app_href('/pembayaran/tagihan_syahriyah.php?' . http_build_query(array_merge($queryBase, ['page' => $page]))));
     exit;
@@ -259,7 +260,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
                         <th class="tagihan-col-detail">Kelas</th>
                         <th class="text-end">Sisa wajib</th>
                         <th class="text-center">Status</th>
-                        <th class="text-end">Aksi</th>
+                        <th class="text-end" style="min-width:11rem">WA / Bayar</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -294,23 +295,25 @@ $iconTagihan = bendahara_page_icon('tagihan');
                                 <i class="fa-solid fa-chevron-down"></i>
                             </button>
                             <?php
-                            $waPreview = null;
-                            if ((int) ($r['sisa'] ?? 0) > 0 && trim((string) ($r['no_wa_wali'] ?? '')) !== '') {
-                                $waPreview = wa_tagihan_preview_santri($pdo, (int) $r['id'], $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
-                            }
-                            $waUrl = ($waPreview && ($waPreview['ok'] ?? false)) ? (string) ($waPreview['wa_url'] ?? '') : '';
+                            $punyaTagihan = (int) ($r['sisa'] ?? 0) > 0;
+                            $punyaWa = trim((string) ($r['no_wa_wali'] ?? '')) !== '';
                             ?>
-                            <?php if ($waUrl !== ''): ?>
-                                <a class="btn btn-sm btn-success" href="<?= htmlspecialchars($waUrl) ?>" target="_blank" rel="noopener" title="Buka WA tagihan">
-                                    <i class="fa-brands fa-whatsapp"></i>
-                                </a>
-                                <form method="post" class="d-inline" onsubmit="return confirm('Kirim tagihan via gateway ke wali <?= htmlspecialchars((string) $r['nama'], ENT_QUOTES) ?>?')">
-                                    <input type="hidden" name="action" value="kirim_wa_santri">
-                                    <input type="hidden" name="santri_id" value="<?= (int) $r['id'] ?>">
-                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Kirim otomatis"><i class="fa-solid fa-paper-plane"></i></button>
-                                </form>
-                            <?php elseif ((int) ($r['sisa'] ?? 0) > 0): ?>
-                                <span class="btn btn-sm btn-outline-secondary disabled" title="Nomor WA wali kosong"><i class="fa-brands fa-whatsapp opacity-50"></i></span>
+                            <?php if ($punyaTagihan && $punyaWa): ?>
+                                <div class="btn-group btn-group-sm tagihan-wa-grup" role="group"
+                                    data-santri-id="<?= (int) $r['id'] ?>"
+                                    data-bulan="<?= (int) $bulanTagihan ?>"
+                                    data-ta-mulai="<?= (int) $tahunAjaranMulai ?>"
+                                    data-ta-selesai="<?= (int) $tahunAjaranSelesai ?>"
+                                    data-nama="<?= htmlspecialchars((string) $r['nama'], ENT_QUOTES) ?>">
+                                    <button type="button" class="btn btn-success tagihan-btn-wa-chat" title="Buka WhatsApp dengan teks tagihan">
+                                        <i class="fa-brands fa-whatsapp me-1"></i><span class="d-none d-lg-inline">WA</span>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success tagihan-btn-wa-gateway" title="Kirim otomatis via gateway">
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            <?php elseif ($punyaTagihan): ?>
+                                <span class="badge text-bg-warning text-dark" title="Isi nomor WA wali di data santri">Tanpa no. WA</span>
                             <?php endif; ?>
                             <a class="btn btn-sm btn-outline-primary" href="/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
                         </td>
@@ -392,6 +395,9 @@ $iconTagihan = bendahara_page_icon('tagihan');
 <?php endif; ?>
 
 <link rel="stylesheet" href="<?= htmlspecialchars(app_href('/assets/css/tagihan-list.css')) ?>">
+<script>
+window.TAGIHAN_WA_API = <?= json_encode(app_href('/api/wa/tagihan_santri.php'), JSON_UNESCAPED_UNICODE) ?>;
+</script>
 <script src="<?= htmlspecialchars(app_href('/assets/js/tagihan-syahriyah-list.js')) ?>"></script>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

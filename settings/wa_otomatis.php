@@ -9,6 +9,23 @@ require_once __DIR__ . '/../helpers/pengaturan_acl.php';
 
 require_roles(['admin', 'pengurus']);
 migrate_legacy_permissions_to_pengaturan($pdo);
+require_once __DIR__ . '/../helpers/wa_tagihan.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'jalankan_wa_tagihan') {
+    $bulanPaksa = max(0, (int) ($_POST['bulan_tagihan'] ?? 0));
+    $res = wa_tagihan_jalankan_kirim($pdo, true, $bulanPaksa > 0 ? $bulanPaksa : null);
+    set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
+    header('Location: ' . app_href('/settings/wa_otomatis.php'));
+    exit;
+}
+
+$waJadwal = wa_tagihan_jadwal_context($pdo);
+$waLastRun = trim((string) app_setting($pdo, 'wa_tagihan_last_run_at', ''));
+$waLastStatsRaw = trim((string) app_setting($pdo, 'wa_tagihan_last_run_stats', ''));
+$waLastStats = $waLastStatsRaw !== '' ? json_decode($waLastStatsRaw, true) : null;
+if (!is_array($waLastStats)) {
+    $waLastStats = null;
+}
 
 $waToken = trim((string) app_setting($pdo, 'wa_gateway_token', ''));
 $waPengurus = trim((string) app_setting($pdo, 'wa_pengurus', ''));
@@ -64,6 +81,35 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="app-mini-stat-label">Mode Alpa</div>
             <div class="app-mini-stat-value" style="font-size:1rem;"><?= htmlspecialchars($alpaModeLabel) ?></div>
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h2 class="h6 mb-2">Status WA tagihan otomatis</h2>
+        <ul class="small text-muted mb-3 ps-3">
+            <li>Kalender: <strong><?= $waJadwal['calendar'] === 'HIJRIYAH' ? 'Hijriyah' : 'Masehi' ?></strong> · jadwal hari ke-<strong><?= (int) $waJadwal['due_day'] ?></strong> (hari ini ke-<?= (int) $waJadwal['today_day'] ?>)</li>
+            <li>Jam kirim: <strong><?= $waJadwal['send_time'] !== '' ? htmlspecialchars($waJadwal['send_time']) : 'Langsung' ?></strong>
+                <?= $waJadwal['send_time_ok'] ? '<span class="text-success">(sudah lewat)</span>' : '<span class="text-warning">(belum)</span>' ?></li>
+            <li>Terakhir sukses periode: <strong><?= $waJadwal['last_sent_at'] !== '' ? htmlspecialchars($waJadwal['last_sent_at']) : 'Belum pernah' ?></strong></li>
+            <?php if ($waLastRun !== ''): ?>
+                <li>Percobaan terakhir: <?= htmlspecialchars($waLastRun) ?>
+                    <?php if ($waLastStats): ?>
+                        — terkirim <?= (int) ($waLastStats['sent'] ?? 0) ?>, gagal <?= (int) ($waLastStats['failed'] ?? 0) ?>, dilewati <?= (int) ($waLastStats['skipped'] ?? 0) ?>
+                    <?php endif; ?>
+                </li>
+            <?php endif; ?>
+        </ul>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end" onsubmit="return confirm('Jalankan kirim WA tagihan sekarang? (mengabaikan cek hari jadwal, tetap hormati jam kirim jika diatur)');">
+            <input type="hidden" name="action" value="jalankan_wa_tagihan">
+            <div>
+                <label class="form-label small mb-0">Bulan tagihan (opsional)</label>
+                <input type="number" name="bulan_tagihan" class="form-control form-control-sm" min="0" max="12" value="0" placeholder="0 = bulan berjalan" style="width:6rem">
+            </div>
+            <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i>Jalankan kirim sekarang</button>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">Tagihan per santri</a>
+        </form>
+        <p class="small text-muted mb-0 mt-2">Untuk kirim per santri dengan tombol WA, buka halaman Tagihan Bulanan.</p>
     </div>
 </div>
 

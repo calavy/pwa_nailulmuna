@@ -1002,11 +1002,21 @@ function send_wa_message_with_result(PDO $pdo, string $phone, string $message, a
     }
     if ($isSuccess && is_string($response) && $response !== '') {
         $decoded = json_decode($response, true);
-        if (is_array($decoded) && array_key_exists('status', $decoded)) {
+        if (is_array($decoded)) {
+        if (array_key_exists('status', $decoded)) {
             $statusValue = $decoded['status'];
-            if ($statusValue === false || $statusValue === 0 || $statusValue === 'false') {
+            if ($statusValue === false || $statusValue === 0 || $statusValue === 'false' || $statusValue === 'failed' || $statusValue === 'error') {
                 $isSuccess = false;
             }
+            if (is_string($statusValue) && in_array(strtolower($statusValue), ['success', 'sent', 'ok', 'true'], true)) {
+                $isSuccess = true;
+            }
+        }
+        if (isset($decoded['success']) && ($decoded['success'] === false || $decoded['success'] === 0 || $decoded['success'] === 'false')) {
+            $isSuccess = false;
+        }
+        if (isset($decoded['error']) && $decoded['error'] !== '' && $decoded['error'] !== null) {
+            $isSuccess = false;
         }
     }
 
@@ -2547,11 +2557,11 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     $st->execute(['id' => $santriId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        return ['ok' => false, 'message' => 'Santri tidak ditemukan.', 'phone' => '', 'wa_url' => null, 'nama' => '', 'sisa' => 0];
+        return ['ok' => false, 'message' => 'Santri tidak ditemukan.', 'error' => 'Santri tidak ditemukan.', 'phone' => '', 'wa_url' => null, 'nama' => '', 'sisa' => 0];
     }
     $phone = trim((string) ($row['no_wa_wali'] ?? ''));
     if ($phone === '') {
-        return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
+        return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'error' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
     $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
     $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
@@ -2567,7 +2577,7 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     );
     $sisa = (int) ($stTag['sisa_total'] ?? 0);
     if ($sisa <= 0) {
-        return ['ok' => false, 'message' => 'Tagihan wajib sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
+        return ['ok' => false, 'message' => 'Tagihan wajib sudah lunas.', 'error' => 'Tagihan wajib sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
     $components = keuangan_tagihan_wajib_components($pdo, $kelas);
     $labelKekurangan = wa_tagihan_label_kekurangan($components, $stTag['per_pos'] ?? []);
@@ -2577,145 +2587,20 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     return [
         'ok' => true,
         'message' => $pesan,
+        'pesan' => $pesan,
         'phone' => $phone,
         'wa_url' => wa_me_chat_url($phone, $pesan),
         'nama' => $nama,
         'sisa' => $sisa,
+        'error' => '',
     ];
 }
 
 function trigger_auto_wa_tagihan_wali(PDO $pdo): void
 {
-    if (!function_exists('keuangan_tahun_ajaran_aktif')) {
-        require_once __DIR__ . '/keuangan_transaksi.php';
-    }
-    if (!table_exists($pdo, 'app_settings') || !table_exists($pdo, 'santri') || !table_exists($pdo, 'keuangan_pembayaran')) {
-        return;
-    }
-    ensure_santri_identity_columns($pdo);
-    if (!column_exists($pdo, 'santri', 'no_wa_wali')) {
-        return;
-    }
-    if (trim((string) app_setting($pdo, 'wa_tagihan_auto_enabled', '0')) !== '1') {
-        return;
-    }
-    $calendarMode = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
-    if (!in_array($calendarMode, ['MASEHI', 'HIJRIYAH'], true)) {
-        $calendarMode = 'HIJRIYAH';
-    }
-    $dueDay = (int) app_setting($pdo, 'wa_tagihan_day', '5');
-    $dueDay = max(1, min(30, $dueDay));
-    $customMasehiDatesRaw = trim((string) app_setting($pdo, 'wa_tagihan_custom_masehi_dates', ''));
-    $sendTime = trim((string) app_setting($pdo, 'wa_tagihan_send_time', '08:00'));
-    if ($sendTime !== '' && preg_match('/^\d{2}:\d{2}$/', $sendTime) && date('H:i') < $sendTime) {
-        return;
-    }
-
-    $today = date('Y-m-d');
-    $todayDay = (int) date('j');
-    $periodKey = date('Y-m');
-    if ($calendarMode === 'HIJRIYAH') {
-        $periodKey = get_hijri_year_month($today);
-        if (class_exists('IntlDateFormatter')) {
-            $fmtDay = new IntlDateFormatter(
-                islamic_calendar_locale(),
-                IntlDateFormatter::NONE,
-                IntlDateFormatter::NONE,
-                date_default_timezone_get(),
-                IntlDateFormatter::TRADITIONAL,
-                'd'
-            );
-            $hDay = $fmtDay->format(strtotime($today));
-            if (is_string($hDay) && ctype_digit($hDay)) {
-                $todayDay = (int) $hDay;
-            }
-        }
-    }
-    $isCustomMasehiDate = false;
-    if ($calendarMode === 'MASEHI') {
-        $customDates = wa_tagihan_parse_custom_masehi_dates($customMasehiDatesRaw);
-        if ($customDates !== []) {
-            if (!in_array($today, $customDates, true)) {
-                return;
-            }
-            $isCustomMasehiDate = true;
-            $periodKey = $today;
-        } elseif ($todayDay !== $dueDay) {
-            return;
-        }
-    } elseif ($todayDay !== $dueDay) {
-        return;
-    }
-
-    $lastSent = trim((string) app_setting($pdo, 'wa_tagihan_last_period_key', ''));
-    $sendKey = ($isCustomMasehiDate ? 'MASEHI_CUSTOM' : $calendarMode) . ':' . $periodKey;
-    if ($lastSent === $sendKey) {
-        return;
-    }
-
-    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
-    $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND is_aktif = 1 ' : '';
-    $stmt = $pdo->query('SELECT id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas, no_wa_wali FROM santri WHERE COALESCE(no_wa_wali, "") <> "" ' . $activeExpr . ' ORDER BY id ASC LIMIT 300');
-    $santriRows = $stmt ? $stmt->fetchAll() : [];
-    if (!$santriRows) {
-        return;
-    }
-
-    if (!function_exists('pondok_periode_berjalan')) {
-        require_once __DIR__ . '/pondok_kalender.php';
-    }
-    if (!function_exists('keuangan_tahun_ajaran_aktif')) {
-        require_once __DIR__ . '/keuangan_transaksi.php';
-    }
-    $periodeBerjalan = pondok_periode_berjalan($pdo);
-    $bulan = (int) ($periodeBerjalan['bulan'] ?? 1);
-    $periodeTa = keuangan_tahun_ajaran_aktif($pdo);
-    $tahunAjaranMulai = (int) ($periodeTa['mulai'] ?? 0);
-    $tahunAjaranSelesai = (int) ($periodeTa['selesai'] ?? 0);
-    if (!function_exists('tagihan_bulanan_page_context')) {
-        require_once __DIR__ . '/tagihan_bulanan.php';
-    }
-    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tahunAjaranMulai, $tahunAjaranSelesai);
-    $paidMap = $tagihanCtx['paid_map'];
-    $syCtx = $tagihanCtx['sy_ctx'];
-    $sentCount = 0;
-    foreach ($santriRows as $row) {
-        $santriId = (int) ($row['id'] ?? 0);
-        if ($santriId <= 0) {
-            continue;
-        }
-        $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
-        $components = keuangan_tagihan_wajib_components($pdo, $kelas);
-        if ($components === []) {
-            continue;
-        }
-        $st = tagihan_wajib_status_for_month_bulk(
-            $pdo,
-            $santriId,
-            $bulan,
-            $tahunAjaranMulai,
-            $tahunAjaranSelesai,
-            $kelas,
-            $paidMap,
-            $syCtx
-        );
-        $sisa = (int) ($st['sisa_total'] ?? 0);
-        if ($sisa <= 0) {
-            continue;
-        }
-
-        $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
-        $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
-        $message = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
-        if (send_wa_message($pdo, (string) ($row['no_wa_wali'] ?? ''), $message)) {
-            $sentCount++;
-        }
-    }
-
-    if ($sentCount > 0) {
-        save_setting($pdo, 'wa_tagihan_last_period_key', $sendKey);
-        save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
+    require_once __DIR__ . '/wa_tagihan.php';
+    if (function_exists('wa_tagihan_jalankan_kirim')) {
+        wa_tagihan_jalankan_kirim($pdo, false);
     }
 }
 

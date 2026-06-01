@@ -41,6 +41,10 @@ $ringkasan = rekap_keaktifan_hari_ringkasan_kegiatan($pdo, $tanggal, $tingkatan 
 $totals = rekap_keaktifan_hari_totals($ringkasan);
 
 $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
+$totalPerhatian = (int) ($totals['alpa'] ?? 0) + (int) ($totals['belum'] ?? 0);
+$kegiatanPerhatian = array_values(array_filter($detailKeg, static function (array $dk): bool {
+    return ((int) ($dk['alpa'] ?? 0) + (int) ($dk['belum'] ?? 0)) > 0;
+}));
 
 
 
@@ -196,7 +200,7 @@ require_once __DIR__ . '/../includes/header.php';
 
             <h1 class="h4 mb-1">Keaktifan santri hari ini</h1>
 
-            <p class="text-muted mb-0 small">Semua kegiatan aktif dalam satu layar · warna = status presensi</p>
+            <p class="text-muted mb-0 small">Satu layar untuk semua kegiatan — lihat siapa sudah scan dan siapa perlu ditindaklanjuti.</p>
 
         </div>
 
@@ -268,7 +272,28 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php else: ?>
 
+    <div class="alert alert-light border mb-3 py-2 small kh-panduan">
+        <strong class="d-block mb-1"><i class="fa-solid fa-circle-info me-1 text-primary"></i> Cara membaca</strong>
+        <span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> sudah scan ·
+        <span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> ada keterangan ·
+        <span class="kh-panduan__item kh-panduan__item--belum">Belum</span> kegiatan masih berlangsung, belum scan ·
+        <span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> tidak scan sampai jam kegiatan selesai.
+        Klik nama kegiatan di bawah untuk fokus, lalu <em>Daftar santri</em> untuk lihat nama.
+    </div>
 
+    <?php if ($totalPerhatian > 0): ?>
+    <div class="card border-warning mb-3 shadow-sm">
+        <div class="card-body py-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <span class="fw-semibold text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i><?= (int) $totalPerhatian ?> santri perlu perhatian</span>
+                    <span class="text-muted small ms-1">(alpa + belum scan)</span>
+                </div>
+                <span class="small text-muted"><?= count($kegiatanPerhatian) ?> kegiatan terdampak</span>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="kh-hero mb-3">
 
@@ -278,7 +303,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                 <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?><?= $tingkatan !== '' ? ' · ' . htmlspecialchars($tingkatan) : ' · Seluruh pondok' ?></div>
 
-                <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> entri presensi (santri × kegiatan)</div>
+                <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> pencatatan (santri × kegiatan)</div>
 
             </div>
 
@@ -339,6 +364,10 @@ require_once __DIR__ . '/../includes/header.php';
                     <?= htmlspecialchars((string) $rg['nama_kegiatan']) ?>
 
                     <span class="badge rounded-pill <?= $kegiatanId === $kid ? 'text-bg-light' : 'text-bg-secondary' ?>"><?= (int) $rg['hadir'] ?>/<?= (int) $rg['total'] ?></span>
+                    <?php $rgPerlu = (int) ($rg['alpa'] ?? 0) + (int) ($rg['belum'] ?? 0); ?>
+                    <?php if ($rgPerlu > 0): ?>
+                        <span class="badge rounded-pill text-bg-warning text-dark"><?= $rgPerlu ?> perlu</span>
+                    <?php endif; ?>
 
                 </a>
 
@@ -371,10 +400,11 @@ require_once __DIR__ . '/../includes/header.php';
             $preview = $previewNames(is_array($santri) ? $santri : []);
 
             $focus = $kegiatanId > 0 && $kegiatanId === $kid;
+            $needsAttention = $perlu > 0;
 
         ?>
 
-        <article class="kh-card<?= $focus ? ' is-focus' : '' ?>" id="keg-<?= $kid ?>" data-kegiatan-id="<?= $kid ?>">
+        <article class="kh-card<?= $focus ? ' is-focus' : '' ?><?= $needsAttention ? ' kh-card--warning' : '' ?>" id="keg-<?= $kid ?>" data-kegiatan-id="<?= $kid ?>">
 
             <div class="kh-card__head">
 
@@ -456,7 +486,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <div class="kh-tabs" role="tablist">
 
-                        <button type="button" class="kh-tab is-active" data-kh-tab="perlu" data-kh-card="<?= $kid ?>">Perlu (<?= $perlu ?>)</button>
+                        <button type="button" class="kh-tab is-active" data-kh-tab="perlu" data-kh-card="<?= $kid ?>">Perlu ditindak (<?= $perlu ?>)</button>
 
                         <button type="button" class="kh-tab" data-kh-tab="HADIR" data-kh-card="<?= $kid ?>">Hadir (<?= (int) $dk['hadir'] ?>)</button>
 
@@ -492,11 +522,11 @@ require_once __DIR__ . '/../includes/header.php';
 
                     ?>
 
-                    <ul class="kh-list<?= $tabKey === 'perlu' ? '' : ' d-none' ?>" data-kh-list="<?= htmlspecialchars((string) $tabKey) ?>" data-kh-card="<?= $kid ?>">
+                    <ul class="kh-list<?= $tabKey === 'perlu' ? '' : ' d-none' ?>" data-kh-list="<?= htmlspecialchars((string) $tabKey) ?>" data-kh-card="<?= $kid ?>"<?= $tabKey === 'perlu' && $list === [] ? ' data-empty="1"' : '' ?>>
 
                         <?php if ($list === []): ?>
 
-                            <li class="text-muted">Tidak ada data.</li>
+                            <li class="text-muted"><?= $tabKey === 'perlu' ? 'Semua santri sudah tercatat hadir/izin/sakit.' : 'Tidak ada data.' ?></li>
 
                         <?php endif; ?>
 

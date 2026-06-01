@@ -8,6 +8,24 @@
     --kh-belum: #94a3b8;
 }
 
+.kh-panduan__item {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 6px;
+    font-weight: 600;
+    margin: 0 0.15rem;
+}
+.kh-panduan__item--hadir { background: rgba(22, 163, 74, 0.12); color: var(--kh-hadir); }
+.kh-panduan__item--izin { background: rgba(217, 119, 6, 0.12); color: var(--kh-izin); }
+.kh-panduan__item--sakit { background: rgba(8, 145, 178, 0.12); color: var(--kh-sakit); }
+.kh-panduan__item--alpa { background: rgba(220, 38, 38, 0.12); color: var(--kh-alpa); }
+.kh-panduan__item--belum { background: rgba(148, 163, 184, 0.2); color: #475569; }
+
+.kh-card.kh-card--warning {
+    border-color: rgba(217, 119, 6, 0.45);
+    box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.15);
+}
+
 .kh-hero {
     border-radius: var(--radius-md, 12px);
     border: 1px solid var(--card-border, #e2e8f0);
