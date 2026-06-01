@@ -8,6 +8,9 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_defs.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan.php';
 require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
+require_once __DIR__ . '/../helpers/keuangan_kelas_syahriyah.php';
+require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
+require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
@@ -35,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'save_periode' => keuangan_save_periode_settings($pdo, $_POST),
         'save_tarif' => keuangan_save_tarif_settings($pdo, $_POST),
         'save_tarif_bulan' => keuangan_save_tarif_bulanan_settings($pdo, $_POST),
+        'save_pkpps_syahriyah' => keuangan_pkpps_syahriyah_save_settings($pdo, $_POST),
         'save_akun' => keuangan_save_akun($pdo, $_POST),
         'save_alokasi' => keuangan_save_alokasi($pdo, $_POST),
         default => ['ok' => false, 'message' => 'Aksi tidak dikenali.'],
@@ -44,12 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'save_tarif' => trim((string) ($_POST['redirect_bagian'] ?? '')) === 'syahriyah_makan'
             ? 'syahriyah_makan'
             : 'tarif',
-        'save_tarif_bulan' => 'syahriyah_makan',
+        'save_tarif_bulan', 'save_pkpps_syahriyah' => 'syahriyah_makan',
         'save_akun' => 'akun',
         'save_alokasi' => keuangan_alokasi_section_for_jenis((string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH)),
         default => 'umum',
     };
-    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?bagian=' . urlencode($redirectSection)));
+    $hash = match ($action) {
+        'save_pkpps_syahriyah' => '#tambahan-pkpps',
+        'save_tarif_bulan' => '#tarif-per-bulan',
+        default => '',
+    };
+    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?bagian=' . urlencode($redirectSection) . $hash));
     exit;
 }
 
@@ -73,6 +82,8 @@ if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
 } elseif ($section === 'syahriyah_makan') {
     ensure_keuangan_tarif_bulanan_table($pdo);
+    ensure_kelas_syahriyah_table($pdo);
+    pkpps_ensure_schema($pdo);
     $periode = pondok_tahun_ajaran_aktif($pdo);
     $taMeta = pondok_ta_form_meta($pdo);
     $syMakanDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), true);
@@ -84,6 +95,19 @@ if ($section === 'umum') {
     $taSelesaiTarifBulan = (int) $taNormBulan['selesai'];
     $bulanSlotsTarif = pondok_bulan_slots_tahun_ajaran($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
     $tarifBulanMap = keuangan_tarif_bulanan_map($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
+    $bulanLabelsShort = [];
+    foreach ($bulanSlotsTarif as $slot) {
+        $b = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($b >= 1 && $b <= 12) {
+            $bulanLabelsShort[$b] = pondok_bulan_slot_label_tampilan($pdo, $slot);
+        }
+    }
+    for ($b = 1; $b <= 12; $b++) {
+        if (!isset($bulanLabelsShort[$b])) {
+            $bulanLabelsShort[$b] = 'B' . $b;
+        }
+    }
+    $loadSyahriyahBulanToggle = true;
 } elseif ($section === 'tarif') {
     $biayaDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), false);
     $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefs);
@@ -135,7 +159,7 @@ require_once __DIR__ . '/../includes/header.php';
         <a class="nav-link <?= $section === 'umum' ? 'active' : '' ?>" href="?bagian=umum">Umum &amp; periode</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link <?= $section === 'syahriyah_makan' ? 'active' : '' ?>" href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>
+        <a class="nav-link <?= $section === 'syahriyah_makan' ? 'active' : '' ?>" href="?bagian=syahriyah_makan">Syahriyah (termasuk PKPPS)</a>
     </li>
     <li class="nav-item">
         <a class="nav-link <?= $section === 'tarif' ? 'active' : '' ?>" href="?bagian=tarif">Tarif lainnya</a>
@@ -201,7 +225,10 @@ require_once __DIR__ . '/../includes/header.php';
                     <i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri (%)
                 </a>
                 <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan')) ?>">
-                    <i class="fa-solid fa-calendar-days me-2"></i>Tarif syahriyah &amp; makan
+                    <i class="fa-solid fa-calendar-days me-2"></i>Syahriyah, makan &amp; tambahan PKPPS
+                </a>
+                <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">
+                    <i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan santri
                 </a>
                 <a class="btn btn-outline-primary text-start" href="/pembayaran/tagihan_syahriyah.php">
                     <i class="fa-solid fa-receipt me-2"></i>Tagihan syahriyah per bulan
@@ -219,7 +246,14 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <?php if ($section === 'syahriyah_makan'): ?>
+<div class="alert alert-info small mb-3">
+    Semua nominal di halaman ini otomatis dipakai di
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>"><strong>input pembayaran</strong></a>
+    dan <a href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">tagihan bulanan</a>
+    (syahriyah pokok + makan + <strong>tambahan PKPPS</strong> untuk santri PKPPS).
+</div>
 <?php require __DIR__ . '/partials/syahriyah_makan_pengaturan.php'; ?>
+<?php require __DIR__ . '/partials/syahriyah_tambahan_nominal.php'; ?>
 <?php endif; ?>
 
 <?php if ($section === 'tarif'): ?>
@@ -394,5 +428,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($section === 'umum' || $section === 'syahriyah_makan'): ?>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if (!empty($loadSyahriyahBulanToggle)): ?>
+<script src="<?= htmlspecialchars(app_href('/assets/js/syahriyah-bulan-toggle.js')) ?>" defer></script>
 <?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

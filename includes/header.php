@@ -98,6 +98,37 @@ $roleLabels = [
 $currentRoleLabel = $roleLabels[$currentRole] ?? user_role_label((string) $currentRole);
 $pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
+if (isset($_SESSION['user']) && !isset($loadPushFcm)) {
+    $loadPushFcm = true;
+}
+
+$topbarBackHref = '';
+$topbarBackLabel = 'Kembali';
+if (isset($_SESSION['user'])) {
+    $isPembimbingRole = strtolower((string) $currentRole) === 'pembimbing' && !is_super_admin();
+    $homeDash = $isPembimbingRole
+        ? app_href('/pembimbing/dashboard.php')
+        : app_href('/dashboard.php');
+    $pbDashViewParam = strtolower(trim((string) ($_GET['view'] ?? 'home')));
+    $isPembimbingDashHome = $isPembimbingRole
+        && $requestPath === '/pembimbing/dashboard.php'
+        && $pbDashViewParam === 'home';
+    $isHome = $requestPath === '/dashboard.php'
+        || $isPembimbingDashHome
+        || ($requestPath === '/pembimbing/' && $isPembimbingRole);
+    if (!$isHome) {
+        if ($isPembimbingRole) {
+            $topbarBackHref = app_href('/pembimbing/dashboard.php');
+            $topbarBackLabel = 'Kembali ke dashboard';
+        } elseif (preg_match('#^/pembimbing/#', $requestPath)) {
+            $topbarBackHref = app_href('/pembimbing/dashboard.php');
+            $topbarBackLabel = 'Kembali ke dashboard';
+        } else {
+            $topbarBackHref = $homeDash;
+        }
+    }
+}
+
 $hideAppSidebar = (bool) ($hideAppSidebar ?? false);
 if (!$hideAppSidebar && strtolower((string) $currentRole) === 'pembimbing' && !is_super_admin()) {
     $hideAppSidebar = true;
@@ -338,22 +369,42 @@ if (!function_exists('render_app_sidebar_nav')) {
                 <div class="app-topbar-right">
                     <?php if (isset($_SESSION['user'])): ?>
                         <span class="app-topbar-role badge rounded-pill d-none d-md-inline-flex"><?= htmlspecialchars($currentRoleLabel) ?></span>
-                        <a class="app-topbar-user-pill d-none d-sm-inline-flex" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="Profil &amp; foto">
-                            <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
-                            <span class="app-topbar-user-pill-text">
-                                <span class="app-topbar-user-name"><?= htmlspecialchars($currentUser) ?></span>
-                            </span>
-                        </a>
-                        <a class="app-topbar-user-pill d-inline-flex d-sm-none" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>" title="<?= htmlspecialchars($currentUser) ?>">
-                            <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
-                        </a>
-                        <button type="button" class="btn btn-sm app-topbar-icon-btn" id="btn-fcm-subscribe" title="Aktifkan notifikasi push" aria-label="Notifikasi">
-                            <i class="fa-solid fa-bell"></i>
-                        </button>
-                        <a class="btn btn-sm app-topbar-icon-btn app-topbar-logout" href="<?= htmlspecialchars(app_href('/logout.php')) ?>" title="Keluar">
-                            <i class="fa-solid fa-right-from-bracket d-sm-none" aria-hidden="true"></i>
-                            <span class="d-none d-sm-inline">Keluar</span>
-                        </a>
+                        <div class="dropdown app-topbar-profile-menu">
+                            <button type="button" class="app-topbar-user-pill dropdown-toggle d-none d-sm-inline-flex" data-bs-toggle="dropdown" aria-expanded="false" title="Profil &amp; pengaturan">
+                                <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                                <span class="app-topbar-user-pill-text">
+                                    <span class="app-topbar-user-name"><?= htmlspecialchars($currentUser) ?></span>
+                                </span>
+                            </button>
+                            <button type="button" class="app-topbar-user-pill dropdown-toggle d-inline-flex d-sm-none" data-bs-toggle="dropdown" aria-expanded="false" title="<?= htmlspecialchars($currentUser) ?>">
+                                <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end app-topbar-profile-dropdown shadow">
+                                <li>
+                                    <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/settings/profil.php')) ?>">
+                                        <i class="fa-solid fa-user me-2 opacity-75" aria-hidden="true"></i> Profil saya
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button type="button" class="dropdown-item js-fcm-subscribe" id="btn-fcm-subscribe">
+                                        <i class="fa-regular fa-bell me-2 opacity-75" aria-hidden="true"></i> Aktifkan notifikasi
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="app-topbar-stack">
+                            <a class="btn btn-sm app-topbar-icon-btn app-topbar-logout" href="<?= htmlspecialchars(app_href('/logout.php')) ?>" title="Keluar">
+                                <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                                <span class="d-none d-sm-inline ms-1">Keluar</span>
+                            </a>
+                            <?php if ($topbarBackHref !== ''): ?>
+                            <a class="app-topbar-back" href="<?= htmlspecialchars($topbarBackHref) ?>" title="<?= htmlspecialchars($topbarBackLabel) ?>">
+                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                                <span><?= htmlspecialchars($topbarBackLabel) ?></span>
+                            </a>
+                            <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>

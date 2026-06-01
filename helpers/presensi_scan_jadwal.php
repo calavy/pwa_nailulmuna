@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/akademik.php';
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/pkpps.php';
 
 /**
  * Konteks jadwal scan presensi untuk hari & jam tertentu (hitung mundur).
@@ -40,7 +41,12 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
         'slots' => [],
     ];
 
-    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+    if (!table_exists($pdo, 'kegiatan')) {
+        return $empty;
+    }
+    $hasKajian = table_exists($pdo, 'jadwal_kegiatan');
+    $hasPkpps = table_exists($pdo, 'pkpps_jadwal');
+    if (!$hasKajian && !$hasPkpps) {
         return $empty;
     }
 
@@ -72,8 +78,25 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
           ' . $kategoriFilterSql . '
         ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC
     ');
-    $st->execute(['hari_ke' => $hariKe]);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $rows = [];
+    if ($hasKajian) {
+        $st->execute(['hari_ke' => $hariKe]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    $pkppsSlotsRaw = pkpps_jadwal_slots_for_presensi_scan($pdo, $tanggal, $hariKe, $modeLiburAktif);
+    foreach ($pkppsSlotsRaw as $ps) {
+        $rows[] = [
+            'kegiatan_id' => (int) ($ps['kegiatan_id'] ?? 0),
+            'nama_kegiatan' => (string) ($ps['nama_kegiatan'] ?? ''),
+            'kategori_kegiatan' => 'TAALIM',
+            'tingkatan' => (string) ($ps['tingkatan'] ?? ''),
+            'jam_mulai' => (string) ($ps['jam_mulai'] ?? ''),
+            'jam_selesai' => (string) ($ps['jam_selesai'] ?? ''),
+            'tempat' => (string) ($ps['tempat'] ?? ''),
+        ];
+    }
+
     if ($rows === []) {
         return $empty;
     }

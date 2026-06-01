@@ -24,15 +24,11 @@ auth_portal_layout_begin([
     'nama_ponpes' => $welcome['ponpes'],
     'logo_url' => '',
     'layout' => 'split',
-    'card_title' => 'Masuk ke Portal',
-    'card_meta' => 'Pilih peran setelah menekan tombol di bawah',
+    'card_title' => 'Portal Masuk',
+    'card_meta' => 'Pilih peran sesuai kebutuhan Anda',
     'accent' => 'teal',
 ]);
 ?>
-<div class="d-grid gap-2">
-    <a class="btn btn-auth-primary btn-lg" href="<?= htmlspecialchars(app_href('/login.php')) ?>">
-        <i class="fa-solid fa-right-to-bracket me-2" aria-hidden="true"></i>Login Portal
-    </a>
-</div>
+<?php require __DIR__ . '/includes/partials/auth_portal_role_grid.php'; ?>
 <?php
 auth_portal_layout_end();

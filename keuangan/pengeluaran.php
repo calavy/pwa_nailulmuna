@@ -50,6 +50,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Catat beban keluar dari kas/bank. Untuk gaji pembimbing gunakan modul terpisah.
         <a href="/rekap/pembimbing.php">Gaji pembimbing</a>
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pengeluaran.php')) ?>">Riwayat pengeluaran</a>
         · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>

@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'fcm_web_api_key', trim((string) ($_POST['fcm_web_api_key'] ?? '')));
         save_setting($pdo, 'fcm_sender_id', trim((string) ($_POST['fcm_sender_id'] ?? '')));
         save_setting($pdo, 'fcm_app_id', trim((string) ($_POST['fcm_app_id'] ?? '')));
-        save_setting($pdo, 'fcm_notify_mode', in_array($_POST['fcm_notify_mode'] ?? '', ['push', 'wa', 'both'], true) ? (string) $_POST['fcm_notify_mode'] : 'both');
+        save_setting($pdo, 'fcm_notify_mode', in_array($_POST['fcm_notify_mode'] ?? '', ['push', 'wa', 'both'], true) ? (string) $_POST['fcm_notify_mode'] : 'wa');
         save_setting($pdo, 'fcm_daily_kiai_enabled', isset($_POST['fcm_daily_kiai_enabled']) ? '1' : '0');
         save_setting($pdo, 'fcm_daily_kiai_time', trim((string) ($_POST['fcm_daily_kiai_time'] ?? '20:00')));
         set_flash('success', 'Pengaturan FCM disimpan.');
@@ -82,15 +82,20 @@ if (table_exists($pdo, 'push_logs')) {
 
 $hasLocalFirebase = is_file(__DIR__ . '/../config/firebase.local.php');
 
-$pageTitle = 'Push FCM';
+$pageTitle = 'Notifikasi & Lonceng';
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/includes/settings_nav.php';
 ?>
 
 <div class="mb-3">
-    <h1 class="h4 mb-1">Push Notifications (FCM)</h1>
-    <p class="text-muted small mb-0">Ganti atau lengkapi WhatsApp Gateway dengan notifikasi real-time di layar kunci HP.</p>
-    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">← Kembali ke Pusat WA Otomatis</a></p>
+    <h1 class="h4 mb-1">Notifikasi & Lonceng</h1>
+    <p class="text-muted small mb-0">Atur cara pengiriman notifikasi. Untuk pembayaran dan pengumuman, Anda bisa pakai <strong>WhatsApp saja</strong> tanpa Firebase.</p>
+    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">← Pusat WA Otomatis</a></p>
+</div>
+
+<div class="alert alert-success py-2 small mb-3">
+    <strong>Paling mudah:</strong> pilih mode <em>WhatsApp saja</em> di bawah — notifikasi tagihan/pembayaran tetap jalan lewat WA Gateway tanpa perlu setup Firebase.
+    Push FCM (lonceng browser) opsional jika ingin notifikasi langsung di layar HP.
 </div>
 
 <div class="row g-3 mb-3">
@@ -151,12 +156,12 @@ require_once __DIR__ . '/includes/settings_nav.php';
                 <label class="form-check-label" for="fcm_enabled">Aktifkan FCM Push</label>
             </div>
         </div>
-        <div class="col-md-6">
-            <label class="form-label small">Mode notifikasi</label>
+        <div class="col-12">
+            <label class="form-label small fw-semibold">Mode notifikasi (disarankan: WhatsApp saja jika belum pakai Firebase)</label>
             <select name="fcm_notify_mode" class="form-select form-select-sm">
-                <option value="both" <?= $v('fcm_notify_mode', 'both') === 'both' ? 'selected' : '' ?>>Push + WhatsApp</option>
-                <option value="push" <?= $v('fcm_notify_mode') === 'push' ? 'selected' : '' ?>>Push saja</option>
-                <option value="wa" <?= $v('fcm_notify_mode') === 'wa' ? 'selected' : '' ?>>WhatsApp saja</option>
+                <option value="wa" <?= $v('fcm_notify_mode', 'wa') === 'wa' ? 'selected' : '' ?>>WhatsApp saja — tanpa Firebase</option>
+                <option value="both" <?= $v('fcm_notify_mode', 'wa') === 'both' ? 'selected' : '' ?>>Push lonceng + WhatsApp</option>
+                <option value="push" <?= $v('fcm_notify_mode') === 'push' ? 'selected' : '' ?>>Push lonceng saja</option>
             </select>
         </div>
         <div class="col-md-6">

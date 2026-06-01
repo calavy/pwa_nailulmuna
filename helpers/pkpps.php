@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/akademik.php';
 
 /** @return list<string> */
 function pkpps_default_tingkatan_names(): array
@@ -317,6 +318,30 @@ function pkpps_tingkatan_update(PDO $pdo, int $id, string $nama, int $urutan, in
 /**
  * @return array{ok:bool,message:string}
  */
+function pkpps_tingkatan_create(PDO $pdo, string $nama, int $urutan = 0, int $isAktif = 1): array
+{
+    pkpps_ensure_schema($pdo);
+    $nama = mb_substr(trim($nama), 0, 120);
+    if ($nama === '') {
+        return ['ok' => false, 'message' => 'Nama tingkatan PKPPS wajib diisi.'];
+    }
+    $dup = $pdo->prepare('SELECT id FROM pkpps_tingkatan WHERE nama_tingkatan = :n LIMIT 1');
+    $dup->execute(['n' => $nama]);
+    if ($dup->fetch()) {
+        return ['ok' => false, 'message' => 'Nama tingkatan PKPPS sudah ada.'];
+    }
+    if ($urutan <= 0) {
+        $urutan = (int) $pdo->query('SELECT COALESCE(MAX(urutan), 0) + 1 FROM pkpps_tingkatan')->fetchColumn();
+    }
+    $pdo->prepare('INSERT INTO pkpps_tingkatan (nama_tingkatan, urutan, is_aktif) VALUES (:n, :u, :a)')
+        ->execute(['n' => $nama, 'u' => $urutan, 'a' => $isAktif === 1 ? 1 : 0]);
+
+    return ['ok' => true, 'message' => 'Tingkatan PKPPS ditambahkan.'];
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
 function pkpps_tingkatan_delete(PDO $pdo, int $id): array
 {
     pkpps_ensure_schema($pdo);
@@ -340,4 +365,146 @@ function pkpps_tingkatan_delete(PDO $pdo, int $id): array
     $pdo->prepare('DELETE FROM pkpps_tingkatan WHERE id = :id')->execute(['id' => $id]);
 
     return ['ok' => true, 'message' => 'Tingkatan PKPPS dihapus.'];
+}
+
+/** Resolve kegiatan aktif PKPPS untuk santri pada tanggal & jam tertentu (mirip activity_for_tingkatan). */
+function activity_for_pkpps_santri(PDO $pdo, int $santriId, string $date, string $time): ?array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'pkpps_jadwal') || !table_exists($pdo, 'kegiatan')) {
+        return null;
+    }
+    $tingkatId = pkpps_tingkatan_id_for_santri($pdo, $santriId);
+    if ($tingkatId <= 0) {
+        return null;
+    }
+    ensure_kegiatan_kategori_column($pdo);
+    $modeLibur = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $date);
+    $kategoriFilter = $modeLibur !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLibur, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+    $day = date('N', strtotime($date));
+    $st = $pdo->prepare('
+        SELECT k.id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan,
+               j.id AS pkpps_jadwal_id, j.jam_mulai, j.jam_selesai, j.tempat,
+               t.nama_tingkatan AS pkpps_tingkatan
+        FROM pkpps_jadwal j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+        WHERE j.pkpps_tingkatan_id = :tid
+          AND j.is_aktif = 1
+          AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+          AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
+          AND k.is_active = 1
+          ' . $kategoriFilter . '
+        ORDER BY j.jam_mulai ASC
+        LIMIT 1
+    ');
+    $st->execute([
+        'tid' => $tingkatId,
+        'hari_ke' => $day,
+        'jam_now' => $time,
+    ]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return null;
+    }
+    $row['jadwal_kegiatan_id'] = null;
+    $row['sumber'] = 'pkpps';
+
+    return $row;
+}
+
+/** Jadwal aktif pembimbing dari pkpps_jadwal atau jadwal_kegiatan pada jam sekarang. */
+function jadwal_aktif_for_pembimbing(PDO $pdo, int $pembimbingId, string $date, string $time): ?array
+{
+    if ($pembimbingId <= 0) {
+        return null;
+    }
+    ensure_kegiatan_kategori_column($pdo);
+    ensure_jadwal_kegiatan_tempat($pdo);
+    $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $date);
+    $kategoriFilterSql = $modeLiburAktif !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+    $hariKe = (int) date('N', strtotime($date));
+
+    if (table_exists($pdo, 'jadwal_kegiatan')) {
+        $st = $pdo->prepare('
+            SELECT j.kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.tempat, "kajian" AS sumber
+            FROM jadwal_kegiatan j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            WHERE j.pembimbing_id = :pembimbing_id
+              AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+              AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
+              AND k.is_active = 1
+              ' . $kategoriFilterSql . '
+            ORDER BY j.jam_mulai ASC
+            LIMIT 1
+        ');
+        $st->execute([
+            'pembimbing_id' => $pembimbingId,
+            'hari_ke' => $hariKe,
+            'jam_now' => $time,
+        ]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            return $row;
+        }
+    }
+
+    if (table_exists($pdo, 'pkpps_jadwal')) {
+        pkpps_ensure_schema($pdo);
+        $stP = $pdo->prepare('
+            SELECT j.kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.tempat, "pkpps" AS sumber
+            FROM pkpps_jadwal j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            WHERE j.pembimbing_id = :pembimbing_id
+              AND j.is_aktif = 1
+              AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+              AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
+              AND k.is_active = 1
+              ' . $kategoriFilterSql . '
+            ORDER BY j.jam_mulai ASC
+            LIMIT 1
+        ');
+        $stP->execute([
+            'pembimbing_id' => $pembimbingId,
+            'hari_ke' => $hariKe,
+            'jam_now' => $time,
+        ]);
+        $rowP = $stP->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($rowP) ? $rowP : null;
+    }
+
+    return null;
+}
+
+/** @return list<array<string, mixed>> baris jadwal PKPPS hari ini untuk timer presensi. */
+function pkpps_jadwal_slots_for_presensi_scan(PDO $pdo, string $tanggal, int $hariKe, ?string $modeLiburAktif): array
+{
+    unset($tanggal);
+    if (!table_exists($pdo, 'pkpps_jadwal') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    pkpps_ensure_schema($pdo);
+    ensure_kegiatan_kategori_column($pdo);
+    $kategoriFilterSql = $modeLiburAktif !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+    $st = $pdo->prepare('
+        SELECT k.id AS kegiatan_id, k.nama_kegiatan, j.jam_mulai, j.jam_selesai, j.tempat,
+               CONCAT("PKPPS: ", t.nama_tingkatan) AS tingkatan
+        FROM pkpps_jadwal j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+        WHERE j.is_aktif = 1
+          AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+          AND k.is_active = 1
+          ' . $kategoriFilterSql . '
+        ORDER BY j.jam_mulai ASC, t.urutan ASC
+    ');
+    $st->execute(['hari_ke' => $hariKe]);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }

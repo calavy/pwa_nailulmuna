@@ -53,12 +53,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <label for="themePicker" class="small text-muted mb-0">Tema warna</label>
-        <select id="themePicker" class="form-select form-select-sm" style="width: 220px;">
-            <option value="brand" selected>Brand Pondok (Hijau Gelap)</option>
-            <option value="emerald">Hijau Emerald</option>
-            <option value="ocean">Biru Ocean</option>
-            <option value="royal">Ungu Royal</option>
-            <option value="sunset">Oranye Sunset</option>
+        <select id="themePicker" class="form-select form-select-sm" style="width: min(100%, 14rem);">
+            <?php require __DIR__ . '/partials/kartu_theme_options.php';
+            foreach ($kartuThemeOptions as $val => $label): ?>
+                <option value="<?= htmlspecialchars($val) ?>"<?= $val === 'brand' ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
         </select>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/munawib.php')) ?>" class="btn btn-outline-secondary btn-sm">Kembali</a>
         <button class="btn btn-outline-primary btn-sm" type="button" id="btnDownloadJpg">
@@ -80,7 +79,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 .mw-id-card:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 12% 88%, var(--card-gloss, rgba(255,255,255,.22)), transparent 42%); pointer-events:none; }
 .mw-top { display:flex; justify-content:flex-start; gap:3mm; position:relative; z-index:1; }
-.mw-logo { width:12mm; height:12mm; border-radius:2.2mm; object-fit:cover; padding:0; flex-shrink:0; }
+.mw-logo { width:12mm; height:12mm; border-radius:50%; object-fit:contain; padding:0.4mm; background:#fff; box-sizing:border-box; flex-shrink:0; }
 .mw-brand h2 { margin:0; font-size:3.7mm; font-weight:800; line-height:1.2; }
 .mw-brand .sub { font-size:2.6mm; opacity:.94; margin:0 0 .7mm; letter-spacing:.05em; font-weight:700; }
 .mw-brand .addr { font-size:2.2mm; opacity:.88; margin-top:.7mm; line-height:1.2; }

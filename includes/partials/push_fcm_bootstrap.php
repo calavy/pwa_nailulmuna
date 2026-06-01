@@ -50,52 +50,56 @@ window.PONDOK_FCM_OPTS = {
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.PondokFcm || !window.PONDOK_FCM_CONFIG || window.PONDOK_FCM_CONFIG.enabled !== '1') return;
 
-    var btn = document.getElementById('btn-fcm-subscribe');
     var storageKey = 'pondok_fcm_subscribed_' + (window.PONDOK_FCM_OPTS.audienceType || 'staff');
+    if (!document.querySelector('.js-fcm-subscribe')) return;
 
     function markSubscribed(active) {
-        if (!btn) return;
-        if (active) {
-            btn.classList.remove('btn-outline-light', 'btn-outline-success');
-            btn.classList.add('btn-success');
-            btn.title = 'Notifikasi push aktif';
-            btn.innerHTML = '<i class="fa-solid fa-bell"></i>';
-        } else {
-            btn.classList.remove('btn-success');
-            if (btn.classList.contains('btn-outline-success') || window.PONDOK_FCM_OPTS.audienceType === 'wali') {
-                btn.classList.add('btn-outline-success');
+        document.querySelectorAll('.js-fcm-subscribe').forEach(function (btn) {
+            if (active) {
+                btn.classList.remove('text-muted');
+                btn.classList.add('text-success');
+                btn.title = 'Notifikasi push aktif';
+                if (btn.classList.contains('dropdown-item')) {
+                    btn.innerHTML = '<i class="fa-solid fa-bell me-2"></i> Notifikasi aktif';
+                } else {
+                    btn.innerHTML = '<i class="fa-solid fa-bell me-1"></i> Notifikasi aktif';
+                }
             } else {
-                btn.classList.add('btn-outline-light');
+                btn.classList.remove('text-success');
+                btn.title = 'Aktifkan notifikasi push';
+                if (btn.classList.contains('dropdown-item')) {
+                    btn.innerHTML = '<i class="fa-regular fa-bell me-2 opacity-75" aria-hidden="true"></i> Aktifkan notifikasi';
+                } else {
+                    btn.innerHTML = '<i class="fa-regular fa-bell me-1"></i> Aktifkan notifikasi';
+                }
             }
-            btn.title = 'Aktifkan notifikasi push';
-            btn.innerHTML = '<i class="fa-regular fa-bell"></i>';
-        }
+        });
     }
 
     if (localStorage.getItem(storageKey) === '1') {
         markSubscribed(true);
     }
 
-    if (!btn) return;
-
-    btn.addEventListener('click', function () {
-        btn.disabled = true;
-        PondokFcm.init(Object.assign({}, window.PONDOK_FCM_OPTS, { prompt: true })).then(function (r) {
-            btn.disabled = false;
-            if (r.ok) {
-                localStorage.setItem(storageKey, '1');
-                markSubscribed(true);
-                alert('Notifikasi push aktif di perangkat ini.');
-            } else if (r.reason === 'denied') {
-                alert('Izin notifikasi ditolak. Aktifkan di pengaturan browser / HP.');
-            } else if (r.reason === 'not_configured') {
-                alert('FCM belum dikonfigurasi. Buka Settings → Push FCM.');
-            } else {
-                alert('Gagal mengaktifkan push. Periksa Settings → Push FCM.');
-            }
-        }).catch(function () {
-            btn.disabled = false;
-            alert('Gagal menghubungkan ke Firebase.');
+    document.querySelectorAll('.js-fcm-subscribe').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            btn.disabled = true;
+            PondokFcm.init(Object.assign({}, window.PONDOK_FCM_OPTS, { prompt: true })).then(function (r) {
+                document.querySelectorAll('.js-fcm-subscribe').forEach(function (b) { b.disabled = false; });
+                if (r.ok) {
+                    localStorage.setItem(storageKey, '1');
+                    markSubscribed(true);
+                    alert('Notifikasi push aktif di perangkat ini.');
+                } else if (r.reason === 'denied') {
+                    alert('Izin notifikasi ditolak. Aktifkan di pengaturan browser / HP.');
+                } else if (r.reason === 'not_configured') {
+                    alert('FCM belum dikonfigurasi. Buka Settings → Push FCM.');
+                } else {
+                    alert('Gagal mengaktifkan push. Periksa Settings → Push FCM.');
+                }
+            }).catch(function () {
+                document.querySelectorAll('.js-fcm-subscribe').forEach(function (b) { b.disabled = false; });
+                alert('Gagal menghubungkan ke Firebase.');
+            });
         });
     });
 });

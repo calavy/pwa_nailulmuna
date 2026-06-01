@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/kartu_brand_colors.php';
+require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -25,14 +26,8 @@ if (!is_array($row)) {
     exit;
 }
 
-$jadwalCount = 0;
-if (table_exists($pdo, 'jadwal_kegiatan')) {
-    $stJ = $pdo->prepare('SELECT COUNT(*) FROM jadwal_kegiatan WHERE pembimbing_id = :id');
-    $stJ->execute(['id' => $id]);
-    $jadwalCount = (int) ($stJ->fetchColumn() ?: 0);
-}
-if ($jadwalCount <= 0) {
-    set_flash('error', 'Kartu baru bisa dicetak setelah pembimbing tertaut ke jadwal.');
+if (!pembimbing_can_print_kartu($pdo, $id)) {
+    set_flash('error', 'Kartu baru bisa dicetak setelah pembimbing tertaut ke jadwal kajian atau jadwal PKPPS.');
     header('Location: ' . app_href('/pembimbing/index.php'));
     exit;
 }
@@ -63,12 +58,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <label for="themePicker" class="small text-muted mb-0">Tema warna</label>
-        <select id="themePicker" class="form-select form-select-sm" style="width: 220px;">
-            <option value="brand" selected>Brand Pondok (Hijau Gelap)</option>
-            <option value="ocean">Biru Ocean</option>
-            <option value="emerald">Hijau Emerald</option>
-            <option value="royal">Ungu Royal</option>
-            <option value="sunset">Oranye Sunset</option>
+        <select id="themePicker" class="form-select form-select-sm" style="width: min(100%, 14rem);">
+            <?php require __DIR__ . '/partials/kartu_theme_options.php';
+            foreach ($kartuThemeOptions as $val => $label): ?>
+                <option value="<?= htmlspecialchars($val) ?>"<?= $val === 'brand' ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
         </select>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Kembali</a>
         <button class="btn btn-outline-primary btn-sm" type="button" id="btnDownloadJpg">
@@ -115,8 +109,9 @@ require_once __DIR__ . '/../includes/header.php';
 .pb-id-brand .sub { font-size:2.8mm; opacity:.92; margin:0 0 .7mm; font-weight:700; letter-spacing:.04em; }
 .pb-id-brand .addr { font-size:2.35mm; opacity:.88; margin-top:.7mm; line-height:1.2; }
 .pb-id-logo {
-    width: 12mm; height: 12mm; border-radius: 2.2mm;
-    object-fit: cover; padding: 0; flex-shrink:0;
+    width: 12mm; height: 12mm; border-radius: 50%;
+    object-fit: contain; padding: 0.4mm; flex-shrink: 0;
+    background: #fff; box-sizing: border-box;
 }
 .pb-id-body { display:flex; justify-content:space-between; gap: 3mm; align-items:flex-end; margin-top: 1.4mm; }
 .pb-id-meta { min-width:0; flex:1; }

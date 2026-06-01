@@ -223,6 +223,99 @@ function pb_jadwal_ambil_slot_pembimbing(PDO $pdo, int $pembimbingId, int $jadwa
     return ['ok' => false, 'pesan' => 'Jadwal tidak ditemukan atau bukan milik Anda hari ini.'];
 }
 
+function pb_jadwal_jam_overlap(string $mulaiA, string $selesaiA, string $mulaiB, string $selesaiB): bool
+{
+    $a0 = substr(jadwal_norm_jam($mulaiA), 0, 8);
+    $a1 = substr(jadwal_norm_jam($selesaiA), 0, 8);
+    $b0 = substr(jadwal_norm_jam($mulaiB), 0, 8);
+    $b1 = substr(jadwal_norm_jam($selesaiB), 0, 8);
+
+    return $a0 < $b1 && $b0 < $a1;
+}
+
+/**
+ * Jam efektif jadwal pada tanggal (termasuk override pindah waktu).
+ *
+ * @return array{mulai:string,selesai:string}
+ */
+function pb_jadwal_jam_efektif_hari(PDO $pdo, int $jadwalId, string $tanggal, string $jamMulai, string $jamSelesai): array
+{
+    $st = $pdo->prepare('
+        SELECT jam_mulai_baru, jam_selesai_baru
+        FROM pembimbing_jadwal_override
+        WHERE jadwal_id = :jid AND tanggal = :tgl AND jenis = "PINDAH_WAKTU"
+        LIMIT 1
+    ');
+    $st->execute(['jid' => $jadwalId, 'tgl' => $tanggal]);
+    $ov = $st->fetch(PDO::FETCH_ASSOC);
+    if (is_array($ov) && !empty($ov['jam_mulai_baru'])) {
+        return [
+            'mulai' => (string) $ov['jam_mulai_baru'],
+            'selesai' => (string) ($ov['jam_selesai_baru'] ?? $jamSelesai),
+        ];
+    }
+
+    return ['mulai' => $jamMulai, 'selesai' => $jamSelesai];
+}
+
+/**
+ * Cek bentrok waktu baru dengan jadwal pembimbing lain atau kegiatan tingkatan sama.
+ *
+ * @param array<string,mixed> $slot
+ * @return array{bentrok:bool,items:list<array<string,string>>}
+ */
+function pb_jadwal_cek_bentrok_pindah_waktu(PDO $pdo, int $pembimbingId, array $slot, string $tanggal, string $jamMulaiBaru, string $jamSelesaiBaru): array
+{
+    $tingkatan = trim((string) ($slot['tingkatan'] ?? ''));
+    $excludeJid = (int) ($slot['jadwal_id'] ?? 0);
+    if ($tingkatan === '' || $excludeJid <= 0) {
+        return ['bentrok' => false, 'items' => []];
+    }
+    $hariKe = (int) date('N', strtotime($tanggal));
+    ensure_kegiatan_kategori_column($pdo);
+
+    $st = $pdo->prepare('
+        SELECT j.id AS jadwal_id, j.jam_mulai, j.jam_selesai, j.tingkatan, j.pembimbing_id,
+               k.nama_kegiatan, p.nama_pembimbing
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        LEFT JOIN pembimbing p ON p.id = j.pembimbing_id
+        WHERE (j.hari_ke = :hk OR j.hari_ke = 0)
+          AND j.id != :excl
+          AND (j.pembimbing_id = :pb OR j.tingkatan = :tk)
+          AND COALESCE(k.is_active, 1) = 1
+    ');
+    $st->execute(['hk' => $hariKe, 'excl' => $excludeJid, 'pb' => $pembimbingId, 'tk' => $tingkatan]);
+
+    $items = [];
+    $seen = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $jid = (int) ($row['jadwal_id'] ?? 0);
+        if ($jid <= 0 || isset($seen[$jid])) {
+            continue;
+        }
+        $seen[$jid] = true;
+        $efektif = pb_jadwal_jam_efektif_hari(
+            $pdo,
+            $jid,
+            $tanggal,
+            (string) ($row['jam_mulai'] ?? ''),
+            (string) ($row['jam_selesai'] ?? '')
+        );
+        if (!pb_jadwal_jam_overlap($jamMulaiBaru, $jamSelesaiBaru, $efektif['mulai'], $efektif['selesai'])) {
+            continue;
+        }
+        $items[] = [
+            'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '—'),
+            'tingkatan' => (string) ($row['tingkatan'] ?? '—'),
+            'jam' => substr($efektif['mulai'], 0, 5) . '–' . substr($efektif['selesai'], 0, 5),
+            'pembimbing' => (string) ($row['nama_pembimbing'] ?? '—'),
+        ];
+    }
+
+    return ['bentrok' => $items !== [], 'items' => $items];
+}
+
 function pb_jadwal_kirim_notifikasi(PDO $pdo, string $judul, string $isi): void
 {
     $waTujuan = trim((string) app_setting($pdo, 'wa_pembimbing_izin', ''));
@@ -257,7 +350,7 @@ function pb_jadwal_simpan_pindah_waktu(PDO $pdo, int $pembimbingId, array $slot,
         return ['ok' => false, 'pesan' => 'Batas pergeseran waktu (' . PB_JADWAL_MAX_PINDAH_BULAN . 'x/bulan per kegiatan) sudah tercapai.'];
     }
     if (trim($alasan) === '') {
-        return ['ok' => false, 'pesan' => 'Alasan wajib diisi.'];
+        return ['ok' => false, 'pesan' => 'Catatan wajib diisi.'];
     }
 
     $durasi = (int) ($slot['durasi_menit'] ?? 60);
@@ -326,7 +419,7 @@ function pb_jadwal_simpan_ganti_materi(PDO $pdo, int $pembimbingId, array $slot,
         return ['ok' => false, 'pesan' => 'Tugas/materi pengganti wajib diisi.'];
     }
     if ($alasan === '') {
-        return ['ok' => false, 'pesan' => 'Alasan/sebab wajib diisi.'];
+        return ['ok' => false, 'pesan' => 'Catatan wajib diisi.'];
     }
 
     $jadwalId = (int) ($slot['jadwal_id'] ?? 0);
@@ -380,7 +473,7 @@ function pb_jadwal_simpan_cari_munawib(PDO $pdo, int $pembimbingId, array $slot,
         return ['ok' => false, 'pesan' => 'Pilih munawib pengganti.'];
     }
     if (trim($alasan) === '') {
-        return ['ok' => false, 'pesan' => 'Alasan wajib diisi.'];
+        return ['ok' => false, 'pesan' => 'Catatan wajib diisi.'];
     }
     if ($materiRows === []) {
         return ['ok' => false, 'pesan' => 'Isi tugas/materi per halaman untuk munawib.'];

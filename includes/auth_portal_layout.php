@@ -36,9 +36,7 @@ function auth_portal_salam_islami(): string
 function auth_portal_formal_body_paragraphs(): array
 {
     return [
-        'Selamat datang di pusat layanan informasi, akademik, dan administrasi digital Pondok Pesantren API Nailul Muna.',
-        'Platform ini menyelaraskan tradisi luhur pesantren dengan teknologi modern untuk komunikasi, pemantauan santri, dan tata kelola yang efisien serta transparan.',
-        'Semoga digitalisasi ini memudahkan civitas, pengurus, dan wali santri dalam satu pintu genggaman demi kelancaran khidmah bersama.',
+        'Selamat datang di portal resmi A.P.I Nailul Muna, silahkan pilih peran lalu masuk dengan akun yang telah diberikan.',
     ];
 }
 
@@ -323,7 +321,7 @@ function auth_portal_layout_begin(array $ctx): void
         <header class="auth-portal-hero">
             <div class="auth-portal-kop">
                 <div class="auth-portal-kop__logo">
-                    <div class="logo-ring<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>">
+                    <div class="logo-ring logo-ring--round<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>">
                         <?php if ($logoUrl !== ''): ?>
                             <img
                                 src="<?= htmlspecialchars($logoUrl) ?>"

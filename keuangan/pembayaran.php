@@ -62,6 +62,7 @@ $recentRows = keuangan_recent_pembayaran($pdo, 12);
 
 $pageTitle = 'Input Pembayaran';
 $bodyClass = keuangan_body_class('keuangan-form-page');
+$loadSantriSelectJs = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -73,6 +74,7 @@ require_once __DIR__ . '/../includes/header.php';
         Bulan tagihan ikut kalender <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>.
         <span class="text-nowrap">·</span> <a href="/keuangan/pemasukan.php">Pemasukan lain</a>
         <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
+        <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=syahriyah_makan">Pengaturan syahriyah &amp; PKPPS</a>
         <span class="text-nowrap">·</span> <a href="/settings/opsional_santri.php">Atur Makan &amp; Saku</a>
     </p>
 </div>
@@ -103,7 +105,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-semibold small text-muted mb-1">Santri <span class="text-danger">*</span></label>
-                            <select name="santri_id" id="santri_id" class="form-select form-select-lg" required data-search-placeholder="Ketik NIS atau nama santri…">
+                            <select name="santri_id" id="santri_id" class="form-select form-select-lg santri-select-searchable" required data-search-placeholder="Ketik nama atau NIS santri…">
                                 <option value="">— Pilih santri —</option>
                                 <?php foreach ($santriRows as $s): ?>
                                     <?php $sid = (int) $s['id']; ?>

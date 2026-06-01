@@ -135,6 +135,12 @@ function pembimbing_dashboard_tingkatan_list(PDO $pdo, ?int $pembimbingId, bool 
             $out[] = $t;
         }
     }
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    foreach (pembimbing_pkpps_tingkatan_labels($pdo, $pembimbingId) as $lbl) {
+        if (!in_array($lbl, $out, true)) {
+            $out[] = $lbl;
+        }
+    }
 
     return $out;
 }
@@ -191,42 +197,59 @@ function pembimbing_dashboard_jumlah_santri(PDO $pdo, array $tingkatanList): arr
  */
 function pembimbing_dashboard_jumlah_santri_map(PDO $pdo, array $tingkatanList): array
 {
-    if (!table_exists($pdo, 'santri') || !column_exists($pdo, 'santri', 'tingkatan') || $tingkatanList === []) {
+    if ($tingkatanList === []) {
         return [];
     }
-    $aktifSql = santri_sql_aktif_only('s');
-    [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
-    $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin');
-    $sql = 'SELECT TRIM(s.tingkatan) AS tingkatan,
-                COUNT(*) AS total'
-        . ($hasJk
-            ? ', SUM(CASE WHEN TRIM(s.jenis_kelamin) = "Laki-laki" THEN 1 ELSE 0 END) AS putra'
-            . ', SUM(CASE WHEN TRIM(s.jenis_kelamin) = "Perempuan" THEN 1 ELSE 0 END) AS putri'
-            : ', 0 AS putra, 0 AS putri')
-        . ' FROM santri s
-            WHERE ' . $aktifSql . '
-              AND TRIM(s.tingkatan) IN (' . $inSql . ')
-            GROUP BY TRIM(s.tingkatan)';
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    $out = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-        $tk = trim((string) ($row['tingkatan'] ?? ''));
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $kajianList = [];
+    $pkppsLabels = [];
+    foreach ($tingkatanList as $tk) {
+        $tk = trim((string) $tk);
         if ($tk === '') {
             continue;
         }
-        $out[$tk] = [
-            'total' => (int) ($row['total'] ?? 0),
-            'putra' => (int) ($row['putra'] ?? 0),
-            'putri' => (int) ($row['putri'] ?? 0),
-        ];
-    }
-    // Pastikan setiap tingkatan asuhan ada di map (meski 0 santri).
-    foreach ($tingkatanList as $tk) {
-        $tk = trim((string) $tk);
-        if ($tk !== '' && !isset($out[$tk])) {
-            $out[$tk] = ['total' => 0, 'putra' => 0, 'putri' => 0];
+        if (pembimbing_pkpps_is_label($tk)) {
+            $pkppsLabels[] = $tk;
+        } else {
+            $kajianList[] = $tk;
         }
+    }
+    $out = [];
+    if ($kajianList !== [] && table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) {
+        $aktifSql = santri_sql_aktif_only('s');
+        [$inSql, $params] = pembimbing_dashboard_in_clause($kajianList, 'tk');
+        $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin');
+        $sql = 'SELECT TRIM(s.tingkatan) AS tingkatan,
+                    COUNT(*) AS total'
+            . ($hasJk
+                ? ', SUM(CASE WHEN TRIM(s.jenis_kelamin) = "Laki-laki" THEN 1 ELSE 0 END) AS putra'
+                . ', SUM(CASE WHEN TRIM(s.jenis_kelamin) = "Perempuan" THEN 1 ELSE 0 END) AS putri'
+                : ', 0 AS putra, 0 AS putri')
+            . ' FROM santri s
+                WHERE ' . $aktifSql . '
+                  AND TRIM(s.tingkatan) IN (' . $inSql . ')
+                GROUP BY TRIM(s.tingkatan)';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $tk = trim((string) ($row['tingkatan'] ?? ''));
+            if ($tk === '') {
+                continue;
+            }
+            $out[$tk] = [
+                'total' => (int) ($row['total'] ?? 0),
+                'putra' => (int) ($row['putra'] ?? 0),
+                'putri' => (int) ($row['putri'] ?? 0),
+            ];
+        }
+        foreach ($kajianList as $tk) {
+            if (!isset($out[$tk])) {
+                $out[$tk] = ['total' => 0, 'putra' => 0, 'putri' => 0];
+            }
+        }
+    }
+    if ($pkppsLabels !== []) {
+        $out = array_merge($out, pembimbing_pkpps_jumlah_santri_map($pdo, $pkppsLabels));
     }
 
     return $out;
@@ -361,43 +384,31 @@ function pembimbing_dashboard_presensi_hari_ini(PDO $pdo, array $tingkatanList, 
  */
 function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, int $tahun, int $limit = 200): array
 {
-    if (!table_exists($pdo, 'santri') || !column_exists($pdo, 'santri', 'tingkatan') || $tingkatanList === []) {
+    if (!table_exists($pdo, 'santri') || $tingkatanList === []) {
         return [];
     }
-    $aktifSql = santri_sql_aktif_only('s');
-    [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
-    $params['th'] = $tahun;
-    $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin') ? 's.jenis_kelamin' : '""';
-    $limit = max(1, min(500, $limit));
-    $sql = '
-        SELECT
-            s.id AS santri_id,
-            s.nis,
-            s.nama_santri,
-            COALESCE(s.tingkatan, "") AS tingkatan,
-            COALESCE(' . $hasJk . ', "") AS jenis_kelamin,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
-            COALESCE(COUNT(p.id), 0) AS total
-        FROM santri s
-        LEFT JOIN presensi p ON p.santri_id = s.id AND YEAR(p.tanggal_presensi) = :th
-        WHERE ' . $aktifSql . '
-          AND s.tingkatan IN (' . $inSql . ')
-        GROUP BY s.id, s.nis, s.nama_santri, s.tingkatan, ' . $hasJk . '
-        ORDER BY s.tingkatan ASC, s.nama_santri ASC
-        LIMIT ' . $limit;
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $kajianList = [];
+    $pkppsLabels = [];
+    foreach ($tingkatanList as $tk) {
+        $tk = trim((string) $tk);
+        if ($tk === '') {
+            continue;
+        }
+        if (pembimbing_pkpps_is_label($tk)) {
+            $pkppsLabels[] = $tk;
+        } else {
+            $kajianList[] = $tk;
+        }
+    }
 
     $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
     $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
     $manualNilai = santri_keaktifan_nilai_map_for_tahun($pdo, $tahun);
-
+    $limit = max(1, min(500, $limit));
     $out = [];
-    foreach ($rows as $r) {
+
+    $appendRow = static function (array $r) use (&$out, $manualNilai, $goodMax, $mediumMax): void {
         $sid = (int) ($r['santri_id'] ?? 0);
         $hadir = (int) ($r['hadir'] ?? 0);
         $izin = (int) ($r['izin'] ?? 0);
@@ -433,6 +444,89 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
             'label' => $label,
             'sumber' => $sumber,
         ];
+    };
+
+    if ($kajianList !== [] && column_exists($pdo, 'santri', 'tingkatan')) {
+        $aktifSql = santri_sql_aktif_only('s');
+        [$inSql, $params] = pembimbing_dashboard_in_clause($kajianList, 'tk');
+        $params['th'] = $tahun;
+        $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin') ? 's.jenis_kelamin' : '""';
+        $sql = '
+            SELECT
+                s.id AS santri_id,
+                s.nis,
+                s.nama_santri,
+                COALESCE(s.tingkatan, "") AS tingkatan,
+                COALESCE(' . $hasJk . ', "") AS jenis_kelamin,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+                COALESCE(COUNT(p.id), 0) AS total
+            FROM santri s
+            LEFT JOIN presensi p ON p.santri_id = s.id AND YEAR(p.tanggal_presensi) = :th
+            WHERE ' . $aktifSql . '
+              AND s.tingkatan IN (' . $inSql . ')
+            GROUP BY s.id, s.nis, s.nama_santri, s.tingkatan, ' . $hasJk . '
+            ORDER BY s.tingkatan ASC, s.nama_santri ASC';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $appendRow($r);
+        }
+    }
+
+    if ($pkppsLabels !== [] && table_exists($pdo, 'pkpps_santri')) {
+        pkpps_ensure_schema($pdo);
+        $tingkatanIds = [];
+        foreach ($pkppsLabels as $lbl) {
+            $nama = trim(substr(trim($lbl), strlen(PEMBIMBING_PKPPS_LABEL_PREFIX)));
+            if ($nama === '') {
+                continue;
+            }
+            $stT = $pdo->prepare('SELECT id FROM pkpps_tingkatan WHERE nama_tingkatan = :n LIMIT 1');
+            $stT->execute(['n' => $nama]);
+            $tid = (int) ($stT->fetchColumn() ?: 0);
+            if ($tid > 0) {
+                $tingkatanIds[$tid] = $lbl;
+            }
+        }
+        if ($tingkatanIds !== []) {
+            $aktifSql = santri_sql_aktif_only('s');
+            $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin') ? 's.jenis_kelamin' : '""';
+            $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+            $ph = implode(',', array_fill(0, count($tingkatanIds), '?'));
+            $params = array_merge([$tahun], array_keys($tingkatanIds));
+            $sql = '
+                SELECT
+                    s.id AS santri_id,
+                    s.nis,
+                    s.' . $nameCol . ' AS nama_santri,
+                    t.nama_tingkatan AS pkpps_nama,
+                    COALESCE(' . $hasJk . ', "") AS jenis_kelamin,
+                    COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+                    COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+                    COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+                    COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+                    COALESCE(COUNT(p.id), 0) AS total
+                FROM pkpps_santri ps
+                INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
+                INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
+                LEFT JOIN presensi p ON p.santri_id = s.id AND YEAR(p.tanggal_presensi) = ?
+                WHERE ps.is_aktif = 1 AND ps.pkpps_tingkatan_id IN (' . $ph . ')
+                GROUP BY s.id, s.nis, s.' . $nameCol . ', t.nama_tingkatan, ' . $hasJk . '
+                ORDER BY t.urutan ASC, s.' . $nameCol . ' ASC';
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $r['tingkatan'] = pembimbing_pkpps_label((string) ($r['pkpps_nama'] ?? ''));
+                $appendRow($r);
+            }
+        }
+    }
+
+    if (count($out) > $limit) {
+        $out = array_slice($out, 0, $limit);
     }
 
     return $out;
@@ -548,33 +642,273 @@ function pembimbing_dashboard_tingkatan_color_index(string $tingkatan): int
  *
  * @return list<array<string,mixed>>
  */
-function pembimbing_dashboard_kegiatan_aktif(PDO $pdo, array $tingkatanList, int $hariKe, string $jamSekarang): array
+function pembimbing_dashboard_kegiatan_aktif(
+    PDO $pdo,
+    array $tingkatanList,
+    int $hariKe,
+    string $jamSekarang,
+    ?int $pembimbingId = null
+): array {
+    $out = [];
+    if ($tingkatanList !== [] && table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
+        $params['hari'] = $hariKe;
+        $params['jam'] = $jamSekarang;
+        $sql = '
+            SELECT
+                k.nama_kegiatan,
+                j.tingkatan,
+                j.jam_mulai,
+                j.jam_selesai,
+                j.tempat
+            FROM jadwal_kegiatan j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            WHERE (j.hari_ke = 0 OR j.hari_ke = :hari)
+              AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
+              AND COALESCE(k.is_active, 1) = 1
+              AND (j.tingkatan = "Semua Tingkatan" OR j.tingkatan IN (' . $inSql . '))
+            ORDER BY j.jam_mulai ASC, j.tingkatan ASC
+        ';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $out = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    if ($pembimbingId !== null && $pembimbingId > 0 && table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'kegiatan')) {
+        require_once __DIR__ . '/pembimbing_pkpps.php';
+        pkpps_ensure_schema($pdo);
+        $stPk = $pdo->prepare('
+            SELECT k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+            FROM pkpps_jadwal j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+            WHERE j.pembimbing_id = :pid AND j.is_aktif = 1
+              AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+              AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
+              AND COALESCE(k.is_active, 1) = 1
+            ORDER BY j.jam_mulai ASC, t.urutan ASC
+        ');
+        $stPk->execute(['pid' => $pembimbingId, 'hari' => $hariKe, 'jam' => $jamSekarang]);
+        foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $out[] = [
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+                'tingkatan' => pembimbing_pkpps_label((string) ($row['nama_tingkatan'] ?? '')),
+                'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
+                'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
+                'tempat' => (string) ($row['tempat'] ?? ''),
+            ];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Kegiatan terdekat hari ini yang belum dimulai (jam_mulai > sekarang).
+ *
+ * @return list<array<string,mixed>>
+ */
+function pembimbing_dashboard_kegiatan_mendekati(
+    PDO $pdo,
+    array $tingkatanList,
+    int $hariKe,
+    string $jamSekarang,
+    int $limit = 5,
+    ?int $pembimbingId = null
+): array {
+    $out = [];
+    if ($tingkatanList !== [] && table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
+        $params['hari'] = $hariKe;
+        $params['jam'] = $jamSekarang;
+        $sql = '
+            SELECT
+                k.nama_kegiatan,
+                j.tingkatan,
+                j.jam_mulai,
+                j.jam_selesai,
+                j.tempat
+            FROM jadwal_kegiatan j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            WHERE (j.hari_ke = 0 OR j.hari_ke = :hari)
+              AND j.jam_mulai > :jam
+              AND COALESCE(k.is_active, 1) = 1
+              AND (j.tingkatan = "Semua Tingkatan" OR j.tingkatan IN (' . $inSql . '))
+            ORDER BY j.jam_mulai ASC, j.tingkatan ASC
+            LIMIT ' . max(1, min(20, $limit)) . '
+        ';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $out = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    if ($pembimbingId !== null && $pembimbingId > 0 && table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'kegiatan')) {
+        require_once __DIR__ . '/pembimbing_pkpps.php';
+        pkpps_ensure_schema($pdo);
+        $stPk = $pdo->prepare('
+            SELECT k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+            FROM pkpps_jadwal j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+            WHERE j.pembimbing_id = :pid AND j.is_aktif = 1
+              AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+              AND j.jam_mulai > :jam
+              AND COALESCE(k.is_active, 1) = 1
+            ORDER BY j.jam_mulai ASC, t.urutan ASC
+            LIMIT ' . max(1, min(20, $limit)) . '
+        ');
+        $stPk->execute(['pid' => $pembimbingId, 'hari' => $hariKe, 'jam' => $jamSekarang]);
+        foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $out[] = [
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+                'tingkatan' => pembimbing_pkpps_label((string) ($row['nama_tingkatan'] ?? '')),
+                'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
+                'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
+                'tempat' => (string) ($row['tempat'] ?? ''),
+            ];
+        }
+        usort($out, static fn (array $a, array $b): int => strcmp((string) ($a['jam_mulai'] ?? ''), (string) ($b['jam_mulai'] ?? '')));
+        $out = array_slice($out, 0, max(1, min(20, $limit)));
+    }
+
+    return $out;
+}
+
+/** Sisa waktu menuju jam mulai, dibulatkan ke jam (minimal 1 jika masih di hari yang sama). */
+function pembimbing_dashboard_jam_menuju(string $jamTarget, string $jamSekarang): int
 {
-    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan') || $tingkatanList === []) {
+    $t0 = strtotime('1970-01-01 ' . substr($jamTarget, 0, 8));
+    $t1 = strtotime('1970-01-01 ' . substr($jamSekarang, 0, 8));
+    if ($t0 === false || $t1 === false || $t0 <= $t1) {
+        return 0;
+    }
+    $hours = (int) ceil(($t0 - $t1) / 3600);
+
+    return max(1, $hours);
+}
+
+/**
+ * Daftar santri aktif per tingkatan (untuk panel dashboard pembimbing).
+ *
+ * @return array<string, list<array{id:int,nis:string,nama_santri:string,tingkatan:string}>>
+ */
+function pembimbing_dashboard_santri_list_map(PDO $pdo, array $tingkatanList, int $limit = 400, ?int $pembimbingId = null): array
+{
+    if ($tingkatanList === [] || !table_exists($pdo, 'santri')) {
         return [];
     }
-    [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
-    $params['hari'] = $hariKe;
-    $params['jam'] = $jamSekarang;
-    $sql = '
-        SELECT
-            k.nama_kegiatan,
-            j.tingkatan,
-            j.jam_mulai,
-            j.jam_selesai,
-            j.tempat
-        FROM jadwal_kegiatan j
-        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-        WHERE (j.hari_ke = 0 OR j.hari_ke = :hari)
-          AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
-          AND COALESCE(k.is_active, 1) = 1
-          AND (j.tingkatan = "Semua Tingkatan" OR j.tingkatan IN (' . $inSql . '))
-        ORDER BY j.jam_mulai ASC, j.tingkatan ASC
-    ';
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
+    require_once __DIR__ . '/santri_operasional.php';
+    require_once __DIR__ . '/pembimbing_pkpps.php';
 
-    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $kajianList = [];
+    $pkppsLabels = [];
+    foreach ($tingkatanList as $tk) {
+        $tk = trim((string) $tk);
+        if ($tk === '') {
+            continue;
+        }
+        if (pembimbing_pkpps_is_label($tk)) {
+            $pkppsLabels[] = $tk;
+        } else {
+            $kajianList[] = $tk;
+        }
+    }
+
+    $map = [];
+    if ($kajianList !== []) {
+        [$inSql, $params] = pembimbing_dashboard_in_clause($kajianList, 'tk');
+        $aktifSql = santri_sql_aktif_only('s');
+        $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+        $st = $pdo->prepare('
+            SELECT s.id, s.nis, s.' . $nameCol . ' AS nama_santri, s.tingkatan
+            FROM santri s
+            WHERE ' . $aktifSql . '
+              AND s.tingkatan IN (' . $inSql . ')
+            ORDER BY s.tingkatan ASC, s.' . $nameCol . ' ASC
+            LIMIT ' . max(1, min(800, $limit)) . '
+        ');
+        $st->execute($params);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $tk = trim((string) ($row['tingkatan'] ?? '')) ?: '—';
+            if (!isset($map[$tk])) {
+                $map[$tk] = [];
+            }
+            $map[$tk][] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'nis' => (string) ($row['nis'] ?? ''),
+                'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+                'tingkatan' => $tk,
+            ];
+        }
+    }
+
+    if ($pkppsLabels !== [] && $pembimbingId !== null && $pembimbingId > 0) {
+        $pkppsIds = [];
+        foreach ($pkppsLabels as $lbl) {
+            $tid = pembimbing_pkpps_id_from_label($lbl, $pdo, $pembimbingId);
+            if ($tid > 0) {
+                $pkppsIds[] = $tid;
+            }
+        }
+        if ($pkppsIds !== []) {
+            foreach (pembimbing_pkpps_santri_list($pdo, $pembimbingId, $pkppsIds, $limit) as $row) {
+                $tk = trim((string) ($row['tingkatan'] ?? '')) ?: '—';
+                if (!isset($map[$tk])) {
+                    $map[$tk] = [];
+                }
+                $map[$tk][] = [
+                    'id' => (int) ($row['santri_id'] ?? 0),
+                    'nis' => (string) ($row['nis'] ?? ''),
+                    'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+                    'tingkatan' => $tk,
+                ];
+            }
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * Teks ticker kegiatan kelas (berlangsung atau mendekati).
+ *
+ * @return list<string>
+ */
+function pembimbing_dashboard_ticker_kegiatan(
+    array $kegiatanAktifGrouped,
+    array $kegiatanMendekati,
+    string $jamSekarang
+): array {
+    $items = [];
+    if ($kegiatanAktifGrouped !== []) {
+        foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows) {
+            $tkList = array_values(array_unique(array_filter(array_map(
+                static fn (array $r): string => trim((string) ($r['tingkatan'] ?? '')),
+                $slotRows
+            ))));
+            $jamMulai = substr((string) ($slotRows[0]['jam_mulai'] ?? ''), 0, 5);
+            $jamSelesai = substr((string) ($slotRows[0]['jam_selesai'] ?? ''), 0, 5);
+            $items[] = 'Berlangsung: ' . (string) $namaKegiatan
+                . ' · ' . $jamMulai . '–' . $jamSelesai
+                . ($tkList !== [] ? ' · ' . implode(', ', $tkList) : '');
+        }
+
+        return $items;
+    }
+    foreach ($kegiatanMendekati as $kg) {
+        $jamMulai = substr((string) ($kg['jam_mulai'] ?? ''), 0, 5);
+        $jamSisa = pembimbing_dashboard_jam_menuju((string) ($kg['jam_mulai'] ?? ''), $jamSekarang);
+        $tk = trim((string) ($kg['tingkatan'] ?? ''));
+        $items[] = 'Mendekati: ' . (string) ($kg['nama_kegiatan'] ?? '—')
+            . ' · mulai ' . $jamMulai
+            . ' · ' . $jamSisa . ' jam lagi'
+            . ($tk !== '' ? ' · ' . $tk : '');
+    }
+    if ($items === []) {
+        $items[] = 'Belum ada jadwal kelas mendatang hari ini';
+    }
+
+    return $items;
 }
 
 /**
@@ -818,6 +1152,16 @@ function pembimbing_dashboard_kegiatan_dari_jadwal(PDO $pdo, ?int $pembimbingId,
             'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
         ];
     }
+    if (!$bolehSemua && $pembimbingId !== null && $pembimbingId > 0) {
+        require_once __DIR__ . '/pembimbing_pkpps.php';
+        $seen = array_flip(array_column($out, 'id'));
+        foreach (pembimbing_pkpps_kegiatan_dari_jadwal($pdo, $pembimbingId) as $pk) {
+            if (!isset($seen[$pk['id']])) {
+                $out[] = $pk;
+            }
+        }
+        usort($out, static fn(array $a, array $b): int => strcmp((string) $a['nama_kegiatan'], (string) $b['nama_kegiatan']));
+    }
 
     return $out;
 }
@@ -920,6 +1264,10 @@ function pembimbing_dashboard_santri_dalam_scope(
     if ($tingkatanAllowed === []) {
         return false;
     }
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    if (pembimbing_pkpps_santri_in_scope($pdo, $santriId, $pembimbingId)) {
+        return true;
+    }
     $st = $pdo->prepare('SELECT tingkatan FROM santri WHERE id = :id LIMIT 1');
     $st->execute(['id' => $santriId]);
     $tk = trim((string) ($st->fetchColumn() ?: ''));
@@ -937,8 +1285,58 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || $tingkatanList === []) {
         return [];
     }
-    [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
-    $params['th'] = $tahun;
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $kajianList = [];
+    $pkppsLabels = [];
+    foreach ($tingkatanList as $tk) {
+        $tk = trim((string) $tk);
+        if ($tk === '') {
+            continue;
+        }
+        if (pembimbing_pkpps_is_label($tk)) {
+            $pkppsLabels[] = $tk;
+        } else {
+            $kajianList[] = $tk;
+        }
+    }
+
+    $santriFilter = [];
+    if ($kajianList !== [] && column_exists($pdo, 'santri', 'tingkatan')) {
+        [$inSql, $params] = pembimbing_dashboard_in_clause($kajianList, 'tk');
+        $aktifSql = santri_sql_aktif_only('s');
+        $st = $pdo->prepare('SELECT s.id FROM santri s WHERE ' . $aktifSql . ' AND s.tingkatan IN (' . $inSql . ')');
+        $st->execute($params);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sid) {
+            $santriFilter[(int) $sid] = true;
+        }
+    }
+    if ($pkppsLabels !== [] && table_exists($pdo, 'pkpps_santri')) {
+        pkpps_ensure_schema($pdo);
+        foreach ($pkppsLabels as $lbl) {
+            $nama = trim(substr(trim($lbl), strlen(PEMBIMBING_PKPPS_LABEL_PREFIX)));
+            if ($nama === '') {
+                continue;
+            }
+            $stT = $pdo->prepare('SELECT id FROM pkpps_tingkatan WHERE nama_tingkatan = :n LIMIT 1');
+            $stT->execute(['n' => $nama]);
+            $tid = (int) ($stT->fetchColumn() ?: 0);
+            if ($tid <= 0) {
+                continue;
+            }
+            $st = $pdo->prepare('SELECT santri_id FROM pkpps_santri WHERE is_aktif = 1 AND pkpps_tingkatan_id = :tid');
+            $st->execute(['tid' => $tid]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sid) {
+                $santriFilter[(int) $sid] = true;
+            }
+        }
+    }
+    $santriIds = array_keys($santriFilter);
+    if ($santriIds === []) {
+        return [];
+    }
+
+    $ph = implode(',', array_fill(0, count($santriIds), '?'));
+    $params = array_merge([$tahun], $santriIds);
     $sql = '
         SELECT
             COALESCE(p.kegiatan_id, 0) AS kegiatan_id,
@@ -951,8 +1349,8 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id
         LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-        WHERE YEAR(p.tanggal_presensi) = :th
-          AND s.tingkatan IN (' . $inSql . ')
+        WHERE YEAR(p.tanggal_presensi) = ?
+          AND p.santri_id IN (' . $ph . ')
         GROUP BY p.kegiatan_id, k.nama_kegiatan
         ORDER BY k.nama_kegiatan ASC
     ';

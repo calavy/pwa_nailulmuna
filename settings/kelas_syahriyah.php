@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_tambahan') {
         $res = keuangan_kelas_syahriyah_save_tambahan_settings($pdo, $_POST);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-kelas'));
+        exit;
     } elseif ($action === 'create') {
         $kodeRaw = strtoupper(trim((string) ($_POST['kode'] ?? '')));
         $kode = preg_replace('/[^A-Z0-9_-]/', '', $kodeRaw) ?? '';
@@ -82,9 +84,9 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
     <h1 class="h4 mb-1">Kelas / jenis syahriyah pembayaran</h1>
     <p class="text-muted small mb-0">
-        Mirip <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a>:
-        setiap jenis dihubungkan ke satu kelas keuangan santri. Nominal <strong>tambahan syahriyah</strong> per bulan
-        ditambahkan ke tagihan syahriyah sesuai kelas keuangan santri (<code>kategori_kelas</code>).
+        Setiap jenis dihubungkan ke satu <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a>
+        (Wustho 1/2/3 → Wustho). Nominal tambahan diatur di
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-syahriyah')) ?>">Keuangan → Pengaturan syahriyah</a>.
     </p>
 </div>
 
@@ -195,54 +197,12 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm" id="tambahan-syahriyah">
     <div class="card-header fw-semibold">Nominal tambahan syahriyah per kelas</div>
     <div class="card-body">
-        <p class="small text-muted">Digabung ke tagihan syahriyah bulanan. Alokasi masuk <strong>Dana Umum</strong> pada laporan.</p>
-        <form method="post">
-            <input type="hidden" name="action" value="save_tambahan">
-            <div class="table-responsive">
-                <table class="table table-sm table-bordered align-middle mb-3">
-                    <thead class="table-light">
-                    <tr>
-                        <th>Jenis / kelas keuangan</th>
-                        <th class="text-end">Default (Rp)</th>
-                        <?php for ($b = 1; $b <= 12; $b++): ?>
-                            <th class="text-end small">B<?= $b ?></th>
-                        <?php endfor; ?>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($rows as $row): ?>
-                        <?php
-                        $kode = strtoupper(trim((string) ($row['kode'] ?? '')));
-                        if ($kode === '') {
-                            continue;
-                        }
-                        $def = keuangan_kelas_syahriyah_tambahan_nominal_by_kode($pdo, $kode, 0);
-                        ?>
-                        <tr>
-                            <td>
-                                <div class="fw-semibold small"><?= htmlspecialchars((string) ($row['nama_tampilan'] ?? '')) ?></div>
-                                <div class="text-muted small"><?= htmlspecialchars((string) ($row['kelas_keuangan_kode'] ?? '')) ?></div>
-                            </td>
-                            <td>
-                                <input type="number" class="form-control form-control-sm text-end"
-                                       name="ks_tambahan[<?= htmlspecialchars($kode) ?>][default]"
-                                       min="0" step="1000" value="<?= (int) $def ?>">
-                            </td>
-                            <?php for ($b = 1; $b <= 12; $b++): ?>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm text-end"
-                                           name="ks_tambahan[<?= htmlspecialchars($kode) ?>][bulan][<?= $b ?>]"
-                                           min="0" step="1000"
-                                           value="<?= (int) keuangan_kelas_syahriyah_tambahan_nominal_by_kode($pdo, $kode, $b) ?>">
-                                </td>
-                            <?php endfor; ?>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">Simpan nominal tambahan</button>
-        </form>
+        <p class="small text-muted mb-2">
+            Atur nominal di halaman syahriyah terpusat (termasuk PKPPS) — otomatis ke tagihan &amp; input pembayaran.
+        </p>
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-kelas')) ?>">
+            Pengaturan syahriyah &amp; tambahan
+        </a>
     </div>
 </div>
 

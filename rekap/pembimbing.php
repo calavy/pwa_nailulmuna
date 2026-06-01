@@ -5,8 +5,13 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
+require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 require_roles(['admin']);
+
+keuangan_ensure_schema_deferred($pdo);
 
 if (!table_exists($pdo, 'presensi_pembimbing')) {
     set_flash('error', 'Tabel presensi_pembimbing belum ada. Jalankan migrasi terbaru.');
@@ -15,23 +20,48 @@ if (!table_exists($pdo, 'presensi_pembimbing')) {
 }
 
 payroll_pembimbing_ensure_schema($pdo);
+payroll_pembimbing_ensure_gaji_table($pdo);
+pkpps_ensure_schema($pdo);
 
-$month = (int) ($_GET['month'] ?? date('m'));
-$year = (int) ($_GET['year'] ?? app_tahun_masehi_default($pdo));
-$calendarMode = strtolower((string) ($_GET['cal'] ?? 'masehi'));
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar_gaji') {
+    $res = payroll_pembimbing_bayar($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
+    set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+    $redirectQs = http_build_query(array_filter([
+        'month' => (int) ($_POST['month'] ?? 0),
+        'year' => (int) ($_POST['year'] ?? 0),
+        'cal' => (string) ($_POST['cal'] ?? ''),
+        'kegiatan_id' => (int) ($_POST['kegiatan_id'] ?? 0) ?: null,
+        'paper' => (string) ($_POST['paper'] ?? ''),
+    ]));
+    header('Location: ' . app_href('/rekap/pembimbing.php?' . $redirectQs));
+    exit;
+}
+
+$period = payroll_pembimbing_resolve_period($pdo, $_GET);
+$month = (int) $period['month'];
+$year = (int) $period['year'];
+$calendarMode = (string) $period['calendar_mode'];
+$startDate = (string) $period['start_date'];
+$endDate = (string) $period['end_date'];
+$totalDays = (int) $period['total_days'];
+$periodLabel = (string) $period['period_label'];
+$periodBridge = (string) $period['period_bridge'];
+$masehiMonths = $period['masehi_months'];
+$hijriyahMonths = $period['hijriyah_months'];
+$yearMin = (int) $period['year_min'];
+$yearMax = (int) $period['year_max'];
+$anchorMasehiYear = (int) $period['anchor_masehi_year'];
+$currentHijriYear = (int) $period['current_hijri_year'];
+$currentMasehiYear = (int) $period['current_masehi_year'];
+
 $kegiatanFilter = (int) ($_GET['kegiatan_id'] ?? 0);
 $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
     $paper = 'A4';
 }
 
-$startDate = sprintf('%04d-%02d-01', $year, $month);
-$endDate = date('Y-m-t', strtotime($startDate));
 $tarifMap = payroll_pembimbing_tarif_map($pdo);
 $kriteriaLabels = payroll_pembimbing_kriteria_labels();
-$periodLabel = $calendarMode === 'hijriyah'
-    ? get_hijri_ym_from_gregorian_month($year, $month)
-    : sprintf('%02d/%04d', $month, $year);
 $lateTolerance = (int) app_setting($pdo, 'batas_telat_menit', '15');
 if ($lateTolerance < 0) {
     $lateTolerance = 0;
@@ -69,14 +99,23 @@ $scanGajiSql = '
     SELECT p.pembimbing_id,
            SUM(
                CASE
-                   WHEN p.jenis_scan = "DATANG" AND j.jam_mulai IS NOT NULL AND j.jam_selesai IS NOT NULL
-                       THEN GREATEST(TIMESTAMPDIFF(MINUTE, j.jam_mulai, j.jam_selesai), 0) / 60
+                   WHEN p.jenis_scan = "DATANG"
+                       AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
+                       AND COALESCE(j.jam_selesai, pj.jam_selesai) IS NOT NULL
+                       THEN GREATEST(
+                           TIMESTAMPDIFF(MINUTE, COALESCE(j.jam_mulai, pj.jam_mulai), COALESCE(j.jam_selesai, pj.jam_selesai)),
+                           0
+                       ) / 60
                    WHEN p.jenis_scan = "DATANG" THEN 1
                    ELSE 0
                END
            ) AS total_jam
     FROM presensi_pembimbing p
     LEFT JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
+    LEFT JOIN pkpps_jadwal pj
+        ON pj.kegiatan_id = p.kegiatan_id
+       AND pj.pembimbing_id = p.pembimbing_id
+       AND pj.is_aktif = 1
     WHERE p.tanggal BETWEEN :start_date AND :end_date
 ';
 if ($kegiatanFilter > 0) {
@@ -120,8 +159,6 @@ foreach ($izinRaw as $izin) {
     $key = strtoupper((string) $izin['jenis_izin']) === 'SAKIT' ? 'SAKIT' : 'IZIN';
     $izinByPembimbing[$pid][$key] += $days;
 }
-$totalDays = (int) date('t', strtotime($startDate));
-
 foreach ($rows as &$row) {
     $datang = (int) $row['total_datang'];
     $izin = (int) ($izinByPembimbing[(int) $row['pembimbing_id']]['IZIN'] ?? 0);
@@ -130,11 +167,16 @@ foreach ($rows as &$row) {
     $lateStmt = $pdo->prepare('
         SELECT COUNT(*)
         FROM presensi_pembimbing p
-        INNER JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
+        LEFT JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
+        LEFT JOIN pkpps_jadwal pj
+            ON pj.kegiatan_id = p.kegiatan_id
+           AND pj.pembimbing_id = p.pembimbing_id
+           AND pj.is_aktif = 1
         WHERE p.pembimbing_id = :pembimbing_id
           AND p.tanggal BETWEEN :start_date AND :end_date
           AND p.kegiatan_id IS NOT NULL
-          AND TIME_TO_SEC(p.jam) > TIME_TO_SEC(ADDTIME(j.jam_mulai, SEC_TO_TIME(:late_sec)))
+          AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
+          AND TIME_TO_SEC(p.jam) > TIME_TO_SEC(ADDTIME(COALESCE(j.jam_mulai, pj.jam_mulai), SEC_TO_TIME(:late_sec)))
     ');
     $lateStmt->execute([
         'pembimbing_id' => (int) $row['pembimbing_id'],
@@ -197,6 +239,19 @@ foreach ($rows as $r) {
     }
 }
 $periodeLabelP = $periodLabel;
+$periodeModePay = $calendarMode === 'hijriyah' ? 'HIJRIYAH' : 'MASEHI';
+$paidGajiMap = payroll_pembimbing_paid_map($pdo, $periodeModePay, $month, $year);
+$akunRowsBayar = keuangan_fetch_akun_aktif($pdo);
+$defaultAkunBayar = 0;
+foreach ($akunRowsBayar as $ar) {
+    if ((int) ($ar['is_default'] ?? 0) === 1) {
+        $defaultAkunBayar = (int) ($ar['id'] ?? 0);
+        break;
+    }
+}
+if ($defaultAkunBayar <= 0 && $akunRowsBayar !== []) {
+    $defaultAkunBayar = (int) ($akunRowsBayar[0]['id'] ?? 0);
+}
 
 $pageTitle = 'Rekap Pembimbing (Admin)';
 require_once __DIR__ . '/../includes/header.php';
@@ -205,7 +260,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3 print-controls">
     <p class="page-intro-kicker mb-1">Modul Rekap Pembimbing</p>
     <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong>, toleransi telat <?= (int) $lateTolerance ?> menit. Pembimbing yang tidak tercatat hadir/izin/sakit pada periode ini dihitung otomatis sebagai ALPA.</p>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Jam kegiatan dari jadwal kajian atau <strong>jadwal PKPPS</strong>.</p>
 </div>
 
 <div class="row g-3 mb-3 print-controls">
@@ -237,21 +292,34 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card shadow-sm mb-4 print-controls">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-6 col-md-3">
-                <label class="form-label">Bulan</label>
-                <input class="form-control" type="number" min="1" max="12" name="month" value="<?= htmlspecialchars((string) $month) ?>">
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label">Tahun</label>
-                <input class="form-control" type="number" min="1400" max="2100" name="year" value="<?= htmlspecialchars((string) $year) ?>">
-            </div>
+        <form method="get" class="row g-2 align-items-end" id="payroll-filter-form">
+            <input type="hidden" name="previous_mode" id="previous-mode" value="<?= htmlspecialchars($calendarMode) ?>">
+            <input type="hidden" name="anchor_masehi_year" id="anchor-masehi-year" value="<?= (int) $anchorMasehiYear ?>">
             <div class="col-6 col-md-2">
                 <label class="form-label">Kalender</label>
-                <select class="form-select" name="cal">
+                <select class="form-select" name="cal" id="mode-kalender">
                     <option value="masehi" <?= $calendarMode === 'masehi' ? 'selected' : '' ?>>Masehi</option>
                     <option value="hijriyah" <?= $calendarMode === 'hijriyah' ? 'selected' : '' ?>>Hijriyah</option>
                 </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label">Bulan</label>
+                <select class="form-select" name="month" id="periode-bulan">
+                    <?php $activeMonthList = $calendarMode === 'hijriyah' ? $hijriyahMonths : $masehiMonths; ?>
+                    <?php foreach ($activeMonthList as $monthNumber => $monthLabel): ?>
+                        <option value="<?= (int) $monthNumber ?>" <?= $month === (int) $monthNumber ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($monthLabel) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label">Tahun</label>
+                <input class="form-control" type="number"
+                       min="<?= (int) $yearMin ?>" max="<?= (int) $yearMax ?>"
+                       name="year" id="periode-tahun"
+                       <?= $calendarMode === 'hijriyah' ? 'readonly' : '' ?>
+                       value="<?= htmlspecialchars((string) $year) ?>">
             </div>
             <div class="col-6 col-md-2">
                 <label class="form-label">Kegiatan</label>
@@ -307,7 +375,7 @@ require_once __DIR__ . '/../includes/header.php';
             <h2 class="h5 mb-0">Rekap kehadiran pembimbing</h2>
             <span class="small text-muted print-controls"><?= $kategoriBagus ?> kategori &ldquo;Bagus&rdquo; dari <?= $totalPembimbingRekap ?> pembimbing</span>
         </div>
-        <div class="table-responsive">
+        <div class="table-responsive app-table-mobile">
             <table class="table table-sm table-striped table-hover align-middle mb-0">
                 <thead>
                 <tr>
@@ -353,8 +421,25 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_pokok_n'] ?? 0)))) ?></td>
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_per_jam'] ?? 0)))) ?></td>
                             <td class="text-end fw-semibold"><?= htmlspecialchars(keuangan_format_rupiah((int) ($row['gaji_bulanan'] ?? 0))) ?></td>
-                            <td class="text-end">
-                                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/keuangan/index.php?tab=k&pembimbing_id=' . (int) ($row['pembimbing_id'] ?? 0) . '&bulan=' . (int) $month . '&tahun=' . (int) $year . '&cal=' . urlencode($calendarMode))) ?>">Bayar</a>
+                            <td class="text-end text-nowrap">
+                                <?php
+                                $pidRow = (int) ($row['pembimbing_id'] ?? 0);
+                                $sudahBayar = isset($paidGajiMap[$pidRow]);
+                                ?>
+                                <?php if ($sudahBayar): ?>
+                                    <span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>Lunas</span>
+                                    <div class="small text-muted"><?= htmlspecialchars((string) ($paidGajiMap[$pidRow]['tanggal_bayar'] ?? '')) ?></div>
+                                <?php elseif ((int) ($row['gaji_bulanan'] ?? 0) > 0): ?>
+                                    <button type="button" class="btn btn-sm btn-outline-success btn-bayar-gaji"
+                                            data-bs-toggle="modal" data-bs-target="#modalBayarGaji"
+                                            data-pembimbing-id="<?= $pidRow ?>"
+                                            data-nama="<?= htmlspecialchars((string) ($row['nama_pembimbing'] ?? ''), ENT_QUOTES) ?>"
+                                            data-nominal="<?= (int) ($row['gaji_bulanan'] ?? 0) ?>">
+                                        Bayar
+                                    </button>
+                                <?php else: ?>
+                                    <span class="text-muted small">—</span>
+                                <?php endif; ?>
                             </td>
                             <td><span class="badge text-bg-<?= $katBadge ?>"><?= htmlspecialchars($kat) ?></span></td>
                         </tr>
@@ -367,6 +452,104 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalBayarGaji" tabindex="-1" aria-labelledby="modalBayarGajiLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" class="modal-content">
+            <input type="hidden" name="action" value="bayar_gaji">
+            <input type="hidden" name="pembimbing_id" id="bayar-pembimbing-id" value="">
+            <input type="hidden" name="month" value="<?= (int) $month ?>">
+            <input type="hidden" name="year" value="<?= (int) $year ?>">
+            <input type="hidden" name="cal" value="<?= htmlspecialchars($calendarMode) ?>">
+            <input type="hidden" name="kegiatan_id" value="<?= (int) $kegiatanFilter ?>">
+            <input type="hidden" name="paper" value="<?= htmlspecialchars($paper) ?>">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="modalBayarGajiLabel">Bayar gaji pembimbing</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">Periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong>. Pembayaran otomatis tercatat sebagai pengeluaran kas (arus kas berkurang).</p>
+                <p class="mb-3 fw-semibold" id="bayar-pembimbing-nama">—</p>
+                <div class="mb-2">
+                    <label class="form-label">Tanggal bayar</label>
+                    <input type="date" class="form-control" name="tanggal_bayar" value="<?= htmlspecialchars(date('Y-m-d')) ?>" required>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Nominal (Rp)</label>
+                    <input type="number" class="form-control" name="nominal_bayar" id="bayar-nominal" min="1" required>
+                </div>
+                <?php if ($akunRowsBayar !== []): ?>
+                <div class="mb-2">
+                    <label class="form-label">Akun kas/bank</label>
+                    <select class="form-select" name="akun_id">
+                        <?php foreach ($akunRowsBayar as $ar): ?>
+                            <option value="<?= (int) ($ar['id'] ?? 0) ?>" <?= (int) ($ar['id'] ?? 0) === $defaultAkunBayar ? 'selected' : '' ?>>
+                                <?= htmlspecialchars((string) ($ar['nama_akun'] ?? '')) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" class="btn btn-success" onclick="return confirm('Catat pembayaran gaji dan kurangi arus kas?')">Bayar &amp; catat</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.btn-bayar-gaji').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var idEl = document.getElementById('bayar-pembimbing-id');
+        var namaEl = document.getElementById('bayar-pembimbing-nama');
+        var nominalEl = document.getElementById('bayar-nominal');
+        if (idEl) { idEl.value = btn.getAttribute('data-pembimbing-id') || ''; }
+        if (namaEl) { namaEl.textContent = btn.getAttribute('data-nama') || '—'; }
+        if (nominalEl) { nominalEl.value = btn.getAttribute('data-nominal') || ''; }
+    });
+});
+(function () {
+    const form = document.getElementById('payroll-filter-form');
+    const modeSelect = document.getElementById('mode-kalender');
+    const yearInput = document.getElementById('periode-tahun');
+    const previousModeInput = document.getElementById('previous-mode');
+    const anchorMasehiYearInput = document.getElementById('anchor-masehi-year');
+    if (!form || !modeSelect) {
+        return;
+    }
+    const initialMode = modeSelect.value;
+    modeSelect.addEventListener('change', function () {
+        if (previousModeInput) {
+            previousModeInput.value = initialMode;
+        }
+        if (anchorMasehiYearInput && yearInput && initialMode === 'masehi') {
+            anchorMasehiYearInput.value = yearInput.value || '<?= (int) $currentMasehiYear ?>';
+        }
+        if (yearInput) {
+            if (modeSelect.value === 'hijriyah') {
+                yearInput.min = '1300';
+                yearInput.max = '1700';
+                yearInput.readOnly = true;
+                const y = parseInt(yearInput.value || '0', 10);
+                if (!y || y < 1300 || y > 1700) {
+                    yearInput.value = '<?= (int) $currentHijriYear ?>';
+                }
+            } else {
+                yearInput.min = '1900';
+                yearInput.max = '2100';
+                yearInput.readOnly = false;
+                const y = parseInt(yearInput.value || '0', 10);
+                if (!y || y < 1900 || y > 2100) {
+                    yearInput.value = '<?= (int) $currentMasehiYear ?>';
+                }
+            }
+        }
+        form.submit();
+    });
+})();
+</script>
 
 <style>
     @media print {

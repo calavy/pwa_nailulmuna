@@ -103,22 +103,67 @@ function pembimbing_kelas_map_all(PDO $pdo): array
  */
 function pembimbing_kelas_jadwal_count_map(PDO $pdo): array
 {
-    if (!function_exists('table_exists') || !table_exists($pdo, 'jadwal_kegiatan')) {
-        return [];
-    }
-    try {
-        $rows = $pdo->query('SELECT pembimbing_id, COUNT(*) AS jml FROM jadwal_kegiatan WHERE pembimbing_id IS NOT NULL GROUP BY pembimbing_id')->fetchAll();
-    } catch (PDOException $e) {
-        return [];
-    }
     $map = [];
-    foreach ($rows as $r) {
-        $pid = (int) ($r['pembimbing_id'] ?? 0);
-        if ($pid > 0) {
-            $map[$pid] = (int) ($r['jml'] ?? 0);
+    if (function_exists('table_exists') && table_exists($pdo, 'jadwal_kegiatan')) {
+        try {
+            $rows = $pdo->query('SELECT pembimbing_id, COUNT(*) AS jml FROM jadwal_kegiatan WHERE pembimbing_id IS NOT NULL GROUP BY pembimbing_id')->fetchAll();
+            foreach ($rows as $r) {
+                $pid = (int) ($r['pembimbing_id'] ?? 0);
+                if ($pid > 0) {
+                    $map[$pid] = (int) ($r['jml'] ?? 0);
+                }
+            }
+        } catch (PDOException $e) {
+            // abaikan — lanjut ke PKPPS
+        }
+    }
+    if (function_exists('table_exists') && table_exists($pdo, 'pkpps_jadwal')) {
+        try {
+            $rows = $pdo->query('SELECT pembimbing_id, COUNT(*) AS jml FROM pkpps_jadwal WHERE pembimbing_id IS NOT NULL GROUP BY pembimbing_id')->fetchAll();
+            foreach ($rows as $r) {
+                $pid = (int) ($r['pembimbing_id'] ?? 0);
+                if ($pid > 0) {
+                    $map[$pid] = ($map[$pid] ?? 0) + (int) ($r['jml'] ?? 0);
+                }
+            }
+        } catch (PDOException $e) {
+            // abaikan
         }
     }
     return $map;
+}
+
+/** Apakah pembimbing sudah punya slot jadwal (kajian atau PKPPS) sehingga kartu boleh dicetak? */
+function pembimbing_has_jadwal_for_kartu(PDO $pdo, int $pembimbingId): bool
+{
+    if ($pembimbingId <= 0) {
+        return false;
+    }
+    $count = 0;
+    if (function_exists('table_exists') && table_exists($pdo, 'jadwal_kegiatan')) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM jadwal_kegiatan WHERE pembimbing_id = :id');
+        $st->execute(['id' => $pembimbingId]);
+        $count += (int) ($st->fetchColumn() ?: 0);
+    }
+    if (function_exists('table_exists') && table_exists($pdo, 'pkpps_jadwal')) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM pkpps_jadwal WHERE pembimbing_id = :id');
+        $st->execute(['id' => $pembimbingId]);
+        $count += (int) ($st->fetchColumn() ?: 0);
+    }
+    return $count > 0;
+}
+
+/** Super admin boleh cetak kartu kapan saja; selain itu harus punya jadwal. */
+function pembimbing_can_print_kartu(PDO $pdo, int $pembimbingId): bool
+{
+    if ($pembimbingId <= 0) {
+        return false;
+    }
+    if (function_exists('is_super_admin') && is_super_admin()) {
+        return true;
+    }
+
+    return pembimbing_has_jadwal_for_kartu($pdo, $pembimbingId);
 }
 
 /**

@@ -568,7 +568,7 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
     $paidMap = $tagihanCtx['paid_map'];
     $tingkatanMap = $tagihanCtx['tingkatan_map'];
 
-    $rows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo) : [];
+    $rows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo, column_exists($pdo, 'santri', 'no_wa_wali')) : [];
 
     $body = [];
     $sumTagihan = 0;
@@ -641,6 +641,7 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
             'id' => (int) $s['id'],
             'nis' => (string) ($s['nis'] ?? ''),
             'nama' => (string) ($s['nama_santri'] ?? ''),
+            'no_wa_wali' => trim((string) ($s['no_wa_wali'] ?? '')),
             'tingkatan' => trim((string) ($s['tingkatan'] ?? '')),
             'kategori' => trim((string) ($s['kategori_kelas'] ?? '')),
             'tier' => $tierByKelas[$kelasKategori],

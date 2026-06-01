@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/kartu_brand_colors.php';
+require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -28,8 +29,7 @@ if ($ids === []) {
 }
 
 $ph = implode(',', array_fill(0, count($ids), '?'));
-$sql = 'SELECT p.id, p.nip, p.nama_pembimbing, p.no_wa, p.qr, p.is_aktif,
-               (SELECT COUNT(*) FROM jadwal_kegiatan j WHERE j.pembimbing_id = p.id) AS total_jadwal
+$sql = 'SELECT p.id, p.nip, p.nama_pembimbing, p.no_wa, p.qr, p.is_aktif
         FROM pembimbing p
         WHERE p.id IN (' . $ph . ')
         ORDER BY p.nama_pembimbing ASC';
@@ -39,7 +39,7 @@ $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $cards = [];
 foreach ($rows as $row) {
-    if ((int) ($row['total_jadwal'] ?? 0) <= 0) {
+    if (!pembimbing_can_print_kartu($pdo, (int) ($row['id'] ?? 0))) {
         continue;
     }
     $kodeQr = trim((string) ($row['qr'] ?? ''));
@@ -55,7 +55,7 @@ foreach ($rows as $row) {
 }
 
 if ($cards === []) {
-    set_flash('error', 'Tidak ada pembimbing dengan jadwal aktif untuk dicetak kartunya.');
+    set_flash('error', 'Tidak ada pembimbing dengan jadwal kajian atau PKPPS untuk dicetak kartunya.');
     header('Location: ' . app_href('/pembimbing/index.php'));
     exit;
 }
@@ -78,12 +78,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         <label for="themePickerBatch" class="small text-muted mb-0">Tema warna</label>
-        <select id="themePickerBatch" class="form-select form-select-sm" style="width: 220px;">
-            <option value="brand" selected>Brand Pondok (Hijau Gelap)</option>
-            <option value="ocean">Biru Ocean</option>
-            <option value="emerald">Hijau Emerald</option>
-            <option value="royal">Ungu Royal</option>
-            <option value="sunset">Oranye Sunset</option>
+        <select id="themePickerBatch" class="form-select form-select-sm" style="width: min(100%, 14rem);">
+            <?php require __DIR__ . '/partials/kartu_theme_options.php';
+            foreach ($kartuThemeOptions as $val => $label): ?>
+                <option value="<?= htmlspecialchars($val) ?>"<?= $val === 'brand' ? ' selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
         </select>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Kembali</a>
         <button class="btn btn-primary btn-sm" type="button" onclick="window.print()">
@@ -107,7 +106,7 @@ require_once __DIR__ . '/../includes/header.php';
 .pb-id-brand h2 { font-size: 3.7mm; margin:0; font-weight:700; line-height:1.2; }
 .pb-id-brand .sub { font-size:2.7mm; opacity:.94; margin:0 0 .7mm; font-weight:700; letter-spacing:.04em; }
 .pb-id-brand .addr { font-size:2.2mm; opacity:.88; margin-top:.7mm; line-height:1.2; }
-.pb-id-logo { width:12mm; height:12mm; border-radius:2.2mm; object-fit:cover; padding:0; }
+.pb-id-logo { width:12mm; height:12mm; border-radius:50%; object-fit:contain; padding:0.4mm; background:#fff; box-sizing:border-box; }
 .pb-id-body { display:flex; justify-content:space-between; gap:3mm; align-items:flex-end; position:relative; z-index:1; margin-top:1.4mm; }
 .pb-id-name { font-size:4.2mm; font-weight:800; line-height:1.1; margin:0 0 1mm; }
 .pb-id-line { font-size:3mm; margin:.35mm 0; opacity:.97; }

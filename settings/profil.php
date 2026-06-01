@@ -106,6 +106,7 @@ $userRow = $st->fetch(PDO::FETCH_ASSOC) ?: $userRow;
 
 $pageTitle = 'Profil Saya';
 $bodyClass = 'settings-module-page';
+$loadPushFcm = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">
@@ -172,8 +173,24 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="row g-4 mt-1">
-    <div class="col-12">
-        <div class="card shadow-sm border-0">
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                    </span>
+                    <h2 class="h6 mb-0">Notifikasi push</h2>
+                </div>
+                <p class="small text-muted mb-3">Terima pemberitahuan penting (izin, alpa, tugas) langsung di perangkat ini.</p>
+                <button type="button" class="btn btn-outline-primary js-fcm-subscribe" id="btn-fcm-subscribe-profil">
+                    <i class="fa-regular fa-bell me-1" aria-hidden="true"></i> Aktifkan notifikasi
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">

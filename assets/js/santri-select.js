@@ -17,7 +17,8 @@
 
         const search = document.createElement('input');
         search.type = 'search';
-        search.className = 'form-control form-control-sm mb-1 santri-select-search';
+        const useLg = sel.classList.contains('form-select-lg');
+        search.className = 'form-control mb-1 santri-select-search' + (useLg ? ' form-control-lg' : ' form-control-sm');
         search.placeholder = sel.getAttribute('data-search-placeholder') || 'Ketik nama atau NIS…';
         search.autocomplete = 'off';
         search.setAttribute('aria-label', 'Cari santri');

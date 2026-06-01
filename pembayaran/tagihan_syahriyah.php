@@ -98,6 +98,22 @@ if ($q !== '') {
     $queryBase['q'] = $q;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim_wa_santri') {
+    $santriIdWa = (int) ($_POST['santri_id'] ?? 0);
+    $preview = wa_tagihan_preview_santri($pdo, $santriIdWa, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    if ($preview && ($preview['ok'] ?? false) && !empty($preview['phone'])) {
+        if (send_wa_message($pdo, (string) $preview['phone'], (string) ($preview['message'] ?? ''))) {
+            set_flash('success', 'WA tagihan terkirim ke wali ' . (string) ($preview['nama'] ?? 'santri') . '.');
+        } else {
+            set_flash('error', 'Gagal mengirim WA (periksa gateway).');
+        }
+    } else {
+        set_flash('error', (string) ($preview['message'] ?? 'Tidak bisa mengirim tagihan untuk santri ini.'));
+    }
+    header('Location: ' . app_href('/pembayaran/tagihan_syahriyah.php?' . http_build_query($queryBase)));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim_wa_tagihan') {
     $res = wa_tagihan_kirim_manual($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
@@ -233,7 +249,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
 </div>
 
 <div class="card shadow-sm tagihan-list-card<?= $ringkas ? ' tagihan-list-card--ringkas' : '' ?>">
-    <div class="card-body p-0">
+    <div class="card-body p-0 app-table-mobile">
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0 tagihan-santri-table" id="tabel-tagihan">
                 <thead class="table-light">
@@ -277,6 +293,25 @@ $iconTagihan = bendahara_page_icon('tagihan');
                             <button type="button" class="btn btn-sm btn-outline-secondary tagihan-btn-detail d-none d-md-inline-flex" data-row="<?= (int) $r['id'] ?>" title="Detail">
                                 <i class="fa-solid fa-chevron-down"></i>
                             </button>
+                            <?php
+                            $waPreview = null;
+                            if ((int) ($r['sisa'] ?? 0) > 0 && trim((string) ($r['no_wa_wali'] ?? '')) !== '') {
+                                $waPreview = wa_tagihan_preview_santri($pdo, (int) $r['id'], $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+                            }
+                            $waUrl = ($waPreview && ($waPreview['ok'] ?? false)) ? (string) ($waPreview['wa_url'] ?? '') : '';
+                            ?>
+                            <?php if ($waUrl !== ''): ?>
+                                <a class="btn btn-sm btn-success" href="<?= htmlspecialchars($waUrl) ?>" target="_blank" rel="noopener" title="Buka WA tagihan">
+                                    <i class="fa-brands fa-whatsapp"></i>
+                                </a>
+                                <form method="post" class="d-inline" onsubmit="return confirm('Kirim tagihan via gateway ke wali <?= htmlspecialchars((string) $r['nama'], ENT_QUOTES) ?>?')">
+                                    <input type="hidden" name="action" value="kirim_wa_santri">
+                                    <input type="hidden" name="santri_id" value="<?= (int) $r['id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Kirim otomatis"><i class="fa-solid fa-paper-plane"></i></button>
+                                </form>
+                            <?php elseif ((int) ($r['sisa'] ?? 0) > 0): ?>
+                                <span class="btn btn-sm btn-outline-secondary disabled" title="Nomor WA wali kosong"><i class="fa-brands fa-whatsapp opacity-50"></i></span>
+                            <?php endif; ?>
                             <a class="btn btn-sm btn-outline-primary" href="/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
                         </td>
                     </tr>

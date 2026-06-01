@@ -49,7 +49,7 @@ function auth_pembimbing_acl_self_heal(): void
     if ($uid <= 0) {
         return;
     }
-    $marker = 'pembimbing_acl_healed_v2_' . $uid;
+    $marker = 'pembimbing_acl_healed_v3_' . $uid;
     if (!empty($_SESSION[$marker])) {
         return;
     }

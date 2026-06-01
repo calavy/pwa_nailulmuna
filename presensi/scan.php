@@ -12,12 +12,18 @@ require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/presensi_notif.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/kegiatan_khusus.php';
+require_once __DIR__ . '/../helpers/pkpps.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
+$pbPortalScan = trim((string) ($_GET['portal'] ?? '')) === '1'
+    || trim((string) ($_POST['pb_portal_scan'] ?? '')) === '1';
+
+if (!$pbPortalScan) {
+    require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
+}
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada. Jalankan schema_presensi.sql di phpMyAdmin.');
-    header('Location: ' . app_href('/dashboard.php'));
+    header('Location: ' . app_href($pbPortalScan ? '/login.php?peran=pembimbing' : '/dashboard.php'));
     exit;
 }
 
@@ -25,7 +31,11 @@ $resultMessage = null;
 $resultType = 'success';
 $today = date('Y-m-d');
 $nowTime = date('H:i:s');
-$createdBy = (int) ($_SESSION['user']['id'] ?? 1);
+$createdBy = $pbPortalScan ? 0 : (int) ($_SESSION['user']['id'] ?? 1);
+$scanBackUrl = $pbPortalScan
+    ? app_href('/login.php?peran=pembimbing')
+    : app_href((string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi' ? '/logout.php' : '/dashboard.php');
+$scanBackLabel = $pbPortalScan ? 'Login pembimbing' : ((string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi' ? 'Keluar' : 'Dashboard');
 $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 
 if (table_exists($pdo, 'pembimbing')) {
@@ -120,7 +130,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $jam = date('H:i:s');
             $hijri = akademik_hijri_ym_untuk_masehi($pdo, $tanggal);
-            $kegiatan = activity_for_tingkatan($pdo, (string) ($santri['tingkatan'] ?? ''), $tanggal, $jam);
+            pkpps_ensure_schema($pdo);
+            $kegiatan = activity_for_pkpps_santri($pdo, (int) $santri['id'], $tanggal, $jam);
+            if (!$kegiatan) {
+                $kegiatan = activity_for_tingkatan($pdo, (string) ($santri['tingkatan'] ?? ''), $tanggal, $jam);
+            }
             $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
             if ($liburP !== null && akademik_blokir_presensi_libur($pdo)) {
                 if ($modeLiburAktif === 'ALL_BLOCKED') {
@@ -152,7 +166,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($modeLiburAktif !== null) {
                         $resultMessage = 'Hari libur akademik: ' . ($liburP['nama'] ?? 'Libur') . ' — mode saat libur: ' . akademik_libur_presensi_mode_label($pdo) . '.';
                     } else {
-                        $resultMessage = 'Peringatan: scan di luar jadwal aktif untuk tingkatan ' . ($santri['tingkatan'] ?: '-') . '.';
+                        $pkppsLabel = pkpps_tingkatan_nama_for_santri($pdo, (int) $santri['id']);
+                        if ($pkppsLabel !== '') {
+                            $resultMessage = 'Peringatan: scan di luar jadwal PKPPS (' . $pkppsLabel . ') dan jadwal kajian untuk tingkatan ' . ($santri['tingkatan'] ?: '-') . '.';
+                        } else {
+                            $resultMessage = 'Peringatan: scan di luar jadwal aktif untuk tingkatan ' . ($santri['tingkatan'] ?: '-') . '.';
+                        }
                     }
                     goto end_scan_process;
                 }
@@ -192,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $kegiatanId = isset($kegiatan['id']) ? (int) $kegiatan['id'] : null;
             $jadwalId = isset($kegiatan['jadwal_kegiatan_id']) ? (int) $kegiatan['jadwal_kegiatan_id'] : 0;
+            $pkppsJadwalId = isset($kegiatan['pkpps_jadwal_id']) ? (int) $kegiatan['pkpps_jadwal_id'] : 0;
             ensure_presensi_jadwal_column($pdo);
             $lateThreshold = (int) app_setting($pdo, 'batas_telat_menit', '15');
             $catatan = null;
@@ -231,13 +251,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 goto end_scan_process;
             } else {
                 $insert = $pdo->prepare('
-                    INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
-                    VALUES (:santri_id, :kegiatan_id, :jid, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
+                    INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, pkpps_jadwal_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
+                    VALUES (:santri_id, :kegiatan_id, :jid, :pjid, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
                 ');
                 $insert->execute([
                     'santri_id' => (int) $santri['id'],
                     'kegiatan_id' => $kegiatanId,
                     'jid' => $jadwalId > 0 ? $jadwalId : null,
+                    'pjid' => $pkppsJadwalId > 0 ? $pkppsJadwalId : null,
                     'tanggal_presensi' => $tanggal,
                     'jam_presensi' => $jam,
                     'status_presensi' => 'HADIR',
@@ -248,7 +269,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $resultType = 'success';
-            $resultMessage = 'Santri hadir: ' . $santri['nama_santri'] . ' (' . ($santri['tingkatan'] ?: '-') . ').';
+            $tingkatanTampil = (string) ($santri['tingkatan'] ?: '-');
+            if ($pkppsJadwalId > 0 && !empty($kegiatan['pkpps_tingkatan'])) {
+                $tingkatanTampil = (string) $kegiatan['pkpps_tingkatan'] . ' (PKPPS)';
+            }
+            $resultMessage = 'Santri hadir: ' . $santri['nama_santri'] . ' (' . $tingkatanTampil . ').';
             $namaKeg = (string) ($kegiatan['nama_kegiatan'] ?? '');
             $tempatKeg = trim((string) ($kegiatan['tempat'] ?? ''));
             if ($namaKeg !== '') {
@@ -322,33 +347,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['munawib_scan_pending']);
             $tanggal = date('Y-m-d');
             $jam = date('H:i:s');
-            $hariKe = (int) date('N');
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
-            $kategoriFilterSql = $modeLiburAktif !== null
-                ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
-                : '';
-            $jadwalAktifStmt = $pdo->prepare('
-                SELECT j.kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.tempat
-                FROM jadwal_kegiatan j
-                INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-                WHERE j.pembimbing_id = :pembimbing_id
-                  AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
-                  AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
-                  AND k.is_active = 1
-                  ' . $kategoriFilterSql . '
-                ORDER BY j.jam_mulai ASC
-                LIMIT 1
-            ');
-            $jadwalAktifStmt->execute([
-                'pembimbing_id' => (int) $pembimbing['id'],
-                'hari_ke' => $hariKe,
-                'jam_now' => $jam,
-            ]);
-            $jadwalAktif = $jadwalAktifStmt->fetch();
+            pkpps_ensure_schema($pdo);
+            $jadwalAktif = jadwal_aktif_for_pembimbing($pdo, (int) $pembimbing['id'], $tanggal, $jam);
             if (!$jadwalAktif) {
                 $resultType = 'warning';
-                $resultMessage = 'Tidak ada kegiatan aktif untuk pembimbing "' . $pembimbing['nama_pembimbing'] . '" pada jam sekarang.';
+                $resultMessage = 'Tidak ada kegiatan aktif untuk pembimbing "' . $pembimbing['nama_pembimbing'] . '" pada jam sekarang (kajian atau PKPPS).';
                 goto end_scan_process;
             }
             if ($liburP !== null && akademik_blokir_presensi_libur($pdo)) {
@@ -395,7 +400,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'by' => $createdBy,
             ]);
             $resultType = 'success';
-            $resultMessage = 'Pembimbing hadir: ' . $pembimbing['nama_pembimbing'] . ' — Kegiatan ' . (string) $jadwalAktif['nama_kegiatan'];
+            $sumberPb = (string) ($jadwalAktif['sumber'] ?? '') === 'pkpps' ? ' (PKPPS)' : '';
+            $resultMessage = 'Pembimbing hadir: ' . $pembimbing['nama_pembimbing'] . ' — Kegiatan ' . (string) $jadwalAktif['nama_kegiatan'] . $sumberPb;
             $tempat = trim((string) ($jadwalAktif['tempat'] ?? ''));
             if ($tempat !== '') {
                 $resultMessage .= ' (Tempat: ' . $tempat . ')';
@@ -410,6 +416,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 end_scan_process:
+
+if ($resultMessage !== null && $resultMessage !== '' && $resultType === 'warning') {
+    $pendingForClassify = $_SESSION['munawib_scan_pending'] ?? null;
+    if (is_array($pendingForClassify) && !empty($pendingForClassify['slots'])) {
+        $resultType = 'info';
+    } elseif (preg_match('/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal/i', $resultMessage)) {
+        $resultType = 'duplicate';
+    } else {
+        $resultType = 'danger';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_once __DIR__ . '/../helpers/offline_sync_http.php';
@@ -483,10 +500,10 @@ usort($todayRows, static function ($a, $b): int {
 });
 $todayRows = array_slice($todayRows, 0, 30);
 
-$pageTitle = 'Scan Presensi';
-$bodyClass = 'scan-simple-page';
+$pageTitle = $pbPortalScan ? 'Scan Presensi Pembimbing' : 'Scan Presensi';
+$bodyClass = 'scan-simple-page' . ($pbPortalScan ? ' scan-portal-pembimbing' : '');
 $pageStylesheets = ['/assets/css/presensi-scan.css'];
-$isPetugasAbsensi = (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
+$isPetugasAbsensi = !$pbPortalScan && (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
 $todayScanCount = count($todayRows);
 $scanJadwalCtx = presensi_scan_jadwal_context($pdo);
 $timerState = (string) ($scanJadwalCtx['state'] ?? 'none');
@@ -496,43 +513,37 @@ $timerSec = $timerState === 'active'
     : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
 $timerClockInit = sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60);
 require_once __DIR__ . '/../includes/header.php';
-$canBersihkanPresensi = user_can_hapus_presensi_admin();
+$canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
 ?>
 
 
 <div class="presensi-scan-app">
     <header class="presensi-scan-top">
         <div>
-            <?php if ($isPetugasAbsensi): ?>
-                <a href="/logout.php"><i class="fa-solid fa-right-from-bracket me-1"></i> Keluar</a>
-            <?php else: ?>
-                <a href="/dashboard.php"><i class="fa-solid fa-arrow-left me-1"></i> Dashboard</a>
-            <?php endif; ?>
+            <a href="<?= htmlspecialchars($scanBackUrl) ?>"><i class="fa-solid fa-arrow-left me-1"></i> <?= htmlspecialchars($scanBackLabel) ?></a>
         </div>
-        <strong class="small">Scan Presensi</strong>
+        <strong class="small"><?= $pbPortalScan ? 'Presensi · Portal Pembimbing' : 'Scan Presensi' ?></strong>
         <span id="scan-status-badge" class="presensi-scan-status is-waiting">Menyiapkan…</span>
     </header>
 
     <?php if ($resultMessage): ?>
+    <?php
+    $bannerIcon = match ($resultType) {
+        'success' => 'fa-circle-check',
+        'duplicate' => 'fa-ban',
+        'danger' => 'fa-circle-xmark',
+        'info' => 'fa-circle-info',
+        default => 'fa-triangle-exclamation',
+    };
+    $bannerText = $resultType === 'success'
+        ? 'Berhasil'
+        : ($resultType === 'duplicate' ? 'Anda sudah scan' : $resultMessage);
+    ?>
     <div class="presensi-scan-banner presensi-scan-banner--<?= htmlspecialchars($resultType) ?>" role="alert" aria-live="assertive">
-        <i class="fa-solid <?= $resultType === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation' ?>" aria-hidden="true"></i>
-        <span><?= htmlspecialchars($resultMessage) ?></span>
+        <i class="fa-solid <?= $bannerIcon ?>" aria-hidden="true"></i>
+        <span><?= htmlspecialchars((string) $bannerText) ?></span>
     </div>
     <?php endif; ?>
-
-    <p class="presensi-scan-hint mb-0">
-        Scan multi-guna: santri · pembimbing · munawib
-        <?php if (pondok_kalender_hijriyah($pdo)): ?>
-            <?php $periodeHariIni = pondok_periode_berjalan($pdo, $today); ?>
-            <span class="text-white-50"> · <?= htmlspecialchars((string) ($periodeHariIni['periode_tampilan'] ?? '')) ?></span>
-        <?php endif; ?>
-        <?php if ($todayScanCount > 0): ?>
-            <span class="text-white-50"> · hari ini <?= (int) $todayScanCount ?>+</span>
-        <?php endif; ?>
-        <?php if ($canBersihkanPresensi): ?>
-            · <a href="<?= htmlspecialchars(app_href('/presensi/bersihkan.php')) ?>" class="text-white text-decoration-underline">Bersihkan presensi</a>
-        <?php endif; ?>
-    </p>
 
     <?php if (is_array($pendingMunawibPick) && !empty($pendingMunawibPick['slots']) && (int) ($pendingMunawibPick['munawib_id'] ?? 0) > 0): ?>
         <div class="alert alert-warning mx-2 my-2 py-2">
@@ -541,6 +552,9 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
             </div>
             <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
                 <input type="hidden" name="action" value="munawib_pick_schedule">
+                <?php if ($pbPortalScan): ?>
+                    <input type="hidden" name="pb_portal_scan" value="1">
+                <?php endif; ?>
                 <input type="hidden" name="munawib_id" value="<?= (int) ($pendingMunawibPick['munawib_id'] ?? 0) ?>">
                 <select name="kegiatan_id" class="form-select form-select-sm" style="max-width:280px" required>
                     <option value="">Pilih jadwal aktif</option>
@@ -557,9 +571,46 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
         </div>
     <?php endif; ?>
 
-    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?>" aria-live="polite">
+    <?php
+    $activeSlotsTimer = ($timerState === 'active' && is_array($scanJadwalCtx['slots'] ?? null))
+        ? $scanJadwalCtx['slots'] : [];
+    $activeSlotCount = count($activeSlotsTimer);
+    ?>
+    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $activeSlotCount > 1 ? ' has-marquee' : '' ?>" aria-live="polite">
         <div class="presensi-scan-timer-inner">
-            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title"><?php
+            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= $activeSlotCount > 1 ? '' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
+                <div class="presensi-scan-timer-marquee__fade presensi-scan-timer-marquee__fade--left" aria-hidden="true"></div>
+                <div class="presensi-scan-timer-marquee__viewport">
+                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track">
+                        <?php if ($activeSlotCount > 1): ?>
+                            <?php for ($marqueePass = 0; $marqueePass < 2; $marqueePass++): ?>
+                                <?php foreach ($activeSlotsTimer as $slot): ?>
+                                    <?php
+                                    $slotLabel = (string) ($slot['nama_kegiatan'] ?? 'Kegiatan');
+                                    $slotMulai = substr((string) ($slot['jam_mulai'] ?? ''), 0, 5);
+                                    $slotSelesai = substr((string) ($slot['jam_selesai'] ?? ''), 0, 5);
+                                    if ($slotMulai !== '' && $slotSelesai !== '') {
+                                        $slotLabel .= ' · ' . $slotMulai . '–' . $slotSelesai;
+                                    }
+                                    if (!empty($slot['tingkatan'])) {
+                                        $slotLabel .= ' · ' . (string) $slot['tingkatan'];
+                                    }
+                                    if (!empty($slot['tempat'])) {
+                                        $slotLabel .= ' · ' . (string) $slot['tempat'];
+                                    }
+                                    ?>
+                                    <span class="presensi-scan-timer-marquee__item">
+                                        <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+                                        <?= htmlspecialchars($slotLabel) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            <?php endfor; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="presensi-scan-timer-marquee__fade presensi-scan-timer-marquee__fade--right" aria-hidden="true"></div>
+            </div>
+            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title<?= $activeSlotCount > 1 ? ' d-none' : '' ?>"><?php
                 if ($timerState === 'active') {
                     echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: 'Kegiatan aktif'));
                 } elseif ($timerState === 'upcoming') {
@@ -572,7 +623,7 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
                     echo 'Belum ada jadwal';
                 }
             ?></span>
-            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range"><?php
+            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range<?= $activeSlotCount > 1 ? ' d-none' : '' ?>"><?php
                 if (!empty($scanJadwalCtx['jam_mulai']) && !empty($scanJadwalCtx['jam_selesai'])) {
                     echo htmlspecialchars(substr((string) $scanJadwalCtx['jam_mulai'], 0, 5) . ' – ' . substr((string) $scanJadwalCtx['jam_selesai'], 0, 5));
                     if (!empty($scanJadwalCtx['tingkatan'])) {
@@ -581,19 +632,7 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
                 }
             ?></span>
             <span id="presensi-scan-timer-clock" class="presensi-scan-timer-clock"><?= htmlspecialchars($timerClockInit) ?></span>
-            <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint"><?php
-                if ($timerState === 'active') {
-                    echo 'Sisa waktu scan';
-                } elseif ($timerState === 'upcoming') {
-                    echo 'Scan dibuka dalam';
-                } elseif ($timerState === 'libur') {
-                    echo htmlspecialchars((string) ($scanJadwalCtx['libur_nama'] ?: 'Presensi tidak dicatat'));
-                } elseif ($timerState === 'ended') {
-                    echo 'Tidak ada sesi scan aktif';
-                } else {
-                    echo 'Atur jadwal di menu Jadwal';
-                }
-            ?></span>
+            <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint" aria-live="polite"></span>
         </div>
     </div>
     <script type="application/json" id="presensi-scan-timer-data"><?= json_encode($scanJadwalCtx, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
@@ -601,6 +640,9 @@ $canBersihkanPresensi = user_can_hapus_presensi_admin();
     <form method="post" id="form-scan-presensi" class="visually-hidden">
         <input type="text" id="kode_qr" name="kode_qr" required readonly>
         <input type="hidden" name="scan_source" id="scan_source" value="camera">
+        <?php if ($pbPortalScan): ?>
+            <input type="hidden" name="pb_portal_scan" value="1">
+        <?php endif; ?>
     </form>
 
     <div class="presensi-scan-viewport">

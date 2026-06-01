@@ -141,6 +141,7 @@ body {
 .app-topbar-right {
     flex: 0 0 auto;
     margin-left: auto;
+    gap: 0.45rem;
 }
 
 .app-topbar-icon {
@@ -250,6 +251,64 @@ body {
     font-size: 0.65rem;
     opacity: 0.85;
     line-height: 1.1;
+}
+
+.app-topbar-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.app-topbar-back {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+    .app-topbar-back {
+        display: inline-flex;
+    }
+}
+
+.app-topbar-back:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.app-topbar-profile-menu .dropdown-toggle::after {
+    margin-left: 0.35rem;
+    vertical-align: 0.15em;
+}
+
+.app-topbar-profile-dropdown {
+    min-width: 13rem;
+    border-radius: 12px;
+    padding: 0.35rem 0;
+}
+
+.app-topbar-profile-dropdown .dropdown-item {
+    font-size: 0.88rem;
+    padding: 0.55rem 0.85rem;
+}
+
+.app-topbar-profile-dropdown .js-fcm-subscribe {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
 }
 
 .app-topbar-icon-btn {
@@ -861,12 +920,14 @@ body {
     .app-brand-mark--logo {
         width: 2.85rem;
         height: 2.85rem;
-        border-radius: 14px;
+        border-radius: 50%;
         flex-shrink: 0;
+        overflow: hidden;
     }
 
     .app-brand-mark--logo {
-        padding: 0.22rem;
+        padding: 0.18rem;
+        background: #fff;
     }
 
     .app-brand-logo {
@@ -1044,7 +1105,9 @@ body {
 .app-sidebar-brand-mark--logo {
     width: 3rem;
     height: 3rem;
-    padding: 0.22rem;
+    padding: 0.2rem;
+    border-radius: 50%;
+    overflow: hidden;
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.28);
     box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
@@ -1059,8 +1122,10 @@ body {
     display: block;
     width: 100%;
     height: 100%;
+    border-radius: 50%;
     object-fit: contain;
     object-position: center;
+    background: #fff;
 }
 
 .app-sidebar-brand-mark--fallback {
@@ -1070,10 +1135,12 @@ body {
 }
 
 .app-brand-mark--logo {
-    background: transparent;
-    border: none;
-    padding: 0;
-    box-shadow: none;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    padding: 0.18rem;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
 }
 
 .app-brand-mark--logo .app-brand-logo,
@@ -1081,8 +1148,10 @@ body {
     display: block;
     width: 100%;
     height: 100%;
+    border-radius: 50%;
     object-fit: contain;
     object-position: center;
+    background: #fff;
 }
 
 .app-brand-mark--fallback {
@@ -5585,11 +5654,6 @@ html {
         font-size: 0.82rem;
     }
 
-    .app-main .table th,
-    .app-main .table td {
-        white-space: nowrap;
-    }
-
     .app-main .table th.wrap,
     .app-main .table td.wrap,
     .app-main .table .text-wrap-cell {
@@ -5598,5 +5662,73 @@ html {
 
     .app-main .d-flex.flex-nowrap {
         flex-wrap: wrap !important;
+    }
+}
+
+/* Tabel rekap — mobile: scroll horizontal kompak; desktop tidak berubah */
+@media (max-width: 767.98px) {
+    .app-table-mobile .table-responsive,
+    .table-responsive.app-table-mobile {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    .app-table-mobile .table,
+    .table-responsive.app-table-mobile .table {
+        font-size: 0.75rem;
+        margin-bottom: 0;
+        width: max-content;
+        min-width: 100%;
+    }
+
+    .app-table-mobile .table th,
+    .app-table-mobile .table td,
+    .table-responsive.app-table-mobile .table th,
+    .table-responsive.app-table-mobile .table td {
+        white-space: nowrap;
+        padding: 0.35rem 0.45rem;
+        vertical-align: middle;
+    }
+
+    .app-table-mobile .table .btn-sm,
+    .table-responsive.app-table-mobile .table .btn-sm {
+        padding: 0.15rem 0.35rem;
+        font-size: 0.7rem;
+    }
+
+    .app-table-mobile .table .font-monospace,
+    .table-responsive.app-table-mobile .table .font-monospace {
+        font-size: 0.7rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .app-table-mobile .table th,
+    .app-table-mobile .table td,
+    .table-responsive.app-table-mobile .table th,
+    .table-responsive.app-table-mobile .table td {
+        white-space: inherit;
+    }
+}
+
+/* Semua tabel di kartu konten — mobile scroll horizontal (desktop tidak diubah) */
+@media (max-width: 767.98px) {
+    .app-main .card .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    .app-main .card .table-responsive .table {
+        font-size: 0.75rem;
+        width: max-content;
+        min-width: 100%;
+    }
+
+    .app-main .card .table-responsive .table th,
+    .app-main .card .table-responsive .table td {
+        white-space: nowrap;
+        padding: 0.35rem 0.45rem;
     }
 }

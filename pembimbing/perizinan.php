@@ -36,6 +36,24 @@ $act = strtolower(trim((string) ($_GET['act'] ?? '')));
 
 pb_jadwal_override_ensure_schema($pdo);
 
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'cek_bentrok' && $isSelfService && $pembimbingId > 0) {
+    header('Content-Type: application/json; charset=utf-8');
+    $jadwalId = (int) ($_GET['jadwal_id'] ?? 0);
+    $jamBaru = trim((string) ($_GET['jam_mulai'] ?? ''));
+    $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $today);
+    if (!$slotRes['ok']) {
+        echo json_encode(['bentrok' => false, 'items' => [], 'error' => $slotRes['pesan']], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    /** @var array<string,mixed> $slotAjax */
+    $slotAjax = $slotRes['slot'];
+    $durasi = (int) ($slotAjax['durasi_menit'] ?? 60);
+    $jamSelesai = pb_jadwal_jam_selesai_dari_mulai($jamBaru, $durasi);
+    $res = pb_jadwal_cek_bentrok_pindah_waktu($pdo, $pembimbingId, $slotAjax, $today, $jamBaru, $jamSelesai);
+    echo json_encode($res, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
     $postAction = (string) ($_POST['action'] ?? '');
     if ($pembimbingId <= 0) {
@@ -101,6 +119,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
 
 $slotsHariIni = $isSelfService && $pembimbingId > 0 ? pb_jadwal_slots_hari_ini($pdo, $pembimbingId, $today) : [];
 $munawibList = $isSelfService ? munawib_list_aktif($pdo) : [];
+$munawibTugasMap = [];
+if ($isSelfService && $munawibList !== []) {
+    foreach ($munawibList as $mwRow) {
+        $mwId = (int) ($mwRow['id'] ?? 0);
+        if ($mwId <= 0) {
+            continue;
+        }
+        $penugasan = munawib_penugasan_aktif($pdo, $mwId, $today);
+        $munawibTugasMap[$mwId] = $penugasan;
+    }
+}
 $riwayatOverride = $isSelfService && $pembimbingId > 0 ? pb_jadwal_riwayat_override($pdo, $pembimbingId) : [];
 
 $izinSql = '
@@ -209,10 +238,11 @@ $ok = get_flash('success');
                     <input type="text" class="form-control" id="pb-jam-selesai-preview" readonly value="—">
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Alasan / sebab</label>
-                    <textarea class="form-control" name="alasan" rows="2" required placeholder="Jelaskan alasan pergeseran"></textarea>
+                    <label class="form-label">Catatan</label>
+                    <textarea class="form-control" name="alasan" rows="2" required placeholder="Catatan pergeseran waktu"></textarea>
                 </div>
                 <div class="col-12">
+                    <div class="alert alert-warning d-none py-2 small mb-2" id="pb-pindah-bentrok" role="alert"></div>
                     <p class="small text-muted mb-2" id="pb-pindah-info"></p>
                     <button type="submit" class="btn btn-success" id="pb-btn-pindah"><i class="fa-solid fa-check me-1"></i> Simpan pergeseran</button>
                 </div>
@@ -240,12 +270,23 @@ $ok = get_flash('success');
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Munawib</label>
-                    <select class="form-select" name="munawib_id" required>
+                    <select class="form-select" name="munawib_id" id="pb-munawib-select" required>
                         <option value="">— Pilih munawib —</option>
-                        <?php foreach ($munawibList as $mw): ?>
-                            <option value="<?= (int) $mw['id'] ?>"><?= htmlspecialchars((string) $mw['nama']) ?></option>
+                        <?php foreach ($munawibList as $mw):
+                            $mwId = (int) ($mw['id'] ?? 0);
+                            $pen = $munawibTugasMap[$mwId] ?? null;
+                            $suffix = '';
+                            if (is_array($pen)) {
+                                $suffix = ' · sudah ada tugas';
+                            }
+                        ?>
+                            <option value="<?= $mwId ?>" data-sudah-tugas="<?= is_array($pen) ? '1' : '0' ?>"
+                                data-info="<?= htmlspecialchars(is_array($pen) ? 'Sudah ditugaskan oleh ' . (string) ($pen['pembimbing_nama'] ?? 'pembimbing lain') : 'Belum ada penugasan hari ini') ?>">
+                                <?= htmlspecialchars((string) $mw['nama']) ?><?= $suffix ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
+                    <p class="small mb-0 mt-1" id="pb-munawib-info"></p>
                 </div>
                 <div class="col-12">
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -264,8 +305,8 @@ $ok = get_flash('success');
                     </div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label">Alasan / sebab</label>
-                    <textarea class="form-control" name="alasan" rows="2" required></textarea>
+                    <label class="form-label">Catatan</label>
+                    <textarea class="form-control" name="alasan" rows="2" required placeholder="Catatan penugasan munawib"></textarea>
                 </div>
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary"><i class="fa-solid fa-user-plus me-1"></i> Catat munawib &amp; tugas</button>
@@ -353,8 +394,12 @@ $ok = get_flash('success');
     var jamBaru = document.getElementById('pb-jam-baru');
     var preview = document.getElementById('pb-jam-selesai-preview');
     var info = document.getElementById('pb-pindah-info');
+    var bentrokEl = document.getElementById('pb-pindah-bentrok');
     var btn = document.getElementById('pb-btn-pindah');
     if (!sel || !jamBaru) return;
+
+    var cekUrl = <?= json_encode(app_href('/pembimbing/perizinan.php?ajax=cek_bentrok'), JSON_UNESCAPED_UNICODE) ?>;
+    var cekTimer = null;
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function selesaiFromMulai(mulai, durasi) {
@@ -364,12 +409,13 @@ $ok = get_flash('success');
         d.setMinutes(d.getMinutes() + durasi);
         return pad(d.getHours()) + ':' + pad(d.getMinutes());
     }
-    function refresh() {
+    function refreshInfo() {
         var opt = sel.options[sel.selectedIndex];
         if (!opt || !opt.value) {
             preview.value = '—';
             info.textContent = '';
             if (btn) btn.disabled = true;
+            if (bentrokEl) { bentrokEl.classList.add('d-none'); bentrokEl.textContent = ''; }
             return;
         }
         var durasi = parseInt(opt.getAttribute('data-durasi') || '60', 10);
@@ -381,9 +427,60 @@ $ok = get_flash('success');
             : 'Kegiatan ini tidak bisa dipindah (bukan ta\'lim, kuota habis, atau sudah lewat batas waktu).';
         if (btn) btn.disabled = !bisa;
     }
+    function cekBentrok() {
+        if (!bentrokEl) return;
+        var opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value || !jamBaru.value) {
+            bentrokEl.classList.add('d-none');
+            bentrokEl.textContent = '';
+            return;
+        }
+        var url = cekUrl + '&jadwal_id=' + encodeURIComponent(opt.value) + '&jam_mulai=' + encodeURIComponent(jamBaru.value);
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.bentrok || !data.items || !data.items.length) {
+                    bentrokEl.classList.add('d-none');
+                    bentrokEl.textContent = '';
+                    return;
+                }
+                var lines = data.items.map(function (it) {
+                    return (it.nama_kegiatan || '—') + ' · ' + (it.tingkatan || '') + ' · ' + (it.jam || '') + ' (' + (it.pembimbing || '—') + ')';
+                });
+                bentrokEl.innerHTML = '<strong><i class="fa-solid fa-triangle-exclamation me-1"></i> Peringatan bentrok:</strong> waktu baru bentrok dengan kegiatan lain:<ul class="mb-0 mt-1 ps-3"><li>' + lines.join('</li><li>') + '</li></ul>';
+                bentrokEl.classList.remove('d-none');
+            })
+            .catch(function () {
+                bentrokEl.classList.add('d-none');
+            });
+    }
+    function refresh() {
+        refreshInfo();
+        clearTimeout(cekTimer);
+        cekTimer = setTimeout(cekBentrok, 350);
+    }
     sel.addEventListener('change', refresh);
     jamBaru.addEventListener('input', refresh);
     refresh();
+})();
+
+(function () {
+    var mwSel = document.getElementById('pb-munawib-select');
+    var mwInfo = document.getElementById('pb-munawib-info');
+    if (!mwSel || !mwInfo) return;
+    function refreshMw() {
+        var opt = mwSel.options[mwSel.selectedIndex];
+        if (!opt || !opt.value) {
+            mwInfo.textContent = '';
+            mwInfo.className = 'small mb-0 mt-1 text-muted';
+            return;
+        }
+        var sudah = opt.getAttribute('data-sudah-tugas') === '1';
+        mwInfo.textContent = opt.getAttribute('data-info') || '';
+        mwInfo.className = 'small mb-0 mt-1 ' + (sudah ? 'text-warning fw-semibold' : 'text-success');
+    }
+    mwSel.addEventListener('change', refreshMw);
+    refreshMw();
 })();
 </script>
 

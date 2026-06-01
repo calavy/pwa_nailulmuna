@@ -12,6 +12,7 @@ declare(strict_types=1);
  *  - Lihat jadwal kegiatan tingkatannya
  *  - Setoran hafalan (kalau pembimbing menerima setoran kitab/hafalan)
  *  - Rekap keaktifan santri tingkatannya
+ *  - Scan presensi santri & pembimbing
  *
  * Yang dikecualikan secara eksplisit (tidak pernah diberikan otomatis):
  *  - `rekap_pembimbing` (payroll / gaji)
@@ -46,7 +47,9 @@ function login_pembimbing_default_acl_keys(): array
         'pembimbing_dashboard',
         'pembimbing_perizinan',
         'pembimbing_jadwal',
+        'pembimbing_pkpps',
         'akademik_ikhtibar',
+        'presensi_scan',
     ];
 }
 

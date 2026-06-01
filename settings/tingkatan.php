@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_pkpps_syahriyah') {
         $res = keuangan_pkpps_syahriyah_save_settings($pdo, $_POST);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/settings/tingkatan.php#syahriyah-pkpps'));
+        header('Location: ' . app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps'));
         exit;
     }
     if ($action === 'sync_pkpps') {
@@ -51,6 +51,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete_pkpps_tingkatan') {
         $tid = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
         $res = pkpps_tingkatan_delete($pdo, $tid);
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/settings/tingkatan.php#pkpps'));
+        exit;
+    }
+    if ($action === 'create_pkpps_tingkatan') {
+        $nama = mb_substr(trim((string) ($_POST['nama_tingkatan'] ?? '')), 0, 120);
+        $urut = (int) ($_POST['urutan'] ?? 0);
+        $aktif = (int) ($_POST['is_aktif'] ?? 1) === 1 ? 1 : 0;
+        $res = pkpps_tingkatan_create($pdo, $nama, $urut, $aktif);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
         header('Location: ' . app_href('/settings/tingkatan.php#pkpps'));
         exit;
@@ -204,11 +213,6 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $pkppsRows = pkpps_tingkatan_list($pdo, false);
-$defaultPkppsSy = keuangan_pkpps_syahriyah_nominal($pdo, 0);
-$bulanLabels = [
-    1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
-    7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
-];
 ?>
 <div class="card shadow-sm mt-4" id="pkpps">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -219,6 +223,30 @@ $bulanLabels = [
         <form method="post" class="m-0">
             <input type="hidden" name="action" value="sync_pkpps">
             <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-rotate me-1"></i> Sinkron ulang</button>
+        </form>
+    </div>
+    <div class="card-body border-bottom py-3">
+        <p class="small fw-semibold mb-2">Tambah tingkatan manual</p>
+        <form method="post" class="row g-2 align-items-end">
+            <input type="hidden" name="action" value="create_pkpps_tingkatan">
+            <div class="col-md-5">
+                <label class="form-label small mb-0">Nama tingkatan</label>
+                <input type="text" name="nama_tingkatan" class="form-control form-control-sm" maxlength="120" required placeholder="Contoh: Muadalah A">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Urut</label>
+                <input type="number" name="urutan" class="form-control form-control-sm" min="0" value="0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Status</label>
+                <select name="is_aktif" class="form-select form-select-sm">
+                    <option value="1">Aktif</option>
+                    <option value="0">Nonaktif</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-plus me-1"></i> Tambah</button>
+            </div>
         </form>
     </div>
     <div class="table-responsive">
@@ -268,45 +296,12 @@ $bulanLabels = [
 <div class="card shadow-sm mt-4" id="syahriyah-pkpps">
     <div class="card-header fw-semibold">Tambahan syahriyah PKPPS</div>
     <div class="card-body">
-        <p class="small text-muted">
-            Nominal tambahan per bulan untuk santri PKPPS aktif, digabung ke tagihan <strong>Syahriyah</strong>.
-            Bagian ini tidak masuk pembagian % syahriyah — lihat <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">laporan PKPPS</a> untuk alokasi gaji pembimbing.
+        <p class="small text-muted mb-2">
+            Nominal per <strong>kelas keuangan</strong> (bukan per Wustho 1/2/3). Kelola di menu Keuangan.
         </p>
-        <form method="post">
-            <input type="hidden" name="action" value="save_pkpps_syahriyah">
-            <div class="mb-3">
-                <label class="form-label small">Default global (fallback)</label>
-                <input type="number" name="pkpps_syahriyah_default" class="form-control form-control-sm" style="max-width:12rem"
-                       min="0" step="1000" value="<?= (int) $defaultPkppsSy ?>">
-            </div>
-            <?php foreach ($pkppsRows as $prow):
-                $tid = (int) ($prow['id'] ?? 0);
-                if ($tid <= 0) {
-                    continue;
-                }
-                $tierDefault = keuangan_pkpps_syahriyah_nominal($pdo, 0, 0, 0, $tid);
-            ?>
-            <div class="border rounded p-2 mb-3">
-                <div class="fw-semibold small mb-2"><?= htmlspecialchars((string) ($prow['nama_tingkatan'] ?? '')) ?></div>
-                <div class="mb-2">
-                    <label class="form-label small mb-0">Default tingkatan</label>
-                    <input type="number" class="form-control form-control-sm" style="max-width:12rem" min="0" step="1000"
-                           name="pkpps_syahriyah_tingkatan[<?= $tid ?>][default]" value="<?= (int) $tierDefault ?>">
-                </div>
-                <div class="row g-2">
-                    <?php for ($b = 1; $b <= 12; $b++): ?>
-                        <div class="col-6 col-md-3">
-                            <label class="form-label small mb-0"><?= htmlspecialchars($bulanLabels[$b] ?? (string) $b) ?></label>
-                            <input type="number" class="form-control form-control-sm" min="0" step="1000"
-                                   name="pkpps_syahriyah_tingkatan[<?= $tid ?>][bulan][<?= $b ?>]"
-                                   value="<?= (int) keuangan_pkpps_syahriyah_nominal($pdo, $b, 0, 0, $tid) ?>">
-                        </div>
-                    <?php endfor; ?>
-                </div>
-            </div>
-            <?php endforeach; ?>
-            <button type="submit" class="btn btn-primary btn-sm">Simpan tambahan PKPPS</button>
-        </form>
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">
+            Keuangan → Pengaturan syahriyah
+        </a>
     </div>
 </div>
 

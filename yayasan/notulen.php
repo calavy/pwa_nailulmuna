@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
+require_once __DIR__ . '/../helpers/yayasan_timeline.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -39,6 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'hapus') {
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) {
+            $taskIds = $pdo->prepare('SELECT id FROM yayasan_tugas WHERE notulen_id = :id');
+            $taskIds->execute(['id' => $id]);
+            foreach ($taskIds->fetchAll(PDO::FETCH_COLUMN) ?: [] as $tid) {
+                yayasan_tugas_delete($pdo, (int) $tid);
+            }
             $pdo->prepare('DELETE FROM yayasan_notulen WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Notulen dihapus.');
         }
@@ -74,6 +80,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 
     $idPost = (int) ($_POST['id'] ?? 0);
+    $rapatRow = $pdo->prepare('SELECT tanggal_rapat FROM yayasan_rapat WHERE id = :id LIMIT 1');
+    $rapatRow->execute(['id' => $rapatId]);
+    $rapatDate = (string) ($rapatRow->fetchColumn() ?: date('Y-m-d'));
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+
     if ($idPost > 0) {
         $pdo->prepare('
             UPDATE yayasan_notulen
@@ -82,13 +93,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 diinput_oleh = :diinput_oleh
             WHERE id = :id
         ')->execute($data + ['id' => $idPost]);
-        set_flash('success', 'Notulen diperbarui.');
+        yayasan_tugas_sync_from_notulen($pdo, $idPost, $rapatId, (string) ($data['tindak_lanjut'] ?? ''), $rapatDate, $userId);
+        set_flash('success', 'Notulen diperbarui. Tugas timeline disinkronkan.');
     } else {
         $pdo->prepare('
             INSERT INTO yayasan_notulen (rapat_id, judul, isi, ringkasan, keputusan, tindak_lanjut, hadir, diinput_oleh)
             VALUES (:rapat_id, :judul, :isi, :ringkasan, :keputusan, :tindak_lanjut, :hadir, :diinput_oleh)
         ')->execute($data);
-        set_flash('success', 'Notulen disimpan.');
+        $newId = (int) $pdo->lastInsertId();
+        $nTask = yayasan_tugas_sync_from_notulen($pdo, $newId, $rapatId, (string) ($data['tindak_lanjut'] ?? ''), $rapatDate, $userId);
+        set_flash('success', 'Notulen disimpan.' . ($nTask > 0 ? ' ' . $nTask . ' tugas timeline tercatat.' : ''));
     }
     header('Location: ' . app_href('/yayasan/notulen.php?rapat_id=' . $rapatId));
     exit;
@@ -207,7 +221,8 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <div class="col-12">
                             <label class="form-label small mb-0">Tindak lanjut</label>
-                            <textarea class="form-control" name="tindak_lanjut" rows="2"><?= htmlspecialchars((string) ($editRow['tindak_lanjut'] ?? '')) ?></textarea>
+                            <textarea class="form-control font-monospace" name="tindak_lanjut" rows="4" placeholder="- Judul tugas | 2025-06-30 | PJ: Nama&#10;- [25%] Tugas berjalan | sampai 15/07/2025"><?= htmlspecialchars((string) ($editRow['tindak_lanjut'] ?? '')) ?></textarea>
+                            <div class="form-text">Satu baris = satu tugas timeline. Tanggal target otomatis tercatat &amp; tersinkron ke <a href="<?= htmlspecialchars(app_href('/yayasan/timeline.php')) ?>">Timeline Yayasan</a> + kalender.</div>
                         </div>
                         <div class="col-12">
                             <button type="submit" class="btn btn-success w-100"><?= $editRow ? 'Simpan perubahan' : 'Simpan notulen' ?></button>

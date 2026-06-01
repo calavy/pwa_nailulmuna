@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
+require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 
 require_roles(['admin', 'pengurus', 'pembimbing']);
 
@@ -250,7 +251,8 @@ if ($bolehSemua && table_exists($pdo, 'pembimbing')) {
 }
 
 $santriRows = [];
-if (table_exists($pdo, 'santri')) {
+$filterIsPkpps = $filterTingkatan !== '' && pembimbing_pkpps_is_label($filterTingkatan);
+if (table_exists($pdo, 'santri') && !$filterIsPkpps) {
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $aktifSql = santri_sql_aktif_only('s');
     $where = 'WHERE ' . $aktifSql;
@@ -278,6 +280,37 @@ if (table_exists($pdo, 'santri')) {
     $stSantri = $pdo->prepare($sqlSantri);
     $stSantri->execute($params);
     $santriRows = $stSantri->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+if (!$bolehSemua && $pembimbingIdAktif > 0 && pembimbing_pkpps_has_jadwal($pdo, $pembimbingIdAktif)) {
+    $pkppsFilterIds = [];
+    if ($filterIsPkpps) {
+        $tid = pembimbing_pkpps_id_from_label($filterTingkatan, $pdo, $pembimbingIdAktif);
+        if ($tid > 0) {
+            $pkppsFilterIds = [$tid];
+        }
+    } elseif ($filterTingkatan === '') {
+        $pkppsFilterIds = pembimbing_pkpps_tingkatan_ids($pdo, $pembimbingIdAktif);
+    }
+    if ($pkppsFilterIds !== [] || $filterIsPkpps) {
+        $pkRows = pembimbing_pkpps_santri_list($pdo, $pembimbingIdAktif, $pkppsFilterIds, 600);
+        $existingIds = array_flip(array_map(static fn(array $r): int => (int) ($r['id'] ?? 0), $santriRows));
+        foreach ($pkRows as $pr) {
+            $sid = (int) ($pr['santri_id'] ?? 0);
+            if ($sid > 0 && !isset($existingIds[$sid])) {
+                $santriRows[] = [
+                    'id' => $sid,
+                    'nis' => (string) ($pr['nis'] ?? ''),
+                    'nama_santri' => (string) ($pr['nama_santri'] ?? ''),
+                    'tingkatan' => (string) ($pr['tingkatan'] ?? ''),
+                ];
+            }
+        }
+        usort($santriRows, static function (array $a, array $b): int {
+            $c = strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
+            return $c !== 0 ? $c : strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
+        });
+    }
 }
 
 $whereNilai = 'WHERE 1=1';

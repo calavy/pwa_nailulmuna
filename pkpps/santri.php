@@ -54,6 +54,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('UPDATE pkpps_santri SET is_aktif = :a WHERE id = :id')->execute(['a' => $aktif, 'id' => $id]);
             set_flash('success', 'Status diperbarui.');
         }
+    } elseif ($action === 'ubah') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $tingkatId = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
+        $tahun = (int) ($_POST['tahun_masehi'] ?? 0);
+        $catatan = trim((string) ($_POST['catatan'] ?? ''));
+        $isAktif = (int) ($_POST['is_aktif'] ?? 1) === 1 ? 1 : 0;
+        if ($id > 0 && $tingkatId > 0) {
+            $pdo->prepare('
+                UPDATE pkpps_santri
+                SET pkpps_tingkatan_id = :tid, tahun_masehi = :th, catatan = :cat, is_aktif = :a
+                WHERE id = :id
+            ')->execute([
+                'tid' => $tingkatId,
+                'th' => $tahun > 0 ? $tahun : null,
+                'cat' => mb_substr($catatan, 0, 255),
+                'a' => $isAktif,
+                'id' => $id,
+            ]);
+            set_flash('success', 'Data santri PKPPS diperbarui.');
+        } else {
+            set_flash('error', 'Data edit tidak lengkap.');
+        }
     }
     header('Location: ' . app_href('/pkpps/santri.php'));
     exit;
@@ -116,6 +138,17 @@ if ($pickSantriId > 0) {
     }
 }
 
+$editId = (int) ($_GET['edit'] ?? 0);
+$editRow = null;
+if ($editId > 0) {
+    foreach ($pkppsRows as $r) {
+        if ((int) ($r['id'] ?? 0) === $editId) {
+            $editRow = $r;
+            break;
+        }
+    }
+}
+
 $tingkatanList = pkpps_tingkatan_list($pdo, true);
 $pageTitle = 'Santri PKPPS';
 require_once __DIR__ . '/../includes/header.php';
@@ -123,10 +156,68 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
     <h1 class="h4 mb-1">Data Santri PKPPS</h1>
-    <p class="text-muted small mb-0">
+    <p class="text-muted small mb-2">
         Diambil dari data santri pusat. Presensi tetap memakai <a href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">scan utama</a>.
     </p>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="<?= htmlspecialchars(app_href('/pkpps/import_santri.php')) ?>" class="btn btn-outline-primary btn-sm">
+            <i class="fa-solid fa-file-import me-1"></i> Import Excel
+        </a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-cash-register me-1"></i> Input pembayaran
+        </a>
+        <a href="<?= htmlspecialchars(app_href('/pkpps/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Pusat PKPPS</a>
+    </div>
 </div>
+
+<div class="alert alert-info py-2 small mb-3">
+    Tambahan syahriyah PKPPS mengikuti <strong>kelas keuangan</strong> santri (Wustho 1/2/3 = Wustho).
+    Pengaturan &amp; pembayaran di menu <a href="<?= htmlspecialchars(app_href('/keuangan/index.php')) ?>">Keuangan</a>.
+</div>
+
+<?php if ($editRow !== null): ?>
+<div class="card shadow-sm mb-3 border-primary">
+    <div class="card-header py-2"><strong>Edit santri PKPPS</strong></div>
+    <div class="card-body">
+        <p class="small fw-semibold mb-2"><?= htmlspecialchars((string) ($editRow['nama_santri'] ?? '-')) ?> · NIS <?= htmlspecialchars((string) ($editRow['nis'] ?? '')) ?></p>
+        <form method="post" class="row g-2">
+            <input type="hidden" name="action" value="ubah">
+            <input type="hidden" name="id" value="<?= (int) ($editRow['id'] ?? 0) ?>">
+            <div class="col-md-4">
+                <label class="form-label small mb-0">Tingkatan PKPPS</label>
+                <select name="pkpps_tingkatan_id" class="form-select form-select-sm" required>
+                    <?php foreach ($tingkatanList as $t): ?>
+                        <option value="<?= (int) ($t['id'] ?? 0) ?>" <?= (int) ($editRow['tingkatan_id'] ?? 0) === (int) ($t['id'] ?? 0) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars((string) ($t['nama_tingkatan'] ?? '')) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Tahun</label>
+                <input type="number" name="tahun_masehi" class="form-control form-control-sm" min="2000" max="2100"
+                       value="<?= (int) ($editRow['tahun_masehi'] ?? $tahunMasehi) ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Status</label>
+                <select name="is_aktif" class="form-select form-select-sm">
+                    <option value="1" <?= (int) ($editRow['is_aktif'] ?? 0) === 1 ? 'selected' : '' ?>>Aktif</option>
+                    <option value="0" <?= (int) ($editRow['is_aktif'] ?? 0) !== 1 ? 'selected' : '' ?>>Nonaktif</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small mb-0">Catatan</label>
+                <input type="text" name="catatan" class="form-control form-control-sm" maxlength="255"
+                       value="<?= htmlspecialchars((string) ($editRow['catatan'] ?? '')) ?>">
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+                <a href="<?= htmlspecialchars(app_href('/pkpps/santri.php')) ?>" class="btn btn-outline-secondary btn-sm">Batal</a>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-3">
     <div class="col-lg-5">
@@ -224,6 +315,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td><?= htmlspecialchars((string) ($r['nama_tingkatan'] ?? '')) ?></td>
                                 <td><?= (int) ($r['is_aktif'] ?? 0) === 1 ? 'Aktif' : 'Nonaktif' ?></td>
                                 <td class="text-end text-nowrap">
+                                    <a href="<?= htmlspecialchars(app_href('/pkpps/santri.php?edit=' . (int) ($r['id'] ?? 0))) ?>" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </a>
                                     <form method="post" class="d-inline">
                                         <input type="hidden" name="action" value="toggle">
                                         <input type="hidden" name="id" value="<?= (int) ($r['id'] ?? 0) ?>">

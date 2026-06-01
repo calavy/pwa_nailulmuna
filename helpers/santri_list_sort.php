@@ -68,8 +68,8 @@ function santri_list_sort_mode(?string $requested = null): string
         return $resolved;
     }
 
-    $stored = strtolower(trim((string) ($_SESSION['santri_list_sort_v1'] ?? 'nama')));
-    $resolved = in_array($stored, santri_list_sort_modes(), true) ? $stored : 'nama';
+    $stored = strtolower(trim((string) ($_SESSION['santri_list_sort_v1'] ?? 'nis')));
+    $resolved = in_array($stored, santri_list_sort_modes(), true) ? $stored : 'nis';
 
     return $resolved;
 }
@@ -134,10 +134,12 @@ function santri_list_order_sql(string $alias = 's', ?PDO $pdo = null): string
     $nama = santri_list_sort_col($alias, santri_list_nama_db_column($pdo));
     $nisOrder = "CAST({$nis} AS UNSIGNED) ASC, LENGTH({$nis}) ASC, {$nis} ASC";
 
+    $tingkatanOrder = santri_list_tingkatan_order_expr($alias, $pdo);
+
     return match ($mode) {
-        'nis' => "{$nisOrder}, {$nama} ASC",
-        'tingkatan' => santri_list_tingkatan_order_expr($alias, $pdo) . ", {$nama} ASC, {$nisOrder}",
-        default => "{$nama} ASC, {$nisOrder}",
+        'nis' => "{$nisOrder}, {$tingkatanOrder}, {$nama} ASC",
+        'tingkatan' => "{$tingkatanOrder}, {$nisOrder}, {$nama} ASC",
+        default => "{$nisOrder}, {$tingkatanOrder}, {$nama} ASC",
     };
 }
 
@@ -189,6 +191,15 @@ function santri_list_compare_rows(array $a, array $b, ?string $mode = null): int
         if ($cmp !== 0) {
             return $cmp;
         }
+        $ra = santri_list_tingkatan_rank(santri_list_row_tingkatan($a));
+        $rb = santri_list_tingkatan_rank(santri_list_row_tingkatan($b));
+        if ($ra !== $rb) {
+            return $ra <=> $rb;
+        }
+        $cmp = strcasecmp(santri_list_row_tingkatan($a), santri_list_row_tingkatan($b));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
 
         return strcasecmp(santri_list_row_nama($a), santri_list_row_nama($b));
     }
@@ -211,16 +222,28 @@ function santri_list_compare_rows(array $a, array $b, ?string $mode = null): int
         return strcmp(santri_list_row_nis($a), santri_list_row_nis($b));
     }
 
-    $cmp = strcasecmp(santri_list_row_nama($a), santri_list_row_nama($b));
+    $na = santri_list_row_nis($a);
+    $nb = santri_list_row_nis($b);
+    $ia = (int) preg_replace('/\D/', '', $na);
+    $ib = (int) preg_replace('/\D/', '', $nb);
+    if ($ia !== $ib) {
+        return $ia <=> $ib;
+    }
+    $cmp = strcmp($na, $nb);
+    if ($cmp !== 0) {
+        return $cmp;
+    }
+    $ra = santri_list_tingkatan_rank(santri_list_row_tingkatan($a));
+    $rb = santri_list_tingkatan_rank(santri_list_row_tingkatan($b));
+    if ($ra !== $rb) {
+        return $ra <=> $rb;
+    }
+    $cmp = strcasecmp(santri_list_row_tingkatan($a), santri_list_row_tingkatan($b));
     if ($cmp !== 0) {
         return $cmp;
     }
 
-    $na = santri_list_row_nis($a);
-    $nb = santri_list_row_nis($b);
-
-    return ((int) preg_replace('/\D/', '', $na)) <=> ((int) preg_replace('/\D/', '', $nb))
-        ?: strcmp($na, $nb);
+    return strcasecmp(santri_list_row_nama($a), santri_list_row_nama($b));
 }
 
 /**

@@ -81,9 +81,10 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <h1 class="h4 mb-1">Laporan tambahan syahriyah PKPPS</h1>
     <p class="text-muted small mb-0">
-        Hanya santri terdaftar PKPPS. Total tagihan syahriyah = dasar + tambahan PKPPS.
+        Hanya santri terdaftar PKPPS. Tambahan PKPPS per kelas keuangan (Wustho 1/2/3 = Wustho).
+        Total tagihan syahriyah = dasar + tambahan PKPPS.
         Alokasi tambahan masuk <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_umum_label()) ?></strong>.
-        <a href="<?= htmlspecialchars(app_href('/settings/pkpps_tingkatan.php#syahriyah-pkpps')) ?>">Pengaturan nominal</a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Pengaturan nominal</a>
     </p>
 </div>
 

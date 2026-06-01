@@ -142,39 +142,53 @@
         }
 
         if (type === 'warning') {
-            if (/sudah tercatat/i.test(s)) {
+            if (/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili/i.test(s)) {
                 return 'Perhatian. Presensi sudah tercatat sebelumnya.';
             }
             if (/tidak terdaftar/i.test(s)) {
-                return 'Perhatian. Kode QR tidak terdaftar.';
+                return 'Gagal. Kode QR tidak terdaftar.';
             }
             if (/tidak aktif|sudah keluar/i.test(s)) {
-                return 'Perhatian. Santri tidak aktif, presensi tidak dicatat.';
+                return 'Gagal. Santri tidak aktif, presensi tidak dicatat.';
             }
             if (/hari libur/i.test(s)) {
-                return 'Perhatian. Hari libur, presensi tidak dicatat.';
+                return 'Gagal. Hari libur, presensi tidak dicatat.';
             }
-            if (/luar jadwal/i.test(s)) {
-                return 'Perhatian. Scan di luar jadwal kegiatan.';
-            }
-            if (/tidak ada kegiatan aktif/i.test(s)) {
-                return 'Perhatian. Tidak ada kegiatan aktif saat ini.';
+            if (/luar jadwal|tidak ada kegiatan/i.test(s)) {
+                return 'Gagal. Scan di luar jadwal kegiatan.';
             }
             return 'Perhatian. ' + s.slice(0, 110);
+        }
+
+        if (type === 'danger') {
+            if (/tidak terdaftar/i.test(s)) {
+                return 'Gagal. Kode QR tidak terdaftar.';
+            }
+            if (/luar jadwal|tidak ada kegiatan/i.test(s)) {
+                return 'Gagal. Scan di luar jadwal atau tidak ada kegiatan aktif.';
+            }
+            if (/hari libur/i.test(s)) {
+                return 'Gagal. Hari libur, presensi tidak dicatat.';
+            }
+            return 'Gagal. ' + s.slice(0, 110);
+        }
+
+        if (type === 'duplicate') {
+            return 'Sudah tercatat. ' + s.slice(0, 100);
         }
 
         return s.slice(0, 120);
     }
 
-    function speakOrBeep(speechText, beepFn) {
-        loadVoices(function () {
-            if (speakText(speechText)) {
-                return;
-            }
-            if (typeof beepFn === 'function') {
-                beepFn();
-            }
-        });
+    function speakSoon(speechText) {
+        if (!speechText) {
+            return;
+        }
+        setTimeout(function () {
+            loadVoices(function () {
+                speakText(speechText);
+            });
+        }, 60);
     }
 
     function runWhenUnlocked(fn) {
@@ -236,25 +250,107 @@
         vibrate([80, 40, 80]);
     }
 
+    function playBeepDanger() {
+        var ctx = getAudioContext();
+        if (!ctx) {
+            return;
+        }
+        var t = ctx.currentTime;
+        tone(220, t, 0.2, 0.22, 'sawtooth');
+        tone(180, t + 0.22, 0.24, 0.2, 'sawtooth');
+        vibrate([120, 60, 120, 60, 120]);
+    }
+
+    function playBeepDuplicate() {
+        var ctx = getAudioContext();
+        if (!ctx) {
+            return;
+        }
+        var t = ctx.currentTime;
+        tone(587.33, t, 0.1, 0.14, 'sine');
+        tone(523.25, t + 0.12, 0.12, 0.14, 'sine');
+        vibrate([50, 30, 50]);
+    }
+
     /** Suara sukses: TTS pesan hasil, fallback bip jika TTS tidak ada. */
     function playSuccess(message) {
-        vibrate([40, 30, 60]);
+        playBeepSuccess();
         var speech = textForSpeech(message, 'success');
-        speakOrBeep(speech, playBeepSuccess);
+        speakSoon(speech);
     }
 
     function playWarning(message) {
-        vibrate([80, 40, 80]);
+        playBeepWarning();
         var speech = textForSpeech(message, 'warning');
-        speakOrBeep(speech, playBeepWarning);
+        speakSoon(speech);
+    }
+
+    function playDanger(message) {
+        playBeepDanger();
+        var speech = textForSpeech(message, 'danger');
+        speakSoon(speech);
+    }
+
+    function playDuplicate(message) {
+        playBeepDuplicate();
+        speakSoon('Stop. Anda sudah scan.');
+    }
+
+    function normalizeType(type, message) {
+        var t = String(type || 'success');
+        if (t === 'warning') {
+            if (/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal/i.test(message || '')) {
+                return 'duplicate';
+            }
+            if (/Munawib terdeteksi|Pilih jadwal/i.test(message || '')) {
+                return 'info';
+            }
+            return 'danger';
+        }
+        if (t === 'error') {
+            return 'danger';
+        }
+        return t;
+    }
+
+    function flashClassForType(type) {
+        if (type === 'success') {
+            return 'presensi-scan-flash-success';
+        }
+        if (type === 'duplicate') {
+            return 'presensi-scan-flash-duplicate';
+        }
+        if (type === 'danger') {
+            return 'presensi-scan-flash-danger';
+        }
+        return 'presensi-scan-flash-warning';
+    }
+
+    function playFeedback(type, message) {
+        type = normalizeType(type, message);
+        if (type === 'success') {
+            playSuccess(message);
+        } else if (type === 'duplicate') {
+            playDuplicate(message);
+        } else if (type === 'danger') {
+            playDanger(message);
+        } else {
+            playWarning(message);
+        }
+        flashViewport(flashClassForType(type));
     }
 
     function flashViewport(className) {
-        var vp = document.querySelector('.presensi-scan-viewport');
+        var vp = document.querySelector('.presensi-scan-viewport') || document.querySelector('.login-pb-qr__viewport');
         if (!vp) {
             return;
         }
-        vp.classList.remove('presensi-scan-flash-success', 'presensi-scan-flash-warning');
+        vp.classList.remove(
+            'presensi-scan-flash-success',
+            'presensi-scan-flash-warning',
+            'presensi-scan-flash-danger',
+            'presensi-scan-flash-duplicate'
+        );
         void vp.offsetWidth;
         vp.classList.add(className);
         setTimeout(function () {
@@ -281,35 +377,49 @@
         var message = speakAttr || (textEl ? textEl.textContent : '');
 
         runWhenUnlocked(function () {
-            if (type === 'success') {
-                playSuccess(message);
-                flashViewport('presensi-scan-flash-success');
-            } else if (type === 'warning') {
-                playWarning(message);
-                flashViewport('presensi-scan-flash-warning');
-            }
+            playFeedback(type, message);
         });
-        showOverlayResult(type, message);
+        showOverlayResult(normalizeType(type, message), message);
+    }
+
+    function overlayMeta(type) {
+        var toneClass = 'presensi-scan-result--' + type;
+        var icon = 'fa-circle-info';
+        if (type === 'success') {
+            icon = 'fa-circle-check';
+        } else if (type === 'duplicate') {
+            icon = 'fa-ban';
+        } else if (type === 'danger') {
+            icon = 'fa-circle-xmark';
+        } else if (type === 'info') {
+            icon = 'fa-list-check';
+        } else if (type === 'warning') {
+            icon = 'fa-triangle-exclamation';
+        }
+        return { toneClass: toneClass, icon: icon };
     }
 
     function showOverlayResult(type, message) {
+        type = normalizeType(type, message);
         var old = document.getElementById('presensi-result-overlay');
         if (old && old.parentNode) {
             old.parentNode.removeChild(old);
         }
+        var meta = overlayMeta(type);
         var wrap = document.createElement('div');
         wrap.id = 'presensi-result-overlay';
         wrap.className = 'presensi-scan-result is-visible';
-        var toneClass = type === 'success'
-            ? 'presensi-scan-result--success'
-            : (type === 'warning' ? 'presensi-scan-result--warning' : 'presensi-scan-result--danger');
-        var icon = type === 'success'
-            ? 'fa-circle-check'
-            : (type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-xmark');
+        var duration = type === 'success' ? 2200 : (type === 'duplicate' ? 2600 : 2800);
+        var displayMessage = String(message || '');
+        if (type === 'success') {
+            displayMessage = 'Berhasil';
+        } else if (type === 'duplicate') {
+            displayMessage = 'Anda sudah scan';
+        }
         wrap.innerHTML = ''
-            + '<div class="presensi-scan-result-card ' + toneClass + '">'
-            + '  <span class="presensi-scan-result-icon"><i class="fa-solid ' + icon + '"></i></span>'
-            + '  <div class="presensi-scan-result-text">' + escapeHtml(message || '') + '</div>'
+            + '<div class="presensi-scan-result-card ' + meta.toneClass + '">'
+            + '  <span class="presensi-scan-result-icon"><i class="fa-solid ' + meta.icon + '"></i></span>'
+            + '  <div class="presensi-scan-result-text">' + escapeHtml(displayMessage) + '</div>'
             + '</div>';
         document.body.appendChild(wrap);
         setTimeout(function () {
@@ -319,7 +429,12 @@
                     wrap.parentNode.removeChild(wrap);
                 }
             }, 260);
-        }, type === 'success' ? 2200 : 2800);
+        }, duration);
+    }
+
+    function showResult(type, message) {
+        playFeedback(type, message);
+        showOverlayResult(type, message);
     }
 
     document.addEventListener('touchstart', function () {
@@ -336,7 +451,10 @@
         scanTick: playScanTick,
         success: playSuccess,
         warning: playWarning,
+        danger: playDanger,
+        duplicate: playDuplicate,
         speak: speakText,
+        show: showResult,
         onPageLoad: handlePageResult,
     };
 

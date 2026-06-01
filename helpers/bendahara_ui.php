@@ -53,6 +53,20 @@ function bendahara_nav_cards(): array
             'color' => 'info',
         ],
         [
+            'href' => '/pembayaran/laporan_alokasi_per_santri.php',
+            'title' => 'Alokasi syahriyah per santri',
+            'desc' => 'Pembagian pembayaran ke komponen alokasi & Dana Umum.',
+            'icon' => 'fa-sitemap',
+            'color' => 'info',
+        ],
+        [
+            'href' => '/pembayaran/laporan_pkpps_syahriyah.php',
+            'title' => 'Laporan syahriyah PKPPS',
+            'desc' => 'Tambahan syahriyah santri PKPPS per bulan.',
+            'icon' => 'fa-file-invoice-dollar',
+            'color' => 'info',
+        ],
+        [
             'href' => '/keuangan/potongan_syahriyah.php',
             'title' => 'Potongan syahriyah',
             'desc' => 'Potongan persen per santri (prestasi, kaka beradik, dll.).',

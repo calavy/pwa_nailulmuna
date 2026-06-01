@@ -2523,6 +2523,64 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
     ];
 }
 
+/**
+ * Preview pesan tagihan satu santri (untuk tautan WA per baris).
+ *
+ * @return array{ok:bool,message:string,phone:string,wa_url:?string,nama:string,sisa:int}|null
+ */
+function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, int $tahunAjaranMulai, int $tahunAjaranSelesai): ?array
+{
+    if ($santriId <= 0) {
+        return null;
+    }
+    if (!function_exists('tagihan_bulanan_page_context')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    ensure_santri_identity_columns($pdo);
+    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
+    $waCol = column_exists($pdo, 'santri', 'no_wa_wali') ? 'no_wa_wali' : "'' AS no_wa_wali";
+    $st = $pdo->prepare("SELECT id, nis, {$nameExpr} AS nama_santri, {$classExpr} AS kategori_kelas, {$waCol} FROM santri WHERE id = :id LIMIT 1");
+    $st->execute(['id' => $santriId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'message' => 'Santri tidak ditemukan.', 'phone' => '', 'wa_url' => null, 'nama' => '', 'sisa' => 0];
+    }
+    $phone = trim((string) ($row['no_wa_wali'] ?? ''));
+    if ($phone === '') {
+        return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
+    }
+    $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
+    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $stTag = tagihan_wajib_status_for_month_bulk(
+        $pdo,
+        $santriId,
+        $bulanTagihan,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $kelas,
+        $tagihanCtx['paid_map'],
+        $tagihanCtx['sy_ctx']
+    );
+    $sisa = (int) ($stTag['sisa_total'] ?? 0);
+    if ($sisa <= 0) {
+        return ['ok' => false, 'message' => 'Tagihan wajib sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
+    }
+    $components = keuangan_tagihan_wajib_components($pdo, $kelas);
+    $labelKekurangan = wa_tagihan_label_kekurangan($components, $stTag['per_pos'] ?? []);
+    $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
+    $pesan = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
+
+    return [
+        'ok' => true,
+        'message' => $pesan,
+        'phone' => $phone,
+        'wa_url' => wa_me_chat_url($phone, $pesan),
+        'nama' => $nama,
+        'sisa' => $sisa,
+    ];
+}
+
 function trigger_auto_wa_tagihan_wali(PDO $pdo): void
 {
     if (!function_exists('keuangan_tahun_ajaran_aktif')) {
@@ -3364,10 +3422,17 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
 
                 return user_can_edit_keaktifan_nilai();
             }
-            if (!isset($permissionPathMap[$path])) {
+            $permPath = $path;
+            if (!isset($permissionPathMap[$permPath])) {
+                $permPath = strtok($path, '#') ?: $path;
+            }
+            if (!isset($permissionPathMap[$permPath])) {
+                $permPath = strtok($path, '?') ?: $path;
+            }
+            if (!isset($permissionPathMap[$permPath])) {
                 return true;
             }
-            return isset($allowedMap[$permissionPathMap[$path]]);
+            return isset($allowedMap[$permissionPathMap[$permPath]]);
         },
         ARRAY_FILTER_USE_BOTH
     );
@@ -3584,9 +3649,13 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
         }
     }
     foreach (menu_group_visible_paths($node, $menuItems) as $cp) {
-        if (str_contains($requestPath, $cp)) {
+        $pathBase = strtok($cp, '?#') ?: $cp;
+        if (str_contains($requestPath, $pathBase)) {
             return true;
         }
+    }
+    if ($hubId === 'menu-grp-kajian' && (preg_match('#^/rekap/#', $requestPath) || str_contains($requestPath, '/pkpps/'))) {
+        return true;
     }
     return false;
 }

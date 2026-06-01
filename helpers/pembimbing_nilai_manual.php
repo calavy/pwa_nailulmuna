@@ -109,3 +109,69 @@ function pembimbing_nilai_manual_map_for_target(PDO $pdo, int $targetId, array $
 
     return $out;
 }
+
+/** Jumlah santri scope pembimbing yang belum dinilai pada target manual aktif. */
+function pembimbing_dashboard_belum_dinilai_manual(PDO $pdo, int $pembimbingId, array $tingkatanList): int
+{
+    if ($pembimbingId <= 0 || $tingkatanList === []) {
+        return 0;
+    }
+    require_once __DIR__ . '/pembimbing_dashboard.php';
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    require_once __DIR__ . '/santri_operasional.php';
+
+    $targets = pembimbing_nilai_manual_targets($pdo, $pembimbingId, true);
+    $today = date('Y-m-d');
+    $activeTarget = null;
+    foreach ($targets as $t) {
+        $mulai = (string) ($t['tanggal_mulai'] ?? '');
+        $selesai = (string) ($t['tanggal_selesai'] ?? '');
+        if ($mulai !== '' && $selesai !== '' && $today >= $mulai && $today <= $selesai) {
+            $activeTarget = $t;
+            break;
+        }
+    }
+    if ($activeTarget === null && $targets !== []) {
+        $activeTarget = $targets[0];
+    }
+    if ($activeTarget === null) {
+        return 0;
+    }
+    $targetId = (int) ($activeTarget['id'] ?? 0);
+    if ($targetId <= 0) {
+        return 0;
+    }
+
+    $santriIds = [];
+    $kajianTk = array_values(array_filter($tingkatanList, static fn (string $tk): bool => !pembimbing_pkpps_is_label($tk)));
+    if ($kajianTk !== [] && table_exists($pdo, 'santri')) {
+        $aktifSql = santri_sql_aktif_only('s');
+        [$inSql, $params] = pembimbing_dashboard_in_clause($kajianTk, 'tk');
+        $st = $pdo->prepare('SELECT s.id FROM santri s WHERE ' . $aktifSql . ' AND s.tingkatan IN (' . $inSql . ')');
+        $st->execute($params);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sid) {
+            $sid = (int) $sid;
+            if ($sid > 0) {
+                $santriIds[$sid] = $sid;
+            }
+        }
+    }
+    foreach (pembimbing_pkpps_santri_list($pdo, $pembimbingId, [], 600) as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid > 0) {
+            $santriIds[$sid] = $sid;
+        }
+    }
+    if ($santriIds === []) {
+        return 0;
+    }
+    $nilaiMap = pembimbing_nilai_manual_map_for_target($pdo, $targetId, array_values($santriIds));
+    $belum = 0;
+    foreach ($santriIds as $sid) {
+        if (!isset($nilaiMap[$sid])) {
+            $belum++;
+        }
+    }
+
+    return $belum;
+}

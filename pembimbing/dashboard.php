@@ -13,6 +13,8 @@ require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/akademik_pasaran.php';
+require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
+require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
 
 ikhtibar_require_pembimbing_access();
 ensure_akademik_ikhtibar_tables($pdo);
@@ -23,6 +25,7 @@ $bolehSemua = is_super_admin() || in_array($role, ['admin', 'pengurus'], true);
 
 $pembimbingInfo = $bolehSemua ? null : pembimbing_dashboard_current_pembimbing($pdo, $userId);
 $pembimbingId = $pembimbingInfo !== null ? (int) ($pembimbingInfo['id'] ?? 0) : 0;
+$hasPkppsJadwal = $pembimbingId > 0 && pembimbing_pkpps_has_jadwal($pdo, $pembimbingId);
 $pembimbingNama = $pembimbingInfo !== null
     ? (string) ($pembimbingInfo['nama'] ?? '')
     : trim((string) ($_SESSION['user']['nama'] ?? ''));
@@ -46,6 +49,10 @@ if (!in_array($modeView, ['ringkas', 'detail'], true)) {
 $keaktifanView = strtolower(trim((string) ($_GET['keaktifan_view'] ?? 'kegiatan')));
 if (!in_array($keaktifanView, ['kegiatan', 'santri'], true)) {
     $keaktifanView = 'kegiatan';
+}
+$pbDashView = strtolower(trim((string) ($_GET['view'] ?? 'home')));
+if (!in_array($pbDashView, ['home', 'keaktivan'], true)) {
+    $pbDashView = 'home';
 }
 /** Scope tampilan detail (filter manual atau semua tingkatan asuhan). */
 $tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
@@ -77,7 +84,13 @@ $keaktivanRowsAsuhan = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanAsu
 $perTingkatan = pembimbing_dashboard_per_tingkatan_stats($pdo, $tingkatanAsuhan, $today, $keaktivanRowsAsuhan);
 
 // Detail harian / tabel: ikuti filter tingkatan atau mode mengajar.
-$kegiatanAktif = pembimbing_dashboard_kegiatan_aktif($pdo, $tingkatanAsuhan, $hariKe, $nowTime);
+$kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
+    $pdo,
+    $tingkatanAsuhan,
+    $hariKe,
+    $nowTime,
+    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+);
 $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
 $tingkatanMengajar = pembimbing_dashboard_tingkatan_dari_kegiatan_aktif($kegiatanAktif);
 $modeMengajar = !$bolehSemua && $tingkatanMengajar !== [] && $tingkatanFilter === '';
@@ -102,9 +115,17 @@ foreach ($rekapPerKegiatan as $rk) {
 
 $kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
 $rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
+$rosterBelumScan = array_values(array_filter(
+    $rosterHariIni,
+    static fn (array $r): bool => strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM')) === 'BELUM'
+));
+$belumScanCount = count($rosterBelumScan);
 $nilaiKelasHariIni = pembimbing_dashboard_nilai_kelas_hari_ini($pdo, $tingkatanAktif, $today, $userId, $bolehSemua);
 $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
 $tugasStats = pembimbing_dashboard_tugas_stats($pdo, $userId, $bolehSemua);
+$belumDinilaiCount = !$bolehSemua && $pembimbingId > 0 && $tingkatanAsuhan !== []
+    ? pembimbing_dashboard_belum_dinilai_manual($pdo, $pembimbingId, $tingkatanAsuhan)
+    : 0;
 
 // Kelompokkan baris keaktifan per tingkatan untuk tabel berkelompok di bawah.
 $keaktivanByTingkatan = [];
@@ -124,9 +145,34 @@ $kehadiranPersen = $statPresensi['total'] > 0
 
 $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';
 $pbDashServerClockMs = (int) round(microtime(true) * 1000);
+$jumlahTingkatanHome = count($tingkatanAsuhan);
 
+$kegiatanMendekati = pembimbing_dashboard_kegiatan_mendekati(
+    $pdo,
+    $tingkatanAsuhan,
+    $hariKe,
+    $nowTime,
+    5,
+    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+);
+$pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
+$santriMapPerTingkatan = pembimbing_dashboard_santri_list_map(
+    $pdo,
+    $tingkatanAsuhan,
+    400,
+    !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
+);
+$tingkatanBarisHome = $perTingkatan !== [] ? $perTingkatan : array_map(
+    static function (string $tk) use ($santriPerTingkatanMap): array {
+        return [
+            'tingkatan' => $tk,
+            'total' => (int) ($santriPerTingkatanMap[$tk]['total'] ?? 0),
+        ];
+    },
+    $tingkatanAsuhan
+);
 $pageTitle = 'Dashboard Pembimbing';
-$bodyClass = 'dash-page';
+$bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih' : '');
 $loadPushFcm = true;
 $pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
@@ -134,9 +180,22 @@ $baseDashQuery = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($ke
 if ($tingkatanFilter !== '') {
     $baseDashQuery .= '&tingkatan=' . rawurlencode($tingkatanFilter);
 }
+$keaktivanUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&view=keaktivan');
+$homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
 ?>
 
 <div class="dash-page">
+
+    <?php if (!$bolehSemua && $pbDashView === 'keaktivan'): ?>
+        <?php require __DIR__ . '/partials/keaktivan_page.php'; ?>
+    <?php elseif (!$bolehSemua && $pbDashView === 'home'): ?>
+        <?php
+        $jumlahTingkatan = $jumlahTingkatanHome;
+        $tingkatanBaris = $tingkatanBarisHome;
+        $pbDashHasPkpps = $hasPkppsJadwal;
+        require __DIR__ . '/partials/dashboard_home_top.php';
+        ?>
+    <?php else: ?>
     <div class="dash-hero mb-4">
         <div class="dash-hero-inner">
             <div class="dash-hero-layout dash-hero-layout--slim">
@@ -144,15 +203,15 @@ if ($tingkatanFilter !== '') {
                     <div class="dash-hero-kicker text-white-50">Portal Pembimbing</div>
                     <h1 class="h3 dash-hero-title mb-2 d-flex flex-wrap align-items-center gap-2">
                         <?= htmlspecialchars($labelUser) ?>
-                        <?php if ($pbSudahHadir): ?>
-                            <span class="badge text-bg-success fs-6"><i class="fa-solid fa-circle-check me-1"></i>Hadir</span>
-                        <?php endif; ?>
+                        <span class="badge <?= $pbSudahHadir ? 'text-bg-success' : 'text-bg-secondary' ?> fs-6">
+                            <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?> me-1"></i><?= $pbSudahHadir ? 'Hadir' : 'Belum scan' ?>
+                        </span>
                     </h1>
                     <p class="dash-hero-sub mb-0 small text-white-50">
                         <?php if ($modeMengajar): ?>
                             <strong class="text-white">Sedang mengajar</strong> — data santri &amp; laporan dibatasi kelas: <?= htmlspecialchars(implode(', ', $tingkatanMengajar)) ?>.
                         <?php else: ?>
-                            Pantau santri pada tingkatan kajian Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
+                            Pantau santri pada tingkatan kajian<?= $hasPkppsJadwal ? ' &amp; PKPPS' : '' ?> Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
                         <?php endif; ?>
                     </p>
                     <?php if ($pbDashHijriLabel !== '' || $pbDashPasaran !== ''): ?>
@@ -181,67 +240,9 @@ if ($tingkatanFilter !== '') {
             </div>
         </div>
     </div>
-
-    <?php if (!$bolehSemua): ?>
-    <div class="pb-hub-menu mb-4">
-        <div class="pb-hub-menu__inner">
-            <div class="pb-hub-menu__group">
-                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-clipboard-check me-1"></i> Presensi</h2>
-                <div class="pb-hub-menu__items">
-                    <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=qr')) ?>" class="pb-hub-menu__item pb-hub-menu__item--qr">
-                        <i class="fa-solid fa-qrcode"></i>
-                        <span>Masuk dengan QR</span>
-                    </a>
-                    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="pb-hub-menu__item">
-                        <i class="fa-solid fa-calendar-days"></i>
-                        <span>Jadwal Kegiatan</span>
-                    </a>
-                </div>
-            </div>
-            <div class="pb-hub-menu__group">
-                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-star me-1"></i> Penilaian</h2>
-                <div class="pb-hub-menu__items">
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-list-check"></i><span>Daftar Tugas</span></a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-pen-to-square"></i><span>Buat Tugas</span></a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-marker"></i><span>Penilaian</span></a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-chart-column"></i><span>Rekap Nilai</span></a>
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="pb-hub-menu__item"><i class="fa-solid fa-keyboard"></i><span>Nilai Manual</span></a>
-                </div>
-            </div>
-            <div class="pb-hub-menu__group">
-                <h2 class="pb-hub-menu__title"><i class="fa-solid fa-sliders me-1"></i> Perizinan</h2>
-                <div class="pb-hub-menu__items">
-                    <a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="pb-hub-menu__item pb-hub-menu__item--accent">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
-                        <span>Atur Kegiatan Hari Ini</span>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
     <?php endif; ?>
 
-    <?php if (!$bolehSemua && $semuaTingkatanList !== []): ?>
-    <div class="pb-mini-stats mb-4" aria-label="Ringkasan singkat">
-        <div class="pb-mini-stat">
-            <span class="pb-mini-stat__value"><?= (int) $totalSantri ?></span>
-            <span class="pb-mini-stat__label">Santri</span>
-        </div>
-        <div class="pb-mini-stat">
-            <span class="pb-mini-stat__value"><?= (int) $statPresensi['hadir'] ?></span>
-            <span class="pb-mini-stat__label">Hadir</span>
-        </div>
-        <div class="pb-mini-stat">
-            <span class="pb-mini-stat__value"><?= (int) $statIzinCount ?></span>
-            <span class="pb-mini-stat__label">Izin</span>
-        </div>
-        <div class="pb-mini-stat">
-            <span class="pb-mini-stat__value"><?= (int) $statPresensi['alpa'] ?></span>
-            <span class="pb-mini-stat__label">Alpa</span>
-        </div>
-    </div>
-    <?php endif; ?>
-
+    <?php if ($bolehSemua): ?>
     <!-- Filter ringkas (tingkatan + tahun) -->
     <form method="get" class="card border-0 shadow-sm mb-4 dash-panel">
         <div class="card-body py-2 px-3">
@@ -283,6 +284,7 @@ if ($tingkatanFilter !== '') {
             </div>
         </div>
     </form>
+    <?php endif; ?>
 
     <?php if ($semuaTingkatanList !== [] && $modeView === 'detail'): ?>
     <div class="card border-0 shadow-sm mb-4 dash-panel pb-tingkatan-block">
@@ -327,29 +329,39 @@ if ($tingkatanFilter !== '') {
     </div>
     <?php endif; ?>
 
-    <?php if ($semuaTingkatanList === []): ?>
+    <?php if ($semuaTingkatanList === [] && ($bolehSemua || $pbDashView !== 'home')): ?>
         <div class="card border-0 shadow-sm mb-4 dash-panel">
             <div class="card-body text-center py-5">
                 <div class="display-6 text-muted mb-2" aria-hidden="true">
                     <i class="fa-solid fa-chalkboard-user opacity-50"></i>
                 </div>
-                <h2 class="h5 mb-1">Belum mendapat kelas / kajian</h2>
+                <h2 class="h5 mb-1"><?= $hasPkppsJadwal && $tingkatanMilik === [] ? 'Belum ada jadwal kajian' : 'Belum mendapat kelas / kajian' ?></h2>
                 <p class="text-muted mb-2">
                     Akun pembimbing Anda<?php if ($pembimbingNama !== ''): ?> (<strong><?= htmlspecialchars($pembimbingNama) ?></strong>)<?php endif; ?>
-                    belum diset sebagai pembimbing pada jadwal kegiatan apa pun.
+                    <?php if ($hasPkppsJadwal): ?>
+                        sudah terdaftar sebagai <strong>pembimbing PKPPS</strong>. Gunakan menu <em>Santri PKPPS</em> di atas untuk melihat santri.
+                    <?php else: ?>
+                        belum diset sebagai pembimbing pada jadwal kegiatan apa pun.
+                    <?php endif; ?>
                 </p>
+                <?php if (!$hasPkppsJadwal): ?>
                 <p class="small text-muted mb-3">
                     Hubungi pengurus bila kelas belum muncul, atau tambahkan sendiri lewat tombol di bawah.
                 </p>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?panel=kegiatan')) ?>" class="btn btn-warning">
                     <i class="fa-solid fa-plus me-1"></i> Tambah kegiatan
                 </a>
+                <?php else: ?>
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/pkpps_santri.php')) ?>" class="btn btn-primary">
+                    <i class="fa-solid fa-users me-1"></i> Lihat santri PKPPS
+                </a>
+                <?php endif; ?>
             </div>
         </div>
     <?php endif; ?>
 
-    <?php if ($modeView === 'ringkas' && $semuaTingkatanList !== []): ?>
-    <div class="card border-0 shadow-sm mb-4 dash-panel pb-dash-unified d-none d-lg-block">
+    <?php if ($modeView === 'ringkas' && $semuaTingkatanList !== [] && $bolehSemua): ?>
+    <div class="card border-0 shadow-sm mb-4 dash-panel pb-dash-unified">
         <div class="card-body p-3 p-md-4">
             <div class="row g-3 align-items-stretch pb-dash-unified-top">
                 <div class="col-md-4 col-lg-3">
@@ -390,138 +402,15 @@ if ($tingkatanFilter !== '') {
 
             <hr class="my-3 opacity-25">
 
-            <div class="pb-keaktifan-hari-panel mb-0">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-sun text-warning me-1"></i> Keaktifan hari ini</h2>
-                <span class="badge text-bg-light border font-monospace"><?= htmlspecialchars(app_format_jam(date('H:i:s'))) ?> WIB</span>
-            </div>
-            <div class="pb-keaktifan-hari-stats" aria-label="Presensi hari ini">
-                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--hadir">
-                    Hadir
-                    <strong><?= (int) $statPresensi['hadir'] ?></strong>
-                    <span class="opacity-75">/ <?= (int) $statPresensi['total'] ?></span>
-                </div>
-                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--izin">
-                    Izin
-                    <strong><?= (int) $statIzinCount ?></strong>
-                </div>
-                <div class="pb-keaktifan-hari-stat pb-keaktifan-hari-stat--alpa">
-                    Alpa
-                    <strong><?= (int) $statPresensi['alpa'] ?></strong>
-                </div>
-            </div>
-
-            <div class="pb-keaktifan-kpi" role="list" aria-label="Ringkasan keaktifan tahun">
-                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--bagus" role="listitem">
-                    <div class="pb-keaktifan-kpi__label">Bagus</div>
-                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['bagus'] ?></div>
-                </div>
-                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--sedang" role="listitem">
-                    <div class="pb-keaktifan-kpi__label">Sedang</div>
-                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['sedang'] ?></div>
-                </div>
-                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--buruk" role="listitem">
-                    <div class="pb-keaktifan-kpi__label">Buruk</div>
-                    <div class="pb-keaktifan-kpi__value"><?= (int) $kategoriRingkas['buruk'] ?></div>
-                </div>
-                <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--alpa" role="listitem">
-                    <div class="pb-keaktifan-kpi__label">Alpa hari ini</div>
-                    <div class="pb-keaktifan-kpi__value"><?= (int) $statPresensi['alpa'] ?></div>
-                </div>
-            </div>
-
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                <div>
-                    <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-chart-line text-success me-1"></i> Rekap keaktifan · tahun <?= (int) $tahun ?></h2>
-                    <p class="small text-muted mb-0">Kategori keaktifan santri berdasarkan presensi tahun berjalan</p>
-                </div>
-                <form method="get" class="d-flex flex-wrap align-items-center gap-2 m-0">
-                    <?php if ($tingkatanFilter !== ''): ?><input type="hidden" name="tingkatan" value="<?= htmlspecialchars($tingkatanFilter) ?>"><?php endif; ?>
-                    <input type="hidden" name="tahun" value="<?= (int) $tahun ?>">
-                    <input type="hidden" name="mode" value="ringkas">
-                    <label class="small text-muted mb-0" for="pb-keaktifan-view">Tampilan</label>
-                    <select id="pb-keaktifan-view" name="keaktifan_view" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
-                        <option value="kegiatan"<?= $keaktifanView === 'kegiatan' ? ' selected' : '' ?>>Per kegiatan</option>
-                        <option value="santri"<?= $keaktifanView === 'santri' ? ' selected' : '' ?>>Per santri</option>
-                    </select>
-                </form>
-            </div>
-
-            <?php if ($keaktifanView === 'kegiatan'): ?>
-                <?php if ($rekapPerKegiatan === []): ?>
-                    <p class="text-muted small text-center py-3 mb-0">Belum ada data presensi tahun ini.</p>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0 pb-keaktifan-table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-2">Kegiatan</th>
-                                    <th class="text-center">Hadir</th>
-                                    <th class="text-center">Izin</th>
-                                    <th class="text-center">Sakit</th>
-                                    <th class="text-center">Alpa</th>
-                                    <th class="text-center pe-2">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($rekapPerKegiatan as $rk): ?>
-                                <tr>
-                                    <td class="ps-2 small fw-semibold"><?= htmlspecialchars((string) ($rk['nama_kegiatan'] ?? '—')) ?></td>
-                                    <td class="text-center small text-success"><?= (int) ($rk['hadir'] ?? 0) ?></td>
-                                    <td class="text-center small"><?= (int) ($rk['izin'] ?? 0) ?></td>
-                                    <td class="text-center small"><?= (int) ($rk['sakit'] ?? 0) ?></td>
-                                    <td class="text-center small text-danger"><?= (int) ($rk['alpa'] ?? 0) ?></td>
-                                    <td class="text-center pe-2 small fw-semibold"><?= (int) ($rk['total'] ?? 0) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            <?php elseif ($keaktivanByTingkatan === []): ?>
-                <p class="text-muted small text-center py-3 mb-0">Belum ada data keaktifan santri.</p>
-            <?php else: ?>
-                <div class="table-responsive" style="max-height:18rem;overflow-y:auto">
-                    <table class="table table-sm table-hover align-middle mb-0 pb-keaktifan-table">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th class="ps-2">Santri</th>
-                                <th class="text-center">Hadir</th>
-                                <th class="text-center">Alpa</th>
-                                <th class="text-center">%</th>
-                                <th class="pe-2">Kategori</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($keaktivanRows as $r):
-                            $kat = strtoupper((string) ($r['kategori'] ?? ''));
-                            $badgeClass = match (true) {
-                                $kat === 'BAIK' || $kat === 'BAGUS' => 'badge-kat-bagus',
-                                $kat === 'SEDANG' => 'badge-kat-sedang',
-                                $kat === 'BURUK' || $kat === 'JELEK' => 'badge-kat-buruk',
-                                default => 'text-bg-secondary',
-                            };
-                        ?>
-                            <tr>
-                                <td class="ps-2 small">
-                                    <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></div>
-                                    <div class="text-muted" style="font-size:.72rem"><?= htmlspecialchars((string) $r['tingkatan']) ?></div>
-                                </td>
-                                <td class="text-center small text-success"><?= (int) $r['hadir'] ?></td>
-                                <td class="text-center small text-danger"><?= (int) $r['alpa'] ?></td>
-                                <td class="text-center small"><?= $r['total'] > 0 ? number_format((float) $r['persen_hadir'], 0, ',', '.') . '%' : '—' ?></td>
-                                <td class="pe-2"><span class="badge <?= htmlspecialchars($badgeClass) ?>"><?= htmlspecialchars((string) $r['label']) ?></span></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-            </div>
+            <?php if ($bolehSemua):
+                $rekapPanelClass = '';
+                $rekapFormMode = 'ringkas';
+                require __DIR__ . '/partials/rekap_keaktivan_inline.php';
+            endif; ?>
         </div>
     </div>
 
-    <?php if ($rosterHariIni !== []): ?>
+    <?php if ($rosterHariIni !== [] && $bolehSemua): ?>
     <div class="card border-0 shadow-sm mb-4 dash-panel">
         <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
             <h2 class="h6 mb-1 fw-bold">Daftar santri scan hari ini</h2>
@@ -557,11 +446,13 @@ if ($tingkatanFilter !== '') {
     </div>
     <?php endif; ?>
 
+    <?php if ($bolehSemua || $pbDashView === 'home'): ?>
     <div class="text-end mb-4">
         <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?' . $baseDashQuery . '&mode=detail')) ?>" class="btn btn-sm btn-outline-secondary">
             <i class="fa-solid fa-table-list me-1"></i> Lihat dashboard detail
         </a>
     </div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($modeView === 'detail'): ?>
@@ -885,5 +776,104 @@ if ($tingkatanFilter !== '') {
 </div>
 
 <script>window.PONDOK_SERVER_CLOCK_MS = <?= (int) $pbDashServerClockMs ?>;</script>
+<script>
+(function () {
+    var mapEl = document.getElementById('pb-santri-map-json');
+    var santriPanel = document.getElementById('pb-santri-panel');
+    var santriList = document.getElementById('pb-santri-panel-list');
+    var santriTitle = document.getElementById('pb-santri-panel-title');
+    var tkPick = document.getElementById('pb-tk-pick');
+    var closeBtn = document.getElementById('pb-santri-panel-close');
+    var lihatBtn = document.querySelector('.js-pb-lihat-santri');
+    if (!mapEl || !santriPanel || !santriList || !lihatBtn) return;
+
+    var santriMap = {};
+    try { santriMap = JSON.parse(mapEl.textContent || '{}'); } catch (e) { santriMap = {}; }
+    var multiTk = Object.keys(santriMap).length > 1;
+
+    function renderList(tk) {
+        var rows = santriMap[tk] || [];
+        santriTitle.textContent = 'Santri · ' + tk + ' (' + rows.length + ')';
+        santriList.innerHTML = '';
+        if (rows.length === 0) {
+            santriList.innerHTML = '<li class="pb-dash-santri-panel__empty">Belum ada santri.</li>';
+            return;
+        }
+        rows.forEach(function (r) {
+            var li = document.createElement('li');
+            li.className = 'pb-dash-santri-panel__item';
+            li.innerHTML = '<span class="pb-dash-santri-panel__name"></span><span class="pb-dash-santri-panel__meta"></span>';
+            li.querySelector('.pb-dash-santri-panel__name').textContent = r.nama_santri || '—';
+            li.querySelector('.pb-dash-santri-panel__meta').textContent = (r.nis || '') + (r.tingkatan ? ' · ' + r.tingkatan : '');
+            santriList.appendChild(li);
+        });
+    }
+
+    function openPanel(tk) {
+        if (multiTk && tkPick) {
+            tkPick.classList.remove('d-none');
+            tkPick.hidden = false;
+        }
+        renderList(tk);
+        santriPanel.classList.remove('d-none');
+        santriPanel.hidden = false;
+        lihatBtn.setAttribute('aria-expanded', 'true');
+        lihatBtn.classList.add('is-active');
+        document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (b) {
+            b.classList.toggle('is-active', b.getAttribute('data-tingkatan') === tk);
+        });
+    }
+
+    function closePanel() {
+        santriPanel.classList.add('d-none');
+        santriPanel.hidden = true;
+        lihatBtn.setAttribute('aria-expanded', 'false');
+        lihatBtn.classList.remove('is-active');
+        if (tkPick) {
+            tkPick.classList.add('d-none');
+            tkPick.hidden = true;
+        }
+        document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (b) { b.classList.remove('is-active'); });
+    }
+
+    lihatBtn.addEventListener('click', function () {
+        if (!santriPanel.classList.contains('d-none') && !santriPanel.hidden) {
+            closePanel();
+            return;
+        }
+        var keys = Object.keys(santriMap);
+        if (keys.length === 0) {
+            santriTitle.textContent = 'Belum ada santri';
+            santriList.innerHTML = '<li class="pb-dash-santri-panel__empty">Belum ada santri dibimbing.</li>';
+            santriPanel.classList.remove('d-none');
+            santriPanel.hidden = false;
+            lihatBtn.setAttribute('aria-expanded', 'true');
+            lihatBtn.classList.add('is-active');
+            return;
+        }
+        if (keys.length === 1) {
+            openPanel(keys[0]);
+            return;
+        }
+        if (tkPick) {
+            tkPick.classList.remove('d-none');
+            tkPick.hidden = false;
+            santriPanel.classList.add('d-none');
+            santriPanel.hidden = true;
+            santriTitle.textContent = 'Pilih tingkatan di bawah';
+            lihatBtn.setAttribute('aria-expanded', 'true');
+            lihatBtn.classList.add('is-active');
+        }
+    });
+
+    document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (btnTk) {
+        btnTk.addEventListener('click', function () {
+            openPanel(btnTk.getAttribute('data-tingkatan') || '');
+        });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

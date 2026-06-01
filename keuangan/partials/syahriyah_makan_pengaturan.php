@@ -17,7 +17,7 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => 'Makan'];
     <div class="card-header fw-semibold">1. Tarif default (semua bulan)</div>
     <div class="card-body">
         <p class="small text-muted mb-3">
-            Nominal dasar per tier Muadalah / Wustho / Ulya. Dipakai jika tidak ada tarif khusus per bulan di bawah.
+            Nominal dasar per tier Muadalah / Wustho / Ulya. Dipakai jika tidak ada tarif khusus per bulan (tombol di bawah).
         </p>
         <form method="post">
             <input type="hidden" name="action" value="save_tarif">
@@ -56,12 +56,16 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => 'Makan'];
 </div>
 
 <div class="card shadow-sm" id="tarif-per-bulan">
-    <div class="card-header fw-semibold">2. Tarif khusus per bulan tagihan</div>
-    <div class="card-body">
-        <p class="small text-muted mb-3">
-            Isi hanya bulan yang nominalnya <strong>berbeda</strong> dari tarif default. Kosongkan = pakai default.
+    <div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>2. Tarif khusus per bulan tagihan</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm syahriyah-toggle-bulan"
+                data-target="#tarif-bulan-panel" aria-expanded="false">Ubah per bulan</button>
+    </div>
+    <div class="card-body" id="tarif-bulan-panel">
+        <p class="small text-muted mb-3 syahriyah-bulan-cols d-none">
+            Isi hanya bulan yang nominal <strong>syahriyah</strong> atau <strong>makan</strong> berbeda dari tarif default. Kosongkan = pakai default.
         </p>
-        <form method="get" class="row g-2 align-items-end mb-3">
+        <form method="get" class="row g-2 align-items-end mb-3 syahriyah-bulan-cols d-none">
             <input type="hidden" name="bagian" value="syahriyah_makan">
             <?php
             $taMulai = $taMulaiTarifBulan;
@@ -76,11 +80,11 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => 'Makan'];
                 <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Tampilkan</button>
             </div>
         </form>
-        <p class="small mb-3">
+        <p class="small mb-3 syahriyah-bulan-cols d-none">
             Tahun ajaran:
             <strong><?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, ['mulai' => $taMulaiTarifBulan, 'selesai' => $taSelesaiTarifBulan])) ?></strong>
         </p>
-        <form method="post">
+        <form method="post" class="syahriyah-bulan-cols d-none">
             <input type="hidden" name="action" value="save_tarif_bulan">
             <input type="hidden" name="tarif_bulan_ta_mulai" value="<?= (int) $taMulaiTarifBulan ?>">
             <input type="hidden" name="tarif_bulan_ta_selesai" value="<?= (int) $taSelesaiTarifBulan ?>">
@@ -129,5 +133,6 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => 'Makan'];
             <?php endforeach; ?>
             <button type="submit" class="btn btn-primary btn-sm">Simpan tarif per bulan</button>
         </form>
+        <p class="small text-muted mb-0 syahriyah-bulan-intro">Klik <strong>Ubah per bulan</strong> untuk mengisi tarif syahriyah dan makan per bulan tagihan.</p>
     </div>
 </div>
