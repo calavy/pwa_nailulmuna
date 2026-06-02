@@ -229,8 +229,8 @@
 }
 
 [data-theme="dark"] .auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback) {
-    background: transparent;
-    border: none;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
 .auth-portal-kop__teks {

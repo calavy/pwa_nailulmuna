@@ -15,8 +15,13 @@ require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/akademik_pasaran.php';
 require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
+require_once __DIR__ . '/../helpers/munawib_portal.php';
 
 ikhtibar_require_pembimbing_access();
+munawib_portal_require_konteks();
+
+$isMunawibPortal = munawib_is_portal_session();
+$munawibPortalKonteks = munawib_portal_konteks();
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
 $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
@@ -61,6 +66,9 @@ if (!in_array($keaktifanView, ['kegiatan', 'santri'], true)) {
 }
 $pbDashView = strtolower(trim((string) ($_GET['view'] ?? 'home')));
 if (!in_array($pbDashView, ['home', 'keaktivan'], true)) {
+    $pbDashView = 'home';
+}
+if ($isMunawibPortal && $pbDashView !== 'home' && $pbDashView !== 'keaktivan') {
     $pbDashView = 'home';
 }
 /** Scope tampilan detail (filter manual atau semua tingkatan asuhan). */
@@ -108,7 +116,6 @@ $kategoriRingkas = ['bagus' => 0, 'sedang' => 0, 'buruk' => 0, 'belum' => 0];
 $rekapPerKegiatan = [];
 $rekapKegiatanTotal = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
 $rosterHariIni = [];
-$belumScanCount = 0;
 $nilaiKelasHariIni = [];
 $pbSudahHadir = false;
 $tugasStats = ['total' => 0, 'published' => 0, 'draft' => 0, 'sesi_selesai' => 0];
@@ -198,10 +205,6 @@ if ($isPbKeaktivanOnly) {
 
     $kegiatanIdsAktif = array_values(array_filter(array_map(static fn (array $k): int => (int) ($k['kegiatan_id'] ?? $k['id'] ?? 0), $kegiatanAktif)));
     $rosterHariIni = pembimbing_dashboard_roster_hari_ini($pdo, $tingkatanAktif, $today, $kegiatanIdsAktif);
-    $belumScanCount = count(array_values(array_filter(
-        $rosterHariIni,
-        static fn (array $r): bool => strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM')) === 'BELUM'
-    )));
     $nilaiKelasHariIni = pembimbing_dashboard_nilai_kelas_hari_ini($pdo, $tingkatanAktif, $today, $userId, $bolehSemua);
     $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
     $tugasStats = pembimbing_dashboard_tugas_stats($pdo, $userId, $bolehSemua);
@@ -261,6 +264,12 @@ $kehadiranPersen = $statPresensi['total'] > 0
     : 0.0;
 
 $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';
+if ($isMunawibPortal && is_array($munawibPortalKonteks)) {
+    $mwPb = trim((string) ($munawibPortalKonteks['pembimbing_nama'] ?? ''));
+    if ($mwPb !== '') {
+        $labelUser = $mwPb;
+    }
+}
 $pbDashServerClockMs = (int) round(microtime(true) * 1000);
 $jumlahTingkatanHome = count($tingkatanAsuhan);
 
@@ -303,6 +312,8 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         $jumlahTingkatan = $jumlahTingkatanHome;
         $tingkatanBaris = $tingkatanBarisHome;
         $pbDashHasPkpps = $hasPkppsJadwal;
+        $isMunawibPortal = $isMunawibPortal ?? false;
+        $munawibPortalKonteks = $munawibPortalKonteks ?? null;
         require __DIR__ . '/partials/dashboard_home_top.php';
         ?>
     <?php else: ?>
@@ -534,7 +545,14 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                     </thead>
                     <tbody>
                     <?php foreach ($rosterHariIni as $rs):
-                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? 'BELUM'));
+                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? ''));
+                        $stLabel = match ($st) {
+                            'HADIR' => 'Hadir',
+                            'IZIN' => 'Izin',
+                            'SAKIT' => 'Sakit',
+                            'ALPA' => 'Alpa',
+                            default => '—',
+                        };
                         $badge = match ($st) {
                             'HADIR' => 'success',
                             'IZIN', 'SAKIT' => 'warning',
@@ -545,7 +563,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                         <tr>
                             <td class="ps-3"><div class="fw-semibold small"><?= htmlspecialchars((string) $rs['nama_santri']) ?></div><div class="text-muted font-monospace" style="font-size:.7rem"><?= htmlspecialchars((string) $rs['nis']) ?></div></td>
                             <td class="small"><?= htmlspecialchars((string) $rs['tingkatan']) ?></td>
-                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($st === 'BELUM' ? 'Belum scan' : $st) ?></span></td>
+                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($stLabel) ?></span></td>
                             <td class="pe-3 small font-monospace"><?= !empty($rs['jam_presensi']) ? htmlspecialchars(substr((string) $rs['jam_presensi'], 0, 5)) : '—' ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -699,7 +717,14 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                     <thead class="table-light"><tr><th>Santri</th><th>Tingkatan</th><th>Status</th><th>Jam</th></tr></thead>
                     <tbody>
                     <?php foreach ($rosterHariIni as $rs):
-                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? 'BELUM'));
+                        $st = strtoupper((string) ($rs['status_hari_ini'] ?? ''));
+                        $stLabel = match ($st) {
+                            'HADIR' => 'Hadir',
+                            'IZIN' => 'Izin',
+                            'SAKIT' => 'Sakit',
+                            'ALPA' => 'Alpa',
+                            default => '—',
+                        };
                         $badge = match ($st) {
                             'HADIR' => 'success',
                             'IZIN', 'SAKIT' => 'warning',
@@ -710,7 +735,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                         <tr>
                             <td><div class="fw-semibold small"><?= htmlspecialchars((string) $rs['nama_santri']) ?></div><div class="text-muted font-monospace" style="font-size:.7rem"><?= htmlspecialchars((string) $rs['nis']) ?></div></td>
                             <td class="small"><?= htmlspecialchars((string) $rs['tingkatan']) ?></td>
-                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($st === 'BELUM' ? 'Belum scan' : $st) ?></span></td>
+                            <td><span class="badge text-bg-<?= $badge ?>-subtle text-<?= $badge ?> border border-<?= $badge ?>-subtle"><?= htmlspecialchars($stLabel) ?></span></td>
                             <td class="small font-monospace"><?= !empty($rs['jam_presensi']) ? htmlspecialchars(substr((string) $rs['jam_presensi'], 0, 5)) : '—' ?></td>
                         </tr>
                     <?php endforeach; ?>

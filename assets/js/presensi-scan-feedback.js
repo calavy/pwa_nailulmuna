@@ -412,10 +412,12 @@
         var textEl = el.querySelector('.presensi-scan-result-text');
         var message = speakAttr || (textEl ? textEl.textContent : '');
 
+        var normalized = normalizeType(type, message);
         runWhenUnlocked(function () {
             playFeedback(type, message);
         });
-        showOverlayResult(normalizeType(type, message), message);
+        showOverlayResult(normalized, message);
+        setBanner(normalized, message);
     }
 
     function overlayMeta(type) {
@@ -435,6 +437,80 @@
         return { toneClass: toneClass, icon: icon };
     }
 
+    function shortDisplayMessage(type, message) {
+        type = normalizeType(type, message);
+        var s = String(message || '').trim();
+        if (type === 'success') {
+            return 'Berhasil';
+        }
+        if (type === 'duplicate') {
+            return 'Anda sudah scan';
+        }
+        if (type === 'danger') {
+            if (/luar jadwal|tidak ada kegiatan/i.test(s)) {
+                return 'Di luar jadwal';
+            }
+            if (/hari libur/i.test(s)) {
+                return 'Hari libur';
+            }
+            if (/tidak terdaftar/i.test(s)) {
+                return 'QR tidak terdaftar';
+            }
+            if (/tidak aktif|sudah keluar/i.test(s)) {
+                return 'Santri tidak aktif';
+            }
+            return 'Scan ditolak';
+        }
+        if (type === 'info') {
+            if (/Munawib/i.test(s)) {
+                return 'Pilih jadwal munawib';
+            }
+        }
+        return s.slice(0, 120);
+    }
+
+    function bannerIconForType(type) {
+        if (type === 'success') {
+            return 'fa-circle-check';
+        }
+        if (type === 'duplicate') {
+            return 'fa-ban';
+        }
+        if (type === 'danger') {
+            return 'fa-circle-xmark';
+        }
+        if (type === 'info') {
+            return 'fa-circle-info';
+        }
+        return 'fa-triangle-exclamation';
+    }
+
+    function setBanner(type, message) {
+        type = normalizeType(type, message);
+        var host = document.getElementById('presensi-scan-banner-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'presensi-scan-banner-host';
+            var header = document.querySelector('.presensi-scan-top');
+            if (header && header.parentNode) {
+                header.parentNode.insertBefore(host, header.nextSibling);
+            } else {
+                document.body.appendChild(host);
+            }
+        }
+        host.hidden = false;
+        host.innerHTML = ''
+            + '<div class="presensi-scan-banner presensi-scan-banner--' + type + '" role="alert" aria-live="assertive">'
+            + '  <i class="fa-solid ' + bannerIconForType(type) + '" aria-hidden="true"></i>'
+            + '  <span>' + escapeHtml(shortDisplayMessage(type, message)) + '</span>'
+            + '</div>';
+        global.clearTimeout(host._hideTimer);
+        host._hideTimer = global.setTimeout(function () {
+            host.innerHTML = '';
+            host.hidden = true;
+        }, type === 'success' ? 5500 : 6500);
+    }
+
     function showOverlayResult(type, message) {
         type = normalizeType(type, message);
         var old = document.getElementById('presensi-result-overlay');
@@ -445,13 +521,8 @@
         var wrap = document.createElement('div');
         wrap.id = 'presensi-result-overlay';
         wrap.className = 'presensi-scan-result is-visible';
-        var duration = type === 'success' ? 2200 : (type === 'duplicate' ? 2600 : (type === 'info' ? 3200 : 2800));
-        var displayMessage = String(message || '');
-        if (type === 'success') {
-            displayMessage = 'Berhasil';
-        } else if (type === 'duplicate') {
-            displayMessage = 'Anda sudah scan';
-        }
+        var duration = type === 'success' ? 3500 : (type === 'duplicate' ? 3500 : (type === 'info' ? 3800 : 4200));
+        var displayMessage = shortDisplayMessage(type, message);
         wrap.innerHTML = ''
             + '<div class="presensi-scan-result-card ' + meta.toneClass + '">'
             + '  <span class="presensi-scan-result-icon"><i class="fa-solid ' + meta.icon + '"></i></span>'
@@ -471,6 +542,7 @@
     function showResult(type, message) {
         playFeedback(type, message);
         showOverlayResult(type, message);
+        setBanner(type, message);
     }
 
     document.addEventListener('touchstart', function () {
@@ -492,6 +564,7 @@
         info: playInfo,
         speak: speakText,
         show: showResult,
+        setBanner: setBanner,
         onPageLoad: handlePageResult,
     };
 

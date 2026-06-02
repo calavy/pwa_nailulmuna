@@ -62,9 +62,7 @@ foreach ($outstanding as $o) {
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-$logo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
+$logo = app_pondok_logo_href($pdo, false);
 
 $bulanNama = [
     1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',

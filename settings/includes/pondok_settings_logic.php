@@ -126,6 +126,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Profil pesantren berhasil disimpan.');
+        if (function_exists('app_header_brand_invalidate')) {
+            app_header_brand_invalidate();
+        }
         header('Location: ' . app_href('/settings/pesantren.php'));
         exit;
     }

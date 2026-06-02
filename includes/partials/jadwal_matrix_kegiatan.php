@@ -12,7 +12,7 @@ $jadwalList = $jadwalList ?? [];
 $hari = $hari ?? [];
 $showJadwalAksi = $showJadwalAksi ?? true;
 $jadwalPembimbingScope = $jadwalPembimbingScope ?? false;
-$petaRows = jadwal_peta_rows_sorted($jadwalList);
+$petaRows = jadwal_peta_rows_gabung($jadwalList);
 $prevKegiatan = '';
 ?>
 <?php if ($petaRows === []): ?>
@@ -74,7 +74,18 @@ $prevKegiatan = '';
                             </span>
                         </td>
                         <td class="jadwal-peta-td jadwal-peta-td--tingkatan" data-label="Tingkatan">
-                            <span class="jadwal-peta-tingkatan"><?= htmlspecialchars($tingkatan) ?></span>
+                            <?php
+                            $tkList = $row['_tingkatan_list'] ?? [];
+                            if ($tkList === [] && $tingkatan !== '' && $tingkatan !== '—') {
+                                $tkList = [$tingkatan];
+                            }
+                            if ($tkList !== []): ?>
+                                <?php foreach ($tkList as $tkBadge): ?>
+                                    <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge me-1"><?= htmlspecialchars((string) $tkBadge) ?></span>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <span class="jadwal-peta-tingkatan"><?= htmlspecialchars($tingkatan) ?></span>
+                            <?php endif; ?>
                         </td>
                         <td class="jadwal-peta-td jadwal-peta-td--extra d-none d-lg-table-cell" data-label="Lokasi">
                             <?php if ($tempat !== ''): ?>

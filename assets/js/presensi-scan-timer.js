@@ -5,6 +5,8 @@
     'use strict';
 
     var tickTimer = null;
+    var marqueeBound = false;
+    var MARQUEE_PX_PER_SEC = 38;
 
     function pad2(n) {
         return n < 10 ? '0' + n : String(n);
@@ -74,8 +76,52 @@
     function buildMarqueeItem(label) {
         return '<span class="presensi-scan-timer-marquee__item">'
             + '<i class="fa-solid fa-bolt" aria-hidden="true"></i>'
-            + escapeHtml(label)
+            + '<span>' + escapeHtml(label) + '</span>'
             + '</span>';
+    }
+
+    function buildMarqueeSeparator() {
+        return '<span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>';
+    }
+
+    function syncMarqueeSpeed() {
+        var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
+        var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
+        var viewportEl = marqueeEl ? marqueeEl.querySelector('.presensi-scan-timer-marquee__viewport') : null;
+        if (!marqueeEl || !trackEl || !viewportEl || marqueeEl.classList.contains('d-none')) {
+            return;
+        }
+
+        var halfWidth = trackEl.scrollWidth / 2;
+        var viewWidth = viewportEl.clientWidth;
+        if (halfWidth <= viewWidth + 8) {
+            marqueeEl.classList.add('is-static');
+            marqueeEl.classList.remove('is-paused');
+            trackEl.style.removeProperty('--marquee-duration');
+            return;
+        }
+
+        marqueeEl.classList.remove('is-static');
+        var durationSec = Math.min(120, Math.max(28, halfWidth / MARQUEE_PX_PER_SEC));
+        trackEl.style.setProperty('--marquee-duration', durationSec.toFixed(1) + 's');
+    }
+
+    function bindMarqueePause() {
+        if (marqueeBound) {
+            return;
+        }
+        var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
+        if (!marqueeEl) {
+            return;
+        }
+        marqueeBound = true;
+        marqueeEl.setAttribute('title', 'Ketuk untuk jeda / lanjut teks jadwal');
+        marqueeEl.addEventListener('click', function () {
+            if (marqueeEl.classList.contains('is-static')) {
+                return;
+            }
+            marqueeEl.classList.toggle('is-paused');
+        });
     }
 
     function updateMarquee(slots) {
@@ -83,7 +129,7 @@
         var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
         var titleEl = document.getElementById('presensi-scan-timer-title');
         var rangeEl = document.getElementById('presensi-scan-timer-range');
-        var useMarquee = Array.isArray(slots) && slots.length > 1;
+        var useMarquee = Array.isArray(slots) && slots.length > 0;
 
         if (marqueeEl) {
             marqueeEl.classList.toggle('d-none', !useMarquee);
@@ -99,17 +145,44 @@
             return;
         }
 
-        var html = '';
         var labels = slots.map(slotLabel);
+        var html = '';
         var pass;
+        var i;
         for (pass = 0; pass < 2; pass += 1) {
-            labels.forEach(function (label) {
-                html += buildMarqueeItem(label);
-            });
+            for (i = 0; i < labels.length; i += 1) {
+                if (i > 0 || pass > 0) {
+                    html += buildMarqueeSeparator();
+                }
+                html += buildMarqueeItem(labels[i]);
+            }
         }
         if (trackEl.innerHTML !== html) {
             trackEl.innerHTML = html;
         }
+        bindMarqueePause();
+        global.requestAnimationFrame(function () {
+            syncMarqueeSpeed();
+        });
+    }
+
+    function hintForState(state, remainSec) {
+        if (state === 'libur') {
+            return 'Hari libur — scan ditolak';
+        }
+        if (state === 'ended') {
+            return 'Di luar jadwal — scan ditolak';
+        }
+        if (state === 'none') {
+            return 'Belum ada jadwal aktif';
+        }
+        if (state === 'active') {
+            return 'Sisa waktu scan: ' + formatClock(remainSec);
+        }
+        if (state === 'upcoming') {
+            return 'Mulai scan dalam: ' + formatClock(remainSec);
+        }
+        return '';
     }
 
     function render() {
@@ -136,7 +209,7 @@
 
         var state = ctx.state || 'none';
         var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
-        var useMarquee = state === 'active' && slots.length > 1;
+        var useMarquee = state === 'active' && slots.length > 0;
         setTimerClass(box, state, useMarquee);
         updateMarquee(useMarquee ? slots : []);
 
@@ -151,7 +224,7 @@
             if (titleEl) titleEl.textContent = 'Hari libur';
             if (clockEl) clockEl.textContent = '—';
             if (rangeEl) rangeEl.textContent = '';
-            if (hintEl) hintEl.textContent = 'Waktu scan kurang 00:00 menit lagi';
+            if (hintEl) hintEl.textContent = hintForState('libur', 0);
             return;
         }
 
@@ -168,7 +241,7 @@
                 clockEl.textContent = formatClock(remain);
             }
             if (hintEl) {
-                hintEl.textContent = 'Waktu scan kurang ' + formatClock(remain) + ' menit lagi';
+                hintEl.textContent = hintForState('active', remain);
             }
             return;
         }
@@ -186,7 +259,7 @@
                 clockEl.textContent = formatClock(until);
             }
             if (hintEl) {
-                hintEl.textContent = 'Waktu scan kurang ' + formatClock(until) + ' menit lagi';
+                hintEl.textContent = hintForState('upcoming', until);
             }
             return;
         }
@@ -195,14 +268,14 @@
             if (titleEl) titleEl.textContent = 'Di luar jadwal';
             if (clockEl) clockEl.textContent = '00:00';
             if (rangeEl) rangeEl.textContent = '';
-            if (hintEl) hintEl.textContent = 'Waktu scan kurang 00:00 menit lagi';
+            if (hintEl) hintEl.textContent = hintForState('ended', 0);
             return;
         }
 
         if (titleEl) titleEl.textContent = 'Belum ada jadwal';
         if (clockEl) clockEl.textContent = '--:--';
         if (rangeEl) rangeEl.textContent = '';
-        if (hintEl) hintEl.textContent = 'Waktu scan kurang 00:00 menit lagi';
+        if (hintEl) hintEl.textContent = hintForState('none', 0);
     }
 
     function start() {
@@ -211,6 +284,7 @@
             clearInterval(tickTimer);
         }
         tickTimer = setInterval(render, 1000);
+        global.addEventListener('resize', syncMarqueeSpeed);
     }
 
     global.PresensiScanTimer = { start: start, render: render };

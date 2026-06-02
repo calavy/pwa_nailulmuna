@@ -41,9 +41,9 @@ $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
 $ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
 
 $totals = rekap_keaktifan_hari_totals($ringkasan);
-$totalPerhatian = (int) ($totals['alpa'] ?? 0) + (int) ($totals['belum'] ?? 0);
+$totalPerhatian = (int) ($totals['alpa'] ?? 0);
 $kegiatanPerhatian = array_values(array_filter($detailKeg, static function (array $dk): bool {
-    return ((int) ($dk['alpa'] ?? 0) + (int) ($dk['belum'] ?? 0)) > 0;
+    return ((int) ($dk['alpa'] ?? 0)) > 0;
 }));
 
 
@@ -134,7 +134,7 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
 
     $names = [];
 
-    foreach (['ALPA', 'BELUM'] as $st) {
+    foreach (['ALPA'] as $st) {
 
         foreach ($santriByStatus[$st] ?? [] as $s) {
 
@@ -162,7 +162,7 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
 
     }
 
-    $more = count($santriByStatus['ALPA'] ?? []) + count($santriByStatus['BELUM'] ?? []) - count($names);
+    $more = count($santriByStatus['ALPA'] ?? []) - count($names);
 
     $txt = implode(', ', $names);
 
@@ -306,8 +306,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="modal-body small">
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> — santri sudah scan.</p>
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> — ada keterangan resmi.</p>
-                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--belum">Belum</span> — kegiatan masih berlangsung, belum scan.</p>
-                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai (tanpa izin resmi).</p>
                 <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk <strong>Daftar santri</strong> pada kartu untuk melihat nama lengkap.</p>
             </div>
         </div>

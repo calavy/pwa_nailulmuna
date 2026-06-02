@@ -62,13 +62,7 @@ $formatRupiah = static fn(int $nominal): string => 'Rp ' . number_format($nomina
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$logoSrc = function_exists('app_pondok_logo_src') ? app_pondok_logo_src($pdo) : '';
-if ($logoSrc === '') {
-    $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-    $logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-    $logoSrc = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
-}
-$logo = $logoSrc !== '' ? app_href($logoSrc) : '';
+$logo = app_pondok_logo_href($pdo, false);
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
 $tanggalBayarFmt = app_format_tanggal_id((string) ($row['tanggal_bayar'] ?? ''));
 $verifySecret = (string) app_setting($pdo, 'kuitansi_verify_secret', 'pwa_nailulmuna_secret');

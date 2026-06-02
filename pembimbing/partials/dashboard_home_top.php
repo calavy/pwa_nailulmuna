@@ -28,7 +28,11 @@ declare(strict_types=1);
 /** @var bool $pbDashHasPkpps */
 
 /** @var bool $pbSudahHadir */
+/** @var bool $isMunawibPortal */
+/** @var array<string,mixed>|null $munawibPortalKonteks */
 
+$isMunawibPortal = $isMunawibPortal ?? false;
+$munawibPortalKonteks = $munawibPortalKonteks ?? null;
 
 $tickerItems = $pbDashTickerItems !== [] ? $pbDashTickerItems : ['Belum ada jadwal kelas mendatang hari ini'];
 
@@ -46,21 +50,33 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
         <div class="pb-dash-hero-banner__head">
 
+            <?php if (($appLogoHref ?? '') !== ''): ?>
+            <div class="pb-dash-hero-banner__logo-wrap" aria-hidden="true">
+                <img src="<?= htmlspecialchars((string) $appLogoHref) ?>" alt="" class="pb-dash-hero-banner__logo" decoding="async" data-pondok-cache="1">
+            </div>
+            <?php endif; ?>
+
             <div class="pb-dash-hero-banner__identity">
 
                 <p class="pb-dash-hero-banner__kicker mb-0">
 
+                    <?php if ($isMunawibPortal): ?>
+                    Portal Munawib · Pengganti pembimbing
+                    <?php else: ?>
                     Portal Pembimbing<?= !empty($pbDashHasPkpps) ? ' · PKPPS' : '' ?>
+                    <?php endif; ?>
 
                 </p>
 
                 <div class="pb-dash-hero-banner__name-row">
 
                     <h1 class="pb-dash-hero-banner__name mb-0"><?= htmlspecialchars($labelUser) ?></h1>
+                    <?php if (!$isMunawibPortal): ?>
                     <span class="badge <?= $pbSudahHadir ? 'text-bg-success' : 'text-bg-secondary' ?>">
                         <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?> me-1" aria-hidden="true"></i>
                         <?= $pbSudahHadir ? 'Hadir' : 'Belum scan' ?>
                     </span>
+                    <?php endif; ?>
 
                     <div class="pb-dash-hero-banner__clock" aria-live="polite">
 
@@ -130,7 +146,23 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
 
 
-    <?php if ($jumlahTingkatanPick > 1): ?>
+    <?php if ($isMunawibPortal && is_array($munawibPortalKonteks)): ?>
+    <div class="alert alert-info py-2 px-3 mb-2 small d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>
+            <i class="fa-solid fa-user-clock me-1"></i>
+            Menggantikan <strong><?= htmlspecialchars((string) ($munawibPortalKonteks['pembimbing_nama'] ?? 'pembimbing')) ?></strong>
+            · <?= htmlspecialchars((string) ($munawibPortalKonteks['kegiatan_nama'] ?? 'Kegiatan')) ?>
+            <?php if (($munawibPortalKonteks['jam_mulai'] ?? '') !== '' && ($munawibPortalKonteks['jam_selesai'] ?? '') !== ''): ?>
+                <span class="text-muted">(<?= htmlspecialchars((string) $munawibPortalKonteks['jam_mulai']) ?>–<?= htmlspecialchars((string) $munawibPortalKonteks['jam_selesai']) ?>)</span>
+            <?php endif; ?>
+        </span>
+        <a href="<?= htmlspecialchars(app_href('/pembimbing/munawib_portal.php?reset=1')) ?>" class="btn btn-sm btn-outline-primary">Ganti pembimbing</a>
+    </div>
+    <?php endif; ?>
+
+
+
+    <?php if (!$isMunawibPortal && $jumlahTingkatanPick > 1): ?>
 
     <div class="pb-dash-tk-pick d-none" id="pb-tk-pick" hidden>
 
@@ -168,6 +200,8 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
 
 
+    <?php if (!$isMunawibPortal): ?>
+
     <div id="pb-santri-panel" class="pb-dash-santri-panel d-none" hidden>
 
         <div class="pb-dash-santri-panel__head">
@@ -182,10 +216,13 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
     </div>
 
+    <?php endif; ?>
 
 
-    <nav class="pb-dash-menu-cards" aria-label="Menu cepat pembimbing">
 
+    <nav class="pb-dash-menu-cards<?= $isMunawibPortal ? ' pb-dash-menu-cards--munawib' : '' ?>" aria-label="Menu cepat pembimbing">
+
+        <?php if (!$isMunawibPortal): ?>
         <button type="button" class="pb-dash-menu-card pb-dash-menu-card--santri js-pb-lihat-santri" aria-expanded="false" aria-controls="pb-santri-panel">
 
             <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-address-book"></i></span>
@@ -193,6 +230,7 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
             <span class="pb-dash-menu-card__label pb-dash-menu-card__label--wrap"><?= htmlspecialchars($santriMenuLabel) ?></span>
 
         </button>
+        <?php endif; ?>
 
         <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="pb-dash-menu-card pb-dash-menu-card--nilai">
 
@@ -202,6 +240,7 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
         </a>
 
+        <?php if (!$isMunawibPortal): ?>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="pb-dash-menu-card pb-dash-menu-card--izin">
 
             <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-clock-rotate-left"></i></span>
@@ -209,6 +248,7 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
             <span class="pb-dash-menu-card__label">Perizinan</span>
 
         </a>
+        <?php endif; ?>
 
         <a href="<?= htmlspecialchars($keaktivanUrl) ?>" class="pb-dash-menu-card pb-dash-menu-card--keaktifan">
 

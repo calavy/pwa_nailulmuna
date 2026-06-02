@@ -25,10 +25,10 @@ $rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tkFilter, $kategori);
 $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
 $ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
 $totals = rekap_keaktifan_hari_totals($ringkasan);
-$totalPerhatian = (int) ($totals['alpa'] ?? 0) + (int) ($totals['belum'] ?? 0);
+$totalPerhatian = (int) ($totals['alpa'] ?? 0);
 $kegiatanPerhatian = array_values(array_filter(
     $detailKeg,
-    static fn (array $dk): bool => ((int) ($dk['alpa'] ?? 0) + (int) ($dk['belum'] ?? 0)) > 0
+    static fn (array $dk): bool => ((int) ($dk['alpa'] ?? 0)) > 0
 ));
 $byTingkatan = rekap_keaktifan_hari_by_tingkatan($rows);
 $sdm = rekap_keaktifan_hari_sdm($pdo, $tanggal);
@@ -83,7 +83,7 @@ $barPct = static function (int $n, int $total): float {
 
 $previewNames = static function (array $santriByStatus, int $limit = 3): string {
     $names = [];
-    foreach (['ALPA', 'BELUM'] as $st) {
+    foreach (['ALPA'] as $st) {
         foreach ($santriByStatus[$st] ?? [] as $s) {
             $nama = trim((string) ($s['nama_santri'] ?? ''));
             if ($nama !== '') {
@@ -97,7 +97,7 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
     if ($names === []) {
         return '';
     }
-    $more = count($santriByStatus['ALPA'] ?? []) + count($santriByStatus['BELUM'] ?? []) - count($names);
+    $more = count($santriByStatus['ALPA'] ?? []) - count($names);
     $txt = implode(', ', $names);
 
     return $more > 0 ? $txt . ' +' . $more : $txt;
@@ -183,14 +183,12 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="kh-total-pill kh-total-pill--izin"><div class="kh-total-pill__n"><?= (int) $totals['izin'] ?></div><div class="kh-total-pill__l">Izin</div></div>
             <div class="kh-total-pill kh-total-pill--sakit"><div class="kh-total-pill__n"><?= (int) $totals['sakit'] ?></div><div class="kh-total-pill__l">Sakit</div></div>
             <div class="kh-total-pill kh-total-pill--alpa"><div class="kh-total-pill__n"><?= (int) $totals['alpa'] ?></div><div class="kh-total-pill__l">Alpa</div></div>
-            <div class="kh-total-pill kh-total-pill--belum"><div class="kh-total-pill__n"><?= (int) $totals['belum'] ?></div><div class="kh-total-pill__l">Belum</div></div>
         </div>
         <div class="kh-legend">
             <span class="l-hadir">Hadir</span>
             <span class="l-izin">Izin</span>
             <span class="l-sakit">Sakit</span>
             <span class="l-alpa">Alpa</span>
-            <span class="l-belum">Belum scan</span>
         </div>
     </div>
 
@@ -415,8 +413,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="modal-body small">
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> — santri sudah scan.</p>
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> — ada keterangan resmi.</p>
-                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--belum">Belum</span> — kegiatan masih berlangsung, belum scan.</p>
-                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai (tanpa izin resmi).</p>
                 <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk <strong>Daftar santri</strong> pada kartu untuk melihat nama lengkap.</p>
             </div>
         </div>

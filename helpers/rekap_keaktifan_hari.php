@@ -29,11 +29,12 @@ function rekap_keaktifan_hari_normalize_kategori(?string $kategori): ?string
  */
 function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatanFilter = null, ?string $kategoriKegiatan = null): array
 {
-    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || !table_exists($pdo, 'kegiatan')) {
+    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || !table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
         return [];
     }
     $aktifSql = santri_sql_aktif_only('s');
-    $params = ['tgl' => $tanggal];
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time());
+    $params = ['tgl' => $tanggal, 'hari' => $hariKe];
     $tkWhere = '';
     if ($tingkatanFilter !== null && $tingkatanFilter !== '') {
         $tkWhere = ' AND s.tingkatan = :tk';
@@ -47,7 +48,7 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
     }
 
     $sql = "
-        SELECT
+        SELECT DISTINCT
             k.id AS kegiatan_id,
             k.nama_kegiatan,
             COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan,
@@ -55,16 +56,22 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
             s.nis,
             s.nama_santri,
             s.tingkatan,
-            COALESCE(p.status_presensi, 'BELUM') AS status_hari_ini,
+            COALESCE(NULLIF(TRIM(p.status_presensi), ''), '') AS status_hari_ini,
             p.jam_presensi,
             p.catatan
-        FROM kegiatan k
-        CROSS JOIN santri s
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+        INNER JOIN santri s ON (
+            (
+                (j.tingkatan = 'Semua Tingkatan' AND TRIM(COALESCE(s.tingkatan, '')) <> '')
+                OR s.tingkatan = j.tingkatan
+            )
+            AND {$aktifSql}
+        )
         LEFT JOIN presensi p ON p.santri_id = s.id
             AND p.kegiatan_id = k.id
             AND p.tanggal_presensi = :tgl
-        WHERE k.is_active = 1
-          AND {$aktifSql}
+        WHERE (j.hari_ke = 0 OR j.hari_ke = :hari)
           {$tkWhere}
           {$katWhere}
         ORDER BY k.nama_kegiatan ASC, s.tingkatan ASC, s.nama_santri ASC
@@ -84,7 +91,7 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
 }
 
 /**
- * Ringkasan per kegiatan: jumlah hadir, izin, alpa, belum.
+ * Ringkasan per kegiatan: jumlah hadir, izin, sakit, alpa.
  *
  * @return list<array<string, mixed>>
  */
@@ -107,19 +114,17 @@ function rekap_keaktifan_hari_ringkasan_from_rows(array $rows): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
-                'belum' => 0,
                 'total' => 0,
             ];
         }
-        $st = strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM'));
+        $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
         $byKeg[$kid]['total']++;
         match ($st) {
             'HADIR' => $byKeg[$kid]['hadir']++,
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
-            'BELUM' => $byKeg[$kid]['belum']++,
-            default => $byKeg[$kid]['belum']++,
+            default => null,
         };
     }
 
@@ -143,7 +148,6 @@ function rekap_keaktifan_hari_ringkasan_from_detail(array $detailKeg): array
             'izin' => (int) ($d['izin'] ?? 0),
             'sakit' => (int) ($d['sakit'] ?? 0),
             'alpa' => (int) ($d['alpa'] ?? 0),
-            'belum' => (int) ($d['belum'] ?? 0),
             'total' => (int) ($d['total'] ?? 0),
         ];
     }
@@ -162,17 +166,16 @@ function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?str
  * Total agregat dari ringkasan per kegiatan.
  *
  * @param list<array<string, mixed>> $ringkasan
- * @return array{hadir:int,izin:int,sakit:int,alpa:int,belum:int,total:int,persen:float}
+ * @return array{hadir:int,izin:int,sakit:int,alpa:int,total:int,persen:float}
  */
 function rekap_keaktifan_hari_totals(array $ringkasan): array
 {
-    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'belum' => 0, 'total' => 0];
+    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
     foreach ($ringkasan as $rg) {
         $tot['hadir'] += (int) ($rg['hadir'] ?? 0);
         $tot['izin'] += (int) ($rg['izin'] ?? 0);
         $tot['sakit'] += (int) ($rg['sakit'] ?? 0);
         $tot['alpa'] += (int) ($rg['alpa'] ?? 0);
-        $tot['belum'] += (int) ($rg['belum'] ?? 0);
         $tot['total'] += (int) ($rg['total'] ?? 0);
     }
     $tot['persen'] = $tot['total'] > 0
@@ -201,24 +204,23 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
-                'belum' => 0,
                 'total' => 0,
                 'santri' => [
                     'HADIR' => [],
                     'IZIN' => [],
                     'SAKIT' => [],
                     'ALPA' => [],
-                    'BELUM' => [],
                 ],
             ];
         }
-        $st = strtoupper((string) ($r['status_hari_ini'] ?? 'BELUM'));
+        $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
+        if (!in_array($st, ['HADIR', 'IZIN', 'SAKIT', 'ALPA'], true)) {
+            $byKeg[$kid]['total']++;
+            continue;
+        }
         if (!isset($byKeg[$kid]['santri'][$st])) {
-            if ($st === 'ALPA') {
-                $byKeg[$kid]['santri']['ALPA'] ??= [];
-            } else {
-                $st = 'BELUM';
-            }
+            $byKeg[$kid]['santri']['ALPA'] ??= [];
+            $st = 'ALPA';
         }
         $byKeg[$kid]['total']++;
         match ($st) {
@@ -226,8 +228,7 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
-            'BELUM' => $byKeg[$kid]['belum']++,
-            default => $byKeg[$kid]['belum']++,
+            default => null,
         };
         $jam = $r['jam_presensi'] ?? null;
         $byKeg[$kid]['santri'][$st][] = [
@@ -296,7 +297,7 @@ function rekap_keaktifan_hari_ghaib_per_kegiatan(array $rows): array
     $byKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
     foreach ($byKeg as &$kg) {
         $ghaib = [];
-        foreach (['ALPA', 'BELUM', 'IZIN', 'SAKIT'] as $st) {
+        foreach (['ALPA', 'IZIN', 'SAKIT'] as $st) {
             foreach ($kg['santri'][$st] ?? [] as $s) {
                 $cat = trim((string) ($s['catatan'] ?? ''));
                 $ghaib[] = array_merge($s, [
@@ -305,8 +306,7 @@ function rekap_keaktifan_hari_ghaib_per_kegiatan(array $rows): array
                         'IZIN' => 'Izin',
                         'SAKIT' => 'Sakit',
                         'ALPA' => 'Alpa (tidak scan hingga akhir kegiatan)',
-                        'BELUM' => 'Belum scan',
-                        default => 'Belum scan',
+                        default => 'Alpa',
                     },
                 ]);
             }

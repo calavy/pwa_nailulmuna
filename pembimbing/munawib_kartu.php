@@ -37,8 +37,7 @@ if ($kodeQr === '') {
 $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=700x700&margin=10&data=' . rawurlencode($kodeQr);
 $namaPonpes = app_brand_nama_ponpes($pdo);
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrl = $logoPath !== '' ? app_href('/' . ltrim($logoPath, '/')) : '';
+$logoUrl = app_pondok_logo_href($pdo, false);
 $brandTheme = kartu_brand_theme_for_cards($pdo, 'emerald');
 $cardStyleAttrs = kartu_brand_card_style_attrs($brandTheme);
 
@@ -79,7 +78,8 @@ require_once __DIR__ . '/../includes/header.php';
 }
 .mw-id-card:before { content:""; position:absolute; inset:0; background:radial-gradient(circle at 12% 88%, var(--card-gloss, rgba(255,255,255,.22)), transparent 42%); pointer-events:none; }
 .mw-top { display:flex; justify-content:flex-start; gap:3mm; position:relative; z-index:1; }
-.mw-logo { width:12mm; height:12mm; border-radius:50%; object-fit:contain; padding:0.4mm; background:#fff; box-sizing:border-box; flex-shrink:0; }
+.mw-logo-wrap { width:12mm; height:12mm; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:0.4mm; box-sizing:border-box; }
+.mw-logo { width:100%; height:100%; border-radius:50%; object-fit:contain; display:block; background:#fff; }
 .mw-brand h2 { margin:0; font-size:3.7mm; font-weight:800; line-height:1.2; }
 .mw-brand .sub { font-size:2.6mm; opacity:.94; margin:0 0 .7mm; letter-spacing:.05em; font-weight:700; }
 .mw-brand .addr { font-size:2.2mm; opacity:.88; margin-top:.7mm; line-height:1.2; }
@@ -101,7 +101,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="mw-id-card" id="munawib-id-card"<?= $cardStyleAttrs ?>>
         <div class="mw-top">
             <?php if ($logoUrl !== ''): ?>
-                <img src="<?= htmlspecialchars($logoUrl) ?>" class="mw-logo" alt="Logo pondok">
+                <span class="mw-logo-wrap" aria-hidden="true">
+                    <img src="<?= htmlspecialchars($logoUrl) ?>" class="mw-logo" alt="Logo pondok">
+                </span>
             <?php endif; ?>
             <div class="mw-brand">
                 <div class="sub">KARTU MUNAWIB</div>

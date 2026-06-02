@@ -42,8 +42,7 @@ if ($kodeQr === '') {
 $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=700x700&margin=10&data=' . rawurlencode($kodeQr);
 $namaPonpes = app_brand_nama_ponpes($pdo);
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrl = $logoPath !== '' ? app_href('/' . ltrim($logoPath, '/')) : '';
+$logoUrl = app_pondok_logo_href($pdo, false);
 $brandTheme = kartu_brand_theme_for_cards($pdo, 'emerald');
 $cardStyleAttrs = kartu_brand_card_style_attrs($brandTheme);
 
@@ -108,10 +107,25 @@ require_once __DIR__ . '/../includes/header.php';
 .pb-id-brand h2 { font-size: 3.8mm; margin:0; font-weight:700; line-height:1.2; }
 .pb-id-brand .sub { font-size:2.8mm; opacity:.92; margin:0 0 .7mm; font-weight:700; letter-spacing:.04em; }
 .pb-id-brand .addr { font-size:2.35mm; opacity:.88; margin-top:.7mm; line-height:1.2; }
+.pb-id-logo-wrap {
+    width: 12mm;
+    height: 12mm;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 0.4mm;
+}
 .pb-id-logo {
-    width: 12mm; height: 12mm; border-radius: 50%;
-    object-fit: contain; padding: 0.4mm; flex-shrink: 0;
-    background: #fff; box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: contain;
+    display: block;
+    background: #fff;
 }
 .pb-id-body { display:flex; justify-content:space-between; gap: 3mm; align-items:flex-end; margin-top: 1.4mm; }
 .pb-id-meta { min-width:0; flex:1; }
@@ -138,7 +152,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="pb-id-card" id="pembimbing-id-card"<?= $cardStyleAttrs ?>>
         <div class="pb-id-top">
             <?php if ($logoUrl !== ''): ?>
-                <img src="<?= htmlspecialchars($logoUrl) ?>" class="pb-id-logo" alt="Logo pondok">
+                <span class="pb-id-logo-wrap" aria-hidden="true">
+                    <img src="<?= htmlspecialchars($logoUrl) ?>" class="pb-id-logo" alt="Logo pondok">
+                </span>
             <?php endif; ?>
             <div class="pb-id-brand">
                 <div class="sub">KARTU PEMBIMBING</div>

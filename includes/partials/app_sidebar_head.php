@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @var string $appBrandTagline
  * @var string $appAlamatPonpes
  * @var string $appLogoSrc
+ * @var string $appLogoHref
  * @var string $appLogoInitial
  * @var bool $compact
  */
@@ -17,7 +18,11 @@ $compact = !empty($compact);
 <div class="app-sidebar-head<?= $compact ? ' app-sidebar-head--compact app-sidebar-head--mobile' : '' ?>">
     <div class="app-sidebar-pondok">
         <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-sidebar-pondok-link"<?= $compact ? ' data-bs-dismiss="offcanvas"' : '' ?>>
-            <?php if ($appLogoSrc !== ''): ?>
+            <?php if (($appLogoHref ?? '') !== ''): ?>
+                <div class="app-sidebar-pondok-logo-wrap">
+                    <img src="<?= htmlspecialchars((string) $appLogoHref) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-sidebar-pondok-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
+                </div>
+            <?php elseif ($appLogoSrc !== ''): ?>
                 <div class="app-sidebar-pondok-logo-wrap">
                     <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-sidebar-pondok-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
                 </div>

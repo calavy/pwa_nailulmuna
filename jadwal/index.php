@@ -188,7 +188,7 @@ $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kam
 $tampilanGrup = jadwal_tampilan_grup($pdo);
 if ($tampilanGrup === 'pembimbing') {
     $jadwalGrouped = jadwal_kelompokkan_per_pembimbing($jadwalList);
-    jadwal_urutkan_grup_slot_jam($jadwalGrouped);
+    jadwal_urutkan_grup_hari_jam($jadwalGrouped);
     ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
 } elseif ($tampilanGrup === 'tingkatan') {
     $jadwalGrouped = jadwal_kelompokkan_per_tingkatan($jadwalList);
@@ -205,7 +205,7 @@ if ($tampilanGrup === 'pembimbing') {
     });
 } else {
     $jadwalGrouped = jadwal_kelompokkan_per_kegiatan($jadwalList);
-    jadwal_urutkan_grup_slot_jam($jadwalGrouped);
+    jadwal_urutkan_grup_hari_jam($jadwalGrouped);
     ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
 }
 

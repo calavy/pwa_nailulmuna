@@ -92,28 +92,33 @@ function app_request_path_is_lightweight(string $requestPath): bool
     return false;
 }
 
+/** Hapus cache branding header (mis. setelah ubah logo/nama pondok). */
+function app_header_brand_invalidate(): void
+{
+    unset($_SESSION['app_header_brand_v1']);
+}
+
 /**
- * Branding header — sekali per sesi (hindari 4+ query app_settings tiap klik menu).
+ * Branding header — teks di-cache per sesi; logo selalu diambil ulang dari pengaturan.
  *
- * @return array{title:string,tagline:string,logo:string,initials:string,alamat:string}
+ * @return array{title:string,tagline:string,logo:string,logo_href:string,initials:string,alamat:string}
  */
 function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailul Muna'): array
 {
     $sessionKey = 'app_header_brand_v1';
-    if (isset($_SESSION[$sessionKey]) && is_array($_SESSION[$sessionKey])) {
-        return $_SESSION[$sessionKey];
+    if (!isset($_SESSION[$sessionKey]) || !is_array($_SESSION[$sessionKey])) {
+        $title = app_brand_nama_ponpes($pdo, $fallbackTitle);
+        $_SESSION[$sessionKey] = [
+            'title' => $title,
+            'tagline' => trim((string) app_setting($pdo, 'jenis_pendidikan', '')),
+            'initials' => app_pondok_logo_initials($pdo, $fallbackTitle),
+            'alamat' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
+        ];
     }
-    $title = app_brand_nama_ponpes($pdo, $fallbackTitle);
-    $ctx = [
-        'title' => $title,
-        'tagline' => trim((string) app_setting($pdo, 'jenis_pendidikan', '')),
-        'logo' => app_pondok_logo_src($pdo),
-        'initials' => app_pondok_logo_initials($pdo, $fallbackTitle),
-        'alamat' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
-    ];
-    $_SESSION[$sessionKey] = $ctx;
+    $_SESSION[$sessionKey]['logo'] = app_pondok_logo_src($pdo);
+    $_SESSION[$sessionKey]['logo_href'] = app_pondok_logo_href($pdo, false);
 
-    return $ctx;
+    return $_SESSION[$sessionKey];
 }
 
 /** Migrasi skema ringan — sekali per sesi login, bukan tiap request. */
@@ -263,15 +268,34 @@ function app_brand_nama_ponpes(PDO $pdo, string $fallback = 'A.P.I Nailul Muna')
     return $nama;
 }
 
-/** Path/URL logo pesantren untuk tampilan UI (kosong jika belum diatur). */
+/** Path/URL logo pesantren untuk tampilan UI (kosong jika belum diatur / file hilang). */
 function app_pondok_logo_src(PDO $pdo): string
 {
     $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
     if ($logoPath !== '') {
-        return '/' . ltrim($logoPath, '/');
+        $rel = '/' . ltrim(str_replace('\\', '/', $logoPath), '/');
+        $full = dirname(__DIR__) . $rel;
+        if (is_file($full)) {
+            return $rel;
+        }
     }
 
     return trim((string) app_setting($pdo, 'logo_url', ''));
+}
+
+/** URL absolut aplikasi untuk logo pondok (path relatif + base path XAMPP/PWA). */
+function app_pondok_logo_href(PDO $pdo, bool $fallbackDefault = true): string
+{
+    require_once __DIR__ . '/app_path.php';
+    $src = app_pondok_logo_src($pdo);
+    if ($src === '') {
+        return $fallbackDefault ? app_href(app_pwa_default_icon_src()) : '';
+    }
+    if (preg_match('#^https?://#i', $src) || str_starts_with($src, '//')) {
+        return $src;
+    }
+
+    return app_href('/' . ltrim($src, '/'));
 }
 
 function app_pwa_resolve_pdo(?PDO $pdo = null): ?PDO

@@ -31,7 +31,7 @@
                 <div class="form-text">Format: JPG, PNG, WEBP. Latar putih pada file akan dihilangkan otomatis. Setelah <strong>Simpan</strong>, ikon PWA di layar utama ikut diperbarui — hapus pintasan PWA lama di HP lalu pasang ulang.</div>
                 <?php if (!empty($values['logo_path'])): ?>
                     <div class="mt-2">
-                        <img src="<?= htmlspecialchars(app_href('/' . ltrim((string) $values['logo_path'], '/'))) ?>" alt="Logo pesantren" class="pondok-logo-preview">
+                        <img src="<?= htmlspecialchars(app_pondok_logo_href($pdo)) ?>" alt="Logo pesantren" class="pondok-logo-preview">
                     </div>
                 <?php endif; ?>
             </div>

@@ -393,7 +393,30 @@ function yayasan_dashboard_snapshot(PDO $pdo): array
     }
 
     $slots = pondok_bulan_slots_tahun_ajaran($pdo, $taMulai, $taSelesai);
-    $slotSlice = array_slice($slots, -6);
+    $periode = pondok_periode_berjalan($pdo, $today);
+    $bulanIni = max(1, min(12, (int) ($periode['bulan'] ?? 1)));
+    $idxSlot = null;
+    foreach ($slots as $i => $slot) {
+        if ((int) ($slot['bulan_tagihan'] ?? 0) === $bulanIni) {
+            $idxSlot = $i;
+            break;
+        }
+    }
+    if ($idxSlot === null) {
+        $slotHari = pondok_slot_untuk_tanggal($pdo, $taMulai, $taSelesai, $today);
+        if ($slotHari !== null) {
+            foreach ($slots as $i => $slot) {
+                if ((int) ($slot['bulan_tagihan'] ?? 0) === (int) ($slotHari['bulan_tagihan'] ?? 0)) {
+                    $idxSlot = $i;
+                    break;
+                }
+            }
+        }
+    }
+    $startIdx = $idxSlot !== null ? max(0, $idxSlot - 5) : max(0, count($slots) - 6);
+    $slotSlice = $idxSlot !== null
+        ? array_slice($slots, $startIdx, $idxSlot - $startIdx + 1)
+        : array_slice($slots, -6);
     $alpaBulanBerjalan = 0;
     $hadirBulanBerjalan = 0;
     $slotTerakhir = $slotSlice !== [] ? $slotSlice[count($slotSlice) - 1] : null;

@@ -37,9 +37,7 @@ if ((int) ($izin['is_aktif'] ?? 0) !== 1) {
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$logoPath = app_setting($pdo, 'logo_path', '');
-$logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
+$logo = app_pondok_logo_href($pdo, false);
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
 $websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');
 $jamTerbit = date('d-m-Y H:i');

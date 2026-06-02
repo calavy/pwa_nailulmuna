@@ -77,13 +77,21 @@ if (isset($_SESSION['user'])) {
 $appBrandTagline = '';
 $appBrandTitle = 'A.P.I Nailul Muna';
 $appLogoSrc = '';
+$appLogoHref = '';
 $appLogoInitial = 'AP';
 $appAlamatPonpes = '';
-if (isset($_SESSION['user'])) {
+if (isset($_SESSION['user']) && isset($pdo) && $pdo instanceof PDO) {
     $brandCtx = app_header_brand_context($pdo, $appBrandTitle);
     $appBrandTitle = (string) ($brandCtx['title'] ?? $appBrandTitle);
     $appBrandTagline = (string) ($brandCtx['tagline'] ?? '');
     $appLogoSrc = (string) ($brandCtx['logo'] ?? '');
+    $appLogoHref = (string) ($brandCtx['logo_href'] ?? '');
+    if ($appLogoHref === '' && $appLogoSrc !== '') {
+        $appLogoHref = app_pondok_logo_href($pdo, false);
+    }
+    if ($appLogoHref === '') {
+        $appLogoHref = app_pondok_logo_href($pdo);
+    }
     $appLogoInitial = (string) ($brandCtx['initials'] ?? 'AP');
     $appAlamatPonpes = (string) ($brandCtx['alamat'] ?? '');
 }
@@ -245,8 +253,8 @@ if (!function_exists('render_app_sidebar_nav')) {
     ?>
     <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars($pwaLogoFallbackHref) ?>">
     <meta name="pondok-pwa-avatar-fallback" content="<?= htmlspecialchars($pwaAvatarFallbackHref) ?>">
-    <?php if ($appLogoSrc !== ''): ?>
-    <meta name="pondok-pwa-logo" content="<?= htmlspecialchars(app_href($appLogoSrc)) ?>">
+    <?php if ($appLogoHref !== ''): ?>
+    <meta name="pondok-pwa-logo" content="<?= htmlspecialchars($appLogoHref) ?>">
     <?php endif; ?>
     <?php if (trim((string) ($currentUserRow['foto_profil'] ?? '')) !== ''): ?>
     <meta name="pondok-pwa-avatar" content="<?= htmlspecialchars(user_profil_url((string) $currentUserRow['foto_profil'])) ?>">
@@ -343,10 +351,10 @@ if (!function_exists('render_app_sidebar_nav')) {
                         <span class="d-none d-sm-inline ms-1">Menu</span>
                     </button>
                     <?php endif; ?>
-                    <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="app-brand-link d-lg-none" title="<?= htmlspecialchars($appBrandTitle) ?>">
-                        <?php if ($appLogoSrc !== ''): ?>
+                    <a href="<?= htmlspecialchars($hideAppSidebar ? app_href('/pembimbing/dashboard.php') : app_href('/dashboard.php')) ?>" class="app-brand-link<?= $hideAppSidebar ? '' : ' d-lg-none' ?>" title="<?= htmlspecialchars($appBrandTitle) ?>">
+                        <?php if ($appLogoHref !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
-                                <img src="<?= htmlspecialchars(app_href($appLogoSrc)) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-brand-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
+                                <img src="<?= htmlspecialchars($appLogoHref) ?>" alt="Logo <?= htmlspecialchars($appBrandTitle) ?>" class="app-brand-logo" decoding="async" fetchpriority="high" data-pondok-cache="1">
                             </span>
                         <?php else: ?>
                             <span class="app-brand-mark app-brand-mark--fallback" aria-hidden="true"><?= htmlspecialchars($appLogoInitial) ?></span>
@@ -358,7 +366,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                             <span class="app-brand-title"><?= htmlspecialchars($appBrandTitle) ?></span>
                         </span>
                     </a>
-                    <div class="app-topbar-page d-none d-lg-flex">
+                    <div class="app-topbar-page<?= $hideAppSidebar ? ' d-none' : ' d-none d-lg-flex' ?>">
                         <span class="app-topbar-page-kicker">Halaman aktif</span>
                         <h1 class="app-topbar-page-title"><?= htmlspecialchars($pageTitleHeader) ?></h1>
                     </div>

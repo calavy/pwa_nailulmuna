@@ -8,8 +8,10 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
 require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
+require_once __DIR__ . '/../helpers/munawib_portal.php';
 
 require_roles(['admin', 'pengurus', 'pembimbing']);
+munawib_portal_guard_halaman();
 
 pembimbing_nilai_manual_ensure_schema($pdo);
 $pdo->exec('
@@ -591,10 +593,22 @@ require_once __DIR__ . '/../includes/header.php';
             <?php foreach ($santriRows as $s):
                 $sid = (int) ($s['id'] ?? 0);
                 $nm = $nilaiMapTarget[$sid] ?? null;
+                $qsRow = [];
+                if ($targetId > 0) { $qsRow['target_id'] = $targetId; }
+                if ($filterTingkatan !== '') { $qsRow['tingkatan'] = $filterTingkatan; }
+                if ($filterKelas !== '') { $qsRow['kelas'] = $filterKelas; }
+                if ($filterAspek !== '') { $qsRow['aspek'] = $filterAspek; }
+                $qsRow['santri_id'] = $sid;
+                $qsRow['input_nilai'] = '1';
+                $formHref = app_href('/pembimbing/nilai_manual.php?' . http_build_query($qsRow)) . '#form-nilai';
             ?>
                 <tr class="<?= $nm === null ? 'table-warning' : '' ?>">
                     <td class="small">
-                        <?= htmlspecialchars((string) ($s['nama_santri'] ?? '')) ?>
+                        <?php if ($nm === null): ?>
+                            <a href="<?= htmlspecialchars($formHref) ?>" class="text-decoration-none fw-semibold link-primary"><?= htmlspecialchars((string) ($s['nama_santri'] ?? '')) ?></a>
+                        <?php else: ?>
+                            <?= htmlspecialchars((string) ($s['nama_santri'] ?? '')) ?>
+                        <?php endif; ?>
                         <span class="text-muted">(<?= htmlspecialchars((string) ($s['tingkatan'] ?? '')) ?>)</span>
                     </td>
                     <td class="small"><?= $nm === null ? '<span class="text-danger fw-semibold">Belum dinilai</span>' : '<span class="text-success">Sudah</span>' ?></td>

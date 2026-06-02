@@ -96,9 +96,7 @@ if ($selectedSantri) {
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$logoPath = app_setting($pdo, 'logo_path', '');
-$logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
+$logo = app_pondok_logo_href($pdo, false);
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');

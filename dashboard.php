@@ -165,6 +165,7 @@ $brandDash = app_header_brand_context($pdo);
 $namaPonpes = (string) ($brandDash['title'] ?? 'Pondok Pesantren');
 $alamatPonpes = (string) ($brandDash['alamat'] ?? '');
 $dashLogo = (string) ($brandDash['logo'] ?? '');
+$dashLogoHref = app_pondok_logo_href($pdo);
 $dashHeroKicker = (string) ($brandDash['tagline'] ?? '');
 $dashLogoInitial = (string) ($brandDash['initials'] ?? 'AP');
 
@@ -185,6 +186,13 @@ require_once __DIR__ . '/includes/header.php';
 <div class="dash-page">
     <div class="dash-hero mb-4">
         <div class="dash-hero-inner">
+            <?php
+            $brandTitle = $namaPonpes;
+            $brandKicker = $dashHeroKicker;
+            $brandLogoHref = $dashLogoHref;
+            $brandLogoInitial = $dashLogoInitial;
+            require __DIR__ . '/includes/partials/dash_hero_brand.php';
+            ?>
             <div class="dash-hero-layout dash-hero-layout--slim">
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Beranda</div>

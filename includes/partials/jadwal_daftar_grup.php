@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Tabel jadwal terkelompok: kegiatan/pembimbing + slot jam + hari.
+ * Tabel jadwal terkelompok: kegiatan/pembimbing + hari + slot jam (tingkatan digabung per jam).
  *
- * @var array<string, array<string, array<int, list<array<string, mixed>>>>>|array<string, array<int, list<array<string, mixed>>>> $jadwalGrouped
+ * @var array<string, array<int, array<string, list<array<string, mixed>>>>>|array<string, array<int, list<array<string, mixed>>>> $jadwalGrouped
  * @var array<int, string> $hari
  * @var string $tampilanGrup kegiatan|tingkatan|pembimbing
  */
@@ -13,30 +13,44 @@ $tampilanGrup = $tampilanGrup ?? 'kegiatan';
 $byKegiatan = $tampilanGrup === 'kegiatan';
 $byPembimbing = $tampilanGrup === 'pembimbing';
 $byTingkatan = $tampilanGrup === 'tingkatan';
-$useSlotJam = $byKegiatan || $byPembimbing;
+$useHariJam = $byKegiatan || $byPembimbing;
 
 /**
  * @param list<array<string, mixed>> $items
  */
-$renderJadwalRows = static function (array $items, string $namaGrup) use ($byKegiatan, $byTingkatan, $byPembimbing): void {
-    foreach ($items as $item) {
-        $jid = (int) ($item['id'] ?? 0);
+$renderJadwalRows = static function (array $items, string $namaGrup) use ($byKegiatan, $byTingkatan, $byPembimbing, $useHariJam): void {
+    $rows = $useHariJam ? jadwal_gabung_baris_serupa($items) : $items;
+    foreach ($rows as $item) {
+        $mergeIds = $useHariJam ? array_values(array_filter(array_map('intval', $item['_merge_ids'] ?? [(int) ($item['id'] ?? 0)]))) : [(int) ($item['id'] ?? 0)];
+        $tingkatanList = $useHariJam ? ($item['_tingkatan_list'] ?? []) : [trim((string) ($item['tingkatan'] ?? ''))];
+        if ($tingkatanList === [] && trim((string) ($item['tingkatan'] ?? '')) !== '') {
+            $tingkatanList = [trim((string) ($item['tingkatan'] ?? ''))];
+        }
+        $jid = (int) ($mergeIds[0] ?? 0);
         ?>
         <tr>
             <td>
-                <?php if ($jid > 0): ?>
-                    <input class="form-check-input jadwal-row-check" type="checkbox"
-                        name="ids[]" value="<?= $jid ?>"
+                <?php foreach ($mergeIds as $mid): ?>
+                    <?php if ($mid > 0): ?>
+                    <input class="form-check-input jadwal-row-check d-inline-block me-1" type="checkbox"
+                        name="ids[]" value="<?= $mid ?>"
                         data-grup="<?= htmlspecialchars($namaGrup, ENT_QUOTES) ?>"
-                        aria-label="Pilih jadwal #<?= $jid ?>">
-                <?php endif; ?>
+                        aria-label="Pilih jadwal #<?= $mid ?>">
+                    <?php endif; ?>
+                <?php endforeach; ?>
             </td>
             <?php if ($byTingkatan): ?>
+                <td class="text-nowrap small font-monospace js-time-24"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></td>
+            <?php elseif ($useHariJam): ?>
                 <td class="text-nowrap small font-monospace js-time-24"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></td>
             <?php endif; ?>
             <td class="small">
                 <?php if ($byKegiatan || $byPembimbing): ?>
-                    <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge"><?= htmlspecialchars((string) ($item['tingkatan'] ?? '—')) ?></span>
+                    <?php foreach ($tingkatanList as $tk): ?>
+                        <?php if ($tk === '') { continue; } ?>
+                        <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge me-1 mb-1"><?= htmlspecialchars($tk) ?></span>
+                    <?php endforeach; ?>
+                    <?php if ($tingkatanList === []): ?>—<?php endif; ?>
                 <?php elseif ($byTingkatan): ?>
                     <?= htmlspecialchars((string) ($item['nama_kegiatan'] ?? '—')) ?>
                 <?php endif; ?>
@@ -53,9 +67,12 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
                 <?php endif; ?>
             <?php endif; ?>
             <td class="text-end text-nowrap">
-                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $jid)) ?>" class="btn btn-outline-warning btn-sm py-0 px-2">Edit</a>
-                <button type="submit" form="form-hapus-jadwal-<?= $jid ?>" class="btn btn-outline-danger btn-sm py-0 px-2"
-                    onclick="return confirm('Hapus jadwal ini?');">Hapus</button>
+                <?php foreach ($mergeIds as $mid): ?>
+                    <?php if ($mid <= 0) { continue; } ?>
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $mid)) ?>" class="btn btn-outline-warning btn-sm py-0 px-2">Edit<?= count($mergeIds) > 1 ? ' #' . $mid : '' ?></a>
+                    <button type="submit" form="form-hapus-jadwal-<?= $mid ?>" class="btn btn-outline-danger btn-sm py-0 px-2"
+                        onclick="return confirm('Hapus jadwal ini?');">Hapus</button>
+                <?php endforeach; ?>
             </td>
         </tr>
         <?php
@@ -96,43 +113,56 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
                 </button>
             </div>
 
-            <?php if ($useSlotJam): ?>
-                <?php foreach ($grupContent as $jamKey => $byHari): ?>
-                    <div class="jadwal-slot-jam-blok mb-3 ps-2 border-start border-3 border-primary-subtle" data-grup="<?= htmlspecialchars($namaGrup, ENT_QUOTES) ?>">
-                        <div class="jadwal-slot-jam-label small fw-semibold text-secondary mb-2">
-                            <i class="fa-regular fa-clock me-1"></i><?= htmlspecialchars((string) $jamKey) ?>
+            <?php if ($useHariJam): ?>
+                <?php
+                $hariKeys = array_keys($grupContent);
+                sort($hariKeys, SORT_NUMERIC);
+                foreach ($hariKeys as $hariKe):
+                    $byJam = $grupContent[$hariKe] ?? [];
+                    if ($byJam === []) {
+                        continue;
+                    }
+                    $allItems = [];
+                    foreach ($byJam as $jamItems) {
+                        foreach ($jamItems as $it) {
+                            $allItems[] = $it;
+                        }
+                    }
+                    if ($allItems === []) {
+                        continue;
+                    }
+                    ?>
+                    <div class="jadwal-hari-blok mb-3 ps-2 border-start border-3 border-primary-subtle" data-grup="<?= htmlspecialchars($namaGrup, ENT_QUOTES) ?>">
+                        <div class="fw-semibold small text-secondary mb-2">
+                            <i class="fa-solid fa-calendar-day me-1"></i><?= htmlspecialchars($hari[$hariKe] ?? 'Hari #' . $hariKe) ?>
                         </div>
-                        <?php
-                        $hariKeys = array_keys($byHari);
-                        sort($hariKeys, SORT_NUMERIC);
-                        foreach ($hariKeys as $hariKe):
-                            $items = $byHari[$hariKe] ?? [];
-                            if ($items === []) {
-                                continue;
-                            }
-                            ?>
-                            <div class="jadwal-hari-blok mb-2" data-grup="<?= htmlspecialchars($namaGrup, ENT_QUOTES) ?>">
-                                <div class="fw-semibold small text-secondary mb-1">
-                                    <?= htmlspecialchars($hari[$hariKe] ?? 'Hari #' . $hariKe) ?>
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-striped table-hover align-middle mb-0 jadwal-tabel-ringkas">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:2.5rem"><span class="visually-hidden">Pilih</span></th>
-                                                <th>Tingkatan</th>
-                                                <th>Tempat</th>
-                                                <th><?= $byPembimbing ? 'Kegiatan' : 'Pembimbing' ?></th>
-                                                <th class="text-end">Aksi</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php $renderJadwalRows($items, $namaGrup); ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped table-hover align-middle mb-0 jadwal-tabel-ringkas">
+                                <thead>
+                                    <tr>
+                                        <th style="width:2.5rem"><span class="visually-hidden">Pilih</span></th>
+                                        <th>Jam</th>
+                                        <th>Tingkatan</th>
+                                        <th>Tempat</th>
+                                        <th><?= $byPembimbing ? 'Kegiatan' : 'Pembimbing' ?></th>
+                                        <th class="text-end">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $jamKeys = array_keys($byJam);
+                                    sort($jamKeys, SORT_STRING);
+                                    foreach ($jamKeys as $jamKey):
+                                        $jamItems = $byJam[$jamKey] ?? [];
+                                        if ($jamItems === []) {
+                                            continue;
+                                        }
+                                        $renderJadwalRows($jamItems, $namaGrup);
+                                    endforeach;
+                                    ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             <?php else: ?>
@@ -176,29 +206,33 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
 
     <?php
     foreach ($jadwalGrouped as $grupContent) {
-        $iterHariLists = [];
-        if ($useSlotJam) {
-            foreach ($grupContent as $byHari) {
-                foreach ($byHari as $hk => $items) {
-                    $iterHariLists[$hk] = array_merge($iterHariLists[$hk] ?? [], $items);
+        $iterItems = [];
+        if ($useHariJam) {
+            foreach ($grupContent as $byJam) {
+                foreach ($byJam as $items) {
+                    foreach ($items as $item) {
+                        $iterItems[] = $item;
+                    }
                 }
             }
         } else {
-            $iterHariLists = $grupContent;
-        }
-        foreach ($iterHariLists as $items) {
-            foreach ($items as $item) {
-                $jid = (int) ($item['id'] ?? 0);
-                if ($jid <= 0) {
-                    continue;
+            foreach ($grupContent as $items) {
+                foreach ($items as $item) {
+                    $iterItems[] = $item;
                 }
-                ?>
-                <form method="post" id="form-hapus-jadwal-<?= $jid ?>" class="d-none">
-                    <input type="hidden" name="action" value="hapus_jadwal">
-                    <input type="hidden" name="id" value="<?= $jid ?>">
-                </form>
-                <?php
             }
+        }
+        foreach ($iterItems as $item) {
+            $jid = (int) ($item['id'] ?? 0);
+            if ($jid <= 0) {
+                continue;
+            }
+            ?>
+            <form method="post" id="form-hapus-jadwal-<?= $jid ?>" class="d-none">
+                <input type="hidden" name="action" value="hapus_jadwal">
+                <input type="hidden" name="id" value="<?= $jid ?>">
+            </form>
+            <?php
         }
     }
     ?>

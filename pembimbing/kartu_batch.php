@@ -62,8 +62,7 @@ if ($cards === []) {
 
 $namaPonpes = app_brand_nama_ponpes($pdo);
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrl = $logoPath !== '' ? app_href('/' . ltrim($logoPath, '/')) : '';
+$logoUrl = app_pondok_logo_href($pdo, false);
 $brandTheme = kartu_brand_theme_for_cards($pdo, 'emerald');
 $cardStyleAttrs = kartu_brand_card_style_attrs($brandTheme);
 
@@ -106,7 +105,8 @@ require_once __DIR__ . '/../includes/header.php';
 .pb-id-brand h2 { font-size: 3.7mm; margin:0; font-weight:700; line-height:1.2; }
 .pb-id-brand .sub { font-size:2.7mm; opacity:.94; margin:0 0 .7mm; font-weight:700; letter-spacing:.04em; }
 .pb-id-brand .addr { font-size:2.2mm; opacity:.88; margin-top:.7mm; line-height:1.2; }
-.pb-id-logo { width:12mm; height:12mm; border-radius:50%; object-fit:contain; padding:0.4mm; background:#fff; box-sizing:border-box; }
+.pb-id-logo-wrap { width:12mm; height:12mm; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:0.4mm; box-sizing:border-box; }
+.pb-id-logo { width:100%; height:100%; border-radius:50%; object-fit:contain; display:block; background:#fff; }
 .pb-id-body { display:flex; justify-content:space-between; gap:3mm; align-items:flex-end; position:relative; z-index:1; margin-top:1.4mm; }
 .pb-id-name { font-size:4.2mm; font-weight:800; line-height:1.1; margin:0 0 1mm; }
 .pb-id-line { font-size:3mm; margin:.35mm 0; opacity:.97; }
@@ -126,7 +126,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="pb-id-card"<?= $cardStyleAttrs ?>>
             <div class="pb-id-top">
                 <?php if ($logoUrl !== ''): ?>
-                    <img src="<?= htmlspecialchars($logoUrl) ?>" class="pb-id-logo" alt="Logo pondok">
+                    <span class="pb-id-logo-wrap" aria-hidden="true">
+                        <img src="<?= htmlspecialchars($logoUrl) ?>" class="pb-id-logo" alt="Logo pondok">
+                    </span>
                 <?php endif; ?>
                 <div class="pb-id-brand">
                     <div class="sub">KARTU PEMBIMBING</div>

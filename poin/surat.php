@@ -64,9 +64,7 @@ $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
 $websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');
-$logoPath = app_setting($pdo, 'logo_path', '');
-$logoUrl = app_setting($pdo, 'logo_url', '');
-$logo = $logoPath !== '' ? '/' . $logoPath : $logoUrl;
+$logo = app_pondok_logo_href($pdo, false);
 $jamTerbit = date('d-m-Y H:i');
 
 $judul = $spLevel === 'SP2' ? 'Surat Peringatan 2 (SP2)' : 'Surat Peringatan 1 (SP1)';

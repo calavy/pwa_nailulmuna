@@ -526,6 +526,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         <span id="scan-status-badge" class="presensi-scan-status is-waiting">Menyiapkan…</span>
     </header>
 
+    <div id="presensi-scan-banner-host"<?= $resultMessage ? '' : ' hidden' ?>>
     <?php if ($resultMessage): ?>
     <?php
     $bannerIcon = match ($resultType) {
@@ -537,13 +538,20 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     };
     $bannerText = $resultType === 'success'
         ? 'Berhasil'
-        : ($resultType === 'duplicate' ? 'Anda sudah scan' : $resultMessage);
+        : ($resultType === 'duplicate' ? 'Anda sudah scan' : (
+            preg_match('/luar jadwal|tidak ada kegiatan/i', (string) $resultMessage) ? 'Di luar jadwal'
+            : (preg_match('/hari libur/i', (string) $resultMessage) ? 'Hari libur'
+            : (preg_match('/tidak terdaftar/i', (string) $resultMessage) ? 'QR tidak terdaftar'
+            : (preg_match('/tidak aktif|sudah keluar/i', (string) $resultMessage) ? 'Santri tidak aktif'
+            : ($resultType === 'danger' ? 'Scan ditolak' : $resultMessage))))
+        ));
     ?>
     <div class="presensi-scan-banner presensi-scan-banner--<?= htmlspecialchars($resultType) ?>" role="alert" aria-live="assertive">
         <i class="fa-solid <?= $bannerIcon ?>" aria-hidden="true"></i>
         <span><?= htmlspecialchars((string) $bannerText) ?></span>
     </div>
     <?php endif; ?>
+    </div>
 
     <?php if (is_array($pendingMunawibPick) && !empty($pendingMunawibPick['slots']) && (int) ($pendingMunawibPick['munawib_id'] ?? 0) > 0): ?>
         <div class="alert alert-warning mx-2 my-2 py-2">
@@ -576,15 +584,17 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         ? $scanJadwalCtx['slots'] : [];
     $activeSlotCount = count($activeSlotsTimer);
     ?>
-    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $activeSlotCount > 1 ? ' has-marquee' : '' ?>" aria-live="polite">
+    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $activeSlotCount > 0 && $timerState === 'active' ? ' has-marquee' : '' ?>" aria-live="polite">
         <div class="presensi-scan-timer-inner">
-            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= $activeSlotCount > 1 ? '' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
-                <div class="presensi-scan-timer-marquee__fade presensi-scan-timer-marquee__fade--left" aria-hidden="true"></div>
+            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= ($activeSlotCount > 0 && $timerState === 'active') ? '' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
                 <div class="presensi-scan-timer-marquee__viewport">
                     <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track">
-                        <?php if ($activeSlotCount > 1): ?>
+                        <?php if ($activeSlotCount > 0 && $timerState === 'active'): ?>
                             <?php for ($marqueePass = 0; $marqueePass < 2; $marqueePass++): ?>
-                                <?php foreach ($activeSlotsTimer as $slot): ?>
+                                <?php foreach ($activeSlotsTimer as $slotIdx => $slot): ?>
+                                    <?php if ($marqueePass > 0 || $slotIdx > 0): ?>
+                                        <span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>
+                                    <?php endif; ?>
                                     <?php
                                     $slotLabel = (string) ($slot['nama_kegiatan'] ?? 'Kegiatan');
                                     $slotMulai = substr((string) ($slot['jam_mulai'] ?? ''), 0, 5);
@@ -601,16 +611,15 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
                                     ?>
                                     <span class="presensi-scan-timer-marquee__item">
                                         <i class="fa-solid fa-bolt" aria-hidden="true"></i>
-                                        <?= htmlspecialchars($slotLabel) ?>
+                                        <span><?= htmlspecialchars($slotLabel) ?></span>
                                     </span>
                                 <?php endforeach; ?>
                             <?php endfor; ?>
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="presensi-scan-timer-marquee__fade presensi-scan-timer-marquee__fade--right" aria-hidden="true"></div>
             </div>
-            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title<?= $activeSlotCount > 1 ? ' d-none' : '' ?>"><?php
+            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title<?= ($activeSlotCount > 0 && $timerState === 'active') ? ' d-none' : '' ?>"><?php
                 if ($timerState === 'active') {
                     echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: 'Kegiatan aktif'));
                 } elseif ($timerState === 'upcoming') {
@@ -623,7 +632,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
                     echo 'Belum ada jadwal';
                 }
             ?></span>
-            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range<?= $activeSlotCount > 1 ? ' d-none' : '' ?>"><?php
+            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range<?= ($activeSlotCount > 0 && $timerState === 'active') ? ' d-none' : '' ?>"><?php
                 if (!empty($scanJadwalCtx['jam_mulai']) && !empty($scanJadwalCtx['jam_selesai'])) {
                     echo htmlspecialchars(substr((string) $scanJadwalCtx['jam_mulai'], 0, 5) . ' – ' . substr((string) $scanJadwalCtx['jam_selesai'], 0, 5));
                     if (!empty($scanJadwalCtx['tingkatan'])) {
@@ -702,6 +711,46 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
 (function () {
     var form = document.getElementById('form-scan-presensi');
     var input = document.getElementById('kode_qr');
+    var submitting = false;
+
+    function submitScan(code) {
+        if (submitting) {
+            return;
+        }
+        input.value = code;
+        document.getElementById('scan_source').value = 'camera';
+        if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Scan: ' + code })) {
+            return;
+        }
+        submitting = true;
+        var fd = new FormData(form);
+        var url = form.getAttribute('action') || window.location.href;
+        fetch(url, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin',
+            headers: { 'X-PWA-Offline-Sync': '1' },
+        }).then(function (res) {
+            return res.json().catch(function () {
+                throw new Error('invalid json');
+            });
+        }).then(function (data) {
+            submitting = false;
+            if (data.munawib_pending) {
+                window.location.reload();
+                return;
+            }
+            var type = data.type || (data.ok ? 'success' : 'warning');
+            var msg = data.message || '';
+            if (window.PresensiScanFeedback) {
+                PresensiScanFeedback.show(type, msg);
+            }
+        }).catch(function () {
+            submitting = false;
+            form.submit();
+        });
+    }
+
     var scanner = new PresensiScanCamera({
         readerId: 'qr-reader',
         statusEl: document.getElementById('scan-status-badge'),
@@ -715,14 +764,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         btnRetry: document.getElementById('btn-retry-camera'),
         btnTorch: document.getElementById('btn-torch'),
         btnSuperFocus: document.getElementById('btn-super-focus'),
-        onSubmit: function (code) {
-            input.value = code;
-            document.getElementById('scan_source').value = 'camera';
-            if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Scan: ' + code })) {
-                return;
-            }
-            form.submit();
-        },
+        onSubmit: submitScan,
     });
 
     scanner.init().then(function () {

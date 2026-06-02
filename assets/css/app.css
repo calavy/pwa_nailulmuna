@@ -670,21 +670,21 @@ body {
     flex: 0 0 auto;
     width: 3.1rem;
     height: 3.1rem;
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    border: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    padding: 0.2rem;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: none;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
 }
 
 .app-sidebar-pondok-logo-wrap--fallback {
     background: rgba(255, 255, 255, 0.16);
     border-color: rgba(255, 255, 255, 0.32);
+    border-radius: 50%;
 }
 
 .app-sidebar-pondok-logo {
@@ -693,8 +693,9 @@ body {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    border-radius: 8px;
+    border-radius: 50%;
     display: block;
+    background: #fff;
 }
 
 .app-sidebar-pondok-logo-fallback {
@@ -2848,13 +2849,15 @@ html[data-theme-transitioning] .app-theme-switch {
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    overflow: visible;
-    padding: 0;
-    max-width: 140px;
-    max-height: 104px;
+    width: 72px;
+    height: 72px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+    padding: 0.35rem;
+    max-width: none;
+    max-height: none;
 }
 
 .dash-hero-logo-wrap--placeholder {
@@ -2878,13 +2881,14 @@ html[data-theme-transitioning] .app-theme-switch {
 
 .dash-hero-logo {
     display: block;
-    width: auto;
-    height: auto;
-    max-width: 140px;
-    max-height: 104px;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
     object-fit: contain;
     object-position: center;
-    filter: drop-shadow(0 3px 10px rgba(15, 23, 42, 0.35));
+    border-radius: 50%;
+    filter: none;
 }
 
 .dash-hero-logo-fallback {
@@ -2895,14 +2899,14 @@ html[data-theme-transitioning] .app-theme-switch {
 
 .pondok-logo-preview {
     display: block;
-    max-width: 160px;
-    max-height: 96px;
-    width: auto;
-    height: auto;
+    width: 72px;
+    height: 72px;
     object-fit: contain;
-    background: transparent;
-    border: none;
-    border-radius: 0;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    padding: 0.35rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .dash-hero-brand-text {

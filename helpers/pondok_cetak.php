@@ -8,14 +8,7 @@ require_once __DIR__ . '/app_path.php';
 /** Data kop surat pondok (logo, nama, alamat, kontak). */
 function pondok_kop_data(PDO $pdo): array
 {
-    if (function_exists('app_pondok_logo_src')) {
-        $logoSrc = app_pondok_logo_src($pdo);
-    } else {
-        $logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-        $logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-        $logoSrc = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
-    }
-    $logoHref = $logoSrc !== '' ? app_href($logoSrc) : '';
+    $logoHref = app_pondok_logo_href($pdo, false);
 
     return [
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
@@ -24,7 +17,7 @@ function pondok_kop_data(PDO $pdo): array
         'telp_ponpes' => trim((string) app_setting($pdo, 'telp_ponpes', '')),
         'website_ponpes' => trim((string) app_setting($pdo, 'website_ponpes', '')),
         'kota_ponpes' => trim((string) app_setting($pdo, 'kota_ponpes', 'Muntilan')) ?: 'Muntilan',
-        'logo' => $logoSrc,
+        'logo' => app_pondok_logo_src($pdo),
         'logo_href' => $logoHref,
         'nama_pengasuh' => trim((string) app_setting($pdo, 'nama_pengasuh', '')),
     ];

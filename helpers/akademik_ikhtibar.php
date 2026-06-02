@@ -234,6 +234,8 @@ function ikhtibar_require_pembimbing_access(): void
 {
     require_once __DIR__ . '/../includes/auth.php';
     require_login();
+    require_once __DIR__ . '/munawib_portal.php';
+    munawib_portal_guard_halaman();
     if (is_super_admin()) {
         return;
     }

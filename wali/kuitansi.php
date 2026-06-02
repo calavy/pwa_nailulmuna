@@ -31,9 +31,7 @@ $periodeLabel = wali_portal_label_periode($pdo, $row);
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
-$logoPath = trim((string) app_setting($pdo, 'logo_path', ''));
-$logoUrl = trim((string) app_setting($pdo, 'logo_url', ''));
-$logo = $logoPath !== '' ? '/' . ltrim($logoPath, '/') : $logoUrl;
+$logo = app_pondok_logo_href($pdo, false);
 
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');

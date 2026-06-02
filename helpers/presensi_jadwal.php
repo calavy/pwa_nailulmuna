@@ -176,30 +176,24 @@ function presensi_jam_selesai_lewat(string $tanggal, string $jamSelesai, ?string
 }
 
 /**
- * Status tampilan/rekap: belum scan selama kegiatan → BELUM; setelah jam selesai → ALPA.
+ * Status tampilan/rekap: selama jadwal berlangsung tanpa scan → tidak dihitung alpa;
+ * setelah jam selesai tanpa scan/izin → ALPA.
  */
 function presensi_status_efektif(?string $statusDb, string $tanggal, ?string $jamSelesai, ?string $asOfDatetime = null): string
 {
     $st = strtoupper(trim((string) $statusDb));
-    if ($st === '') {
-        $st = 'BELUM';
-    }
     if (in_array($st, ['HADIR', 'IZIN', 'SAKIT'], true)) {
         return $st;
     }
     $jamSelesai = $jamSelesai !== null ? trim($jamSelesai) : '';
-    $lewat = $jamSelesai !== '' && presensi_jam_selesai_lewat($tanggal, $jamSelesai, $asOfDatetime);
-    if ($st === 'ALPA' && !$lewat) {
-        return 'BELUM';
+    if ($jamSelesai === '') {
+        return $st === 'ALPA' ? 'ALPA' : '';
     }
-    if (($st === 'BELUM' || $st === 'ALPA') && $lewat) {
-        return 'ALPA';
-    }
-    if ($st === 'ALPA') {
+    if (presensi_jam_selesai_lewat($tanggal, $jamSelesai, $asOfDatetime)) {
         return 'ALPA';
     }
 
-    return $st === '' ? 'BELUM' : $st;
+    return '';
 }
 
 /**
@@ -306,7 +300,7 @@ function presensi_apply_status_efektif_rows(PDO $pdo, array $rows, string $tangg
         $kid = (int) ($row['kegiatan_id'] ?? 0);
         $tk = (string) ($row['tingkatan'] ?? '');
         $jamSelesai = presensi_jadwal_jam_selesai_for($pdo, $tanggal, $kid, $tk, $map);
-        $raw = (string) ($row['status_hari_ini'] ?? $row['status_presensi'] ?? 'BELUM');
+        $raw = (string) ($row['status_hari_ini'] ?? $row['status_presensi'] ?? '');
         $efektif = presensi_status_efektif($raw, $tanggal, $jamSelesai, $asOfDatetime);
         if (isset($row['status_hari_ini'])) {
             $row['status_hari_ini'] = $efektif;

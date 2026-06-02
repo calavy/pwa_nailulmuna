@@ -94,9 +94,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
                     $_SESSION['user'] = $mwLogin['session']['user'];
                     $_SESSION['munawib_id'] = (int) ($mwLogin['session']['munawib_id'] ?? 0);
                     $_SESSION['munawib_tingkatan'] = $mwLogin['session']['munawib_tingkatan'] ?? [];
-                    $_SESSION['munawib_pembimbing_id'] = (int) ($mwLogin['session']['munawib_pembimbing_id'] ?? 0);
-                    set_flash('success', 'Kartu munawib dikenali. Kelas: ' . implode(', ', $_SESSION['munawib_tingkatan']));
-                    app_redirect('pembimbing/dashboard.php');
+                    unset(
+                        $_SESSION['munawib_pembimbing_id'],
+                        $_SESSION['munawib_kegiatan_id'],
+                        $_SESSION['munawib_penugasan_id'],
+                        $_SESSION['munawib_pembimbing_nama'],
+                        $_SESSION['munawib_kegiatan_nama'],
+                        $_SESSION['munawib_portal_tingkatan'],
+                        $_SESSION['munawib_portal_jam_mulai'],
+                        $_SESSION['munawib_portal_jam_selesai']
+                    );
+                    set_flash('success', 'Kartu munawib dikenali. Pilih pembimbing & kegiatan yang sedang berlangsung.');
+                    app_redirect('pembimbing/munawib_portal.php');
                 }
                 if (!$isValidLogin && ($mwLogin['message'] ?? '') !== '' && str_contains((string) $mwLogin['message'], 'penugasan')) {
                     set_flash('error', (string) $mwLogin['message']);

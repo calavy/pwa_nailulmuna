@@ -60,7 +60,7 @@ function jadwal_kelompokkan_per_tingkatan(array $jadwalList): array
  */
 function jadwal_kelompokkan_per_kegiatan(array $jadwalList): array
 {
-    return jadwal_kelompokkan_dengan_slot_jam($jadwalList, static function (array $row): string {
+    return jadwal_kelompokkan_dengan_hari_jam($jadwalList, static function (array $row): string {
         $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
 
         return $nama !== '' ? $nama : '—';
@@ -73,7 +73,7 @@ function jadwal_kelompokkan_per_kegiatan(array $jadwalList): array
  */
 function jadwal_kelompokkan_per_pembimbing(array $jadwalList): array
 {
-    return jadwal_kelompokkan_dengan_slot_jam($jadwalList, static function (array $row): string {
+    return jadwal_kelompokkan_dengan_hari_jam($jadwalList, static function (array $row): string {
         $nama = trim((string) ($row['nama_pembimbing'] ?? ''));
         if ($nama === '' || $nama === '-') {
             return 'Belum ada pembimbing';
@@ -81,6 +81,103 @@ function jadwal_kelompokkan_per_pembimbing(array $jadwalList): array
 
         return $nama;
     });
+}
+
+/**
+ * Grup utama → hari → slot jam → baris jadwal.
+ *
+ * @param list<array<string, mixed>> $jadwalList
+ * @param callable(array<string, mixed>): string $grupLabelFn
+ * @return array<string, array<int, array<string, list<array<string, mixed>>>>>
+ */
+function jadwal_kelompokkan_dengan_hari_jam(array $jadwalList, callable $grupLabelFn): array
+{
+    $out = [];
+    foreach ($jadwalList as $row) {
+        $grup = $grupLabelFn($row);
+        $hk = (int) ($row['hari_ke'] ?? 0);
+        $jamKey = jadwal_slot_jam_key($row);
+        if (!isset($out[$grup])) {
+            $out[$grup] = [];
+        }
+        if (!isset($out[$grup][$hk])) {
+            $out[$grup][$hk] = [];
+        }
+        if (!isset($out[$grup][$hk][$jamKey])) {
+            $out[$grup][$hk][$jamKey] = [];
+        }
+        $out[$grup][$hk][$jamKey][] = $row;
+    }
+
+    return $out;
+}
+
+/**
+ * Gabung baris dengan kegiatan/hari/jam/pembimbing/tempat sama → satu baris (tingkatan digabung).
+ *
+ * @param list<array<string, mixed>> $items
+ * @return list<array<string, mixed>>
+ */
+function jadwal_gabung_baris_serupa(array $items): array
+{
+    $map = [];
+    foreach ($items as $item) {
+        $key = implode('|', [
+            (int) ($item['kegiatan_id'] ?? 0),
+            (int) ($item['hari_ke'] ?? 0),
+            jadwal_norm_jam((string) ($item['jam_mulai'] ?? '')),
+            jadwal_norm_jam((string) ($item['jam_selesai'] ?? '')),
+            (int) ($item['pembimbing_id'] ?? 0),
+            trim((string) ($item['tempat'] ?? '')),
+        ]);
+        if (!isset($map[$key])) {
+            $map[$key] = $item;
+            $map[$key]['_merge_ids'] = [(int) ($item['id'] ?? 0)];
+            $tk = trim((string) ($item['tingkatan'] ?? ''));
+            $map[$key]['_tingkatan_list'] = $tk !== '' ? [$tk] : [];
+        } else {
+            $id = (int) ($item['id'] ?? 0);
+            if ($id > 0 && !in_array($id, $map[$key]['_merge_ids'], true)) {
+                $map[$key]['_merge_ids'][] = $id;
+            }
+            $tk = trim((string) ($item['tingkatan'] ?? ''));
+            if ($tk !== '' && !in_array($tk, $map[$key]['_tingkatan_list'], true)) {
+                $map[$key]['_tingkatan_list'][] = $tk;
+            }
+        }
+    }
+    $out = array_values($map);
+    usort($out, static function (array $a, array $b): int {
+        $c = strcmp((string) ($a['jam_mulai'] ?? ''), (string) ($b['jam_mulai'] ?? ''));
+        if ($c !== 0) {
+            return $c;
+        }
+
+        return strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
+    });
+
+    return $out;
+}
+
+/**
+ * @param array<string, array<int, array<string, list<array<string, mixed>>>>> $grouped
+ */
+function jadwal_urutkan_grup_hari_jam(array &$grouped): void
+{
+    foreach ($grouped as &$byHari) {
+        ksort($byHari, SORT_NUMERIC);
+        foreach ($byHari as &$byJam) {
+            uksort($byJam, static fn (string $a, string $b): int => strcmp($a, $b));
+            foreach ($byJam as &$items) {
+                usort($items, static function (array $x, array $y): int {
+                    return strcmp((string) ($x['tingkatan'] ?? ''), (string) ($y['tingkatan'] ?? ''));
+                });
+            }
+            unset($items);
+        }
+        unset($byJam);
+    }
+    unset($byHari);
 }
 
 /**
@@ -288,6 +385,47 @@ function jadwal_peta_rows_sorted(array $jadwalList): array
     });
 
     return $rows;
+}
+
+/**
+ * Peta jadwal dengan baris digabung: kegiatan + hari + jam sama → satu baris (tingkatan digabung).
+ *
+ * @param list<array<string,mixed>> $jadwalList
+ * @return list<array<string,mixed>>
+ */
+function jadwal_peta_rows_gabung(array $jadwalList): array
+{
+    $sorted = jadwal_peta_rows_sorted($jadwalList);
+    $out = [];
+    foreach ($sorted as $row) {
+        $key = implode('|', [
+            trim((string) ($row['nama_kegiatan'] ?? '')),
+            (int) ($row['hari_ke'] ?? 0),
+            jadwal_norm_jam((string) ($row['jam_mulai'] ?? '')),
+            jadwal_norm_jam((string) ($row['jam_selesai'] ?? '')),
+            (int) ($row['pembimbing_id'] ?? 0),
+            trim((string) ($row['tempat'] ?? '')),
+        ]);
+        if (!isset($out[$key])) {
+            $out[$key] = $row;
+            $out[$key]['_merge_ids'] = [(int) ($row['id'] ?? 0)];
+            $tk = trim((string) ($row['tingkatan'] ?? ''));
+            $out[$key]['_tingkatan_list'] = $tk !== '' ? [$tk] : [];
+            $out[$key]['tingkatan'] = $tk;
+        } else {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0 && !in_array($id, $out[$key]['_merge_ids'], true)) {
+                $out[$key]['_merge_ids'][] = $id;
+            }
+            $tk = trim((string) ($row['tingkatan'] ?? ''));
+            if ($tk !== '' && !in_array($tk, $out[$key]['_tingkatan_list'], true)) {
+                $out[$key]['_tingkatan_list'][] = $tk;
+            }
+            $out[$key]['tingkatan'] = implode(', ', $out[$key]['_tingkatan_list']);
+        }
+    }
+
+    return array_values($out);
 }
 
 /** Slug warna badge hari (0–7). */

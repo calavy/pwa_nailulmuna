@@ -18,19 +18,21 @@ function pembimbing_dashboard_current_pembimbing(PDO $pdo, int $userId): ?array
 {
     $munawibId = (int) ($_SESSION['munawib_id'] ?? 0);
     if ($munawibId > 0) {
-        require_once __DIR__ . '/munawib.php';
-        $pbId = (int) ($_SESSION['munawib_pembimbing_id'] ?? 0);
-        if ($pbId <= 0) {
-            $pbId = munawib_pembimbing_id_portal($pdo, $munawibId);
-        }
-        $nama = trim((string) ($_SESSION['user']['nama'] ?? 'Munawib'));
+        require_once __DIR__ . '/munawib_portal.php';
+        $konteks = munawib_portal_konteks();
+        $pbId = (int) ($konteks['pembimbing_id'] ?? 0);
+        $pbNama = trim((string) ($konteks['pembimbing_nama'] ?? ''));
+        $munawibNama = trim((string) ($_SESSION['user']['nama'] ?? 'Munawib'));
         $nip = trim((string) ($_SESSION['user']['username'] ?? ''));
+        $displayNama = $pbNama !== '' ? $pbNama : $munawibNama;
 
         return [
             'id' => $pbId > 0 ? $pbId : $munawibId,
-            'nama' => $nama,
+            'nama' => $displayNama,
             'nip' => $nip,
             'munawib_id' => $munawibId,
+            'munawib_mode' => true,
+            'munawib_nama' => $munawibNama,
         ];
     }
 
@@ -1273,10 +1275,11 @@ function pembimbing_dashboard_roster_hari_ini(PDO $pdo, array $tingkatanList, st
 
         $params['today'] = $today;
         $params['kid'] = $kegiatanId;
+        $params['hari'] = (int) date('N', strtotime($today));
         $sql = '
             SELECT s.id, s.nis, s.nama_santri, s.tingkatan,
                    :kid AS kegiatan_id,
-                   COALESCE(p.status_presensi, "BELUM") AS status_hari_ini,
+                   COALESCE(NULLIF(TRIM(p.status_presensi), ""), "") AS status_hari_ini,
                    p.jam_presensi
             FROM santri s
             LEFT JOIN presensi p ON p.santri_id = s.id
@@ -1284,13 +1287,23 @@ function pembimbing_dashboard_roster_hari_ini(PDO $pdo, array $tingkatanList, st
                 AND p.kegiatan_id = :kid
             WHERE ' . $aktifSql . '
               AND s.tingkatan IN (' . $inSql . ')
+              AND EXISTS (
+                  SELECT 1 FROM jadwal_kegiatan j
+                  INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+                  WHERE j.kegiatan_id = :kid
+                    AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+                    AND (
+                        j.tingkatan = "Semua Tingkatan"
+                        OR j.tingkatan = s.tingkatan
+                    )
+              )
             ORDER BY s.tingkatan ASC, s.nama_santri ASC
             LIMIT 500
         ';
     } else {
         $sql = '
             SELECT s.id, s.nis, s.nama_santri, s.tingkatan,
-                   "BELUM" AS status_hari_ini,
+                   "" AS status_hari_ini,
                    NULL AS jam_presensi
             FROM santri s
             WHERE ' . $aktifSql . '

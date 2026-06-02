@@ -184,7 +184,6 @@ function munawib_buat_sesi_portal(PDO $pdo, string $qrCode): array
             'message' => 'Munawib belum punya penugasan aktif dengan kelas/tingkatan. Hubungi pengurus.',
         ];
     }
-    $pbId = munawib_pembimbing_id_portal($pdo, $mid);
     $nama = trim((string) ($row['nama'] ?? 'Munawib'));
     $nip = trim((string) ($row['nip'] ?? ''));
 
@@ -202,7 +201,6 @@ function munawib_buat_sesi_portal(PDO $pdo, string $qrCode): array
             ],
             'munawib_id' => $mid,
             'munawib_tingkatan' => $tingkatan,
-            'munawib_pembimbing_id' => $pbId,
         ],
     ];
 }

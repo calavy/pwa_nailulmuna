@@ -16,7 +16,7 @@ function offline_sync_wants_json(): bool
 function offline_sync_json_response(string $type, string $message, array $extra = []): void
 {
     $normalized = strtolower(trim($type));
-    if (!in_array($normalized, ['success', 'warning', 'error', 'info'], true)) {
+    if (!in_array($normalized, ['success', 'warning', 'error', 'info', 'duplicate', 'danger'], true)) {
         $normalized = 'info';
     }
 
