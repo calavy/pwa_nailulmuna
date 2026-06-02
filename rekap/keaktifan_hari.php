@@ -30,11 +30,13 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
 
 $tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
 
+$kategori = rekap_keaktifan_hari_normalize_kategori($_GET['kategori'] ?? null);
+
 $kegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
 
 
 
-$rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatan !== '' ? $tingkatan : null);
+$rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatan !== '' ? $tingkatan : null, $kategori);
 
 $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
 
@@ -90,13 +92,19 @@ $tglLabel = $ts !== false
 
 
 
-$filterBase = static function (array $extra = []) use ($tanggal, $tingkatan): string {
+$filterBase = static function (array $extra = []) use ($tanggal, $tingkatan, $kategori): string {
 
     $q = ['tanggal' => $tanggal];
 
     if ($tingkatan !== '') {
 
         $q['tingkatan'] = $tingkatan;
+
+    }
+
+    if ($kategori !== null) {
+
+        $q['kategori'] = $kategori;
 
     }
 
@@ -178,7 +186,11 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
 
 };
 
-
+$kategoriLabel = match ($kategori) {
+    'JAMAAH' => "Jama'ah",
+    'TAALIM' => "Ta'lim",
+    default => 'Semua kategori',
+};
 
 $pageTitle = 'Keaktifan Hari Ini';
 
@@ -231,7 +243,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <?php endif; ?>
 
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
 
             <label class="form-label small mb-0">Tanggal</label>
 
@@ -239,7 +251,23 @@ require_once __DIR__ . '/../includes/header.php';
 
         </div>
 
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-2">
+
+            <label class="form-label small mb-0">Kategori</label>
+
+            <select name="kategori" class="form-select form-select-sm">
+
+                <option value="" <?= $kategori === null ? 'selected' : '' ?>>Semua</option>
+
+                <option value="JAMAAH" <?= $kategori === 'JAMAAH' ? 'selected' : '' ?>>Jama'ah saja</option>
+
+                <option value="TAALIM" <?= $kategori === 'TAALIM' ? 'selected' : '' ?>>Ta'lim saja</option>
+
+            </select>
+
+        </div>
+
+        <div class="col-12 col-md-2">
 
             <label class="form-label small mb-0">Tingkatan</label>
 
@@ -287,7 +315,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php
     $khShowHero = true;
-    $khHeroSubtitle = $tingkatan !== '' ? $tingkatan : 'Seluruh pondok';
+    $khHeroSubtitle = $kategoriLabel . ($tingkatan !== '' ? ' · ' . $tingkatan : ($kategori === null ? ' · Seluruh pondok' : ''));
     $khHeroEntriLabel = 'pencatatan (santri × kegiatan)';
     require __DIR__ . '/../includes/partials/keaktifan_hari_kegiatan_cards.php';
     ?>
@@ -306,8 +334,8 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="modal-body small">
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> — santri sudah scan.</p>
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> — ada keterangan resmi.</p>
-                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai (tanpa izin resmi).</p>
-                <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk <strong>Daftar santri</strong> pada kartu untuk melihat nama lengkap.</p>
+                <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai (tanpa izin/sakit).</p>
+                <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk kotak jumlah atau <strong>Daftar santri</strong> untuk melihat nama lengkap.</p>
             </div>
         </div>
     </div>

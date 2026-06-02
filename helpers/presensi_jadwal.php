@@ -176,14 +176,17 @@ function presensi_jam_selesai_lewat(string $tanggal, string $jamSelesai, ?string
 }
 
 /**
- * Status tampilan/rekap: selama jadwal berlangsung tanpa scan → tidak dihitung alpa;
- * setelah jam selesai tanpa scan/izin → ALPA.
+ * Status tampilan/rekap: tanpa scan/izin/sakit → ALPA setelah jam kegiatan selesai;
+ * sebelum selesai belum dihitung (bukan istirahat).
  */
 function presensi_status_efektif(?string $statusDb, string $tanggal, ?string $jamSelesai, ?string $asOfDatetime = null): string
 {
     $st = strtoupper(trim((string) $statusDb));
     if (in_array($st, ['HADIR', 'IZIN', 'SAKIT'], true)) {
         return $st;
+    }
+    if ($st === 'ISTIRAHAT') {
+        $st = '';
     }
     $jamSelesai = $jamSelesai !== null ? trim($jamSelesai) : '';
     if ($jamSelesai === '') {

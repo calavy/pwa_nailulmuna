@@ -432,8 +432,12 @@ function keuangan_syahriyah_terbayar_bulan(
 /**
  * Rekap alokasi syahriyah per komponen: harus masuk, masuk, pengeluaran, saldo.
  *
- * @param int $syahriyahHarusMasuk Total tagihan syahriyah seharusnya (target bulan); 0 = dihitung dari rekap POS.
- * @return list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int}>
+ * Model selaras dengan laporan alokasi per santri: tambahan PKPPS → baris dana umum;
+ * persen komponen (gizi, KOPSA, …) hanya dari dasar syahriyah (setelah slice PKPPS).
+ * Pembayaran masuk: PKPPS diambil dulu dari cicilan, sisanya ke dasar × %.
+ *
+ * @param int $syahriyahHarusMasuk Diabaikan (dipertahankan untuk kompatibilitas pemanggil).
+ * @return list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int,is_dana_umum?:bool}>
  */
 function keuangan_rekap_alokasi_syahriyah_bulan(
     PDO $pdo,
@@ -442,18 +446,104 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
     int $tahunSelesai,
     int $syahriyahHarusMasuk = 0
 ): array {
+    unset($syahriyahHarusMasuk);
+
     $rows = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
-    if ($rows === []) {
+    if ($rows === [] || $bulanTagihan < 1 || $bulanTagihan > 12 || !table_exists($pdo, 'santri')) {
         return [];
     }
 
-    if ($syahriyahHarusMasuk <= 0) {
-        $syahriyahHarusMasuk = keuangan_syahriyah_harus_masuk_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+    if (!function_exists('keuangan_syahriyah_expected_dengan_potongan')) {
+        require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+    }
+    if (!function_exists('keuangan_syahriyah_split_pembayaran_tambahan')) {
+        require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
+    }
+    if (!function_exists('tagihan_paid_map_for_month')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
+    }
+    if (!function_exists('pondok_rentang_masehi_bulan_tagihan')) {
+        require_once __DIR__ . '/pondok_kalender.php';
     }
 
-    $paguBulan = keuangan_syahriyah_terbayar_bulan($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
-    [$tglAwal, $tglAkhir] = pondok_rentang_masehi_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan);
+    $umumLabel = keuangan_pkpps_alokasi_umum_label();
+    $harusKomponen = [];
+    $masukKomponen = [];
+    foreach ($rows as $row) {
+        $nama = trim((string) ($row['nama_komponen'] ?? ''));
+        if ($nama !== '') {
+            $harusKomponen[$nama] = 0;
+            $masukKomponen[$nama] = 0;
+        }
+    }
+    $harusUmum = 0;
+    $masukUmum = 0;
 
+    $aktifSql = santri_sql_aktif_only('s');
+    $stSantri = $pdo->query('
+        SELECT s.id, s.kategori_kelas
+        FROM santri s
+        WHERE ' . $aktifSql
+    );
+    $santriList = $stSantri ? ($stSantri->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+
+    foreach ($santriList as $s) {
+        $sid = (int) ($s['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+        $sim = keuangan_syahriyah_expected_dengan_potongan($pdo, $sid, $kat, $bulanTagihan, $tahunMulai, $tahunSelesai);
+        $pkppsHarus = (int) ($sim['pkpps_tambahan'] ?? 0);
+        $expected = (int) ($sim['expected'] ?? 0);
+        $dasarHarus = max(0, $expected - $pkppsHarus);
+        $harusUmum += $pkppsHarus;
+        foreach ($rows as $row) {
+            $nama = trim((string) ($row['nama_komponen'] ?? ''));
+            if ($nama === '') {
+                continue;
+            }
+            $persen = (float) ($row['persen'] ?? 0);
+            $harusKomponen[$nama] += (int) floor($dasarHarus * $persen / 100);
+        }
+    }
+
+    $paidMap = tagihan_paid_map_for_month($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai, ['syahriyah']);
+    foreach ($santriList as $s) {
+        $sid = (int) ($s['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $bayar = (int) ($paidMap[$sid]['syahriyah'] ?? 0);
+        if ($bayar <= 0) {
+            continue;
+        }
+        $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+        $split = keuangan_syahriyah_split_pembayaran_tambahan(
+            $pdo,
+            $sid,
+            $kat,
+            $bayar,
+            $bulanTagihan,
+            $tahunMulai,
+            $tahunSelesai
+        );
+        $dasarBayar = (int) ($split['dasar'] ?? $bayar);
+        $masukUmum += (int) ($split['umum'] ?? 0);
+        foreach ($rows as $row) {
+            $nama = trim((string) ($row['nama_komponen'] ?? ''));
+            if ($nama === '') {
+                continue;
+            }
+            $persen = (float) ($row['persen'] ?? 0);
+            $masukKomponen[$nama] += (int) floor($dasarBayar * $persen / 100);
+        }
+    }
+
+    [$tglAwal, $tglAkhir] = pondok_rentang_masehi_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan);
     $keluarMap = [];
     if (
         $tglAwal !== ''
@@ -476,14 +566,28 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
     }
 
     $out = [];
+    if ($harusUmum > 0 || $masukUmum > 0) {
+        $pengeluaranUmum = (int) ($keluarMap[$umumLabel] ?? $keluarMap['Dana Umum'] ?? 0);
+        $out[] = [
+            'nama' => $umumLabel,
+            'kategori' => 'PKPPS',
+            'persen' => 0.0,
+            'harus_masuk' => $harusUmum,
+            'masuk' => $masukUmum,
+            'pengeluaran' => $pengeluaranUmum,
+            'saldo' => $masukUmum - $pengeluaranUmum,
+            'is_dana_umum' => true,
+        ];
+    }
+
     foreach ($rows as $row) {
         $nama = trim((string) ($row['nama_komponen'] ?? ''));
         if ($nama === '') {
             continue;
         }
         $persen = (float) ($row['persen'] ?? 0);
-        $harusMasuk = $syahriyahHarusMasuk > 0 ? (int) floor($syahriyahHarusMasuk * $persen / 100) : 0;
-        $masuk = $paguBulan > 0 ? (int) floor($paguBulan * $persen / 100) : 0;
+        $harusMasuk = (int) ($harusKomponen[$nama] ?? 0);
+        $masuk = (int) ($masukKomponen[$nama] ?? 0);
         $pengeluaran = (int) ($keluarMap[$nama] ?? 0);
         $out[] = [
             'nama' => $nama,

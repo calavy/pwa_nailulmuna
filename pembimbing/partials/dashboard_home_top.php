@@ -30,8 +30,10 @@ declare(strict_types=1);
 /** @var bool $pbSudahHadir */
 /** @var bool $isMunawibPortal */
 /** @var array<string,mixed>|null $munawibPortalKonteks */
+/** @var list<array<string,mixed>> $kegiatanAktifPresensi */
 
 $isMunawibPortal = $isMunawibPortal ?? false;
+$kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
 $munawibPortalKonteks = $munawibPortalKonteks ?? null;
 
 $tickerItems = $pbDashTickerItems !== [] ? $pbDashTickerItems : ['Belum ada jadwal kelas mendatang hari ini'];
@@ -122,6 +124,9 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
 
 
+        <?php if ($kegiatanAktifPresensi !== []): ?>
+            <?php $inBanner = true; require __DIR__ . '/dashboard_kegiatan_berlangsung_cards.php'; ?>
+        <?php else: ?>
         <div class="pb-dash-hero-banner__ticker pb-dash-ticker pb-dash-ticker--in-banner" aria-live="polite">
 
             <div class="pb-dash-ticker__label"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i></div>
@@ -141,6 +146,7 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
             </div>
 
         </div>
+        <?php endif; ?>
 
     </div>
 

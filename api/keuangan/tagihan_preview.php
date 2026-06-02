@@ -63,14 +63,13 @@ foreach ($breakdown as $row) {
 if (isset($breakdown['syahriyah']) && is_array($breakdown['syahriyah'])) {
     $sy = $breakdown['syahriyah'];
     $pkpps = (int) ($sy['pkpps_tambahan'] ?? 0);
-    $kelasSy = (int) ($sy['kelas_syahriyah_tambahan'] ?? 0);
     $total = (int) ($sy['expected'] ?? 0);
-    $dasar = (int) ($sy['expected_setelah_potongan'] ?? max(0, $total - $pkpps - $kelasSy));
+    $dasar = (int) ($sy['expected_setelah_potongan'] ?? max(0, $total - $pkpps));
     $syBreakdown = [
         'tier_label' => (string) ($sy['tier_label'] ?? ''),
         'dasar' => $dasar,
         'pkpps' => $pkpps,
-        'kelas_syahriyah' => $kelasSy,
+        'kelas_syahriyah' => 0,
         'total' => $total,
         'sisa' => (int) ($sy['sisa'] ?? 0),
     ];

@@ -174,6 +174,19 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
     </div>
     <div class="col-md-6">
+        <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>" class="card shadow-sm border-0 h-100 text-decoration-none">
+            <div class="card-body">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-message"></i></span>
+                    <div>
+                        <h2 class="h6 mb-1 app-card-title">Template Pesan WA</h2>
+                        <p class="small text-muted mb-0">Atur teks tagihan, pengingat scan pembimbing, rekap ALPA, dan pesan otomatis lainnya.</p>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6">
         <a href="<?= htmlspecialchars(app_href('/settings/wa_laporan_kelas_kosong.php')) ?>" class="card shadow-sm border-0 h-100 text-decoration-none">
             <div class="card-body">
                 <div class="d-flex align-items-start gap-3">

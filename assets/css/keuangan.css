@@ -230,6 +230,68 @@ body.keuangan-module .bendahara-nav-link:hover .bendahara-nav-card {
     box-shadow: var(--shadow-card-hover);
 }
 
+/* Popup detail kotak statistik (laporan keuangan) */
+.bendahara-stat--clickable {
+    cursor: pointer;
+    border: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.bendahara-stat--clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+}
+
+.bendahara-stat--clickable.is-open {
+    outline: 2px solid rgba(15, 118, 110, 0.45);
+    outline-offset: 2px;
+}
+
+.bendahara-stat-popup {
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.bendahara-stat-popup__head {
+    margin-bottom: 0.4rem;
+    font-size: 0.82rem;
+}
+
+.bendahara-stat-popup__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+}
+
+.bendahara-stat-popup__list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.28rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.bendahara-stat-popup__list li:last-child {
+    border-bottom: 0;
+}
+
+.bendahara-stat-popup__name {
+    font-weight: 600;
+    min-width: 0;
+}
+
+.bendahara-stat-popup__sub {
+    color: #64748b;
+    white-space: nowrap;
+    font-size: 0.72rem;
+}
+
 body.keuangan-module .bendahara-nav-icon {
     width: 2.75rem;
     height: 2.75rem;

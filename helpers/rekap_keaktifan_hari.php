@@ -118,6 +118,9 @@ function rekap_keaktifan_hari_ringkasan_from_rows(array $rows): array
             ];
         }
         $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
+        if ($st === 'ISTIRAHAT') {
+            $st = 'ALPA';
+        }
         $byKeg[$kid]['total']++;
         match ($st) {
             'HADIR' => $byKeg[$kid]['hadir']++,
@@ -214,6 +217,9 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
             ];
         }
         $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
+        if ($st === 'ISTIRAHAT') {
+            $st = 'ALPA';
+        }
         if (!in_array($st, ['HADIR', 'IZIN', 'SAKIT', 'ALPA'], true)) {
             $byKeg[$kid]['total']++;
             continue;
@@ -241,6 +247,38 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
     }
 
     return array_values($byKeg);
+}
+
+/**
+ * Agregat daftar santri per status dari semua kartu kegiatan (untuk popup total hero).
+ *
+ * @param list<array<string, mixed>> $detailKeg
+ * @return array<string, list<array<string, mixed>>>
+ */
+function rekap_keaktifan_hari_santri_agregat(array $detailKeg): array
+{
+    $out = ['HADIR' => [], 'IZIN' => [], 'SAKIT' => [], 'ALPA' => []];
+    foreach ($detailKeg as $dk) {
+        $namaKeg = trim((string) ($dk['nama_kegiatan'] ?? ''));
+        $santri = $dk['santri'] ?? [];
+        if (!is_array($santri)) {
+            continue;
+        }
+        foreach (array_keys($out) as $st) {
+            foreach ($santri[$st] ?? [] as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+                $entry = $s;
+                if ($namaKeg !== '') {
+                    $entry['kegiatan'] = $namaKeg;
+                }
+                $out[$st][] = $entry;
+            }
+        }
+    }
+
+    return $out;
 }
 
 /**

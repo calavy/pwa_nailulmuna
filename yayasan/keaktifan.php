@@ -169,21 +169,40 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </form>
 
-    <div class="kh-hero kh-section">
+    <?php
+    $khHeroSantri = rekap_keaktifan_hari_santri_agregat($detailKeg);
+    $khHeroStatItems = [
+        ['key' => 'hadir', 'tab' => 'HADIR', 'label' => 'Hadir', 'n' => (int) $totals['hadir']],
+        ['key' => 'izin', 'tab' => 'IZIN', 'label' => 'Izin', 'n' => (int) $totals['izin']],
+        ['key' => 'sakit', 'tab' => 'SAKIT', 'label' => 'Sakit', 'n' => (int) $totals['sakit']],
+        ['key' => 'alpa', 'tab' => 'ALPA', 'label' => 'Alpa', 'n' => (int) $totals['alpa']],
+    ];
+    ?>
+    <div class="kh-hero kh-section" id="khHero">
         <div class="kh-hero__top">
             <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?> · <?= htmlspecialchars($kategoriLabel) ?><?= $tingkatan !== '' ? ' · ' . htmlspecialchars($tingkatan) : '' ?></div>
             <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> entri (santri × kegiatan)</div>
         </div>
         <div class="kh-totals">
-            <div class="kh-total-pill kh-total-pill--hadir">
-                <div class="kh-total-pill__n"><?= (int) $totals['hadir'] ?></div>
+            <?php foreach ($khHeroStatItems as $hi): ?>
+            <button type="button"
+                class="kh-total-pill kh-total-pill--<?= htmlspecialchars($hi['key']) ?> kh-total-pill--clickable"
+                data-kh-stat-tab="<?= htmlspecialchars($hi['tab']) ?>"
+                data-kh-stat-scope="hero"
+                aria-expanded="false"
+                aria-haspopup="true">
+                <?php if ($hi['key'] === 'hadir'): ?>
+                <div class="kh-total-pill__n"><?= $hi['n'] ?></div>
                 <div class="kh-total-pill__pct"><?= number_format($totals['persen'], 1, ',', '.') ?>% hadir</div>
-                <div class="kh-total-pill__l">Hadir</div>
-            </div>
-            <div class="kh-total-pill kh-total-pill--izin"><div class="kh-total-pill__n"><?= (int) $totals['izin'] ?></div><div class="kh-total-pill__l">Izin</div></div>
-            <div class="kh-total-pill kh-total-pill--sakit"><div class="kh-total-pill__n"><?= (int) $totals['sakit'] ?></div><div class="kh-total-pill__l">Sakit</div></div>
-            <div class="kh-total-pill kh-total-pill--alpa"><div class="kh-total-pill__n"><?= (int) $totals['alpa'] ?></div><div class="kh-total-pill__l">Alpa</div></div>
+                <?php else: ?>
+                <div class="kh-total-pill__n"><?= $hi['n'] ?></div>
+                <?php endif; ?>
+                <div class="kh-total-pill__l"><?= htmlspecialchars($hi['label']) ?></div>
+            </button>
+            <?php endforeach; ?>
         </div>
+        <script type="application/json" class="kh-santri-data kh-santri-data--hero"><?= json_encode($khHeroSantri, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+        <div class="kh-stat-popup d-none" data-kh-stat-popup data-kh-stat-scope="hero" role="region" aria-live="polite"></div>
         <div class="kh-legend">
             <span class="l-hadir">Hadir</span>
             <span class="l-izin">Izin</span>

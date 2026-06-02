@@ -402,7 +402,7 @@ function keuangan_pkpps_syahriyah_split_pembayaran(
 }
 
 /**
- * Bagi pembayaran syahriyah: PKPPS + tambahan kelas syahriyah (umum) vs dasar (alokasi %).
+ * Bagi pembayaran syahriyah: PKPPS vs dasar (alokasi %).
  *
  * @return array{pkpps:int, kelas_syahriyah:int, umum:int, dasar:int}
  */
@@ -419,10 +419,6 @@ function keuangan_syahriyah_split_pembayaran_tambahan(
         return ['pkpps' => 0, 'kelas_syahriyah' => 0, 'umum' => 0, 'dasar' => 0];
     }
 
-    if (!function_exists('keuangan_kelas_syahriyah_tambahan_for_kelas_keuangan')) {
-        require_once __DIR__ . '/keuangan_kelas_syahriyah.php';
-    }
-
     $pkppsSplit = keuangan_pkpps_syahriyah_split_pembayaran(
         $pdo,
         $santriId,
@@ -432,16 +428,12 @@ function keuangan_syahriyah_split_pembayaran_tambahan(
         $tahunAjaranSelesai
     );
     $pkpps = (int) ($pkppsSplit['pkpps'] ?? 0);
-    $sisa = (int) ($pkppsSplit['dasar'] ?? $bayarSyahriyah);
-
-    $kelasSyNom = keuangan_kelas_syahriyah_tambahan_for_kelas_keuangan($pdo, $kelasKategori, $bulanTagihan);
-    $kelasSy = $kelasSyNom > 0 ? min($sisa, $kelasSyNom) : 0;
-    $dasar = max(0, $sisa - $kelasSy);
+    $dasar = (int) ($pkppsSplit['dasar'] ?? $bayarSyahriyah);
 
     return [
         'pkpps' => $pkpps,
-        'kelas_syahriyah' => $kelasSy,
-        'umum' => $pkpps + $kelasSy,
+        'kelas_syahriyah' => 0,
+        'umum' => $pkpps,
         'dasar' => $dasar,
     ];
 }

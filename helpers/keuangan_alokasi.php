@@ -283,7 +283,7 @@ function keuangan_syahriyah_realisasi_dasar_ta(PDO $pdo, ?int $tahunMulai = null
 }
 
 /**
- * Opsi alokasi untuk formulir pengeluaran (komponen % + dana umum PKPPS/kelas).
+ * Opsi alokasi untuk formulir pengeluaran (komponen % + dana umum PKPPS).
  *
  * @return list<array{value:string,label:string,group:string}>
  */
@@ -315,14 +315,8 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     if (!function_exists('keuangan_pkpps_alokasi_umum_label')) {
         require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
     }
-    if (!function_exists('keuangan_kelas_syahriyah_alokasi_umum_label')) {
-        require_once __DIR__ . '/keuangan_kelas_syahriyah.php';
-    }
     $pkppsLabel = keuangan_pkpps_alokasi_umum_label();
-    $kelasLabel = keuangan_kelas_syahriyah_alokasi_umum_label();
     $out[] = ['value' => $pkppsLabel, 'label' => $pkppsLabel . ' — bagian PKPPS dari syahriyah', 'group' => 'Dana umum syahriyah'];
-    $out[] = ['value' => $kelasLabel, 'label' => $kelasLabel . ' — tambahan per kelas', 'group' => 'Dana umum syahriyah'];
-    $out[] = ['value' => 'Dana Umum', 'label' => 'Dana Umum (gabungan PKPPS + kelas)', 'group' => 'Dana umum syahriyah'];
 
     return $out;
 }

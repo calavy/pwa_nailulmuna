@@ -245,6 +245,128 @@
     border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
+/* Kegiatan berlangsung — ringkasan presensi (3/3 jika lengkap) */
+.pb-dash-live-kegiatan {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pb-dash-live-kegiatan--banner {
+    margin-top: 0.15rem;
+}
+
+.pb-dash-live-keg {
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+    background: #fff;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.pb-dash-live-kegiatan--banner .pb-dash-live-keg {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(255, 255, 255, 0.45);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.pb-dash-live-keg--lengkap {
+    background: #e8fce6;
+    border: 2px solid #5fe858;
+}
+
+.pb-dash-live-kegiatan--banner .pb-dash-live-keg--lengkap {
+    background: #fff;
+    border: 2px solid #08cb00;
+    box-shadow: 0 0 0 1px rgba(8, 203, 0, 0.25);
+}
+
+.pb-dash-live-keg__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+}
+
+.pb-dash-live-keg__title-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pb-dash-live-keg__nama {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 800;
+    line-height: 1.25;
+    color: #0f172a;
+}
+
+.pb-dash-live-kegiatan--banner .pb-dash-live-keg__nama {
+    font-size: 0.95rem;
+}
+
+.pb-dash-live-keg__jam {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 0.1rem;
+}
+
+.pb-dash-live-keg__ratio {
+    flex-shrink: 0;
+    font-size: 1.15rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.pb-dash-live-keg--lengkap .pb-dash-live-keg__ratio {
+    font-size: 1.35rem;
+    color: #08cb00;
+}
+
+.pb-dash-live-keg__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+}
+
+.pb-dash-live-keg__stat {
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 0.2rem 0.45rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+}
+
+.pb-dash-live-keg__stat--hadir {
+    background: #e8fce6;
+    color: #08cb00;
+    border-color: #5fe858;
+}
+
+.pb-dash-live-keg__stat--izin {
+    background: #fffde6;
+    color: #5c5200;
+    border-color: #ffe94d;
+    box-shadow: inset 0 0 0 1px #ffeb00;
+}
+
+.pb-dash-live-keg__stat--sakit {
+    background: #f3e8ff;
+    color: #7c00fe;
+    border-color: #c084fc;
+}
+
+.pb-dash-live-keg__stat--alpa {
+    background: #ffe8e6;
+    color: #ff1700;
+    border-color: #ff6b5c;
+}
+
 /* Menu hub tengah — Presensi, Penilaian, Perizinan */
 .pb-hub-menu {
     display: flex;

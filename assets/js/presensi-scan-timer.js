@@ -163,6 +163,10 @@
         bindMarqueePause();
         global.requestAnimationFrame(function () {
             syncMarqueeSpeed();
+            global.requestAnimationFrame(function () {
+                syncMarqueeSpeed();
+                global.setTimeout(syncMarqueeSpeed, 120);
+            });
         });
     }
 

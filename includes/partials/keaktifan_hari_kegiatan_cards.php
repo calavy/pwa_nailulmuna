@@ -35,7 +35,7 @@ if ($khShowPanduan): ?>
     <strong><i class="fa-solid fa-circle-info me-1 text-primary"></i>Cara membaca:</strong>
     <span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> sudah scan ·
     <span class="kh-panduan__item kh-panduan__item--izin">Izin</span>/<span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> ada keterangan ·
-    <span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> tidak scan sampai jam kegiatan selesai (tanpa izin) · geser tab kegiatan · <em>Daftar santri</em> untuk nama.
+    <span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> tidak scan sampai jam kegiatan selesai (tanpa izin/sakit) · ketuk kotak jumlah untuk lihat nama · geser tab kegiatan.
 </div>
 <?php endif; ?>
 
@@ -54,21 +54,42 @@ if ($khShowPanduan): ?>
 <?php endif; ?>
 
 <?php if (!empty($khShowHero) && isset($totals, $tglLabel)): ?>
-<div class="kh-hero kh-section">
+<?php
+$khHeroSantri = function_exists('rekap_keaktifan_hari_santri_agregat')
+    ? rekap_keaktifan_hari_santri_agregat($detailKeg)
+    : ['HADIR' => [], 'IZIN' => [], 'SAKIT' => [], 'ALPA' => []];
+$khHeroStatItems = [
+    ['key' => 'hadir', 'tab' => 'HADIR', 'label' => 'Hadir', 'n' => (int) $totals['hadir']],
+    ['key' => 'izin', 'tab' => 'IZIN', 'label' => 'Izin', 'n' => (int) $totals['izin']],
+    ['key' => 'sakit', 'tab' => 'SAKIT', 'label' => 'Sakit', 'n' => (int) $totals['sakit']],
+    ['key' => 'alpa', 'tab' => 'ALPA', 'label' => 'Alpa', 'n' => (int) $totals['alpa']],
+];
+?>
+<div class="kh-hero kh-section" id="khHero">
     <div class="kh-hero__top">
         <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?><?= !empty($khHeroSubtitle) ? ' · ' . htmlspecialchars((string) $khHeroSubtitle) : '' ?></div>
         <div class="small text-muted"><?= count($detailKeg) ?> kegiatan · <?= (int) $totals['total'] ?> <?= htmlspecialchars((string) ($khHeroEntriLabel ?? 'pencatatan (santri × kegiatan)')) ?></div>
     </div>
     <div class="kh-totals">
-        <div class="kh-total-pill kh-total-pill--hadir">
-            <div class="kh-total-pill__n"><?= (int) $totals['hadir'] ?></div>
+        <?php foreach ($khHeroStatItems as $hi): ?>
+        <button type="button"
+            class="kh-total-pill kh-total-pill--<?= htmlspecialchars($hi['key']) ?> kh-total-pill--clickable"
+            data-kh-stat-tab="<?= htmlspecialchars($hi['tab']) ?>"
+            data-kh-stat-scope="hero"
+            aria-expanded="false"
+            aria-haspopup="true">
+            <?php if ($hi['key'] === 'hadir'): ?>
+            <div class="kh-total-pill__n"><?= $hi['n'] ?></div>
             <div class="kh-total-pill__pct"><?= number_format((float) ($totals['persen'] ?? 0), 1, ',', '.') ?>% hadir</div>
-            <div class="kh-total-pill__l">Hadir</div>
-        </div>
-        <div class="kh-total-pill kh-total-pill--izin"><div class="kh-total-pill__n"><?= (int) $totals['izin'] ?></div><div class="kh-total-pill__l">Izin</div></div>
-        <div class="kh-total-pill kh-total-pill--sakit"><div class="kh-total-pill__n"><?= (int) $totals['sakit'] ?></div><div class="kh-total-pill__l">Sakit</div></div>
-        <div class="kh-total-pill kh-total-pill--alpa"><div class="kh-total-pill__n"><?= (int) $totals['alpa'] ?></div><div class="kh-total-pill__l">Alpa</div></div>
+            <?php else: ?>
+            <div class="kh-total-pill__n"><?= $hi['n'] ?></div>
+            <?php endif; ?>
+            <div class="kh-total-pill__l"><?= htmlspecialchars($hi['label']) ?></div>
+        </button>
+        <?php endforeach; ?>
     </div>
+    <script type="application/json" class="kh-santri-data kh-santri-data--hero"><?= json_encode($khHeroSantri, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+    <div class="kh-stat-popup d-none" data-kh-stat-popup data-kh-stat-scope="hero" role="region" aria-live="polite"></div>
     <div class="kh-legend">
         <span class="l-hadir">Hadir</span>
         <span class="l-izin">Izin</span>
@@ -110,6 +131,12 @@ if ($khShowPanduan): ?>
         $focus = $kegiatanId > 0 && $kegiatanId === $kid;
         $needsAttention = $perlu > 0;
         $barAman = $total > 0 && (int) ($dk['alpa'] ?? 0) === 0;
+        $statItems = [
+            ['key' => 'hadir', 'tab' => 'HADIR', 'label' => 'Hadir', 'n' => (int) ($dk['hadir'] ?? 0)],
+            ['key' => 'izin', 'tab' => 'IZIN', 'label' => 'Izin', 'n' => (int) ($dk['izin'] ?? 0)],
+            ['key' => 'sakit', 'tab' => 'SAKIT', 'label' => 'Sakit', 'n' => (int) ($dk['sakit'] ?? 0)],
+            ['key' => 'alpa', 'tab' => 'ALPA', 'label' => 'Alpa', 'n' => (int) ($dk['alpa'] ?? 0)],
+        ];
         ?>
     <article class="kh-card<?= $focus ? ' is-focus' : '' ?><?= $needsAttention ? ' kh-card--warning' : '' ?>" id="keg-<?= $kid ?>" data-kegiatan-id="<?= $kid ?>">
         <div class="kh-card__head">
@@ -132,11 +159,18 @@ if ($khShowPanduan): ?>
             </div>
         </div>
         <div class="kh-stats">
-            <div class="kh-stat kh-stat--hadir"><span class="kh-stat__n"><?= (int) $dk['hadir'] ?></span><span class="kh-stat__l">Hadir</span></div>
-            <div class="kh-stat kh-stat--izin"><span class="kh-stat__n"><?= (int) $dk['izin'] ?></span><span class="kh-stat__l">Izin</span></div>
-            <div class="kh-stat kh-stat--sakit"><span class="kh-stat__n"><?= (int) $dk['sakit'] ?></span><span class="kh-stat__l">Sakit</span></div>
-            <div class="kh-stat kh-stat--alpa"><span class="kh-stat__n"><?= (int) $dk['alpa'] ?></span><span class="kh-stat__l">Alpa</span></div>
+            <?php foreach ($statItems as $si): ?>
+            <button type="button"
+                class="kh-stat kh-stat--<?= htmlspecialchars($si['key']) ?> kh-stat--clickable"
+                data-kh-stat-tab="<?= htmlspecialchars($si['tab']) ?>"
+                aria-expanded="false"
+                aria-haspopup="true">
+                <span class="kh-stat__n"><?= $si['n'] ?></span>
+                <span class="kh-stat__l"><?= htmlspecialchars($si['label']) ?></span>
+            </button>
+            <?php endforeach; ?>
         </div>
+        <div class="kh-stat-popup d-none" data-kh-stat-popup role="region" aria-live="polite"></div>
         <?php if ($perlu > 0): ?>
         <div class="kh-card__alert" title="Perlu tindak lanjut">
             <div class="kh-card__alert-head">
@@ -168,7 +202,7 @@ if ($khShowPanduan): ?>
                     <button type="button" class="kh-tab" data-kh-tab="HADIR" data-kh-card="<?= $kid ?>">Hadir (<?= (int) $dk['hadir'] ?>)</button>
                     <button type="button" class="kh-tab" data-kh-tab="ALPA" data-kh-card="<?= $kid ?>">Alpa (<?= (int) $dk['alpa'] ?>)</button>
                     <button type="button" class="kh-tab" data-kh-tab="IZIN" data-kh-card="<?= $kid ?>">Izin</button>
-                    <button type="button" class="kh-tab" data-kh-tab="SAKIT" data-kh-card="<?= $kid ?>">Sakit</button>
+                    <button type="button" class="kh-tab" data-kh-tab="SAKIT" data-kh-card="<?= $kid ?>">Sakit (<?= (int) $dk['sakit'] ?>)</button>
                 </div>
                 <?php
                 $listsPayload = [

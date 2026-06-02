@@ -38,7 +38,6 @@ $st = $pdo->query('
 $pkppsSantri = $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 
 $totalDasar = 0;
-$totalKelasSy = 0;
 $totalPkpps = 0;
 $totalGabungan = 0;
 
@@ -47,11 +46,9 @@ foreach ($pkppsSantri as $s) {
     $kat = (string) ($s['kategori_kelas'] ?? '');
     $sim = keuangan_syahriyah_expected_dengan_potongan($pdo, $sid, $kat, $rekapBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $pkppsT = (int) ($sim['pkpps_tambahan'] ?? 0);
-    $ksT = (int) ($sim['kelas_syahriyah_tambahan'] ?? 0);
     $gabung = (int) ($sim['expected'] ?? 0);
-    $dasar = max(0, $gabung - $pkppsT - $ksT);
+    $dasar = max(0, $gabung - $pkppsT);
     $totalDasar += $dasar;
-    $totalKelasSy += $ksT;
     $totalPkpps += $pkppsT;
     $totalGabungan += $gabung;
     $rows[] = [
@@ -60,7 +57,6 @@ foreach ($pkppsSantri as $s) {
         'pkpps_tingkatan' => (string) ($s['pkpps_tingkatan'] ?? ''),
         'dasar' => $dasar,
         'tambahan' => $pkppsT,
-        'kelas_syahriyah' => $ksT,
         'gabung' => $gabung,
         'potongan' => (float) ($sim['persen'] ?? 0),
     ];
@@ -116,7 +112,6 @@ require_once __DIR__ . '/../includes/header.php';
             <th>Santri</th>
             <th>Tingkatan PKPPS</th>
             <th class="text-end">Syahriyah dasar</th>
-            <th class="text-end">Tambahan kelas</th>
             <th class="text-end">Tambahan PKPPS</th>
             <th class="text-end">Total tagihan</th>
             <th class="text-end">Potongan %</th>
@@ -134,7 +129,6 @@ require_once __DIR__ . '/../includes/header.php';
                     </td>
                     <td class="small"><?= htmlspecialchars($r['pkpps_tingkatan']) ?></td>
                     <td class="text-end"><?= keuangan_format_rupiah($r['dasar']) ?></td>
-                    <td class="text-end"><?= keuangan_format_rupiah($r['kelas_syahriyah']) ?></td>
                     <td class="text-end"><?= keuangan_format_rupiah($r['tambahan']) ?></td>
                     <td class="text-end fw-semibold"><?= keuangan_format_rupiah($r['gabung']) ?></td>
                     <td class="text-end"><?= $r['potongan'] > 0 ? number_format($r['potongan'], 1) . '%' : '—' ?></td>
@@ -143,7 +137,6 @@ require_once __DIR__ . '/../includes/header.php';
             <tr class="table-secondary fw-semibold">
                 <td colspan="2">Total</td>
                 <td class="text-end"><?= keuangan_format_rupiah($totalDasar) ?></td>
-                <td class="text-end"><?= keuangan_format_rupiah($totalKelasSy) ?></td>
                 <td class="text-end"><?= keuangan_format_rupiah($totalPkpps) ?></td>
                 <td class="text-end"><?= keuangan_format_rupiah($totalGabungan) ?></td>
                 <td></td>

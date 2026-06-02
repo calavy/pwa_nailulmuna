@@ -2385,7 +2385,6 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
         $potonganNominal = 0;
         $potonganDijeda = false;
         $pkppsTambahan = 0;
-        $kelasSyTambahan = 0;
         $expectedSetelahPotongan = $expected;
         $tierKey = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
         if ($slug === 'syahriyah' && $santriId > 0) {
@@ -2404,8 +2403,7 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
             $potonganNominal = (int) ($syPot['potongan_nominal'] ?? 0);
             $potonganDijeda = !empty($syPot['potongan_dijeda']);
             $pkppsTambahan = (int) ($syPot['pkpps_tambahan'] ?? 0);
-            $kelasSyTambahan = (int) ($syPot['kelas_syahriyah_tambahan'] ?? 0);
-            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan - $kelasSyTambahan);
+            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan);
         }
         $paid = $santriId > 0
             ? tagihan_paid_nominal_for_pos_month($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $slug)
@@ -2448,7 +2446,7 @@ function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagih
         if ($slug === 'syahriyah') {
             $posRow['expected_setelah_potongan'] = $expectedSetelahPotongan;
             $posRow['pkpps_tambahan'] = $pkppsTambahan;
-            $posRow['kelas_syahriyah_tambahan'] = $kelasSyTambahan;
+            $posRow['kelas_syahriyah_tambahan'] = 0;
             $posRow['tier_key'] = $tierKey;
         }
         $perPos[$slug] = $posRow;
@@ -2577,14 +2575,30 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     ensure_santri_identity_columns($pdo);
     $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
-    $waCol = column_exists($pdo, 'santri', 'no_wa_wali') ? 'no_wa_wali' : "'' AS no_wa_wali";
-    $st = $pdo->prepare("SELECT id, nis, {$nameExpr} AS nama_santri, {$classExpr} AS kategori_kelas, {$waCol} FROM santri WHERE id = :id LIMIT 1");
+    $waCols = [];
+    if (column_exists($pdo, 'santri', 'no_wa_wali')) {
+        $waCols[] = 'no_wa_wali';
+    }
+    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+        $waCols[] = 'wali_santri_id';
+    }
+    if (column_exists($pdo, 'santri', 'no_kontak_ayah')) {
+        $waCols[] = 'no_kontak_ayah';
+    }
+    if (column_exists($pdo, 'santri', 'no_kontak_ibu')) {
+        $waCols[] = 'no_kontak_ibu';
+    }
+    $waSelect = $waCols !== [] ? ', ' . implode(', ', $waCols) : '';
+    $st = $pdo->prepare("SELECT id, nis, {$nameExpr} AS nama_santri, {$classExpr} AS kategori_kelas{$waSelect} FROM santri WHERE id = :id LIMIT 1");
     $st->execute(['id' => $santriId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         return ['ok' => false, 'message' => 'Santri tidak ditemukan.', 'error' => 'Santri tidak ditemukan.', 'phone' => '', 'wa_url' => null, 'nama' => '', 'sisa' => 0];
     }
-    $phone = trim((string) ($row['no_wa_wali'] ?? ''));
+    if (!function_exists('santri_resolve_no_wa_wali')) {
+        require_once __DIR__ . '/santri_wa.php';
+    }
+    $phone = santri_resolve_no_wa_wali($pdo, $row);
     if ($phone === '') {
         return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'error' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
@@ -2935,9 +2949,12 @@ function wa_tagihan_label_kekurangan(array $components, array $perPos): string
 /** Teks WA otomatis tagihan kekurangan ke wali (bahasa Jawa sopan). */
 function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $labelKekurangan, int $totalSisa): string
 {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
     $namaPonpes = app_brand_nama_ponpes($pdo, 'Pon-Pes A.P.I Nailul Muna');
     $nama = trim($namaSantri) !== '' ? trim($namaSantri) : 'santri';
-    $totalFmt = '*Rp ' . number_format(max(0, $totalSisa), 0, ',', '.') . '*';
+    $totalFmt = 'Rp ' . number_format(max(0, $totalSisa), 0, ',', '.');
     $ketKeuangan = trim((string) app_setting(
         $pdo,
         'keterangan_pengurus_bidang_keuangan',
@@ -2945,14 +2962,13 @@ function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $l
     ));
     $ketKeuanganLine = $ketKeuangan !== '' ? "\n_" . $ketKeuangan . "_\n" : "\n";
 
-    return "Assalamu'alaikum Wr. Wb.\n"
-        . 'Nyuwun pangapunten, kepareng matur dateng Bpk/Ibu wali saking *' . $nama . "*\n"
-        . 'Atasnama Pengurus *' . $namaPonpes . '* *Pengurus Bidang Keuangan*,'
-        . $ketKeuanganLine
-        . 'memberitahukan bahwa putra/putri Bapak/Ibu masih mempunyai kekurangan '
-        . $labelKekurangan . ', dan jumlah total ' . $totalFmt . ".\n"
-        . 'Berkenaan dengan hal tersebut, kami mohon maaf baru saat ini dapat melaporkan kepada Bapak/Ibu. '
-        . 'Atas pengertian dan kerja samanya kami ucapkan terima kasih 🙏.';
+    return wa_template_render($pdo, 'tagihan_wali', [
+        'nama_santri' => $nama,
+        'nama_ponpes' => $namaPonpes,
+        'label_kekurangan' => $labelKekurangan,
+        'total_sisa' => '*' . $totalFmt . '*',
+        'keterangan_keuangan' => $ketKeuanganLine,
+    ]);
 }
 
 /** Ringkasan tagihan untuk notifikasi push (tanpa markup tebal). */

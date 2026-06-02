@@ -217,6 +217,7 @@ auth_portal_layout_begin([
     'nama_ponpes' => $brandNama,
     'logo_url' => '',
     'layout' => $peran === '' ? 'split' : 'stack',
+    'shell_mod' => ($peran === 'pembimbing' && $pbAct === 'qr') ? 'pb_scan' : 'default',
     'card_title' => $pbCardTitle,
     'accent' => 'teal',
 ]);
@@ -326,37 +327,35 @@ $ok = get_flash('success');
                             <?php endif; ?>
 
                         <?php elseif ($pbAct === 'qr'): ?>
-                            <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="auth-portal-back">
-                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Kembali
-                            </a>
-                            <div class="login-pb-qr mt-2">
-                                <div class="login-pb-qr__head">
+                            <div class="login-pb-scan presensi-scan-app mt-2">
+                                <div class="login-pb-qr__head presensi-scan-top">
+                                    <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="text-decoration-none"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
                                     <span class="login-pb-qr__title">
                                         <i class="fa-solid fa-qrcode me-1" aria-hidden="true"></i>
-                                        Masuk portal · cukup scan
+                                        Masuk portal
                                     </span>
-                                    <span id="login-pb-status" class="login-pb-qr__status is-waiting">Menyiapkan kamera…</span>
+                                    <span id="login-pb-status" class="presensi-scan-status is-waiting">Menyiapkan…</span>
                                 </div>
                                 <div class="text-center py-2 d-none" id="login-pb-start-wrap">
                                     <button type="button" class="btn btn-primary btn-lg px-4" id="login-pb-start-scan">
                                         <i class="fa-solid fa-qrcode me-2"></i> Buka kamera
                                     </button>
                                 </div>
-                                <div class="login-pb-qr__viewport" id="login-pb-camera-wrap">
+                                <div class="login-pb-qr__viewport presensi-scan-viewport" id="login-pb-camera-wrap">
                                     <div id="login-pb-reader" aria-label="Kamera scan kartu pembimbing"></div>
-                                    <div class="login-pb-qr__frame" aria-hidden="true"><div class="login-pb-qr__frame-box"></div></div>
-                                    <div id="login-pb-error" class="login-pb-qr__error d-none" role="alert">
+                                    <div class="presensi-scan-frame" aria-hidden="true"><div class="presensi-scan-frame-box"></div></div>
+                                    <div id="login-pb-error" class="presensi-scan-error d-none" role="alert">
                                         <div>
                                             <p class="fw-semibold mb-2" id="login-pb-error-text">Gagal membuka kamera</p>
                                             <button type="button" class="btn btn-light btn-sm" id="login-pb-retry">Coba lagi</button>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="login-pb-qr__hint small text-muted" id="login-pb-hint">Arahkan QR kartu ke kotak hijau.</div>
-                                <div class="login-pb-qr__controls" id="login-pb-controls">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="login-pb-flip"><i class="fa-solid fa-camera-rotate me-1"></i> Ganti kamera</button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="login-pb-restart"><i class="fa-solid fa-rotate-right me-1"></i> Ulangi</button>
+                                <div class="presensi-scan-controls login-pb-qr__controls" id="login-pb-controls">
+                                    <button type="button" class="btn-scan-ctl" id="login-pb-flip" title="Ganti kamera"><i class="fa-solid fa-camera-rotate"></i></button>
+                                    <button type="button" class="btn-scan-ctl" id="login-pb-restart" title="Ulangi scan"><i class="fa-solid fa-rotate-right"></i></button>
                                 </div>
+                                <p class="login-pb-qr__hint small text-muted text-center mb-0" id="login-pb-hint">Arahkan QR kartu ke kotak hijau.</p>
                                 <form method="post" id="login-pb-qr-form" class="visually-hidden" autocomplete="off">
                                     <input type="hidden" name="peran" value="pembimbing">
                                     <input type="hidden" name="login_method" value="qr">
@@ -417,18 +416,6 @@ $ok = get_flash('success');
                     .login-pb-option__title { display: block; font-size: 0.92rem; font-weight: 800; }
                     .login-pb-option__desc { display: block; margin-top: 0.2rem; font-size: 0.78rem; color: #64748b; }
                     .login-pb-option__go { align-self: center; color: #94a3b8; }
-                    .login-pb-qr { border-radius: 16px; border: 1px solid rgba(15,118,110,0.18); background: linear-gradient(160deg, rgba(240,253,250,0.96), #fff); padding: 0.85rem; }
-                    .login-pb-qr__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-                    .login-pb-qr__title { font-weight: 700; font-size: 0.88rem; color: #0f766e; }
-                    .login-pb-qr__status { font-size: 0.7rem; font-weight: 600; padding: 0.18rem 0.55rem; border-radius: 999px; background: rgba(245,158,11,0.16); color: #b45309; }
-                    .login-pb-qr__status.is-success { background: rgba(16,185,129,0.18); color: #047857; }
-                    .login-pb-qr__viewport { position: relative; width: 100%; aspect-ratio: 1; max-width: 300px; margin: 0 auto; border-radius: 14px; overflow: hidden; background: #0f172a; }
-                    .login-pb-qr__viewport #login-pb-reader, .login-pb-qr__viewport #login-pb-reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-                    .login-pb-qr__frame { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
-                    .login-pb-qr__frame-box { width: 68%; height: 68%; border: 2px dashed rgba(16,185,129,0.9); border-radius: 18px; box-shadow: 0 0 0 9999px rgba(15,23,42,0.32); }
-                    .login-pb-qr__error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.82); color: #fff; padding: 1rem; text-align: center; }
-                    .login-pb-qr__hint { text-align: center; margin-top: 0.6rem; }
-                    .login-pb-qr__controls { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.7rem; flex-wrap: wrap; }
                     #login-pb-start-scan {
                         background: linear-gradient(135deg, #4338ca 0%, #6366f1 55%, #818cf8 100%);
                         border: none;
@@ -461,6 +448,7 @@ $ok = get_flash('success');
                         if (statusEl) {
                             statusEl.classList.remove('d-none');
                             statusEl.textContent = 'Menyiapkan kamera…';
+                            statusEl.className = 'presensi-scan-status is-waiting';
                         }
                     }
                     function bootScanner() {

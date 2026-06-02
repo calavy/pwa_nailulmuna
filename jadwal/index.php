@@ -158,7 +158,7 @@ if (!in_array($panelOpen, ['kegiatan', 'jadwal'], true)) {
 }
 $showJadwalPeta = (($_GET['show'] ?? '') === 'jadwal');
 $preselectKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
-$jadwalListSql = "SELECT j.id, j.pembimbing_id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id";
+$jadwalListSql = "SELECT j.id, j.kegiatan_id, j.pembimbing_id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, j.tempat, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, 'TAALIM') AS kategori_kegiatan, COALESCE(p.nama_pembimbing, '-') AS nama_pembimbing FROM jadwal_kegiatan j INNER JOIN kegiatan k ON k.id = j.kegiatan_id LEFT JOIN pembimbing p ON p.id = j.pembimbing_id";
 if ($jadwalPembimbingScope && $pembimbingScopeId > 0) {
     $stJadwal = $pdo->prepare($jadwalListSql . ' WHERE j.pembimbing_id = :pb ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC');
     $stJadwal->execute(['pb' => $pembimbingScopeId]);
@@ -309,7 +309,7 @@ $ok = get_flash('success');
         <h2 class="h6 mb-1">Daftar jadwal terkelompok</h2>
         <p class="text-muted small mb-3">
             Otomatis per <?= $tampilanGrup === 'pembimbing' ? 'pembimbing' : ($tampilanGrup === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
-            Jam berbeda = blok terpisah; hari masuk langsung di bawah slot jam yang sama.
+            Satu baris per waktu; hari & tingkatan digabung. Waktu berbeda = baris baru.
         </p>
         <?php require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php'; ?>
     </div>

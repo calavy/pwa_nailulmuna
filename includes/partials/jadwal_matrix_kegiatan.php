@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Peta jadwal: kolom terpisah Hari · Waktu · Kegiatan · Tingkatan.
+ * Peta jadwal: satu baris per slot waktu (kegiatan · tingkatan · hari · pembimbing · waktu).
  *
  * @var list<array<string,mixed>> $jadwalList
  * @var array<int,string> $hari
@@ -13,7 +13,6 @@ $hari = $hari ?? [];
 $showJadwalAksi = $showJadwalAksi ?? true;
 $jadwalPembimbingScope = $jadwalPembimbingScope ?? false;
 $petaRows = jadwal_peta_rows_gabung($jadwalList);
-$prevKegiatan = '';
 ?>
 <?php if ($petaRows === []): ?>
     <div class="jadwal-peta-empty text-center py-4">
@@ -22,58 +21,28 @@ $prevKegiatan = '';
     </div>
 <?php else: ?>
     <div class="jadwal-peta">
-        <div class="jadwal-peta-toolbar d-none d-md-flex">
-            <span class="jadwal-peta-toolbar__item"><i class="fa-solid fa-calendar-day"></i> Hari</span>
-            <span class="jadwal-peta-toolbar__item"><i class="fa-regular fa-clock"></i> Waktu</span>
-            <span class="jadwal-peta-toolbar__item"><i class="fa-solid fa-bookmark"></i> Kegiatan</span>
-            <span class="jadwal-peta-toolbar__item"><i class="fa-solid fa-layer-group"></i> Tingkatan</span>
-        </div>
-        <div class="jadwal-peta-scroll table-responsive">
-            <table class="jadwal-peta-table table mb-0">
-                <thead>
+        <div class="table-responsive">
+            <table class="jadwal-peta-table table table-sm table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
-                        <th class="jadwal-peta-th jadwal-peta-th--hari">Hari</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--waktu">Waktu</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--kegiatan">Nama kegiatan</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--tingkatan">Tingkatan</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--extra d-none d-lg-table-cell">Lokasi</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--extra d-none d-xl-table-cell">Pembimbing</th>
-                        <th class="jadwal-peta-th jadwal-peta-th--aksi text-end">Aksi</th>
+                        <th>Kegiatan</th>
+                        <th>Tingkatan</th>
+                        <th>Hari</th>
+                        <th>Pembimbing</th>
+                        <th>Waktu</th>
+                        <th class="text-end">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php foreach ($petaRows as $row):
                     $namaKg = trim((string) ($row['nama_kegiatan'] ?? '—'));
-                    $hk = (int) ($row['hari_ke'] ?? 0);
-                    $hariLabel = $hari[$hk] ?? ('Hari ' . $hk);
-                    $hariSlug = jadwal_hari_badge_slug($hk);
+                    $hariLabel = jadwal_hari_list_label($row['_hari_list'] ?? [(int) ($row['hari_ke'] ?? 0)], $hari);
                     $tingkatan = trim((string) ($row['tingkatan'] ?? '—'));
-                    $tempat = trim((string) ($row['tempat'] ?? ''));
                     $pem = trim((string) ($row['nama_pembimbing'] ?? ''));
-                    $groupStart = $namaKg !== $prevKegiatan;
-                    $prevKegiatan = $namaKg;
                     ?>
-                    <tr class="jadwal-peta-row<?= $groupStart ? ' jadwal-peta-row--group-start' : '' ?>">
-                        <td class="jadwal-peta-td jadwal-peta-td--hari" data-label="Hari">
-                            <span class="jadwal-peta-hari jadwal-peta-hari--<?= htmlspecialchars($hariSlug) ?>">
-                                <?= htmlspecialchars($hariLabel) ?>
-                            </span>
-                        </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--waktu" data-label="Waktu">
-                            <span class="jadwal-peta-waktu">
-                                <i class="fa-regular fa-clock jadwal-peta-waktu__ico" aria-hidden="true"></i>
-                                <?= htmlspecialchars(jadwal_jam_ringkas($row)) ?>
-                            </span>
-                        </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--kegiatan" data-label="Kegiatan">
-                            <span class="jadwal-peta-kegiatan">
-                                <?php if ($groupStart): ?>
-                                    <span class="jadwal-peta-kegiatan__dot" aria-hidden="true"></span>
-                                <?php endif; ?>
-                                <?= htmlspecialchars($namaKg) ?>
-                            </span>
-                        </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--tingkatan" data-label="Tingkatan">
+                    <tr>
+                        <td class="small fw-semibold"><?= htmlspecialchars($namaKg) ?></td>
+                        <td class="small">
                             <?php
                             $tkList = $row['_tingkatan_list'] ?? [];
                             if ($tkList === [] && $tingkatan !== '' && $tingkatan !== '—') {
@@ -84,24 +53,13 @@ $prevKegiatan = '';
                                     <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge me-1"><?= htmlspecialchars((string) $tkBadge) ?></span>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <span class="jadwal-peta-tingkatan"><?= htmlspecialchars($tingkatan) ?></span>
+                                —
                             <?php endif; ?>
                         </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--extra d-none d-lg-table-cell" data-label="Lokasi">
-                            <?php if ($tempat !== ''): ?>
-                                <span class="jadwal-peta-meta"><i class="fa-solid fa-location-dot"></i> <?= htmlspecialchars($tempat) ?></span>
-                            <?php else: ?>
-                                <span class="jadwal-peta-meta jadwal-peta-meta--empty">—</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--extra d-none d-xl-table-cell" data-label="Pembimbing">
-                            <?php if ($pem !== '' && $pem !== '-'): ?>
-                                <span class="jadwal-peta-meta"><i class="fa-solid fa-user"></i> <?= htmlspecialchars($pem) ?></span>
-                            <?php else: ?>
-                                <span class="jadwal-peta-meta jadwal-peta-meta--empty">—</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="jadwal-peta-td jadwal-peta-td--aksi text-end text-nowrap" data-label="Aksi">
+                        <td class="small text-nowrap"><?= htmlspecialchars($hariLabel) ?></td>
+                        <td class="small"><?= ($pem !== '' && $pem !== '-') ? htmlspecialchars($pem) : '—' ?></td>
+                        <td class="small font-monospace js-time-24 text-nowrap"><?= htmlspecialchars(jadwal_jam_ringkas($row)) ?></td>
+                        <td class="text-end text-nowrap">
                             <?php $jid = (int) ($row['id'] ?? 0); ?>
                             <?php if ($jid > 0 && ($showJadwalAksi || $jadwalPembimbingScope)): ?>
                                 <?php if ($showJadwalAksi): ?>
@@ -119,9 +77,9 @@ $prevKegiatan = '';
                 </tbody>
             </table>
         </div>
-        <p class="jadwal-peta-foot small text-muted mb-0 mt-2">
+        <p class="jadwal-peta-foot small text-muted mb-0 mt-2 px-2">
             <i class="fa-solid fa-circle-info me-1"></i>
-            <?= count($petaRows) ?> slot · diurutkan per kegiatan, hari, dan jam.
+            <?= count($petaRows) ?> baris jadwal · waktu sama digabung (hari & tingkatan).
         </p>
     </div>
 <?php endif; ?>

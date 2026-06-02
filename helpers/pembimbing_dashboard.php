@@ -886,6 +886,7 @@ function pembimbing_dashboard_kegiatan_aktif(
         $params['jam'] = $jamSekarang;
         $sql = '
             SELECT
+                k.id AS kegiatan_id,
                 k.nama_kegiatan,
                 j.tingkatan,
                 j.jam_mulai,
@@ -908,7 +909,7 @@ function pembimbing_dashboard_kegiatan_aktif(
         require_once __DIR__ . '/pembimbing_pkpps.php';
         pkpps_ensure_schema($pdo);
         $stPk = $pdo->prepare('
-            SELECT k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+            SELECT k.id AS kegiatan_id, k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
             FROM pkpps_jadwal j
             INNER JOIN kegiatan k ON k.id = j.kegiatan_id
             INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
@@ -921,6 +922,7 @@ function pembimbing_dashboard_kegiatan_aktif(
         $stPk->execute(['pid' => $pembimbingId, 'hari' => $hariKe, 'jam' => $jamSekarang]);
         foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             $out[] = [
+                'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
                 'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
                 'tingkatan' => pembimbing_pkpps_label((string) ($row['nama_tingkatan'] ?? '')),
                 'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
@@ -928,6 +930,128 @@ function pembimbing_dashboard_kegiatan_aktif(
                 'tempat' => (string) ($row['tempat'] ?? ''),
             ];
         }
+    }
+
+    return $out;
+}
+
+/**
+ * Ringkasan presensi hari ini per kegiatan yang sedang berlangsung (untuk banner dashboard).
+ *
+ * @param array<string, list<array<string, mixed>>> $kegiatanAktifGrouped
+ * @return list<array<string, mixed>>
+ */
+function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $kegiatanAktifGrouped, string $today): array
+{
+    if ($kegiatanAktifGrouped === [] || !table_exists($pdo, 'santri') || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $hariKe = (int) date('N', strtotime($today) ?: time());
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $today, $today, $auditUserId > 0 ? $auditUserId : 1);
+
+    $aktifSql = santri_sql_aktif_only('s');
+    $out = [];
+
+    foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows) {
+        if (!is_array($slotRows) || $slotRows === []) {
+            continue;
+        }
+        $kid = 0;
+        $semuaTingkatan = false;
+        $tingkatans = [];
+        foreach ($slotRows as $row) {
+            if ($kid <= 0) {
+                $kid = (int) ($row['kegiatan_id'] ?? 0);
+            }
+            $tk = trim((string) ($row['tingkatan'] ?? ''));
+            if ($tk === '' || strcasecmp($tk, 'Semua Tingkatan') === 0) {
+                $semuaTingkatan = true;
+            } else {
+                $tingkatans[$tk] = true;
+            }
+        }
+        if ($kid <= 0 && table_exists($pdo, 'kegiatan')) {
+            $stKid = $pdo->prepare('SELECT id FROM kegiatan WHERE nama_kegiatan = :n LIMIT 1');
+            $stKid->execute(['n' => (string) $namaKegiatan]);
+            $kid = (int) ($stKid->fetchColumn() ?: 0);
+        }
+        if ($kid <= 0) {
+            continue;
+        }
+
+        $jamMulai = substr((string) ($slotRows[0]['jam_mulai'] ?? ''), 0, 5);
+        $jamSelesai = substr((string) ($slotRows[0]['jam_selesai'] ?? ''), 0, 5);
+        $jamLabel = $jamMulai !== '' && $jamSelesai !== '' ? $jamMulai . '–' . $jamSelesai : '';
+
+        $tkSql = '';
+        $params = ['today' => $today, 'kid' => $kid, 'hari' => $hariKe];
+        if (!$semuaTingkatan && $tingkatans !== []) {
+            [$inSql, $inParams] = pembimbing_dashboard_in_clause(array_keys($tingkatans), 'tk');
+            $tkSql = ' AND s.tingkatan IN (' . $inSql . ')';
+            $params = array_merge($params, $inParams);
+        }
+
+        $sql = '
+            SELECT s.id,
+                   COALESCE(NULLIF(TRIM(p.status_presensi), ""), "") AS status_hari_ini
+            FROM santri s
+            LEFT JOIN presensi p ON p.santri_id = s.id
+                AND p.tanggal_presensi = :today
+                AND p.kegiatan_id = :kid
+            WHERE ' . $aktifSql . $tkSql . '
+              AND EXISTS (
+                  SELECT 1 FROM jadwal_kegiatan j
+                  INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+                  WHERE j.kegiatan_id = :kid
+                    AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+                    AND (
+                        j.tingkatan = "Semua Tingkatan"
+                        OR j.tingkatan = s.tingkatan
+                    )
+              )
+            ORDER BY s.tingkatan ASC, s.nama_santri ASC
+            LIMIT 500
+        ';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($rows !== []) {
+            $rows = presensi_apply_status_efektif_rows($pdo, $rows, $today);
+        }
+
+        $counts = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+        foreach ($rows as $r) {
+            $counts['total']++;
+            $st = strtoupper(trim((string) ($r['status_hari_ini'] ?? '')));
+            if ($st === 'HADIR') {
+                $counts['hadir']++;
+            } elseif ($st === 'IZIN') {
+                $counts['izin']++;
+            } elseif ($st === 'SAKIT') {
+                $counts['sakit']++;
+            } elseif ($st === 'ALPA') {
+                $counts['alpa']++;
+            }
+        }
+
+        $total = (int) $counts['total'];
+        $hadir = (int) $counts['hadir'];
+        $semuaHadir = $total > 0 && $hadir === $total;
+
+        $out[] = [
+            'nama_kegiatan' => (string) $namaKegiatan,
+            'kegiatan_id' => $kid,
+            'jam_label' => $jamLabel,
+            'hadir' => $hadir,
+            'izin' => (int) $counts['izin'],
+            'sakit' => (int) $counts['sakit'],
+            'alpa' => (int) $counts['alpa'],
+            'total' => $total,
+            'semua_hadir' => $semuaHadir,
+            'ratio_label' => $total > 0 ? $hadir . '/' . $total : '—',
+        ];
     }
 
     return $out;
@@ -1107,20 +1231,37 @@ function pembimbing_dashboard_santri_list_map(PDO $pdo, array $tingkatanList, in
 function pembimbing_dashboard_ticker_kegiatan(
     array $kegiatanAktifGrouped,
     array $kegiatanMendekati,
-    string $jamSekarang
+    string $jamSekarang,
+    array $presensiBerlangsung = []
 ): array {
     $items = [];
     if ($kegiatanAktifGrouped !== []) {
+        $presensiByNama = [];
+        foreach ($presensiBerlangsung as $pb) {
+            $n = trim((string) ($pb['nama_kegiatan'] ?? ''));
+            if ($n !== '') {
+                $presensiByNama[$n] = $pb;
+            }
+        }
         foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows) {
+            $pb = $presensiByNama[(string) $namaKegiatan] ?? null;
+            if (is_array($pb) && !empty($pb['semua_hadir']) && (int) ($pb['total'] ?? 0) > 0) {
+                $items[] = 'Berlangsung: ' . (string) $namaKegiatan . ' · ' . (string) ($pb['ratio_label'] ?? '');
+                continue;
+            }
             $tkList = array_values(array_unique(array_filter(array_map(
                 static fn (array $r): string => trim((string) ($r['tingkatan'] ?? '')),
                 $slotRows
             ))));
             $jamMulai = substr((string) ($slotRows[0]['jam_mulai'] ?? ''), 0, 5);
             $jamSelesai = substr((string) ($slotRows[0]['jam_selesai'] ?? ''), 0, 5);
-            $items[] = 'Berlangsung: ' . (string) $namaKegiatan
-                . ' · ' . $jamMulai . '–' . $jamSelesai
-                . ($tkList !== [] ? ' · ' . implode(', ', $tkList) : '');
+            $line = 'Berlangsung: ' . (string) $namaKegiatan . ' · ' . $jamMulai . '–' . $jamSelesai;
+            if (is_array($pb) && (int) ($pb['total'] ?? 0) > 0) {
+                $line .= ' · ' . (string) ($pb['ratio_label'] ?? '');
+            } elseif ($tkList !== []) {
+                $line .= ' · ' . implode(', ', $tkList);
+            }
+            $items[] = $line;
         }
 
         return $items;

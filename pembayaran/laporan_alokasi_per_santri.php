@@ -15,8 +15,6 @@ require_once __DIR__ . '/../helpers/tagihan_bulanan.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
-require_once __DIR__ . '/../helpers/keuangan_kelas_syahriyah.php';
-
 require_roles(['admin', 'pengurus']);
 keuangan_ensure_schema_deferred($pdo);
 
@@ -126,9 +124,8 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <h1 class="h4 mb-1">Laporan alokasi syahriyah per santri</h1>
     <p class="text-muted small mb-0">
-        Nominal masuk per komponen = pembayaran syahriyah × persen alokasi.
-        Bagian tambahan (kelas syahriyah &amp; PKPPS) masuk kolom <strong><?= htmlspecialchars($umumLabel) ?></strong>.
-        <a href="<?= htmlspecialchars(app_href('/settings/kelas_syahriyah.php')) ?>">Kelas syahriyah</a>
+        Cicilan dialokasikan <strong>PKPPS dulu</strong>, sisanya ke dasar × % alokasi.
+        Tambahan PKPPS masuk <strong><?= htmlspecialchars($umumLabel) ?></strong>.
         <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php')) ?>">Laporan syahriyah</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">Laporan PKPPS</a>
     </p>

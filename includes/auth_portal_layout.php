@@ -134,7 +134,7 @@ function auth_portal_brand_nama(PDO $pdo): string
  *   subtitle_desktop?: string,
  *   max_width?: string,
  *   layout?: 'stack'|'split',
- *   shell_mod?: 'default'|'wali',
+ *   shell_mod?: 'default'|'wali'|'pb_scan',
  *   accent?: 'teal'|'indigo'
  * } $ctx
  */
@@ -190,9 +190,13 @@ function auth_portal_layout_begin(array $ctx): void
     $layout = ($ctx['layout'] ?? 'stack') === 'split' ? 'split' : 'stack';
     $shellClass = 'auth-portal-shell';
     $shellClass .= $layout === 'split' ? ' auth-portal-shell--wide' : ' auth-portal-shell--narrow';
-    if (($ctx['shell_mod'] ?? '') === 'wali') {
+    $shellMod = (string) ($ctx['shell_mod'] ?? '');
+    if ($shellMod === 'wali') {
         $shellClass .= ' auth-portal-shell--wali';
+    } elseif ($shellMod === 'pb_scan') {
+        $shellClass .= ' auth-portal-shell--pb-scan';
     }
+    $bodyClass = 'auth-portal-page' . ($shellMod === 'pb_scan' ? ' auth-portal-page--pb-scan' : '');
     $accent = ($ctx['accent'] ?? 'teal') === 'indigo' ? 'indigo' : 'teal';
     $gradStart = $accent === 'indigo' ? '#312e81' : '#0f766e';
     $gradMid = $accent === 'indigo' ? '#4338ca' : '#0d9488';
@@ -310,7 +314,7 @@ function auth_portal_layout_begin(array $ctx): void
         })();
     </script>
 </head>
-<body class="auth-portal-page">
+<body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="auth-portal-bg" aria-hidden="true">
         <span class="auth-portal-bg__orb auth-portal-bg__orb--1"></span>
         <span class="auth-portal-bg__orb auth-portal-bg__orb--2"></span>

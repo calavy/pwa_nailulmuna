@@ -120,6 +120,7 @@ $nilaiKelasHariIni = [];
 $pbSudahHadir = false;
 $tugasStats = ['total' => 0, 'published' => 0, 'draft' => 0, 'sesi_selesai' => 0];
 $kegiatanMendekati = [];
+$kegiatanAktifPresensi = [];
 $pbDashTickerItems = [];
 $santriMapPerTingkatan = [];
 $pbSantriMapApiUrl = '';
@@ -216,7 +217,8 @@ if ($isPbKeaktivanOnly) {
         5,
         !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
     );
-    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
+    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today);
+    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime, $kegiatanAktifPresensi);
     $santriMapPerTingkatan = pembimbing_dashboard_santri_list_map(
         $pdo,
         $tingkatanAsuhan,
@@ -242,7 +244,8 @@ if ($isPbKeaktivanOnly) {
         5,
         !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
     );
-    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime);
+    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today);
+    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime, $kegiatanAktifPresensi);
     $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
     $pbSantriMapApiUrl = app_href('/api/pembimbing/santri_map.php');
 }
@@ -314,6 +317,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         $pbDashHasPkpps = $hasPkppsJadwal;
         $isMunawibPortal = $isMunawibPortal ?? false;
         $munawibPortalKonteks = $munawibPortalKonteks ?? null;
+        $kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
         require __DIR__ . '/partials/dashboard_home_top.php';
         ?>
     <?php else: ?>
@@ -500,7 +504,9 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                             <h2 class="h6 mb-0 fw-bold"><i class="fa-solid fa-circle-play text-success me-1"></i> Kegiatan kelas berlangsung</h2>
                             <span class="badge text-bg-light border small font-monospace"><?= htmlspecialchars(app_format_jam(date('H:i:s'))) ?> WIB</span>
                         </div>
-                        <?php if ($kegiatanAktifGrouped === []): ?>
+                        <?php if ($kegiatanAktifPresensi !== []): ?>
+                            <?php $inBanner = false; require __DIR__ . '/partials/dashboard_kegiatan_berlangsung_cards.php'; ?>
+                        <?php elseif ($kegiatanAktifGrouped === []): ?>
                             <p class="small text-muted mb-0 py-2">Belum ada kegiatan di jam ini.</p>
                         <?php else: ?>
                             <div class="d-flex flex-column gap-1">

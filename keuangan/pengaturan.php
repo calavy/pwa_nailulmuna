@@ -8,7 +8,6 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_defs.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan.php';
 require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
-require_once __DIR__ . '/../helpers/keuangan_kelas_syahriyah.php';
 require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
@@ -82,7 +81,6 @@ if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
 } elseif ($section === 'syahriyah_makan') {
     ensure_keuangan_tarif_bulanan_table($pdo);
-    ensure_kelas_syahriyah_table($pdo);
     pkpps_ensure_schema($pdo);
     $periode = pondok_tahun_ajaran_aktif($pdo);
     $taMeta = pondok_ta_form_meta($pdo);
@@ -254,6 +252,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php require __DIR__ . '/partials/syahriyah_makan_pengaturan.php'; ?>
 <?php require __DIR__ . '/partials/syahriyah_tambahan_nominal.php'; ?>
+<?php require __DIR__ . '/partials/syahriyah_operator_notes.php'; ?>
 <?php endif; ?>
 
 <?php if ($section === 'tarif'): ?>

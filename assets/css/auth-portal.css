@@ -190,7 +190,7 @@
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
     overflow: hidden;
     flex-shrink: 0;
-    padding: 0.15rem;
+    padding: 0.05rem;
     isolation: isolate;
 }
 
@@ -203,15 +203,15 @@
     height: 100%;
     max-width: none;
     max-height: none;
-    object-fit: contain;
+    object-fit: cover;
     object-position: center center;
     padding: 0;
     margin: 0;
     border-radius: 50%;
     clip-path: circle(50% at 50% 50%);
-    transform: none;
+    transform: scale(1.16);
     transform-origin: center center;
-    background: #fff;
+    background: transparent;
     filter: none;
 }
 
@@ -1151,4 +1151,72 @@ html {
 .auth-portal-page .card-body:has(> .table) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+
+/* Portal pembimbing — masuk dengan scan QR (layout mirip presensi/scan) */
+.auth-portal-page--pb-scan {
+    padding: max(0.35rem, env(safe-area-inset-top, 0px))
+        max(0.35rem, env(safe-area-inset-right, 0px))
+        max(0.5rem, env(safe-area-inset-bottom, 0px))
+        max(0.35rem, env(safe-area-inset-left, 0px));
+}
+
+.auth-portal-page--pb-scan .auth-portal-viewport {
+    align-items: stretch;
+    padding-inline: 0;
+    min-height: calc(100dvh - 0.5rem);
+}
+
+.auth-portal-shell--pb-scan {
+    width: 100%;
+    max-width: min(560px, 100%);
+    margin-inline: auto;
+    flex: 1;
+    min-height: 0;
+    gap: 0.5rem;
+}
+
+.auth-portal-shell--pb-scan .auth-portal-hero {
+    display: none;
+}
+
+.auth-portal-shell--pb-scan .auth-portal-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: 14px;
+}
+
+.auth-portal-shell--pb-scan .auth-portal-card__head {
+    padding: 0.55rem 0.85rem;
+}
+
+.auth-portal-shell--pb-scan .auth-portal-card__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.5rem 0.5rem 0.65rem;
+}
+
+.auth-portal-shell--pb-scan .auth-portal-back {
+    margin-bottom: 0.35rem;
+}
+
+.auth-portal-shell--pb-scan .login-pb-alt {
+    margin-top: 0.65rem !important;
+}
+
+@media (min-width: 992px) {
+    .auth-portal-shell--pb-scan.auth-portal-shell--narrow {
+        max-width: min(560px, 52vw);
+    }
+
+    .auth-portal-page--pb-scan {
+        padding: max(0.5rem, env(safe-area-inset-top, 0px))
+            max(0.75rem, env(safe-area-inset-right, 0px))
+            max(0.75rem, env(safe-area-inset-bottom, 0px))
+            max(0.75rem, env(safe-area-inset-left, 0px));
+    }
 }

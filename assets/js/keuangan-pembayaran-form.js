@@ -248,9 +248,6 @@
         if ((bd.pkpps || 0) > 0) {
             lines.push('Tambahan PKPPS: <strong>' + fmtRp(bd.pkpps) + '</strong>');
         }
-        if ((bd.kelas_syahriyah || 0) > 0) {
-            lines.push('Tambahan kelas syahriyah: <strong>' + fmtRp(bd.kelas_syahriyah) + '</strong>');
-        }
         syBreakdownLines.innerHTML = lines.join('<br>');
         const sisaLine = (bd.sisa || 0) > 0
             ? ' · Sisa bayar: <strong>' + fmtRp(bd.sisa) + '</strong>'
@@ -289,14 +286,13 @@
                     '</span>';
             }
             let rincianLine = '';
-            if (slug === 'syahriyah' && ((info.pkpps_tambahan || 0) > 0 || (info.kelas_syahriyah_tambahan || 0) > 0)) {
+            if (slug === 'syahriyah' && (info.pkpps_tambahan || 0) > 0) {
                 const dasar = (info.expected_setelah_potongan != null)
                     ? info.expected_setelah_potongan
-                    : Math.max(0, (info.expected || 0) - (info.pkpps_tambahan || 0) - (info.kelas_syahriyah_tambahan || 0));
+                    : Math.max(0, (info.expected || 0) - (info.pkpps_tambahan || 0));
                 rincianLine = '<br><span style="font-size:.72rem">' +
                     fmtRp(dasar) +
                     ((info.pkpps_tambahan || 0) > 0 ? ' + PKPPS ' + fmtRp(info.pkpps_tambahan) : '') +
-                    ((info.kelas_syahriyah_tambahan || 0) > 0 ? ' + kelas ' + fmtRp(info.kelas_syahriyah_tambahan) : '') +
                     '</span>';
             }
             if (info.sisa > 0) {

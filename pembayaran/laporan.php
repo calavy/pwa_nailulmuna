@@ -101,6 +101,17 @@ if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
     }
 }
 
+$santriRows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo, false) : [];
+
+$laporanPopupSantri = [];
+foreach ($santriRows as $sr) {
+    $laporanPopupSantri[] = [
+        'nama_santri' => (string) ($sr['nama_santri'] ?? ''),
+        'nis' => (string) ($sr['nis'] ?? ''),
+        'tingkatan' => (string) ($sr['tingkatan'] ?? ''),
+    ];
+}
+
 if (($_GET['export'] ?? '') === 'csv' && $tablesOk) {
     $fn = sprintf('laporan_syahriyah_%d_%d_%d.csv', $tahunAjaranMulai, $tahunAjaranSelesai, time());
     header('Content-Type: text/csv; charset=UTF-8');
@@ -171,14 +182,17 @@ $iconLaporan = bendahara_page_icon('laporan');
 
 <div class="card shadow-sm mb-3">
     <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between">
-        <span class="small text-muted">
-            Santri aktif: <strong><?= count($santriRows) ?></strong>
-            · TA <?= htmlspecialchars($berjalan['ta_label']) ?>
-        </span>
+        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none bendahara-stat--clickable" data-laporan-popup="santri" aria-expanded="false">
+            <span class="small text-muted">
+                Santri aktif: <strong><?= count($santriRows) ?></strong>
+                · TA <?= htmlspecialchars($berjalan['ta_label']) ?>
+            </span>
+        </button>
         <a class="btn btn-sm btn-outline-secondary" href="/pembayaran/rekap_pos.php?bulan=<?= (int) $rekapBulan ?>">
             <i class="fa-solid fa-up-right-from-square me-1"></i> Rekap POS
         </a>
     </div>
+    <div class="bendahara-stat-popup d-none" data-laporan-popup-panel="santri" role="region" aria-live="polite"></div>
 </div>
 
 <?php if ($rekapBulan >= 1 && $tablesOk): ?>
@@ -199,42 +213,44 @@ $iconLaporan = bendahara_page_icon('laporan');
         </div>
     </div>
 
-    <div class="row g-2 mb-3">
+    <div class="row g-2 mb-3" id="laporan-stat-row">
         <div class="col-6 col-lg-3">
-            <div class="card shadow-sm border-primary-subtle h-100">
+            <button type="button" class="card shadow-sm border-primary-subtle h-100 w-100 text-start bendahara-stat--clickable" data-laporan-popup="harus">
                 <div class="card-body py-2">
                     <div class="small text-muted">Harus masuk</div>
                     <div class="fw-semibold font-monospace">Rp <?= number_format($rekapSyahriyahHarusMasuk, 0, ',', '.') ?></div>
                 </div>
-            </div>
+            </button>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card shadow-sm border-success-subtle h-100">
+            <button type="button" class="card shadow-sm border-success-subtle h-100 w-100 text-start bendahara-stat--clickable" data-laporan-popup="masuk">
                 <div class="card-body py-2">
                     <div class="small text-muted">Masuk (terbayar)</div>
                     <div class="fw-semibold font-monospace text-success">Rp <?= number_format($rekapSyahriyahMasuk, 0, ',', '.') ?></div>
                 </div>
-            </div>
+            </button>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card shadow-sm border-danger-subtle h-100">
+            <button type="button" class="card shadow-sm border-danger-subtle h-100 w-100 text-start bendahara-stat--clickable" data-laporan-popup="sisa">
                 <div class="card-body py-2">
                     <div class="small text-muted">Sisa tagihan</div>
                     <div class="fw-semibold font-monospace<?= $rekapSyahriyahSisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($rekapSyahriyahSisa, 0, ',', '.') ?></div>
                 </div>
-            </div>
+            </button>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card shadow-sm h-100">
+            <button type="button" class="card shadow-sm h-100 w-100 text-start bendahara-stat--clickable" data-laporan-popup="pos">
                 <div class="card-body py-2">
-                    <div class="small text-muted mb-1">Progres</div>
-                    <div class="progress" style="height:.55rem" role="progressbar" aria-valuenow="<?= (int) $rekapCapaiPersen ?>" aria-valuemin="0" aria-valuemax="100">
+                    <div class="small text-muted mb-1">Progres · komponen POS</div>
+                    <div class="progress mb-1" style="height:.55rem" role="progressbar" aria-valuenow="<?= (int) $rekapCapaiPersen ?>" aria-valuemin="0" aria-valuemax="100">
                         <div class="progress-bar bg-primary" style="width:<?= min(100, max(0, (int) $rekapCapaiPersen)) ?>%"></div>
                     </div>
+                    <div class="fw-semibold text-primary"><?= number_format($rekapCapaiPersen, 1, ',', '.') ?>%</div>
                 </div>
-            </div>
+            </button>
         </div>
     </div>
+    <div class="bendahara-stat-popup d-none mb-3" data-laporan-popup-panel="detail" role="region" aria-live="polite"></div>
 
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -282,7 +298,13 @@ $iconLaporan = bendahara_page_icon('laporan');
                                         <div class="progress-bar bg-success" style="width:<?= $capaiRow ?>%"></div>
                                     </div>
                                 </td>
-                                <td class="text-end"><span class="badge text-bg-secondary"><?= htmlspecialchars((string) $persenRow) ?>%</span></td>
+                                <td class="text-end">
+                                    <?php if (!empty($ra['is_dana_umum'])): ?>
+                                        <span class="badge text-bg-info">PKPPS</span>
+                                    <?php else: ?>
+                                        <span class="badge text-bg-secondary"><?= htmlspecialchars((string) $persenRow) ?>%</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-end font-monospace small">Rp <?= number_format((int) ($ra['harus_masuk'] ?? 0), 0, ',', '.') ?></td>
                                 <td class="text-end font-monospace small text-success">Rp <?= number_format((int) ($ra['masuk'] ?? 0), 0, ',', '.') ?></td>
                                 <td class="text-end font-monospace small text-danger">Rp <?= number_format((int) ($ra['pengeluaran'] ?? $ra['keluar'] ?? 0), 0, ',', '.') ?></td>
@@ -291,7 +313,7 @@ $iconLaporan = bendahara_page_icon('laporan');
                         <?php endforeach; ?>
                         <tr class="table-light fw-semibold">
                             <td>Total</td>
-                            <td class="text-end">100%</td>
+                            <td class="text-end text-muted small">% + PKPPS</td>
                             <td class="text-end font-monospace small">Rp <?= number_format($sumHarus, 0, ',', '.') ?></td>
                             <td class="text-end font-monospace small text-success">Rp <?= number_format($sumMasuk, 0, ',', '.') ?></td>
                             <td class="text-end font-monospace small text-danger">Rp <?= number_format($sumKeluar, 0, ',', '.') ?></td>
@@ -303,10 +325,12 @@ $iconLaporan = bendahara_page_icon('laporan');
             </div>
         </div>
         <div class="card-footer small text-muted">
-            <strong>Harus masuk</strong> = target tagihan syahriyah × persen komponen.
-            <strong>Masuk</strong> = pembayaran terkumpul × persen yang sama.
+            <strong>Harus masuk</strong> = target PKPPS (dana umum) atau dasar syahriyah × % komponen (selaras dengan
+            <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_alokasi_per_santri.php')) ?>">alokasi per santri</a>).
+            <strong>Masuk</strong> = cicilan dialokasikan PKPPS dulu, sisanya ke % dasar.
             <strong>Keluar</strong> = pengeluaran pada komponen alokasi di rentang bulan tagihan.
             <strong>Saldo</strong> = masuk − keluar.
+            Setelah ubah pembayaran/pengaturan, muat ulang dengan <code>?refresh=1</code>.
         </div>
     </div>
 
@@ -399,4 +423,11 @@ $iconLaporan = bendahara_page_icon('laporan');
 </details>
 
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
+<script type="application/json" id="laporan-popup-data"><?= json_encode([
+    'santri' => $laporanPopupSantri,
+    'alokasi' => $rekapAlokasiRows,
+    'pos' => $rekapPosRows,
+    'bulan_label' => $rekapBulanLabel,
+], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+<script src="<?= htmlspecialchars(app_href('/assets/js/keuangan-laporan-popup.js')) ?>"></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

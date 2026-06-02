@@ -6,12 +6,29 @@ body.page-keaktifan-hari .app-main {
 }
 
 .kh-wrap {
-    --kh-hadir: #14532d;
-    --kh-izin: #92400e;
-    --kh-sakit: #155e75;
+    /* Status presensi — palet (A/I/S/H) */
+    --kh-hadir: #166534;
+    --kh-hadir-bg: #ecfdf5;
+    --kh-hadir-border: #86efac;
+    --kh-hadir-solid: #15803d;
+    --kh-izin: #1e40af;
+    --kh-izin-bg: #eff6ff;
+    --kh-izin-border: #bfdbfe;
+    --kh-izin-text: #1e3a8a;
+    --kh-izin-solid: #1d4ed8;
+    --kh-sakit: #6b21a8;
+    --kh-sakit-bg: #faf5ff;
+    --kh-sakit-border: #e9d5ff;
+    --kh-sakit-solid: #7e22ce;
     --kh-alpa: #991b1b;
-    --kh-belum: #334155;
-    --kh-aman: #16a34a;
+    --kh-alpa-bg: #fef2f2;
+    --kh-alpa-border: #fecaca;
+    --kh-alpa-solid: #b91c1c;
+    --kh-belum: #64748b;
+    --kh-belum-solid: #475569;
+    --kh-aman: #166534;
+    --kh-on-solid: #fff;
+    --kh-on-solid-muted: rgba(255, 255, 255, 0.88);
     --kh-gap: 1.25rem;
     padding-bottom: 1.5rem;
 }
@@ -61,11 +78,11 @@ body.page-keaktifan-hari .app-main {
     white-space: nowrap;
 }
 
-.kh-panduan__item--hadir { background: rgba(21, 128, 61, 0.14); color: var(--kh-hadir); }
-.kh-panduan__item--izin { background: rgba(180, 83, 9, 0.14); color: var(--kh-izin); }
-.kh-panduan__item--sakit { background: rgba(14, 116, 144, 0.14); color: var(--kh-sakit); }
-.kh-panduan__item--alpa { background: rgba(185, 28, 28, 0.12); color: var(--kh-alpa); }
-.kh-panduan__item--belum { background: rgba(100, 116, 139, 0.16); color: #475569; }
+.kh-panduan__item--hadir { background: var(--kh-hadir-bg); color: var(--kh-hadir); border: 1px solid var(--kh-hadir-border); }
+.kh-panduan__item--izin { background: var(--kh-izin-bg); color: var(--kh-izin-text); border: 1px solid var(--kh-izin-border); }
+.kh-panduan__item--sakit { background: var(--kh-sakit-bg); color: var(--kh-sakit); border: 1px solid var(--kh-sakit-border); }
+.kh-panduan__item--alpa { background: var(--kh-alpa-bg); color: var(--kh-alpa); border: 1px solid var(--kh-alpa-border); }
+.kh-panduan__item--belum { background: rgba(100, 116, 139, 0.12); color: #475569; }
 
 /* —— Filter —— */
 .kh-filter-form .kh-filter-submit {
@@ -103,7 +120,7 @@ body.page-keaktifan-hari .app-main {
 
 .kh-totals {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.5rem;
     margin-top: 0.75rem;
 }
@@ -112,18 +129,15 @@ body.page-keaktifan-hari .app-main {
     .kh-totals {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-
-    .kh-total-pill:nth-child(5) {
-        grid-column: 1 / -1;
-    }
 }
 
 .kh-total-pill {
     text-align: center;
     padding: 0.6rem 0.4rem;
     border-radius: 10px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid transparent;
     background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
 .kh-total-pill__n {
@@ -132,6 +146,7 @@ body.page-keaktifan-hari .app-main {
     line-height: 1.1;
     letter-spacing: -0.03em;
     -webkit-font-smoothing: antialiased;
+    color: var(--kh-on-solid);
 }
 
 .kh-total-pill__pct {
@@ -139,7 +154,7 @@ body.page-keaktifan-hari .app-main {
     font-weight: 800;
     line-height: 1.2;
     margin-top: 0.1rem;
-    color: var(--kh-hadir);
+    color: var(--kh-on-solid-muted);
 }
 
 .kh-total-pill__l {
@@ -147,15 +162,76 @@ body.page-keaktifan-hari .app-main {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #64748b;
     margin-top: 0.2rem;
+    color: var(--kh-on-solid-muted);
 }
 
-.kh-total-pill--hadir .kh-total-pill__n { color: var(--kh-hadir); }
-.kh-total-pill--izin .kh-total-pill__n { color: var(--kh-izin); }
-.kh-total-pill--sakit .kh-total-pill__n { color: var(--kh-sakit); }
-.kh-total-pill--alpa .kh-total-pill__n { color: var(--kh-alpa); }
-.kh-total-pill--belum .kh-total-pill__n { color: var(--kh-belum); }
+.kh-total-pill--clickable {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    width: 100%;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.kh-total-pill--clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+}
+
+.kh-total-pill--clickable.is-open {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35);
+}
+
+.kh-hero .kh-stat-popup {
+    margin: 0.5rem 0 0;
+}
+
+.kh-total-pill--hadir {
+    background: var(--kh-hadir-solid);
+    border-color: color-mix(in srgb, var(--kh-hadir-solid) 85%, #000 15%);
+}
+.kh-total-pill--hadir .kh-total-pill__n,
+.kh-total-pill--hadir .kh-total-pill__l,
+.kh-total-pill--hadir .kh-total-pill__pct { color: var(--kh-on-solid); }
+.kh-total-pill--hadir .kh-total-pill__l,
+.kh-total-pill--hadir .kh-total-pill__pct { color: var(--kh-on-solid-muted); }
+
+.kh-total-pill--izin {
+    background: var(--kh-izin-solid);
+    border-color: color-mix(in srgb, var(--kh-izin-solid) 85%, #000 15%);
+}
+.kh-total-pill--izin .kh-total-pill__n,
+.kh-total-pill--izin .kh-total-pill__l,
+.kh-total-pill--izin .kh-total-pill__pct { color: var(--kh-on-solid); }
+.kh-total-pill--izin .kh-total-pill__l,
+.kh-total-pill--izin .kh-total-pill__pct { color: var(--kh-on-solid-muted); }
+
+.kh-total-pill--sakit {
+    background: var(--kh-sakit-solid);
+    border-color: color-mix(in srgb, var(--kh-sakit-solid) 85%, #000 15%);
+}
+.kh-total-pill--sakit .kh-total-pill__n,
+.kh-total-pill--sakit .kh-total-pill__l { color: var(--kh-on-solid); }
+.kh-total-pill--sakit .kh-total-pill__l { color: var(--kh-on-solid-muted); }
+
+.kh-total-pill--alpa {
+    background: var(--kh-alpa-solid);
+    border-color: color-mix(in srgb, var(--kh-alpa-solid) 85%, #000 15%);
+}
+.kh-total-pill--alpa .kh-total-pill__n,
+.kh-total-pill--alpa .kh-total-pill__l { color: var(--kh-on-solid); }
+.kh-total-pill--alpa .kh-total-pill__l { color: var(--kh-on-solid-muted); }
+
+.kh-total-pill--belum {
+    background: var(--kh-belum-solid);
+    border-color: color-mix(in srgb, var(--kh-belum-solid) 85%, #000 15%);
+}
+.kh-total-pill--belum .kh-total-pill__n,
+.kh-total-pill--belum .kh-total-pill__l { color: var(--kh-on-solid); }
 
 .kh-legend {
     display: flex;
@@ -178,11 +254,11 @@ body.page-keaktifan-hari .app-main {
     vertical-align: middle;
 }
 
-.kh-legend .l-hadir::before { background: var(--kh-hadir); }
-.kh-legend .l-izin::before { background: var(--kh-izin); }
-.kh-legend .l-sakit::before { background: var(--kh-sakit); }
-.kh-legend .l-alpa::before { background: var(--kh-alpa); }
-.kh-legend .l-belum::before { background: var(--kh-belum); }
+.kh-legend .l-hadir::before { background: var(--kh-hadir-solid); }
+.kh-legend .l-izin::before { background: var(--kh-izin-solid); }
+.kh-legend .l-sakit::before { background: var(--kh-sakit-solid); }
+.kh-legend .l-alpa::before { background: var(--kh-alpa-solid); }
+.kh-legend .l-belum::before { background: var(--kh-belum-solid); }
 
 /* —— Tab kegiatan (scroll horizontal) —— */
 .kh-chips-toolbar {
@@ -314,63 +390,157 @@ body.page-keaktifan-hari .app-main {
 
 .kh-bar {
     display: flex;
-    height: 12px;
+    height: 14px;
     border-radius: 999px;
     overflow: hidden;
     background: #e2e8f0;
     margin: 0.55rem 0 0.25rem;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .kh-bar__seg {
-    min-width: 3px;
+    min-width: 4px;
     border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
 }
 
 .kh-bar--aman {
-    background: #dcfce7;
+    background: var(--kh-hadir-bg);
 }
 
-.kh-bar__seg--hadir { background: var(--kh-hadir); }
-.kh-bar__seg--izin { background: var(--kh-izin); }
-.kh-bar__seg--sakit { background: var(--kh-sakit); }
-.kh-bar__seg--alpa { background: var(--kh-alpa); }
-.kh-bar__seg--belum { background: var(--kh-belum); }
+.kh-bar__seg--hadir { background: var(--kh-hadir-solid); }
+.kh-bar__seg--izin { background: var(--kh-izin-solid); }
+.kh-bar__seg--sakit { background: var(--kh-sakit-solid); }
+.kh-bar__seg--alpa { background: var(--kh-alpa-solid); }
+.kh-bar__seg--belum { background: var(--kh-belum-solid); }
 .kh-bar__seg--aman {
-    background: var(--kh-aman);
+    background: var(--kh-hadir-solid);
     flex: 1 1 100%;
     min-width: 100%;
 }
 
 .kh-stats {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr));
+    gap: 0.35rem;
     padding: 0 0.9rem 0.7rem;
 }
 
 .kh-stat {
     text-align: center;
     font-size: 0.68rem;
+    border-radius: 8px;
+    padding: 0.45rem 0.25rem;
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+    font: inherit;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.kh-stat:disabled {
+    cursor: default;
+    opacity: 0.92;
+}
+
+.kh-stat--clickable {
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.kh-stat--clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
+}
+
+.kh-stat--clickable.is-open {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35);
 }
 
 .kh-stat__n {
     display: block;
     font-weight: 900;
-    font-size: 1.05rem;
+    font-size: 1.15rem;
     line-height: 1.2;
     -webkit-font-smoothing: antialiased;
+    color: var(--kh-on-solid);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
 }
 
 .kh-stat__l {
-    color: #64748b;
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--kh-on-solid-muted);
+    margin-top: 0.12rem;
 }
 
-.kh-stat--hadir .kh-stat__n { color: var(--kh-hadir); }
-.kh-stat--izin .kh-stat__n { color: var(--kh-izin); }
-.kh-stat--sakit .kh-stat__n { color: var(--kh-sakit); }
-.kh-stat--alpa .kh-stat__n { color: var(--kh-alpa); }
-.kh-stat--belum .kh-stat__n { color: var(--kh-belum); }
+.kh-stat--hadir {
+    background: var(--kh-hadir-solid);
+    border-color: color-mix(in srgb, var(--kh-hadir-solid) 82%, #000 18%);
+}
+
+.kh-stat--izin {
+    background: var(--kh-izin-solid);
+    border-color: color-mix(in srgb, var(--kh-izin-solid) 82%, #000 18%);
+}
+
+.kh-stat--sakit {
+    background: var(--kh-sakit-solid);
+    border-color: color-mix(in srgb, var(--kh-sakit-solid) 82%, #000 18%);
+}
+
+.kh-stat--alpa {
+    background: var(--kh-alpa-solid);
+    border-color: color-mix(in srgb, var(--kh-alpa-solid) 82%, #000 18%);
+}
+
+.kh-stat-popup {
+    margin: 0 0.9rem 0.65rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.kh-stat-popup__head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.78rem;
+}
+
+.kh-stat-popup__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+}
+
+.kh-stat-popup__list li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.28rem 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.kh-stat-popup__list li:last-child {
+    border-bottom: 0;
+}
+
+.kh-stat--belum {
+    background: var(--kh-belum-solid);
+    border-color: color-mix(in srgb, var(--kh-belum-solid) 82%, #000 18%);
+}
 
 .kh-card__alert {
     padding: 0.55rem 0.9rem;
@@ -487,6 +657,31 @@ body.page-keaktifan-hari .app-main {
     color: #fff;
 }
 
+.kh-tab[data-kh-tab="HADIR"].is-active {
+    background: var(--kh-hadir-solid);
+    border-color: var(--kh-hadir-solid);
+    color: var(--kh-on-solid);
+}
+
+.kh-tab[data-kh-tab="IZIN"].is-active {
+    background: var(--kh-izin-solid);
+    border-color: var(--kh-izin-solid);
+    color: var(--kh-on-solid);
+}
+
+.kh-tab[data-kh-tab="SAKIT"].is-active {
+    background: var(--kh-sakit-solid);
+    border-color: var(--kh-sakit-solid);
+    color: var(--kh-on-solid);
+}
+
+.kh-tab[data-kh-tab="ALPA"].is-active,
+.kh-tab[data-kh-tab="perlu"].is-active {
+    background: var(--kh-alpa-solid);
+    border-color: var(--kh-alpa-solid);
+    color: var(--kh-on-solid);
+}
+
 .kh-list {
     list-style: none;
     margin: 0;
@@ -499,6 +694,7 @@ body.page-keaktifan-hari .app-main {
 .kh-list li {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 0.5rem;
     padding: 0.3rem 0;
     border-bottom: 1px solid #f1f5f9;
@@ -519,6 +715,25 @@ body.page-keaktifan-hari .app-main {
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
+
+.kh-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+    border: 1px solid transparent;
+}
+
+.kh-status-badge--A { background: var(--kh-alpa-solid); border-color: transparent; color: var(--kh-on-solid); }
+.kh-status-badge--I { background: var(--kh-izin-solid); border-color: transparent; color: var(--kh-on-solid); }
+.kh-status-badge--S { background: var(--kh-sakit-solid); border-color: transparent; color: var(--kh-on-solid); }
+.kh-status-badge--H { background: var(--kh-hadir-solid); border-color: transparent; color: var(--kh-on-solid); }
 
 /* Kartu kosong */
 .kh-wrap > .card {
@@ -555,13 +770,41 @@ body.page-keaktifan-hari .app-main {
 
 [data-theme="dark"] .kh-hero,
 [data-theme="dark"] .kh-card,
-[data-theme="dark"] .kh-total-pill,
 [data-theme="dark"] .kh-chip,
 [data-theme="dark"] .kh-panduan--desktop,
 [data-theme="dark"] .kh-banner-attn {
     background: rgba(15, 23, 42, 0.85);
     border-color: rgba(71, 85, 105, 0.55);
 }
+
+[data-theme="dark"] .kh-total-pill,
+[data-theme="dark"] .kh-stat {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .kh-total-pill--hadir { background: var(--kh-hadir-solid); border-color: color-mix(in srgb, var(--kh-hadir-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-total-pill--izin { background: var(--kh-izin-solid); border-color: color-mix(in srgb, var(--kh-izin-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-total-pill--sakit { background: var(--kh-sakit-solid); border-color: color-mix(in srgb, var(--kh-sakit-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-total-pill--alpa { background: var(--kh-alpa-solid); border-color: color-mix(in srgb, var(--kh-alpa-solid) 80%, #000 20%); }
+
+[data-theme="dark"] .kh-stat--hadir { background: var(--kh-hadir-solid); border-color: color-mix(in srgb, var(--kh-hadir-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-stat--izin { background: var(--kh-izin-solid); border-color: color-mix(in srgb, var(--kh-izin-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-stat--sakit { background: var(--kh-sakit-solid); border-color: color-mix(in srgb, var(--kh-sakit-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-stat--alpa { background: var(--kh-alpa-solid); border-color: color-mix(in srgb, var(--kh-alpa-solid) 80%, #000 20%); }
+
+[data-theme="dark"] .kh-stat-popup {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(71, 85, 105, 0.55);
+}
+
+[data-theme="dark"] .kh-total-pill__n,
+[data-theme="dark"] .kh-total-pill__l,
+[data-theme="dark"] .kh-total-pill__pct,
+[data-theme="dark"] .kh-stat__n,
+[data-theme="dark"] .kh-stat__l { color: var(--kh-on-solid); }
+[data-theme="dark"] .kh-total-pill__l,
+[data-theme="dark"] .kh-total-pill__pct,
+[data-theme="dark"] .kh-stat__l { color: var(--kh-on-solid-muted); }
 
 [data-theme="dark"] .kh-detail-toggle,
 [data-theme="dark"] .kh-detail-panel {

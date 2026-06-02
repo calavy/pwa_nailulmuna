@@ -588,35 +588,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         <div class="presensi-scan-timer-inner">
             <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= ($activeSlotCount > 0 && $timerState === 'active') ? '' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
                 <div class="presensi-scan-timer-marquee__viewport">
-                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track">
-                        <?php if ($activeSlotCount > 0 && $timerState === 'active'): ?>
-                            <?php for ($marqueePass = 0; $marqueePass < 2; $marqueePass++): ?>
-                                <?php foreach ($activeSlotsTimer as $slotIdx => $slot): ?>
-                                    <?php if ($marqueePass > 0 || $slotIdx > 0): ?>
-                                        <span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>
-                                    <?php endif; ?>
-                                    <?php
-                                    $slotLabel = (string) ($slot['nama_kegiatan'] ?? 'Kegiatan');
-                                    $slotMulai = substr((string) ($slot['jam_mulai'] ?? ''), 0, 5);
-                                    $slotSelesai = substr((string) ($slot['jam_selesai'] ?? ''), 0, 5);
-                                    if ($slotMulai !== '' && $slotSelesai !== '') {
-                                        $slotLabel .= ' · ' . $slotMulai . '–' . $slotSelesai;
-                                    }
-                                    if (!empty($slot['tingkatan'])) {
-                                        $slotLabel .= ' · ' . (string) $slot['tingkatan'];
-                                    }
-                                    if (!empty($slot['tempat'])) {
-                                        $slotLabel .= ' · ' . (string) $slot['tempat'];
-                                    }
-                                    ?>
-                                    <span class="presensi-scan-timer-marquee__item">
-                                        <i class="fa-solid fa-bolt" aria-hidden="true"></i>
-                                        <span><?= htmlspecialchars($slotLabel) ?></span>
-                                    </span>
-                                <?php endforeach; ?>
-                            <?php endfor; ?>
-                        <?php endif; ?>
-                    </div>
+                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track"></div>
                 </div>
             </div>
             <span id="presensi-scan-timer-title" class="presensi-scan-timer-title<?= ($activeSlotCount > 0 && $timerState === 'active') ? ' d-none' : '' ?>"><?php

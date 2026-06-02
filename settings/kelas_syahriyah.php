@@ -22,12 +22,7 @@ foreach ($kkRows as $kr) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
-    if ($action === 'save_tambahan') {
-        $res = keuangan_kelas_syahriyah_save_tambahan_settings($pdo, $_POST);
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-kelas'));
-        exit;
-    } elseif ($action === 'create') {
+    if ($action === 'create') {
         $kodeRaw = strtoupper(trim((string) ($_POST['kode'] ?? '')));
         $kode = preg_replace('/[^A-Z0-9_-]/', '', $kodeRaw) ?? '';
         $nama = trim((string) ($_POST['nama_tampilan'] ?? ''));
@@ -41,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     INSERT INTO kelas_syahriyah (kode, nama_tampilan, kelas_keuangan_kode, urutan, is_aktif)
                     VALUES (:k, :n, :kk, :u, 1)
                 ')->execute(['k' => $kode, 'n' => $nama, 'kk' => $kk, 'u' => $urutan]);
-                set_flash('success', 'Kelas syahriyah pembayaran ditambahkan.');
+                set_flash('success', 'Jenis syahriyah ditambahkan.');
             } catch (Throwable $e) {
                 set_flash('error', 'Gagal menambah: kode atau kelas keuangan mungkin sudah dipakai.');
             }
@@ -61,13 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SET kode = :k, nama_tampilan = :n, kelas_keuangan_kode = :kk, urutan = :u, is_aktif = :a
                 WHERE id = :id
             ')->execute(['k' => $kodeBaru, 'n' => $nama, 'kk' => $kk, 'u' => $urutan, 'a' => $aktif, 'id' => $id]);
-            set_flash('success', 'Kelas syahriyah diperbarui.');
+            set_flash('success', 'Jenis syahriyah diperbarui.');
         }
     } elseif ($action === 'delete') {
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) {
             $pdo->prepare('DELETE FROM kelas_syahriyah WHERE id = :id')->execute(['id' => $id]);
-            set_flash('success', 'Kelas syahriyah dihapus.');
+            set_flash('success', 'Jenis syahriyah dihapus.');
         }
     }
     header('Location: ' . app_href('/settings/kelas_syahriyah.php'));
@@ -75,18 +70,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $rows = kelas_syahriyah_all_rows($pdo);
-$pageTitle = 'Kelas Syahriyah Pembayaran';
+$pageTitle = 'Jenis Syahriyah (master data)';
 $settingsNavActive = '/settings/kelas_syahriyah.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
-    <h1 class="h4 mb-1">Kelas / jenis syahriyah pembayaran</h1>
+    <h1 class="h4 mb-1">Jenis syahriyah (master data)</h1>
     <p class="text-muted small mb-0">
-        Setiap jenis dihubungkan ke satu <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a>
-        (Wustho 1/2/3 → Wustho). Nominal tambahan diatur di
-        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-syahriyah')) ?>">Keuangan → Pengaturan syahriyah</a>.
+        Pemetaan jenis ke <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a>
+        santri (Wustho 1/2/3 → Wustho). <strong>Tidak menambah nominal tagihan</strong> — tambahan syahriyah hanya
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">PKPPS</a>
+        di pengaturan keuangan.
     </p>
 </div>
 
@@ -191,18 +187,6 @@ require_once __DIR__ . '/../includes/header.php';
                 </table>
             </div>
         </div>
-    </div>
-</div>
-
-<div class="card shadow-sm" id="tambahan-syahriyah">
-    <div class="card-header fw-semibold">Nominal tambahan syahriyah per kelas</div>
-    <div class="card-body">
-        <p class="small text-muted mb-2">
-            Atur nominal di halaman syahriyah terpusat (termasuk PKPPS) — otomatis ke tagihan &amp; input pembayaran.
-        </p>
-        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-kelas')) ?>">
-            Pengaturan syahriyah &amp; tambahan
-        </a>
     </div>
 </div>
 

@@ -331,6 +331,9 @@ $iconTagihan = bendahara_page_icon('tagihan');
                                         <?php elseif ($r['sy_persen'] > 0 && $r['sy_ket_potongan'] !== ''): ?>
                                             <div class="text-warning">Potongan <?= rtrim(rtrim(number_format((float) $r['sy_persen'], 1, ',', '.'), '0'), ',') ?>% · <?= htmlspecialchars((string) $r['sy_ket_potongan']) ?></div>
                                         <?php endif; ?>
+                                        <?php if ((int) ($r['sy_pkpps'] ?? 0) > 0): ?>
+                                            <div class="text-info">Tambahan PKPPS: Rp <?= number_format((int) $r['sy_pkpps'], 0, ',', '.') ?></div>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <div class="text-muted">Tidak ada tarif</div>
                                     <?php endif; ?>

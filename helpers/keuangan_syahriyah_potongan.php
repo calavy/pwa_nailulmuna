@@ -381,7 +381,7 @@ function keuangan_syahriyah_simulasi(
     return keuangan_syahriyah_apply_pkpps_tambahan($pdo, $result, $santriId, $kelasKategori, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
 }
 
-/** Gabungkan tambahan syahriyah (kelas pembayaran + PKPPS) ke simulasi tagihan. */
+/** Gabungkan tambahan syahriyah PKPPS saja ke simulasi tagihan. */
 function keuangan_syahriyah_apply_pkpps_tambahan(
     PDO $pdo,
     array $sim,
@@ -391,14 +391,11 @@ function keuangan_syahriyah_apply_pkpps_tambahan(
     int $tahunAjaranMulai = 0,
     int $tahunAjaranSelesai = 0
 ): array {
-    if (!function_exists('keuangan_kelas_syahriyah_apply_to_simulasi')) {
-        require_once __DIR__ . '/keuangan_kelas_syahriyah.php';
-    }
     if (!function_exists('keuangan_pkpps_syahriyah_apply_to_simulasi')) {
         require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
     }
 
-    $sim = keuangan_kelas_syahriyah_apply_to_simulasi($pdo, $sim, $kelasKategori, $bulanTagihan);
+    $sim['kelas_syahriyah_tambahan'] = 0;
 
     return keuangan_pkpps_syahriyah_apply_to_simulasi($pdo, $sim, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
 }

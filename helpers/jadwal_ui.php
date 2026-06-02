@@ -113,7 +113,7 @@ function jadwal_kelompokkan_dengan_hari_jam(array $jadwalList, callable $grupLab
 }
 
 /**
- * Gabung baris dengan kegiatan/hari/jam/pembimbing/tempat sama → satu baris (tingkatan digabung).
+ * Gabung baris: kegiatan + jam + pembimbing + tempat sama → satu baris (tingkatan & hari digabung).
  *
  * @param list<array<string, mixed>> $items
  * @return list<array<string, mixed>>
@@ -124,7 +124,6 @@ function jadwal_gabung_baris_serupa(array $items): array
     foreach ($items as $item) {
         $key = implode('|', [
             (int) ($item['kegiatan_id'] ?? 0),
-            (int) ($item['hari_ke'] ?? 0),
             jadwal_norm_jam((string) ($item['jam_mulai'] ?? '')),
             jadwal_norm_jam((string) ($item['jam_selesai'] ?? '')),
             (int) ($item['pembimbing_id'] ?? 0),
@@ -135,6 +134,8 @@ function jadwal_gabung_baris_serupa(array $items): array
             $map[$key]['_merge_ids'] = [(int) ($item['id'] ?? 0)];
             $tk = trim((string) ($item['tingkatan'] ?? ''));
             $map[$key]['_tingkatan_list'] = $tk !== '' ? [$tk] : [];
+            $hk = (int) ($item['hari_ke'] ?? 0);
+            $map[$key]['_hari_list'] = $hk > 0 ? [$hk] : [];
         } else {
             $id = (int) ($item['id'] ?? 0);
             if ($id > 0 && !in_array($id, $map[$key]['_merge_ids'], true)) {
@@ -144,6 +145,10 @@ function jadwal_gabung_baris_serupa(array $items): array
             if ($tk !== '' && !in_array($tk, $map[$key]['_tingkatan_list'], true)) {
                 $map[$key]['_tingkatan_list'][] = $tk;
             }
+            $hk = (int) ($item['hari_ke'] ?? 0);
+            if ($hk > 0 && !in_array($hk, $map[$key]['_hari_list'], true)) {
+                $map[$key]['_hari_list'][] = $hk;
+            }
         }
     }
     $out = array_values($map);
@@ -152,11 +157,29 @@ function jadwal_gabung_baris_serupa(array $items): array
         if ($c !== 0) {
             return $c;
         }
+        $ha = $a['_hari_list'] ?? [99];
+        $hb = $b['_hari_list'] ?? [99];
 
-        return strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
+        return min($ha) <=> min($hb);
     });
 
     return $out;
+}
+
+/** @param list<int> $hariList @param array<int,string> $hariLabels */
+function jadwal_hari_list_label(array $hariList, array $hariLabels): string
+{
+    $hariList = array_values(array_unique(array_filter(array_map('intval', $hariList), static fn (int $h): bool => $h > 0)));
+    sort($hariList, SORT_NUMERIC);
+    if ($hariList === []) {
+        return '—';
+    }
+    $parts = [];
+    foreach ($hariList as $hk) {
+        $parts[] = $hariLabels[$hk] ?? ('Hari ' . $hk);
+    }
+
+    return implode(', ', $parts);
 }
 
 /**
@@ -400,7 +423,6 @@ function jadwal_peta_rows_gabung(array $jadwalList): array
     foreach ($sorted as $row) {
         $key = implode('|', [
             trim((string) ($row['nama_kegiatan'] ?? '')),
-            (int) ($row['hari_ke'] ?? 0),
             jadwal_norm_jam((string) ($row['jam_mulai'] ?? '')),
             jadwal_norm_jam((string) ($row['jam_selesai'] ?? '')),
             (int) ($row['pembimbing_id'] ?? 0),
@@ -411,6 +433,8 @@ function jadwal_peta_rows_gabung(array $jadwalList): array
             $out[$key]['_merge_ids'] = [(int) ($row['id'] ?? 0)];
             $tk = trim((string) ($row['tingkatan'] ?? ''));
             $out[$key]['_tingkatan_list'] = $tk !== '' ? [$tk] : [];
+            $hk = (int) ($row['hari_ke'] ?? 0);
+            $out[$key]['_hari_list'] = $hk > 0 ? [$hk] : [];
             $out[$key]['tingkatan'] = $tk;
         } else {
             $id = (int) ($row['id'] ?? 0);
@@ -420,6 +444,10 @@ function jadwal_peta_rows_gabung(array $jadwalList): array
             $tk = trim((string) ($row['tingkatan'] ?? ''));
             if ($tk !== '' && !in_array($tk, $out[$key]['_tingkatan_list'], true)) {
                 $out[$key]['_tingkatan_list'][] = $tk;
+            }
+            $hk = (int) ($row['hari_ke'] ?? 0);
+            if ($hk > 0 && !in_array($hk, $out[$key]['_hari_list'], true)) {
+                $out[$key]['_hari_list'][] = $hk;
             }
             $out[$key]['tingkatan'] = implode(', ', $out[$key]['_tingkatan_list']);
         }

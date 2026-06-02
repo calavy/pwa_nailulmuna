@@ -6,12 +6,14 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/login_pembimbing.php';
 require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
 require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
+require_once __DIR__ . '/../helpers/wa_pembimbing_scan.php';
 
 require_roles(['admin', 'pengurus']);
 
 payroll_pembimbing_ensure_schema($pdo);
 login_pembimbing_ensure_password_plain_column($pdo);
 pembimbing_kelas_ensure_schema($pdo);
+pembimbing_ensure_wa_scan_reminder_column($pdo);
 
 $id = (int) ($_GET['id'] ?? 0);
 $statement = $pdo->prepare('SELECT * FROM pembimbing WHERE id = :id');
@@ -69,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'is_aktif' => isset($_POST['is_aktif']) && $_POST['is_aktif'] === '1' ? 1 : 0,
             'gaji_pokok' => $gajiPokokNum,
             'tarif_kriteria' => payroll_pembimbing_normalize_kriteria((string) ($_POST['tarif_kriteria'] ?? '')),
+            'wa_scan_reminder' => isset($_POST['wa_scan_reminder']) && $_POST['wa_scan_reminder'] === '1' ? 1 : 0,
         ];
         if ($data['nip'] === '' || $data['nama'] === '') {
             set_flash('error', 'NIP & nama pembimbing wajib diisi.');
@@ -77,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, tarif_kriteria = :tarif_kriteria WHERE id = :id');
+            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, tarif_kriteria = :tarif_kriteria, wa_scan_reminder = :wa_scan_reminder WHERE id = :id');
             $update->execute($data);
 
             $renameNote = '';
@@ -330,6 +333,14 @@ $pembimbingKriteria = payroll_pembimbing_normalize_kriteria((string) ($pembimbin
                     <div class="col-md-6">
                         <label class="form-label">No WA</label>
                         <input type="text" name="no_wa" class="form-control" value="<?= htmlspecialchars($pembimbing['no_wa'] ?? '') ?>" placeholder="08xxxxxxxxxx">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Pengingat WA scan kehadiran</label>
+                        <select name="wa_scan_reminder" class="form-select">
+                            <option value="1" <?= (int) ($pembimbing['wa_scan_reminder'] ?? 1) === 1 ? 'selected' : '' ?>>Aktif — kirim WA jika belum scan</option>
+                            <option value="0" <?= (int) ($pembimbing['wa_scan_reminder'] ?? 1) === 0 ? 'selected' : '' ?>>Nonaktif</option>
+                        </select>
+                        <div class="form-text">Pesan otomatis ~10 menit sebelum kegiatan selesai (butuh No WA terisi).</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Status pembimbing</label>

@@ -8,6 +8,7 @@ require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
 require_once __DIR__ . '/keuangan_tarif_bulanan.php';
 require_once __DIR__ . '/santri_ta.php';
 require_once __DIR__ . '/santri_list_sort.php';
+require_once __DIR__ . '/santri_wa.php';
 
 /**
  * Tarif pos bulanan per tier — sekali per request.
@@ -346,12 +347,10 @@ function tagihan_wajib_status_for_month_bulk(
         }
 
         $pkppsTambahan = 0;
-        $kelasSyTambahan = 0;
         $expectedSetelahPotongan = $expected;
         if ($slug === 'syahriyah') {
             $pkppsTambahan = (int) ($syPot['pkpps_tambahan'] ?? 0);
-            $kelasSyTambahan = (int) ($syPot['kelas_syahriyah_tambahan'] ?? 0);
-            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan - $kelasSyTambahan);
+            $expectedSetelahPotongan = max(0, $expected - $pkppsTambahan);
         }
 
         $perPos[$slug] = [
@@ -359,7 +358,7 @@ function tagihan_wajib_status_for_month_bulk(
             'expected_dasar' => $expectedDasar,
             'expected_setelah_potongan' => $expectedSetelahPotongan,
             'pkpps_tambahan' => $pkppsTambahan,
-            'kelas_syahriyah_tambahan' => $kelasSyTambahan,
+            'kelas_syahriyah_tambahan' => 0,
             'tier_key' => $slug === 'syahriyah' ? $tier : '',
             'persen_potongan' => $persenPotongan,
             'keterangan_potongan' => $keteranganPotongan,
@@ -721,8 +720,19 @@ function tagihan_santri_aktif_rows_cached(PDO $pdo, bool $withWa = false): array
         return $cache[$key];
     }
     $cols = ['id', 'nis', 'nama_santri', 'tingkatan', 'kategori_kelas'];
-    if ($withWa && column_exists($pdo, 'santri', 'no_wa_wali')) {
-        $cols[] = 'no_wa_wali';
+    if ($withWa) {
+        if (column_exists($pdo, 'santri', 'no_wa_wali')) {
+            $cols[] = 'no_wa_wali';
+        }
+        if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+            $cols[] = 'wali_santri_id';
+        }
+        if (column_exists($pdo, 'santri', 'no_kontak_ayah')) {
+            $cols[] = 'no_kontak_ayah';
+        }
+        if (column_exists($pdo, 'santri', 'no_kontak_ibu')) {
+            $cols[] = 'no_kontak_ibu';
+        }
     }
     $sql = 'SELECT ' . implode(', ', $cols) . ' FROM santri';
     if (column_exists($pdo, 'santri', 'is_aktif')) {
@@ -817,7 +827,7 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
             'id' => (int) $s['id'],
             'nis' => (string) ($s['nis'] ?? ''),
             'nama' => (string) ($s['nama_santri'] ?? ''),
-            'no_wa_wali' => trim((string) ($s['no_wa_wali'] ?? '')),
+            'no_wa_wali' => santri_resolve_no_wa_wali($pdo, $s),
             'tingkatan' => trim((string) ($s['tingkatan'] ?? '')),
             'kategori' => trim((string) ($s['kategori_kelas'] ?? '')),
             'tier' => $tierByKelas[$kelasKategori],
@@ -833,6 +843,7 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
             'sy_dijeda' => !empty($perPos['syahriyah']['potongan_dijeda']),
             'sy_paid' => (int) (($perPos['syahriyah']['paid'] ?? 0)),
             'sy_sisa' => (int) (($perPos['syahriyah']['sisa'] ?? 0)),
+            'sy_pkpps' => (int) (($perPos['syahriyah']['pkpps_tambahan'] ?? 0)),
             'mk_expected' => (int) (($opsPos['makan']['expected'] ?? 0)),
             'mk_paid' => (int) (($opsPos['makan']['paid'] ?? 0)),
             'mk_sisa' => (int) (($opsPos['makan']['sisa'] ?? 0)),
