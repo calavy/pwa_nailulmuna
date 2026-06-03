@@ -45,6 +45,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     munawib_portal_set_konteks($picked);
     $pbNama = trim((string) ($picked['pembimbing_nama'] ?? ''));
+    if (!empty($_SESSION['setoran_portal_after_munawib'])) {
+        unset($_SESSION['setoran_portal_after_munawib']);
+        set_flash('success', 'Portal setoran dibuka — pengganti ' . ($pbNama !== '' ? $pbNama : 'pembimbing') . '.');
+        app_redirect('pembimbing/setoran_dashboard.php');
+    }
     set_flash('success', 'Portal pembimbing dibuka — pengganti ' . ($pbNama !== '' ? $pbNama : 'pembimbing') . '.');
     app_redirect('pembimbing/dashboard.php');
 }
@@ -71,7 +76,7 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="text-muted small mb-1"><i class="fa-solid fa-user-clock me-1"></i>Portal Munawib</p>
             <h1 class="h4 mb-1"><?= htmlspecialchars($munawibNama) ?></h1>
             <p class="text-muted small mb-0">
-                Pilih kegiatan yang <strong>sedang berlangsung</strong>, lalu ketuk nama pembimbing untuk membuka portal terbatas (Penilaian &amp; Keaktivan).
+                Pilih kegiatan yang <strong>sedang berlangsung</strong>, lalu ketuk nama pembimbing untuk membuka portal terbatas (Penilaian, Setoran &amp; Keaktivan).
             </p>
         </div>
 
@@ -82,7 +87,12 @@ require_once __DIR__ . '/../includes/header.php';
                 Aktif: <strong><?= htmlspecialchars((string) ($konteks['pembimbing_nama'] ?: 'Pembimbing')) ?></strong>
                 · <?= htmlspecialchars((string) ($konteks['kegiatan_nama'] ?: 'Kegiatan')) ?>
             </span>
-            <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php')) ?>" class="btn btn-sm btn-success">Buka portal</a>
+            <span class="d-flex flex-wrap gap-1">
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/setoran_dashboard.php')) ?>" class="btn btn-sm btn-warning text-dark">
+                    <i class="fa-solid fa-book-quran me-1"></i> Portal setoran
+                </a>
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php')) ?>" class="btn btn-sm btn-success">Portal pembimbing</a>
+            </span>
         </div>
         <?php endif; ?>
 
@@ -131,7 +141,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </span>
                                 <span>
                                     <span class="fw-semibold d-block"><?= htmlspecialchars((string) ($pb['pembimbing_nama'] ?? 'Pembimbing')) ?></span>
-                                    <span class="small text-muted">Buka portal · penilaian &amp; keaktivan</span>
+                                    <span class="small text-muted">Buka portal pembimbing atau setoran</span>
                                 </span>
                                 <i class="fa-solid fa-chevron-right ms-auto text-muted small"></i>
                             </button>

@@ -217,9 +217,6 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
             ];
         }
         $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
-        if ($st === 'ISTIRAHAT') {
-            $st = 'ALPA';
-        }
         if (!in_array($st, ['HADIR', 'IZIN', 'SAKIT', 'ALPA'], true)) {
             $byKeg[$kid]['total']++;
             continue;

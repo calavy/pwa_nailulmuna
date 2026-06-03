@@ -13,8 +13,20 @@ require_once __DIR__ . '/includes/auth_portal_layout.php';
 if (isset($_SESSION['user']) && $pdo instanceof PDO) {
     $peranGate = strtolower(trim((string) ($_GET['peran'] ?? $_POST['peran'] ?? '')));
     $pbActGate = strtolower(trim((string) ($_GET['act'] ?? '')));
+    $pbDestGate = login_pembimbing_sanitize_dest($_GET['dest'] ?? $_POST['login_dest'] ?? '');
     $allowPbQrWhileLoggedIn = ($peranGate === 'pembimbing' && $pbActGate === 'qr');
-    if (!$allowPbQrWhileLoggedIn) {
+    if ($pbDestGate === 'setoran') {
+        require_once __DIR__ . '/helpers/akademik_setoran.php';
+        $portalGate = akademik_setoran_portal_access_status($pdo);
+        if ($portalGate['ok']) {
+            app_redirect('pembimbing/setoran_dashboard.php');
+        }
+        if (!$allowPbQrWhileLoggedIn) {
+            set_flash('error', akademik_setoran_portal_denial_message($portalGate));
+            header('Location: ' . app_url('login.php?peran=pembimbing&act=qr&dest=setoran'));
+            exit;
+        }
+    } elseif (!$allowPbQrWhileLoggedIn) {
         app_post_login_redirect($pdo);
     }
 }
@@ -35,6 +47,7 @@ if ($peran === 'petugas' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pembimbing'], true)) {
     $loginMethod = strtolower(trim((string) ($_POST['login_method'] ?? 'password')));
+    $loginDest = login_pembimbing_sanitize_dest($_POST['login_dest'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $qrCode = trim((string) ($_POST['qr_code'] ?? ''));
@@ -67,6 +80,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
                 $stmtPb->execute(['code' => $qrCode]);
                 $pbRow = $stmtPb->fetch();
                 if ($pbRow) {
+                    $pbIdQr = (int) ($pbRow['pembimbing_id'] ?? 0);
+                    if ($loginDest === 'setoran' && $pbIdQr > 0) {
+                        require_once __DIR__ . '/helpers/akademik_setoran.php';
+                        if (!akademik_setoran_penerima_is_aktif($pdo, 'pembimbing', $pbIdQr)) {
+                            set_flash('error', 'Kartu pembimbing dikenali, tetapi belum ditugaskan sebagai penerima setoran aktif. Pengurus: Kajian → Penerima setoran.');
+                            header('Location: ' . app_url('login.php?peran=pembimbing&act=qr&dest=setoran'));
+                            exit;
+                        }
+                    }
                     $stmtUser = $pdo->prepare('
                         SELECT id, nama, username, role, is_super_admin, foto_profil
                         FROM users
@@ -88,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             }
             if (!$isValidLogin) {
                 munawib_ensure_schema($pdo);
-                $mwLogin = munawib_buat_sesi_portal($pdo, $qrCode);
+                $mwLogin = munawib_buat_sesi_portal($pdo, $qrCode, $loginDest === 'setoran');
                 if ($mwLogin['ok'] && isset($mwLogin['session']['user']) && is_array($mwLogin['session']['user'])) {
                     session_regenerate_id(true);
                     $_SESSION['user'] = $mwLogin['session']['user'];
@@ -102,14 +124,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
                         $_SESSION['munawib_kegiatan_nama'],
                         $_SESSION['munawib_portal_tingkatan'],
                         $_SESSION['munawib_portal_jam_mulai'],
-                        $_SESSION['munawib_portal_jam_selesai']
+                        $_SESSION['munawib_portal_jam_selesai'],
+                        $_SESSION['setoran_pembimbing_id']
                     );
-                    set_flash('success', 'Kartu munawib dikenali. Pilih pembimbing & kegiatan yang sedang berlangsung.');
+                    set_flash('success', 'Kartu munawib dikenali.');
+                    if ($loginDest === 'setoran') {
+                        app_redirect('pembimbing/setoran_dashboard.php');
+                    }
                     app_redirect('pembimbing/munawib_portal.php');
                 }
-                if (!$isValidLogin && ($mwLogin['message'] ?? '') !== '' && str_contains((string) $mwLogin['message'], 'penugasan')) {
+                if (!$isValidLogin && ($mwLogin['message'] ?? '') !== '') {
                     set_flash('error', (string) $mwLogin['message']);
-                    header('Location: ' . app_url('login.php?peran=pembimbing&act=qr'));
+                    $mwFailUrl = app_url('login.php?peran=pembimbing&act=qr');
+                    if ($loginDest === 'setoran') {
+                        $mwFailUrl .= '&dest=setoran';
+                    }
+                    header('Location: ' . $mwFailUrl);
                     exit;
                 }
             }
@@ -149,15 +179,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             $chk->execute(['u' => $username]);
             $isRegisteredPembimbing = (bool) $chk->fetchColumn();
         }
-        unset($_SESSION['munawib_id'], $_SESSION['munawib_tingkatan'], $_SESSION['munawib_pembimbing_id']);
+        unset($_SESSION['munawib_id'], $_SESSION['munawib_tingkatan'], $_SESSION['munawib_pembimbing_id'], $_SESSION['setoran_pembimbing_id']);
 
-        if ($isRegisteredPembimbing) {
+        $pembimbingIdLogin = 0;
+        if ($isRegisteredPembimbing && table_exists($pdo, 'pembimbing')) {
             $sessionRole = 'pembimbing';
             if ($userId > 0) {
                 try {
                     $pdo->prepare('UPDATE users SET role = :r WHERE id = :id AND COALESCE(is_super_admin, 0) = 0')
                         ->execute(['r' => 'pembimbing', 'id' => $userId]);
                 } catch (PDOException $e) { /* abaikan */ }
+            }
+            require_once __DIR__ . '/helpers/pembimbing_dashboard.php';
+            $pbLogin = pembimbing_dashboard_current_pembimbing($pdo, $userId);
+            if (is_array($pbLogin) && empty($pbLogin['munawib_mode'])) {
+                $pembimbingIdLogin = (int) ($pbLogin['id'] ?? 0);
+            }
+            if ($loginDest === 'setoran' && $pembimbingIdLogin > 0) {
+                require_once __DIR__ . '/helpers/akademik_setoran.php';
+                if (!akademik_setoran_penerima_is_aktif($pdo, 'pembimbing', $pembimbingIdLogin)) {
+                    set_flash('error', 'Akun pembimbing belum ditugaskan sebagai penerima setoran aktif. Pengurus: Kajian → Penerima setoran.');
+                    header('Location: ' . app_url('login.php?peran=pembimbing&act=portal&dest=setoran'));
+                    exit;
+                }
             }
         }
 
@@ -172,9 +216,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         if ($isRegisteredPembimbing && $userId > 0) {
             login_pembimbing_ensure_acl($pdo, $userId);
         }
+        if ($pembimbingIdLogin > 0) {
+            require_once __DIR__ . '/helpers/akademik_setoran.php';
+            akademik_setoran_session_set_pembimbing_id($pembimbingIdLogin);
+        }
+        if ($loginMethod === 'qr' && isset($pbRow) && is_array($pbRow)) {
+            $pbIdFromQr = (int) ($pbRow['pembimbing_id'] ?? 0);
+            if ($pbIdFromQr > 0) {
+                require_once __DIR__ . '/helpers/akademik_setoran.php';
+                akademik_setoran_session_set_pembimbing_id($pbIdFromQr);
+            }
+        }
         set_flash('success', $loginMethod === 'qr' ? 'Scan kartu berhasil.' : 'Login berhasil.');
         if ($isRegisteredPembimbing) {
-            app_redirect('pembimbing/dashboard.php');
+            app_redirect(login_pembimbing_post_login_path($loginDest));
         }
         app_post_login_redirect($pdo);
     }
@@ -184,11 +239,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         : 'Username atau password salah.');
     $failAct = ($peran === 'pembimbing' && $loginMethod === 'qr') ? 'qr' : ($peran === 'pembimbing' ? 'portal' : '');
     $failUrl = app_url('login.php?peran=' . urlencode($peran) . ($failAct !== '' ? '&act=' . urlencode($failAct) : ''));
+    if ($peran === 'pembimbing' && $loginDest === 'setoran') {
+        $failUrl .= '&dest=setoran';
+    }
     header('Location: ' . $failUrl);
     exit;
 }
 
 $pbAct = strtolower(trim((string) ($_GET['act'] ?? '')));
+$pbDest = login_pembimbing_sanitize_dest($_GET['dest'] ?? '');
+$pbDestQs = $pbDest !== '' ? '&dest=' . rawurlencode($pbDest) : '';
 $brandNama = auth_portal_brand_nama($pdo);
 $jenisPendidikan = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
 $peranLabel = match ($peran) {
@@ -197,6 +257,9 @@ $peranLabel = match ($peran) {
     default => '',
 };
 $pbCardTitle = match (true) {
+    $peran === 'pembimbing' && $pbAct === 'qr' && $pbDest === 'setoran' => 'Masuk untuk input setoran · scan',
+    $peran === 'pembimbing' && $pbAct === 'portal' && $pbDest === 'setoran' => 'Masuk untuk input setoran',
+    $peran === 'pembimbing' && $pbAct === 'setoran' => 'Input setoran hafalan',
     $peran === 'pembimbing' && $pbAct === 'qr' => 'Masuk portal · cukup scan',
     $peran === 'pembimbing' && $pbAct === 'portal' => 'NIP & password',
     $peran === 'pembimbing' => 'Masuk sebagai pembimbing',
@@ -267,7 +330,6 @@ $ok = get_flash('success');
 
                     <?php elseif ($peran === 'pembimbing'): ?>
                         <?php if ($pbAct === ''): ?>
-                            <p class="small text-muted mb-3">Scan presensi · masuk NIP &amp; password · atau masuk portal cukup scan.</p>
                             <div class="login-pb-options">
                                 <a href="<?= htmlspecialchars(app_href('/presensi/scan.php?portal=1')) ?>" class="login-pb-option login-pb-option--presensi">
                                     <span class="login-pb-option__icon" aria-hidden="true"><i class="fa-solid fa-camera"></i></span>
@@ -293,7 +355,21 @@ $ok = get_flash('success');
                                     </span>
                                     <span class="login-pb-option__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
                                 </a>
+                                <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=qr&dest=setoran')) ?>" class="login-pb-option login-pb-option--setoran">
+                                    <span class="login-pb-option__icon" aria-hidden="true"><i class="fa-solid fa-book-quran"></i></span>
+                                    <span class="login-pb-option__text">
+                                        <strong class="login-pb-option__title">Input setoran hafalan</strong>
+                                        <span class="login-pb-option__desc">Scan kartu penerima setoran · masuk portal setoran</span>
+                                    </span>
+                                    <span class="login-pb-option__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+                                </a>
                             </div>
+
+                        <?php elseif ($pbAct === 'setoran'): ?>
+                            <?php
+                            header('Location: ' . app_href('/login.php?peran=pembimbing&act=qr&dest=setoran'));
+                            exit;
+                            ?>
 
                         <?php elseif ($pbAct === 'portal'): ?>
                             <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="auth-portal-back">
@@ -302,6 +378,9 @@ $ok = get_flash('success');
                             <form method="post" class="auth-portal-form mt-2" autocomplete="on">
                                 <input type="hidden" name="peran" value="pembimbing">
                                 <input type="hidden" name="login_method" value="password">
+                                <?php if ($pbDest === 'setoran'): ?>
+                                <input type="hidden" name="login_dest" value="setoran">
+                                <?php endif; ?>
                                 <div class="mb-3">
                                     <label class="form-label" for="login-username">NIP / username</label>
                                     <div class="input-group">
@@ -317,7 +396,7 @@ $ok = get_flash('success');
                                     </div>
                                 </div>
                                 <button type="submit" class="btn btn-auth-primary w-100">
-                                    <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> Masuk ke portal
+                                    <i class="fa-solid fa-right-to-bracket me-1" aria-hidden="true"></i> <?= $pbDest === 'setoran' ? 'Masuk &amp; input setoran' : 'Masuk ke portal' ?>
                                 </button>
                             </form>
                             <?php if ($err): ?>
@@ -332,7 +411,7 @@ $ok = get_flash('success');
                                     <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing')) ?>" class="text-decoration-none"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
                                     <span class="login-pb-qr__title">
                                         <i class="fa-solid fa-qrcode me-1" aria-hidden="true"></i>
-                                        Masuk portal
+                                        <?= $pbDest === 'setoran' ? 'Masuk untuk setoran' : 'Masuk portal' ?>
                                     </span>
                                     <span id="login-pb-status" class="presensi-scan-status is-waiting">Menyiapkan…</span>
                                 </div>
@@ -355,16 +434,19 @@ $ok = get_flash('success');
                                     <button type="button" class="btn-scan-ctl" id="login-pb-flip" title="Ganti kamera"><i class="fa-solid fa-camera-rotate"></i></button>
                                     <button type="button" class="btn-scan-ctl" id="login-pb-restart" title="Ulangi scan"><i class="fa-solid fa-rotate-right"></i></button>
                                 </div>
-                                <p class="login-pb-qr__hint small text-muted text-center mb-0" id="login-pb-hint">Arahkan QR kartu ke kotak hijau.</p>
+                                <p class="login-pb-qr__hint small text-muted text-center mb-0" id="login-pb-hint"><?= $pbDest === 'setoran' ? 'Scan kartu pembimbing/munawib — masuk dashboard portal setoran.' : 'Arahkan QR kartu ke kotak hijau.' ?></p>
                                 <form method="post" id="login-pb-qr-form" class="visually-hidden" autocomplete="off">
                                     <input type="hidden" name="peran" value="pembimbing">
                                     <input type="hidden" name="login_method" value="qr">
+                                    <?php if ($pbDest === 'setoran'): ?>
+                                    <input type="hidden" name="login_dest" value="setoran">
+                                    <?php endif; ?>
                                     <input type="text" name="qr_code" id="login-pb-qr-code" readonly>
                                 </form>
                             </div>
                             <p class="login-pb-alt small text-muted text-center mt-3 mb-0">
                                 <a href="<?= htmlspecialchars(app_href('/presensi/scan.php?portal=1')) ?>">Scan presensi saja</a>
-                                · <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=portal')) ?>">masuk dengan NIP &amp; password</a>
+                                · <a href="<?= htmlspecialchars(app_href('/login.php?peran=pembimbing&act=portal' . $pbDestQs)) ?>">masuk dengan NIP &amp; password</a>
                             </p>
                             <?php if ($err): ?>
                             <div id="presensi-scan-result" class="visually-hidden" data-type="danger" data-speak="<?= htmlspecialchars($err) ?>" aria-hidden="true">
@@ -409,6 +491,11 @@ $ok = get_flash('success');
                     .login-pb-option--presensi .login-pb-option__desc { opacity: 0.92; }
                     .login-pb-option--presensi .login-pb-option__icon { background: rgba(255, 255, 255, 0.22); }
                     .login-pb-option--portal { border-left-color: #0f766e; }
+                    .login-pb-option--setoran {
+                        border-left-color: #b45309;
+                        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+                    }
+                    .login-pb-option--setoran .login-pb-option__icon { background: linear-gradient(135deg, #b45309, #d97706); }
                     .login-pb-option__icon { flex: 0 0 auto; width: 2.75rem; height: 2.75rem; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #fff; }
                     .login-pb-option--scan .login-pb-option__icon { background: linear-gradient(135deg, #4338ca, #6366f1); }
                     .login-pb-option--portal .login-pb-option__icon { background: linear-gradient(135deg, #0f766e, #0891b2); }
@@ -516,6 +603,11 @@ $ok = get_flash('success');
                     .login-pb-option--presensi .login-pb-option__desc { opacity: 0.92; }
                     .login-pb-option--presensi .login-pb-option__icon { background: rgba(255, 255, 255, 0.22); }
                     .login-pb-option--portal { border-left-color: #0f766e; }
+                    .login-pb-option--setoran {
+                        border-left-color: #b45309;
+                        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+                    }
+                    .login-pb-option--setoran .login-pb-option__icon { background: linear-gradient(135deg, #b45309, #d97706); }
                     .login-pb-option__icon { flex: 0 0 auto; width: 2.75rem; height: 2.75rem; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #fff; }
                     .login-pb-option--scan .login-pb-option__icon { background: linear-gradient(135deg, #4338ca, #6366f1); }
                     .login-pb-option--portal .login-pb-option__icon { background: linear-gradient(135deg, #0f766e, #0891b2); }

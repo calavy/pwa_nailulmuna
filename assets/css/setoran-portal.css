@@ -1,0 +1,388 @@
+.st-portal-page {
+    padding-bottom: 5.5rem;
+    background: #f8fafc;
+}
+
+.st-portal-page .main-content,
+.st-portal-page main {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.st-portal-hero {
+    background: linear-gradient(145deg, #0f766e 0%, #0d9488 45%, #14b8a6 100%);
+    border-radius: 16px;
+    color: #fff;
+    padding: 1rem 1rem 0.85rem;
+    margin-bottom: 0.85rem;
+    box-shadow: 0 10px 28px rgba(15, 118, 110, 0.28);
+}
+
+.st-portal-hero__head {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.st-portal-hero__logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.st-portal-hero__kicker {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.88;
+}
+
+.st-portal-hero__name-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+}
+
+.st-portal-hero__name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.st-portal-hero__clock-time {
+    font-size: 0.95rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.st-portal-hero__meta,
+.st-portal-hero__scope {
+    font-size: 0.72rem;
+    opacity: 0.9;
+    margin-top: 0.25rem;
+}
+
+.st-portal-kpi {
+    margin-top: 0.75rem;
+    margin-left: -0.15rem;
+    margin-right: -0.15rem;
+}
+
+.st-portal-kpi__box {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    padding: 0.35rem 0.2rem;
+}
+
+.st-portal-kpi__val {
+    font-size: 1.1rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.st-portal-kpi__lbl {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.92;
+}
+
+.st-portal-dash-top .st-portal-kpi {
+    margin-top: 0.65rem;
+}
+
+.st-portal-hero-banner {
+    margin-bottom: 0;
+}
+
+.pb-dash-menu-cards--setoran-only {
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 0.85rem;
+    margin-bottom: 0.85rem;
+}
+
+.pb-dash-menu-cards--setoran-only .pb-dash-menu-card.is-active {
+    border-color: #0f766e;
+    background: #f0fdfa;
+    box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.2);
+}
+
+.pb-dash-menu-card--scan .pb-dash-menu-card__icon {
+    background: rgba(79, 70, 229, 0.14);
+    color: #4f46e5;
+}
+
+.st-portal-back-home {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f766e;
+    text-decoration: none;
+}
+
+.st-portal-back-home:hover {
+    color: #0d9488;
+}
+
+.st-portal-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.st-portal-nav__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.65rem 0.35rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    text-decoration: none;
+    color: #475569;
+    font-size: 0.68rem;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.st-portal-nav__item i {
+    font-size: 1.1rem;
+}
+
+.st-portal-nav__item.is-active {
+    border-color: #0f766e;
+    background: #f0fdfa;
+    color: #0f766e;
+}
+
+.st-portal-scan-app {
+    margin-bottom: 0.85rem;
+}
+
+.st-portal-scan-app .presensi-scan-viewport,
+.st-portal-scan-app .setoran-scan-viewport {
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: 260px;
+    background: #111;
+}
+
+.st-portal-scan-app #setoran-qr-reader {
+    min-height: 260px !important;
+}
+
+.st-portal-santri__tk-head {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #f1f5f9;
+    border-top: 1px solid #e2e8f0;
+}
+
+.st-portal-santri__tk:first-child .st-portal-santri__tk-head {
+    border-top: none;
+}
+
+.st-portal-santri__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.st-portal-santri__link {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0 0.5rem;
+    padding: 0.55rem 0.85rem;
+    text-decoration: none;
+    color: inherit;
+    border-top: 1px solid #f1f5f9;
+}
+
+.st-portal-santri__link:hover {
+    background: #f8fafc;
+}
+
+.st-portal-santri__nama {
+    font-size: 0.82rem;
+    font-weight: 700;
+    grid-column: 1;
+}
+
+.st-portal-santri__nis {
+    font-size: 0.68rem;
+    grid-column: 1;
+}
+
+.st-portal-santri__badge {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 0.62rem;
+}
+
+.st-portal-back-dash {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    margin-bottom: 0.65rem;
+    color: #64748b;
+    text-decoration: none;
+}
+
+.st-portal-back-dash:hover {
+    color: #0f766e;
+}
+
+.st-portal-form-card .form-control-lg {
+    font-size: 1.35rem;
+}
+
+@media (min-width: 768px) {
+    .st-portal-scan-app #setoran-qr-reader {
+        min-height: 320px !important;
+    }
+}
+
+.st-kajian-dash-page .main-content,
+.st-kajian-dash-page main {
+    max-width: 720px;
+}
+
+.st-kajian-menu {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+
+.st-kajian-menu__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 4.25rem;
+    padding: 0.55rem 0.4rem;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    text-decoration: none;
+    color: #334155;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.25;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.st-kajian-menu__item i {
+    font-size: 1.15rem;
+}
+
+.st-kajian-menu__item:hover {
+    border-color: #0f766e;
+    background: #f0fdfa;
+    color: #0f766e;
+}
+
+@media (max-width: 480px) {
+    .st-kajian-menu {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Portal setoran di ponsel — menu utama langsung terlihat */
+@media (max-width: 767.98px) {
+    body.st-portal-is-home.st-portal-page {
+        padding-bottom: 1rem;
+    }
+
+    body.st-portal-is-home .container.py-3 {
+        padding-top: 0.65rem !important;
+        padding-bottom: 0.65rem !important;
+    }
+
+    body.st-portal-is-home .alert.alert-light.border.small {
+        display: none;
+    }
+
+    body.st-portal-is-home .alert.alert-warning.small {
+        margin-bottom: 0.5rem !important;
+        padding: 0.4rem 0.55rem;
+        font-size: 0.75rem;
+    }
+
+    body.st-portal-is-home .st-portal-hero,
+    body.st-portal-is-home .pb-dash-home-top.st-portal-dash-top .pb-dash-hero-banner {
+        padding: 0.65rem 0.75rem 0.6rem;
+        margin-bottom: 0.45rem;
+    }
+
+    body.st-portal-is-home .st-portal-hero__name,
+    body.st-portal-is-home .pb-dash-hero-banner__name {
+        font-size: 0.95rem;
+    }
+
+    body.st-portal-is-home .st-portal-hero__meta,
+    body.st-portal-is-home .st-portal-hero__scope {
+        font-size: 0.65rem;
+        margin-top: 0.15rem;
+    }
+
+    body.st-portal-is-home .st-portal-kpi {
+        margin-top: 0.45rem;
+    }
+
+    body.st-portal-is-home .st-portal-kpi__val {
+        font-size: 0.95rem;
+    }
+
+    body.st-portal-is-home .st-portal-kpi__lbl {
+        font-size: 0.52rem;
+    }
+
+    body.st-portal-is-home .pb-dash-menu-cards--setoran-only {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.38rem;
+        margin-top: 0.45rem;
+        margin-bottom: 0.5rem;
+    }
+
+    body.st-portal-is-home .pb-dash-menu-cards--setoran-only .pb-dash-menu-card {
+        min-height: 3.25rem;
+        padding: 0.38rem 0.28rem;
+    }
+
+    body.st-portal-is-home .pb-dash-menu-cards--setoran-only .pb-dash-menu-card__icon {
+        width: 1.85rem;
+        height: 1.85rem;
+        font-size: 0.9rem;
+    }
+
+    body.st-portal-is-home .pb-dash-menu-cards--setoran-only .pb-dash-menu-card__label {
+        font-size: 0.6rem;
+    }
+
+    body.st-portal-is-home .st-portal-santri {
+        max-height: 42vh;
+        overflow-y: auto;
+    }
+}

@@ -20,6 +20,7 @@ declare(strict_types=1);
         <p class="mb-0"><strong>Cache laporan bulanan:</strong> setelah mengubah pembayaran atau pengaturan,
             buka <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php?refresh=1')) ?>">Laporan syahriyah</a>
             dengan <code>?refresh=1</code> agar agregat bulanan mutakhir.
-            Pembagian PKPPS/dasar tidak disimpan di database — mengubah nominal PKPPS dapat mengubah tampilan alokasi pembayaran lama.</p>
+            Pembagian PKPPS/dasar tidak disimpan di database — mengubah nominal PKPPS dapat mengubah tampilan alokasi pembayaran lama.
+            <a href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>">Panduan alur keuangan lengkap</a>.</p>
     </div>
 </div>

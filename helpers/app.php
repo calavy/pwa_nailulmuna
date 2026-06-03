@@ -3168,6 +3168,22 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     }
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
     if ($userId <= 0) {
+        if (function_exists('munawib_is_portal_session') && munawib_is_portal_session()) {
+            require_once __DIR__ . '/munawib_portal.php';
+            if (!function_exists('login_pembimbing_default_acl_keys')) {
+                require_once __DIR__ . '/login_pembimbing.php';
+            }
+            $keys = array_intersect(
+                login_pembimbing_default_acl_keys(),
+                ['akademik_setoran', 'pembimbing_dashboard']
+            );
+            if ($keys === []) {
+                $keys = ['akademik_setoran'];
+            }
+
+            return app_acl_normalize_allowed_map(array_flip($keys));
+        }
+
         return [];
     }
 
@@ -3460,6 +3476,26 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         return;
     }
 
+    if (
+        str_contains($requestPath, '/pembimbing/setoran')
+        || str_contains($requestPath, '/api/setoran/')
+        || str_contains($requestPath, '/akademik/setoran_rekap')
+    ) {
+        require_once __DIR__ . '/../includes/auth.php';
+        require_once __DIR__ . '/munawib_portal.php';
+        if (is_super_admin()) {
+            return;
+        }
+        $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+        if (munawib_is_portal_session() || in_array($role, ['pembimbing', 'admin', 'pengurus', 'petugas_absensi'], true)) {
+            return;
+        }
+    }
+
+    if (munawib_is_portal_session() && str_contains($requestPath, '/pembimbing/setoran')) {
+        return;
+    }
+
     $matchedKey = null;
     $matchedLen = 0;
     foreach ($permissionPathMap as $path => $permissionKey) {
@@ -3552,6 +3588,7 @@ function menu_tile_icon_for_path(string $path): string
         '/settings/kelas_keuangan.php' => 'fa-solid fa-coins',
         '/settings/opsional_santri.php' => 'fa-solid fa-utensils',
         '/settings/admin.php' => 'fa-solid fa-user-shield',
+        '/settings/presensi_data.php' => 'fa-solid fa-database',
         '/settings/push.php' => 'fa-solid fa-bell',
         '/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',
         '/settings/hijri_mappings.php' => 'fa-solid fa-moon',

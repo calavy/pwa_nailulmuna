@@ -435,6 +435,65 @@ body.keuangan-form-page .pembayaran-actions {
     margin-bottom: 1rem;
 }
 
+body.keuangan-form-page .pembayaran-komponen-table tbody tr.is-checked {
+    background: rgba(15, 118, 110, 0.06);
+}
+
+body.keuangan-form-page .pembayaran-komponen-table tbody tr.is-checked .nominal-pos {
+    border-color: rgba(15, 118, 110, 0.45);
+    background: #fff;
+    font-weight: 600;
+}
+
+body.keuangan-form-page .pembayaran-komponen-table .nominal-pos {
+    min-width: 7rem;
+    font-variant-numeric: tabular-nums;
+}
+
+body.keuangan-form-page .pembayaran-total-row {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(15, 118, 110, 0.03));
+    border-top: 2px solid rgba(15, 118, 110, 0.2);
+}
+
+body.keuangan-form-page .pembayaran-grand-total {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--app-primary, #0f766e);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    text-align: right;
+}
+
+body.keuangan-form-page .pembayaran-actions-total {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+}
+
+body.keuangan-form-page .pembayaran-actions-total__label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    font-weight: 600;
+}
+
+body.keuangan-form-page .pembayaran-actions-total__amount {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--app-primary, #0f766e);
+    font-variant-numeric: tabular-nums;
+}
+
+body.keuangan-form-page .pembayaran-actions-total.has-amount .pembayaran-actions-total__amount {
+    color: #15803d;
+}
+
+body.keuangan-form-page #btn-pilih-semua-sisa:not(:disabled) {
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.12);
+}
+
 body.keuangan-form-page .pembayaran-sidebar .table > :not(caption) > * > * {
     padding: 0.55rem 0.6rem;
 }
@@ -499,6 +558,16 @@ body.keuangan-form-page .opsional-editor-status {
     body.keuangan-form-page .pembayaran-actions {
         padding: 0.55rem 0.65rem;
         padding-bottom: calc(0.55rem + env(safe-area-inset-bottom, 0px));
+    }
+    body.keuangan-form-page .pembayaran-actions-total {
+        flex: 1 1 100%;
+        order: -1;
+        padding-bottom: 0.35rem;
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: 0.15rem;
+    }
+    body.keuangan-form-page .pembayaran-grand-total {
+        font-size: 1rem;
     }
 }
 

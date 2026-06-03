@@ -308,6 +308,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--pengaturan">
             <div class="card-header fw-semibold">Pengaturan</div>
             <div class="card-body d-grid gap-2">
+                <a class="keu-modern-link" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>"><i class="fa-solid fa-book-open"></i><span>Panduan alur keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi syahriyah</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie"></i><span>Alokasi awal tahun</span></a>

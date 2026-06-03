@@ -236,6 +236,11 @@ function munawib_portal_allowed_scripts(): array
         'munawib_portal.php',
         'dashboard.php',
         'nilai_manual.php',
+        'setoran.php',
+        'setoran_dashboard.php',
+        'setoran_perolehan.php',
+        'setoran_keaktivan.php',
+        'santri_scan.php',
         'logout.php',
     ];
 }
@@ -243,6 +248,13 @@ function munawib_portal_allowed_scripts(): array
 function munawib_portal_require_konteks(): void
 {
     if (!munawib_is_portal_session()) {
+        return;
+    }
+    require_once __DIR__ . '/akademik_setoran.php';
+    if (
+        (function_exists('akademik_setoran_is_portal_script') && akademik_setoran_is_portal_script())
+        || (function_exists('akademik_setoran_is_api_script') && akademik_setoran_is_api_script())
+    ) {
         return;
     }
     if (munawib_portal_konteks() !== null) {
@@ -265,12 +277,12 @@ function munawib_portal_guard_halaman(): void
         return;
     }
 
-    munawib_portal_require_konteks();
-
     if (in_array($script, munawib_portal_allowed_scripts(), true)) {
         return;
     }
 
-    set_flash('warning', 'Portal munawib hanya dapat mengakses Penilaian dan Keaktivan santri.');
+    munawib_portal_require_konteks();
+
+    set_flash('warning', 'Portal munawib hanya dapat mengakses Penilaian, Setoran, dan Keaktivan santri.');
     app_redirect('pembimbing/dashboard.php');
 }

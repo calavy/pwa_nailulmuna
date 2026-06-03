@@ -60,14 +60,21 @@ $petaRows = jadwal_peta_rows_gabung($jadwalList);
                         <td class="small"><?= ($pem !== '' && $pem !== '-') ? htmlspecialchars($pem) : '—' ?></td>
                         <td class="small font-monospace js-time-24 text-nowrap"><?= htmlspecialchars(jadwal_jam_ringkas($row)) ?></td>
                         <td class="text-end text-nowrap">
-                            <?php $jid = (int) ($row['id'] ?? 0); ?>
-                            <?php if ($jid > 0 && ($showJadwalAksi || $jadwalPembimbingScope)): ?>
+                            <?php
+                            $mergeIds = array_values(array_filter(array_map('intval', $row['_merge_ids'] ?? [(int) ($row['id'] ?? 0)])));
+                            $editId = (int) ($mergeIds[0] ?? 0);
+                            ?>
+                            <?php if ($editId > 0 && ($showJadwalAksi || $jadwalPembimbingScope)): ?>
                                 <?php if ($showJadwalAksi): ?>
-                                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $jid)) ?>" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit jadwal"><i class="fa-solid fa-pen"></i></a>
+                                <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit jadwal"><i class="fa-solid fa-pen"></i></a>
                                 <?php endif; ?>
                                 <form method="post" class="d-inline" onsubmit="return confirm('Hapus slot jadwal ini? Presensi terkait ikut dihapus.')">
-                                    <input type="hidden" name="action" value="hapus_jadwal">
-                                    <input type="hidden" name="id" value="<?= $jid ?>">
+                                    <input type="hidden" name="action" value="hapus_jadwal_massal">
+                                    <?php foreach ($mergeIds as $mid): ?>
+                                        <?php if ($mid > 0): ?>
+                                            <input type="hidden" name="ids[]" value="<?= $mid ?>">
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
                                     <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-2" title="Hapus jadwal"><i class="fa-solid fa-trash"></i></button>
                                 </form>
                             <?php endif; ?>

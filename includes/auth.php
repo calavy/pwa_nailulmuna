@@ -49,7 +49,7 @@ function auth_pembimbing_acl_self_heal(): void
     if ($uid <= 0) {
         return;
     }
-    $marker = 'pembimbing_acl_healed_v3_' . $uid;
+    $marker = 'pembimbing_acl_healed_v4_' . $uid;
     if (!empty($_SESSION[$marker])) {
         return;
     }
@@ -81,9 +81,15 @@ function auth_redirect_access_denied(): void
     }
     if ($role === 'pembimbing') {
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-        if (!app_acl_request_paths_equal($requestPath, '/pembimbing/dashboard.php')) {
-            app_redirect('pembimbing/dashboard.php');
+        if (
+            str_contains($requestPath, '/pembimbing/setoran')
+            || str_contains($requestPath, '/api/setoran/')
+            || str_contains($requestPath, '/akademik/setoran_rekap')
+            || app_acl_request_paths_equal($requestPath, '/pembimbing/dashboard.php')
+        ) {
+            return;
         }
+        app_redirect('pembimbing/dashboard.php');
     }
 
     global $pdo;
@@ -313,6 +319,9 @@ function user_has_current_page_permission(): bool
 
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
     if ($userId <= 0) {
+        if (function_exists('munawib_is_portal_session') && munawib_is_portal_session()) {
+            return in_array($permissionKey, ['akademik_setoran', 'pembimbing_dashboard'], true);
+        }
         $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 
         return $role === 'petugas_absensi' && $permissionKey === 'presensi_scan';

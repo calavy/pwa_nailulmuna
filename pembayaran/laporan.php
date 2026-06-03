@@ -41,6 +41,9 @@ $paidByMonth = $laporan12['paid_by_month'] ?? array_fill(1, 12, 0);
 $bulanBerjalan = $berjalan['bulan'];
 
 $rowsLaporan = [];
+$laporanTotalTagihan = 0;
+$laporanTotalTerbayar = 0;
+$laporanTotalSisa = 0;
 foreach ($bulanSlots as $slot) {
     $b = (int) ($slot['bulan_tagihan'] ?? 0);
     if ($b < 1 || $b > 12) {
@@ -48,13 +51,17 @@ foreach ($bulanSlots as $slot) {
     }
     $tagihan = (int) ($expectedByMonth[$b] ?? 0);
     $terbayar = (int) ($paidByMonth[$b] ?? 0);
+    $sisa = max(0, $tagihan - $terbayar);
+    $laporanTotalTagihan += $tagihan;
+    $laporanTotalTerbayar += $terbayar;
+    $laporanTotalSisa += $sisa;
     $rowsLaporan[] = [
         'bulan' => $b,
         'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),
         'rentang_masehi' => ($slot['masehi_awal'] ?? '') !== '' ? ($slot['masehi_awal'] . ' – ' . $slot['masehi_akhir']) : '',
         'tagihan' => $tagihan,
         'terbayar' => $terbayar,
-        'sisa' => max(0, $tagihan - $terbayar),
+        'sisa' => $sisa,
         'is_bulan_ini' => $b === $bulanBerjalan,
     ];
 }
@@ -66,6 +73,9 @@ $rekapSyahriyahMasuk = 0;
 $rekapSyahriyahHarusMasuk = 0;
 $rekapSyahriyahSisa = 0;
 $rekapCapaiPersen = 0.0;
+$rekapPosTotalExpected = 0;
+$rekapPosTotalPaid = 0;
+$rekapPosTotalSisa = 0;
 if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
     $rekapSyahriyahHarusMasuk = (int) ($expectedByMonth[$rekapBulan] ?? 0);
     $rekapSyahriyahMasuk = (int) ($paidByMonth[$rekapBulan] ?? 0);
@@ -90,6 +100,11 @@ if ($tablesOk && $rekapBulan >= 1 && $rekapBulan <= 12) {
         $tahunAjaranSelesai,
         $biayaDefs
     );
+    foreach ($rekapPosRows as $rpRow) {
+        $rekapPosTotalExpected += (int) ($rpRow['expected'] ?? 0);
+        $rekapPosTotalPaid += (int) ($rpRow['paid'] ?? 0);
+        $rekapPosTotalSisa += max(0, (int) ($rpRow['expected'] ?? 0) - (int) ($rpRow['paid'] ?? 0));
+    }
     foreach ($bulanSlots as $slot) {
         if ((int) ($slot['bulan_tagihan'] ?? 0) === $rekapBulan) {
             $rekapBulanLabel = pondok_bulan_slot_label_tampilan($pdo, $slot);
@@ -368,6 +383,12 @@ $iconLaporan = bendahara_page_icon('laporan');
                                     <td class="text-end font-monospace small<?= $sisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($sisa, 0, ',', '.') ?></td>
                                 </tr>
                             <?php endforeach; ?>
+                            <tr class="table-secondary fw-semibold">
+                                <td>Total komponen POS</td>
+                                <td class="text-end font-monospace small">Rp <?= number_format($rekapPosTotalExpected, 0, ',', '.') ?></td>
+                                <td class="text-end font-monospace small text-success">Rp <?= number_format($rekapPosTotalPaid, 0, ',', '.') ?></td>
+                                <td class="text-end font-monospace small<?= $rekapPosTotalSisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($rekapPosTotalSisa, 0, ',', '.') ?></td>
+                            </tr>
                         <?php endif; ?>
                         </tbody>
                     </table>
@@ -416,6 +437,26 @@ $iconLaporan = bendahara_page_icon('laporan');
                         </td>
                     </tr>
                 <?php endforeach; ?>
+                <?php if ($rowsLaporan !== []): ?>
+                    <?php
+                    $laporanCapaiTahun = $laporanTotalTagihan > 0
+                        ? min(100, (int) round($laporanTotalTerbayar / $laporanTotalTagihan * 100))
+                        : 0;
+                    ?>
+                    <tr class="table-light fw-bold border-top border-2">
+                        <td>
+                            <span class="text-uppercase small">Jumlah total tahun ajaran</span>
+                            <div class="small text-muted fw-normal"><?= count($rowsLaporan) ?> bulan tagihan</div>
+                        </td>
+                        <td class="text-end font-monospace">Rp <?= number_format($laporanTotalTagihan, 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace text-success">Rp <?= number_format($laporanTotalTerbayar, 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace<?= $laporanTotalSisa > 0 ? ' text-danger' : '' ?>">
+                            Rp <?= number_format($laporanTotalSisa, 0, ',', '.') ?>
+                            <span class="text-muted fw-semibold">(<?= $laporanCapaiTahun ?>%)</span>
+                        </td>
+                        <td></td>
+                    </tr>
+                <?php endif; ?>
                 </tbody>
             </table>
         </div>

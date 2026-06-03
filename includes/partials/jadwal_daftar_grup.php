@@ -59,12 +59,20 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
             <?php endif; ?>
             <td class="text-nowrap small font-monospace js-time-24"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></td>
             <td class="text-end text-nowrap">
-                <?php foreach ($mergeIds as $mid): ?>
-                    <?php if ($mid <= 0) { continue; } ?>
-                    <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $mid)) ?>" class="btn btn-outline-warning btn-sm py-0 px-2">Edit<?= count($mergeIds) > 1 ? ' #' . $mid : '' ?></a>
-                    <button type="submit" form="form-hapus-jadwal-<?= $mid ?>" class="btn btn-outline-danger btn-sm py-0 px-2"
-                        onclick="return confirm('Hapus jadwal ini?');">Hapus</button>
-                <?php endforeach; ?>
+                <?php
+                $mergeIds = array_values(array_filter(array_map('intval', $item['_merge_ids'] ?? [(int) ($item['id'] ?? 0)])));
+                $editId = (int) ($mergeIds[0] ?? 0);
+                ?>
+                <?php if ($editId > 0): ?>
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>" class="btn btn-outline-warning btn-sm py-0 px-2" title="Edit jadwal">
+                        <i class="fa-solid fa-pen me-1"></i>Edit
+                    </a>
+                    <button type="submit" form="form-hapus-jadwal-<?= $editId ?>" class="btn btn-outline-danger btn-sm py-0 px-2"
+                        title="Hapus jadwal"
+                        onclick="return confirm('Hapus <?= count($mergeIds) > 1 ? count($mergeIds) . ' slot jadwal' : 'jadwal ini' ?>? Presensi terkait ikut dihapus.');">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                <?php endif; ?>
             </td>
         </tr>
         <?php
@@ -158,20 +166,31 @@ $flattenGrupItems = static function (array $grupContent) use ($useHariJam): arra
     </form>
 
     <?php
+    $hapusFormKeys = [];
     foreach ($jadwalGrouped as $grupContent) {
-        foreach ($flattenGrupItems($grupContent) as $item) {
-            $jid = (int) ($item['id'] ?? 0);
-            if ($jid <= 0) {
+        $allItems = $flattenGrupItems($grupContent);
+        $mergedRows = jadwal_gabung_baris_serupa($allItems);
+        foreach ($mergedRows as $item) {
+            $mergeIds = array_values(array_filter(array_map('intval', $item['_merge_ids'] ?? [(int) ($item['id'] ?? 0)])));
+            $editId = (int) ($mergeIds[0] ?? 0);
+            if ($editId <= 0 || isset($hapusFormKeys[$editId])) {
                 continue;
             }
-            ?>
-            <form method="post" id="form-hapus-jadwal-<?= $jid ?>" class="d-none">
-                <input type="hidden" name="action" value="hapus_jadwal">
-                <input type="hidden" name="id" value="<?= $jid ?>">
-            </form>
-            <?php
+            $hapusFormKeys[$editId] = $mergeIds;
         }
     }
+    foreach ($hapusFormKeys as $editId => $mergeIds):
+        ?>
+            <form method="post" id="form-hapus-jadwal-<?= (int) $editId ?>" class="d-none">
+                <input type="hidden" name="action" value="hapus_jadwal_massal">
+                <?php foreach ($mergeIds as $mid): ?>
+                    <?php if ($mid > 0): ?>
+                        <input type="hidden" name="ids[]" value="<?= $mid ?>">
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </form>
+        <?php
+    endforeach;
     ?>
     <script>
     (function () {

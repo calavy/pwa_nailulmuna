@@ -49,8 +49,59 @@ function login_pembimbing_default_acl_keys(): array
         'pembimbing_jadwal',
         'pembimbing_pkpps',
         'akademik_ikhtibar',
+        'akademik_setoran',
         'presensi_scan',
     ];
+}
+
+/** @return ''|'setoran' */
+function login_pembimbing_sanitize_dest(?string $dest): string
+{
+    $d = strtolower(trim((string) $dest));
+    return $d === 'setoran' ? 'setoran' : '';
+}
+
+function login_pembimbing_post_login_path(string $dest = ''): string
+{
+    if (login_pembimbing_sanitize_dest($dest) === 'setoran') {
+        return 'pembimbing/setoran_dashboard.php';
+    }
+    return 'pembimbing/dashboard.php';
+}
+
+function login_pembimbing_setoran_entry_url(): string
+{
+    return login_pembimbing_setoran_entry_meta(null)['href'];
+}
+
+/**
+ * Tautan & label tombol masuk portal penerima setoran (scan atau langsung jika sudah aktif).
+ *
+ * @return array{href:string,title:string,desc:string,icon:string}
+ */
+function login_pembimbing_setoran_entry_meta(?PDO $pdo = null): array
+{
+    require_once __DIR__ . '/app_path.php';
+
+    $meta = [
+        'href' => app_href('/login.php?peran=pembimbing&act=qr&dest=setoran'),
+        'title' => 'Input setoran hafalan',
+        'desc' => 'Scan kartu penerima setoran',
+        'icon' => 'fa-qrcode',
+    ];
+
+    if ($pdo instanceof PDO) {
+        require_once __DIR__ . '/akademik_setoran.php';
+        $portalSt = akademik_setoran_portal_access_status($pdo);
+        if (!empty($portalSt['ok'])) {
+            $meta['href'] = app_href('/pembimbing/setoran_dashboard.php');
+            $meta['title'] = 'Portal setoran hafalan';
+            $meta['desc'] = 'Scan santri · perolehan · keaktivan';
+            $meta['icon'] = 'fa-book-quran';
+        }
+    }
+
+    return $meta;
 }
 
 /**
@@ -170,5 +221,5 @@ function login_pembimbing_ensure_acl(PDO $pdo, int $userId): void
         app_menu_pack_invalidate();
     }
 
-    $_SESSION['pembimbing_acl_healed_v3_' . $userId] = 1;
+    $_SESSION['pembimbing_acl_healed_v4_' . $userId] = 1;
 }

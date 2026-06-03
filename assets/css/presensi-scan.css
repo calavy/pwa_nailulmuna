@@ -215,9 +215,14 @@
     gap: 2.25rem;
     white-space: nowrap;
     width: max-content;
+    min-width: 100%;
+    -webkit-animation: presensi-scan-marquee var(--marquee-duration, 56s) linear infinite;
     animation: presensi-scan-marquee var(--marquee-duration, 56s) linear infinite;
     will-change: transform;
+    -webkit-transform: translate3d(0, 0, 0);
     transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
 
 .presensi-scan-timer-marquee.is-paused .presensi-scan-timer-marquee__track {
@@ -226,9 +231,14 @@
 
 .presensi-scan-timer-marquee.is-static .presensi-scan-timer-marquee__track {
     animation: none;
-    justify-content: center;
-    width: 100%;
-    max-width: 100%;
+    justify-content: flex-start;
+    width: max-content;
+    max-width: none;
+}
+
+.presensi-scan-timer-marquee.is-always-scroll .presensi-scan-timer-marquee__track {
+    -webkit-animation: presensi-scan-marquee var(--marquee-duration, 40s) linear infinite;
+    animation: presensi-scan-marquee var(--marquee-duration, 40s) linear infinite;
 }
 
 .presensi-scan-timer-marquee__item {
@@ -260,9 +270,31 @@
     flex-shrink: 0;
 }
 
+@-webkit-keyframes presensi-scan-marquee {
+    0% { -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+    100% { -webkit-transform: translate3d(-50%, 0, 0); transform: translate3d(-50%, 0, 0); }
+}
+
 @keyframes presensi-scan-marquee {
-    0% { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
+    0% { -webkit-transform: translate3d(0, 0, 0); transform: translate3d(0, 0, 0); }
+    100% { -webkit-transform: translate3d(-50%, 0, 0); transform: translate3d(-50%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .presensi-scan-timer-marquee__track {
+        -webkit-animation: none;
+        animation: none;
+    }
+    .presensi-scan-timer-marquee:not(.is-static) .presensi-scan-timer-marquee__track {
+        -webkit-transform: none;
+        transform: none;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        white-space: normal;
+        gap: 0.35rem 0.75rem;
+    }
 }
 
 .presensi-scan-timer-slots {

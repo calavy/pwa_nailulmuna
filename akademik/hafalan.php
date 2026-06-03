@@ -157,7 +157,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Akademik</p>
     <h1 class="h3 mb-1">Input setoran hafalan</h1>
-    <p class="text-muted mb-0">Kategori <strong>Bait</strong> (kitab + baris) atau <strong>Al-Qur&apos;an</strong>. Tanggal tercatat juga dalam <strong>hijriyah</strong>. Libur akademik: atur di <a href="/akademik/kalender.php">Kalender &amp; libur</a> · master bait di <a href="/akademik/bait_kitab.php">Pengaturan bait</a>. Data tampil di portal wali.</p>
+    <p class="text-muted mb-0">Kategori <strong>Bait</strong> (kitab + baris) atau <strong>Al-Qur&apos;an</strong>. Dashboard: <a href="<?= htmlspecialchars(app_href('/akademik/setoran_dashboard.php')) ?>">Setoran (Kajian)</a> · scan: <a href="<?= htmlspecialchars(app_href('/pembimbing/setoran.php')) ?>">Portal scan</a>. Tanggal tercatat juga dalam <strong>hijriyah</strong>. Libur: <a href="<?= htmlspecialchars(app_href('/akademik/kalender.php')) ?>">Kalender</a> · bait: <a href="<?= htmlspecialchars(app_href('/akademik/bait_kitab.php')) ?>">Pengaturan bait</a> · <a href="<?= htmlspecialchars(app_href('/akademik/setoran_rekap.php')) ?>">Rekap</a>.</p>
 </div>
 
 <div class="row g-4">

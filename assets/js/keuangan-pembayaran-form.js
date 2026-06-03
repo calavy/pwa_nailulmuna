@@ -20,6 +20,11 @@
     const opsPanel = document.getElementById('panel-komponen-opsional');
     const opsStatusPill = document.getElementById('opsional-status-pill');
     const opsBulkLink = document.getElementById('opsional-bulk-link');
+    const btnPilihSemua = document.getElementById('btn-pilih-semua-sisa');
+    const grandTotalEl = document.getElementById('pembayaran-grand-total');
+    const totalPosEl = document.getElementById('pembayaran-total-pos');
+    const actionsAmountEl = document.getElementById('pembayaran-actions-amount');
+    const actionsTotalWrap = document.getElementById('pembayaran-actions-total');
     const opsEditorCards = document.querySelectorAll('.opsional-editor-card');
     const map = window.keuanganSantriTier || {};
     const feeMatrix = window.keuanganFeeMatrix || {};
@@ -205,11 +210,14 @@
         let stillCicilan = false;
         document.querySelectorAll('#tabel-komponen tbody tr').forEach(function (tr) {
             if (tr.style.display === 'none') {
+                tr.classList.remove('is-checked');
                 return;
             }
             const slug = tr.getAttribute('data-slug');
             const cb = tr.querySelector('.bayar-pos-check');
             const inp = tr.querySelector('.nominal-pos');
+            const checked = !!(cb && cb.checked);
+            tr.classList.toggle('is-checked', checked);
             if (!slug || slug === 'saku' || !cb || !cb.checked || !inp) {
                 return;
             }
@@ -231,6 +239,87 @@
         if (statusLabel) {
             statusLabel.value = label;
         }
+        updateGrandTotal();
+    }
+
+    function computeGrandTotal() {
+        let total = 0;
+        let posCount = 0;
+        document.querySelectorAll('#tabel-komponen tbody tr').forEach(function (tr) {
+            if (tr.style.display === 'none') {
+                return;
+            }
+            const cb = tr.querySelector('.bayar-pos-check');
+            const inp = tr.querySelector('.nominal-pos');
+            if (!cb || !cb.checked || !inp) {
+                return;
+            }
+            const n = parseRpInput(inp.value);
+            if (n > 0) {
+                total += n;
+                posCount += 1;
+            }
+        });
+        return { total: total, posCount: posCount };
+    }
+
+    function updateGrandTotal() {
+        const { total, posCount } = computeGrandTotal();
+        const label = fmtRp(total);
+        if (grandTotalEl) {
+            grandTotalEl.textContent = label;
+        }
+        if (totalPosEl) {
+            totalPosEl.textContent = posCount + ' pos';
+        }
+        if (actionsAmountEl) {
+            actionsAmountEl.textContent = label;
+        }
+        if (actionsTotalWrap) {
+            actionsTotalWrap.classList.toggle('has-amount', total > 0);
+        }
+    }
+
+    function updatePilihSemuaBtn() {
+        if (!btnPilihSemua) {
+            return;
+        }
+        const sid = santriSel ? parseInt(santriSel.value, 10) : 0;
+        let hasSisa = false;
+        if (sid > 0) {
+            Object.keys(tagihanPos || {}).forEach(function (slug) {
+                const info = tagihanPos[slug];
+                if (info && (info.sisa || 0) > 0) {
+                    hasSisa = true;
+                }
+            });
+        }
+        btnPilihSemua.disabled = !hasSisa;
+    }
+
+    function pilihSemuaSisa() {
+        document.querySelectorAll('#tabel-komponen tbody tr').forEach(function (tr) {
+            if (tr.style.display === 'none') {
+                return;
+            }
+            const slug = tr.getAttribute('data-slug');
+            const cb = tr.querySelector('.bayar-pos-check');
+            const inp = tr.querySelector('.nominal-pos');
+            if (!slug || !cb || !inp) {
+                return;
+            }
+            const info = tagihanPos[slug];
+            if (info && (info.sisa || 0) > 0) {
+                cb.checked = true;
+                inp.value = fmtThousand(info.sisa);
+            }
+        });
+        updateStatusTransaksi();
+    }
+
+    function formatNominalInput(inp) {
+        const n = parseRpInput(inp.value);
+        inp.value = n > 0 ? fmtThousand(n) : '0';
     }
 
     function renderSyahriyahBreakdown(summary) {
@@ -342,6 +431,7 @@
             }
             inp.value = nominal > 0 ? nominal.toLocaleString('id-ID') : '0';
         });
+        updatePilihSemuaBtn();
         updateStatusTransaksi();
     }
 
@@ -369,6 +459,8 @@
             setOpsPill('tutup', 'bg-light text-muted');
             renderPaidHints();
             renderSyahriyahBreakdown(null);
+            updatePilihSemuaBtn();
+            updateGrandTotal();
             return;
         }
         resetOpsEditors('Memuat pengaturan…');
@@ -503,6 +595,7 @@
                 renderPaidHints();
                 applyNominalFromTagihan();
                 renderSyahriyahBreakdown(data.summary || null);
+                updatePilihSemuaBtn();
                 if (summaryHint && data.summary) {
                     const sisa = parseInt(data.summary.sisa_wajib, 10) || 0;
                     const exp = parseInt(data.summary.expected_wajib, 10) || 0;
@@ -570,8 +663,26 @@
         el.addEventListener('input', updateStatusTransaksi);
     });
 
+    document.querySelectorAll('.nominal-pos').forEach(function (inp) {
+        inp.addEventListener('blur', function () {
+            formatNominalInput(inp);
+            updateStatusTransaksi();
+        });
+        inp.addEventListener('focus', function () {
+            const n = parseRpInput(inp.value);
+            if (n > 0) {
+                inp.select();
+            }
+        });
+    });
+
+    if (btnPilihSemua) {
+        btnPilihSemua.addEventListener('click', pilihSemuaSisa);
+    }
+
     bindOpsionalEditorEvents();
     filterKomponenRows();
     applyTarifSantri();
     toggleRefRequired();
+    updateGrandTotal();
 })();

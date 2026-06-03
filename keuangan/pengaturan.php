@@ -216,6 +216,9 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100">
             <div class="card-header fw-semibold">Syahriyah &amp; operasional</div>
             <div class="card-body d-grid gap-2">
+                <a class="btn btn-outline-info text-start" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>">
+                    <i class="fa-solid fa-book-open me-2"></i>Panduan alur keuangan
+                </a>
                 <a class="btn btn-outline-primary text-start" href="/settings/kelas_keuangan.php">
                     <i class="fa-solid fa-layer-group me-2"></i>Kelas / kategori keuangan santri
                 </a>

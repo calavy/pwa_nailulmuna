@@ -44,6 +44,10 @@ $jumlahTingkatanPick = count($tingkatanBaris);
 
 $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantri . ' santri dibimbing';
 
+require_once __DIR__ . '/../../helpers/login_pembimbing.php';
+global $pdo;
+$setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo : null);
+
 ?>
 
 <section class="pb-dash-home-top" aria-label="Dashboard pembimbing">
@@ -124,10 +128,11 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
 
 
 
-        <?php if ($kegiatanAktifPresensi !== []): ?>
-            <?php $inBanner = true; require __DIR__ . '/dashboard_kegiatan_berlangsung_cards.php'; ?>
-        <?php else: ?>
-        <div class="pb-dash-hero-banner__ticker pb-dash-ticker pb-dash-ticker--in-banner" aria-live="polite">
+        <?php
+        $tickerHasLive = $kegiatanAktifPresensi !== [];
+        $tickerItemCount = count($tickerItems);
+        ?>
+        <div class="pb-dash-hero-banner__ticker pb-dash-ticker pb-dash-ticker--in-banner<?= $tickerHasLive ? ' pb-dash-ticker--live' : '' ?><?= $tickerItemCount <= 1 ? ' pb-dash-ticker--single' : '' ?>" aria-live="polite">
 
             <div class="pb-dash-ticker__label"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i></div>
 
@@ -146,6 +151,9 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
             </div>
 
         </div>
+
+        <?php if ($kegiatanAktifPresensi !== []): ?>
+            <?php $inBanner = true; require __DIR__ . '/dashboard_kegiatan_berlangsung_cards.php'; ?>
         <?php endif; ?>
 
     </div>
@@ -261,6 +269,14 @@ $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantr
             <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
 
             <span class="pb-dash-menu-card__label">Keaktivan</span>
+
+        </a>
+
+        <a href="<?= htmlspecialchars($setoranEntry['href']) ?>" class="pb-dash-menu-card pb-dash-menu-card--setoran pb-dash-menu-card--setoran-wide d-md-none">
+
+            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($setoranEntry['icon']) ?>"></i></span>
+
+            <span class="pb-dash-menu-card__label pb-dash-menu-card__label--wrap"><?= htmlspecialchars($setoranEntry['title']) ?></span>
 
         </a>
 

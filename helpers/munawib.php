@@ -170,20 +170,34 @@ function munawib_pembimbing_id_portal(PDO $pdo, int $munawibId, ?string $tanggal
 /**
  * @return array{ok:bool,message:string,session?:array<string,mixed>}
  */
-function munawib_buat_sesi_portal(PDO $pdo, string $qrCode): array
+function munawib_buat_sesi_portal(PDO $pdo, string $qrCode, bool $untukSetoran = false): array
 {
     $row = munawib_find_by_code($pdo, $qrCode);
     if ($row === null) {
         return ['ok' => false, 'message' => 'Kartu QR munawib tidak dikenali atau tidak aktif.'];
     }
     $mid = (int) ($row['id'] ?? 0);
-    $tingkatan = munawib_tingkatan_aktif_list($pdo, $mid);
-    if ($tingkatan === []) {
-        return [
-            'ok' => false,
-            'message' => 'Munawib belum punya penugasan aktif dengan kelas/tingkatan. Hubungi pengurus.',
-        ];
+    $tingkatan = [];
+
+    if ($untukSetoran) {
+        require_once __DIR__ . '/akademik_setoran.php';
+        if (!akademik_setoran_penerima_is_aktif($pdo, 'munawib', $mid)) {
+            return [
+                'ok' => false,
+                'message' => 'Munawib belum terdaftar sebagai penerima setoran aktif. Pengurus: Data penerima setoran (Kajian).',
+            ];
+        }
+        $tingkatan = akademik_setoran_munawib_tingkatan_list($pdo, $mid);
+    } else {
+        $tingkatan = munawib_tingkatan_aktif_list($pdo, $mid);
+        if ($tingkatan === []) {
+            return [
+                'ok' => false,
+                'message' => 'Munawib belum punya penugasan aktif dengan kelas/tingkatan. Hubungi pengurus.',
+            ];
+        }
     }
+
     $nama = trim((string) ($row['nama'] ?? 'Munawib'));
     $nip = trim((string) ($row['nip'] ?? ''));
 

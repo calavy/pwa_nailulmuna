@@ -6,7 +6,10 @@
 
     var tickTimer = null;
     var marqueeBound = false;
+    var marqueeResizeObs = null;
+    var marqueeSyncRetries = 0;
     var MARQUEE_PX_PER_SEC = 38;
+    var MARQUEE_SYNC_MAX_RETRIES = 8;
 
     function pad2(n) {
         return n < 10 ? '0' + n : String(n);
@@ -84,6 +87,39 @@
         return '<span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>';
     }
 
+    function trackHalfWidth(trackEl) {
+        if (!trackEl) {
+            return 0;
+        }
+        var w = trackEl.scrollWidth;
+        if (w <= 0) {
+            w = trackEl.offsetWidth;
+        }
+        return w > 0 ? w / 2 : 0;
+    }
+
+    function scheduleMarqueeSync(delayMs) {
+        global.setTimeout(function () {
+            syncMarqueeSpeed();
+        }, delayMs);
+    }
+
+    function bindMarqueeResize() {
+        if (marqueeResizeObs || typeof global.ResizeObserver !== 'function') {
+            return;
+        }
+        var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
+        var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
+        if (!marqueeEl || !trackEl) {
+            return;
+        }
+        marqueeResizeObs = new global.ResizeObserver(function () {
+            syncMarqueeSpeed();
+        });
+        marqueeResizeObs.observe(marqueeEl);
+        marqueeResizeObs.observe(trackEl);
+    }
+
     function syncMarqueeSpeed() {
         var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
         var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
@@ -92,17 +128,23 @@
             return;
         }
 
-        var halfWidth = trackEl.scrollWidth / 2;
-        var viewWidth = viewportEl.clientWidth;
-        if (halfWidth <= viewWidth + 8) {
-            marqueeEl.classList.add('is-static');
-            marqueeEl.classList.remove('is-paused');
-            trackEl.style.removeProperty('--marquee-duration');
+        var halfWidth = trackHalfWidth(trackEl);
+        var viewWidth = viewportEl.clientWidth || marqueeEl.clientWidth;
+
+        if (halfWidth <= 4 && trackEl.childElementCount > 0 && marqueeSyncRetries < MARQUEE_SYNC_MAX_RETRIES) {
+            marqueeSyncRetries += 1;
+            scheduleMarqueeSync(80 * marqueeSyncRetries);
+            return;
+        }
+        marqueeSyncRetries = 0;
+
+        if (halfWidth <= 4) {
             return;
         }
 
         marqueeEl.classList.remove('is-static');
-        var durationSec = Math.min(120, Math.max(28, halfWidth / MARQUEE_PX_PER_SEC));
+        var minScrollWidth = Math.max(halfWidth, viewWidth + 48);
+        var durationSec = Math.min(120, Math.max(18, minScrollWidth / MARQUEE_PX_PER_SEC));
         trackEl.style.setProperty('--marquee-duration', durationSec.toFixed(1) + 's');
     }
 
@@ -133,6 +175,7 @@
 
         if (marqueeEl) {
             marqueeEl.classList.toggle('d-none', !useMarquee);
+            marqueeEl.classList.toggle('is-always-scroll', useMarquee);
         }
         if (titleEl) {
             titleEl.classList.toggle('d-none', useMarquee);
@@ -149,7 +192,8 @@
         var html = '';
         var pass;
         var i;
-        for (pass = 0; pass < 2; pass += 1) {
+        var repeatPasses = labels.length === 1 ? 6 : 2;
+        for (pass = 0; pass < repeatPasses; pass += 1) {
             for (i = 0; i < labels.length; i += 1) {
                 if (i > 0 || pass > 0) {
                     html += buildMarqueeSeparator();
@@ -161,11 +205,15 @@
             trackEl.innerHTML = html;
         }
         bindMarqueePause();
+        bindMarqueeResize();
+        marqueeSyncRetries = 0;
         global.requestAnimationFrame(function () {
             syncMarqueeSpeed();
             global.requestAnimationFrame(function () {
                 syncMarqueeSpeed();
-                global.setTimeout(syncMarqueeSpeed, 120);
+                scheduleMarqueeSync(120);
+                scheduleMarqueeSync(400);
+                scheduleMarqueeSync(900);
             });
         });
     }
@@ -289,6 +337,15 @@
         }
         tickTimer = setInterval(render, 1000);
         global.addEventListener('resize', syncMarqueeSpeed);
+        global.addEventListener('load', syncMarqueeSpeed);
+        global.addEventListener('orientationchange', function () {
+            scheduleMarqueeSync(200);
+        });
+        if (global.document && global.document.fonts && typeof global.document.fonts.ready === 'object') {
+            global.document.fonts.ready.then(function () {
+                syncMarqueeSpeed();
+            }).catch(function () { /* abaikan */ });
+        }
     }
 
     global.PresensiScanTimer = { start: start, render: render };

@@ -294,7 +294,7 @@ $tingkatanBarisHome = array_map(
     $tingkatanAsuhan
 );
 $pageTitle = 'Dashboard Pembimbing';
-$bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih' : '');
+$bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih pb-dash-has-setoran-bottom pb-dash-home-mobile-fit' : '');
 $loadPushFcm = !$isPbHomeRingkas && !$isPbKeaktivanOnly;
 $pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
@@ -312,6 +312,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         <?php require __DIR__ . '/partials/keaktivan_page.php'; ?>
     <?php elseif (!$bolehSemua && $pbDashView === 'home'): ?>
         <?php
+        $pbDashShowSetoranBottom = true;
         $jumlahTingkatan = $jumlahTingkatanHome;
         $tingkatanBaris = $tingkatanBarisHome;
         $pbDashHasPkpps = $hasPkppsJadwal;
@@ -915,6 +916,10 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     <?php endif; ?>
 
 </div>
+
+<?php if (!empty($pbDashShowSetoranBottom)): ?>
+    <?php require __DIR__ . '/partials/dashboard_setoran_scan_bottom.php'; ?>
+<?php endif; ?>
 
 <script>window.PONDOK_SERVER_CLOCK_MS = <?= (int) $pbDashServerClockMs ?>;</script>
 <script>

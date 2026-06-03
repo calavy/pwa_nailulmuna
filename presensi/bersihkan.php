@@ -39,6 +39,9 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0 small">
         Daftar presensi <strong>Hadir</strong> atau <strong>Alpa</strong> yang tidak punya kegiatan valid (kosong / kegiatan sudah tidak ada).
         Hapus baris yang salah input. Saat <strong>jadwal dihapus</strong>, presensi terikat jadwal ikut terhapus otomatis.
+        <?php if (is_super_admin()): ?>
+            · <a href="<?= htmlspecialchars(app_href('/settings/presensi_data.php')) ?>">Kelola / unduh data presensi (rentang tanggal)</a>
+        <?php endif; ?>
     </p>
 </div>
 

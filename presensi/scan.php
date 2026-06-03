@@ -502,7 +502,7 @@ $todayRows = array_slice($todayRows, 0, 30);
 
 $pageTitle = $pbPortalScan ? 'Scan Presensi Pembimbing' : 'Scan Presensi';
 $bodyClass = 'scan-simple-page' . ($pbPortalScan ? ' scan-portal-pembimbing' : '');
-$pageStylesheets = ['/assets/css/presensi-scan.css'];
+$pageStylesheets = [app_asset_href('/assets/css/presensi-scan.css')];
 $isPetugasAbsensi = !$pbPortalScan && (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
 $todayScanCount = count($todayRows);
 $scanJadwalCtx = presensi_scan_jadwal_context($pdo);
@@ -676,9 +676,9 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
 <?php endif; ?>
 
 <?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-feedback.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-timer.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-feedback.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-timer.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-camera.js')) ?>"></script>
 <script>
 (function () {
     var form = document.getElementById('form-scan-presensi');

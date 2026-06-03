@@ -195,9 +195,14 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php
                     };
                     ?>
-                    <p class="small text-muted mb-2" id="tagihan-summary-hint">
-                        Pilih santri dan bulan untuk melihat sisa tagihan wajib (Syahriyah).
-                    </p>
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <p class="small text-muted mb-0" id="tagihan-summary-hint">
+                            Pilih santri dan bulan untuk melihat sisa tagihan wajib (Syahriyah).
+                        </p>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-pilih-semua-sisa" disabled>
+                            <i class="fa-solid fa-check-double me-1"></i> Pilih semua sisa
+                        </button>
+                    </div>
                     <div id="syahriyah-breakdown-box" class="alert alert-light border py-2 px-3 small mb-2 d-none" role="status" aria-live="polite">
                         <div class="fw-semibold mb-1"><i class="fa-solid fa-calculator me-1"></i> Rincian tagihan syahriyah</div>
                         <div id="syahriyah-breakdown-lines" class="text-muted"></div>
@@ -218,6 +223,17 @@ require_once __DIR__ . '/../includes/header.php';
                                 $renderKomponenRow($def, $wajibSlugs, $opsSlugs);
                             } ?>
                             </tbody>
+                            <tfoot>
+                                <tr class="pembayaran-total-row">
+                                    <td colspan="2" class="text-end fw-semibold align-middle">Total dibayar</td>
+                                    <td class="align-middle">
+                                        <span class="small text-muted" id="pembayaran-total-pos">0 pos</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        <div class="pembayaran-grand-total" id="pembayaran-grand-total" aria-live="polite">Rp 0</div>
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 
@@ -315,6 +331,10 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
 
             <div class="pembayaran-actions d-flex flex-wrap gap-2 align-items-center">
+                <div class="pembayaran-actions-total me-auto" id="pembayaran-actions-total" aria-live="polite">
+                    <span class="pembayaran-actions-total__label">Total transaksi</span>
+                    <span class="pembayaran-actions-total__amount" id="pembayaran-actions-amount">Rp 0</span>
+                </div>
                 <button type="submit" class="btn btn-success btn-lg">
                     <i class="fa-solid fa-check me-1"></i> Simpan &amp; buka kuitansi
                 </button>
