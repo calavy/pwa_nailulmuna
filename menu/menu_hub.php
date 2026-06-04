@@ -99,7 +99,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <span class="menu-hub-tile-icon" aria-hidden="true"><i class="<?= htmlspecialchars($tileIcon) ?>"></i></span>
                             <div class="min-w-0 flex-grow-1">
                                 <div class="fw-bold text-dark menu-hub-tile-label"><?= htmlspecialchars($tileLabel) ?></div>
-                                <div class="small text-muted mt-1">Buka halaman terkait</div>
+                                <div class="small text-muted mt-1 menu-hub-tile-hint">Buka halaman terkait</div>
                             </div>
                             <span class="menu-hub-tile-go text-muted" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
                         </div>

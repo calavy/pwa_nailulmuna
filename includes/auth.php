@@ -49,7 +49,7 @@ function auth_pembimbing_acl_self_heal(): void
     if ($uid <= 0) {
         return;
     }
-    $marker = 'pembimbing_acl_healed_v4_' . $uid;
+    $marker = 'pembimbing_acl_healed_v5_' . $uid;
     if (!empty($_SESSION[$marker])) {
         return;
     }
@@ -75,8 +75,10 @@ function auth_redirect_access_denied(): void
     }
     if ($role === 'kiai') {
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-        if (!app_acl_request_paths_equal($requestPath, '/pengasuh/nilai_keaktifan.php')) {
-            app_redirect('pengasuh/nilai_keaktifan.php');
+        if (!app_acl_request_paths_equal($requestPath, '/pengasuh/laporan_hari.php')
+            && !app_acl_request_paths_equal($requestPath, '/pengasuh/nilai_keaktifan.php')
+            && !app_acl_request_paths_equal($requestPath, '/pengasuh/sdm_hari.php')) {
+            app_redirect('pengasuh/laporan_hari.php');
         }
     }
     if ($role === 'pembimbing') {
@@ -86,6 +88,10 @@ function auth_redirect_access_denied(): void
             || str_contains($requestPath, '/api/setoran/')
             || str_contains($requestPath, '/akademik/setoran_rekap')
             || app_acl_request_paths_equal($requestPath, '/pembimbing/dashboard.php')
+            || app_acl_request_paths_equal($requestPath, '/pembimbing/perizinan.php')
+            || app_acl_request_paths_equal($requestPath, '/pembimbing/presensi.php')
+            || str_contains($requestPath, '/pembimbing/nilai_manual')
+            || app_acl_request_paths_equal($requestPath, '/pembimbing/pkpps_santri.php')
         ) {
             return;
         }

@@ -418,10 +418,21 @@
         });
     }
 
+    function stampScanClientAt(fields) {
+        if (!fields || fields.scan_client_at) {
+            return fields;
+        }
+        fields.scan_client_at = new Date().toISOString();
+        return fields;
+    }
+
     function enqueueForm(form, options) {
         options = options || {};
         var route = routeInfo();
         var fields = formToObject(form);
+        if (route && route.module === 'presensi_scan') {
+            fields = stampScanClientAt(fields);
+        }
         var label = options.label || describeAction(fields, route ? route.label : 'Data');
         var item = {
             url: form.getAttribute('action') || global.location.href,
@@ -433,7 +444,11 @@
             lastError: '',
         };
         return queueAdd(item).then(function () {
-            toast('Disimpan di antrian offline (' + label + '). Akan dikirim saat online.', 'warning');
+            if (route && route.module === 'presensi_scan') {
+                playScanFeedback('success', 'Scan tercatat offline (' + label + '). Waktu scan disimpan — akan dihitung saat antrian terkirim.');
+            } else {
+                toast('Disimpan di antrian offline (' + label + '). Akan dikirim saat online.', 'warning');
+            }
             return refreshQueueUi();
         });
     }

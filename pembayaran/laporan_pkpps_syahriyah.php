@@ -79,7 +79,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted small mb-0">
         Hanya santri terdaftar PKPPS. Tambahan PKPPS per kelas keuangan (Wustho 1/2/3 = Wustho).
         Total tagihan syahriyah = dasar + tambahan PKPPS.
-        Alokasi tambahan masuk <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_umum_label()) ?></strong>.
+        Alokasi tambahan masuk komponen <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_komponen_nama($pdo)) ?></strong> (gaji guru).
         <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Pengaturan nominal</a>
     </p>
 </div>

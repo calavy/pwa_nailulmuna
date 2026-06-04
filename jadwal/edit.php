@@ -174,23 +174,25 @@ $pageTitle = 'Edit Jadwal Kegiatan';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Edit Jadwal Kegiatan</h1>
-    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-outline-secondary">Kembali</a>
+<div class="page-intro mb-3">
+    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Jadwal</a></p>
+    <h1 class="h4 mb-1">Edit slot jadwal</h1>
+    <p class="text-muted mb-0 small">Ubah hari, tingkatan, jam, pembimbing, atau tempat. Centang beberapa hari/tingkatan untuk mengubah sekaligus.</p>
 </div>
 
 <?php if ($siblingCount > 1): ?>
 <div class="alert alert-info py-2 small mb-3">
     <i class="fa-solid fa-layer-group me-1"></i>
-    Slot ini terhubung dengan <strong><?= (int) $siblingCount ?></strong> baris jadwal (hari & tingkatan sama, jam
-    <span class="font-monospace"><?= htmlspecialchars(jadwal_jam_ringkas($jadwal)) ?></span>).
-    Centang hari/tingkatan untuk mengubah sekaligus. Ubah jam untuk menyimpan sebagai slot terpisah.
+    Slot terhubung <strong><?= (int) $siblingCount ?></strong> baris (jam
+    <span class="font-monospace"><?= htmlspecialchars(jadwal_jam_ringkas($jadwal)) ?></span> sama).
+    Ubah jam untuk menyimpan sebagai slot terpisah.
 </div>
 <?php endif; ?>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm border-0">
     <div class="card-body">
         <form method="post" class="row g-3">
+            <div class="col-12"><h2 class="h6 text-muted mb-0">Kegiatan & kelas</h2></div>
             <div class="col-md-6">
                 <label class="form-label">Kegiatan</label>
                 <select name="kegiatan_id" class="form-select" required>
@@ -201,28 +203,34 @@ require_once __DIR__ . '/../includes/header.php';
                 </select>
             </div>
             <div class="col-md-6">
-                <label class="form-label">Tingkatan (centang bisa banyak)</label>
+                <label class="form-label">Tingkatan</label>
                 <?php require __DIR__ . '/../includes/partials/jadwal_tingkatan_chips.php'; ?>
             </div>
+            <div class="col-12"><h2 class="h6 text-muted mb-0 pt-1">Waktu & hari</h2></div>
             <div class="col-md-4">
-                <label class="form-label">Hari (centang bisa banyak)</label>
-                <div class="border rounded p-2">
-                    <?php foreach ($hari as $key => $label): ?>
-                        <div class="form-check mb-1">
-                            <input class="form-check-input" type="checkbox" name="hari_ke[]" id="hari-<?= (int) $key ?>" value="<?= (int) $key ?>" <?= in_array((int) $key, $selectedHari, true) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="hari-<?= (int) $key ?>"><?= htmlspecialchars($label) ?></label>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Jam Mulai</label>
+                <label class="form-label">Jam mulai</label>
                 <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam((string) ($jadwal['jam_mulai'] ?? ''))) ?>" required>
             </div>
             <div class="col-md-4">
-                <label class="form-label">Jam Selesai</label>
+                <label class="form-label">Jam selesai</label>
                 <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam((string) ($jadwal['jam_selesai'] ?? ''))) ?>" required>
             </div>
+            <div class="col-md-4">
+                <label class="form-label">Tempat</label>
+                <input type="text" name="tempat" class="form-control" maxlength="255" value="<?= htmlspecialchars((string) ($jadwal['tempat'] ?? '')) ?>" placeholder="Masjid, Aula, …">
+            </div>
+            <div class="col-12">
+                <label class="form-label">Hari</label>
+                <div class="jadwal-hari-pills border rounded p-2 d-flex flex-wrap gap-2">
+                    <?php foreach ($hari as $key => $label): ?>
+                        <label class="jadwal-hari-pill">
+                            <input class="form-check-input" type="checkbox" name="hari_ke[]" value="<?= (int) $key ?>" <?= in_array((int) $key, $selectedHari, true) ? 'checked' : '' ?>>
+                            <span><?= htmlspecialchars($label) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="col-12"><h2 class="h6 text-muted mb-0 pt-1">Pembimbing</h2></div>
             <div class="col-md-6">
                 <label class="form-label">Pembimbing (opsional)</label>
                 <select name="pembimbing_id" class="form-select">
@@ -232,12 +240,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-12">
-                <label class="form-label">Tempat / lokasi</label>
-                <input type="text" name="tempat" class="form-control" maxlength="255" value="<?= htmlspecialchars((string) ($jadwal['tempat'] ?? '')) ?>" placeholder="Contoh: Masjid Utama, Aula">
-            </div>
-            <div class="col-12">
-                <button type="submit" class="btn btn-success">Update Jadwal</button>
+            <div class="col-12 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk me-1"></i> Simpan perubahan</button>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-outline-secondary">Batal</a>
             </div>
         </form>
     </div>

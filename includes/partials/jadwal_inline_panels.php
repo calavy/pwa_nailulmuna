@@ -28,8 +28,11 @@ $showJadwal = $panelOpen === 'jadwal';
 <div class="card shadow-sm border-0 mb-3 jadwal-inline-panels">
     <div class="card-body py-3">
         <div class="d-flex flex-wrap gap-2 mb-0">
+            <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>">
+                <i class="fa-solid fa-bookmark me-1"></i> Kegiatan Ta'lim / Jama'ah
+            </a>
             <button type="button" class="btn btn-outline-success btn-sm jadwal-panel-toggle" data-panel="kegiatan" aria-expanded="<?= $showKegiatan ? 'true' : 'false' ?>">
-                <i class="fa-solid fa-bookmark me-1"></i> Tambah kegiatan
+                <i class="fa-solid fa-plus me-1"></i> Tambah cepat
             </button>
             <button type="button" class="btn btn-success btn-sm jadwal-panel-toggle" data-panel="jadwal" aria-expanded="<?= $showJadwal ? 'true' : 'false' ?>">
                 <i class="fa-solid fa-calendar-plus me-1"></i> Tambah jadwal

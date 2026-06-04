@@ -528,11 +528,10 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
     }
     if ($runFinalize) {
         require_once __DIR__ . '/presensi_jadwal.php';
-        [$yearStart, $yearEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
-        if ($yearStart <= $yearEnd) {
-            $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-            presensi_finalize_date_range($pdo, $yearStart, $yearEnd, $auditUserId > 0 ? $auditUserId : 1);
-        }
+        $today = date('Y-m-d');
+        $monthStart = date('Y-m-01');
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $monthStart, $today, $auditUserId > 0 ? $auditUserId : 1);
     }
     [$presStart, $presEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
     require_once __DIR__ . '/pembimbing_pkpps.php';
@@ -891,9 +890,12 @@ function pembimbing_dashboard_kegiatan_aktif(
                 j.tingkatan,
                 j.jam_mulai,
                 j.jam_selesai,
-                j.tempat
+                j.tempat,
+                j.pembimbing_id,
+                p.nama_pembimbing
             FROM jadwal_kegiatan j
             INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            LEFT JOIN pembimbing p ON p.id = j.pembimbing_id
             WHERE (j.hari_ke = 0 OR j.hari_ke = :hari)
               AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
               AND COALESCE(k.is_active, 1) = 1
@@ -909,10 +911,12 @@ function pembimbing_dashboard_kegiatan_aktif(
         require_once __DIR__ . '/pembimbing_pkpps.php';
         pkpps_ensure_schema($pdo);
         $stPk = $pdo->prepare('
-            SELECT k.id AS kegiatan_id, k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+            SELECT k.id AS kegiatan_id, k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat,
+                   j.pembimbing_id, p.nama_pembimbing
             FROM pkpps_jadwal j
             INNER JOIN kegiatan k ON k.id = j.kegiatan_id
             INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+            LEFT JOIN pembimbing p ON p.id = j.pembimbing_id
             WHERE j.pembimbing_id = :pid AND j.is_aktif = 1
               AND (j.hari_ke = 0 OR j.hari_ke = :hari)
               AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
@@ -928,6 +932,8 @@ function pembimbing_dashboard_kegiatan_aktif(
                 'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
                 'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
                 'tempat' => (string) ($row['tempat'] ?? ''),
+                'pembimbing_id' => (int) ($row['pembimbing_id'] ?? 0),
+                'nama_pembimbing' => trim((string) ($row['nama_pembimbing'] ?? '')),
             ];
         }
     }
@@ -941,15 +947,41 @@ function pembimbing_dashboard_kegiatan_aktif(
  * @param array<string, list<array<string, mixed>>> $kegiatanAktifGrouped
  * @return list<array<string, mixed>>
  */
-function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $kegiatanAktifGrouped, string $today): array
+function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $kegiatanAktifGrouped, string $today, bool $runFinalize = true): array
 {
     if ($kegiatanAktifGrouped === [] || !table_exists($pdo, 'santri') || !table_exists($pdo, 'jadwal_kegiatan')) {
         return [];
     }
     require_once __DIR__ . '/presensi_jadwal.php';
     $hariKe = (int) date('N', strtotime($today) ?: time());
-    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $today, $today, $auditUserId > 0 ? $auditUserId : 1);
+    if ($runFinalize) {
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $today, $today, $auditUserId > 0 ? $auditUserId : 1);
+    }
+
+    $pembimbingIds = [];
+    $kegiatanIds = [];
+    foreach ($kegiatanAktifGrouped as $slotRows) {
+        if (!is_array($slotRows)) {
+            continue;
+        }
+        foreach ($slotRows as $row) {
+            $pid = (int) ($row['pembimbing_id'] ?? 0);
+            if ($pid > 0) {
+                $pembimbingIds[$pid] = true;
+            }
+            $kid = (int) ($row['kegiatan_id'] ?? 0);
+            if ($kid > 0) {
+                $kegiatanIds[$kid] = true;
+            }
+        }
+    }
+    $scanMap = pembimbing_dashboard_scan_map_hari_ini(
+        $pdo,
+        array_keys($pembimbingIds),
+        array_keys($kegiatanIds),
+        $today
+    );
 
     $aktifSql = santri_sql_aktif_only('s');
     $out = [];
@@ -995,6 +1027,7 @@ function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $keg
 
         $sql = '
             SELECT s.id,
+                   s.tingkatan,
                    COALESCE(NULLIF(TRIM(p.status_presensi), ""), "") AS status_hari_ini
             FROM santri s
             LEFT JOIN presensi p ON p.santri_id = s.id
@@ -1018,6 +1051,10 @@ function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $keg
         $st->execute($params);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if ($rows !== []) {
+            foreach ($rows as &$rowRef) {
+                $rowRef['kegiatan_id'] = $kid;
+            }
+            unset($rowRef);
             $rows = presensi_apply_status_efektif_rows($pdo, $rows, $today);
         }
 
@@ -1039,11 +1076,23 @@ function pembimbing_dashboard_presensi_kegiatan_berlangsung(PDO $pdo, array $keg
         $total = (int) $counts['total'];
         $hadir = (int) $counts['hadir'];
         $semuaHadir = $total > 0 && $hadir === $total;
+        $pembimbingList = pembimbing_dashboard_pembimbing_slot_list($pdo, $slotRows, $kid, $today, $scanMap);
+        $tingkatanLabels = [];
+        foreach ($slotRows as $sr) {
+            $tkLbl = trim((string) ($sr['tingkatan'] ?? ''));
+            if ($tkLbl !== '') {
+                $tingkatanLabels[$tkLbl] = true;
+            }
+        }
 
         $out[] = [
             'nama_kegiatan' => (string) $namaKegiatan,
             'kegiatan_id' => $kid,
             'jam_label' => $jamLabel,
+            'jam_mulai' => $jamMulai,
+            'jam_selesai' => $jamSelesai,
+            'tingkatan_list' => array_keys($tingkatanLabels),
+            'pembimbing_list' => $pembimbingList,
             'hadir' => $hadir,
             'izin' => (int) $counts['izin'],
             'sakit' => (int) $counts['sakit'],
@@ -1351,6 +1400,105 @@ function pembimbing_dashboard_in_clause(array $values, string $prefix): array
     }
 
     return [implode(', ', $sqlParts), $params];
+}
+
+/**
+ * Prefetch status scan pembimbing (1 query) untuk hindari N+1 di kartu kegiatan live.
+ *
+ * @param list<int> $pembimbingIds
+ * @param list<int> $kegiatanIds
+ * @return array<string,bool> key: "{pid}|{kid}" atau "{pid}|0" (hadir hari ini)
+ */
+function pembimbing_dashboard_scan_map_hari_ini(PDO $pdo, array $pembimbingIds, array $kegiatanIds, string $today): array
+{
+    $map = [];
+    $pids = array_values(array_filter(array_map('intval', $pembimbingIds), static fn (int $id): bool => $id > 0));
+    if ($pids === [] || !table_exists($pdo, 'presensi_pembimbing')) {
+        return $map;
+    }
+
+    [$inSql, $params] = pembimbing_dashboard_in_clause($pids, 'pid');
+    $params['t'] = $today;
+    $hasKegiatanCol = column_exists($pdo, 'presensi_pembimbing', 'kegiatan_id');
+    $sql = $hasKegiatanCol
+        ? 'SELECT pembimbing_id, kegiatan_id FROM presensi_pembimbing WHERE tanggal = :t AND pembimbing_id IN (' . $inSql . ')'
+        : 'SELECT pembimbing_id FROM presensi_pembimbing WHERE tanggal = :t AND pembimbing_id IN (' . $inSql . ')';
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $pid = (int) ($r['pembimbing_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $map[$pid . '|0'] = true;
+        if ($hasKegiatanCol) {
+            $kid = (int) ($r['kegiatan_id'] ?? 0);
+            if ($kid > 0) {
+                $map[$pid . '|' . $kid] = true;
+            }
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * Apakah pembimbing sudah scan untuk kegiatan tertentu hari ini.
+ */
+function pembimbing_dashboard_sudah_scan_kegiatan(PDO $pdo, int $pembimbingId, int $kegiatanId, string $today, ?array $scanMap = null): bool
+{
+    if ($pembimbingId <= 0 || !table_exists($pdo, 'presensi_pembimbing')) {
+        return false;
+    }
+    if ($scanMap !== null) {
+        if ($kegiatanId > 0 && !empty($scanMap[$pembimbingId . '|' . $kegiatanId])) {
+            return true;
+        }
+
+        return !empty($scanMap[$pembimbingId . '|0']);
+    }
+    if ($kegiatanId > 0 && column_exists($pdo, 'presensi_pembimbing', 'kegiatan_id')) {
+        $st = $pdo->prepare('
+            SELECT 1 FROM presensi_pembimbing
+            WHERE pembimbing_id = :pid AND tanggal = :t AND kegiatan_id = :kid
+            LIMIT 1
+        ');
+        $st->execute(['pid' => $pembimbingId, 't' => $today, 'kid' => $kegiatanId]);
+        if ($st->fetchColumn()) {
+            return true;
+        }
+    }
+
+    return pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
+}
+
+/**
+ * Daftar pembimbing unik dari slot kegiatan + status scan hari ini.
+ *
+ * @param list<array<string,mixed>> $slotRows
+ * @return list<array{id:int,nama:string,sudah_scan:bool}>
+ */
+function pembimbing_dashboard_pembimbing_slot_list(PDO $pdo, array $slotRows, int $kegiatanId, string $today, ?array $scanMap = null): array
+{
+    $map = [];
+    foreach ($slotRows as $row) {
+        $pid = (int) ($row['pembimbing_id'] ?? 0);
+        $nama = trim((string) ($row['nama_pembimbing'] ?? ''));
+        if ($pid <= 0 && $nama === '') {
+            continue;
+        }
+        $key = $pid > 0 ? 'id_' . $pid : 'nm_' . strtolower($nama);
+        if (isset($map[$key])) {
+            continue;
+        }
+        $map[$key] = [
+            'id' => $pid,
+            'nama' => $nama !== '' ? $nama : ('Pembimbing #' . $pid),
+            'sudah_scan' => pembimbing_dashboard_sudah_scan_kegiatan($pdo, $pid, $kegiatanId, $today, $scanMap),
+        ];
+    }
+
+    return array_values($map);
 }
 
 /**
@@ -1681,11 +1829,10 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
     }
     if ($runFinalize) {
         require_once __DIR__ . '/presensi_jadwal.php';
-        [$yearStart, $yearEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
-        if ($yearStart <= $yearEnd) {
-            $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-            presensi_finalize_date_range($pdo, $yearStart, $yearEnd, $auditUserId > 0 ? $auditUserId : 1);
-        }
+        $today = date('Y-m-d');
+        $monthStart = date('Y-m-01');
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $monthStart, $today, $auditUserId > 0 ? $auditUserId : 1);
     }
     [$presStart, $presEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
     require_once __DIR__ . '/pembimbing_pkpps.php';

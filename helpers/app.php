@@ -232,6 +232,36 @@ function app_run_deferred_maintenance(PDO $pdo, int $userId): void
     save_setting($pdo, 'app_maintenance_last_at', (string) $now);
 }
 
+/** Hapus kunci debounce WA lama di app_settings agar DB tidak membengkak. */
+function wa_cleanup_old_debounce_keys(PDO $pdo, int $keepDays = 30): int
+{
+    if (!table_exists($pdo, 'app_settings')) {
+        return 0;
+    }
+    $cutoffTs = strtotime('-' . max(7, $keepDays) . ' days');
+    if ($cutoffTs === false) {
+        return 0;
+    }
+    $cutoffDate = date('Y-m-d', $cutoffTs);
+    $patterns = ['wa_pb_scan_sent_%', 'wa_mw_scan_sent_%', 'wa_mudabir_missing_%'];
+    $deleted = 0;
+    foreach ($patterns as $pattern) {
+        $st = $pdo->prepare('SELECT setting_key FROM app_settings WHERE setting_key LIKE :p');
+        $st->execute(['p' => $pattern]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $key) {
+            if (!is_string($key) || !preg_match('/(\d{4}-\d{2}-\d{2})/', $key, $m)) {
+                continue;
+            }
+            if ($m[1] < $cutoffDate) {
+                $pdo->prepare('DELETE FROM app_settings WHERE setting_key = :k LIMIT 1')->execute(['k' => $key]);
+                $deleted++;
+            }
+        }
+    }
+
+    return $deleted;
+}
+
 function save_setting(PDO $pdo, string $key, string $value): void
 {
     $statement = $pdo->prepare('
@@ -463,6 +493,15 @@ function pondok_settings_defaults(): array
         'kategori_sedang_max' => '3',
         'izin_perpanjangan_max_hari' => '7',
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
+        'izin_alpa_batas_enabled' => '1',
+        'izin_alpa_keluar_max' => '3',
+        'izin_alpa_keluar_hari' => '4',
+        'izin_alpa_pulang_max' => '3',
+        'izin_alpa_pulang_hari' => '4',
+        'wa_izin_pembimbing_enabled' => '1',
+        'wa_izin_pembimbing_grup' => '',
+        'wa_izin_pembimbing_kirim_grup' => '0',
+        'keuangan_pkpps_alokasi_komponen' => '',
         'app_tahun_masehi_mode' => 'BERJALAN',
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
         'pondok_ta_bulan_awal_hijri' => '1',
@@ -1208,6 +1247,14 @@ function trigger_auto_wa_notifications(PDO $pdo): void
     $rows = $stmt->fetchAll();
 
     if (!$rows) {
+        save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
+            'sent' => 0,
+            'rows' => 0,
+            'threshold' => $threshold,
+            'at' => date('Y-m-d H:i:s'),
+            'note' => 'tidak_ada_alpa',
+        ], JSON_UNESCAPED_UNICODE));
+
         return;
     }
 
@@ -1222,6 +1269,12 @@ function trigger_auto_wa_notifications(PDO $pdo): void
     $message = wa_format_rekap_alpa_per_kegiatan($pdo, $periodeLabel, $threshold, $rows);
 
     $sent = send_wa_bulk($pdo, $pengurusWa, $message);
+    save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
+        'sent' => (int) $sent,
+        'rows' => count($rows),
+        'threshold' => $threshold,
+        'at' => date('Y-m-d H:i:s'),
+    ], JSON_UNESCAPED_UNICODE));
     if ($sent > 0) {
         save_setting($pdo, 'wa_auto_last_sent_date', $today);
         save_setting($pdo, 'wa_auto_last_sent_at', date('Y-m-d H:i:s'));
@@ -2602,8 +2655,19 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     if ($phone === '') {
         return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'error' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
-    $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
     $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $tingkatanMap = $tagihanCtx['tingkatan_map'] ?? null;
+    if (!function_exists('keuangan_santri_kelas_tagihan')) {
+        require_once __DIR__ . '/santri_ta.php';
+    }
+    $kelas = keuangan_santri_kelas_tagihan(
+        $pdo,
+        $santriId,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $row,
+        is_array($tingkatanMap) ? $tingkatanMap : null
+    );
     $stTag = tagihan_wajib_status_for_month_bulk(
         $pdo,
         $santriId,
@@ -2729,18 +2793,28 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
     require_once __DIR__ . '/presensi_admin.php';
     ensure_presensi_jadwal_column($pdo);
 
-    $existingStmt = $pdo->prepare('
-        SELECT id, status_presensi
-        FROM presensi
-        WHERE santri_id = :santri_id
-          AND tanggal_presensi = :tanggal_presensi
-          AND (
-                (:kegiatan_id IS NULL AND kegiatan_id IS NULL)
-                OR kegiatan_id = :kegiatan_id
-          )
-        ORDER BY id DESC
-        LIMIT 1
-    ');
+    $existingMap = [];
+    if ($santriIds !== []) {
+        $placeholders = implode(',', array_fill(0, count($santriIds), '?'));
+        $bulkExisting = $pdo->prepare('
+            SELECT id, santri_id, status_presensi
+            FROM presensi
+            WHERE tanggal_presensi = ?
+              AND kegiatan_id = ?
+              AND santri_id IN (' . $placeholders . ')
+            ORDER BY id DESC
+        ');
+        $bulkExisting->execute(array_merge([$tanggal, $kegiatanIdInt], $santriIds));
+        foreach ($bulkExisting->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $sid = (int) ($row['santri_id'] ?? 0);
+            if ($sid > 0 && !isset($existingMap[$sid])) {
+                $existingMap[$sid] = $row;
+            }
+        }
+    }
+
+    $izinTetapMap = santri_izin_tetap_map_for_santri_ids($pdo, $santriIds, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
+
     $insertStmt = $pdo->prepare('
         INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
         VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
@@ -2755,19 +2829,14 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
         $desiredStatus = 'ALPA';
         if (isset($izinMap[$santriId])) {
             $desiredStatus = strtoupper((string) $izinMap[$santriId]) === 'SAKIT' ? 'SAKIT' : 'IZIN';
-        } elseif (santri_izin_tetap_berlaku($pdo, $santriId, $tanggal, $jamMulaiKeg, $jamSelesaiKeg)) {
+        } elseif (isset($izinTetapMap[$santriId])) {
             $desiredStatus = 'IZIN';
         }
         if (!$tandaiAlpa && $desiredStatus === 'ALPA') {
             continue;
         }
 
-        $existingStmt->execute([
-            'santri_id' => $santriId,
-            'tanggal_presensi' => $tanggal,
-            'kegiatan_id' => $kegiatanIdInt,
-        ]);
-        $existing = $existingStmt->fetch();
+        $existing = $existingMap[$santriId] ?? null;
         if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
             continue;
         }
@@ -3245,8 +3314,11 @@ function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap,
         }
     }
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'kiai' && !in_array('/pengasuh/laporan_hari.php', $candidates, true)) {
+        array_unshift($candidates, '/pengasuh/laporan_hari.php');
+    }
     if ($role === 'kiai' && !in_array('/pengasuh/nilai_keaktifan.php', $candidates, true)) {
-        array_unshift($candidates, '/pengasuh/nilai_keaktifan.php');
+        $candidates[] = '/pengasuh/nilai_keaktifan.php';
     }
 
     foreach ($candidates as $path) {
@@ -3294,7 +3366,7 @@ function app_post_login_redirect(PDO $pdo): void
         app_redirect('dashboard.php');
     }
     if ($role === 'kiai') {
-        app_redirect('pengasuh/nilai_keaktifan.php');
+        app_redirect('pengasuh/laporan_hari.php');
     }
     if ($role === 'pembimbing') {
         app_redirect('pembimbing/dashboard.php');
@@ -3453,6 +3525,11 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
 
                 return user_can_edit_keaktifan_nilai();
             }
+            if (in_array($path, ['/pengasuh/laporan_hari.php', '/pengasuh/sdm_hari.php'], true)) {
+                require_once __DIR__ . '/../includes/auth.php';
+
+                return user_can_edit_keaktifan_nilai() || in_array(strtolower((string) ($_SESSION['user']['role'] ?? '')), ['admin', 'pengurus'], true);
+            }
             $permPath = app_menu_acl_lookup_path($path, $permissionPathMap);
             if (!isset($permissionPathMap[$permPath])) {
                 return true;
@@ -3514,6 +3591,13 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
     if (str_contains($requestPath, '/pengasuh/nilai_keaktifan.php')) {
         require_once __DIR__ . '/../includes/auth.php';
         if (user_can_edit_keaktifan_nilai()) {
+            return;
+        }
+    }
+    if (str_contains($requestPath, '/pengasuh/laporan_hari.php') || str_contains($requestPath, '/pengasuh/sdm_hari.php')) {
+        require_once __DIR__ . '/../includes/auth.php';
+        $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+        if (user_can_edit_keaktifan_nilai() || in_array($role, ['admin', 'pengurus'], true)) {
             return;
         }
     }
@@ -3680,6 +3764,44 @@ function menu_group_visible_paths(array $node, array $menuItems): array
         menu_group_collect_paths($node),
         static fn(string $p): bool => array_key_exists($p, $menuItems)
     ));
+}
+
+/**
+ * Section grup menu yang lolos ACL (untuk accordion mobile).
+ *
+ * @param array<string, mixed> $node
+ * @return list<array{title:string,paths:list<string>}>
+ */
+function menu_group_visible_sections(array $node, array $menuItems): array
+{
+    $sections = $node['sections'] ?? null;
+    if (!is_array($sections) || $sections === []) {
+        $paths = menu_group_visible_paths($node, $menuItems);
+        if ($paths === []) {
+            return [];
+        }
+
+        return [['title' => '', 'paths' => $paths]];
+    }
+    $out = [];
+    foreach ($sections as $sec) {
+        if (!is_array($sec)) {
+            continue;
+        }
+        $paths = array_values(array_filter(
+            (array) ($sec['paths'] ?? []),
+            static fn($p): bool => is_string($p) && array_key_exists($p, $menuItems)
+        ));
+        if ($paths === []) {
+            continue;
+        }
+        $out[] = [
+            'title' => trim((string) ($sec['title'] ?? '')),
+            'paths' => $paths,
+        ];
+    }
+
+    return $out;
 }
 
 /**

@@ -181,6 +181,11 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
     $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tahunMulai, $tahunSelesai);
     $paidMap = $tagihanCtx['paid_map'];
     $syCtx = $tagihanCtx['sy_ctx'];
+    $tingkatanMap = $tagihanCtx['tingkatan_map'] ?? null;
+    if (!is_array($tingkatanMap) && function_exists('santri_tingkatan_map_for_ta')) {
+        require_once __DIR__ . '/santri_ta.php';
+        $tingkatanMap = santri_tingkatan_map_for_ta($pdo, $tahunMulai, $tahunSelesai);
+    }
 
     $sent = 0;
     $failed = 0;
@@ -192,7 +197,12 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         if ($santriId <= 0) {
             continue;
         }
-        $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
+        if (function_exists('keuangan_santri_kelas_tagihan')) {
+            require_once __DIR__ . '/santri_ta.php';
+        }
+        $kelas = function_exists('keuangan_santri_kelas_tagihan')
+            ? keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunMulai, $tahunSelesai, $row, is_array($tingkatanMap) ? $tingkatanMap : null)
+            : trim((string) ($row['kategori_kelas'] ?? ''));
         $components = keuangan_tagihan_wajib_components($pdo, $kelas);
         if ($components === []) {
             $skipped++;

@@ -13,6 +13,7 @@ require_once __DIR__ . '/../helpers/presensi_notif.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/kegiatan_khusus.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/presensi_scan_client.php';
 
 $pbPortalScan = trim((string) ($_GET['portal'] ?? '')) === '1'
     || trim((string) ($_POST['pb_portal_scan'] ?? '')) === '1';
@@ -58,6 +59,7 @@ if (table_exists($pdo, 'pembimbing')) {
 kegiatan_khusus_ensure_schema($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $scanClock = presensi_scan_resolve_clock($_POST);
     $action = trim((string) ($_POST['action'] ?? ''));
     if ($action === 'munawib_pick_schedule') {
         $pending = $_SESSION['munawib_scan_pending'] ?? null;
@@ -73,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             if ($okSlot !== null) {
-                $resPick = munawib_catat_presensi($pdo, $pickMid, $pickKid, date('Y-m-d'), date('H:i:s'), $createdBy);
+                $resPick = munawib_catat_presensi($pdo, $pickMid, $pickKid, $scanClock['tanggal'], $scanClock['jam'], $createdBy);
                 $resultType = $resPick['ok'] ? 'success' : 'warning';
                 $resultMessage = ($resPick['ok'] ? 'Munawib: ' : '') . $resPick['message'];
                 if ($resPick['ok']) {
@@ -125,10 +127,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $resultMessage = 'Santri tidak aktif atau sudah keluar — presensi tidak dicatat.';
                 goto end_scan_process;
             }
-            $tanggal = date('Y-m-d');
+            $tanggal = $scanClock['tanggal'];
             ensure_akademik_libur_table($pdo);
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
-            $jam = date('H:i:s');
+            $jam = $scanClock['jam'];
             $hijri = akademik_hijri_ym_untuk_masehi($pdo, $tanggal);
             pkpps_ensure_schema($pdo);
             $kegiatan = activity_for_pkpps_santri($pdo, (int) $santri['id'], $tanggal, $jam);
@@ -214,18 +216,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pkppsJadwalId = isset($kegiatan['pkpps_jadwal_id']) ? (int) $kegiatan['pkpps_jadwal_id'] : 0;
             ensure_presensi_jadwal_column($pdo);
             $lateThreshold = (int) app_setting($pdo, 'batas_telat_menit', '15');
-            $catatan = null;
-            if ($kegiatan && $lateThreshold > 0 && isset($kegiatan['jam_mulai']) && $kegiatan['jam_mulai'] !== null) {
-                $start = DateTime::createFromFormat('H:i:s', $kegiatan['jam_mulai']);
-                $current = DateTime::createFromFormat('H:i:s', $jam);
-                if ($start && $current) {
-                    $thresholdTime = (clone $start)->modify('+' . $lateThreshold . ' minutes');
-                    if ($current > $thresholdTime) {
-                        $diff = $current->getTimestamp() - $thresholdTime->getTimestamp();
-                        $catatan = 'Terlambat ' . ceil($diff / 60) . ' menit';
-                    }
-                }
-            }
+            $catatan = presensi_scan_catatan_telat(
+                isset($kegiatan['jam_mulai']) ? (string) $kegiatan['jam_mulai'] : null,
+                $jam,
+                $lateThreshold
+            );
 
             $existingStmt = $pdo->prepare('
                 SELECT id, status_presensi
@@ -288,9 +283,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // jangan ganggu alur scan
             }
         } elseif ($munawib) {
-            $tanggal = date('Y-m-d');
-            $jam = date('H:i:s');
-            $hariKe = (int) date('N');
+            $tanggal = $scanClock['tanggal'];
+            $jam = $scanClock['jam'];
+            $hariKe = (int) date('N', strtotime($tanggal));
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
             $kategoriFilterSql = $modeLiburAktif !== null
@@ -345,8 +340,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resultMessage = 'Munawib terdeteksi: ' . (string) ($munawib['nama'] ?? '-') . '. Pilih jadwal yang diwakili.';
         } else {
             unset($_SESSION['munawib_scan_pending']);
-            $tanggal = date('Y-m-d');
-            $jam = date('H:i:s');
+            $tanggal = $scanClock['tanggal'];
+            $jam = $scanClock['jam'];
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
             pkpps_ensure_schema($pdo);
@@ -621,6 +616,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     <form method="post" id="form-scan-presensi" class="visually-hidden">
         <input type="text" id="kode_qr" name="kode_qr" required readonly>
         <input type="hidden" name="scan_source" id="scan_source" value="camera">
+        <input type="hidden" name="scan_client_at" id="scan_client_at" value="">
         <?php if ($pbPortalScan): ?>
             <input type="hidden" name="pb_portal_scan" value="1">
         <?php endif; ?>
@@ -685,12 +681,20 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     var input = document.getElementById('kode_qr');
     var submitting = false;
 
+    function stampScanClientTime() {
+        var el = document.getElementById('scan_client_at');
+        if (el) {
+            el.value = new Date().toISOString();
+        }
+    }
+
     function submitScan(code) {
         if (submitting) {
             return;
         }
         input.value = code;
         document.getElementById('scan_source').value = 'camera';
+        stampScanClientTime();
         if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Scan: ' + code })) {
             return;
         }

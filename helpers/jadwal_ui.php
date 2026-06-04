@@ -157,8 +157,14 @@ function jadwal_gabung_baris_serupa(array $items): array
         if ($c !== 0) {
             return $c;
         }
-        $ha = $a['_hari_list'] ?? [99];
-        $hb = $b['_hari_list'] ?? [99];
+        $ha = $a['_hari_list'] ?? [];
+        $hb = $b['_hari_list'] ?? [];
+        if (!is_array($ha) || $ha === []) {
+            $ha = [99];
+        }
+        if (!is_array($hb) || $hb === []) {
+            $hb = [99];
+        }
 
         return min($ha) <=> min($hb);
     });
@@ -625,4 +631,59 @@ function jadwal_pesan_bentrok(array $bentrok, array $hariLabels): string
         $hari,
         $jam
     );
+}
+
+/** Urutan kolom tampilan mingguan (Senin–Minggu, lalu setiap hari). */
+function jadwal_minggu_kolom(): array
+{
+    return [1, 2, 3, 4, 5, 6, 7, 0];
+}
+
+/**
+ * @param list<array<string,mixed>> $jadwalList
+ * @return array<int, list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_per_hari(array $jadwalList): array
+{
+    $out = [];
+    foreach ($jadwalList as $row) {
+        $hk = (int) ($row['hari_ke'] ?? 0);
+        if (!isset($out[$hk])) {
+            $out[$hk] = [];
+        }
+        $out[$hk][] = $row;
+    }
+    foreach ($out as &$items) {
+        usort($items, static function (array $a, array $b): int {
+            $c = strcmp((string) ($a['jam_mulai'] ?? ''), (string) ($b['jam_mulai'] ?? ''));
+            if ($c !== 0) {
+                return $c;
+            }
+
+            return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+        });
+    }
+    unset($items);
+
+    return $out;
+}
+
+function jadwal_kategori_label(string $kat): string
+{
+    return strtoupper(trim($kat)) === 'JAMAAH' ? "Jama'ah" : "Ta'lim";
+}
+
+function jadwal_kategori_dot_class(string $kat): string
+{
+    return strtoupper(trim($kat)) === 'JAMAAH' ? 'jadwal-kat-dot--jamaah' : 'jadwal-kat-dot--taalim';
+}
+
+/** @param array<int,string> $hariLabels */
+function jadwal_hari_singkat(int $hariKe, array $hariLabels): string
+{
+    if ($hariKe === 0) {
+        return 'Setiap hari';
+    }
+
+    return $hariLabels[$hariKe] ?? ('H' . $hariKe);
 }

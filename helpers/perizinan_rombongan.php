@@ -265,12 +265,28 @@ function perizinan_rombongan_by_qr(PDO $pdo, string $qrToken): ?array
  *
  * @return array{ok:bool,message:string}
  */
-function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId): array
+function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId, bool $bypassAlpa = false): array
 {
+    require_once __DIR__ . '/perizinan_approval.php';
+    perizinan_approval_ensure_schema($pdo);
+
     $meta = perizinan_rombongan_meta($pdo, $rombonganId);
     if (!$meta) {
         return ['ok' => false, 'message' => 'Data rombongan tidak ditemukan.'];
     }
+
+    $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
+    $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
+    foreach ($anggota as $ang) {
+        $sid = (int) ($ang['santri_id'] ?? 0);
+        $alpaErr = perizinan_validasi_setujui_alpa($pdo, $sid, $jenisIzin, $bypassAlpa);
+        if ($alpaErr !== null) {
+            $nama = (string) ($ang['nama_santri'] ?? 'Santri #' . $sid);
+
+            return ['ok' => false, 'message' => $nama . ': ' . $alpaErr];
+        }
+    }
+
     $qrToken = trim((string) ($meta['qr_token'] ?? ''));
     if ($qrToken === '') {
         $qrToken = bin2hex(random_bytes(16));
@@ -299,11 +315,13 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         $pdo->prepare('
             UPDATE perizinan
             SET approval_status = "DISETUJUI", approved_by = :uid, approved_at = NOW(),
+                approved_bypass_alpa = :bypass,
                 qr_token = :qr, status_izin = "IZIN",
                 tanggal_mulai = :t1, tanggal_selesai = :t2, jam_mulai = :j1, jam_selesai = :j2
             WHERE rombongan_id = :rid
         ')->execute([
             'uid' => $userId,
+            'bypass' => $bypassAlpa ? 1 : 0,
             'qr' => $qrToken,
             't1' => $tglMulai,
             't2' => $tglSelesai,
@@ -319,7 +337,31 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         ')->execute(['rid' => $rombonganId]);
         $pdo->commit();
 
-        return ['ok' => true, 'message' => 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.'];
+        $waTotal = 0;
+        $alasanMeta = (string) ($meta['alasan'] ?? '');
+        foreach ($anggota as $ang) {
+            $rowWa = array_merge($ang, [
+                'jenis_izin' => $jenisIzin,
+                'alasan' => $alasanMeta,
+            ]);
+            $waTotal += perizinan_kirim_wa_pembimbing_disetujui(
+                $pdo,
+                $rowWa,
+                $tglMulai,
+                $tglSelesai,
+                $jamMulai,
+                $jamSelesai
+            );
+        }
+        $msg = 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
+        if ($bypassAlpa) {
+            $msg .= ' (Syarat ALPA dilewati.)';
+        }
+        if ($waTotal > 0) {
+            $msg .= ' WA terkirim ke ' . $waTotal . ' pembimbing.';
+        }
+
+        return ['ok' => true, 'message' => $msg];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

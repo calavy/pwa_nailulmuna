@@ -225,6 +225,76 @@ function santri_izin_tetap_berlaku(
 }
 
 /**
+ * Dari daftar santri: yang izin tetapnya overlap jam kegiatan pada tanggal.
+ *
+ * @param list<int> $santriIds
+ * @return array<int, true>
+ */
+function santri_izin_tetap_map_for_santri_ids(
+    PDO $pdo,
+    array $santriIds,
+    string $tanggal,
+    ?string $jamMulaiKegiatan = null,
+    ?string $jamSelesaiKegiatan = null
+): array {
+    $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn (int $id): bool => $id > 0)));
+    if ($santriIds === [] || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return [];
+    }
+    ensure_santri_izin_tetap_tables($pdo);
+    if (!table_exists($pdo, 'santri_izin_tetap')) {
+        return [];
+    }
+
+    $hariKe = (int) date('N', strtotime($tanggal));
+    $placeholders = implode(',', array_fill(0, count($santriIds), '?'));
+    $stmt = $pdo->prepare('
+        SELECT i.santri_id, sl.jam_mulai, sl.jam_selesai
+        FROM santri_izin_tetap i
+        INNER JOIN santri_izin_tetap_slot sl ON sl.izin_tetap_id = i.id
+        WHERE i.santri_id IN (' . $placeholders . ')
+          AND i.is_aktif = 1
+          AND i.tanggal_mulai <= ?
+          AND (i.tanggal_selesai IS NULL OR i.tanggal_selesai >= ?)
+          AND sl.hari_ke = ?
+    ');
+    $params = array_merge($santriIds, [$tanggal, $tanggal, $hariKe]);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $out = [];
+    if ($jamMulaiKegiatan === null && $jamSelesaiKegiatan === null) {
+        foreach ($rows as $row) {
+            $sid = (int) ($row['santri_id'] ?? 0);
+            if ($sid > 0) {
+                $out[$sid] = true;
+            }
+        }
+
+        return $out;
+    }
+
+    $jamMulaiKegiatan = $jamMulaiKegiatan ?? '00:00:00';
+    $jamSelesaiKegiatan = $jamSelesaiKegiatan ?? '23:59:59';
+    foreach ($rows as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid <= 0 || isset($out[$sid])) {
+            continue;
+        }
+        if (santri_izin_tetap_waktu_overlap(
+            (string) ($row['jam_mulai'] ?? ''),
+            (string) ($row['jam_selesai'] ?? ''),
+            $jamMulaiKegiatan,
+            $jamSelesaiKegiatan
+        )) {
+            $out[$sid] = true;
+        }
+    }
+
+    return $out;
+}
+
+/**
  * ID santri yang izin tetapnya berlaku pada tanggal (untuk generate alpa / sinkron presensi).
  *
  * @return list<int>

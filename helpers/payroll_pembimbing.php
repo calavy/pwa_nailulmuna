@@ -20,6 +20,51 @@ declare(strict_types=1);
 const PAYROLL_PEMBIMBING_KRITERIA = ['BERAT', 'SEDANG', 'RINGAN', 'KHUSUS'];
 const PAYROLL_PEMBIMBING_DEFAULT_KRITERIA = 'RINGAN';
 
+/** Join jadwal presensi pembimbing — satu baris per scan (hindari duplikasi jam). */
+function payroll_pembimbing_scan_jadwal_join_sql(string $presensiAlias = 'p'): string
+{
+    $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
+
+    return '
+        LEFT JOIN jadwal_kegiatan j ON j.id = (
+            SELECT j2.id FROM jadwal_kegiatan j2
+            WHERE j2.kegiatan_id = ' . $p . '.kegiatan_id
+              AND ' . $p . '.kegiatan_id IS NOT NULL
+              AND (j2.hari_ke = 0 OR j2.hari_ke = WEEKDAY(' . $p . '.tanggal) + 1)
+            ORDER BY j2.jam_mulai ASC, j2.id ASC
+            LIMIT 1
+        )
+        LEFT JOIN pkpps_jadwal pj ON pj.id = (
+            SELECT pj2.id FROM pkpps_jadwal pj2
+            WHERE pj2.kegiatan_id = ' . $p . '.kegiatan_id
+              AND pj2.pembimbing_id = ' . $p . '.pembimbing_id
+              AND pj2.is_aktif = 1
+            ORDER BY pj2.jam_mulai ASC, pj2.id ASC
+            LIMIT 1
+        )
+    ';
+}
+
+/** Ekspresi SQL jam kerja dari satu baris presensi_pembimbing. */
+function payroll_pembimbing_scan_jam_case_sql(string $presensiAlias = 'p'): string
+{
+    $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
+
+    return '
+        CASE
+            WHEN ' . $p . '.jenis_scan = "DATANG"
+                AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
+                AND COALESCE(j.jam_selesai, pj.jam_selesai) IS NOT NULL
+                THEN GREATEST(
+                    TIMESTAMPDIFF(MINUTE, COALESCE(j.jam_mulai, pj.jam_mulai), COALESCE(j.jam_selesai, pj.jam_selesai)),
+                    0
+                ) / 60
+            WHEN ' . $p . '.jenis_scan = "DATANG" THEN 1
+            ELSE 0
+        END
+    ';
+}
+
 /** @return array<string,string> kriteria => label tampilan */
 function payroll_pembimbing_kriteria_labels(): array
 {
@@ -382,25 +427,9 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
     $endDate = (string) $period['end_date'];
 
     $jamStmt = $pdo->prepare('
-        SELECT SUM(
-            CASE
-                WHEN p.jenis_scan = "DATANG"
-                    AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
-                    AND COALESCE(j.jam_selesai, pj.jam_selesai) IS NOT NULL
-                    THEN GREATEST(
-                        TIMESTAMPDIFF(MINUTE, COALESCE(j.jam_mulai, pj.jam_mulai), COALESCE(j.jam_selesai, pj.jam_selesai)),
-                        0
-                    ) / 60
-                WHEN p.jenis_scan = "DATANG" THEN 1
-                ELSE 0
-            END
-        ) AS total_jam
+        SELECT SUM(' . payroll_pembimbing_scan_jam_case_sql('p') . ') AS total_jam
         FROM presensi_pembimbing p
-        LEFT JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
-        LEFT JOIN pkpps_jadwal pj
-            ON pj.kegiatan_id = p.kegiatan_id
-           AND pj.pembimbing_id = p.pembimbing_id
-           AND pj.is_aktif = 1
+        ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
         WHERE p.pembimbing_id = :pid
           AND p.tanggal BETWEEN :start_date AND :end_date
     ');

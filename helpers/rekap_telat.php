@@ -36,8 +36,9 @@ function rekap_telat_izin_kembali(PDO $pdo, string $startDate, string $endDate, 
         $params['tingkatan'] = $tingkatan;
     }
     if ($namaFilter !== '') {
-        $query .= ' AND (s.nama_santri LIKE :nama OR s.nis LIKE :nama)';
+        $query .= ' AND (s.nama_santri LIKE :nama OR s.nis LIKE :nama_nis)';
         $params['nama'] = '%' . $namaFilter . '%';
+        $params['nama_nis'] = '%' . $namaFilter . '%';
     }
     $query .= ' ORDER BY i.tanggal_selesai DESC, i.jam_selesai DESC';
 
@@ -61,8 +62,8 @@ function rekap_telat_kegiatan(PDO $pdo, string $startDate, string $endDate, int 
     $params = [
         'start_date' => $startDate,
         'end_date' => $endDate,
-        'late_tolerance' => max(0, $lateTolerance),
     ];
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $where = '
         WHERE p.status_presensi = "HADIR"
           AND p.tanggal_presensi BETWEEN :start_date AND :end_date
@@ -73,15 +74,14 @@ function rekap_telat_kegiatan(PDO $pdo, string $startDate, string $endDate, int 
         $params['tingkatan'] = $tingkatan;
     }
     if ($namaFilter !== '') {
-        $where .= ' AND (s.nama_santri LIKE :nama OR s.nis LIKE :nama)';
+        $where .= ' AND (s.' . $nameCol . ' LIKE :nama OR s.nis LIKE :nama_nis)';
         $params['nama'] = '%' . $namaFilter . '%';
+        $params['nama_nis'] = '%' . $namaFilter . '%';
     }
     if ($kegiatanFilter !== '') {
         $where .= ' AND k.nama_kegiatan LIKE :kegiatan';
         $params['kegiatan'] = '%' . $kegiatanFilter . '%';
     }
-
-    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 
     $sql = '
         SELECT

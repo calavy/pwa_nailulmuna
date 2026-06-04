@@ -96,15 +96,6 @@ function presensi_notif_santri_hadir(
         if ($uid > 0) {
             push_event_presensi_santri_scan($pdo, $nama, $body, $nis, $uid);
         }
-        if (table_exists($pdo, 'pembimbing')) {
-            $waSt = $pdo->prepare('SELECT no_wa FROM pembimbing WHERE id = :id LIMIT 1');
-            $waSt->execute(['id' => $pid]);
-            $wa = trim((string) ($waSt->fetchColumn() ?: ''));
-            if ($wa !== '' && function_exists('send_wa_message') && push_should_send_wa($pdo)) {
-                $waMsg = "📍 Scan santri\n" . $body . "\n" . date('d/m/Y H:i', strtotime($tanggal . ' ' . $jam));
-                send_wa_message($pdo, $wa, $waMsg);
-            }
-        }
     }
 }
 

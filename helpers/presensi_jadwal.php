@@ -252,13 +252,77 @@ function presensi_jadwal_jam_selesai_for(PDO $pdo, string $tanggal, int $kegiata
     return $map[$kegiatanId . '|*'] ?? null;
 }
 
+const PRESENSI_FINALIZED_SETTING_KEY = 'presensi_finalized_dates';
+
+/** @return array<string, true> */
+function presensi_finalized_dates_map(PDO $pdo, bool $reload = false): array
+{
+    static $cache = null;
+    if (!$reload && is_array($cache)) {
+        return $cache;
+    }
+    $raw = app_setting($pdo, PRESENSI_FINALIZED_SETTING_KEY, '{}');
+    $decoded = json_decode((string) $raw, true);
+    if (!is_array($decoded)) {
+        $cache = [];
+
+        return $cache;
+    }
+    $out = [];
+    foreach ($decoded as $d => $flag) {
+        if (is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && $flag) {
+            $out[$d] = true;
+        }
+    }
+    $cache = $out;
+
+    return $cache;
+}
+
+function presensi_finalized_date_is_set(PDO $pdo, string $tanggal): bool
+{
+    $map = presensi_finalized_dates_map($pdo);
+
+    return isset($map[$tanggal]);
+}
+
+function presensi_finalized_date_mark(PDO $pdo, string $tanggal): void
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return;
+    }
+    $map = presensi_finalized_dates_map($pdo);
+    $map[$tanggal] = true;
+    if (count($map) > 400) {
+        ksort($map);
+        $map = array_slice($map, -365, null, true);
+    }
+    save_setting($pdo, PRESENSI_FINALIZED_SETTING_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    presensi_finalized_dates_map($pdo, true);
+}
+
+/** Hapus tanda finalisasi untuk rentang tanggal (paksa sync ulang). */
+function presensi_finalized_dates_clear_range(PDO $pdo, string $startDate, string $endDate): void
+{
+    $startTs = strtotime($startDate) ?: time();
+    $endTs = strtotime($endDate) ?: $startTs;
+    $map = presensi_finalized_dates_map($pdo);
+    for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
+        unset($map[date('Y-m-d', $ts)]);
+    }
+    save_setting($pdo, PRESENSI_FINALIZED_SETTING_KEY, json_encode($map, JSON_UNESCAPED_UNICODE));
+    presensi_finalized_dates_map($pdo, true);
+}
+
 /**
  * Finalisasi ALPA: sinkronkan presensi untuk slot yang jam selesainya sudah lewat.
+ *
+ * Hari lampau yang sudah difinalisasi diskip (kecuali $forceRefresh). Hari ini selalu di-sync.
  */
-function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDate, int $createdBy = 1): void
+function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDate, int $createdBy = 1, bool $forceRefresh = false): void
 {
     static $finalizedRanges = [];
-    $key = $startDate . '|' . $endDate;
+    $key = $startDate . '|' . $endDate . '|' . ($forceRefresh ? '1' : '0');
     if (isset($finalizedRanges[$key])) {
         return;
     }
@@ -267,8 +331,13 @@ function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDa
     if (!function_exists('sync_presence_for_ended_schedules')) {
         require_once __DIR__ . '/app.php';
     }
+    require_once __DIR__ . '/presensi_admin.php';
+    ensure_presensi_indexes($pdo);
     if (!table_exists($pdo, 'jadwal_kegiatan')) {
         return;
+    }
+    if ($forceRefresh) {
+        presensi_finalized_dates_clear_range($pdo, $startDate, $endDate);
     }
     $startTs = strtotime($startDate) ?: time();
     $endTs = strtotime($endDate) ?: $startTs;
@@ -279,10 +348,17 @@ function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDa
         if ($tanggal > $today) {
             continue;
         }
-        $jam = $tanggal === $today ? $nowJam : '23:59:59';
+        $isToday = $tanggal === $today;
+        if (!$isToday && !$forceRefresh && presensi_finalized_date_is_set($pdo, $tanggal)) {
+            continue;
+        }
+        $jam = $isToday ? $nowJam : '23:59:59';
         sync_presence_for_ended_schedules($pdo, $tanggal, $jam, $createdBy);
-        if ($tanggal === $today && function_exists('sync_presence_for_active_schedules')) {
+        if ($isToday && function_exists('sync_presence_for_active_schedules')) {
             sync_presence_for_active_schedules($pdo, $tanggal, $jam, $createdBy);
+        }
+        if (!$isToday) {
+            presensi_finalized_date_mark($pdo, $tanggal);
         }
     }
 }

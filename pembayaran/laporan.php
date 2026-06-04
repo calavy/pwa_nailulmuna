@@ -314,8 +314,9 @@ $iconLaporan = bendahara_page_icon('laporan');
                                     </div>
                                 </td>
                                 <td class="text-end">
-                                    <?php if (!empty($ra['is_dana_umum'])): ?>
-                                        <span class="badge text-bg-info">PKPPS</span>
+                                    <?php if (!empty($ra['is_pkpps_gaji'])): ?>
+                                        <span class="badge text-bg-secondary"><?= htmlspecialchars((string) $persenRow) ?>%</span>
+                                        <span class="badge text-bg-info ms-1">+PKPPS</span>
                                     <?php else: ?>
                                         <span class="badge text-bg-secondary"><?= htmlspecialchars((string) $persenRow) ?>%</span>
                                     <?php endif; ?>

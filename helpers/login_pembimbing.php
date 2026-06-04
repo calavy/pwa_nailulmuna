@@ -69,6 +69,38 @@ function login_pembimbing_post_login_path(string $dest = ''): string
     return 'pembimbing/dashboard.php';
 }
 
+/**
+ * Guard halaman self-service portal pembimbing (sama pola dengan dashboard).
+ * Role pembimbing/admin/pengurus (+ role tambahan opsional) tidak perlu ACL granular.
+ */
+function pembimbing_portal_require_access(array $extraRoles = []): void
+{
+    require_once __DIR__ . '/../includes/auth.php';
+    require_login();
+    require_once __DIR__ . '/munawib_portal.php';
+    munawib_portal_guard_halaman();
+    if (is_super_admin()) {
+        return;
+    }
+    $allowed = array_merge(['admin', 'pengurus', 'pembimbing'], $extraRoles);
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if (in_array($role, $allowed, true)) {
+        return;
+    }
+    global $pdo;
+    if ($pdo instanceof PDO) {
+        require_once __DIR__ . '/akademik_ikhtibar.php';
+        if (ikhtibar_user_matches_pembimbing_nip($pdo)) {
+            return;
+        }
+    }
+    if (user_has_current_page_permission()) {
+        return;
+    }
+    set_flash('error', 'Anda tidak memiliki akses ke halaman ini.');
+    auth_redirect_access_denied();
+}
+
 function login_pembimbing_setoran_entry_url(): string
 {
     return login_pembimbing_setoran_entry_meta(null)['href'];
@@ -221,5 +253,5 @@ function login_pembimbing_ensure_acl(PDO $pdo, int $userId): void
         app_menu_pack_invalidate();
     }
 
-    $_SESSION['pembimbing_acl_healed_v4_' . $userId] = 1;
+    $_SESSION['pembimbing_acl_healed_v5_' . $userId] = 1;
 }

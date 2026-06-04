@@ -124,8 +124,8 @@ require_once __DIR__ . '/../includes/header.php';
             <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/ringkasan.php')) ?>">
                 <div class="card-body">
                     <i class="fa-solid fa-list-check text-success mb-2"></i>
-                    <div class="fw-semibold text-dark">Yayasan</div>
-                    <div class="small text-muted">To-do mendesak & kegiatan terdekat</div>
+                    <div class="fw-semibold text-dark">To-Do &amp; Agenda</div>
+                    <div class="small text-muted">Tugas mendesak & kegiatan terdekat</div>
                 </div>
             </a>
         </div>
@@ -139,11 +139,65 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </div>
         <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/ketertiban.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-shield-halved text-danger mb-2"></i>
+                    <div class="fw-semibold text-dark">Ketertiban</div>
+                    <div class="small text-muted">Pelanggaran & tindak lanjut</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
             <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/timeline.php')) ?>">
                 <div class="card-body">
                     <i class="fa-solid fa-route text-warning mb-2"></i>
-                    <div class="fw-semibold text-dark">Timeline & Tugas</div>
+                    <div class="fw-semibold text-dark">Timeline &amp; Tugas</div>
                     <div class="small text-muted">Hasil rapat, progres, kalender</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/pengurus.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-users text-secondary mb-2"></i>
+                    <div class="fw-semibold text-dark">Pengurus</div>
+                    <div class="small text-muted">Struktur pengurus yayasan</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/rapat.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-handshake text-primary mb-2"></i>
+                    <div class="fw-semibold text-dark">Rapat</div>
+                    <div class="small text-muted">Jadwal & agenda rapat</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/notulen.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-file-lines text-muted mb-2"></i>
+                    <div class="fw-semibold text-dark">Notulen</div>
+                    <div class="small text-muted">Arsip notulen rapat</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/executive.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-chart-pie text-success mb-2"></i>
+                    <div class="fw-semibold text-dark">Executive Summary</div>
+                    <div class="small text-muted">Ringkasan eksekutif yayasan</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/sdm_hari.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-user-check text-info mb-2"></i>
+                    <div class="fw-semibold text-dark">Keaktifan SDM Hari Ini</div>
+                    <div class="small text-muted">Pembimbing & munawib hadir</div>
                 </div>
             </a>
         </div>

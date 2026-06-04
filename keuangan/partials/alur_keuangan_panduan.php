@@ -11,7 +11,7 @@ declare(strict_types=1);
 if (!function_exists('keuangan_pkpps_alokasi_umum_label')) {
     require_once __DIR__ . '/../../helpers/keuangan_pkpps_syahriyah.php';
 }
-$umumLabel = keuangan_pkpps_alokasi_umum_label();
+$umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
 ?>
 <div class="keu-panduan">
     <div class="alert alert-light border mb-4 small">
@@ -165,7 +165,7 @@ $umumLabel = keuangan_pkpps_alokasi_umum_label();
                 <div class="accordion-body small">
                     <p class="mb-2">Alokasi = pembagian <strong>persentase</strong> (bukan transfer otomatis antar rekening).</p>
                     <ul class="mb-2 ps-3">
-                        <li>Bagian PKPPS → <strong><?= htmlspecialchars($umumLabel) ?></strong></li>
+                        <li>Bagian PKPPS → <strong><?= htmlspecialchars($umumLabel) ?></strong> (gaji guru)</li>
                         <li>Komponen % (gizi, operasional, KOPSA, …) dihitung dari <em>dasar</em> syahriyah setelah PKPPS</li>
                         <li>Cicilan kecil: PKPPS diambil dulu, sisanya ke % dasar</li>
                         <li>Pengeluaran dengan <code>alokasi_nama</code> mengurangi saldo virtual komponen</li>

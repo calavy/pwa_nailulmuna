@@ -269,22 +269,10 @@ function keuangan_tagihan_breakdown_for_santri(
         return [];
     }
 
-    $kat = '';
-    if (table_exists($pdo, 'santri')) {
-        $cols = ['id'];
-        if (column_exists($pdo, 'santri', 'kategori_kelas')) {
-            $cols[] = 'kategori_kelas';
-        }
-        if (column_exists($pdo, 'santri', 'tingkatan')) {
-            $cols[] = 'tingkatan';
-        }
-        $stmt = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM santri WHERE id = :id LIMIT 1');
-        $stmt->execute(['id' => $santriId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (is_array($row)) {
-            $kat = trim((string) ($row['kategori_kelas'] ?? $row['tingkatan'] ?? ''));
-        }
+    if (!function_exists('keuangan_santri_kelas_tagihan')) {
+        require_once __DIR__ . '/santri_ta.php';
     }
+    $kat = keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunMulai, $tahunSelesai);
 
     $tier = keuangan_tier_key_from_kelas($kat, $pdo);
     $paidMap = keuangan_paid_pos_map_for_santri_month($pdo, $santriId, $jenisPeriode, $bulanTagihan, $tahunMulai, $tahunSelesai);
@@ -348,6 +336,31 @@ function keuangan_tagihan_breakdown_for_santri(
                     $expected = max(0, (int) $overrideNominal);
                 }
             }
+            $pkppsTambahan = 0;
+            $expectedSetelahPotongan = $expected;
+            if (
+                $slug === 'syahriyah'
+                && $jenisPeriode === 'BULANAN'
+                && $santriId > 0
+                && $bulanTagihan >= 1
+                && $bulanTagihan <= 12
+            ) {
+                if (!function_exists('keuangan_syahriyah_expected_dengan_potongan')) {
+                    require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+                }
+                $syPot = keuangan_syahriyah_expected_dengan_potongan(
+                    $pdo,
+                    $santriId,
+                    $kat,
+                    $bulanTagihan,
+                    $tahunMulai,
+                    $tahunSelesai
+                );
+                $expected = max(0, (int) ($syPot['expected'] ?? $expected));
+                $expectedDefault = $expected;
+                $pkppsTambahan = (int) ($syPot['pkpps_tambahan'] ?? 0);
+                $expectedSetelahPotongan = max(0, (int) ($syPot['expected_setelah_potongan'] ?? ($expected - $pkppsTambahan)));
+            }
             $paid = (int) ($paidMap[$slug] ?? 0);
             $sisa = max(0, $expected - $paid);
             if ($expected <= 0) {
@@ -372,6 +385,12 @@ function keuangan_tagihan_breakdown_for_santri(
             $row['expected_default'] = (int) $expectedDefault;
             $row['override_aktif'] = (bool) $overrideAktif;
             $row['override_nominal'] = $overrideNominal;
+        }
+        if (!isset($perPosWajib[$slug]) && $slug === 'syahriyah' && ($pkppsTambahan ?? 0) > 0) {
+            $row['pkpps_tambahan'] = (int) $pkppsTambahan;
+            $row['expected_setelah_potongan'] = (int) ($expectedSetelahPotongan ?? max(0, $expected - $pkppsTambahan));
+            $row['tier_key'] = $tier;
+            $row['tier_label'] = $tier === 'muadalah' ? 'Muadalah' : ($tier === 'ulya' ? 'Ulya' : 'Wustho');
         }
         if (isset($perPosWajib[$slug])) {
             $persenPot = (float) ($perPosWajib[$slug]['persen_potongan'] ?? 0);
@@ -437,7 +456,7 @@ function keuangan_syahriyah_terbayar_bulan(
  * Pembayaran masuk: PKPPS diambil dulu dari cicilan, sisanya ke dasar × %.
  *
  * @param int $syahriyahHarusMasuk Diabaikan (dipertahankan untuk kompatibilitas pemanggil).
- * @return list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int,is_dana_umum?:bool}>
+ * @return list<array{nama:string,kategori:string,persen:float,harus_masuk:int,masuk:int,pengeluaran:int,saldo:int,is_pkpps_gaji?:bool}>
  */
 function keuangan_rekap_alokasi_syahriyah_bulan(
     PDO $pdo,
@@ -469,7 +488,7 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
         require_once __DIR__ . '/pondok_kalender.php';
     }
 
-    $umumLabel = keuangan_pkpps_alokasi_umum_label();
+    $pkppsTarget = keuangan_pkpps_alokasi_komponen_nama($pdo);
     $harusKomponen = [];
     $masukKomponen = [];
     foreach ($rows as $row) {
@@ -479,8 +498,10 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
             $masukKomponen[$nama] = 0;
         }
     }
-    $harusUmum = 0;
-    $masukUmum = 0;
+    if (!isset($harusKomponen[$pkppsTarget])) {
+        $harusKomponen[$pkppsTarget] = 0;
+        $masukKomponen[$pkppsTarget] = 0;
+    }
 
     $aktifSql = santri_sql_aktif_only('s');
     $stSantri = $pdo->query('
@@ -495,12 +516,14 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
         if ($sid <= 0) {
             continue;
         }
-        $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+        $kat = function_exists('keuangan_santri_kelas_tagihan')
+            ? keuangan_santri_kelas_tagihan($pdo, $sid, $tahunMulai, $tahunSelesai, $s)
+            : trim((string) ($s['kategori_kelas'] ?? ''));
         $sim = keuangan_syahriyah_expected_dengan_potongan($pdo, $sid, $kat, $bulanTagihan, $tahunMulai, $tahunSelesai);
         $pkppsHarus = (int) ($sim['pkpps_tambahan'] ?? 0);
         $expected = (int) ($sim['expected'] ?? 0);
         $dasarHarus = max(0, $expected - $pkppsHarus);
-        $harusUmum += $pkppsHarus;
+        keuangan_pkpps_alokasi_tambah_ke_komponen($pdo, $pkppsHarus, $harusKomponen);
         foreach ($rows as $row) {
             $nama = trim((string) ($row['nama_komponen'] ?? ''));
             if ($nama === '') {
@@ -521,7 +544,9 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
         if ($bayar <= 0) {
             continue;
         }
-        $kat = trim((string) ($s['kategori_kelas'] ?? ''));
+        $kat = function_exists('keuangan_santri_kelas_tagihan')
+            ? keuangan_santri_kelas_tagihan($pdo, $sid, $tahunMulai, $tahunSelesai, $s)
+            : trim((string) ($s['kategori_kelas'] ?? ''));
         $split = keuangan_syahriyah_split_pembayaran_tambahan(
             $pdo,
             $sid,
@@ -532,7 +557,7 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
             $tahunSelesai
         );
         $dasarBayar = (int) ($split['dasar'] ?? $bayar);
-        $masukUmum += (int) ($split['umum'] ?? 0);
+        keuangan_pkpps_alokasi_tambah_ke_komponen($pdo, (int) ($split['umum'] ?? 0), $masukKomponen);
         foreach ($rows as $row) {
             $nama = trim((string) ($row['nama_komponen'] ?? ''));
             if ($nama === '') {
@@ -566,20 +591,6 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
     }
 
     $out = [];
-    if ($harusUmum > 0 || $masukUmum > 0) {
-        $pengeluaranUmum = (int) ($keluarMap[$umumLabel] ?? $keluarMap['Dana Umum'] ?? 0);
-        $out[] = [
-            'nama' => $umumLabel,
-            'kategori' => 'PKPPS',
-            'persen' => 0.0,
-            'harus_masuk' => $harusUmum,
-            'masuk' => $masukUmum,
-            'pengeluaran' => $pengeluaranUmum,
-            'saldo' => $masukUmum - $pengeluaranUmum,
-            'is_dana_umum' => true,
-        ];
-    }
-
     foreach ($rows as $row) {
         $nama = trim((string) ($row['nama_komponen'] ?? ''));
         if ($nama === '') {
@@ -597,6 +608,7 @@ function keuangan_rekap_alokasi_syahriyah_bulan(
             'masuk' => $masuk,
             'pengeluaran' => $pengeluaran,
             'saldo' => $masuk - $pengeluaran,
+            'is_pkpps_gaji' => $nama === $pkppsTarget,
         ];
     }
 

@@ -27,12 +27,11 @@ $rekapBulan = max(1, min(12, (int) ($_GET['rekap_bulan'] ?? (int) ($berjalan['bu
 
 $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 $alokasiKomponen = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
-$umumLabel = 'Dana Umum';
+$pkppsTarget = keuangan_pkpps_alokasi_komponen_nama($pdo);
 
 $rows = [];
 $totalMasuk = 0;
 $totalsPerKomponen = [];
-$totalsPerKomponen[$umumLabel] = 0;
 
 if ($alokasiKomponen !== [] && table_exists($pdo, 'santri')) {
     $paidMap = tagihan_paid_map_for_month($pdo, $rekapBulan, $tahunAjaranMulai, $tahunAjaranSelesai, ['syahriyah']);
@@ -73,17 +72,9 @@ if ($alokasiKomponen !== [] && table_exists($pdo, 'santri')) {
             $tahunAjaranSelesai
         );
         $dasarBayar = (int) ($split['dasar'] ?? $bayar);
-        $umumBayar = (int) ($split['umum'] ?? 0);
+        $pkppsBayar = (int) ($split['umum'] ?? 0);
 
         $komponen = [];
-        if ($umumBayar > 0) {
-            $komponen[] = [
-                'nama' => $umumLabel,
-                'persen' => 100.0,
-                'nominal' => $umumBayar,
-            ];
-            $totalsPerKomponen[$umumLabel] = ($totalsPerKomponen[$umumLabel] ?? 0) + $umumBayar;
-        }
         foreach ($alokasiKomponen as $k) {
             $nama = trim((string) ($k['nama_komponen'] ?? ''));
             if ($nama === '') {
@@ -91,6 +82,9 @@ if ($alokasiKomponen !== [] && table_exists($pdo, 'santri')) {
             }
             $persen = (float) ($k['persen'] ?? 0);
             $nom = (int) floor($dasarBayar * $persen / 100);
+            if ($nama === $pkppsTarget) {
+                $nom += $pkppsBayar;
+            }
             $komponen[] = [
                 'nama' => $nama,
                 'persen' => round($persen, 2),
@@ -98,12 +92,22 @@ if ($alokasiKomponen !== [] && table_exists($pdo, 'santri')) {
             ];
             $totalsPerKomponen[$nama] = ($totalsPerKomponen[$nama] ?? 0) + $nom;
         }
+        if ($pkppsBayar > 0 && !array_key_exists($pkppsTarget, $totalsPerKomponen)) {
+            $totalsPerKomponen[$pkppsTarget] = 0;
+        }
+        if ($pkppsBayar > 0 && !in_array($pkppsTarget, array_map(static fn(array $k): string => trim((string) ($k['nama_komponen'] ?? '')), $alokasiKomponen), true)) {
+            $komponen[] = [
+                'nama' => $pkppsTarget,
+                'persen' => 0.0,
+                'nominal' => $pkppsBayar,
+            ];
+            $totalsPerKomponen[$pkppsTarget] = ($totalsPerKomponen[$pkppsTarget] ?? 0) + $pkppsBayar;
+        }
         $rows[] = [
             'nama_santri' => (string) ($s['nama_santri'] ?? '-'),
             'nis' => (string) ($s['nis'] ?? ''),
             'tier' => (string) ($s['kategori_kelas'] ?? ''),
             'bayar' => $bayar,
-            'umum' => $umumBayar,
             'komponen' => $komponen,
         ];
     }
@@ -125,7 +129,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Laporan alokasi syahriyah per santri</h1>
     <p class="text-muted small mb-0">
         Cicilan dialokasikan <strong>PKPPS dulu</strong>, sisanya ke dasar × % alokasi.
-        Tambahan PKPPS masuk <strong><?= htmlspecialchars($umumLabel) ?></strong>.
+        Tambahan PKPPS masuk komponen <strong><?= htmlspecialchars($pkppsTarget) ?></strong> (gaji guru).
         <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php')) ?>">Laporan syahriyah</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">Laporan PKPPS</a>
     </p>
@@ -163,18 +167,21 @@ require_once __DIR__ . '/../includes/header.php';
                 <th>Santri</th>
                 <th>Tier</th>
                 <th class="text-end">Bayar syahriyah</th>
-                <th class="text-end small"><?= htmlspecialchars($umumLabel) ?><br><span class="text-muted fw-normal">tambahan</span></th>
                 <?php foreach ($alokasiKomponen as $k): ?>
+                    <?php $namaK = trim((string) ($k['nama_komponen'] ?? '')); ?>
                     <th class="text-end small">
-                        <?= htmlspecialchars((string) ($k['nama_komponen'] ?? '')) ?><br>
+                        <?= htmlspecialchars($namaK) ?><?= $namaK === $pkppsTarget ? ' <span class="text-muted fw-normal">(+PKPPS)</span>' : '' ?><br>
                         <span class="text-muted fw-normal"><?= number_format((float) ($k['persen'] ?? 0), 2) ?>%</span>
                     </th>
                 <?php endforeach; ?>
+                <?php if ($pkppsTarget !== '' && !in_array($pkppsTarget, array_map(static fn(array $k): string => trim((string) ($k['nama_komponen'] ?? '')), $alokasiKomponen), true)): ?>
+                    <th class="text-end small"><?= htmlspecialchars($pkppsTarget) ?><br><span class="text-muted fw-normal">PKPPS</span></th>
+                <?php endif; ?>
             </tr>
             </thead>
             <tbody>
             <?php if ($rows === []): ?>
-                <tr><td colspan="<?= 4 + count($alokasiKomponen) ?>" class="text-center text-muted py-4">Belum ada pembayaran syahriyah bulan ini.</td></tr>
+                <tr><td colspan="<?= 3 + count($alokasiKomponen) + ($pkppsTarget !== '' && !in_array($pkppsTarget, array_map(static fn(array $k): string => trim((string) ($k['nama_komponen'] ?? '')), $alokasiKomponen), true) ? 1 : 0) ?>" class="text-center text-muted py-4">Belum ada pembayaran syahriyah bulan ini.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <tr>
@@ -189,24 +196,26 @@ require_once __DIR__ . '/../includes/header.php';
                         foreach ($r['komponen'] as $c) {
                             $byName[$c['nama']] = $c['nominal'];
                         }
-                        ?>
-                        <td class="text-end small"><?= keuangan_format_rupiah((int) ($r['umum'] ?? 0)) ?></td>
-                        <?php
                         foreach ($alokasiKomponen as $k):
                             $nama = trim((string) ($k['nama_komponen'] ?? ''));
                             ?>
                             <td class="text-end small"><?= keuangan_format_rupiah((int) ($byName[$nama] ?? 0)) ?></td>
                         <?php endforeach; ?>
+                        <?php if ($pkppsTarget !== '' && !in_array($pkppsTarget, array_map(static fn(array $k): string => trim((string) ($k['nama_komponen'] ?? '')), $alokasiKomponen), true)): ?>
+                            <td class="text-end small"><?= keuangan_format_rupiah((int) ($byName[$pkppsTarget] ?? 0)) ?></td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 <tr class="table-secondary fw-semibold">
                     <td colspan="2">Total alokasi</td>
                     <td class="text-end"><?= keuangan_format_rupiah($totalMasuk) ?></td>
-                    <td class="text-end"><?= keuangan_format_rupiah((int) ($totalsPerKomponen[$umumLabel] ?? 0)) ?></td>
                     <?php foreach ($alokasiKomponen as $k): ?>
                         <?php $nama = trim((string) ($k['nama_komponen'] ?? '')); ?>
                         <td class="text-end"><?= keuangan_format_rupiah((int) ($totalsPerKomponen[$nama] ?? 0)) ?></td>
                     <?php endforeach; ?>
+                    <?php if ($pkppsTarget !== '' && !in_array($pkppsTarget, array_map(static fn(array $k): string => trim((string) ($k['nama_komponen'] ?? '')), $alokasiKomponen), true)): ?>
+                        <td class="text-end"><?= keuangan_format_rupiah((int) ($totalsPerKomponen[$pkppsTarget] ?? 0)) ?></td>
+                    <?php endif; ?>
                 </tr>
             <?php endif; ?>
             </tbody>

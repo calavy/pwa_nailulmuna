@@ -10,6 +10,7 @@ function jadwal_pembimbing_self_service_paths(): array
     return [
         '/jadwal/index.php',
         '/jadwal/tambah.php',
+        '/jadwal/kegiatan.php',
         '/jadwal/tambah_kegiatan.php',
     ];
 }

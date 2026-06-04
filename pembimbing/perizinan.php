@@ -3,11 +3,12 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/login_pembimbing.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/pembimbing_perubahan_jadwal.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 
-require_roles(['admin', 'pengurus', 'petugas_absensi', 'pembimbing']);
+pembimbing_portal_require_access(['petugas_absensi']);
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
 $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));

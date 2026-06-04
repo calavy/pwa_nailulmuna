@@ -187,8 +187,20 @@ function trigger_push_daily_kiai(PDO $pdo): void
         }
     }
 
+    require_once __DIR__ . '/pengasuh_laporan_hari.php';
+    $keaktifanRingkas = pengasuh_laporan_hari_push_ringkasan($pdo, $today);
+    if ($keaktifanRingkas !== null && (int) ($keaktifanRingkas['total'] ?? 0) > 0) {
+        $parts[] = sprintf(
+            'Keaktifan: %.1f%% hadir · %d alpa · %d kegiatan',
+            (float) ($keaktifanRingkas['persen'] ?? 0),
+            (int) ($keaktifanRingkas['alpa'] ?? 0),
+            (int) ($keaktifanRingkas['kegiatan'] ?? 0)
+        );
+    }
+
     $body = implode(' · ', $parts);
-    if (push_notify_all_kiai($pdo, 'keuangan_harian', 'Ringkasan harian pondok', $body) > 0) {
+    $laporanUrl = '/pengasuh/laporan_hari.php?tanggal=' . urlencode($today);
+    if (push_notify_all_kiai($pdo, 'keuangan_harian', 'Ringkasan harian pondok', $body, [], $laporanUrl) > 0) {
         save_setting($pdo, 'fcm_daily_kiai_last_date', $today);
     }
 }

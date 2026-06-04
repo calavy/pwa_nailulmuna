@@ -133,7 +133,8 @@ body.wali-portal {
     margin: 0 auto;
 }
 
-.wali-bottom-nav a {
+.wali-bottom-nav a,
+.wali-bottom-nav button {
     flex: 1;
     text-align: center;
     text-decoration: none;
@@ -148,21 +149,37 @@ body.wali-portal {
     align-items: center;
     justify-content: center;
     gap: 0.15rem;
+    border: 0;
+    background: transparent;
+    width: 100%;
+    cursor: pointer;
 }
 
-.wali-bottom-nav a i {
+.wali-bottom-nav a i,
+.wali-bottom-nav button i {
     font-size: 1.1rem;
 }
 
-.wali-bottom-nav a span {
+.wali-bottom-nav a span,
+.wali-bottom-nav button span {
     line-height: 1.15;
     max-width: 4.75rem;
     word-break: break-word;
 }
 
-.wali-bottom-nav a.active {
+.wali-bottom-nav a.active,
+.wali-bottom-nav button.active {
     color: var(--wali-teal);
     background: rgba(15, 118, 110, 0.1);
+}
+
+.wali-more-offcanvas {
+    border-radius: 1rem 1rem 0 0;
+    max-height: min(70vh, 28rem);
+}
+
+.wali-more-offcanvas .list-group-item {
+    min-height: 44px;
 }
 
 .wali-login-hero {

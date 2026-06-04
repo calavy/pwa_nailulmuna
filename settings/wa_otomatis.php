@@ -20,7 +20,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'jalan
 }
 
 $waJadwal = wa_tagihan_jadwal_context($pdo);
-$waLastRun = trim((string) app_setting($pdo, 'wa_tagihan_last_run_at', ''));
+$waCronLastRun = trim((string) app_setting($pdo, 'wa_auto_last_run_at', ''));
+$waLastHeavy = trim((string) app_setting($pdo, 'wa_auto_last_heavy_at', ''));
+$waTagihanLastRun = trim((string) app_setting($pdo, 'wa_tagihan_last_run_at', ''));
+$waCronKey = trim((string) app_setting($pdo, 'wa_auto_cron_key', ''));
+$waAlpaLastRaw = trim((string) app_setting($pdo, 'wa_auto_alpa_last_result', ''));
+$waAlpaLast = $waAlpaLastRaw !== '' ? json_decode($waAlpaLastRaw, true) : null;
+if (!is_array($waAlpaLast)) {
+    $waAlpaLast = null;
+}
+$cronUrl = app_href('/cron/wa_auto.php') . ($waCronKey !== '' ? ('?key=' . rawurlencode($waCronKey)) : '');
 $waLastStatsRaw = trim((string) app_setting($pdo, 'wa_tagihan_last_run_stats', ''));
 $waLastStats = $waLastStatsRaw !== '' ? json_decode($waLastStatsRaw, true) : null;
 if (!is_array($waLastStats)) {
@@ -86,14 +95,44 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron hosting (<code>wa_auto.php</code>)</h2>
+        <p class="small text-muted mb-2">
+            Jadwalkan setiap <strong>1 menit</strong> (Windows Task Scheduler / cPanel cron).
+            Tick ringan: pengingat scan pembimbing &amp; mudabir. Tick berat (~5 menit): alpa, tagihan, maintenance.
+        </p>
+        <ul class="small mb-3 ps-3">
+            <li>Terakhir cron jalan: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
+            <li>Terakhir tick berat: <strong><?= $waLastHeavy !== '' ? htmlspecialchars($waLastHeavy) : '—' ?></strong></li>
+            <?php if ($waAlpaLast): ?>
+                <li>Rekap alpa harian: terkirim <?= (int) ($waAlpaLast['sent'] ?? 0) ?> · baris <?= (int) ($waAlpaLast['rows'] ?? 0) ?> · <?= htmlspecialchars((string) ($waAlpaLast['at'] ?? '')) ?></li>
+            <?php endif; ?>
+        </ul>
+        <div class="input-group input-group-sm mb-2" style="max-width:36rem">
+            <span class="input-group-text">URL</span>
+            <input type="text" class="form-control font-monospace" readonly value="<?= htmlspecialchars($cronUrl) ?>" id="wa-cron-url">
+            <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('wa-cron-url').value)">Salin</button>
+        </div>
+        <p class="small text-muted mb-0">
+            Kunci cron: set <code>wa_auto_cron_key</code> di tabel <code>app_settings</code> (opsional, disarankan di hosting).
+            <?php if ($waCronKey === ''): ?>
+                <span class="text-warning">Belum ada kunci — endpoint terbuka jika URL diketahui.</span>
+            <?php else: ?>
+                <span class="text-success">Kunci aktif.</span>
+            <?php endif; ?>
+        </p>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
         <h2 class="h6 mb-2">Status WA tagihan otomatis</h2>
         <ul class="small text-muted mb-3 ps-3">
             <li>Kalender: <strong><?= $waJadwal['calendar'] === 'HIJRIYAH' ? 'Hijriyah' : 'Masehi' ?></strong> · jadwal hari ke-<strong><?= (int) $waJadwal['due_day'] ?></strong> (hari ini ke-<?= (int) $waJadwal['today_day'] ?>)</li>
             <li>Jam kirim: <strong><?= $waJadwal['send_time'] !== '' ? htmlspecialchars($waJadwal['send_time']) : 'Langsung' ?></strong>
                 <?= $waJadwal['send_time_ok'] ? '<span class="text-success">(sudah lewat)</span>' : '<span class="text-warning">(belum)</span>' ?></li>
             <li>Terakhir sukses periode: <strong><?= $waJadwal['last_sent_at'] !== '' ? htmlspecialchars($waJadwal['last_sent_at']) : 'Belum pernah' ?></strong></li>
-            <?php if ($waLastRun !== ''): ?>
-                <li>Percobaan terakhir: <?= htmlspecialchars($waLastRun) ?>
+            <?php if ($waTagihanLastRun !== ''): ?>
+                <li>Percobaan tagihan terakhir: <?= htmlspecialchars($waTagihanLastRun) ?>
                     <?php if ($waLastStats): ?>
                         — terkirim <?= (int) ($waLastStats['sent'] ?? 0) ?>, gagal <?= (int) ($waLastStats['failed'] ?? 0) ?>, dilewati <?= (int) ($waLastStats['skipped'] ?? 0) ?>
                     <?php endif; ?>

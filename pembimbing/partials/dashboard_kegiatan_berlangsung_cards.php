@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Kartu kegiatan berlangsung + ringkasan presensi hari ini.
+ * Kartu kegiatan berlangsung + ringkasan presensi (dashboard pembimbing).
  *
  * @var list<array<string,mixed>> $kegiatanAktifPresensi
  * @var bool $inBanner Tampil di dalam banner hijau (home)

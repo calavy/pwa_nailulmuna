@@ -109,6 +109,12 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
         $backfill = pondok_backfill_kalender_hijriyah($pdo, false);
     }
 
+    pondok_bulan_slots_cache_invalidate();
+    if (!function_exists('tagihan_syahriyah_cache_invalidate')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    tagihan_syahriyah_cache_invalidate();
+
     return [
         'ok' => true,
         'message' => 'Pengaturan kalender berhasil disimpan.',

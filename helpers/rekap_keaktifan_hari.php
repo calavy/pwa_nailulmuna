@@ -29,6 +29,12 @@ function rekap_keaktifan_hari_normalize_kategori(?string $kategori): ?string
  */
 function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatanFilter = null, ?string $kategoriKegiatan = null): array
 {
+    static $dataCache = [];
+    $cacheKey = $tanggal . '|' . ($tingkatanFilter ?? '') . '|' . ($kategoriKegiatan ?? '');
+    if (isset($dataCache[$cacheKey])) {
+        return $dataCache[$cacheKey];
+    }
+
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || !table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
         return [];
     }
@@ -87,7 +93,10 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
     $st->execute($params);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    return presensi_apply_status_efektif_rows($pdo, $rows, $tanggal);
+    $rows = presensi_apply_status_efektif_rows($pdo, $rows, $tanggal);
+    $dataCache[$cacheKey] = $rows;
+
+    return $rows;
 }
 
 /**

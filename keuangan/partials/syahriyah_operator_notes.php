@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 /**
  * Catatan operator untuk alur tagihan & alokasi syahriyah.
+ *
+ * @var PDO $pdo
  */
+if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
+    require_once __DIR__ . '/../../helpers/keuangan_pkpps_syahriyah.php';
+}
 ?>
 <div class="card shadow-sm mt-4 border-info">
     <div class="card-header fw-semibold text-info-emphasis">Panduan operator — tagihan &amp; alokasi</div>
@@ -13,10 +18,10 @@ declare(strict_types=1);
             − potongan % per santri (bulan jeda tidak mengurangi) + <strong>tambahan PKPPS</strong> bila santri aktif di PKPPS.
             Jenis kelas syahriyah di master data <em>tidak</em> menambah nominal tagihan.</p>
         <p class="mb-2"><strong>Alokasi laporan</strong> (Laporan syahriyah &amp; Alokasi per santri): bagian PKPPS masuk
-            <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_umum_label()) ?></strong>;
+            komponen <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_komponen_nama($pdo)) ?></strong> (gaji guru);
             komponen % (gizi, operasional, KOPSA, …) dihitung hanya dari <em>dasar</em> syahriyah setelah PKPPS.</p>
         <p class="mb-2"><strong>Cicilan kecil:</strong> pembayaran dialokasikan <em>PKPPS dulu</em> (sampai nominal PKPPS lunas),
-            baru sisanya ke komponen %. Cicilan di bawah nominal PKPPS bisa seluruhnya masuk dana umum.</p>
+            lalu masuk ke komponen gaji; sisanya ke komponen % dasar.</p>
         <p class="mb-0"><strong>Cache laporan bulanan:</strong> setelah mengubah pembayaran atau pengaturan,
             buka <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php?refresh=1')) ?>">Laporan syahriyah</a>
             dengan <code>?refresh=1</code> agar agregat bulanan mutakhir.

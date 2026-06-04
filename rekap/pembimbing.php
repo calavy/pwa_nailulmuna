@@ -97,25 +97,9 @@ foreach ($kegiatanList as $kg) {
 }
 $scanGajiSql = '
     SELECT p.pembimbing_id,
-           SUM(
-               CASE
-                   WHEN p.jenis_scan = "DATANG"
-                       AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
-                       AND COALESCE(j.jam_selesai, pj.jam_selesai) IS NOT NULL
-                       THEN GREATEST(
-                           TIMESTAMPDIFF(MINUTE, COALESCE(j.jam_mulai, pj.jam_mulai), COALESCE(j.jam_selesai, pj.jam_selesai)),
-                           0
-                       ) / 60
-                   WHEN p.jenis_scan = "DATANG" THEN 1
-                   ELSE 0
-               END
-           ) AS total_jam
+           SUM(' . payroll_pembimbing_scan_jam_case_sql('p') . ') AS total_jam
     FROM presensi_pembimbing p
-    LEFT JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
-    LEFT JOIN pkpps_jadwal pj
-        ON pj.kegiatan_id = p.kegiatan_id
-       AND pj.pembimbing_id = p.pembimbing_id
-       AND pj.is_aktif = 1
+    ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
     WHERE p.tanggal BETWEEN :start_date AND :end_date
 ';
 if ($kegiatanFilter > 0) {
@@ -167,11 +151,7 @@ foreach ($rows as &$row) {
     $lateStmt = $pdo->prepare('
         SELECT COUNT(*)
         FROM presensi_pembimbing p
-        LEFT JOIN jadwal_kegiatan j ON j.kegiatan_id = p.kegiatan_id
-        LEFT JOIN pkpps_jadwal pj
-            ON pj.kegiatan_id = p.kegiatan_id
-           AND pj.pembimbing_id = p.pembimbing_id
-           AND pj.is_aktif = 1
+        ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
         WHERE p.pembimbing_id = :pembimbing_id
           AND p.tanggal BETWEEN :start_date AND :end_date
           AND p.kegiatan_id IS NOT NULL

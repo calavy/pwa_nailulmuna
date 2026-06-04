@@ -69,7 +69,11 @@ require __DIR__ . '/partials/greeting.php';
             <h1 class="h5 mb-0 wali-brand fw-bold">Keuangan &amp; tabungan</h1>
             <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>
         </div>
-        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain. <a href="/wali/pembayaran.php">Riwayat Keuangan</a> · <a href="/wali/tagihan.php">Tagihan bulanan</a>.</p>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/wali/tagihan.php')) ?>"><i class="fa-solid fa-file-invoice me-1"></i>Tagihan</a>
+            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/wali/pembayaran.php')) ?>"><i class="fa-solid fa-receipt me-1"></i>Riwayat bayar</a>
+        </div>
+        <p class="small text-muted">Cari nama atau NIS untuk memilih santri lain.</p>
 
         <form method="get" class="input-group input-group-sm mb-3">
             <input type="text" name="q" class="form-control" placeholder="NIS atau nama" value="<?= htmlspecialchars($q) ?>">

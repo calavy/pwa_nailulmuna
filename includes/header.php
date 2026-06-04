@@ -144,9 +144,11 @@ if (!$hideAppSidebar && strtolower((string) $currentRole) === 'pembimbing' && !i
 $bodyClassExtra = $hideAppSidebar ? ' app-body-shell--no-sidebar' : '';
 
 if (!function_exists('render_app_sidebar_nav')) {
-    function render_app_sidebar_nav(array $structure, array $items, string $requestPath): void
+    function render_app_sidebar_nav(array $structure, array $items, string $requestPath, array $options = []): void
     {
-        echo '<nav class="app-sidebar-nav" aria-label="Menu utama">';
+        $mode = (string) ($options['mode'] ?? 'hub');
+        $isAccordion = $mode === 'accordion';
+        echo '<nav class="app-sidebar-nav' . ($isAccordion ? ' app-sidebar-nav--accordion' : '') . '" aria-label="Menu utama">';
         echo '<div class="app-sidebar-nav-label">Menu modul</div>';
         foreach ($structure as $node) {
             $type = (string) ($node['type'] ?? 'item');
@@ -156,7 +158,10 @@ if (!function_exists('render_app_sidebar_nav')) {
                     continue;
                 }
                 $icon = (string) ($node['icon'] ?? 'fa-solid fa-circle');
-                $active = str_contains($requestPath, $path);
+                $pathBase = function_exists('app_menu_acl_normalize_path_base')
+                    ? app_menu_acl_normalize_path_base($path)
+                    : $path;
+                $active = str_contains($requestPath, $pathBase);
                 echo '<a class="app-side-nav-item' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($path)) . '">'
                     . '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>'
                     . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$path]) . '</span>'
@@ -172,46 +177,62 @@ if (!function_exists('render_app_sidebar_nav')) {
                 $icon = (string) ($node['icon'] ?? 'fa-solid fa-layer-group');
                 $label = (string) ($node['label'] ?? 'Grup');
                 $expandInline = !empty($node['expand']);
+                $groupActive = menu_sidebar_group_is_active($node, $requestPath, $items);
 
-                if ($expandInline) {
-                    echo '<div class="app-side-nav-group app-side-nav-group--expanded">';
-                    echo '<div class="app-side-nav-group__label">';
+                if ($isAccordion || $expandInline) {
+                    $sections = menu_group_visible_sections($node, $items);
+                    if ($sections === []) {
+                        continue;
+                    }
+                    echo '<details class="app-side-nav-accordion' . ($groupActive ? ' is-active' : '') . '"' . ($groupActive ? ' open' : '') . '>';
+                    echo '<summary class="app-side-nav-accordion__summary">';
                     echo '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>';
                     echo '<span class="app-side-nav-text">' . htmlspecialchars($label) . '</span>';
-                    echo '</div>';
-                    foreach ($visible as $cp) {
-                        if (!array_key_exists($cp, $items)) {
-                            continue;
+                    echo '<span class="app-side-nav-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span>';
+                    echo '</summary>';
+                    echo '<div class="app-side-nav-accordion__body">';
+                    foreach ($sections as $sec) {
+                        if ($sec['title'] !== '') {
+                            echo '<div class="app-side-nav-section-title">' . htmlspecialchars($sec['title']) . '</div>';
                         }
-                        $active = str_contains($requestPath, $cp);
-                        echo '<a class="app-side-nav-item app-side-nav-item--child' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($cp)) . '">'
-                            . '<span class="app-side-nav-ico" aria-hidden="true"><i class="fa-solid fa-angle-right"></i></span>'
-                            . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$cp]) . '</span>'
-                            . '</a>';
+                        foreach ($sec['paths'] as $cp) {
+                            if (!array_key_exists($cp, $items)) {
+                                continue;
+                            }
+                            $pathBase = function_exists('app_menu_acl_normalize_path_base')
+                                ? app_menu_acl_normalize_path_base($cp)
+                                : $cp;
+                            $active = str_contains($requestPath, $pathBase);
+                            echo '<a class="app-side-nav-item app-side-nav-item--child' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($cp)) . '">'
+                                . '<span class="app-side-nav-ico" aria-hidden="true"><i class="fa-solid fa-angle-right"></i></span>'
+                                . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$cp]) . '</span>'
+                                . '</a>';
+                        }
                     }
-                    echo '</div>';
+                    echo '</div></details>';
                     continue;
                 }
 
                 $href = '/menu/menu_hub.php?id=' . rawurlencode($gid);
-                $active = menu_sidebar_group_is_active($node, $requestPath, $items);
-                echo '<a class="app-side-nav-item app-side-nav-item--hub' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($href)) . '">'
+                echo '<a class="app-side-nav-item app-side-nav-item--hub' . ($groupActive ? ' active' : '') . '" href="' . htmlspecialchars(app_href($href)) . '">'
                     . '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>'
                     . '<span class="app-side-nav-text">' . htmlspecialchars($label) . '</span>'
                     . '<span class="app-side-nav-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>'
                     . '</a>';
             }
         }
-        $hasHubOnly = false;
-        foreach ($structure as $sn) {
-            if (($sn['type'] ?? '') === 'group' && empty($sn['expand'])) {
-                $hasHubOnly = true;
-                break;
-            }
-        }
         echo '</nav>';
-        if ($hasHubOnly) {
-            echo '<div class="app-sidebar-nav-hint text-muted small">Grup membuka halaman berisi submenu. Item lain langsung ke halaman.</div>';
+        if (!$isAccordion) {
+            $hasHubOnly = false;
+            foreach ($structure as $sn) {
+                if (($sn['type'] ?? '') === 'group' && empty($sn['expand'])) {
+                    $hasHubOnly = true;
+                    break;
+                }
+            }
+            if ($hasHubOnly) {
+                echo '<div class="app-sidebar-nav-hint text-muted small d-none d-lg-block">Grup membuka halaman berisi submenu. Item lain langsung ke halaman.</div>';
+            }
         }
     }
 }
@@ -336,7 +357,7 @@ if (!function_exists('render_app_sidebar_nav')) {
         require __DIR__ . '/partials/app_sidebar_head.php';
         ?>
         <div class="app-sidebar-inner">
-            <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
+            <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'hub']); ?>
         </div>
     </aside>
     <?php endif; ?>
@@ -430,7 +451,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 require __DIR__ . '/partials/app_sidebar_head.php';
                 ?>
                 <div class="app-sidebar-mobile">
-                    <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath); ?>
+                    <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'accordion']); ?>
                 </div>
             </div>
         </div>

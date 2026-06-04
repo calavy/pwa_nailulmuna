@@ -31,6 +31,9 @@ $bulanLabelsShort = $bulanLabelsShort ?? [
 ];
 
 $defaultPkppsGlobal = keuangan_pkpps_syahriyah_nominal($pdo, 0);
+$pkppsAlokasiOptions = keuangan_pkpps_alokasi_komponen_options($pdo);
+$pkppsAlokasiSelected = trim((string) app_setting($pdo, 'keuangan_pkpps_alokasi_komponen', ''));
+$pkppsAlokasiAuto = keuangan_pkpps_alokasi_komponen_nama($pdo);
 
 $kelasPkppsRows = kelas_keuangan_list_for_pkpps_syahriyah($pdo);
 
@@ -50,13 +53,13 @@ $kelasPkppsRows = kelas_keuangan_list_for_pkpps_syahriyah($pdo);
 
             <strong>Muadalah</strong> tidak memakai tambahan PKPPS.
 
-            Masuk tagihan syahriyah dan dapat dialokasikan untuk
+            Masuk tagihan syahriyah dan dialokasikan ke komponen
 
-            <a href="<?= htmlspecialchars(app_href('/rekap/pembimbing.php')) ?>">gaji pembimbing</a>
+            <strong><?= htmlspecialchars($pkppsAlokasiAuto) ?></strong> (gaji guru)
 
-            (lihat alokasi &amp; laporan
+            — lihat alokasi &amp; laporan
 
-            <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">syahriyah PKPPS</a>).
+            <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">syahriyah PKPPS</a>.
 
         </p>
 
@@ -182,6 +185,19 @@ $kelasPkppsRows = kelas_keuangan_list_for_pkpps_syahriyah($pdo);
 
                 </table>
 
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small">Alokasi tambahan PKPPS ke komponen</label>
+                <select name="pkpps_alokasi_komponen" class="form-select form-select-sm" style="max-width:28rem">
+                    <option value="">Otomatis — komponen gaji (<?= htmlspecialchars($pkppsAlokasiAuto) ?>)</option>
+                    <?php foreach ($pkppsAlokasiOptions as $opt): ?>
+                        <option value="<?= htmlspecialchars((string) $opt['nama']) ?>" <?= $pkppsAlokasiSelected === (string) $opt['nama'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars((string) $opt['nama']) ?> (<?= number_format((float) $opt['persen'], 2) ?>%)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">Bagian PKPPS dari pembayaran syahriyah digabung ke komponen ini (bukan Dana Umum terpisah).</div>
             </div>
 
             <button type="submit" class="btn btn-primary btn-sm">Simpan tambahan PKPPS</button>

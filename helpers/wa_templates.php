@@ -47,6 +47,17 @@ function wa_template_definitions(): array
             'placeholders' => '{nama_santri}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}',
             'default' => 'Assalamu\'alaikum. Ada pengajuan izin baru: *{nama_santri}* — {jenis_izin} ({tanggal_mulai} s/d {tanggal_selesai}). Mohon ditinjau di aplikasi.',
         ],
+        'izin_disetujui_pembimbing' => [
+            'label' => 'Izin disetujui → pembimbing',
+            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin santri disetujui.',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum.\n\n"
+                . 'Izin santri binaan *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+                . 'Jenis: {jenis_izin}\n'
+                . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Waktu: {jam_mulai} – {jam_selesai}\n'
+                . 'Keperluan: {alasan}',
+        ],
     ];
 }
 

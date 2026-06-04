@@ -10,6 +10,7 @@ require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/pondok_ta.php';
 require_once __DIR__ . '/../helpers/kalender_pengaturan.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
+require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../includes/auth_portal_layout.php';
 require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
 
@@ -53,6 +54,10 @@ $hari = kalender_pengaturan_ringkas_hari_ini($pdo);
 $blokP = akademik_blokir_presensi_libur($pdo);
 $blokS = akademik_blokir_setoran_libur($pdo);
 $blokN = akademik_blokir_penilaian_libur($pdo);
+$taAktifKeu = keuangan_tahun_ajaran_aktif($pdo);
+$taOtomatisHari = pondok_tahun_ajaran_from_date($pdo);
+$taMismatch = (int) ($taAktifKeu['mulai'] ?? 0) !== (int) ($taOtomatisHari['mulai'] ?? 0)
+    || (int) ($taAktifKeu['selesai'] ?? 0) !== (int) ($taOtomatisHari['selesai'] ?? 0);
 
 $pageTitle = 'Pengaturan Kalender';
 $bodyClass = 'settings-module-page pondok-kalender-page';
@@ -80,6 +85,14 @@ render_kalender_page_hero([
 
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+<?php if ($taMismatch): ?>
+<div class="alert alert-warning py-2 small">
+    <strong>Tahun ajaran aktif keuangan</strong> (<?= (int) $taAktifKeu['mulai'] ?>/<?= (int) $taAktifKeu['selesai'] ?>)
+    berbeda dari TA otomatis hari ini (<?= (int) $taOtomatisHari['mulai'] ?>/<?= (int) $taOtomatisHari['selesai'] ?>).
+    Tagihan bulan berjalan bisa tidak selaras — selaraskan di
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=umum')) ?>">Keuangan → Umum &amp; periode</a>.
+</div>
+<?php endif; ?>
 
 <form method="post" class="card shadow-sm mb-3 akad-cal-settings-card">
     <input type="hidden" name="action" value="simpan_pengaturan">

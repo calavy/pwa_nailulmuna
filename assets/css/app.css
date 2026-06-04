@@ -1166,8 +1166,8 @@ body {
 }
 
 [data-theme="dark"] .app-sidebar-brand-mark--logo {
-    background: transparent;
-    border: none;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .app-sidebar-brand-text {
@@ -1350,6 +1350,68 @@ body {
     height: 1.35rem;
     font-size: 0.65rem;
     opacity: 0.65;
+}
+
+/* Accordion submenu — mobile offcanvas */
+.app-sidebar-nav--accordion .app-side-nav-accordion {
+    border: 0;
+    margin: 0 0 0.35rem;
+    border-radius: var(--radius-md);
+    background: transparent;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion__summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    min-height: 44px;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    color: var(--app-nav-text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    user-select: none;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion__summary::-webkit-details-marker {
+    display: none;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion__summary:hover {
+    background: var(--app-nav-surface-hover);
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion.is-active > .app-side-nav-accordion__summary,
+.app-sidebar-nav--accordion .app-side-nav-accordion[open] > .app-side-nav-accordion__summary {
+    background: var(--app-nav-surface);
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion__summary .app-side-nav-chevron {
+    margin-left: auto;
+    transition: transform 0.18s ease;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion[open] .app-side-nav-chevron {
+    transform: rotate(180deg);
+}
+
+.app-sidebar-nav--accordion .app-side-nav-accordion__body {
+    padding: 0.15rem 0 0.35rem 0.35rem;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-section-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--app-nav-muted);
+    padding: 0.45rem 0.75rem 0.2rem 1.35rem;
+}
+
+.app-sidebar-nav--accordion .app-side-nav-item {
+    min-height: 44px;
 }
 
 #mobileSidebar.offcanvas {
@@ -1690,6 +1752,16 @@ html[data-theme-transitioning] .app-theme-switch {
 .menu-hub-tile:hover .menu-hub-tile-go {
     transform: translateX(4px);
     color: var(--app-secondary) !important;
+}
+
+@media (max-width: 575.98px) {
+    .menu-hub-tile-hint {
+        display: none;
+    }
+
+    .menu-hub-section-title {
+        font-size: 0.72rem;
+    }
 }
 
 [data-theme="dark"] .menu-hub-tile {
@@ -3588,6 +3660,289 @@ html[data-theme-transitioning] .app-theme-switch {
     font-weight: 600;
     padding: 0.12rem 0.4rem;
     border-radius: 999px;
+}
+
+/* Kegiatan berlangsung live — dashboard utama (kompak, 3 kolom jika bersamaan) */
+.dash-live-kegiatan {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+    max-width: 420px;
+}
+
+.dash-live-kegiatan--multi {
+    max-width: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+}
+
+@media (max-width: 992px) {
+    .dash-live-kegiatan--multi {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 576px) {
+    .dash-live-kegiatan,
+    .dash-live-kegiatan--multi {
+        max-width: none;
+        grid-template-columns: 1fr;
+    }
+}
+
+.dash-live-keg {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.dash-live-kegiatan--multi .dash-live-keg:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.dash-live-keg__accent {
+    height: 3px;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.dash-live-keg--lengkap .dash-live-keg__accent {
+    background: linear-gradient(90deg, #08cb00, #059669);
+}
+
+.dash-live-keg__inner {
+    padding: 0.45rem 0.5rem 0.5rem;
+}
+
+.dash-live-kegiatan--multi .dash-live-keg__inner {
+    padding: 0.4rem 0.45rem 0.45rem;
+}
+
+.dash-live-keg--lengkap {
+    border-color: rgba(34, 197, 94, 0.45);
+    background: linear-gradient(145deg, #f0fdf4 0%, #ecfdf5 100%);
+}
+
+.dash-live-keg__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.35rem;
+}
+
+.dash-live-keg__title-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.dash-live-keg__nama {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #0f172a;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dash-live-kegiatan--multi .dash-live-keg__nama {
+    font-size: 0.72rem;
+    -webkit-line-clamp: 2;
+}
+
+.dash-live-keg__jam {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 0.12rem;
+}
+
+.dash-live-keg__ratio-wrap {
+    flex-shrink: 0;
+    text-align: right;
+    line-height: 1;
+}
+
+.dash-live-keg__ratio {
+    display: block;
+    font-size: 1rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.dash-live-kegiatan--multi .dash-live-keg__ratio {
+    font-size: 0.92rem;
+}
+
+.dash-live-keg--lengkap .dash-live-keg__ratio {
+    color: #08cb00;
+}
+
+.dash-live-keg__ratio-sub {
+    display: block;
+    font-size: 0.52rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #94a3b8;
+    margin-top: 0.05rem;
+}
+
+.dash-live-keg__tingkatan {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.18rem;
+    margin-top: 0.3rem;
+}
+
+.dash-live-keg__tk {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 0.08rem 0.3rem;
+    border-radius: 999px;
+    background: rgba(241, 245, 249, 0.95);
+    color: #475569;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.dash-live-keg__tk--more {
+    background: transparent;
+    border-style: dashed;
+}
+
+.dash-live-keg__pb-list {
+    list-style: none;
+    margin: 0.3rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.dash-live-kegiatan--multi .dash-live-keg__pb-list {
+    max-height: 3.2rem;
+    overflow: hidden;
+}
+
+.dash-live-keg__pb {
+    display: flex;
+    align-items: center;
+    gap: 0.28rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.dash-live-kegiatan--multi .dash-live-keg__pb {
+    font-size: 0.58rem;
+}
+
+.dash-live-keg__dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.dash-live-keg__dot--ok {
+    background: #22c55e;
+}
+
+.dash-live-keg__dot--no {
+    background: #ef4444;
+}
+
+.dash-live-keg__pb-nama {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-live-keg__progress {
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.25);
+    margin-top: 0.35rem;
+    overflow: hidden;
+}
+
+.dash-live-keg__progress-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    transition: width 0.3s ease;
+}
+
+.dash-live-keg__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    margin-top: 0.3rem;
+}
+
+.dash-live-keg__stat {
+    font-size: 0.55rem;
+    font-weight: 800;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.dash-live-keg__stat--izin {
+    background: #fffde6;
+    color: #5c5200;
+    border-color: #ffe94d;
+}
+
+.dash-live-keg__stat--sakit {
+    background: #f3e8ff;
+    color: #7c00fe;
+    border-color: #c084fc;
+}
+
+.dash-live-keg__stat--alpa {
+    background: #ffe8e6;
+    color: #ff1700;
+    border-color: #ff6b5c;
+}
+
+.dash-live-kegiatan__legend {
+    grid-column: 1 / -1;
+    margin: 0.1rem 0 0;
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.3rem;
+}
+
+[data-theme="dark"] .dash-live-keg {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+    border-color: rgba(71, 85, 105, 0.45);
+}
+
+[data-theme="dark"] .dash-live-keg__nama {
+    color: var(--app-text);
+}
+
+[data-theme="dark"] .dash-live-keg__tk {
+    background: rgba(51, 65, 85, 0.5);
+    color: var(--app-text-muted);
+    border-color: rgba(71, 85, 105, 0.5);
 }
 
 .jadwal-grup-blok {
@@ -5747,4 +6102,194 @@ html {
         white-space: nowrap;
         padding: 0.35rem 0.45rem;
     }
+}
+
+/* Jadwal — grid mingguan & kartu slot */
+.jadwal-stat-row .jadwal-stat-card {
+    min-height: 5.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.jadwal-view-tabs .btn.active {
+    font-weight: 600;
+}
+
+.jadwal-minggu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(11rem, 1fr));
+    gap: 0.65rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 992px) {
+    .jadwal-minggu-grid {
+        grid-template-columns: repeat(8, minmax(9.5rem, 1fr));
+    }
+}
+
+.jadwal-minggu-col {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    background: #fff;
+    min-height: 8rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.jadwal-minggu-col--today {
+    border-color: rgba(13, 148, 136, 0.55);
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.jadwal-minggu-col--dim {
+    opacity: 0.45;
+}
+
+.jadwal-minggu-col__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    background: rgba(248, 250, 252, 0.9);
+    border-radius: 10px 10px 0 0;
+}
+
+.jadwal-minggu-col__today {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #0f766e;
+}
+
+.jadwal-minggu-col__count {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.jadwal-minggu-col__body {
+    padding: 0.45rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    flex: 1;
+}
+
+.jadwal-minggu-col__empty {
+    padding: 0.75rem 0.35rem;
+    text-align: center;
+}
+
+.jadwal-minggu-col__more {
+    display: block;
+    text-align: center;
+    padding: 0.35rem 0.25rem;
+    color: var(--bs-primary);
+    text-decoration: none;
+}
+
+.jadwal-minggu-col__more:hover {
+    text-decoration: underline;
+}
+
+.jadwal-slot-card {
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 8px;
+    padding: 0.45rem 0.5rem;
+    background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+    transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.jadwal-slot-card:hover {
+    border-color: rgba(13, 148, 136, 0.35);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.jadwal-slot-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
+.jadwal-slot-card__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #134e4a;
+    margin-bottom: 0.25rem;
+}
+
+.jadwal-slot-card__tingkatan {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    margin-bottom: 0.25rem;
+}
+
+.jadwal-slot-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 0.35rem;
+}
+
+.jadwal-slot-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+}
+
+.jadwal-kat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.jadwal-kat-dot--jamaah {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.jadwal-kat-dot--taalim {
+    background: linear-gradient(135deg, #14b8a6, #0d9488);
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+
+.jadwal-kat-badge {
+    font-size: 0.62rem;
+    font-weight: 600;
+}
+
+.jadwal-kat-badge--jamaah {
+    background: rgba(99, 102, 241, 0.12);
+    color: #4338ca;
+}
+
+.jadwal-kat-badge--taalim {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+}
+
+[data-theme="dark"] .jadwal-minggu-col {
+    background: var(--bs-body-bg, #1e293b);
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+[data-theme="dark"] .jadwal-slot-card {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.2);
 }

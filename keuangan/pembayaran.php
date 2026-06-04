@@ -25,6 +25,7 @@ $prefillBulan = max(1, min(12, (int) ($_GET['bulan'] ?? $berjalan['bulan'])));
 $prefillTm = (int) $keuanganTa['mulai'];
 $prefillTs = (int) $keuanganTa['selesai'];
 $bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $prefillTm, $prefillTs);
+$slotBerjalan = pondok_slot_dari_bulan_tagihan($bulanSlots, (int) $berjalan['bulan']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_pembayaran') {
     $result = keuangan_save_pembayaran($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
@@ -60,17 +61,28 @@ if ($defaultAkunId <= 0 && $akunRows !== []) {
 
 $recentRows = keuangan_recent_pembayaran($pdo, 12);
 
+$prefillModeRaw = strtoupper(trim((string) ($_GET['mode'] ?? '')));
+$prefillJenis = in_array($prefillModeRaw, ['BULANAN', 'AWAL_TAHUN'], true) ? $prefillModeRaw : 'BULANAN';
+$skipLauncher = $prefillSantriId > 0
+    || in_array($prefillModeRaw, ['BULANAN', 'AWAL_TAHUN'], true)
+    || (string) ($_GET['mulai'] ?? '') === '1';
+$bulanBerjalanLabel = $slotBerjalan
+    ? (string) ($slotBerjalan['label'] ?? pondok_bulan_slot_label_tampilan($pdo, $slotBerjalan))
+    : ('Bulan ' . (int) $berjalan['bulan']);
+$taLabelSingkat = (string) ($keuanganTa['label'] ?? pondok_tahun_ajaran_label($pdo, $keuanganTa));
+
 $pageTitle = 'Input Pembayaran';
 $bodyClass = keuangan_body_class('keuangan-form-page');
 $loadSantriSelectJs = true;
+$pageScripts = [app_asset_href('/assets/js/keuangan-pembayaran-form.js')];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Pemasukan</p>
-    <h1 class="h3 mb-1">Formulir Pembayaran Santri</h1>
+    <h1 class="h3 mb-1">Input Pembayaran Santri</h1>
     <p class="text-muted small mb-0">
-        Catat penerimaan kas/bank per komponen biaya santri. Setelah simpan, kuitansi otomatis dapat dicetak.
+        Pilih jenis pembayaran, lalu isi formulir singkat. Kuitansi otomatis setelah simpan.
         Bulan tagihan ikut kalender <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>.
         <span class="text-nowrap">·</span> <a href="/keuangan/pemasukan.php">Pemasukan lain</a>
         <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
@@ -90,6 +102,51 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
         <?php else: ?>
+        <div id="pembayaran-launcher" class="pembayaran-launcher mb-3<?= $skipLauncher ? ' d-none' : '' ?>">
+            <p class="text-muted small mb-3">Pilih jenis pencatatan pembayaran yang akan diinput:</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <button type="button" class="pembayaran-launch-card w-100 text-start" data-pembayaran-mode="BULANAN">
+                        <span class="pembayaran-launch-card__icon pembayaran-launch-card__icon--bulanan">
+                            <i class="fa-solid fa-calendar-check"></i>
+                        </span>
+                        <span class="pembayaran-launch-card__body">
+                            <span class="pembayaran-launch-card__title">Tagihan Bulanan</span>
+                            <span class="pembayaran-launch-card__desc">Syahriyah, Makan, Saku — bulan berjalan: <strong><?= htmlspecialchars($bulanBerjalanLabel) ?></strong></span>
+                        </span>
+                        <i class="fa-solid fa-chevron-right pembayaran-launch-card__arrow"></i>
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <button type="button" class="pembayaran-launch-card w-100 text-start" data-pembayaran-mode="AWAL_TAHUN">
+                        <span class="pembayaran-launch-card__icon pembayaran-launch-card__icon--awal">
+                            <i class="fa-solid fa-school"></i>
+                        </span>
+                        <span class="pembayaran-launch-card__body">
+                            <span class="pembayaran-launch-card__title">Pembayaran Awal Tahun</span>
+                            <span class="pembayaran-launch-card__desc">Pendaftaran, seragam, bangunan, dll. · TA <?= htmlspecialchars($taLabelSingkat) ?></span>
+                        </span>
+                        <i class="fa-solid fa-chevron-right pembayaran-launch-card__arrow"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/riwayat.php')) ?>">
+                    <i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat pembayaran
+                </a>
+                <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">
+                    <i class="fa-solid fa-list-check me-1"></i> Lihat tagihan bulanan
+                </a>
+            </div>
+        </div>
+
+        <div id="pembayaran-form-wrap"<?= $skipLauncher ? '' : ' class="d-none"' ?>>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-pembayaran-kembali">
+                <i class="fa-solid fa-arrow-left me-1"></i> Ganti jenis
+            </button>
+            <span class="badge text-bg-primary" id="pembayaran-mode-badge"><?= $prefillJenis === 'AWAL_TAHUN' ? 'Awal tahun' : 'Tagihan bulanan' ?></span>
+        </div>
         <form method="post" id="form-pembayaran" autocomplete="off">
             <input type="hidden" name="action" value="save_pembayaran">
 
@@ -118,21 +175,35 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold small text-muted mb-1">Jenis periode</label>
-                            <select class="form-select" name="jenis_periode" id="jenis_periode">
-                                <option value="BULANAN">Bulanan</option>
-                                <option value="AWAL_TAHUN">Awal tahun</option>
+                            <select class="form-select d-none" name="jenis_periode" id="jenis_periode" aria-hidden="true" tabindex="-1">
+                                <option value="BULANAN" <?= $prefillJenis === 'BULANAN' ? 'selected' : '' ?>>Bulanan</option>
+                                <option value="AWAL_TAHUN" <?= $prefillJenis === 'AWAL_TAHUN' ? 'selected' : '' ?>>Awal tahun</option>
                             </select>
+                            <div class="btn-group w-100 pembayaran-jenis-toggle" role="group" aria-label="Jenis periode">
+                                <button type="button" class="btn btn-outline-primary<?= $prefillJenis === 'BULANAN' ? ' active' : '' ?>" data-jenis="BULANAN">Bulanan</button>
+                                <button type="button" class="btn btn-outline-primary<?= $prefillJenis === 'AWAL_TAHUN' ? ' active' : '' ?>" data-jenis="AWAL_TAHUN">Awal tahun</button>
+                            </div>
                         </div>
                         <div class="col-md-4" id="wrap-bulan">
                             <label class="form-label fw-semibold small text-muted mb-1">Bulan tagihan <?= $kalenderMode === 'hijriyah' ? '(H)' : '(M)' ?></label>
                             <select class="form-select" name="bulan_tagihan" id="bulan_tagihan">
                                 <?php foreach ($bulanSlots as $slot): ?>
-                                    <?php $m = (int) ($slot['bulan_tagihan'] ?? 0); ?>
+                                    <?php
+                                    $m = (int) ($slot['bulan_tagihan'] ?? 0);
+                                    $isBerjalan = $m === (int) $berjalan['bulan'];
+                                    ?>
                                     <option value="<?= $m ?>" <?= $m === $prefillBulan ? 'selected' : '' ?> data-kh="<?= htmlspecialchars((string) ($slot['kalender_hijriyah'] ?? '')) ?>">
-                                        <?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?>
+                                        <?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?><?= $isBerjalan ? ' ★ berjalan' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <?php if ($slotBerjalan && !empty($slotBerjalan['masehi_awal'])): ?>
+                            <div class="form-text">
+                                Bulan berjalan:
+                                <strong><?= htmlspecialchars((string) ($slotBerjalan['label'] ?? pondok_bulan_slot_label_tampilan($pdo, $slotBerjalan))) ?></strong>
+                                <span class="text-muted">(<?= htmlspecialchars((string) $slotBerjalan['masehi_awal']) ?> s/d <?= htmlspecialchars((string) $slotBerjalan['masehi_akhir']) ?>)</span>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold small text-muted mb-1">Tanggal bayar</label>
@@ -153,7 +224,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="pembayaran-card-step">2</span>
                     <div>
                         <div class="pembayaran-card-title">Komponen dibayar</div>
-                        <div class="pembayaran-card-sub">Centang pos yang dibayar, nominal otomatis diisi sesuai sisa tagihan.</div>
+                        <div class="pembayaran-card-sub">Centang pos yang dibayar; nominal default terisi otomatis dan dapat diedit.</div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -208,6 +279,12 @@ require_once __DIR__ . '/../includes/header.php';
                         <div id="syahriyah-breakdown-lines" class="text-muted"></div>
                         <div id="syahriyah-breakdown-total" class="fw-bold text-primary mt-1"></div>
                     </div>
+                    <div id="pkpps-hint-box" class="alert alert-warning py-2 px-3 small mb-2 d-none" role="status">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                        Santri terdaftar PKPPS, tetapi tambahan PKPPS = Rp 0. Periksa
+                        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">nominal PKPPS</a>
+                        dan kelas keuangan TA santri.
+                    </div>
                     <div class="table-responsive pembayaran-table-wrap">
                         <table class="table table-sm align-middle mb-0 pembayaran-komponen-table" id="tabel-komponen">
                             <thead>
@@ -218,8 +295,19 @@ require_once __DIR__ . '/../includes/header.php';
                                     <th style="width:13rem">Nominal bayar</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-komponen-wajib">
+                            <tbody id="tbody-komponen-bulanan">
                             <?php foreach ($biayaDefinitions as $def) {
+                                if (($def['kategori'] ?? '') !== 'Bulanan') {
+                                    continue;
+                                }
+                                $renderKomponenRow($def, $wajibSlugs, $opsSlugs);
+                            } ?>
+                            </tbody>
+                            <tbody id="tbody-komponen-awal-tahun" class="d-none">
+                            <?php foreach ($biayaDefinitions as $def) {
+                                if (($def['kategori'] ?? '') !== 'Awal Tahun') {
+                                    continue;
+                                }
                                 $renderKomponenRow($def, $wajibSlugs, $opsSlugs);
                             } ?>
                             </tbody>
@@ -290,10 +378,14 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label fw-semibold small text-muted mb-1">Metode</label>
-                            <select class="form-select" name="metode_bayar" id="metode_bayar">
-                                <option value="KAS">Kas</option>
+                            <select class="form-select d-none" name="metode_bayar" id="metode_bayar" aria-hidden="true" tabindex="-1">
+                                <option value="KAS" selected>Kas</option>
                                 <option value="TRANSFER">Transfer</option>
                             </select>
+                            <div class="btn-group w-100 pembayaran-metode-toggle" role="group" aria-label="Metode bayar">
+                                <button type="button" class="btn btn-outline-success active" data-metode="KAS"><i class="fa-solid fa-money-bill-wave me-1"></i> Kas</button>
+                                <button type="button" class="btn btn-outline-success" data-metode="TRANSFER"><i class="fa-solid fa-building-columns me-1"></i> Transfer</button>
+                            </div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-semibold small text-muted mb-1">Status transaksi</label>
@@ -342,6 +434,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn btn-outline-secondary" href="/keuangan/index.php">Dashboard keuangan</a>
             </div>
         </form>
+        </div>
         <?php endif; ?>
     </div>
 
@@ -393,8 +486,9 @@ require_once __DIR__ . '/../includes/header.php';
 window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;
 window.keuanganSantriTier = <?= json_encode($santriTierById, JSON_UNESCAPED_UNICODE) ?>;
 window.keuanganFeeMatrix = <?= json_encode($keuanganFeeMatrix, JSON_UNESCAPED_UNICODE) ?>;
+window.pembayaranBulanBerjalan = <?= (int) $berjalan['bulan'] ?>;
+window.pembayaranSkipLauncher = <?= $skipLauncher ? 'true' : 'false' ?>;
 </script>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_href('/assets/js/keuangan-pembayaran-form.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

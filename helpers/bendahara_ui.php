@@ -55,7 +55,7 @@ function bendahara_nav_cards(): array
         [
             'href' => '/pembayaran/laporan_alokasi_per_santri.php',
             'title' => 'Alokasi syahriyah per santri',
-            'desc' => 'Pembagian pembayaran ke komponen alokasi & Dana Umum.',
+            'desc' => 'Pembagian pembayaran ke komponen alokasi (PKPPS → gaji guru).',
             'icon' => 'fa-sitemap',
             'color' => 'info',
         ],

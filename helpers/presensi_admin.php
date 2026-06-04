@@ -24,6 +24,32 @@ function ensure_presensi_jadwal_column(PDO $pdo): void
         } catch (PDOException $e2) {
         }
     }
+    ensure_presensi_indexes($pdo);
+}
+
+/** Index lookup sync/rekap: (santri, tanggal, kegiatan). */
+function ensure_presensi_indexes(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'presensi')) {
+        return;
+    }
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $pdo->exec('ALTER TABLE presensi ADD INDEX IF NOT EXISTS idx_presensi_santri_tgl_keg (santri_id, tanggal_presensi, kegiatan_id)');
+    } catch (PDOException $e) {
+        try {
+            $pdo->exec('ALTER TABLE presensi ADD INDEX idx_presensi_santri_tgl_keg (santri_id, tanggal_presensi, kegiatan_id)');
+        } catch (PDOException $e2) {
+            $msg = $e2->getMessage();
+            if (stripos($msg, 'Duplicate key') === false && strpos($msg, '1061') === false) {
+                // index sudah ada atau versi DB tidak mendukung — abaikan
+            }
+        }
+    }
 }
 
 /** Admin atau super admin boleh hapus presensi bermasalah. */

@@ -141,6 +141,9 @@ $iconTagihan = bendahara_page_icon('tagihan');
         Tagihan <strong>wajib</strong>: <strong>Syahriyah</strong> saja.
         <strong>Makan</strong> dan <strong>Saku</strong> opsional (bisa dibayar terpisah).
         Kalender <?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?>.
+        <?php if ($bulanTagihan === (int) $berjalan['bulan']): ?>
+            <span class="badge text-bg-primary">Bulan berjalan</span>
+        <?php endif; ?>
         <?php if ($slotAktif && !empty($slotAktif['masehi_awal'])): ?>
             Periode aktif: <strong><?= htmlspecialchars((string) ($slotAktif['label'] ?? pondok_bulan_slot_label_tampilan($pdo, $slotAktif))) ?></strong>
             <span class="text-muted">(<?= htmlspecialchars((string) $slotAktif['masehi_awal']) ?> s/d <?= htmlspecialchars((string) $slotAktif['masehi_akhir']) ?> M)</span>.
@@ -170,8 +173,11 @@ $iconTagihan = bendahara_page_icon('tagihan');
         <label class="form-label small mb-0">Bulan tagihan</label>
         <select class="form-select form-select-sm pondok-bulan-select" name="bulan" data-auto-submit="1">
             <?php foreach ($bulanSlots as $slot): ?>
-                <?php $b = (int) ($slot['bulan_tagihan'] ?? 0); ?>
-                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars((string) ($slot['label'] ?? '')) ?></option>
+                <?php
+                $b = (int) ($slot['bulan_tagihan'] ?? 0);
+                $isBerjalan = $b === (int) $berjalan['bulan'];
+                ?>
+                <option value="<?= $b ?>" <?= $b === $bulanTagihan ? 'selected' : '' ?>><?= htmlspecialchars((string) ($slot['label'] ?? '')) ?><?= $isBerjalan ? ' ★ berjalan' : '' ?></option>
             <?php endforeach; ?>
         </select>
     </div>

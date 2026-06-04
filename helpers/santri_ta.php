@@ -72,6 +72,39 @@ function santri_kelas_untuk_ta(PDO $pdo, int $santriId, int $tahunAjaranMulai, i
 }
 
 /**
+ * Kelas keuangan untuk tagihan/pembayaran (satu sumber dengan daftar tagihan).
+ */
+function keuangan_santri_kelas_tagihan(
+    PDO $pdo,
+    int $santriId,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    ?array $santriRow = null,
+    ?array $tingkatanMap = null
+): string {
+    if ($santriId <= 0) {
+        return '';
+    }
+    if ($santriRow === null && table_exists($pdo, 'santri')) {
+        $cols = ['id'];
+        if (column_exists($pdo, 'santri', 'kategori_kelas')) {
+            $cols[] = 'kategori_kelas';
+        }
+        if (column_exists($pdo, 'santri', 'tingkatan')) {
+            $cols[] = 'tingkatan';
+        }
+        $st = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM santri WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $santriId]);
+        $santriRow = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if (!is_array($santriRow)) {
+        return '';
+    }
+
+    return santri_kelas_untuk_ta($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai, $santriRow, $tingkatanMap);
+}
+
+/**
  * Simpan banyak baris tingkatan TA sekaligus.
  *
  * @param array<int, array{tingkatan?:string,kategori_kelas?:string,status_akademik?:string,wali_kelas?:string,catatan?:string}> $rowsBySantriId

@@ -39,7 +39,7 @@ function jadwal_handle_tambah_kegiatan(PDO $pdo): void
     }
     if ($namaKegiatan === '') {
         set_flash('error', 'Nama kegiatan wajib diisi.');
-        header('Location: ' . app_href('/jadwal/index.php?panel=kegiatan'));
+        header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
     $pdo->prepare('INSERT INTO kegiatan (nama_kegiatan, kategori_kegiatan, is_active) VALUES (:nama, :kat, 1)')
@@ -54,20 +54,20 @@ function jadwal_handle_hapus_kegiatan(PDO $pdo, bool $jadwalPembimbingScope): vo
 {
     if ($jadwalPembimbingScope) {
         set_flash('error', 'Hapus master kegiatan hanya untuk pengurus.');
-        header('Location: ' . app_href('/jadwal/index.php'));
+        header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
     $id = (int) ($_POST['id'] ?? 0);
     if ($id <= 0) {
         set_flash('error', 'ID kegiatan tidak valid.');
-        header('Location: ' . app_href('/jadwal/index.php'));
+        header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
     $st = $pdo->prepare('SELECT COUNT(*) FROM jadwal_kegiatan WHERE kegiatan_id = :id');
     $st->execute(['id' => $id]);
     if ((int) $st->fetchColumn() > 0) {
         set_flash('error', 'Kegiatan masih dipakai di jadwal. Hapus slot jadwal terlebih dahulu.');
-        header('Location: ' . app_href('/jadwal/index.php'));
+        header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
     $stN = $pdo->prepare('SELECT nama_kegiatan FROM kegiatan WHERE id = :id LIMIT 1');
@@ -75,7 +75,7 @@ function jadwal_handle_hapus_kegiatan(PDO $pdo, bool $jadwalPembimbingScope): vo
     $nama = (string) ($stN->fetchColumn() ?: '');
     $pdo->prepare('DELETE FROM kegiatan WHERE id = :id')->execute(['id' => $id]);
     set_flash('success', 'Kegiatan "' . $nama . '" dihapus.');
-    header('Location: ' . app_href('/jadwal/index.php'));
+    header('Location: ' . app_href('/jadwal/kegiatan.php'));
     exit;
 }
 

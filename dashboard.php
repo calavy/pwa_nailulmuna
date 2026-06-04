@@ -13,6 +13,7 @@ require_once __DIR__ . '/helpers/mukimin.php';
 require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
+require_once __DIR__ . '/helpers/pembimbing_dashboard.php';
 
 // Pembimbing punya dashboard khusus — alihkan agar tidak menampilkan
 // data pondok secara umum (santri seluruh pondok, dll).
@@ -96,12 +97,22 @@ if (table_exists($pdo, 'perizinan') && table_exists($pdo, 'santri')) {
 }
 
 $kegiatanAktif = [];
+$kegiatanAktifGrouped = [];
+$kegiatanAktifPresensi = [];
 if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
     ensure_jadwal_kegiatan_tempat($pdo);
+    $pbSelect = '';
+    $pbJoin = '';
+    if (column_exists($pdo, 'jadwal_kegiatan', 'pembimbing_id') && table_exists($pdo, 'pembimbing')) {
+        $pbSelect = ', j.pembimbing_id, p.nama_pembimbing';
+        $pbJoin = ' LEFT JOIN pembimbing p ON p.id = j.pembimbing_id';
+    }
     $stmt = $pdo->prepare(
-        'SELECT k.nama_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
+        'SELECT k.id AS kegiatan_id, k.nama_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat'
+        . $pbSelect . '
          FROM jadwal_kegiatan j
-         INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+         INNER JOIN kegiatan k ON k.id = j.kegiatan_id'
+        . $pbJoin . '
          WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
            AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
            AND k.is_active = 1
@@ -111,6 +122,10 @@ if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
     $kegiatanAktif = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+if ($kegiatanAktifGrouped !== []) {
+    // Tampilan saja — finalize presensi berat; dijalankan di scan/rekap/cron.
+    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
+}
 
 /** Anchor jam live agar selaras dengan waktu server yang dipakai query jadwal (bukan jam lokal browser). */
 $dashServerClockMs = (int) round(microtime(true) * 1000);
@@ -269,7 +284,9 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
-                    <?php if ($kegiatanAktifGrouped === []): ?>
+                    <?php if ($kegiatanAktifPresensi !== []): ?>
+                        <?php require __DIR__ . '/includes/partials/dashboard_kegiatan_berlangsung_live.php'; ?>
+                    <?php elseif ($kegiatanAktifGrouped === []): ?>
                         <div class="dash-empty-chart py-5 text-center text-muted">
                             <div class="dash-empty-chart__inner">
                                 <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>

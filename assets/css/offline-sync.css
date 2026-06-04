@@ -153,20 +153,36 @@ html.pondok-offline .wali-login-logo {
 
 .app-brand-logo,
 .app-sidebar-pondok-logo,
-.app-user-avatar__img {
-    object-fit: contain;
-    background-color: rgba(255, 255, 255, 0.92);
+.app-user-avatar__img,
+.auth-portal-logo-img,
+.wali-login-logo,
+.koperasi-topbar-logo,
+.dash-hero-logo,
+.pondok-logo-preview {
+    object-fit: cover;
+    object-position: center center;
+    background-color: #fff;
 }
 
-.app-user-avatar__img {
-    object-fit: cover;
-    width: 100%;
-    height: 100%;
+.app-brand-mark--logo,
+.app-sidebar-pondok-logo-wrap,
+.auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback),
+.dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder) {
+    background: #fff !important;
+    border-radius: 50%;
+}
+
+[data-theme="dark"] .app-brand-mark--logo,
+[data-theme="dark"] .app-sidebar-pondok-logo-wrap,
+[data-theme="dark"] .auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback) {
+    background: #fff !important;
+    border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 [data-theme="dark"] .app-brand-logo,
-[data-theme="dark"] .app-sidebar-pondok-logo {
-    background-color: rgba(30, 41, 59, 0.65);
+[data-theme="dark"] .app-sidebar-pondok-logo,
+[data-theme="dark"] .auth-portal-logo-img {
+    background-color: #fff;
 }
 
 .app-user-avatar--uploaded,

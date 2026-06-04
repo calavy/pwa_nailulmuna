@@ -112,11 +112,15 @@ $periodBridgeLabel = $mode === 'masehi'
 $sqlAktifSantriRekap = santri_sql_aktif_only('s');
 
 $rows = [];
+$refreshFinalize = isset($_GET['refresh_finalize']) && (string) $_GET['refresh_finalize'] === '1';
 if ($show) {
     $filterStartPre = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
     $filterEndPre = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStartPre));
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $filterStartPre, $filterEndPre, $auditUserId > 0 ? $auditUserId : 1);
+    presensi_finalize_date_range($pdo, $filterStartPre, $filterEndPre, $auditUserId > 0 ? $auditUserId : 1, $refreshFinalize);
+    if ($refreshFinalize) {
+        set_flash('success', 'Status ALPA/izin bulan ini disegarkan ulang.');
+    }
 
     if ($mode === 'hijriyah') {
         $statement = $pdo->prepare('
@@ -355,12 +359,30 @@ $totalSantriTampil = count($bySantri);
 
 $pageTitle = 'Rekap Presensi';
 require_once __DIR__ . '/../includes/header.php';
+$flashOk = get_flash('success');
+$flashErr = get_flash('error');
 ?>
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Rekap</p>
     <h1 class="h4 mb-1">Rekap presensi bulanan</h1>
     <p class="text-muted mb-0">Analisis presensi per tingkatan, per santri, dan per kegiatan dengan mode Masehi/Hijriyah. Hanya sesi yang tingkatan santri masuk jadwal kegiatan.</p>
+    <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/panduan.php')) ?>"><i class="fa-solid fa-circle-info me-1"></i> Panduan alur presensi → rekap</a>
+        <?php if ($show): ?>
+            <?php
+            $refreshQs = $_GET;
+            $refreshQs['refresh_finalize'] = '1';
+            $refreshQs['show'] = '1';
+            ?>
+            <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/rekap/index.php?' . http_build_query($refreshQs))) ?>"
+               onclick="return confirm('Segarkan ulang ALPA/izin untuk bulan ini? Proses bisa memakan waktu beberapa detik.');">
+                <i class="fa-solid fa-rotate me-1"></i> Segarkan ALPA bulan ini
+            </a>
+        <?php endif; ?>
+    </p>
 </div>
+<?php if ($flashOk): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
+<?php if ($flashErr): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">

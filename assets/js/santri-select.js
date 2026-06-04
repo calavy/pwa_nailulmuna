@@ -37,28 +37,37 @@
             };
         });
 
+        function visibleMatches() {
+            return options.filter(function (o) {
+                return o.value !== '' && !o.el.hidden;
+            });
+        }
+
+        function pickOption(opt) {
+            if (!opt || sel.value === opt.value) {
+                return;
+            }
+            sel.value = opt.value;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
         function filterOptions() {
             const q = norm(search.value);
-            let visible = 0;
             options.forEach(function (o) {
                 if (o.value === '') {
-                    o.el.hidden = false;
-                    visible++;
+                    o.el.hidden = q !== '';
                     return;
                 }
                 const show = q === '' || o.hay.indexOf(q) !== -1;
                 o.el.hidden = !show;
-                if (show) {
-                    visible++;
-                }
             });
-            if (q !== '' && visible <= 1 && options.length > 1) {
-                const first = options.find(function (o) {
-                    return o.value !== '' && !o.el.hidden;
-                });
-                if (first) {
-                    sel.value = first.value;
-                }
+
+            const matches = visibleMatches();
+            if (q !== '' && matches.length === 1) {
+                pickOption(matches[0]);
+            } else if (q !== '' && matches.length === 0 && sel.value !== '') {
+                sel.value = '';
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
             }
         }
 
@@ -66,14 +75,24 @@
         search.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const first = options.find(function (o) {
-                    return o.value !== '' && !o.el.hidden;
-                });
-                if (first) {
-                    sel.value = first.value;
-                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                const matches = visibleMatches();
+                if (matches.length >= 1) {
+                    pickOption(matches[0]);
                 }
             }
+        });
+        search.addEventListener('blur', function () {
+            setTimeout(function () {
+                const q = norm(search.value);
+                if (q === '') {
+                    return;
+                }
+                filterOptions();
+                const matches = visibleMatches();
+                if (matches.length === 1) {
+                    pickOption(matches[0]);
+                }
+            }, 150);
         });
 
         sel.addEventListener('change', function () {

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/login_pembimbing.php';
 require_once __DIR__ . '/../helpers/payroll_pembimbing.php';
 require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
 require_once __DIR__ . '/../helpers/wa_pembimbing_scan.php';
+require_once __DIR__ . '/../helpers/perizinan_approval.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -14,6 +15,7 @@ payroll_pembimbing_ensure_schema($pdo);
 login_pembimbing_ensure_password_plain_column($pdo);
 pembimbing_kelas_ensure_schema($pdo);
 pembimbing_ensure_wa_scan_reminder_column($pdo);
+perizinan_approval_ensure_schema($pdo);
 
 $id = (int) ($_GET['id'] ?? 0);
 $statement = $pdo->prepare('SELECT * FROM pembimbing WHERE id = :id');
@@ -72,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gaji_pokok' => $gajiPokokNum,
             'tarif_kriteria' => payroll_pembimbing_normalize_kriteria((string) ($_POST['tarif_kriteria'] ?? '')),
             'wa_scan_reminder' => isset($_POST['wa_scan_reminder']) && $_POST['wa_scan_reminder'] === '1' ? 1 : 0,
+            'wa_izin_notif' => isset($_POST['wa_izin_notif']) && $_POST['wa_izin_notif'] === '1' ? 1 : 0,
         ];
         if ($data['nip'] === '' || $data['nama'] === '') {
             set_flash('error', 'NIP & nama pembimbing wajib diisi.');
@@ -80,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, tarif_kriteria = :tarif_kriteria, wa_scan_reminder = :wa_scan_reminder WHERE id = :id');
+            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, tarif_kriteria = :tarif_kriteria, wa_scan_reminder = :wa_scan_reminder, wa_izin_notif = :wa_izin_notif WHERE id = :id');
             $update->execute($data);
 
             $renameNote = '';
@@ -341,6 +344,14 @@ $pembimbingKriteria = payroll_pembimbing_normalize_kriteria((string) ($pembimbin
                             <option value="0" <?= (int) ($pembimbing['wa_scan_reminder'] ?? 1) === 0 ? 'selected' : '' ?>>Nonaktif</option>
                         </select>
                         <div class="form-text">Pesan otomatis ~10 menit sebelum kegiatan selesai (butuh No WA terisi).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Notifikasi WA izin santri disetujui</label>
+                        <select name="wa_izin_notif" class="form-select">
+                            <option value="1" <?= (int) ($pembimbing['wa_izin_notif'] ?? 1) === 1 ? 'selected' : '' ?>>Aktif — kirim saat izin binaan disetujui</option>
+                            <option value="0" <?= (int) ($pembimbing['wa_izin_notif'] ?? 1) === 0 ? 'selected' : '' ?>>Nonaktif</option>
+                        </select>
+                        <div class="form-text">Pembimbing yang mengampu tingkatan/PKPPS santri terkait.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Status pembimbing</label>

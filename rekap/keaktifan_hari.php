@@ -216,7 +216,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div>
 
-            <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/hub.php')) ?>">Pusat Rekap</a></p>
+            <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>">Rekap Presensi</a></p>
 
             <h1 class="h4 mb-1 d-flex align-items-center flex-wrap gap-2">
                 Keaktifan santri hari ini
@@ -229,7 +229,10 @@ require_once __DIR__ . '/../includes/header.php';
 
         </div>
 
-        <a class="btn btn-sm btn-outline-secondary align-self-start" href="<?= htmlspecialchars(app_href('/rekap/hub.php')) ?>"><i class="fa-solid fa-arrow-left me-1"></i>Pusat Rekap</a>
+        <div class="d-flex flex-wrap gap-2 align-self-start">
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/rekap/panduan.php')) ?>"><i class="fa-solid fa-circle-info me-1"></i>Panduan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>"><i class="fa-solid fa-arrow-left me-1"></i>Rekap Presensi</a>
+        </div>
 
     </div>
 

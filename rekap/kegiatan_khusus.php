@@ -34,7 +34,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/hub.php')) ?>">Rekap</a></p>
+    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>">Rekap</a></p>
     <h1 class="h4 mb-1">Rekap absensi kegiatan khusus</h1>
     <p class="text-muted mb-0 small">Rekap scan untuk kegiatan sekali pakai di luar jadwal rutin.</p>
 </div>

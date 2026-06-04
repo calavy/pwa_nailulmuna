@@ -5,10 +5,88 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/pkpps.php';
 
-/** Nama komponen alokasi untuk bagian tambahan PKPPS (kategori Umum). */
-function keuangan_pkpps_alokasi_umum_label(): string
+/** @deprecated Gunakan keuangan_pkpps_alokasi_komponen_nama() — alias kompatibilitas. */
+function keuangan_pkpps_alokasi_umum_label(PDO $pdo): string
 {
-    return 'Dana Umum (PKPPS)';
+    return keuangan_pkpps_alokasi_komponen_nama($pdo);
+}
+
+/**
+ * Komponen alokasi syahriyah tujuan bagian tambahan PKPPS (default: komponen gaji guru/mudaris).
+ */
+function keuangan_pkpps_alokasi_komponen_nama(PDO $pdo): string
+{
+    static $cache = [];
+
+    $cacheKey = spl_object_id($pdo);
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
+    require_once __DIR__ . '/keuangan_alokasi.php';
+    $rows = keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
+
+    $explicit = trim((string) app_setting($pdo, 'keuangan_pkpps_alokasi_komponen', ''));
+    if ($explicit !== '') {
+        foreach ($rows as $row) {
+            if (trim((string) ($row['nama_komponen'] ?? '')) === $explicit) {
+                $cache[$cacheKey] = $explicit;
+
+                return $explicit;
+            }
+        }
+    }
+
+    foreach ($rows as $row) {
+        $nama = trim((string) ($row['nama_komponen'] ?? ''));
+        if ($nama !== '' && preg_match('/gaji\s*(mudaris|guru|pembimbing|ustadz|ustad)/ui', $nama)) {
+            $cache[$cacheKey] = $nama;
+
+            return $nama;
+        }
+    }
+    foreach ($rows as $row) {
+        $nama = trim((string) ($row['nama_komponen'] ?? ''));
+        if ($nama !== '' && stripos($nama, 'gaji') !== false) {
+            $cache[$cacheKey] = $nama;
+
+            return $nama;
+        }
+    }
+
+    $cache[$cacheKey] = 'Gaji mudaris (Pagu 15 guru)';
+
+    return $cache[$cacheKey];
+}
+
+/** @return list<array{id:int,nama:string,persen:float}> */
+function keuangan_pkpps_alokasi_komponen_options(PDO $pdo): array
+{
+    require_once __DIR__ . '/keuangan_alokasi.php';
+    $out = [];
+    foreach (keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_SYAHRIYAH) as $row) {
+        $nama = trim((string) ($row['nama_komponen'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $out[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'nama' => $nama,
+            'persen' => (float) ($row['persen'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+/** Tambahkan nominal PKPPS ke map komponen alokasi (gaji guru, bukan dana umum). */
+function keuangan_pkpps_alokasi_tambah_ke_komponen(PDO $pdo, int $nominal, array &$komponenMap): void
+{
+    if ($nominal <= 0) {
+        return;
+    }
+    $target = keuangan_pkpps_alokasi_komponen_nama($pdo);
+    $komponenMap[$target] = (int) ($komponenMap[$target] ?? 0) + $nominal;
 }
 
 function keuangan_pkpps_syahriyah_normalize_kode(string $raw): string
@@ -86,40 +164,98 @@ function pkpps_tingkatan_kelas_keuangan_kode(PDO $pdo, int $pkppsTingkatanId): s
 }
 
 /**
+ * Map kode kelas (mis. Wustho 1) ke kode kelas induk PKPPS (Wustho/Ulya) untuk lookup tarif.
+ */
+function keuangan_pkpps_syahriyah_resolve_kelas_kode(PDO $pdo, string $kelasKeuanganKode): string
+{
+    $kk = keuangan_pkpps_syahriyah_normalize_kode($kelasKeuanganKode);
+    if ($kk === '') {
+        return '';
+    }
+    foreach (kelas_keuangan_list_for_pkpps_syahriyah($pdo) as $row) {
+        if (keuangan_pkpps_syahriyah_normalize_kode((string) ($row['kode'] ?? '')) === $kk) {
+            return $kk;
+        }
+    }
+    ensure_kelas_keuangan_table($pdo);
+    $st = $pdo->prepare('SELECT tarif_keuangan_tier FROM kelas_keuangan WHERE UPPER(TRIM(kode)) = :k LIMIT 1');
+    $st->execute(['k' => $kk]);
+    $tier = strtolower(trim((string) ($st->fetchColumn() ?: '')));
+    if ($tier !== 'wustho' && $tier !== 'ulya') {
+        return '';
+    }
+    foreach (kelas_keuangan_list_for_pkpps_syahriyah($pdo) as $row) {
+        if (strtolower(trim((string) ($row['tarif_keuangan_tier'] ?? ''))) === $tier) {
+            return keuangan_pkpps_syahriyah_normalize_kode((string) ($row['kode'] ?? ''));
+        }
+    }
+
+    return '';
+}
+
+/**
  * Kode kelas keuangan untuk nominal tambahan PKPPS (Wustho 1/2/3 → Wustho).
  */
-function pkpps_kelas_keuangan_kode_for_santri(PDO $pdo, int $santriId): string
-{
+function pkpps_kelas_keuangan_kode_for_santri(
+    PDO $pdo,
+    int $santriId,
+    int $tahunAjaranMulai = 0,
+    int $tahunAjaranSelesai = 0
+): string {
     if ($santriId <= 0) {
         return '';
+    }
+
+    // Santri PKPPS aktif — prioritaskan kelas dari tingkatan PKPPS (bukan kelas TA umum).
+    if (table_exists($pdo, 'pkpps_santri')) {
+        pkpps_ensure_schema($pdo);
+        ensure_kelas_keuangan_table($pdo);
+        $stPk = $pdo->prepare('
+            SELECT kk.kode
+            FROM pkpps_santri ps
+            INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
+            LEFT JOIN kelas_keuangan kk ON kk.id = t.kelas_keuangan_id
+            WHERE ps.santri_id = :sid AND ps.is_aktif = 1
+            LIMIT 1
+        ');
+        $stPk->execute(['sid' => $santriId]);
+        $kodePkRow = keuangan_pkpps_syahriyah_normalize_kode((string) ($stPk->fetchColumn() ?: ''));
+        if ($kodePkRow !== '') {
+            return keuangan_pkpps_syahriyah_resolve_kelas_kode($pdo, $kodePkRow);
+        }
+        $tid = pkpps_tingkatan_id_for_santri($pdo, $santriId);
+        $kodePk = pkpps_tingkatan_kelas_keuangan_kode($pdo, $tid);
+        if ($kodePk !== '') {
+            return keuangan_pkpps_syahriyah_resolve_kelas_kode($pdo, $kodePk);
+        }
+    }
+
+    if ($tahunAjaranMulai <= 0 || $tahunAjaranSelesai <= 0) {
+        if (function_exists('keuangan_tahun_ajaran_aktif')) {
+            $ta = keuangan_tahun_ajaran_aktif($pdo);
+            $tahunAjaranMulai = (int) ($ta['mulai'] ?? 0);
+            $tahunAjaranSelesai = (int) ($ta['selesai'] ?? 0);
+        }
+    }
+    if ($tahunAjaranMulai > 0 && $tahunAjaranSelesai > 0 && function_exists('keuangan_santri_kelas_tagihan')) {
+        require_once __DIR__ . '/santri_ta.php';
+        $katTa = keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
+        $resolved = keuangan_pkpps_syahriyah_resolve_kelas_kode($pdo, $katTa);
+        if ($resolved !== '') {
+            return $resolved;
+        }
     }
     $st = $pdo->prepare('SELECT kategori_kelas FROM santri WHERE id = :id LIMIT 1');
     $st->execute(['id' => $santriId]);
     $kat = santri_normalize_kategori_kelas($pdo, (string) ($st->fetchColumn() ?: ''));
     if ($kat !== '') {
-        return $kat;
+        $resolved = keuangan_pkpps_syahriyah_resolve_kelas_kode($pdo, $kat);
+        if ($resolved !== '') {
+            return $resolved;
+        }
     }
-    if (!table_exists($pdo, 'pkpps_santri')) {
-        return '';
-    }
-    pkpps_ensure_schema($pdo);
-    ensure_kelas_keuangan_table($pdo);
-    $st2 = $pdo->prepare('
-        SELECT kk.kode
-        FROM pkpps_santri ps
-        INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
-        LEFT JOIN kelas_keuangan kk ON kk.id = t.kelas_keuangan_id
-        WHERE ps.santri_id = :sid AND ps.is_aktif = 1
-        LIMIT 1
-    ');
-    $st2->execute(['sid' => $santriId]);
-    $kode = keuangan_pkpps_syahriyah_normalize_kode((string) ($st2->fetchColumn() ?: ''));
-    if ($kode !== '') {
-        return $kode;
-    }
-    $tid = pkpps_tingkatan_id_for_santri($pdo, $santriId);
 
-    return pkpps_tingkatan_kelas_keuangan_kode($pdo, $tid);
+    return '';
 }
 
 /** Kelas keuangan yang punya program PKPPS (Wustho/Ulya; Muadalah bukan PKPPS). */
@@ -283,7 +419,7 @@ function keuangan_pkpps_syahriyah_apply_to_simulasi(
     if (!keuangan_pkpps_syahriyah_berlaku_untuk_santri($pdo, $santriId)) {
         return $sim;
     }
-    $kk = pkpps_kelas_keuangan_kode_for_santri($pdo, $santriId);
+    $kk = pkpps_kelas_keuangan_kode_for_santri($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tambahan = keuangan_pkpps_syahriyah_nominal($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $kk);
     $sim['pkpps_tambahan'] = $tambahan;
     if ($tambahan > 0) {
@@ -369,11 +505,18 @@ function keuangan_pkpps_syahriyah_save_settings(PDO $pdo, array $post): array
         }
     }
 
+    $alokasiKomponen = trim((string) ($post['pkpps_alokasi_komponen'] ?? ''));
+    if ($alokasiKomponen === '') {
+        keuangan_pkpps_syahriyah_delete_setting($pdo, 'keuangan_pkpps_alokasi_komponen');
+    } else {
+        save_setting($pdo, 'keuangan_pkpps_alokasi_komponen', $alokasiKomponen);
+    }
+
     return ['ok' => true, 'message' => 'Pengaturan tambahan syahriyah PKPPS (per kelas keuangan) disimpan.'];
 }
 
 /**
- * Bagi pembayaran syahriyah: bagian PKPPS (alokasi Umum) vs dasar (alokasi persen biasa).
+ * Bagi pembayaran syahriyah: bagian PKPPS (alokasi gaji guru) vs dasar (alokasi persen biasa).
  *
  * @return array{pkpps:int, dasar:int}
  */
@@ -388,7 +531,7 @@ function keuangan_pkpps_syahriyah_split_pembayaran(
     if ($bayarSyahriyah <= 0 || !keuangan_pkpps_syahriyah_berlaku_untuk_santri($pdo, $santriId)) {
         return ['pkpps' => 0, 'dasar' => max(0, $bayarSyahriyah)];
     }
-    $kk = pkpps_kelas_keuangan_kode_for_santri($pdo, $santriId);
+    $kk = pkpps_kelas_keuangan_kode_for_santri($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
     $pkppsNom = keuangan_pkpps_syahriyah_nominal($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $kk);
     if ($pkppsNom <= 0) {
         return ['pkpps' => 0, 'dasar' => $bayarSyahriyah];

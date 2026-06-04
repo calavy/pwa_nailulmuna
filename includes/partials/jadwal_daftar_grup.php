@@ -26,7 +26,6 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
         if ($tingkatanList === [] && trim((string) ($item['tingkatan'] ?? '')) !== '') {
             $tingkatanList = [trim((string) ($item['tingkatan'] ?? ''))];
         }
-        $hariLabel = jadwal_hari_list_label($item['_hari_list'] ?? [(int) ($item['hari_ke'] ?? 0)], $hari);
         ?>
         <tr>
             <td>
@@ -51,25 +50,51 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
                 <?php endforeach; ?>
                 <?php if ($tingkatanList === []): ?>—<?php endif; ?>
             </td>
-            <td class="small text-nowrap"><?= htmlspecialchars($hariLabel) ?></td>
+            <td class="small text-nowrap">
+                <?php
+                $hariListRender = $item['_hari_list'] ?? [(int) ($item['hari_ke'] ?? 0)];
+                foreach ($hariListRender as $hkBadge):
+                    $slug = jadwal_hari_badge_slug((int) $hkBadge);
+                    $lbl = jadwal_hari_singkat((int) $hkBadge, $hari);
+                    ?>
+                    <span class="jadwal-peta-hari jadwal-peta-hari--<?= htmlspecialchars($slug) ?> me-1"><?= htmlspecialchars($lbl) ?></span>
+                <?php endforeach; ?>
+            </td>
             <?php if ($byKegiatan): ?>
                 <td class="small"><?= htmlspecialchars((string) ($item['nama_pembimbing'] ?? '—')) ?></td>
             <?php elseif ($byTingkatan): ?>
                 <td class="small"><?= htmlspecialchars((string) ($item['nama_pembimbing'] ?? '—')) ?></td>
             <?php endif; ?>
-            <td class="text-nowrap small font-monospace js-time-24"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></td>
+            <td class="text-nowrap small font-monospace js-time-24">
+                <span class="jadwal-peta-waktu"><?= htmlspecialchars(jadwal_jam_ringkas($item)) ?></span>
+            </td>
             <td class="text-end text-nowrap">
                 <?php
                 $mergeIds = array_values(array_filter(array_map('intval', $item['_merge_ids'] ?? [(int) ($item['id'] ?? 0)])));
                 $editId = (int) ($mergeIds[0] ?? 0);
+                $tempatVal = trim((string) ($item['tempat'] ?? ''));
                 ?>
                 <?php if ($editId > 0): ?>
-                    <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>" class="btn btn-outline-warning btn-sm py-0 px-2" title="Edit jadwal">
-                        <i class="fa-solid fa-pen me-1"></i>Edit
+                    <button type="button"
+                        class="btn btn-outline-primary btn-sm py-0 px-2 jadwal-quick-edit"
+                        title="Edit cepat"
+                        data-edit-id="<?= $editId ?>"
+                        data-kegiatan-id="<?= (int) ($item['kegiatan_id'] ?? 0) ?>"
+                        data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($item['jam_mulai'] ?? ''))) ?>"
+                        data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($item['jam_selesai'] ?? ''))) ?>"
+                        data-pembimbing-id="<?= (int) ($item['pembimbing_id'] ?? 0) ?>"
+                        data-tempat="<?= htmlspecialchars($tempatVal) ?>"
+                        data-tingkatan="<?= htmlspecialchars(json_encode($tingkatanList, JSON_UNESCAPED_UNICODE)) ?>"
+                        data-hari="<?= htmlspecialchars(json_encode(array_values(array_map('intval', $item['_hari_list'] ?? [(int) ($item['hari_ke'] ?? 0)])), JSON_UNESCAPED_UNICODE)) ?>">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Form lengkap">
+                        <i class="fa-solid fa-up-right-from-square"></i>
                     </a>
-                    <button type="submit" form="form-hapus-jadwal-<?= $editId ?>" class="btn btn-outline-danger btn-sm py-0 px-2"
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 jadwal-delete-one"
                         title="Hapus jadwal"
-                        onclick="return confirm('Hapus <?= count($mergeIds) > 1 ? count($mergeIds) . ' slot jadwal' : 'jadwal ini' ?>? Presensi terkait ikut dihapus.');">
+                        data-delete-ids="<?= htmlspecialchars(implode(',', $mergeIds)) ?>"
+                        data-confirm="Hapus <?= count($mergeIds) > 1 ? count($mergeIds) . ' slot jadwal' : 'jadwal ini' ?>? Presensi terkait ikut dihapus.">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 <?php endif; ?>
@@ -165,33 +190,6 @@ $flattenGrupItems = static function (array $grupContent) use ($useHariJam): arra
     <?php endforeach; ?>
     </form>
 
-    <?php
-    $hapusFormKeys = [];
-    foreach ($jadwalGrouped as $grupContent) {
-        $allItems = $flattenGrupItems($grupContent);
-        $mergedRows = jadwal_gabung_baris_serupa($allItems);
-        foreach ($mergedRows as $item) {
-            $mergeIds = array_values(array_filter(array_map('intval', $item['_merge_ids'] ?? [(int) ($item['id'] ?? 0)])));
-            $editId = (int) ($mergeIds[0] ?? 0);
-            if ($editId <= 0 || isset($hapusFormKeys[$editId])) {
-                continue;
-            }
-            $hapusFormKeys[$editId] = $mergeIds;
-        }
-    }
-    foreach ($hapusFormKeys as $editId => $mergeIds):
-        ?>
-            <form method="post" id="form-hapus-jadwal-<?= (int) $editId ?>" class="d-none">
-                <input type="hidden" name="action" value="hapus_jadwal_massal">
-                <?php foreach ($mergeIds as $mid): ?>
-                    <?php if ($mid > 0): ?>
-                        <input type="hidden" name="ids[]" value="<?= $mid ?>">
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </form>
-        <?php
-    endforeach;
-    ?>
     <script>
     (function () {
         var form = document.getElementById('form-jadwal-bulk');

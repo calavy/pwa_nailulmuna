@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../../helpers/keuangan_rekap.php';
 require_once __DIR__ . '/../../helpers/tagihan_bulanan.php';
+require_once __DIR__ . '/../../helpers/keuangan_pkpps_syahriyah.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -75,13 +76,40 @@ if (isset($breakdown['syahriyah']) && is_array($breakdown['syahriyah'])) {
     ];
 }
 
+$pkppsAktif = keuangan_pkpps_syahriyah_berlaku_untuk_santri($pdo, $santriId);
+$kelasTagihan = function_exists('keuangan_santri_kelas_tagihan')
+    ? keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunMulai, $tahunSelesai)
+    : '';
+$pkppsKelasKode = pkpps_kelas_keuangan_kode_for_santri($pdo, $santriId, $tahunMulai, $tahunSelesai);
+
+$nominalFill = [];
+foreach ($breakdown as $slug => $row) {
+    if (!is_string($slug) || $slug === '' || !is_array($row)) {
+        continue;
+    }
+    $sisa = (int) ($row['sisa'] ?? 0);
+    $expected = (int) ($row['expected'] ?? 0);
+    $status = (string) ($row['status'] ?? '');
+    if ($sisa > 0) {
+        $nominalFill[$slug] = $sisa;
+    } elseif ($expected > 0 && $status !== 'Lunas') {
+        $nominalFill[$slug] = $expected;
+    } else {
+        $nominalFill[$slug] = 0;
+    }
+}
+
 echo json_encode([
     'ok' => true,
     'pos' => $breakdown,
+    'nominal_fill' => $nominalFill,
     'summary' => [
         'expected_wajib' => $expectedWajib,
         'sisa_wajib' => $sisaWajib,
         'status' => $sisaWajib <= 0 && $expectedWajib > 0 ? 'Lunas' : ($sisaWajib < $expectedWajib ? 'Sebagian' : 'Belum'),
         'syahriyah_breakdown' => $syBreakdown,
+        'pkpps_aktif' => $pkppsAktif,
+        'kelas_tagihan' => $kelasTagihan,
+        'pkpps_kelas_kode' => $pkppsKelasKode,
     ],
 ], JSON_UNESCAPED_UNICODE);

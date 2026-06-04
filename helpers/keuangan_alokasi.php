@@ -312,11 +312,10 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
             'group' => 'Dana awal tahun',
         ];
     }
-    if (!function_exists('keuangan_pkpps_alokasi_umum_label')) {
+    if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
         require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
     }
-    $pkppsLabel = keuangan_pkpps_alokasi_umum_label();
-    $out[] = ['value' => $pkppsLabel, 'label' => $pkppsLabel . ' — bagian PKPPS dari syahriyah', 'group' => 'Dana umum syahriyah'];
+    // PKPPS dialokasikan ke komponen gaji — tidak lagi sebagai "Dana Umum" terpisah di dropdown pengeluaran.
 
     return $out;
 }

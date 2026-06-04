@@ -48,6 +48,11 @@
     <?php if (!empty($loadPushFcm)): ?>
     <?php require_once __DIR__ . '/partials/push_fcm_bootstrap.php'; ?>
     <?php endif; ?>
+    <?php if (!empty($pageScripts) && is_array($pageScripts)): ?>
+        <?php foreach ($pageScripts as $pageScriptHref): ?>
+    <script src="<?= htmlspecialchars((string) $pageScriptHref) ?>" defer></script>
+        <?php endforeach; ?>
+    <?php endif; ?>
     <?php endif; ?>
 </body>
 </html>
