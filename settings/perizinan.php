@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pengaturan_acl.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/wa_templates.php';
 
 require_roles(['admin', 'pengurus']);
 migrate_legacy_permissions_to_pengaturan($pdo);
@@ -41,6 +42,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $grupFonte = trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? ''));
     }
     save_setting($pdo, 'wa_izin_grup_fonte', $grupFonte);
+    $doaSakit = trim((string) ($_POST['wa_tpl_izin_sakit_doa'] ?? ''));
+    $doaDefault = (string) (wa_template_definitions()['izin_sakit_doa']['default'] ?? '');
+    if ($doaSakit === '' || $doaSakit === $doaDefault) {
+        $st = $pdo->prepare('DELETE FROM app_settings WHERE setting_key = :k LIMIT 1');
+        $st->execute(['k' => wa_template_setting_key('izin_sakit_doa')]);
+    } else {
+        save_setting($pdo, wa_template_setting_key('izin_sakit_doa'), $doaSakit);
+    }
+    if (function_exists('app_settings_cache_reset')) {
+        app_settings_cache_reset($pdo);
+    }
     set_flash('success', 'Pengaturan perizinan disimpan.');
     header('Location: ' . app_href('/settings/perizinan.php'));
     exit;
@@ -55,6 +67,8 @@ $waIzinGrupFonte = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
 if ($waIzinGrupFonte === '') {
     $waIzinGrupFonte = $waIzinGrup;
 }
+$doaSakitTpl = wa_template_get($pdo, 'izin_sakit_doa');
+$doaSakitMeta = wa_template_definitions()['izin_sakit_doa'] ?? ['placeholders' => '', 'default' => ''];
 
 $pageTitle = 'Pengaturan Perizinan';
 $bodyClass = 'settings-module-page';
@@ -65,7 +79,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Perizinan santri</h1>
-    <p class="text-muted mb-0 small">Syarat ALPA sebelum persetujuan izin (selain sakit) dan notifikasi WA ke pembimbing.</p>
+    <p class="text-muted mb-0 small">Syarat ALPA, notifikasi WA ke pembimbing/grup, doa izin sakit, dan pengiriman tunggal untuk izin rombongan.</p>
 </div>
 
 <form method="post" class="row g-3">
@@ -149,6 +163,25 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-check-label" for="wa_izin_pembimbing_kirim_grup">Mode lama: juga kirim ke nomor di bawah</label>
                     </div>
                     <input type="text" class="form-control form-control-sm" name="wa_izin_pembimbing_grup" value="<?= htmlspecialchars($waIzinGrup) ?>" placeholder="628xxx">
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h2 class="h6 mb-2">Doa tambahan izin sakit</h2>
+                <p class="small text-muted mb-2">
+                    Ditambahkan otomatis di akhir pesan WA saat izin <strong>sakit</strong> disetujui (ke pembimbing &amp; grup).
+                    Kosongkan untuk menonaktifkan. Template pesan utama di
+                    <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">Template Pesan WA</a>.
+                </p>
+                <p class="small mb-2"><strong>Placeholder:</strong> <code><?= htmlspecialchars((string) ($doaSakitMeta['placeholders'] ?? '')) ?></code></p>
+                <textarea class="form-control font-monospace" name="wa_tpl_izin_sakit_doa" rows="7"><?= htmlspecialchars($doaSakitTpl) ?></textarea>
+                <details class="mt-2">
+                    <summary class="small text-muted">Reset ke default</summary>
+                    <pre class="small bg-light p-2 rounded mt-1 mb-0"><?= htmlspecialchars((string) ($doaSakitMeta['default'] ?? '')) ?></pre>
                 </details>
             </div>
         </div>

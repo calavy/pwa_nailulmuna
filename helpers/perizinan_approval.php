@@ -255,6 +255,85 @@ function perizinan_pembimbing_nama_untuk_santri(PDO $pdo, int $santriId): string
     return implode(', ', array_values(array_unique($names)));
 }
 
+/** Format satu baris santri untuk daftar WA (rombongan / tunggal). */
+function perizinan_wa_format_baris_santri(string $namaSantri, string $nis = '', string $tingkatan = ''): string
+{
+    $part = trim($namaSantri) !== '' ? trim($namaSantri) : '-';
+    if (trim($nis) !== '') {
+        $part .= ' (' . trim($nis) . ')';
+    }
+    if (trim($tingkatan) !== '') {
+        $part .= ' · ' . trim($tingkatan);
+    }
+
+    return '• ' . $part;
+}
+
+/**
+ * @param list<array<string,mixed>> $anggota
+ */
+function perizinan_wa_format_daftar_santri(array $anggota): string
+{
+    if ($anggota === []) {
+        return '';
+    }
+    $lines = [];
+    foreach ($anggota as $ang) {
+        $lines[] = perizinan_wa_format_baris_santri(
+            (string) ($ang['nama_santri'] ?? '-'),
+            trim((string) ($ang['nis'] ?? '')),
+            trim((string) ($ang['tingkatan'] ?? ''))
+        );
+    }
+    if (count($lines) <= 1) {
+        return '';
+    }
+
+    return "Anggota:\n" . implode("\n", $lines) . "\n";
+}
+
+/** Doa tambahan untuk izin sakit; kosong jika bukan sakit atau template dinonaktifkan. */
+function perizinan_wa_sakit_doa_tambahan(PDO $pdo, string $jenisIzin, string $namaSantri = ''): string
+{
+    if (strtoupper(trim($jenisIzin)) !== 'SAKIT') {
+        return '';
+    }
+    $doaTpl = trim(wa_template_get($pdo, 'izin_sakit_doa'));
+    if ($doaTpl === '') {
+        return '';
+    }
+
+    return wa_template_render($pdo, 'izin_sakit_doa', [
+        'nama_santri' => $namaSantri !== '' ? $namaSantri : 'santri',
+        'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+    ]);
+}
+
+/** Sisipkan blok opsional ke pesan; append otomatis jika template belum punya placeholder. */
+function perizinan_wa_sisipkan_blok(PDO $pdo, string $slug, string $pesan, string $placeholder, string $konten): string
+{
+    if ($konten === '') {
+        return str_replace('{' . $placeholder . '}', '', $pesan);
+    }
+    if (str_contains(wa_template_get($pdo, $slug), '{' . $placeholder . '}')) {
+        return str_replace('{' . $placeholder . '}', $konten, $pesan);
+    }
+
+    return $pesan . $konten;
+}
+
+/** Sisipkan doa sakit ke pesan; append otomatis jika template belum punya placeholder {doa}. */
+function perizinan_wa_sisipkan_doa(PDO $pdo, string $slug, string $pesan, string $jenisIzin, string $namaSantri = ''): string
+{
+    return perizinan_wa_sisipkan_blok(
+        $pdo,
+        $slug,
+        $pesan,
+        'doa',
+        perizinan_wa_sakit_doa_tambahan($pdo, $jenisIzin, $namaSantri)
+    );
+}
+
 function wa_format_izin_disetujui_pembimbing(
     PDO $pdo,
     string $namaSantri,
@@ -266,10 +345,15 @@ function wa_format_izin_disetujui_pembimbing(
     string $jamMulai,
     string $jamSelesai,
     string $alasan,
-    string $namaPembimbing = ''
+    string $namaPembimbing = '',
+    string $jenisRaw = '',
+    string $daftarSantri = ''
 ): string {
-    return wa_template_render($pdo, 'izin_disetujui_pembimbing', [
+    $jenisCek = $jenisRaw !== '' ? $jenisRaw : $jenisLabel;
+    $slug = 'izin_disetujui_pembimbing';
+    $pesan = wa_template_render($pdo, $slug, [
         'nama_santri' => $namaSantri,
+        'daftar_santri' => '',
         'nis' => $nis,
         'tingkatan' => $tingkatan,
         'jenis_izin' => $jenisLabel,
@@ -280,7 +364,11 @@ function wa_format_izin_disetujui_pembimbing(
         'alasan' => $alasan,
         'nama_pembimbing' => $namaPembimbing,
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+        'doa' => '',
     ]);
+    $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+
+    return perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisCek, $namaSantri);
 }
 
 /**
@@ -314,12 +402,92 @@ function perizinan_kirim_wa_pembimbing_disetujui(PDO $pdo, array $izinRow, strin
         $jamMulai,
         $jamSelesai,
         (string) ($izinRow['alasan'] ?? '-'),
-        $namaPb
+        $namaPb,
+        $jenisRaw
     );
 
     $sent = send_wa_bulk($pdo, implode(',', $phones), $msg);
 
     return $sent + perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+}
+
+/**
+ * Kirim satu pesan WA untuk seluruh anggota izin rombongan (bukan per santri).
+ *
+ * @param list<array<string,mixed>> $anggota
+ */
+function perizinan_kirim_wa_rombongan_disetujui(
+    PDO $pdo,
+    array $anggota,
+    string $jenisIzin,
+    string $alasan,
+    string $tglMulai,
+    string $tglSelesai,
+    string $jamMulai,
+    string $jamSelesai
+): int {
+    if (!push_should_send_wa($pdo) || $anggota === []) {
+        return 0;
+    }
+
+    $jenisRaw = strtoupper(trim($jenisIzin));
+    $jenisLabel = jenis_izin_label($jenisRaw);
+    $daftarSantri = perizinan_wa_format_daftar_santri($anggota);
+    $jumlah = count($anggota);
+    $namaJudul = $jumlah > 1
+        ? 'Izin rombongan (' . $jumlah . ' santri)'
+        : (string) ($anggota[0]['nama_santri'] ?? '-');
+
+    $phones = [];
+    $pbNames = [];
+    foreach ($anggota as $ang) {
+        $sid = (int) ($ang['santri_id'] ?? 0);
+        foreach (perizinan_pembimbing_wa_targets($pdo, $sid) as $ph) {
+            $phones[$ph] = true;
+        }
+        $namaPb = perizinan_pembimbing_nama_untuk_santri($pdo, $sid);
+        if ($namaPb !== '') {
+            foreach (preg_split('/\s*,\s*/', $namaPb) ?: [] as $n) {
+                $n = trim((string) $n);
+                if ($n !== '') {
+                    $pbNames[$n] = true;
+                }
+            }
+        }
+    }
+    $phoneList = array_keys($phones);
+    $namaPbAll = implode(', ', array_keys($pbNames));
+
+    $sent = 0;
+    if ($phoneList !== []) {
+        $msg = wa_format_izin_disetujui_pembimbing(
+            $pdo,
+            $namaJudul,
+            '',
+            '',
+            $jenisLabel,
+            $tglMulai,
+            $tglSelesai,
+            $jamMulai,
+            $jamSelesai,
+            $alasan,
+            $namaPbAll,
+            $jenisRaw,
+            $daftarSantri
+        );
+        $sent += send_wa_bulk($pdo, implode(',', $phoneList), $msg);
+    }
+
+    $izinRowGrup = [
+        'nama_santri' => $namaJudul,
+        'nis' => '',
+        'tingkatan' => '',
+        'jenis_izin' => $jenisRaw,
+        'alasan' => $alasan,
+        'daftar_santri' => $daftarSantri,
+    ];
+
+    return $sent + perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri);
 }
 
 /**
@@ -333,7 +501,8 @@ function perizinan_kirim_wa_grup_fonte(
     string $tglMulai,
     string $tglSelesai,
     string $jamMulai,
-    string $jamSelesai
+    string $jamSelesai,
+    string $daftarSantri = ''
 ): int {
     if (!push_should_send_wa($pdo)) {
         return 0;
@@ -354,8 +523,14 @@ function perizinan_kirim_wa_grup_fonte(
     }
 
     $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'KELUAR'));
-    $msg = wa_template_render($pdo, 'izin_grup_fonte', [
-        'nama_santri' => (string) ($izinRow['nama_santri'] ?? '-'),
+    if ($daftarSantri === '' && isset($izinRow['daftar_santri'])) {
+        $daftarSantri = (string) $izinRow['daftar_santri'];
+    }
+    $namaSantri = (string) ($izinRow['nama_santri'] ?? '-');
+    $slug = 'izin_grup_fonte';
+    $pesan = wa_template_render($pdo, $slug, [
+        'nama_santri' => $namaSantri,
+        'daftar_santri' => '',
         'nis' => trim((string) ($izinRow['nis'] ?? '')),
         'tingkatan' => trim((string) ($izinRow['tingkatan'] ?? '')),
         'jenis_izin' => jenis_izin_label($jenisRaw),
@@ -365,7 +540,10 @@ function perizinan_kirim_wa_grup_fonte(
         'jam_selesai' => $jamSelesai,
         'alasan' => (string) ($izinRow['alasan'] ?? '-'),
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+        'doa' => '',
     ]);
+    $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+    $msg = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisRaw, $namaSantri);
 
     return send_wa_bulk($pdo, $grupId, $msg);
 }

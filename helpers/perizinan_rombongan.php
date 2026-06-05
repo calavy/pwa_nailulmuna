@@ -337,28 +337,23 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         ')->execute(['rid' => $rombonganId]);
         $pdo->commit();
 
-        $waTotal = 0;
         $alasanMeta = (string) ($meta['alasan'] ?? '');
-        foreach ($anggota as $ang) {
-            $rowWa = array_merge($ang, [
-                'jenis_izin' => $jenisIzin,
-                'alasan' => $alasanMeta,
-            ]);
-            $waTotal += perizinan_kirim_wa_pembimbing_disetujui(
-                $pdo,
-                $rowWa,
-                $tglMulai,
-                $tglSelesai,
-                $jamMulai,
-                $jamSelesai
-            );
-        }
+        $waTotal = perizinan_kirim_wa_rombongan_disetujui(
+            $pdo,
+            $anggota,
+            $jenisIzin,
+            $alasanMeta,
+            $tglMulai,
+            $tglSelesai,
+            $jamMulai,
+            $jamSelesai
+        );
         $msg = 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
         if ($bypassAlpa) {
             $msg .= ' (Syarat ALPA dilewati.)';
         }
         if ($waTotal > 0) {
-            $msg .= ' WA terkirim ke ' . $waTotal . ' pembimbing.';
+            $msg .= ' WA rombongan terkirim (' . $waTotal . ' penerima).';
         }
 
         return ['ok' => true, 'message' => $msg];

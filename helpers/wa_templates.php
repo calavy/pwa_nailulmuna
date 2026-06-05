@@ -49,26 +49,39 @@ function wa_template_definitions(): array
         ],
         'izin_disetujui_pembimbing' => [
             'label' => 'Izin disetujui → pembimbing',
-            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin santri disetujui.',
-            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}',
+            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin santri disetujui. Izin rombongan: {daftar_santri} berisi semua nama.',
+            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {doa}',
             'default' => "Assalamu'alaikum.\n\n"
                 . 'Izin santri binaan *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+                . '{daftar_santri}'
                 . 'Pembimbing: *{nama_pembimbing}*\n'
                 . 'Jenis: {jenis_izin}\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
-                . 'Keperluan: {alasan}',
+                . 'Keperluan: {alasan}'
+                . '{doa}',
         ],
         'izin_grup_fonte' => [
             'label' => 'Izin disetujui → grup WA (Fonte)',
-            'hint' => 'Dikirim ke ID grup Fonte saat izin santri disetujui (pengaturan Perizinan).',
-            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'hint' => 'Dikirim ke ID grup Fonte saat izin santri disetujui (pengaturan Perizinan). Izin rombongan: {daftar_santri} berisi semua nama.',
+            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {doa}',
             'default' => "📋 *Izin santri disetujui*\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . '{daftar_santri}'
                 . '{jenis_izin} · {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
                 . 'Keperluan: {alasan}\n'
-                . '— {nama_ponpes}',
+                . '— {nama_ponpes}'
+                . '{doa}',
+        ],
+        'izin_sakit_doa' => [
+            'label' => 'Doa tambahan izin sakit',
+            'hint' => 'Ditambahkan otomatis di akhir pesan WA saat jenis izin sakit disetujui. Kosongkan untuk menonaktifkan.',
+            'placeholders' => '{nama_santri}, {nama_ponpes}',
+            'default' => "\n\n🤲 *Doa kesembuhan:*\n"
+                . "اللَّهُمَّ رَبَّ النَّاسِ أَذْهِبِ الْبَأْسَ وَاشْفِ أَنْتَ الشَّافِي لَا شِفَاءَ إِلَّا شِفَاؤُكَ شِفَاءً لَا يُغَادِرُ سَقَمًا\n\n"
+                . '_Allahumma Rabban-nas, adzhibil ba\'sa, wa syfihi, Antasy-Syafi, la syifaa\'a illa syifaa\'uka, syifaa\'an la yughadiru saqama._\n\n'
+                . 'Semoga Allah Yang Maha Penyembuh memberikan kesembuhan kepada *{nama_santri}*. Aamiin.',
         ],
     ];
 }
