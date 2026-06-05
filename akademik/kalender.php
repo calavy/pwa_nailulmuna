@@ -462,7 +462,7 @@ render_kalender_page_hero([
             <?php if ($agendaKlikAktif): ?>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--agenda"></span> Acara / jadwal</span>
             <?php endif; ?>
-            <span class="akad-cal-legend-note">Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
+            <span class="akad-cal-legend-note">Angka besar = tanggal utama · baris kecil = kalender alternatif (Masehi/Hijriyah). Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
         </div>
     </div>
 </div>
@@ -563,10 +563,11 @@ render_kalender_page_hero([
             <div class="akad-cal-month-body">
             <?php if (is_array($bulanPaket)): ?>
                 <div class="akad-cal-month-wrap">
-                    <?php akademik_kalender_render_month($bulanPaket['cells'], false, '', '', true); ?>
+                    <?php akademik_kalender_render_month($bulanPaket['cells'], false, '', '', true, $mode === 'hijri' ? 'hijri' : 'masehi'); ?>
                 </div>
                 <p class="small text-muted mt-3 mb-0">
-                    <i class="fa-solid fa-hand-pointer me-1"></i> Klik tanggal untuk menambah atau melihat acara. Arahkan kursor untuk detail libur &amp; hijriyah.
+                    <i class="fa-solid fa-hand-pointer me-1"></i> Klik tanggal untuk menambah atau melihat acara.
+                    Angka besar = <?= $mode === 'hijri' ? 'tanggal hijriyah' : 'tanggal masehi' ?> · baris kecil = kalender <?= $mode === 'hijri' ? 'masehi' : 'hijriyah' ?>.
                     Rentang Masehi: <strong><?= htmlspecialchars($bulanPaket['gStart']) ?></strong> — <strong><?= htmlspecialchars($bulanPaket['gEnd']) ?></strong>.
                 </p>
             <?php endif; ?>

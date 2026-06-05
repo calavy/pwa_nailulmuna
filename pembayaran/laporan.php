@@ -159,7 +159,7 @@ $iconLaporan = bendahara_page_icon('laporan');
     <p class="text-muted mb-0">
         Tampilan utama satu bulan: alokasi per persen (<strong>harus masuk</strong>, <strong>masuk</strong>, <strong>keluar</strong>, <strong>saldo</strong>).
         Pilih bulan lain lewat dropdown. Kalender: <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>.
-        · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_alokasi_per_santri.php')) ?>">Alokasi per santri</a>
+        · <a href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php')) ?>">Kartu syahriyah santri</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_kopsa_per_santri.php')) ?>">KOPSA per santri</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">Syahriyah PKPPS</a>
     </p>
@@ -342,7 +342,7 @@ $iconLaporan = bendahara_page_icon('laporan');
         </div>
         <div class="card-footer small text-muted">
             <strong>Harus masuk</strong> = target PKPPS (dana umum) atau dasar syahriyah × % komponen (selaras dengan
-            <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_alokasi_per_santri.php')) ?>">alokasi per santri</a>).
+            <a href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php')) ?>">kartu syahriyah santri</a>).
             <strong>Masuk</strong> = cicilan dialokasikan PKPPS dulu, sisanya ke % dasar.
             <strong>Keluar</strong> = pengeluaran pada komponen alokasi di rentang bulan tagihan.
             <strong>Saldo</strong> = masuk − keluar.

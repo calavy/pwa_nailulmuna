@@ -6,15 +6,14 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/kegiatan_khusus.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 kegiatan_khusus_ensure_schema($pdo);
 
-$from = trim((string) ($_GET['from'] ?? date('Y-m-01')));
-$to = trim((string) ($_GET['to'] ?? date('Y-m-d')));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-01');
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = date('Y-m-d');
-if ($from > $to) { $t = $from; $from = $to; $to = $t; }
+$periode = rekap_periode_resolve($pdo, $_GET, 'rentang');
+$from = (string) $periode['dari'];
+$to = (string) $periode['sampai'];
 
 $rows = [];
 $st = $pdo->prepare('
@@ -39,23 +38,13 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0 small">Rekap scan untuk kegiatan sekali pakai di luar jadwal rutin.</p>
 </div>
 
-<div class="card shadow-sm mb-3">
-    <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label">Dari</label>
-                <input type="date" name="from" class="form-control" value="<?= htmlspecialchars($from) ?>">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Sampai</label>
-                <input type="date" name="to" class="form-control" value="<?= htmlspecialchars($to) ?>">
-            </div>
-            <div class="col-md-6">
-                <button class="btn btn-primary" type="submit">Tampilkan</button>
-                <a class="btn btn-outline-secondary ms-1" href="<?= htmlspecialchars(app_href('/presensi/kegiatan_khusus.php')) ?>">Kelola kegiatan khusus</a>
-            </div>
-        </form>
-    </div>
+<?php
+$formAction = app_href('/rekap/kegiatan_khusus.php');
+require __DIR__ . '/../includes/partials/rekap_periode_filter.php';
+?>
+<div class="mb-2">
+    <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/presensi/kegiatan_khusus.php')) ?>">Kelola kegiatan khusus</a>
+    <span class="small text-muted ms-2">Munawib dapat mengisi kegiatan jama'ah lewat scan di <a href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">Presensi Scan</a>.</span>
 </div>
 
 <div class="card shadow-sm">

@@ -17,7 +17,7 @@ if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
         <p class="mb-2"><strong>Tagihan syahriyah per bulan</strong> = tarif tier kelas keuangan (Muadalah / Wustho / Ulya)
             − potongan % per santri (bulan jeda tidak mengurangi) + <strong>tambahan PKPPS</strong> bila santri aktif di PKPPS.
             Jenis kelas syahriyah di master data <em>tidak</em> menambah nominal tagihan.</p>
-        <p class="mb-2"><strong>Alokasi laporan</strong> (Laporan syahriyah &amp; Alokasi per santri): bagian PKPPS masuk
+        <p class="mb-2"><strong>Kartu syahriyah santri</strong> (<a href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php')) ?>">cari santri</a>): bagian PKPPS masuk
             komponen <strong><?= htmlspecialchars(keuangan_pkpps_alokasi_komponen_nama($pdo)) ?></strong> (gaji guru);
             komponen % (gizi, operasional, KOPSA, …) dihitung hanya dari <em>dasar</em> syahriyah setelah PKPPS.</p>
         <p class="mb-2"><strong>Cicilan kecil:</strong> pembayaran dialokasikan <em>PKPPS dulu</em> (sampai nominal PKPPS lunas),

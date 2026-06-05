@@ -95,6 +95,8 @@
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: .65rem;
 }
+a.yp-kelas-card { color: inherit; display: block; }
+a.yp-kelas-card:hover { color: inherit; border-color: #0f766e; box-shadow: 0 4px 14px rgba(15, 118, 110, 0.15); }
 .yp-kelas-card {
     background: #fff;
     border: 1px solid rgba(0,0,0,.08);

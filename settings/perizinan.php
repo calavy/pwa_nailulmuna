@@ -22,6 +22,8 @@ $fields = [
     'wa_izin_pembimbing_enabled',
     'wa_izin_pembimbing_kirim_grup',
     'wa_izin_pembimbing_grup',
+    'wa_izin_grup_fonte_enabled',
+    'wa_izin_grup_fonte',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_perizinan_settings') {
@@ -33,6 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     save_setting($pdo, 'wa_izin_pembimbing_enabled', isset($_POST['wa_izin_pembimbing_enabled']) ? '1' : '0');
     save_setting($pdo, 'wa_izin_pembimbing_kirim_grup', isset($_POST['wa_izin_pembimbing_kirim_grup']) ? '1' : '0');
     save_setting($pdo, 'wa_izin_pembimbing_grup', trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? '')));
+    save_setting($pdo, 'wa_izin_grup_fonte_enabled', isset($_POST['wa_izin_grup_fonte_enabled']) ? '1' : '0');
+    $grupFonte = trim((string) ($_POST['wa_izin_grup_fonte'] ?? ''));
+    if ($grupFonte === '') {
+        $grupFonte = trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? ''));
+    }
+    save_setting($pdo, 'wa_izin_grup_fonte', $grupFonte);
     set_flash('success', 'Pengaturan perizinan disimpan.');
     header('Location: ' . app_href('/settings/perizinan.php'));
     exit;
@@ -42,6 +50,11 @@ $cfg = perizinan_alpa_settings($pdo);
 $waIzinEnabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1';
 $waIzinGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
 $waIzinKirimGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
+$waIzinGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', $waIzinKirimGrup ? '1' : '0')) === '1';
+$waIzinGrupFonte = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
+if ($waIzinGrupFonte === '') {
+    $waIzinGrupFonte = $waIzinGrup;
+}
 
 $pageTitle = 'Pengaturan Perizinan';
 $bodyClass = 'settings-module-page';
@@ -109,19 +122,34 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-body">
-                <h2 class="h6 mb-2">WA otomatis ke pembimbing</h2>
-                <p class="small text-muted">Dikirim saat izin disetujui ke pembimbing yang mengampu tingkatan/PKPPS santri. Toggle per pembimbing di <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>">Data Pembimbing → Edit</a>.</p>
+                <h2 class="h6 mb-2">Notifikasi WA saat izin disetujui</h2>
+                <p class="small text-muted">
+                    Token &amp; URL gateway di <a href="<?= htmlspecialchars(app_href('/settings/wa_gateway.php')) ?>">WA Gateway (Fonte/Fonnte)</a>.
+                    Template pesan di <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">Template Pesan WA</a>
+                    (grup: <em>Izin disetujui → grup WA Fonte</em>).
+                </p>
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="wa_izin_pembimbing_enabled" name="wa_izin_pembimbing_enabled" value="1" <?= $waIzinEnabled ? 'checked' : '' ?>>
                     <label class="form-check-label" for="wa_izin_pembimbing_enabled">Kirim WA ke pembimbing terkait</label>
                 </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="wa_izin_pembimbing_kirim_grup" name="wa_izin_pembimbing_kirim_grup" value="1" <?= $waIzinKirimGrup ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="wa_izin_pembimbing_kirim_grup">Juga kirim ke grup / nomor tambahan</label>
+                <p class="small text-muted mb-2">Toggle per pembimbing di <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>">Data Pembimbing → Edit</a>.</p>
+                <div class="border rounded-3 p-3 bg-light">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="wa_izin_grup_fonte_enabled" name="wa_izin_grup_fonte_enabled" value="1" <?= $waIzinGrupFonteEnabled ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-semibold" for="wa_izin_grup_fonte_enabled">Kirim ke grup WA (Fonte)</label>
+                    </div>
+                    <label class="form-label small mb-1">Kode / ID grup Fonte</label>
+                    <input type="text" class="form-control font-monospace" name="wa_izin_grup_fonte" value="<?= htmlspecialchars($waIzinGrupFonte) ?>" placeholder="Contoh: 120363xxxxx@g.us atau ID grup dari panel Fonte">
+                    <div class="form-text mb-0">Salin dari dashboard Fonte/Fonnte → Device → Grup. Bisa juga beberapa target dipisah koma.</div>
                 </div>
-                <label class="form-label small">Nomor grup WA atau daftar nomor (pisah koma)</label>
-                <input type="text" class="form-control" name="wa_izin_pembimbing_grup" value="<?= htmlspecialchars($waIzinGrup) ?>" placeholder="628xxx (grup Fonnte) atau 628a, 628b">
-                <div class="form-text">Gateway Fonnte mendukung ID grup sebagai target. Template pesan dapat diedit di <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">Template Pesan WA</a>.</div>
+                <details class="mt-2 small">
+                    <summary class="text-muted">Pengaturan lama (nomor grup tambahan)</summary>
+                    <div class="form-check mt-2 mb-2">
+                        <input class="form-check-input" type="checkbox" id="wa_izin_pembimbing_kirim_grup" name="wa_izin_pembimbing_kirim_grup" value="1" <?= $waIzinKirimGrup ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="wa_izin_pembimbing_kirim_grup">Mode lama: juga kirim ke nomor di bawah</label>
+                    </div>
+                    <input type="text" class="form-control form-control-sm" name="wa_izin_pembimbing_grup" value="<?= htmlspecialchars($waIzinGrup) ?>" placeholder="628xxx">
+                </details>
             </div>
         </div>
     </div>

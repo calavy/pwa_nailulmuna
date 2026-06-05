@@ -636,8 +636,9 @@ require_once __DIR__ . '/../includes/header.php';
                 ?>
                 <div class="mt-3 d-flex flex-wrap gap-2">
                     <?php if ($canScanIzin): ?>
-                        <a class="btn btn-outline-primary btn-sm" href="/perizinan/kembali.php">Scan Izin Keluar/Kembali</a>
+                        <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/kembali.php')) ?>">Scan Izin Keluar/Kembali</a>
                     <?php endif; ?>
+                    <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/rekap_aktif.php')) ?>">Rekap Izin Aktif</a>
                     <a class="btn btn-outline-secondary btn-sm" href="/perizinan/permohonan.php">Form Permohonan (Wali/Petugas)</a>
                     <a class="btn btn-outline-primary btn-sm" href="/perizinan/izin_tetap.php">Izin Tetap Hidmah</a>
                 </div>

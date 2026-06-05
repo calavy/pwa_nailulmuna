@@ -21,6 +21,12 @@ function akademik_kalender_hari_minggu(): array
     return [1 => 'Sen', 2 => 'Sel', 3 => 'Rab', 4 => 'Kam', 5 => 'Jum', 6 => 'Sab', 7 => 'Min'];
 }
 
+/** Nama hari lengkap untuk header kalender (lebih mudah dibaca). */
+function akademik_kalender_hari_minggu_panjang(): array
+{
+    return [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+}
+
 /**
  * @return list<string>
  */
@@ -359,18 +365,21 @@ function akademik_kalender_cell_classes(array $day): string
 
 /**
  * @param list<array<string,mixed>|null> $cells
+ * @param 'masehi'|'hijri' $datePrimary Tanggal utama yang ditampilkan besar di sel
  */
 function akademik_kalender_render_month(
     array $cells,
     bool $compact = false,
     string $monthTitle = '',
     string $monthSubtitle = '',
-    bool $agendaKlik = false
+    bool $agendaKlik = false,
+    string $datePrimary = 'masehi'
 ): void {
     $tableClass = 'akad-cal-table' . ($compact ? ' akad-cal-table--compact' : '');
-    $hari = akademik_kalender_hari_minggu();
+    $hari = $compact ? akademik_kalender_hari_minggu() : akademik_kalender_hari_minggu_panjang();
+    $hijriPrimary = $datePrimary === 'hijri';
     ?>
-    <div class="akad-cal-month-block<?= $compact ? ' akad-cal-month-block--compact' : '' ?>">
+    <div class="akad-cal-month-block<?= $compact ? ' akad-cal-month-block--compact' : '' ?><?= $hijriPrimary ? ' akad-cal-month-block--hijri-primary' : '' ?>">
         <?php if ($monthTitle !== ''): ?>
             <div class="akad-cal-month-head">
                 <h3 class="akad-cal-month-title"><?= htmlspecialchars($monthTitle) ?></h3>
@@ -426,23 +435,40 @@ function akademik_kalender_render_month(
                         }
                         $masehiYmd = (string) ($cell['masehi'] ?? '');
                         $pickClass = $agendaKlik && $masehiYmd !== '' ? ' akad-cal-day--pick' : '';
+                        $primaryNum = $hijriPrimary
+                            ? (int) ($cell['hijri_short'] ?? 0)
+                            : (int) ($cell['masehi_hari'] ?? 0);
+                        if ($hijriPrimary) {
+                            $altLabel = $compact && $masehiYmd !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $masehiYmd)
+                                ? date('d/m', strtotime($masehiYmd))
+                                : (string) ($cell['masehi_label'] ?? '');
+                        } else {
+                            $altLabel = (string) ($cell['hijri_ringkas'] ?? '');
+                        }
+                        $ariaLabel = trim(
+                            (string) ($cell['masehi_label'] ?? '')
+                            . '. '
+                            . (string) ($cell['hijri_label'] ?? '')
+                            . ($tip !== '' ? '. ' . $tip : '')
+                        );
                         ?>
                         <td class="<?= htmlspecialchars(akademik_kalender_cell_classes($cell) . $colClass . $pickClass) ?>"
                             <?= $masehiYmd !== '' ? ' data-masehi="' . htmlspecialchars($masehiYmd) . '"' : '' ?>
                             <?= $agendaKlik && $masehiYmd !== '' ? ' role="button" tabindex="0"' : ' tabindex="0"' ?>
+                            <?= $ariaLabel !== '' ? ' aria-label="' . htmlspecialchars($ariaLabel) . '"' : '' ?>
                             <?= $tip !== '' ? ' title="' . htmlspecialchars($tip) . '"' : '' ?>>
                             <div class="akad-cal-day-inner">
                                 <div class="akad-cal-day-top">
-                                    <span class="akad-cal-day-num"><?= (int) ($cell['masehi_hari'] ?? 0) ?></span>
+                                    <span class="akad-cal-day-num"><?= $primaryNum ?></span>
                                     <?php if (!empty($cell['is_today'])): ?>
                                         <span class="akad-cal-day-today-badge">Hari ini</span>
                                     <?php elseif (!empty($cell['is_libur'])): ?>
                                         <span class="akad-cal-day-libur-dot" aria-hidden="true"></span>
                                     <?php endif; ?>
                                 </div>
-                                <?php if ((string) ($cell['hijri_ringkas'] ?? '') !== ''): ?>
-                                    <span class="akad-cal-day-hijri<?= $compact ? ' akad-cal-day-hijri--compact' : '' ?>">
-                                        <?= htmlspecialchars((string) $cell['hijri_ringkas']) ?>
+                                <?php if ($altLabel !== ''): ?>
+                                    <span class="akad-cal-day-alt<?= $compact ? ' akad-cal-day-alt--compact' : '' ?>">
+                                        <?= htmlspecialchars($altLabel) ?>
                                     </span>
                                 <?php endif; ?>
                                 <?php if ((string) ($cell['pasaran'] ?? '') !== ''): ?>

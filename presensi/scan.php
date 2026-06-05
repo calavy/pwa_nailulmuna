@@ -14,6 +14,7 @@ require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/kegiatan_khusus.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/presensi_scan_client.php';
+require_once __DIR__ . '/../helpers/perizinan_aktif.php';
 
 $pbPortalScan = trim((string) ($_GET['portal'] ?? '')) === '1'
     || trim((string) ($_POST['pb_portal_scan'] ?? '')) === '1';
@@ -120,12 +121,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resultMessage = 'Peringatan: kode QR tidak terdaftar (santri, pembimbing, atau munawib).';
         } elseif ($santri) {
             unset($_SESSION['munawib_scan_pending']);
+            $izinSelesaiMsg = '';
+            $izinSelesai = perizinan_selesai_dari_scan_kartu($pdo, (int) $santri['id'], $createdBy);
+            if ($izinSelesai !== null && ($izinSelesai['ok'] ?? false)) {
+                $izinSelesaiMsg = (string) ($izinSelesai['message'] ?? 'Izin selesai.') . ' Santri kembali aktif. ';
+            }
             $chkAktif = $pdo->prepare('SELECT 1 FROM santri s WHERE s.id = :id AND ' . santri_sql_aktif_only('s') . ' LIMIT 1');
             $chkAktif->execute(['id' => (int) $santri['id']]);
             if (!$chkAktif->fetchColumn()) {
-                $resultType = 'warning';
-                $resultMessage = 'Santri tidak aktif atau sudah keluar — presensi tidak dicatat.';
-                goto end_scan_process;
+                if ($izinSelesai === null || !($izinSelesai['ok'] ?? false)) {
+                    $resultType = 'warning';
+                    $resultMessage = 'Santri tidak aktif atau sedang izin — presensi tidak dicatat. Scan surat izin di gerbang jika baru kembali.';
+                    goto end_scan_process;
+                }
             }
             $tanggal = $scanClock['tanggal'];
             ensure_akademik_libur_table($pdo);
@@ -268,7 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($pkppsJadwalId > 0 && !empty($kegiatan['pkpps_tingkatan'])) {
                 $tingkatanTampil = (string) $kegiatan['pkpps_tingkatan'] . ' (PKPPS)';
             }
-            $resultMessage = 'Santri hadir: ' . $santri['nama_santri'] . ' (' . $tingkatanTampil . ').';
+            $resultMessage = $izinSelesaiMsg . 'Santri hadir: ' . $santri['nama_santri'] . ' (' . $tingkatanTampil . ').';
             $namaKeg = (string) ($kegiatan['nama_kegiatan'] ?? '');
             $tempatKeg = trim((string) ($kegiatan['tempat'] ?? ''));
             if ($namaKeg !== '') {

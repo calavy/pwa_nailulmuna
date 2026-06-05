@@ -1373,7 +1373,7 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
         $stP->execute(['pid' => $pembimbingId, 'tgl' => $tanggal, 'kid' => $kegiatanId]);
         $penugasanId = (int) ($stP->fetchColumn() ?: 0);
         if ($penugasanId <= 0) {
-            $missing[] = $r + ['reason' => 'Belum ada penugasan mudabir'];
+            $missing[] = $r + ['reason' => 'Belum ada penugasan munawib'];
             continue;
         }
 
@@ -1389,7 +1389,7 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
         $stS->execute(['pen' => $penugasanId, 'tgl' => $tanggal, 'kid' => $kegiatanId]);
         $scanId = (int) ($stS->fetchColumn() ?: 0);
         if ($scanId <= 0) {
-            $missing[] = $r + ['reason' => 'Penugasan ada, tetapi mudabir belum scan'];
+            $missing[] = $r + ['reason' => 'Penugasan ada, tetapi munawib belum scan'];
         }
     }
 
@@ -1398,7 +1398,7 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
     }
 
     $lines = [];
-    $lines[] = '⚠️ Laporan mudabir belum hadir';
+    $lines[] = '⚠️ Laporan munawib belum hadir';
     $lines[] = 'Tanggal: ' . date('d/m/Y');
     $lines[] = 'Batas: ' . $batasMenit . ' menit dari jam mulai';
     $lines[] = '';

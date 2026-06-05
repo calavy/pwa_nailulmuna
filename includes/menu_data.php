@@ -87,6 +87,7 @@ return [
         '/settings/kalender.php' => 'Pengaturan Kalender',
         '/settings/hijri_mappings.php' => 'Kalender Hijriyah & Masehi',
         '/akademik/rapor.php' => 'Rapor Akademik',
+        '/akademik/skbt.php' => 'SKBT',
         '/pembimbing/tugas/index.php' => 'Tugas Ikhtibar (Pembimbing)',
         '/pembimbing/tugas/buat.php' => 'Buat Tugas Ikhtibar',
         '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas Ikhtibar',
@@ -106,6 +107,7 @@ return [
         '/settings/kelas_ruangan.php' => 'Ruangan Kelas',
         '/perizinan/permohonan.php' => 'Pengajuan Izin',
         '/perizinan/index.php' => 'Persetujuan Izin',
+        '/perizinan/rekap_aktif.php' => 'Rekap Izin Aktif',
         '/perizinan/izin_tetap.php' => 'Izin Tetap Hidmah',
         '/admin/surat_nomor.php' => 'Nomor Surat',
         '/admin/cek_update.php' => 'Cek Update Sistem',
@@ -138,7 +140,7 @@ return [
         '/pembayaran/laporan.php' => 'Laporan Syahriyah',
         '/pembayaran/laporan_kopsa_per_santri.php' => 'KOPSA per Santri (per Bulan)',
         '/pembayaran/laporan_pkpps_syahriyah.php' => 'Laporan Syahriyah PKPPS',
-        '/pembayaran/laporan_alokasi_per_santri.php' => 'Alokasi Syahriyah per Santri',
+        '/pembayaran/kartu_syahriyah_santri.php' => 'Kartu Syahriyah Santri',
         '/pkpps/santri.php' => 'Santri PKPPS',
         '/pkpps/import_santri.php' => 'Import Santri PKPPS',
         '/pkpps/jadwal.php' => 'Jadwal PKPPS',
@@ -211,7 +213,7 @@ return [
             ]],
             ['title' => 'Laporan Syahriyah & Gaji', 'paths' => [
                 '/pembayaran/laporan.php',
-                '/pembayaran/laporan_alokasi_per_santri.php',
+                '/pembayaran/kartu_syahriyah_santri.php',
                 '/pembayaran/laporan_kopsa_per_santri.php',
                 '/pembayaran/laporan_pkpps_syahriyah.php',
                 '/rekap/pembimbing.php',
@@ -259,6 +261,7 @@ return [
                 '/akademik/ikhtibar_rekap.php',
                 '/akademik/kalender.php',
                 '/akademik/rapor.php',
+                '/akademik/skbt.php',
             ]],
             ['title' => 'Poin & Keaktifan', 'paths' => [
                 '/pengasuh/laporan_hari.php',
@@ -271,6 +274,7 @@ return [
             ['title' => 'Izin Santri', 'paths' => [
                 '/perizinan/permohonan.php',
                 '/perizinan/index.php',
+                '/perizinan/rekap_aktif.php',
                 '/perizinan/izin_tetap.php',
             ]],
             ['title' => 'Surat & Rekap', 'paths' => [

@@ -222,8 +222,15 @@ require_once __DIR__ . '/../includes/header.php';
         <?php else: ?>
             <div class="yp-kelas-grid">
                 <?php foreach ($byTingkatan as $tk): ?>
-                    <?php $full = (int) $tk['masuk'] === (int) $tk['total'] && (int) $tk['total'] > 0; ?>
-                    <div class="yp-kelas-card<?= $full ? ' yp-kelas-card--full' : '' ?>">
+                    <?php
+                    $full = (int) $tk['masuk'] === (int) $tk['total'] && (int) $tk['total'] > 0;
+                    $kelasQs = ['tanggal' => $tanggal, 'tingkatan' => (string) ($tk['tingkatan'] ?? '')];
+                    if ($kategori !== null) {
+                        $kelasQs['kategori'] = $kategori;
+                    }
+                    $kelasHref = app_href('/yayasan/keaktifan_kelas.php?' . http_build_query($kelasQs));
+                    ?>
+                    <a class="yp-kelas-card text-decoration-none<?= $full ? ' yp-kelas-card--full' : '' ?>" href="<?= htmlspecialchars($kelasHref) ?>">
                         <div class="yp-kelas-card__head">
                             <div class="yp-kelas-card__tk">Kelas <?= htmlspecialchars((string) $tk['tingkatan']) ?></div>
                             <div class="yp-kelas-card__pct"><?= (int) round((float) ($tk['persen'] ?? 0)) ?>%</div>
@@ -234,7 +241,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="progress-bar <?= $full ? 'bg-success' : 'bg-primary' ?>" style="width:<?= (float) $tk['persen'] ?>%"></div>
                         </div>
                         <?php if ($full): ?><div class="yp-kelas-card__badge"><i class="fa-solid fa-circle-check me-1"></i>Lengkap</div><?php else: ?><div class="yp-kelas-card__badge yp-kelas-card__badge--soft"><i class="fa-solid fa-chart-line me-1"></i>Perlu dipantau</div><?php endif; ?>
-                    </div>
+                        <div class="small text-primary mt-2"><i class="fa-solid fa-arrow-right me-1"></i>Lihat detail santri</div>
+                    </a>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>

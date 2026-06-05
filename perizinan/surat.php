@@ -56,7 +56,7 @@ if ($returnCode === '') {
         'id' => (int) $izin['id'],
     ]);
 }
-$returnQr = 'https://quickchart.io/qr?size=130&text=' . urlencode($returnCode);
+$returnQr = 'https://quickchart.io/qr?size=360&margin=1&text=' . urlencode($returnCode);
 $jenisIzin = (string) ($izin['jenis_izin'] ?? 'KELUAR');
 if (strtoupper($jenisIzin) === 'PULANG') {
     $jenisIzin = 'TUGAS';
@@ -198,7 +198,7 @@ $nbText = $jenisIzin === 'TUGAS'
             gap: 8px; 
             background-color: #fff;
         }
-        .return-box img { width: 50px; height: 50px; }
+        .return-box img { width: 3cm; height: 3cm; min-width: 3cm; min-height: 3cm; object-fit: contain; }
         .return-box p { margin: 0; font-size: 7.5pt; color: #334155; line-height: 1.25; }
 
         .ttd-wrap { margin-top: auto; margin-bottom: 10px; position: relative; z-index: 1; }

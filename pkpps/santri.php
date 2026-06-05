@@ -54,6 +54,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('UPDATE pkpps_santri SET is_aktif = :a WHERE id = :id')->execute(['a' => $aktif, 'id' => $id]);
             set_flash('success', 'Status diperbarui.');
         }
+    } elseif ($action === 'tambah_bulk' || $action === 'tambah_semua_terfilter') {
+        $tingkatId = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
+        $tahun = (int) ($_POST['tahun_masehi'] ?? $tahunMasehi);
+        $ids = $_POST['santri_ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        if ($action === 'tambah_semua_terfilter') {
+            $ids = pkpps_santri_bulk_candidate_ids(
+                $pdo,
+                trim((string) ($_POST['bulk_tk'] ?? '')),
+                trim((string) ($_POST['bulk_q'] ?? ''))
+            );
+        }
+        $ok = 0;
+        if ($tingkatId > 0 && $ids !== []) {
+            $ins = $pdo->prepare('
+                INSERT INTO pkpps_santri (santri_id, pkpps_tingkatan_id, tahun_masehi, is_aktif, catatan)
+                VALUES (:sid, :tid, :th, 1, "")
+                ON DUPLICATE KEY UPDATE
+                    pkpps_tingkatan_id = VALUES(pkpps_tingkatan_id),
+                    tahun_masehi = VALUES(tahun_masehi),
+                    is_aktif = 1
+            ');
+            foreach ($ids as $rawId) {
+                $sid = (int) $rawId;
+                if ($sid <= 0) {
+                    continue;
+                }
+                $ins->execute([
+                    'sid' => $sid,
+                    'tid' => $tingkatId,
+                    'th' => $tahun > 0 ? $tahun : null,
+                ]);
+                $ok++;
+            }
+            set_flash('success', $ok . ' santri ditambahkan ke PKPPS dari data santri.');
+        } else {
+            set_flash('error', 'Pilih tingkatan PKPPS dan santri yang akan ditambahkan.');
+        }
     } elseif ($action === 'ubah') {
         $id = (int) ($_POST['id'] ?? 0);
         $tingkatId = (int) ($_POST['pkpps_tingkatan_id'] ?? 0);
@@ -77,13 +117,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('error', 'Data edit tidak lengkap.');
         }
     }
-    header('Location: ' . app_href('/pkpps/santri.php'));
+    $back = '/pkpps/santri.php';
+    if (in_array($action, ['tambah_bulk', 'tambah_semua_terfilter'], true)) {
+        $qs = array_filter([
+            'bulk_tingkatan' => (int) ($_POST['pkpps_tingkatan_id'] ?? 0) ?: null,
+            'bulk_tk' => trim((string) ($_POST['bulk_tk'] ?? '')) ?: null,
+            'bulk_q' => trim((string) ($_POST['bulk_q'] ?? '')) ?: null,
+        ]);
+        if ($qs !== []) {
+            $back .= '?' . http_build_query($qs);
+        }
+    }
+    header('Location: ' . app_href($back));
     exit;
 }
 
 $q = trim((string) ($_GET['q'] ?? ''));
 $pickSantriId = (int) ($_GET['pick'] ?? 0);
 $tingkatanFilter = (int) ($_GET['tingkatan'] ?? 0);
+$bulkTingkatanId = (int) ($_GET['bulk_tingkatan'] ?? 0);
+$bulkTingkatanKajian = trim((string) ($_GET['bulk_tk'] ?? ''));
+$bulkQ = trim((string) ($_GET['bulk_q'] ?? ''));
 
 $sql = '
     SELECT ps.id, ps.santri_id, ps.tahun_masehi, ps.is_aktif, ps.catatan,
@@ -122,6 +176,18 @@ $cariSql .= ' ORDER BY s.' . $namaCol . ' ASC LIMIT 30';
 $stCari = $pdo->prepare($cariSql);
 $stCari->execute($q !== '' ? ['q' => '%' . $q . '%'] : []);
 $santriPusat = $stCari->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+$bulkSantriRows = [];
+if ($bulkTingkatanId > 0) {
+    $bulkSantriRows = pkpps_santri_bulk_candidates($pdo, $bulkTingkatanKajian, $bulkQ, 2000);
+}
+
+$tingkatanKajianList = [];
+if (table_exists($pdo, 'santri')) {
+    $tingkatanKajianList = $pdo->query(
+        'SELECT DISTINCT TRIM(tingkatan) AS t FROM santri WHERE tingkatan IS NOT NULL AND TRIM(tingkatan)<>"" ORDER BY t'
+    )->fetchAll(PDO::FETCH_COLUMN) ?: [];
+}
 
 $pickSantri = null;
 if ($pickSantriId > 0) {
@@ -221,8 +287,103 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="row g-3">
     <div class="col-lg-5">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header py-2"><strong>Tambah massal dari data santri</strong></div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">Ambil santri aktif dari data santri pusat yang belum terdaftar PKPPS.</p>
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-12">
+                        <label class="form-label small mb-0">1. Tingkatan PKPPS tujuan</label>
+                        <select name="bulk_tingkatan" class="form-select form-select-sm" required onchange="this.form.submit()">
+                            <option value="">— Pilih tingkatan PKPPS —</option>
+                            <?php foreach ($tingkatanList as $t): ?>
+                                <option value="<?= (int) ($t['id'] ?? 0) ?>" <?= $bulkTingkatanId === (int) ($t['id'] ?? 0) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars((string) ($t['nama_tingkatan'] ?? '')) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php if ($bulkTingkatanId > 0): ?>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Filter tingkatan kajian</label>
+                        <select name="bulk_tk" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">Semua tingkatan kajian</option>
+                            <?php foreach ($tingkatanKajianList as $tk): ?>
+                                <option value="<?= htmlspecialchars((string) $tk) ?>" <?= $bulkTingkatanKajian === (string) $tk ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars((string) $tk) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-0">Cari nama / NIS</label>
+                        <div class="input-group input-group-sm">
+                            <input type="search" name="bulk_q" class="form-control" value="<?= htmlspecialchars($bulkQ) ?>" placeholder="Ketik lalu Enter">
+                            <button type="submit" class="btn btn-outline-secondary"><i class="fa-solid fa-magnifying-glass"></i></button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </form>
+                <?php if ($bulkTingkatanId > 0): ?>
+                    <?php if ($bulkSantriRows === []): ?>
+                        <p class="small text-muted mb-0">Tidak ada santri tersedia (semua sudah PKPPS atau filter terlalu sempit).</p>
+                    <?php else: ?>
+                        <form method="post" class="mb-2">
+                            <input type="hidden" name="action" value="tambah_bulk">
+                            <input type="hidden" name="pkpps_tingkatan_id" value="<?= $bulkTingkatanId ?>">
+                            <input type="hidden" name="tahun_masehi" value="<?= $tahunMasehi ?>">
+                            <input type="hidden" name="bulk_tk" value="<?= htmlspecialchars($bulkTingkatanKajian) ?>">
+                            <input type="hidden" name="bulk_q" value="<?= htmlspecialchars($bulkQ) ?>">
+                            <p class="small text-muted mb-1">2. Centang santri (<?= count($bulkSantriRows) ?> dari data santri)</p>
+                            <div class="border rounded p-2 mb-2" style="max-height:280px;overflow:auto">
+                                <div class="form-check mb-1 border-bottom pb-1">
+                                    <input class="form-check-input" type="checkbox" id="pkpps-check-all" checked>
+                                    <label class="form-check-label small fw-semibold" for="pkpps-check-all">Pilih semua yang tampil</label>
+                                </div>
+                                <?php foreach ($bulkSantriRows as $bs): ?>
+                                    <div class="form-check">
+                                        <input class="form-check-input pkpps-santri-cb" type="checkbox" name="santri_ids[]"
+                                               value="<?= (int) ($bs['id'] ?? 0) ?>" id="pbs-<?= (int) ($bs['id'] ?? 0) ?>" checked>
+                                        <label class="form-check-label small" for="pbs-<?= (int) ($bs['id'] ?? 0) ?>">
+                                            <?= htmlspecialchars((string) ($bs['nama_santri'] ?? '-')) ?>
+                                            <span class="text-muted">· NIS <?= htmlspecialchars((string) ($bs['nis'] ?? '-')) ?> · <?= htmlspecialchars((string) ($bs['tingkatan'] ?? '')) ?></span>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">Masukkan yang dicentang</button>
+                            </div>
+                        </form>
+                        <form method="post" onsubmit="return confirm('Tambahkan semua <?= count($bulkSantriRows) ?> santri yang tampil ke PKPPS?');">
+                            <input type="hidden" name="action" value="tambah_semua_terfilter">
+                            <input type="hidden" name="pkpps_tingkatan_id" value="<?= $bulkTingkatanId ?>">
+                            <input type="hidden" name="tahun_masehi" value="<?= $tahunMasehi ?>">
+                            <input type="hidden" name="bulk_tk" value="<?= htmlspecialchars($bulkTingkatanKajian) ?>">
+                            <input type="hidden" name="bulk_q" value="<?= htmlspecialchars($bulkQ) ?>">
+                            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                Tambah semua yang tampil (<?= count($bulkSantriRows) ?> santri)
+                            </button>
+                        </form>
+                        <script>
+                        (function () {
+                            var all = document.getElementById('pkpps-check-all');
+                            if (!all) return;
+                            all.addEventListener('change', function () {
+                                document.querySelectorAll('.pkpps-santri-cb').forEach(function (cb) {
+                                    cb.checked = all.checked;
+                                });
+                            });
+                        })();
+                        </script>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <p class="small text-muted mb-0">Pilih tingkatan PKPPS dulu, lalu centang santri.</p>
+                <?php endif; ?>
+            </div>
+        </div>
         <div class="card shadow-sm h-100">
-            <div class="card-header py-2"><strong>Tambah santri PKPPS</strong></div>
+            <div class="card-header py-2"><strong>Tambah satu santri</strong></div>
             <div class="card-body">
                 <form method="get" class="mb-3">
                     <label class="form-label small">Cari santri pusat (belum PKPPS)</label>

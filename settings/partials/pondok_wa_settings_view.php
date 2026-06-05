@@ -45,7 +45,7 @@
             <div class="col-md-6">
                 <label class="form-label">No WA Petugas Pendidikan</label>
                 <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
-                <div class="form-text">Izin pembimbing / mudabir. Kosong = pakai No WA Pengurus.</div>
+                <div class="form-text">Izin pembimbing / munawib. Kosong = pakai No WA Pengurus.</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Jam kirim WA otomatis</label>
@@ -53,14 +53,14 @@
                 <div class="form-text">Kosong = kirim langsung saat trigger.</div>
             </div>
             <div class="col-md-4">
-                <label class="form-label">Notif mudabir belum hadir</label>
+                <label class="form-label">Notif munawib belum hadir</label>
                 <select class="form-select" name="wa_notif_mudabir_enabled">
                     <option value="1" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Aktif</option>
                     <option value="0" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label">Batas mudabir (menit)</label>
+                <label class="form-label">Batas munawib (menit)</label>
                 <input type="number" min="5" max="180" class="form-control" name="mudabir_batas_menit" value="<?= htmlspecialchars((string) (($values['mudabir_batas_menit'] ?? '') !== '' ? $values['mudabir_batas_menit'] : '30')) ?>">
             </div>
             <div class="col-12">

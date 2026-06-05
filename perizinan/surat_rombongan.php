@@ -36,7 +36,7 @@ if ($returnCode === '') {
     $pdo->prepare('UPDATE perizinan_rombongan_meta SET qr_token = :qr WHERE id = :id')->execute(['qr' => $returnCode, 'id' => $id]);
     $pdo->prepare('UPDATE perizinan SET qr_token = :qr WHERE rombongan_id = :rid')->execute(['qr' => $returnCode, 'rid' => $id]);
 }
-$returnQr = 'https://quickchart.io/qr?size=130&text=' . urlencode($returnCode);
+$returnQr = 'https://quickchart.io/qr?size=360&margin=1&text=' . urlencode($returnCode);
 
 $jenisIzin = (string) ($meta['jenis_izin'] ?? 'KELUAR');
 if (strtoupper($jenisIzin) === 'PULANG') {
@@ -147,7 +147,7 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         .box-note { margin: 8px 0; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 8px 10px; }
         .box-nb { margin: 8px 0; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; font-size: 9pt; }
         .return-box { margin-top: auto; border: 1px dashed #94a3b8; border-radius: 10px; padding: 8px; display: flex; align-items: center; gap: 10px; z-index: 1; }
-        .return-box img { width: 72px; height: 72px; }
+        .return-box img { width: 3cm; height: 3cm; min-width: 3cm; min-height: 3cm; object-fit: contain; }
         .return-box p { margin: 0; font-size: 8.5pt; line-height: 1.35; }
         .ttd-wrap { margin-top: 14px; z-index: 1; }
         .ttd-meta { text-align: right; font-size: 9pt; margin-bottom: 10px; }

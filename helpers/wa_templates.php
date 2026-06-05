@@ -50,13 +50,25 @@ function wa_template_definitions(): array
         'izin_disetujui_pembimbing' => [
             'label' => 'Izin disetujui → pembimbing',
             'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin santri disetujui.',
-            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}',
             'default' => "Assalamu'alaikum.\n\n"
                 . 'Izin santri binaan *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+                . 'Pembimbing: *{nama_pembimbing}*\n'
                 . 'Jenis: {jenis_izin}\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
                 . 'Keperluan: {alasan}',
+        ],
+        'izin_grup_fonte' => [
+            'label' => 'Izin disetujui → grup WA (Fonte)',
+            'hint' => 'Dikirim ke ID grup Fonte saat izin santri disetujui (pengaturan Perizinan).',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'default' => "📋 *Izin santri disetujui*\n\n"
+                . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . '{jenis_izin} · {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Jam: {jam_mulai} – {jam_selesai}\n'
+                . 'Keperluan: {alasan}\n'
+                . '— {nama_ponpes}',
         ],
     ];
 }

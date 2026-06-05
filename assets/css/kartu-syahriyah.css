@@ -1,0 +1,23 @@
+.ks-santri-head { border-left: 4px solid #0f766e; }
+.ks-bulan-grid { margin-bottom: 2rem; }
+.ks-month {
+    border-radius: 12px;
+    padding: 0.85rem 0.75rem;
+    min-height: 7.5rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+.ks-month__title { font-weight: 700; font-size: 0.8rem; color: #334155; margin-bottom: 0.35rem; }
+.ks-month__bayar { font-size: 1rem; font-weight: 700; line-height: 1.2; }
+.ks-month__harus { color: #64748b; }
+.ks-month__pkpps { color: #0f766e; margin-top: 0.2rem; }
+.ks-month__badge { margin-top: 0.4rem; font-size: 0.65rem; }
+.ks-month__status { font-size: 1.1rem; font-weight: 700; color: #94a3b8; }
+.ks-month--lunas { background: linear-gradient(145deg, #ecfdf5, #fff); border-color: #6ee7b7; }
+.ks-month--lunas .ks-month__bayar { color: #047857; }
+.ks-month--sebagian { background: linear-gradient(145deg, #fffbeb, #fff); border-color: #fcd34d; }
+.ks-month--nunggak { background: linear-gradient(145deg, #fef2f2, #fff); border-color: #fca5a5; }
+.ks-month--nunggak .ks-month__bayar { color: #b91c1c; }
+.ks-month--future { background: #f8fafc; border-style: dashed; }
+.ks-month--future .ks-month__status { color: #cbd5e1; }

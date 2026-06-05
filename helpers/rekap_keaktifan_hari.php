@@ -331,6 +331,82 @@ function rekap_keaktifan_hari_by_tingkatan(array $rows): array
 }
 
 /**
+ * Detail santri per tingkatan (kelas) untuk satu hari — hadir vs belum hadir.
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return array{
+ *   tingkatan:string,
+ *   masuk:int,
+ *   total:int,
+ *   persen:float,
+ *   hadir:list<array<string,mixed>>,
+ *   belum:list<array<string,mixed>>
+ * }
+ */
+function rekap_keaktifan_hari_detail_kelas(array $rows, string $tingkatan): array
+{
+    $tk = trim($tingkatan);
+    /** @var array<int, array<string, mixed>> $bySid */
+    $bySid = [];
+    foreach ($rows as $r) {
+        $rTk = trim((string) ($r['tingkatan'] ?? ''));
+        if ($rTk === '') {
+            $rTk = '-';
+        }
+        if ($rTk !== $tk) {
+            continue;
+        }
+        $sid = (int) ($r['santri_id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
+        if ($st === 'ISTIRAHAT') {
+            $st = 'ALPA';
+        }
+        if (!isset($bySid[$sid])) {
+            $bySid[$sid] = [
+                'santri_id' => $sid,
+                'nama_santri' => (string) ($r['nama_santri'] ?? '-'),
+                'nis' => (string) ($r['nis'] ?? ''),
+                'hadir' => false,
+                'status' => 'ALPA',
+            ];
+        }
+        if ($st === 'HADIR') {
+            $bySid[$sid]['hadir'] = true;
+            $bySid[$sid]['status'] = 'HADIR';
+        } elseif (!$bySid[$sid]['hadir'] && in_array($st, ['IZIN', 'SAKIT', 'ALPA'], true)) {
+            $bySid[$sid]['status'] = $st;
+        }
+    }
+
+    $hadir = [];
+    $belum = [];
+    foreach ($bySid as $s) {
+        if ($s['hadir']) {
+            $hadir[] = $s;
+        } else {
+            $belum[] = $s;
+        }
+    }
+    usort($hadir, static fn(array $a, array $b): int => strcmp((string) $a['nama_santri'], (string) $b['nama_santri']));
+    usort($belum, static fn(array $a, array $b): int => strcmp((string) $a['nama_santri'], (string) $b['nama_santri']));
+
+    $total = count($bySid);
+    $masuk = count($hadir);
+
+    return [
+        'tingkatan' => $tk,
+        'masuk' => $masuk,
+        'total' => $total,
+        'persen' => $total > 0 ? round(100 * $masuk / $total, 1) : 0.0,
+        'hadir' => $hadir,
+        'belum' => $belum,
+    ];
+}
+
+/**
  * Santri tidak hadir (ghaib) per kegiatan — untuk drill-down.
  *
  * @param list<array<string, mixed>> $rows

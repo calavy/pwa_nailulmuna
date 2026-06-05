@@ -98,7 +98,7 @@ require_once __DIR__ . '/../includes/header.php';
         <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron hosting (<code>wa_auto.php</code>)</h2>
         <p class="small text-muted mb-2">
             Jadwalkan setiap <strong>1 menit</strong> (Windows Task Scheduler / cPanel cron).
-            Tick ringan: pengingat scan pembimbing &amp; mudabir. Tick berat (~5 menit): alpa, tagihan, maintenance.
+            Tick ringan: pengingat scan pembimbing &amp; munawib. Tick berat (~5 menit): alpa, tagihan, maintenance.
         </p>
         <ul class="small mb-3 ps-3">
             <li>Terakhir cron jalan: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
@@ -160,7 +160,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="menu-hub-tile-icon" aria-hidden="true"><i class="fa-solid fa-gears"></i></span>
                     <div>
                         <h2 class="h6 mb-1 app-card-title">Gateway &amp; Jadwal WA</h2>
-                        <p class="small text-muted mb-2">Token gateway, sender, nomor tujuan, jam kirim, WA mudabir, dan WA tagihan otomatis.</p>
+                        <p class="small text-muted mb-2">Token gateway, sender, nomor tujuan, jam kirim, WA munawib, dan WA tagihan otomatis.</p>
                         <span class="badge app-badge-muted">
                             <?= $waTagihanAuto ? 'Tagihan: Aktif' : 'Tagihan: Nonaktif' ?>
                         </span>

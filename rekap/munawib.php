@@ -5,13 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/munawib.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 
 munawib_ensure_schema($pdo);
 
-$dari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
-$sampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
+$periode = rekap_periode_resolve($pdo, $_GET, 'rentang');
+$dari = (string) $periode['dari'];
+$sampai = (string) $periode['sampai'];
 $munawibId = (int) ($_GET['munawib_id'] ?? 0);
 $rows = munawib_laporan_kehadiran($pdo, $dari, $sampai, $munawibId > 0 ? $munawibId : 0);
 $munawibList = munawib_list_aktif($pdo);
@@ -26,7 +28,13 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0 small">Pengganti pembimbing saat pembimbing berizin — pembimbing asli tetap tercatat izin/alpa.</p>
 </div>
 
+<?php
+$formAction = app_href('/rekap/munawib.php');
+$extraHidden = [];
+require __DIR__ . '/../includes/partials/rekap_periode_filter.php';
+?>
 <form class="row g-2 align-items-end mb-3" method="get">
+    <input type="hidden" name="periode_mode" value="<?= htmlspecialchars((string) $periode['mode']) ?>">
     <div class="col-6 col-md-2"><label class="form-label small mb-0">Dari</label><input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($dari) ?>"></div>
     <div class="col-6 col-md-2"><label class="form-label small mb-0">Sampai</label><input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>"></div>
     <div class="col-12 col-md-4">

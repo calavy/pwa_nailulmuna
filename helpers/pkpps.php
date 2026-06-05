@@ -112,6 +112,56 @@ function pkpps_tingkatan_list(PDO $pdo, bool $aktifOnly = false): array
     return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * Santri aktif pusat yang belum PKPPS — untuk tambah massal.
+ *
+ * @return list<array{id:int,nama_santri:string,nis:string,tingkatan:string}>
+ */
+function pkpps_santri_bulk_candidates(PDO $pdo, string $tingkatanKajian = '', string $q = '', int $limit = 2000): array
+{
+    if (!table_exists($pdo, 'santri')) {
+        return [];
+    }
+    require_once __DIR__ . '/santri_operasional.php';
+    ensure_santri_identity_columns($pdo);
+    $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $aktifSql = santri_sql_aktif_only('s');
+    $sql = '
+        SELECT s.id, s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan
+        FROM santri s
+        WHERE ' . $aktifSql . '
+          AND s.id NOT IN (SELECT santri_id FROM pkpps_santri)
+    ';
+    $params = [];
+    if ($tingkatanKajian !== '') {
+        $sql .= ' AND TRIM(s.tingkatan) = :tk';
+        $params['tk'] = $tingkatanKajian;
+    }
+    if ($q !== '') {
+        $sql .= ' AND (s.' . $namaCol . ' LIKE :q OR s.nis LIKE :q OR s.qr LIKE :q)';
+        $params['q'] = '%' . $q . '%';
+    }
+    $sql .= ' ORDER BY s.' . $namaCol . ' ASC LIMIT ' . max(1, min(5000, $limit));
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** @return list<int> */
+function pkpps_santri_bulk_candidate_ids(PDO $pdo, string $tingkatanKajian = '', string $q = '', int $limit = 2000): array
+{
+    $ids = [];
+    foreach (pkpps_santri_bulk_candidates($pdo, $tingkatanKajian, $q, $limit) as $row) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id > 0) {
+            $ids[] = $id;
+        }
+    }
+
+    return $ids;
+}
+
 function pkpps_tingkatan_by_id(PDO $pdo, int $id): ?array
 {
     if ($id <= 0) {

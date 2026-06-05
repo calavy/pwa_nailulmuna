@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/rekap_telat.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -14,17 +15,9 @@ if (!in_array($tab, ['izin', 'kegiatan'], true)) {
     $tab = 'izin';
 }
 
-$startDate = trim((string) ($_GET['start_date'] ?? ''));
-$endDate = trim((string) ($_GET['end_date'] ?? ''));
-if ($startDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
-    $startDate = date('Y-m-01');
-}
-if ($endDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-    $endDate = date('Y-m-t', strtotime($startDate));
-}
-if ($startDate > $endDate) {
-    [$startDate, $endDate] = [$endDate, $startDate];
-}
+$periode = rekap_periode_resolve($pdo, $_GET, 'rentang');
+$startDate = (string) $periode['dari'];
+$endDate = (string) $periode['sampai'];
 
 $namaFilter = trim((string) ($_GET['nama'] ?? ''));
 $kegiatanFilter = trim((string) ($_GET['kegiatan'] ?? ''));
@@ -77,6 +70,12 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">Toleransi keterlambatan: <strong><?= (int) $lateTolerance ?> menit</strong> (dari pengaturan pondok).</p>
 </div>
 
+<?php
+$formAction = app_href('/rekap/izin_telat.php');
+$extraHidden = ['tab' => $tab];
+require __DIR__ . '/../includes/partials/rekap_periode_filter.php';
+?>
+
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
         <a class="nav-link <?= $tab === 'izin' ? 'active' : '' ?>" href="<?= htmlspecialchars($filterQuery(['tab' => 'izin'])) ?>">Telat kembali izin</a>
@@ -117,14 +116,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <form method="get" class="row g-2 align-items-end">
             <input type="hidden" name="tab" value="<?= htmlspecialchars($tab) ?>">
-            <div class="col-6 col-md-2">
-                <label class="form-label">Dari tanggal</label>
-                <input type="date" class="form-control" name="start_date" value="<?= htmlspecialchars($startDate) ?>">
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label">Sampai tanggal</label>
-                <input type="date" class="form-control" name="end_date" value="<?= htmlspecialchars($endDate) ?>">
-            </div>
+            <input type="hidden" name="periode_mode" value="<?= htmlspecialchars((string) $periode['mode']) ?>">
+            <input type="hidden" name="dari" value="<?= htmlspecialchars($startDate) ?>">
+            <input type="hidden" name="sampai" value="<?= htmlspecialchars($endDate) ?>">
             <div class="col-12 col-md-3">
                 <label class="form-label">Nama / NIS</label>
                 <input type="text" class="form-control" name="nama" value="<?= htmlspecialchars($namaFilter) ?>" placeholder="Cari nama atau NIS">

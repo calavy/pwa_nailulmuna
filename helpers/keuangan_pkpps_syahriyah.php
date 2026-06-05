@@ -441,16 +441,73 @@ function keuangan_pkpps_syahriyah_delete_setting(PDO $pdo, string $key): void
     }
 }
 
+/** Nilai tersimpan di app_settings (tanpa fallback global) — untuk form pengaturan. */
+function keuangan_pkpps_syahriyah_nominal_stored(PDO $pdo, int $bulanTagihan, string $kelasKeuanganKode): ?int
+{
+    $cache = app_settings_cache($pdo);
+    $kk = keuangan_pkpps_syahriyah_normalize_kode($kelasKeuanganKode);
+    if ($kk !== '') {
+        if ($bulanTagihan >= 1 && $bulanTagihan <= 12) {
+            $monthKey = keuangan_pkpps_syahriyah_setting_key($bulanTagihan, $kk);
+            if (array_key_exists($monthKey, $cache)) {
+                return max(0, (int) $cache[$monthKey]);
+            }
+        }
+        $defaultKey = keuangan_pkpps_syahriyah_setting_key(0, $kk);
+        if (array_key_exists($defaultKey, $cache)) {
+            return max(0, (int) $cache[$defaultKey]);
+        }
+
+        return null;
+    }
+    if ($bulanTagihan >= 1 && $bulanTagihan <= 12) {
+        $monthKey = keuangan_pkpps_syahriyah_setting_key($bulanTagihan);
+        if (array_key_exists($monthKey, $cache)) {
+            return max(0, (int) $cache[$monthKey]);
+        }
+    }
+    if (array_key_exists('keuangan_pkpps_syahriyah_default', $cache)) {
+        return max(0, (int) $cache['keuangan_pkpps_syahriyah_default']);
+    }
+
+    return null;
+}
+
 function keuangan_pkpps_syahriyah_save_settings(PDO $pdo, array $post): array
 {
     $default = max(0, (int) ($post['pkpps_syahriyah_default'] ?? 0));
     save_setting($pdo, 'keuangan_pkpps_syahriyah_default', (string) $default);
+
+    $tierWustho = isset($post['pkpps_tier_wustho']) ? max(0, (int) $post['pkpps_tier_wustho']) : null;
+    $tierUlya = isset($post['pkpps_tier_ulya']) ? max(0, (int) $post['pkpps_tier_ulya']) : null;
+    if ($tierWustho !== null || $tierUlya !== null) {
+        foreach (kelas_keuangan_list_for_pkpps_syahriyah($pdo) as $kr) {
+            $kk = keuangan_pkpps_syahriyah_normalize_kode((string) ($kr['kode'] ?? ''));
+            if ($kk === '') {
+                continue;
+            }
+            $tier = strtolower(trim((string) ($kr['tarif_keuangan_tier'] ?? '')));
+            $nom = match ($tier) {
+                'wustho' => $tierWustho,
+                'ulya' => $tierUlya,
+                default => null,
+            };
+            if ($nom === null) {
+                continue;
+            }
+            save_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk), (string) $nom);
+            for ($b = 1; $b <= 12; $b++) {
+                save_setting($pdo, keuangan_pkpps_syahriyah_setting_key($b, $kk), (string) $nom);
+            }
+        }
+    }
 
     for ($b = 1; $b <= 12; $b++) {
         keuangan_pkpps_syahriyah_delete_setting($pdo, keuangan_pkpps_syahriyah_setting_key($b));
     }
 
     $kelasNominals = $post['pkpps_syahriyah_kelas'] ?? [];
+    $savedKelas = 0;
     if (is_array($kelasNominals)) {
         foreach ($kelasNominals as $kodeRaw => $kelasPost) {
             $kk = keuangan_pkpps_syahriyah_normalize_kode((string) $kodeRaw);
@@ -458,20 +515,12 @@ function keuangan_pkpps_syahriyah_save_settings(PDO $pdo, array $post): array
                 continue;
             }
             $kelasDefault = max(0, (int) ($kelasPost['default'] ?? $default));
-            if ($kelasDefault === $default) {
-                keuangan_pkpps_syahriyah_delete_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk));
-            } else {
-                save_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk), (string) $kelasDefault);
-            }
+            save_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk), (string) $kelasDefault);
             for ($b = 1; $b <= 12; $b++) {
                 $val = max(0, (int) ($kelasPost['bulan'][$b] ?? $kelasDefault));
-                $monthKey = keuangan_pkpps_syahriyah_setting_key($b, $kk);
-                if ($val === $kelasDefault) {
-                    keuangan_pkpps_syahriyah_delete_setting($pdo, $monthKey);
-                } else {
-                    save_setting($pdo, $monthKey, (string) $val);
-                }
+                save_setting($pdo, keuangan_pkpps_syahriyah_setting_key($b, $kk), (string) $val);
             }
+            $savedKelas++;
         }
     }
 
@@ -488,19 +537,10 @@ function keuangan_pkpps_syahriyah_save_settings(PDO $pdo, array $post): array
                 continue;
             }
             $tierDefault = max(0, (int) ($tierPost['default'] ?? $default));
-            if ($tierDefault === $default) {
-                keuangan_pkpps_syahriyah_delete_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk));
-            } else {
-                save_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk), (string) $tierDefault);
-            }
+            save_setting($pdo, keuangan_pkpps_syahriyah_setting_key(0, $kk), (string) $tierDefault);
             for ($b = 1; $b <= 12; $b++) {
                 $val = max(0, (int) ($tierPost['bulan'][$b] ?? $tierDefault));
-                $monthKey = keuangan_pkpps_syahriyah_setting_key($b, $kk);
-                if ($val === $tierDefault) {
-                    keuangan_pkpps_syahriyah_delete_setting($pdo, $monthKey);
-                } else {
-                    save_setting($pdo, $monthKey, (string) $val);
-                }
+                save_setting($pdo, keuangan_pkpps_syahriyah_setting_key($b, $kk), (string) $val);
             }
         }
     }
@@ -512,7 +552,17 @@ function keuangan_pkpps_syahriyah_save_settings(PDO $pdo, array $post): array
         save_setting($pdo, 'keuangan_pkpps_alokasi_komponen', $alokasiKomponen);
     }
 
-    return ['ok' => true, 'message' => 'Pengaturan tambahan syahriyah PKPPS (per kelas keuangan) disimpan.'];
+    if (function_exists('app_settings_cache_reset')) {
+        app_settings_cache_reset($pdo);
+    }
+
+    $msg = 'Pengaturan tambahan syahriyah PKPPS disimpan';
+    if ($savedKelas > 0) {
+        $msg .= ' (' . $savedKelas . ' kelas, default global Rp ' . number_format($default, 0, ',', '.') . ')';
+    }
+    $msg .= '. Nominal dipakai otomatis di input pembayaran untuk santri PKPPS.';
+
+    return ['ok' => true, 'message' => $msg];
 }
 
 /**
