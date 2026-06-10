@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/wa_otomatis.php';
+require_once __DIR__ . '/santri_wa.php';
 
 /**
  * Konteks jadwal kirim WA tagihan otomatis hari ini.
@@ -84,6 +86,28 @@ function wa_tagihan_jadwal_context(PDO $pdo, ?string $tanggal = null): array
     ];
 }
 
+/**
+ * Simpan jadwal kirim WA tagihan saja (tanpa pengaturan kalender akademik lain).
+ *
+ * @return array{ok:bool,message:string}
+ */
+function wa_tagihan_jadwal_simpan(PDO $pdo, array $post): array
+{
+    $calendar = strtoupper(trim((string) ($post['wa_tagihan_calendar'] ?? 'HIJRIYAH')));
+    if (!in_array($calendar, ['MASEHI', 'HIJRIYAH'], true)) {
+        $calendar = 'HIJRIYAH';
+    }
+    save_setting($pdo, 'wa_tagihan_calendar', $calendar);
+    save_setting($pdo, 'wa_tagihan_day', (string) max(1, min(30, (int) ($post['wa_tagihan_day'] ?? 5))));
+    save_setting($pdo, 'wa_tagihan_send_time', trim((string) ($post['wa_tagihan_send_time'] ?? '08:00')));
+    save_setting($pdo, 'wa_tagihan_custom_masehi_dates', trim((string) ($post['wa_tagihan_custom_masehi_dates'] ?? '')));
+    if (array_key_exists('wa_tagihan_auto_enabled', $post)) {
+        save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($post['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
+    }
+
+    return ['ok' => true, 'message' => 'Jadwal WA tagihan disimpan.'];
+}
+
 /** Hari dalam bulan (1–30), hijriyah dari kalender pondok bila perlu. */
 function wa_tagihan_tanggal_hari(PDO $pdo, string $tanggalMasehi, string $calendarMode): int
 {
@@ -115,10 +139,12 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         require_once __DIR__ . '/pondok_kalender.php';
     }
 
-    ensure_santri_identity_columns($pdo);
-    if (!column_exists($pdo, 'santri', 'no_wa_wali')) {
-        return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Kolom no_wa_wali belum tersedia.'];
+    $gwErr = wa_otomatis_gateway_error($pdo);
+    if ($gwErr !== null) {
+        return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => $gwErr, 'blocked_reason' => 'gateway'];
     }
+
+    ensure_santri_identity_columns($pdo);
     if (!table_exists($pdo, 'keuangan_pembayaran')) {
         return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Tabel keuangan belum tersedia.'];
     }
@@ -172,10 +198,22 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
     $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
     $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND COALESCE(is_aktif, 1) = 1 ' : '';
-    $stmt = $pdo->query('SELECT id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas, no_wa_wali FROM santri WHERE COALESCE(no_wa_wali, "") <> "" ' . $activeExpr . ' ORDER BY id ASC LIMIT 500');
+    $waCols = 'id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas';
+    if (column_exists($pdo, 'santri', 'no_wa_wali')) {
+        $waCols .= ', no_wa_wali';
+    }
+    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+        $waCols .= ', wali_santri_id';
+    }
+    foreach (['nama_ayah', 'no_kontak_ayah', 'nama_ibu', 'no_kontak_ibu'] as $col) {
+        if (column_exists($pdo, 'santri', $col)) {
+            $waCols .= ', ' . $col;
+        }
+    }
+    $stmt = $pdo->query('SELECT ' . $waCols . ' FROM santri WHERE 1=1 ' . $activeExpr . ' ORDER BY id ASC LIMIT 500');
     $santriRows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
     if ($santriRows === []) {
-        return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Tidak ada santri dengan nomor WA wali.'];
+        return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Tidak ada santri aktif.'];
     }
 
     $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tahunMulai, $tahunSelesai);
@@ -227,7 +265,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
         $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
         $message = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
-        $phone = normalize_wa_phone((string) ($row['no_wa_wali'] ?? ''));
+        $phone = wa_otomatis_santri_wali_phone($pdo, $row);
         if ($phone === '') {
             $failed++;
             continue;
@@ -238,11 +276,19 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         } else {
             $failed++;
         }
+        usleep(350000);
     }
 
-    if ($sent > 0 && !$paksaTanpaJadwal) {
+    if (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0) {
         save_setting($pdo, 'wa_tagihan_last_period_key', (string) $ctx['send_key']);
         save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
+    } elseif (!$paksaTanpaJadwal && $eligible > 0 && $failed > 0) {
+        save_setting($pdo, 'wa_tagihan_last_partial_fail_at', date('Y-m-d H:i:s'));
+        save_setting($pdo, 'wa_tagihan_last_partial_fail_stats', json_encode([
+            'sent' => $sent,
+            'failed' => $failed,
+            'eligible' => $eligible,
+        ], JSON_UNESCAPED_UNICODE));
     }
     save_setting($pdo, 'wa_tagihan_last_run_at', date('Y-m-d H:i:s'));
     save_setting($pdo, 'wa_tagihan_last_run_stats', json_encode([

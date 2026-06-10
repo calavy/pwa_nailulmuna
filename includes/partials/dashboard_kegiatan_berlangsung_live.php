@@ -6,14 +6,17 @@ declare(strict_types=1);
  * Kartu kegiatan berlangsung — dashboard utama (admin/pengurus).
  *
  * @var list<array<string,mixed>> $kegiatanAktifPresensi
+ * @var bool $inBanner Ringkas satu baris di hero banner
  */
 $kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
+$inBanner = !empty($inBanner);
 
 if ($kegiatanAktifPresensi === []) {
     return;
 }
+
 $liveCount = count($kegiatanAktifPresensi);
-$liveGridClass = $liveCount > 1 ? ' dash-live-kegiatan--multi' : '';
+$liveGridClass = ($liveCount > 1 ? ' dash-live-kegiatan--multi' : '') . ($inBanner ? ' dash-live-kegiatan--in-banner' : '');
 ?>
 <div class="dash-live-kegiatan<?= $liveGridClass ?>" aria-label="Kegiatan berlangsung hari ini">
     <?php foreach ($kegiatanAktifPresensi as $kg):
@@ -97,8 +100,10 @@ $liveGridClass = $liveCount > 1 ? ' dash-live-kegiatan--multi' : '';
         </div>
     </article>
     <?php endforeach; ?>
+    <?php if (!$inBanner): ?>
     <p class="dash-live-kegiatan__legend">
         <span class="dash-live-keg__dot dash-live-keg__dot--ok" aria-hidden="true"></span> pembimbing sudah scan
         <span class="dash-live-keg__dot dash-live-keg__dot--no ms-2" aria-hidden="true"></span> belum scan
     </p>
+    <?php endif; ?>
 </div>

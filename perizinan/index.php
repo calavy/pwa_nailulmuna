@@ -161,8 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jamSelesai
             );
             if (in_array($jenisIzinRaw, ['PULANG', 'TUGAS'], true)) {
-                $waliPhone = trim((string) ($izinInfo['no_wa_wali'] ?? ''));
-                if ($waliPhone !== '' && push_should_send_wa($pdo)) {
+                require_once __DIR__ . '/../helpers/wa_otomatis.php';
+                $waliPhone = wa_otomatis_santri_wali_phone($pdo, $izinInfo);
+                if ($waliPhone !== '' && wa_otomatis_should_run($pdo, 'izin')) {
                     $msg = wa_format_izin_disetujui_untuk_wali(
                         $pdo,
                         (string) ($izinInfo['nama_santri'] ?? '-'),

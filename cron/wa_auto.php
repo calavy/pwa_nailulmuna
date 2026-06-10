@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/wa_otomatis.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/wa_pembimbing_scan.php';
 
@@ -26,6 +27,11 @@ if ($sysUserId <= 0) {
 
 $now = time();
 save_setting($pdo, 'wa_auto_last_run_at', date('Y-m-d H:i:s'));
+$gwErr = wa_otomatis_gateway_error($pdo);
+save_setting($pdo, 'wa_auto_last_gateway_ok', $gwErr === null ? '1' : '0');
+if ($gwErr !== null) {
+    save_setting($pdo, 'wa_auto_last_gateway_error', $gwErr);
+}
 
 // Ringan — setiap tick (jendela waktu sempit)
 trigger_wa_pembimbing_belum_scan($pdo);

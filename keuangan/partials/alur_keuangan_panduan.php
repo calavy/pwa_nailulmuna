@@ -233,7 +233,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                     <p class="mb-2">Cron <code>cron/wa_auto.php</code> kirim ke wali santri syahriyah belum lunas (jadwal kalender + pengaturan WA).</p>
                     <p class="mb-0">
                         Manual: tombol WA di <a href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">tagihan syahriyah</a>
-                        · Template: <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">pengaturan pesan WA</a>
+                        · Template: <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">pengaturan pesan WA</a>
                     </p>
                 </div>
             </div>

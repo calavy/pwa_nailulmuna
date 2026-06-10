@@ -36,10 +36,6 @@ $isMunawibPortal = $isMunawibPortal ?? false;
 $kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
 $munawibPortalKonteks = $munawibPortalKonteks ?? null;
 
-$tickerItems = $pbDashTickerItems !== [] ? $pbDashTickerItems : ['Belum ada jadwal kelas mendatang hari ini'];
-
-$tickerLoop = array_merge($tickerItems, $tickerItems);
-
 $jumlahTingkatanPick = count($tingkatanBaris);
 
 $santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantri . ' santri dibimbing';
@@ -52,7 +48,7 @@ $setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo :
 
 <section class="pb-dash-home-top" aria-label="Dashboard pembimbing">
 
-    <div class="pb-dash-hero-banner">
+    <div class="pb-dash-hero-banner<?= $kegiatanAktifPresensi !== [] ? ' pb-dash-hero-banner--has-live' : '' ?>">
 
         <div class="pb-dash-hero-banner__head">
 
@@ -96,26 +92,12 @@ $setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo :
 
                     <div class="pb-dash-hero-banner__clock-meta">
 
-                        <div class="pb-dash-hero-banner__clock-date" id="dashboard-live-date">—</div>
+                        <div class="pb-dash-hero-banner__clock-date" id="dashboard-live-date"<?= $pbDashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($pbDashPasaran) . '"' : '' ?>>—</div>
 
-                        <?php if ($pbDashHijriLabel !== '' || $pbDashPasaran !== ''): ?>
-
-                        <div class="pb-dash-hero-banner__clock-extra">
-
-                            <?php if ($pbDashHijriLabel !== ''): ?>
-
-                                <span><i class="fa-solid fa-moon me-1" aria-hidden="true"></i><?= htmlspecialchars($pbDashHijriLabel) ?></span>
-
-                            <?php endif; ?>
-
-                            <?php if ($pbDashPasaran !== ''): ?>
-
-                                <span class="ms-2"><i class="fa-solid fa-sun me-1" aria-hidden="true"></i>Pasaran <?= htmlspecialchars($pbDashPasaran) ?></span>
-
-                            <?php endif; ?>
-
+                        <?php if ($pbDashHijriLabel !== ''): ?>
+                        <div class="pb-dash-hero-banner__clock-hijri d-none d-md-block">
+                            <i class="fa-solid fa-moon me-1" aria-hidden="true"></i><?= htmlspecialchars($pbDashHijriLabel) ?>
                         </div>
-
                         <?php endif; ?>
 
                     </div>
@@ -125,36 +107,6 @@ $setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo :
             </div>
 
         </div>
-
-
-
-        <?php
-        $tickerHasLive = $kegiatanAktifPresensi !== [];
-        $tickerItemCount = count($tickerItems);
-        ?>
-        <div class="pb-dash-hero-banner__ticker pb-dash-ticker pb-dash-ticker--in-banner<?= $tickerHasLive ? ' pb-dash-ticker--live' : '' ?><?= $tickerItemCount <= 1 ? ' pb-dash-ticker--single' : '' ?>" aria-live="polite">
-
-            <div class="pb-dash-ticker__label"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i></div>
-
-            <div class="pb-dash-ticker__viewport">
-
-                <div class="pb-dash-ticker__track">
-
-                    <?php foreach ($tickerLoop as $ti): ?>
-
-                        <span class="pb-dash-ticker__item"><?= htmlspecialchars((string) $ti) ?></span>
-
-                    <?php endforeach; ?>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <?php if ($kegiatanAktifPresensi !== []): ?>
-            <?php $inBanner = true; require __DIR__ . '/dashboard_kegiatan_berlangsung_cards.php'; ?>
-        <?php endif; ?>
 
     </div>
 

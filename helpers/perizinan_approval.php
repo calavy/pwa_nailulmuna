@@ -378,7 +378,8 @@ function wa_format_izin_disetujui_pembimbing(
  */
 function perizinan_kirim_wa_pembimbing_disetujui(PDO $pdo, array $izinRow, string $tglMulai, string $tglSelesai, string $jamMulai, string $jamSelesai): int
 {
-    if (!push_should_send_wa($pdo)) {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin')) {
         return 0;
     }
 
@@ -426,7 +427,8 @@ function perizinan_kirim_wa_rombongan_disetujui(
     string $jamMulai,
     string $jamSelesai
 ): int {
-    if (!push_should_send_wa($pdo) || $anggota === []) {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin') || $anggota === []) {
         return 0;
     }
 
@@ -504,7 +506,11 @@ function perizinan_kirim_wa_grup_fonte(
     string $jamSelesai,
     string $daftarSantri = ''
 ): int {
-    if (!push_should_send_wa($pdo)) {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin')) {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return 0;
     }
     if (trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', '')) !== '1') {

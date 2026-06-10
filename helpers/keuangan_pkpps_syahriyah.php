@@ -630,3 +630,152 @@ function keuangan_syahriyah_split_pembayaran_tambahan(
         'dasar' => $dasar,
     ];
 }
+
+/**
+ * Baris laporan syahriyah PKPPS per bulan.
+ *
+ * Filter: sudah_bayar | lunas | belum_bayar
+ *
+ * @return array{
+ *   rows: list<array<string,mixed>>,
+ *   totals: array{tagihan:int,bayar:int,harus_masuk:int,masuk:int},
+ *   count_pkpps:int,
+ *   count_bayar:int,
+ *   count_belum_bayar:int
+ * }
+ */
+function keuangan_pkpps_syahriyah_laporan_bulan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    string $filterStatus = 'sudah_bayar'
+): array {
+    $empty = [
+        'rows' => [],
+        'totals' => ['tagihan' => 0, 'bayar' => 0, 'harus_masuk' => 0, 'masuk' => 0],
+        'count_pkpps' => 0,
+        'count_bayar' => 0,
+        'count_belum_bayar' => 0,
+    ];
+    if ($bulanTagihan < 1 || $bulanTagihan > 12 || !table_exists($pdo, 'pkpps_santri')) {
+        return $empty;
+    }
+
+    if (!function_exists('keuangan_syahriyah_expected_dengan_potongan')) {
+        require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
+    }
+    if (!function_exists('tagihan_paid_map_for_month')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (!function_exists('keuangan_santri_kelas_tagihan')) {
+        require_once __DIR__ . '/santri_ta.php';
+    }
+
+    pkpps_ensure_schema($pdo);
+
+    $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $st = $pdo->query('
+        SELECT s.id, s.' . $namaCol . ' AS nama_santri, s.nis, s.kategori_kelas,
+               t.nama_tingkatan AS pkpps_tingkatan
+        FROM pkpps_santri ps
+        INNER JOIN santri s ON s.id = ps.santri_id
+        INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
+        WHERE ps.is_aktif = 1
+        ORDER BY t.urutan ASC, s.' . $namaCol . ' ASC
+    ');
+    $pkppsSantri = $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    $paidMap = tagihan_paid_map_for_month($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, ['syahriyah']);
+
+    $filterStatus = strtolower(trim($filterStatus));
+    if (!in_array($filterStatus, ['sudah_bayar', 'lunas', 'belum_bayar'], true)) {
+        $filterStatus = 'sudah_bayar';
+    }
+
+    $rows = [];
+    $totals = ['tagihan' => 0, 'bayar' => 0, 'harus_masuk' => 0, 'masuk' => 0];
+    $countBayar = 0;
+    $countBelumBayar = 0;
+
+    foreach ($pkppsSantri as $s) {
+        $sid = (int) ($s['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $bayar = (int) ($paidMap[$sid]['syahriyah'] ?? 0);
+        if ($bayar > 0) {
+            $countBayar++;
+        } else {
+            $countBelumBayar++;
+        }
+
+        $kat = keuangan_santri_kelas_tagihan($pdo, $sid, $tahunAjaranMulai, $tahunAjaranSelesai, $s);
+        $sim = keuangan_syahriyah_expected_dengan_potongan($pdo, $sid, $kat, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+        $tagihan = (int) ($sim['expected'] ?? 0);
+        $harusMasuk = (int) ($sim['pkpps_tambahan'] ?? 0);
+
+        if ($bayar <= 0) {
+            $status = 'belum_bayar';
+            $statusLabel = 'Belum bayar';
+        } elseif ($tagihan > 0 && $bayar >= $tagihan) {
+            $status = 'lunas';
+            $statusLabel = 'Lunas';
+        } elseif ($bayar > 0) {
+            $status = 'sebagian';
+            $statusLabel = 'Sebagian';
+        } else {
+            $status = 'tanpa_tagihan';
+            $statusLabel = 'Tanpa tagihan';
+        }
+
+        $include = match ($filterStatus) {
+            'belum_bayar' => $bayar <= 0,
+            'lunas' => $bayar > 0 && $tagihan > 0 && $bayar >= $tagihan,
+            default => $bayar > 0,
+        };
+        if (!$include) {
+            continue;
+        }
+
+        $masuk = 0;
+        if ($bayar > 0) {
+            $split = keuangan_syahriyah_split_pembayaran_tambahan(
+                $pdo,
+                $sid,
+                $kat,
+                $bayar,
+                $bulanTagihan,
+                $tahunAjaranMulai,
+                $tahunAjaranSelesai
+            );
+            $masuk = (int) ($split['pkpps'] ?? 0);
+        }
+
+        $totals['tagihan'] += $tagihan;
+        $totals['bayar'] += $bayar;
+        $totals['harus_masuk'] += $harusMasuk;
+        $totals['masuk'] += $masuk;
+
+        $rows[] = [
+            'nama_santri' => (string) ($s['nama_santri'] ?? '-'),
+            'nis' => (string) ($s['nis'] ?? ''),
+            'pkpps_tingkatan' => (string) ($s['pkpps_tingkatan'] ?? ''),
+            'tagihan' => $tagihan,
+            'bayar' => $bayar,
+            'harus_masuk' => $harusMasuk,
+            'masuk' => $masuk,
+            'sisa_pkpps' => max(0, $harusMasuk - $masuk),
+            'status' => $status,
+            'status_label' => $statusLabel,
+            'potongan' => (float) ($sim['persen'] ?? 0),
+        ];
+    }
+
+    return [
+        'rows' => $rows,
+        'totals' => $totals,
+        'count_pkpps' => count($pkppsSantri),
+        'count_bayar' => $countBayar,
+        'count_belum_bayar' => $countBelumBayar,
+    ];
+}

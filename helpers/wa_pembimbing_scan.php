@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/wa_otomatis.php';
 require_once __DIR__ . '/wa_templates.php';
 
 /** Pastikan kolom pembimbing.wa_scan_reminder ada. */
@@ -27,7 +28,13 @@ function pembimbing_ensure_wa_scan_reminder_column(PDO $pdo): void
  */
 function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
 {
+    if (!wa_otomatis_should_run($pdo, 'general')) {
+        return;
+    }
     if (trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) !== '1') {
+        return;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return;
     }
     if (!table_exists($pdo, 'jadwal_kegiatan')

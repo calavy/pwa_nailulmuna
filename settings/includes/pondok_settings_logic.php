@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Pengaturan WA berhasil disimpan.');
-        header('Location: ' . app_href('/settings/wa_gateway.php'));
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=gateway'));
         exit;
     }
 }

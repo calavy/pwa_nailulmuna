@@ -114,14 +114,18 @@ $topbarBackHref = '';
 $topbarBackLabel = 'Kembali';
 if (isset($_SESSION['user'])) {
     $isPembimbingRole = strtolower((string) $currentRole) === 'pembimbing' && !is_super_admin();
+    $isPengasuhRole = strtolower((string) $currentRole) === 'kiai';
     $homeDash = $isPembimbingRole
         ? app_href('/pembimbing/dashboard.php')
-        : app_href('/dashboard.php');
+        : ($isPengasuhRole
+            ? app_href('/pengasuh/dashboard.php')
+            : app_href('/dashboard.php'));
     $pbDashViewParam = strtolower(trim((string) ($_GET['view'] ?? 'home')));
     $isPembimbingDashHome = $isPembimbingRole
         && $requestPath === '/pembimbing/dashboard.php'
         && $pbDashViewParam === 'home';
     $isHome = $requestPath === '/dashboard.php'
+        || $requestPath === '/pengasuh/dashboard.php'
         || $isPembimbingDashHome
         || ($requestPath === '/pembimbing/' && $isPembimbingRole);
     if (!$isHome) {

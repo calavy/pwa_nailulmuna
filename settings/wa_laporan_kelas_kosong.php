@@ -90,7 +90,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Laporan WA Kelas Kosong</h1>
     <p class="text-muted mb-0 small">Riwayat notifikasi otomatis saat pada slot jadwal tidak ada pembimbing maupun munawib yang masuk.</p>
-    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">← Kembali ke Pusat WA Otomatis</a></p>
+    <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=log')) ?>">← Kembali ke WA Otomatis</a></p>
 </div>
 
 <?php if (!$hasWaLogs): ?>

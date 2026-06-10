@@ -7,11 +7,13 @@ declare(strict_types=1);
  *
  * @var string $brandTitle
  * @var string $brandKicker
+ * @var string $brandAlamat
  * @var string $brandLogoHref
  * @var string $brandLogoInitial
  */
 $brandTitle = trim((string) ($brandTitle ?? ''));
 $brandKicker = trim((string) ($brandKicker ?? ''));
+$brandAlamat = trim((string) ($brandAlamat ?? ''));
 $brandLogoHref = trim((string) ($brandLogoHref ?? ''));
 $brandLogoInitial = trim((string) ($brandLogoInitial ?? 'AP')) ?: 'AP';
 if ($brandTitle === '' && $brandLogoHref === '') {
@@ -41,6 +43,9 @@ if ($brandTitle === '' && $brandLogoHref === '') {
         <?php endif; ?>
         <?php if ($brandTitle !== ''): ?>
             <div class="dash-hero-pesantren text-white"><?= htmlspecialchars($brandTitle) ?></div>
+        <?php endif; ?>
+        <?php if ($brandAlamat !== ''): ?>
+            <div class="dash-hero-pesantren-sub text-white-50"><?= htmlspecialchars($brandAlamat) ?></div>
         <?php endif; ?>
     </div>
 </div>

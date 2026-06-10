@@ -15,12 +15,14 @@ require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/pembimbing_dashboard.php';
 
-// Pembimbing punya dashboard khusus — alihkan agar tidak menampilkan
-// data pondok secara umum (santri seluruh pondok, dll).
+// Pembimbing & pengasuh punya dashboard khusus.
 if (isset($_SESSION['user'])) {
     $currentRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if ($currentRole === 'pembimbing' && !(function_exists('is_super_admin') && is_super_admin())) {
         app_redirect('pembimbing/dashboard.php');
+    }
+    if ($currentRole === 'kiai') {
+        app_redirect('pengasuh/dashboard.php');
     }
 }
 
@@ -126,7 +128,6 @@ if ($kegiatanAktifGrouped !== []) {
     // Tampilan saja — finalize presensi berat; dijalankan di scan/rekap/cron.
     $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
 }
-
 /** Anchor jam live agar selaras dengan waktu server yang dipakai query jadwal (bukan jam lokal browser). */
 $dashServerClockMs = (int) round(microtime(true) * 1000);
 
@@ -193,7 +194,7 @@ $sideQuickCount = count($sideQuickActions);
 $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
 $pageTitle = 'Dashboard';
-$bodyClass = 'dash-page';
+$bodyClass = 'dash-page dash-home-mobile-fit';
 $loadPushFcm = true;
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -204,6 +205,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php
             $brandTitle = $namaPonpes;
             $brandKicker = $dashHeroKicker;
+            $brandAlamat = $alamatPonpes;
             $brandLogoHref = $dashLogoHref;
             $brandLogoInitial = $dashLogoInitial;
             require __DIR__ . '/includes/partials/dash_hero_brand.php';
@@ -212,15 +214,10 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-hero-greeting">
                     <div class="dash-hero-kicker text-white-50">Beranda</div>
                     <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($labelUser) ?></h1>
-                    <?php if ($dashHijriLabel !== '' || $dashPasaran !== ''): ?>
-                        <p class="dash-hero-hijri mb-0 small text-white-50">
-                            <?php if ($dashHijriLabel !== ''): ?>
-                                <i class="fa-solid fa-moon" aria-hidden="true"></i>
-                                <strong class="text-white"><?= htmlspecialchars($dashHijriLabel) ?></strong>
-                            <?php endif; ?>
-                            <?php if ($dashPasaran !== ''): ?>
-                                <span class="<?= $dashHijriLabel !== '' ? 'ms-2' : '' ?>"><i class="fa-solid fa-sun" aria-hidden="true"></i>Pasaran <strong class="text-white"><?= htmlspecialchars($dashPasaran) ?></strong></span>
-                            <?php endif; ?>
+                    <?php if ($dashHijriLabel !== ''): ?>
+                        <p class="dash-hero-hijri mb-0 small text-white-50 d-none d-md-block">
+                            <i class="fa-solid fa-moon" aria-hidden="true"></i>
+                            <strong class="text-white"><?= htmlspecialchars($dashHijriLabel) ?></strong>
                         </p>
                     <?php endif; ?>
                 </div>
@@ -230,7 +227,7 @@ require_once __DIR__ . '/includes/header.php';
                         <span class="dash-hero-clock__live">Live</span>
                     </div>
                     <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
-                    <div class="dash-hero-clock__date" id="dashboard-live-date">—</div>
+                    <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?>>—</div>
                 </div>
             </div>
         </div>

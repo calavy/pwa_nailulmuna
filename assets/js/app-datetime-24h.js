@@ -137,12 +137,24 @@
         var driftMs = serverMs - Date.now();
         var hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
         var bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        var bulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
         function tick() {
             var now = new Date(Date.now() + driftMs);
             clockEl.textContent = formatTime24FromDate(now);
             if (dateEl) {
-                dateEl.textContent = hari[now.getDay()] + ', ' + now.getDate() + ' ' + bulan[now.getMonth()] + ' ' + now.getFullYear();
+                var compact = document.body.classList.contains('pb-dash-home-mobile-fit')
+                    || document.body.classList.contains('dash-home-mobile-fit');
+                var bln = compact ? bulanPendek[now.getMonth()] : bulan[now.getMonth()];
+                var dateStr = hari[now.getDay()] + ', ' + now.getDate() + ' ' + bln;
+                if (!compact) {
+                    dateStr += ' ' + now.getFullYear();
+                }
+                var pasaran = (dateEl.getAttribute('data-pasaran') || '').trim();
+                if (pasaran !== '') {
+                    dateStr += ' · ' + pasaran;
+                }
+                dateEl.textContent = dateStr;
             }
         }
         tick();

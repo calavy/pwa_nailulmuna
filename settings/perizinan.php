@@ -20,11 +20,6 @@ $fields = [
     'izin_alpa_keluar_hari',
     'izin_alpa_pulang_max',
     'izin_alpa_pulang_hari',
-    'wa_izin_pembimbing_enabled',
-    'wa_izin_pembimbing_kirim_grup',
-    'wa_izin_pembimbing_grup',
-    'wa_izin_grup_fonte_enabled',
-    'wa_izin_grup_fonte',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_perizinan_settings') {
@@ -33,15 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     save_setting($pdo, 'izin_alpa_keluar_hari', (string) max(1, (int) ($_POST['izin_alpa_keluar_hari'] ?? 4)));
     save_setting($pdo, 'izin_alpa_pulang_max', (string) max(0, (int) ($_POST['izin_alpa_pulang_max'] ?? 3)));
     save_setting($pdo, 'izin_alpa_pulang_hari', (string) max(1, (int) ($_POST['izin_alpa_pulang_hari'] ?? 4)));
-    save_setting($pdo, 'wa_izin_pembimbing_enabled', isset($_POST['wa_izin_pembimbing_enabled']) ? '1' : '0');
-    save_setting($pdo, 'wa_izin_pembimbing_kirim_grup', isset($_POST['wa_izin_pembimbing_kirim_grup']) ? '1' : '0');
-    save_setting($pdo, 'wa_izin_pembimbing_grup', trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? '')));
-    save_setting($pdo, 'wa_izin_grup_fonte_enabled', isset($_POST['wa_izin_grup_fonte_enabled']) ? '1' : '0');
-    $grupFonte = trim((string) ($_POST['wa_izin_grup_fonte'] ?? ''));
-    if ($grupFonte === '') {
-        $grupFonte = trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? ''));
-    }
-    save_setting($pdo, 'wa_izin_grup_fonte', $grupFonte);
     $doaSakit = trim((string) ($_POST['wa_tpl_izin_sakit_doa'] ?? ''));
     $doaDefault = (string) (wa_template_definitions()['izin_sakit_doa']['default'] ?? '');
     if ($doaSakit === '' || $doaSakit === $doaDefault) {
@@ -59,14 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 $cfg = perizinan_alpa_settings($pdo);
-$waIzinEnabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1';
-$waIzinGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
-$waIzinKirimGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
-$waIzinGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', $waIzinKirimGrup ? '1' : '0')) === '1';
-$waIzinGrupFonte = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
-if ($waIzinGrupFonte === '') {
-    $waIzinGrupFonte = $waIzinGrup;
-}
 $doaSakitTpl = wa_template_get($pdo, 'izin_sakit_doa');
 $doaSakitMeta = wa_template_definitions()['izin_sakit_doa'] ?? ['placeholders' => '', 'default' => ''];
 
@@ -134,36 +112,13 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="col-12">
-        <div class="card shadow-sm border-0">
-            <div class="card-body">
-                <h2 class="h6 mb-2">Notifikasi WA saat izin disetujui</h2>
-                <p class="small text-muted">
-                    Token &amp; URL gateway di <a href="<?= htmlspecialchars(app_href('/settings/wa_gateway.php')) ?>">WA Gateway (Fonte/Fonnte)</a>.
-                    Template pesan di <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">Template Pesan WA</a>
-                    (grup: <em>Izin disetujui → grup WA Fonte</em>).
-                </p>
-                <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" role="switch" id="wa_izin_pembimbing_enabled" name="wa_izin_pembimbing_enabled" value="1" <?= $waIzinEnabled ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="wa_izin_pembimbing_enabled">Kirim WA ke pembimbing terkait</label>
+        <div class="card shadow-sm border-0 border-start border-3 border-success">
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h2 class="h6 mb-1">Notifikasi WA izin</h2>
+                    <p class="small text-muted mb-0">Pembimbing, grup Fonte, dan gateway dikelola terpusat di halaman WA Otomatis.</p>
                 </div>
-                <p class="small text-muted mb-2">Toggle per pembimbing di <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>">Data Pembimbing → Edit</a>.</p>
-                <div class="border rounded-3 p-3 bg-light">
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" id="wa_izin_grup_fonte_enabled" name="wa_izin_grup_fonte_enabled" value="1" <?= $waIzinGrupFonteEnabled ? 'checked' : '' ?>>
-                        <label class="form-check-label fw-semibold" for="wa_izin_grup_fonte_enabled">Kirim ke grup WA (Fonte)</label>
-                    </div>
-                    <label class="form-label small mb-1">Kode / ID grup Fonte</label>
-                    <input type="text" class="form-control font-monospace" name="wa_izin_grup_fonte" value="<?= htmlspecialchars($waIzinGrupFonte) ?>" placeholder="Contoh: 120363xxxxx@g.us atau ID grup dari panel Fonte">
-                    <div class="form-text mb-0">Salin dari dashboard Fonte/Fonnte → Device → Grup. Bisa juga beberapa target dipisah koma.</div>
-                </div>
-                <details class="mt-2 small">
-                    <summary class="text-muted">Pengaturan lama (nomor grup tambahan)</summary>
-                    <div class="form-check mt-2 mb-2">
-                        <input class="form-check-input" type="checkbox" id="wa_izin_pembimbing_kirim_grup" name="wa_izin_pembimbing_kirim_grup" value="1" <?= $waIzinKirimGrup ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="wa_izin_pembimbing_kirim_grup">Mode lama: juga kirim ke nomor di bawah</label>
-                    </div>
-                    <input type="text" class="form-control form-control-sm" name="wa_izin_pembimbing_grup" value="<?= htmlspecialchars($waIzinGrup) ?>" placeholder="628xxx">
-                </details>
+                <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=izin')) ?>">Buka tab Izin</a>
             </div>
         </div>
     </div>
@@ -175,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="small text-muted mb-2">
                     Ditambahkan otomatis di akhir pesan WA saat izin <strong>sakit</strong> disetujui (ke pembimbing &amp; grup).
                     Kosongkan untuk menonaktifkan. Template pesan utama di
-                    <a href="<?= htmlspecialchars(app_href('/settings/wa_pesan.php')) ?>">Template Pesan WA</a>.
+                    <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Template WA</a>.
                 </p>
                 <p class="small mb-2"><strong>Placeholder:</strong> <code><?= htmlspecialchars((string) ($doaSakitMeta['placeholders'] ?? '')) ?></code></p>
                 <textarea class="form-control font-monospace" name="wa_tpl_izin_sakit_doa" rows="7"><?= htmlspecialchars($doaSakitTpl) ?></textarea>

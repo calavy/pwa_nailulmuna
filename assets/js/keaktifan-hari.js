@@ -2,7 +2,6 @@
     'use strict';
 
     var mobileMq = globalThis.matchMedia ? globalThis.matchMedia('(max-width: 767.98px)') : null;
-    var grid = document.getElementById('khGrid');
 
     function khIsMobile() {
         return mobileMq ? mobileMq.matches : window.innerWidth <= 767;
@@ -17,12 +16,14 @@
     }
 
     function khStatusBadge(tabKey) {
-        var map = { perlu: 'A', ALPA: 'A', IZIN: 'I', SAKIT: 'S', HADIR: 'H' };
-        var letter = map[tabKey] || '';
-        if (!letter) {
+        var map = { perlu: 'Alpa', ALPA: 'Alpa', IZIN: 'Izin', SAKIT: 'Sakit', HADIR: 'Hadir' };
+        var letterMap = { perlu: 'A', ALPA: 'A', IZIN: 'I', SAKIT: 'S', HADIR: 'H' };
+        var label = map[tabKey] || '';
+        var letter = letterMap[tabKey] || '';
+        if (!label || !letter) {
             return '';
         }
-        return '<span class="kh-status-badge kh-status-badge--' + letter + '" aria-hidden="true">' + letter + '</span>';
+        return '<span class="kh-status-badge kh-status-badge--' + letter + '" title="' + label + '" aria-label="' + label + '">' + label + '</span>';
     }
 
     function khGetScopeRoot(scopeEl) {
@@ -30,7 +31,7 @@
             return null;
         }
         if (scopeEl.getAttribute('data-kh-stat-scope') === 'hero') {
-            return document.getElementById('khHero');
+            return scopeEl.closest('.kh-hero');
         }
         return scopeEl.closest('.kh-card');
     }
@@ -179,7 +180,14 @@
         khToggleStatPopup(statBtn);
     }
 
-    if (grid) {
+    var grids = document.querySelectorAll('.kh-grid');
+
+    function khBindGrid(grid) {
+        if (!grid || grid.getAttribute('data-kh-bound') === '1') {
+            return;
+        }
+        grid.setAttribute('data-kh-bound', '1');
+
         grid.addEventListener('click', function (e) {
             if (e.target.closest('.kh-stat--clickable[data-kh-stat-tab]')) {
                 khHandleStatClick(e);
@@ -206,7 +214,7 @@
 
         grid.addEventListener('shown.bs.collapse', function (e) {
             var collapse = e.target;
-            if (!collapse.classList.contains('collapse')) {
+            if (!collapse.classList.contains('collapse') || !grid.contains(collapse)) {
                 return;
             }
             khCloseAllStatPopups(null);
@@ -220,7 +228,7 @@
 
         grid.addEventListener('hidden.bs.collapse', function (e) {
             var collapse = e.target;
-            if (!collapse.classList.contains('collapse')) {
+            if (!collapse.classList.contains('collapse') || !grid.contains(collapse)) {
                 return;
             }
             var btn = collapse.closest('.kh-card')?.querySelector('[data-kh-detail-btn]');
@@ -230,10 +238,11 @@
         });
     }
 
-    var hero = document.getElementById('khHero');
-    if (hero) {
+    grids.forEach(khBindGrid);
+
+    document.querySelectorAll('.kh-hero').forEach(function (hero) {
         hero.addEventListener('click', khHandleStatClick);
-    }
+    });
 
     document.addEventListener('click', function (e) {
         if (

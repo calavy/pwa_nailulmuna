@@ -30,6 +30,8 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="yp-wrap">
     <header class="mb-4">
         <p class="page-intro-kicker mb-1">
+            <a href="<?= htmlspecialchars(app_href('/pengasuh/dashboard.php')) ?>">Dashboard Pengasuh</a>
+            ·
             <a href="<?= htmlspecialchars(app_href('/pengasuh/laporan_hari.php?tanggal=' . urlencode($tanggal))) ?>">Laporan Hari Ini</a>
         </p>
         <h1 class="h4 mb-1"><?= htmlspecialchars($label) ?> — <?= htmlspecialchars(date('d F Y', strtotime($tanggal))) ?></h1>

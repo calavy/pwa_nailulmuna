@@ -998,122 +998,9 @@ function resolve_wa_endpoint(string $endpoint, string $token): string
 
 function send_wa_message_with_result(PDO $pdo, string $phone, string $message, array $override = []): array
 {
-    $endpoint = isset($override['endpoint']) ? trim((string) $override['endpoint']) : app_setting($pdo, 'wa_gateway_url', '');
-    $token = isset($override['token']) ? trim((string) $override['token']) : app_setting($pdo, 'wa_gateway_token', '');
-    $sender = isset($override['sender']) ? trim((string) $override['sender']) : app_setting($pdo, 'wa_sender', '');
-    $endpoint = resolve_wa_endpoint($endpoint, $token);
-    $phone = normalize_wa_phone($phone);
+    require_once __DIR__ . '/wa_otomatis.php';
 
-    if ($endpoint === '' || $phone === '') {
-        return [
-            'success' => false,
-            'http_code' => 0,
-            'error' => $endpoint === '' ? 'WA gateway URL kosong.' : 'Nomor WA tidak valid.',
-            'response' => '',
-            'target' => $phone,
-        ];
-    }
-
-    $payload = [
-        'token' => $token,
-        'sender' => $sender,
-        'target' => $phone,
-        'message' => $message,
-    ];
-
-    $ch = curl_init($endpoint);
-    $isFonte = (bool) preg_match('/fonte|fonnte/i', $endpoint);
-    $headers = [];
-    if ($isFonte && $token !== '') {
-        $headers[] = 'Authorization: ' . $token;
-    }
-    if ($isFonte) {
-        $headers[] = 'Content-Type: application/x-www-form-urlencoded';
-        $payload = [
-            'token' => $token,
-            'target' => $phone,
-            'message' => $message,
-            'countryCode' => '62',
-        ];
-    }
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($payload),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_HEADER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_MAXREDIRS => 3,
-    ]);
-    $rawResponse = curl_exec($ch);
-    $error = curl_error($ch);
-    $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    curl_close($ch);
-    $responseHeaders = '';
-    $response = '';
-    if (is_string($rawResponse)) {
-        $responseHeaders = substr($rawResponse, 0, $headerSize);
-        $response = substr($rawResponse, $headerSize);
-    }
-
-    $isSuccess = $error === '' && $statusCode >= 200 && $statusCode < 300;
-    // Redirect ke halaman login berarti endpoint salah/landing page, anggap gagal eksplisit.
-    if (in_array($statusCode, [301, 302, 303, 307, 308], true)) {
-        $isSuccess = false;
-    }
-    if ($isSuccess && is_string($response) && $response !== '') {
-        $decoded = json_decode($response, true);
-        if (is_array($decoded)) {
-            if (array_key_exists('status', $decoded)) {
-                $statusValue = $decoded['status'];
-                if ($statusValue === false || $statusValue === 0 || $statusValue === 'false' || $statusValue === 'failed' || $statusValue === 'error') {
-                    $isSuccess = false;
-                }
-                if (is_string($statusValue) && in_array(strtolower($statusValue), ['success', 'sent', 'ok', 'true'], true)) {
-                    $isSuccess = true;
-                }
-            }
-            if (isset($decoded['success']) && ($decoded['success'] === false || $decoded['success'] === 0 || $decoded['success'] === 'false')) {
-                $isSuccess = false;
-            }
-            if (isset($decoded['error']) && $decoded['error'] !== '' && $decoded['error'] !== null) {
-                $isSuccess = false;
-            }
-        }
-    }
-
-    $location = '';
-    if ($responseHeaders !== '') {
-        if (preg_match('/^Location:\s*(.+)$/mi', $responseHeaders, $matches)) {
-            $location = trim((string) ($matches[1] ?? ''));
-        }
-    }
-    $responseText = $error !== '' ? $error : (string) $response;
-    if ($location !== '') {
-        $responseText .= "\n[redirect] " . $location;
-    }
-    if (table_exists($pdo, 'wa_logs')) {
-        $log = $pdo->prepare('
-            INSERT INTO wa_logs (target_phone, message, response_text, is_success)
-            VALUES (:target_phone, :message, :response_text, :is_success)
-        ');
-        $log->execute([
-            'target_phone' => $phone,
-            'message' => $message,
-            'response_text' => $responseText,
-            'is_success' => $isSuccess ? 1 : 0,
-        ]);
-    }
-
-    return [
-        'success' => $isSuccess,
-        'http_code' => $statusCode,
-        'error' => $error,
-        'response' => $responseText,
-        'target' => $phone,
-    ];
+    return wa_otomatis_send($pdo, $phone, $message, $override);
 }
 
 function send_wa_message(PDO $pdo, string $phone, string $message): bool
@@ -1124,31 +1011,16 @@ function send_wa_message(PDO $pdo, string $phone, string $message): bool
 
 function parse_phone_list(string $raw): array
 {
-    $parts = preg_split('/[\s,;]+/', trim($raw)) ?: [];
-    $phones = [];
-    foreach ($parts as $part) {
-        $phone = normalize_wa_phone($part);
-        if ($phone !== null && $phone !== '') {
-            $phones[] = $phone;
-        }
-    }
+    require_once __DIR__ . '/wa_otomatis.php';
 
-    return array_values(array_unique($phones));
+    return wa_otomatis_parse_targets($raw);
 }
 
 function normalize_wa_phone(string $phone): string
 {
-    $digits = preg_replace('/[^0-9]/', '', $phone) ?? '';
-    if ($digits === '') {
-        return '';
-    }
-    if (strpos($digits, '0') === 0) {
-        return '62' . substr($digits, 1);
-    }
-    if (strpos($digits, '8') === 0) {
-        return '62' . $digits;
-    }
-    return $digits;
+    require_once __DIR__ . '/wa_otomatis.php';
+
+    return wa_otomatis_normalize_target($phone);
 }
 
 /** Tautan https://wa.me/… untuk membuka chat dengan teks awal (tanpa gateway). */
@@ -1169,20 +1041,32 @@ function wa_me_chat_url(string $phoneRaw, string $text = ''): ?string
 
 function send_wa_bulk(PDO $pdo, string $phonesRaw, string $message): int
 {
-    $phones = parse_phone_list($phonesRaw);
-    $sent = 0;
-    foreach ($phones as $phone) {
-        if (send_wa_message($pdo, $phone, $message)) {
-            $sent++;
-        }
-    }
+    $result = send_wa_bulk_with_result($pdo, $phonesRaw, $message);
 
-    return $sent;
+    return (int) ($result['sent'] ?? 0);
+}
+
+/**
+ * @param array<string, mixed> $opts
+ * @return array{sent:int,failed:int,total:int,details:list<array<string,mixed>>}
+ */
+function send_wa_bulk_with_result(PDO $pdo, string $phonesRaw, string $message, array $opts = []): array
+{
+    require_once __DIR__ . '/wa_otomatis.php';
+
+    return wa_otomatis_send_bulk($pdo, $phonesRaw, $message, $opts);
 }
 
 function trigger_auto_wa_notifications(PDO $pdo): void
 {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'general')) {
+        return;
+    }
     if (!table_exists($pdo, 'app_settings') || !table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
+        return;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return;
     }
 
@@ -1287,6 +1171,10 @@ function trigger_auto_wa_notifications(PDO $pdo): void
  */
 function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
 {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'general')) {
+        return;
+    }
     if (!table_exists($pdo, 'perizinan_pembimbing')
         || !table_exists($pdo, 'jadwal_kegiatan')
         || !table_exists($pdo, 'kegiatan')
@@ -1298,6 +1186,9 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
 
     $enabled = trim((string) app_setting($pdo, 'wa_notif_mudabir_enabled', '1')) === '1';
     if (!$enabled) {
+        return;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return;
     }
     $waTujuan = wa_petugas_pendidikan_target($pdo);
@@ -1434,6 +1325,10 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
  */
 function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
 {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'general')) {
+        return;
+    }
     if (!table_exists($pdo, 'jadwal_kegiatan')
         || !table_exists($pdo, 'kegiatan')
         || !table_exists($pdo, 'pembimbing')
@@ -1444,6 +1339,9 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
 
     $enabled = trim((string) app_setting($pdo, 'wa_kelas_kosong_enabled', '1')) === '1';
     if (!$enabled) {
+        return;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return;
     }
 
@@ -1528,42 +1426,46 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
         $counter++;
         save_setting($pdo, $counterKey, (string) $counter);
 
-        $target = '';
-        if ($counter === 1) {
-            $target = $target1;
-        } elseif ($counter === 3) {
-            $target = $target3;
-        } else {
-            continue;
-        }
-
-        if (trim($target) === '') {
-            continue;
-        }
+        $sentKey1 = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_1';
+        $sentKey3 = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_3';
 
         $jamMulai = substr((string) ($r['jam_mulai'] ?? '00:00:00'), 0, 5);
         $jamSelesai = substr((string) ($r['jam_selesai'] ?? '00:00:00'), 0, 5);
         $tingkatan = trim((string) ($r['tingkatan'] ?? ''));
         $tempat = trim((string) ($r['tempat'] ?? ''));
 
-        $lines = [];
-        $lines[] = '⚠️ Laporan kelas kosong (ke-' . $counter . ')';
-        $lines[] = 'Tanggal: ' . date('d/m/Y');
-        $lines[] = 'Kegiatan: ' . (string) ($r['nama_kegiatan'] ?? 'Kegiatan');
-        $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
-        $lines[] = 'Kelas/Tingkatan: ' . ($tingkatan !== '' ? $tingkatan : '-');
-        if ($tempat !== '') {
-            $lines[] = 'Tempat: ' . $tempat;
+        $levels = [];
+        if ($counter >= 1 && trim((string) app_setting($pdo, $sentKey1, '')) !== '1' && $target1 !== '') {
+            $levels[] = ['level' => 1, 'target' => $target1, 'sent_key' => $sentKey1];
         }
-        $lines[] = 'Pembimbing jadwal: ' . (string) ($r['nama_pembimbing'] ?? '-');
-        $lines[] = 'Status: belum ada scan pembimbing maupun munawib.';
-        $lines[] = 'ID Jadwal: #' . $jadwalId;
-        $message = implode("\n", $lines);
+        if ($counter >= 3 && trim((string) app_setting($pdo, $sentKey3, '')) !== '1' && $target3 !== '') {
+            $levels[] = ['level' => 3, 'target' => $target3, 'sent_key' => $sentKey3];
+        }
+        if ($levels === []) {
+            continue;
+        }
 
-        $sent = send_wa_bulk($pdo, $target, $message);
-        if ($sent > 0) {
-            save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
-            save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $counter);
+        foreach ($levels as $lv) {
+            $lines = [];
+            $lines[] = '⚠️ Laporan kelas kosong (ke-' . (int) $lv['level'] . ')';
+            $lines[] = 'Tanggal: ' . date('d/m/Y');
+            $lines[] = 'Kegiatan: ' . (string) ($r['nama_kegiatan'] ?? 'Kegiatan');
+            $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
+            $lines[] = 'Kelas/Tingkatan: ' . ($tingkatan !== '' ? $tingkatan : '-');
+            if ($tempat !== '') {
+                $lines[] = 'Tempat: ' . $tempat;
+            }
+            $lines[] = 'Pembimbing jadwal: ' . (string) ($r['nama_pembimbing'] ?? '-');
+            $lines[] = 'Status: belum ada scan pembimbing maupun munawib.';
+            $lines[] = 'ID Jadwal: #' . $jadwalId;
+            $message = implode("\n", $lines);
+
+            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message);
+            if ((int) ($bulk['sent'] ?? 0) > 0) {
+                save_setting($pdo, (string) $lv['sent_key'], '1');
+                save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
+                save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);
+            }
         }
     }
 }
@@ -2701,6 +2603,10 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
 
 function trigger_auto_wa_tagihan_wali(PDO $pdo): void
 {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'tagihan')) {
+        return;
+    }
     require_once __DIR__ . '/wa_tagihan.php';
     if (function_exists('wa_tagihan_jalankan_kirim')) {
         wa_tagihan_jalankan_kirim($pdo, false);
@@ -3314,8 +3220,11 @@ function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap,
         }
     }
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'kiai' && !in_array('/pengasuh/dashboard.php', $candidates, true)) {
+        array_unshift($candidates, '/pengasuh/dashboard.php');
+    }
     if ($role === 'kiai' && !in_array('/pengasuh/laporan_hari.php', $candidates, true)) {
-        array_unshift($candidates, '/pengasuh/laporan_hari.php');
+        $candidates[] = '/pengasuh/laporan_hari.php';
     }
     if ($role === 'kiai' && !in_array('/pengasuh/nilai_keaktifan.php', $candidates, true)) {
         $candidates[] = '/pengasuh/nilai_keaktifan.php';
@@ -3366,7 +3275,7 @@ function app_post_login_redirect(PDO $pdo): void
         app_redirect('dashboard.php');
     }
     if ($role === 'kiai') {
-        app_redirect('pengasuh/laporan_hari.php');
+        app_redirect('pengasuh/dashboard.php');
     }
     if ($role === 'pembimbing') {
         app_redirect('pembimbing/dashboard.php');
@@ -3525,7 +3434,7 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
 
                 return user_can_edit_keaktifan_nilai();
             }
-            if (in_array($path, ['/pengasuh/laporan_hari.php', '/pengasuh/sdm_hari.php'], true)) {
+            if (in_array($path, ['/pengasuh/dashboard.php', '/pengasuh/laporan_hari.php', '/pengasuh/sdm_hari.php'], true)) {
                 require_once __DIR__ . '/../includes/auth.php';
 
                 return user_can_edit_keaktifan_nilai() || in_array(strtolower((string) ($_SESSION['user']['role'] ?? '')), ['admin', 'pengurus'], true);
@@ -3594,7 +3503,7 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
             return;
         }
     }
-    if (str_contains($requestPath, '/pengasuh/laporan_hari.php') || str_contains($requestPath, '/pengasuh/sdm_hari.php')) {
+    if (str_contains($requestPath, '/pengasuh/dashboard.php') || str_contains($requestPath, '/pengasuh/laporan_hari.php') || str_contains($requestPath, '/pengasuh/sdm_hari.php')) {
         require_once __DIR__ . '/../includes/auth.php';
         $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
         if (user_can_edit_keaktifan_nilai() || in_array($role, ['admin', 'pengurus'], true)) {

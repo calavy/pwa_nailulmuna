@@ -136,10 +136,19 @@ require_once __DIR__ . '/../includes/header.php';
                 </p>
             </div>
         </form>
+        <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 mb-2">
+            <button type="button" class="btn btn-outline-success btn-sm" id="btn-cetak-kartu-batch" disabled>
+                <i class="fa-solid fa-file-lines me-1"></i> Cetak Kartu Tes Terpilih
+            </button>
+        </div>
+        <form id="form-kartu-batch" method="get" action="<?= htmlspecialchars(app_href('/santri/kartu_batch.php')) ?>">
         <div class="table-responsive">
             <table class="table table-striped table-hover align-middle mb-0 santri-aktif-table santri-aktif-table--ringkas" id="santri-aktif-table">
                 <thead>
                 <tr>
+                    <th class="text-center" style="width:38px">
+                        <input type="checkbox" id="chk-all-santri" title="Pilih semua di halaman ini">
+                    </th>
                     <th class="santri-col-extra">QR</th>
                     <th>NIS</th>
                     <th>Nama</th>
@@ -156,8 +165,13 @@ require_once __DIR__ . '/../includes/header.php';
                 </thead>
                 <tbody>
                 <?php if ($santri): ?>
-                    <?php foreach ($santri as $item): ?>
+                    <?php foreach ($santri as $item):
+                        $sid = (int) $item['id'];
+                        ?>
                         <tr class="santri-aktif-row">
+                            <td class="text-center">
+                                <input type="checkbox" class="chk-santri-batch" name="ids[]" value="<?= $sid ?>">
+                            </td>
                             <td class="santri-col-extra"><?= htmlspecialchars($item['qr'] ?: '-') ?></td>
                             <td class="font-monospace small"><?= htmlspecialchars($item['nis']) ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($item['nama_santri']) ?></td>
@@ -186,27 +200,40 @@ require_once __DIR__ . '/../includes/header.php';
                                     <div class="small text-muted mt-1"><?= htmlspecialchars((string) ($item['tanggal_keluar'] ?? '-')) ?> · <?= htmlspecialchars((string) ($item['alasan_keluar'] ?? '-')) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-end text-nowrap">
-                                <a href="<?= htmlspecialchars(app_href('/santri/riwayat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-info">Riwayat</a>
-                                <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
-                                   class="btn btn-sm btn-warning"
-                                   data-sdm-modal="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) $item['id'])) ?>"
-                                   data-sdm-title="Edit santri">Edit</a>
-                                <span class="santri-col-extra d-inline-flex flex-wrap gap-1 justify-content-end">
-                                    <a href="<?= htmlspecialchars(app_href('/santri/nonaktif_cepat.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-outline-danger">Status</a>
-                                    <a href="<?= htmlspecialchars(app_href('/santri/delete.php?id=' . (int) $item['id'])) ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus data ini?')">Hapus</a>
-                                </span>
+                            <td class="santri-aksi-cell">
+                                <div class="santri-aksi-stack">
+                                    <div class="santri-aksi-row">
+                                        <a href="<?= htmlspecialchars(app_href('/santri/kartu_qr.php?id=' . $sid)) ?>" class="btn btn-outline-primary btn-santri-mini" title="Cetak QR" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-qrcode"></i> QR
+                                        </a>
+                                        <a href="<?= htmlspecialchars(app_href('/santri/kartu.php?id=' . $sid)) ?>" class="btn btn-outline-success btn-santri-mini" title="Cetak kartu tes A5" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-file-lines"></i> Tes
+                                        </a>
+                                    </div>
+                                    <div class="santri-aksi-row">
+                                        <a href="<?= htmlspecialchars(app_href('/santri/riwayat.php?id=' . $sid)) ?>" class="btn btn-outline-info btn-santri-mini">Riwayat</a>
+                                        <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . $sid)) ?>"
+                                           class="btn btn-warning btn-santri-mini"
+                                           data-sdm-modal="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . $sid)) ?>"
+                                           data-sdm-title="Edit santri">Edit</a>
+                                        <span class="santri-col-extra santri-aksi-row">
+                                            <a href="<?= htmlspecialchars(app_href('/santri/nonaktif_cepat.php?id=' . $sid)) ?>" class="btn btn-outline-danger btn-santri-mini">Status</a>
+                                            <a href="<?= htmlspecialchars(app_href('/santri/delete.php?id=' . $sid)) ?>" class="btn btn-danger btn-santri-mini" onclick="return confirm('Hapus data ini?')">Hapus</a>
+                                        </span>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="11" class="text-center text-muted">Belum ada data santri aktif.</td>
+                        <td colspan="13" class="text-center text-muted">Belum ada data santri aktif.</td>
                     </tr>
                 <?php endif; ?>
                 </tbody>
             </table>
         </div>
+        </form>
         <?php if ($totalPages > 1):
             $pageBase = ['per_page' => $perPage];
             if ($q !== '') {
@@ -242,6 +269,17 @@ require_once __DIR__ . '/../includes/header.php';
 
 <style>
 .santri-aktif-table--ringkas .santri-col-extra { display: none; }
+.santri-aksi-cell { min-width: 7.5rem; vertical-align: middle; }
+.santri-aksi-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.santri-aksi-row { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+.btn-santri-mini {
+    --bs-btn-padding-y: .1rem;
+    --bs-btn-padding-x: .35rem;
+    font-size: .68rem;
+    line-height: 1.2;
+    border-radius: .2rem;
+}
+.btn-santri-mini .fa-solid { font-size: .62rem; }
 </style>
 <script>
 (function () {
@@ -281,6 +319,35 @@ require_once __DIR__ . '/../includes/header.php';
             }, 400);
         });
     }
+
+    var chkAll = document.getElementById('chk-all-santri');
+    var chks = document.querySelectorAll('.chk-santri-batch');
+    var btnBatch = document.getElementById('btn-cetak-kartu-batch');
+    var formBatch = document.getElementById('form-kartu-batch');
+
+    function syncBatchBtn() {
+        if (!btnBatch) return;
+        var selected = document.querySelectorAll('.chk-santri-batch:checked').length;
+        btnBatch.disabled = selected === 0;
+        btnBatch.innerHTML = '<i class="fa-solid fa-file-lines me-1"></i> Cetak Kartu Tes Terpilih' + (selected > 0 ? ' (' + selected + ')' : '');
+    }
+
+    if (chkAll) {
+        chkAll.addEventListener('change', function () {
+            chks.forEach(function (c) { c.checked = chkAll.checked; });
+            syncBatchBtn();
+        });
+    }
+    chks.forEach(function (c) {
+        c.addEventListener('change', syncBatchBtn);
+    });
+    if (btnBatch && formBatch) {
+        btnBatch.addEventListener('click', function () {
+            if (document.querySelectorAll('.chk-santri-batch:checked').length === 0) return;
+            formBatch.submit();
+        });
+    }
+    syncBatchBtn();
 })();
 </script>
 

@@ -240,10 +240,10 @@ require_once __DIR__ . '/../includes/header.php';
                 }
                 echo implode(' · ', $bits);
                 ?>.
-                <a href="<?= htmlspecialchars(app_href('/settings/alpa_notif.php')) ?>">Ubah pengaturan</a>.
+                <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=alpa')) ?>">Ubah pengaturan</a>.
             <?php else: ?>
                 <strong>Notifikasi tier belum diatur.</strong> Sistem akan memakai notifikasi tunggal lama (≥ <?= (int) app_setting($pdo, 'batas_alpa_notif', '3') ?> kali alpa → <code>wa_pengurus</code>).
-                <a href="<?= htmlspecialchars(app_href('/settings/alpa_notif.php')) ?>">Aktifkan notifikasi alpa bertahap</a>.
+                <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=alpa')) ?>">Aktifkan notifikasi alpa bertahap</a>.
             <?php endif; ?>
         </div>
         <form method="post" class="row g-3">
