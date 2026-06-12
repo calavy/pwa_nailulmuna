@@ -518,6 +518,15 @@ $flashErr = get_flash('error');
                     <?php endif; ?>
                 <?php endforeach; ?>
                 </tbody>
+                <?php if ($list !== []): ?>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold">
+                        <td colspan="7">Jumlah total (filter · <?= (int) $ringkasan['jumlah'] ?> transaksi<?= count($list) < (int) $ringkasan['jumlah'] ? ', tampil ' . count($list) . ' terbaru' : '' ?>)</td>
+                        <td class="text-end font-monospace">Rp <?= number_format((int) round((float) $ringkasan['total']), 0, ',', '.') ?></td>
+                        <td colspan="<?= $canKoreksiPembayaran ? 5 : 4 ?>"></td>
+                    </tr>
+                </tfoot>
+                <?php endif; ?>
             </table>
         </div>
     </div>

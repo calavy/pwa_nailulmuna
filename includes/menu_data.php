@@ -117,6 +117,7 @@ return [
         '/rekap/santri_bagus.php' => 'Rekap Keaktifan Santri',
         '/pengasuh/dashboard.php' => 'Dashboard Pengasuh',
         '/pengasuh/laporan_hari.php' => 'Laporan Hari Ini',
+        '/pengasuh/perizinan.php' => 'Persetujuan Izin Pengasuh',
         '/pengasuh/nilai_keaktifan.php' => 'Nilai Keaktifan Santri',
         '/rekap/index.php' => 'Rekap Presensi',
         '/rekap/panduan.php' => 'Panduan Alur Presensi',
@@ -277,6 +278,7 @@ return [
             ['title' => 'Izin Santri', 'paths' => [
                 '/perizinan/permohonan.php',
                 '/perizinan/index.php',
+                '/pengasuh/perizinan.php',
                 '/perizinan/rekap_aktif.php',
                 '/perizinan/izin_tetap.php',
             ]],

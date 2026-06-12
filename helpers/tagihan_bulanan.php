@@ -9,6 +9,7 @@ require_once __DIR__ . '/keuangan_tarif_bulanan.php';
 require_once __DIR__ . '/santri_ta.php';
 require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/santri_wa.php';
+require_once __DIR__ . '/tagihan_santri_masuk.php';
 
 /**
  * Tarif pos bulanan per tier — sekali per request.
@@ -226,6 +227,25 @@ function tagihan_opsional_pos_for_month_bulk(
     int $tahunAjaranMulai = 0,
     int $tahunAjaranSelesai = 0
 ): array {
+    if (
+        $santriId > 0
+        && $bulanTagihan >= 1
+        && !tagihan_bulan_dibebankan($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)
+    ) {
+        $perPos = [];
+        foreach (keuangan_tagihan_opsional_bulanan_slugs() as $slug) {
+            $perPos[$slug] = [
+                'expected' => 0,
+                'paid' => (int) ($paidSantri[$slug] ?? 0),
+                'sisa' => 0,
+                'status' => '—',
+                'statusClass' => 'secondary',
+            ];
+        }
+
+        return $perPos;
+    }
+
     $tarif = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tier = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
     $perPos = [];
@@ -283,6 +303,14 @@ function tagihan_wajib_status_for_month_bulk(
     array $paidMap,
     array $syCtx
 ): array {
+    if (keuangan_tagihan_mulai_masuk_enabled($pdo)) {
+        $bulanMulaiMap = (array) ($syCtx['masuk_bulan_mulai'] ?? []);
+        $bulanMulai = (int) ($bulanMulaiMap[$santriId] ?? 1);
+        if ($bulanTagihan < $bulanMulai) {
+            return tagihan_wajib_status_kosong();
+        }
+    }
+
     $tarif = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tier = keuangan_tier_key_from_kelas($kelasKategori, $pdo);
     $paidSantri = $paidMap[$santriId] ?? [];
@@ -399,6 +427,158 @@ function tagihan_wajib_status_for_month_bulk(
 }
 
 /**
+ * Total kekurangan tagihan wajib dari bulan pertama TA s.d. bulan akhir (inklusif).
+ *
+ * @return array{
+ *   expected_total:int,
+ *   paid_total:int,
+ *   sisa_total:int,
+ *   status:string,
+ *   statusClass:string,
+ *   per_pos:array<string, array<string, mixed>>,
+ *   per_bulan:list<array{bulan:int,label:string,sisa_total:int}>,
+ *   bulan_akhir:int,
+ *   tahun_mulai:int,
+ *   tahun_selesai:int
+ * }
+ */
+function tagihan_wajib_status_kumulatif_ta(
+    PDO $pdo,
+    int $santriId,
+    int $bulanAkhir,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    string $kelasKategori
+): array {
+    $bulanAkhir = max(1, min(12, $bulanAkhir));
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $components = keuangan_tagihan_wajib_components($pdo, $kelasKategori);
+
+    $perPosAgg = [];
+    foreach ($components as $c) {
+        $slug = (string) ($c['slug'] ?? '');
+        if ($slug === '') {
+            continue;
+        }
+        $perPosAgg[$slug] = [
+            'expected' => 0,
+            'paid' => 0,
+            'sisa' => 0,
+            'status' => '—',
+            'statusClass' => 'secondary',
+        ];
+    }
+
+    $perBulan = [];
+    $sisaTotal = 0;
+    $expectedTotal = 0;
+    $paidTotal = 0;
+    $anyExpected = false;
+    $anyPaid = false;
+    $allLunas = true;
+
+    foreach ($slots as $slot) {
+        $bulan = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($bulan < 1 || $bulan > $bulanAkhir) {
+            continue;
+        }
+        $ctx = tagihan_bulanan_page_context($pdo, $bulan, $tahunAjaranMulai, $tahunAjaranSelesai);
+        $st = tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            $santriId,
+            $bulan,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $kelasKategori,
+            $ctx['paid_map'],
+            $ctx['sy_ctx']
+        );
+        $bulanSisa = (int) ($st['sisa_total'] ?? 0);
+        if ($bulanSisa > 0) {
+            $perBulan[] = [
+                'bulan' => $bulan,
+                'label' => pondok_bulan_slot_label_tampilan($pdo, $slot),
+                'sisa_total' => $bulanSisa,
+            ];
+        }
+        foreach ((array) ($st['per_pos'] ?? []) as $slug => $pos) {
+            if (!isset($perPosAgg[$slug])) {
+                $perPosAgg[$slug] = [
+                    'expected' => 0,
+                    'paid' => 0,
+                    'sisa' => 0,
+                    'status' => '—',
+                    'statusClass' => 'secondary',
+                ];
+            }
+            $perPosAgg[$slug]['expected'] += (int) ($pos['expected'] ?? 0);
+            $perPosAgg[$slug]['paid'] += (int) ($pos['paid'] ?? 0);
+            $perPosAgg[$slug]['sisa'] += (int) ($pos['sisa'] ?? 0);
+        }
+        $sisaTotal += $bulanSisa;
+        $expectedTotal += (int) ($st['expected_total'] ?? 0);
+        $paidTotal += (int) ($st['paid_total'] ?? 0);
+        if ((int) ($st['expected_total'] ?? 0) > 0) {
+            $anyExpected = true;
+        }
+        if ((int) ($st['paid_total'] ?? 0) > 0) {
+            $anyPaid = true;
+        }
+        if ($bulanSisa > 0) {
+            $allLunas = false;
+        }
+    }
+
+    foreach ($perPosAgg as $slug => &$agg) {
+        $expected = (int) ($agg['expected'] ?? 0);
+        $paid = (int) ($agg['paid'] ?? 0);
+        $sisa = (int) ($agg['sisa'] ?? 0);
+        if ($expected <= 0) {
+            $agg['status'] = '—';
+            $agg['statusClass'] = 'secondary';
+        } elseif ($paid >= $expected) {
+            $agg['status'] = 'Lunas';
+            $agg['statusClass'] = 'success';
+        } elseif ($paid <= 0) {
+            $agg['status'] = 'Belum';
+            $agg['statusClass'] = 'danger';
+        } else {
+            $agg['status'] = 'Sebagian';
+            $agg['statusClass'] = 'warning';
+        }
+        $agg['sisa'] = $sisa;
+    }
+    unset($agg);
+
+    if (!$anyExpected) {
+        $status = '—';
+        $statusClass = 'secondary';
+    } elseif ($allLunas && $expectedTotal > 0) {
+        $status = 'Lunas';
+        $statusClass = 'success';
+    } elseif (!$anyPaid) {
+        $status = 'Belum';
+        $statusClass = 'danger';
+    } else {
+        $status = 'Sebagian';
+        $statusClass = 'warning';
+    }
+
+    return [
+        'expected_total' => $expectedTotal,
+        'paid_total' => $paidTotal,
+        'sisa_total' => $sisaTotal,
+        'status' => $status,
+        'statusClass' => $statusClass,
+        'per_pos' => $perPosAgg,
+        'per_bulan' => $perBulan,
+        'bulan_akhir' => $bulanAkhir,
+        'tahun_mulai' => $tahunAjaranMulai,
+        'tahun_selesai' => $tahunAjaranSelesai,
+    ];
+}
+
+/**
  * Konteks bulk untuk halaman daftar tagihan (potongan, jeda, tarif, pembayaran).
  *
  * @return array{
@@ -422,6 +602,12 @@ function tagihan_bulanan_page_context(
 
     $syCtx = keuangan_syahriyah_bulk_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $syCtx['jeda_preloaded'] = true;
+    if (keuangan_tagihan_mulai_masuk_enabled($pdo)) {
+        $santriRows = tagihan_santri_aktif_rows_cached($pdo, false);
+        $masukMaps = tagihan_santri_masuk_maps_build($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $santriRows);
+        $syCtx['masuk_bulan_mulai'] = $masukMaps['bulan_mulai'];
+        $syCtx['masuk_jenis'] = $masukMaps['jenis'];
+    }
 
     $pageCache[$key] = [
         'sy_ctx' => $syCtx,
@@ -720,6 +906,9 @@ function tagihan_santri_aktif_rows_cached(PDO $pdo, bool $withWa = false): array
         return $cache[$key];
     }
     $cols = ['id', 'nis', 'nama_santri', 'tingkatan', 'kategori_kelas'];
+    if (column_exists($pdo, 'santri', 'tanggal_masuk')) {
+        $cols[] = 'tanggal_masuk';
+    }
     if ($withWa) {
         if (column_exists($pdo, 'santri', 'no_wa_wali')) {
             $cols[] = 'no_wa_wali';

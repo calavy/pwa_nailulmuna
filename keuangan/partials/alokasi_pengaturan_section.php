@@ -26,10 +26,16 @@ $realisasiSyahriyahUmum = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
     ? keuangan_syahriyah_realisasi_umum_ta($pdo, $periodeTa['mulai'], $periodeTa['selesai'])
     : 0;
 $simulasi = keuangan_alokasi_simulasi($pdo, [], $alokasiJenisDana);
-$simSuffix = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN ? 'at' : 'sy';
-$paguSumber = $alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
-    ? 'pembayaran awal tahun santri'
-    : 'syahriyah bulanan (dasar setelah dana umum PKPPS/kelas)';
+$simSuffix = match ($alokasiJenisDana) {
+    KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'at',
+    KEUNGAN_ALOKASI_JENIS_MAKAN => 'mk',
+    default => 'sy',
+};
+$paguSumber = match ($alokasiJenisDana) {
+    KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'pembayaran awal tahun santri',
+    KEUNGAN_ALOKASI_JENIS_MAKAN => 'pembayaran bulanan pos makan',
+    default => 'syahriyah bulanan (dasar setelah dana umum PKPPS/kelas)',
+};
 ?>
 <div class="row g-3">
     <div class="col-lg-5">

@@ -13,6 +13,7 @@ require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
+require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -24,7 +25,7 @@ if ($section === 'tarif_bulan') {
     header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?' . http_build_query($redirectQs)));
     exit;
 }
-$validSections = ['umum', 'syahriyah_makan', 'tarif', 'akun', 'alokasi', 'alokasi_awal'];
+$validSections = ['umum', 'syahriyah_makan', 'tarif', 'akun', 'alokasi', 'alokasi_awal', 'alokasi_makan'];
 if (!in_array($section, $validSections, true)) {
     $section = 'umum';
 }
@@ -35,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     $result = match ($action) {
         'save_periode' => keuangan_save_periode_settings($pdo, $_POST),
+        'save_tagihan_masuk' => keuangan_save_tagihan_masuk_settings($pdo, $_POST),
+        'save_tarif_awal_jenis' => keuangan_save_tarif_awal_tahun_jenis_settings($pdo, $_POST),
         'save_tarif' => keuangan_save_tarif_settings($pdo, $_POST),
         'save_tarif_bulan' => keuangan_save_tarif_bulanan_settings($pdo, $_POST),
         'save_pkpps_syahriyah' => keuangan_pkpps_syahriyah_save_settings($pdo, $_POST),
@@ -44,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     };
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
     $redirectSection = match ($action) {
+        'save_tagihan_masuk' => 'umum',
+        'save_tarif_awal_jenis' => 'tarif',
         'save_tarif' => trim((string) ($_POST['redirect_bagian'] ?? '')) === 'syahriyah_makan'
             ? 'syahriyah_makan'
             : 'tarif',
@@ -79,6 +84,8 @@ $editAlokasi = null;
 
 if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
+    $tagihanMulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
+    $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
 } elseif ($section === 'syahriyah_makan') {
     ensure_keuangan_tarif_bulanan_table($pdo);
     pkpps_ensure_schema($pdo);
@@ -109,6 +116,13 @@ if ($section === 'umum') {
 } elseif ($section === 'tarif') {
     $biayaDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), false);
     $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefs);
+    $awalTahunDefs = array_values(array_filter(
+        $biayaDefs,
+        static fn (array $d): bool => (string) ($d['kategori'] ?? '') === 'Awal Tahun'
+    ));
+    $feeMatrixAwalJenis = keuangan_fee_matrix_awal_tahun_jenis($pdo, $awalTahunDefs);
+    $tagihanMulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
+    $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
 } elseif ($section === 'akun') {
     $editAkunId = (int) ($_GET['edit_akun'] ?? 0);
     $akunRows = keuangan_fetch_akun_all($pdo);
@@ -118,7 +132,7 @@ if ($section === 'umum') {
             break;
         }
     }
-} elseif ($section === 'alokasi' || $section === 'alokasi_awal') {
+} elseif ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan') {
     require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
     $keuanganTa = keuangan_ta_resolve($pdo);
     $periode = ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']];
@@ -170,6 +184,9 @@ require_once __DIR__ . '/../includes/header.php';
     </li>
     <li class="nav-item">
         <a class="nav-link <?= $section === 'alokasi_awal' ? 'active' : '' ?>" href="?bagian=alokasi_awal">Alokasi awal tahun</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link <?= $section === 'alokasi_makan' ? 'active' : '' ?>" href="?bagian=alokasi_makan">Alokasi makan</a>
     </li>
 </ul>
 
@@ -243,6 +260,42 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Tagihan sesuai tanggal masuk santri</div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    Santri yang masuk di pertengahan tahun ajaran tidak ditagih bulan sebelum tanggal masuk.
+                    Pada pembayaran <strong>awal tahun</strong>, sistem membedakan <strong>santri baru</strong> (masuk TA ini)
+                    dan <strong>santri lama</strong> (sudah pernah tinggal di TA sebelumnya). Pastikan kolom
+                    <strong>tanggal masuk</strong> di data santri terisi.
+                </p>
+                <form method="post" class="vstack gap-2">
+                    <input type="hidden" name="action" value="save_tagihan_masuk">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="keuangan_tagihan_mulai_masuk" value="1" id="tagihan-mulai-masuk"
+                            <?= !empty($tagihanMulaiMasuk) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="tagihan-mulai-masuk">
+                            Tagihan bulanan mulai dari bulan masuk santri (berdasarkan tanggal masuk)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="keuangan_awal_tahun_bedakan_baru_lama" value="1" id="awal-bedakan-jenis"
+                            <?= !empty($awalTahunBedakan) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="awal-bedakan-jenis">
+                            Bedakan tarif awal tahun santri baru vs santri lama
+                        </label>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-sm">Simpan pengaturan tagihan masuk</button>
+                        <?php if (!empty($awalTahunBedakan)): ?>
+                            <a class="btn btn-outline-secondary btn-sm ms-1" href="?bagian=tarif#tarif-awal-jenis">Atur tarif baru/lama</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 <?php endif; ?>
 
@@ -310,6 +363,54 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
             <button type="submit" class="btn btn-primary">Simpan semua tarif</button>
         </form>
+
+        <?php if (!empty($awalTahunBedakan) && ($awalTahunDefs ?? []) !== []): ?>
+        <hr class="my-4" id="tarif-awal-jenis">
+        <h2 class="h6 text-secondary">Awal tahun — santri baru vs lama</h2>
+        <p class="small text-muted">
+            Tarif di bawah dipakai saat input pembayaran awal tahun.
+            Santri <strong>baru</strong> = tahun ajaran masuk sama dengan TA aktif.
+            Santri <strong>lama</strong> = sudah punya riwayat tingkatan di TA sebelumnya atau masuk sebelum TA ini.
+            Kosongkan tidak perlu — isi 0 bila komponen tidak dikenakan (mis. pendaftaran untuk santri lama).
+        </p>
+        <form method="post">
+            <input type="hidden" name="action" value="save_tarif_awal_jenis">
+            <?php foreach (['baru' => 'Santri baru', 'lama' => 'Santri lama'] as $jenisKey => $jenisLabel): ?>
+                <h3 class="h6 mt-3 mb-2"><?= htmlspecialchars($jenisLabel) ?></h3>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Komponen</th>
+                                <?php foreach ($tiers as $tl): ?>
+                                    <th class="text-end" style="min-width:7rem"><?= htmlspecialchars($tl) ?></th>
+                                <?php endforeach; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($awalTahunDefs as $def):
+                            $slug = (string) $def['slug'];
+                            ?>
+                            <tr>
+                                <td><?= htmlspecialchars((string) $def['nama']) ?></td>
+                                <?php foreach ($tiers as $tk => $tl):
+                                    $val = (int) ($feeMatrixAwalJenis[$jenisKey][$slug][$tk] ?? 0);
+                                    ?>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm text-end"
+                                               name="fee_<?= htmlspecialchars($jenisKey) ?>[<?= htmlspecialchars($slug) ?>][<?= htmlspecialchars($tk) ?>]"
+                                               value="<?= htmlspecialchars((string) $val) ?>" inputmode="numeric">
+                                    </td>
+                                <?php endforeach; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endforeach; ?>
+            <button type="submit" class="btn btn-warning">Simpan tarif awal tahun (baru &amp; lama)</button>
+        </form>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -418,9 +519,13 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php if ($section === 'alokasi' || $section === 'alokasi_awal'): ?>
+<?php if ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan'): ?>
 <?php
-    $alokasiJenisDana = $section === 'alokasi_awal' ? KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN : KEUNGAN_ALOKASI_JENIS_SYAHRIYAH;
+    $alokasiJenisDana = match ($section) {
+        'alokasi_awal' => KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN,
+        'alokasi_makan' => KEUNGAN_ALOKASI_JENIS_MAKAN,
+        default => KEUNGAN_ALOKASI_JENIS_SYAHRIYAH,
+    };
     $alokasiSectionBagian = $section;
     $alokasiRowsFiltered = keuangan_alokasi_rows_for_jenis($alokasiRows, $alokasiJenisDana);
     $editAlokasiScoped = keuangan_alokasi_edit_for_jenis($editAlokasi, $alokasiJenisDana);

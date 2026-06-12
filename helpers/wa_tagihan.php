@@ -65,8 +65,21 @@ function wa_tagihan_jadwal_context(PDO $pdo, ?string $tanggal = null): array
         $isSendDay = $todayDay === $dueDay;
     }
 
+    $hasCustomMasehiDates = $calendar === 'MASEHI' && wa_tagihan_parse_custom_masehi_dates($customRaw) !== [];
+    $recurring = wa_tagihan_recurring_enabled($pdo) && !$hasCustomMasehiDates;
+    if ($recurring) {
+        $isSendDay = $todayDay >= 1;
+    }
+
     $sendKey = ($isCustomMasehi ? 'MASEHI_CUSTOM' : $calendar) . ':' . $periodKey;
+    if ($recurring) {
+        $sendKey .= ':' . $today;
+    }
     $lastKey = trim((string) app_setting($pdo, 'wa_tagihan_last_period_key', ''));
+    $lastSentDate = trim((string) app_setting($pdo, 'wa_tagihan_last_sent_date', ''));
+    $periodAlreadySent = $recurring
+        ? $lastSentDate === $today
+        : $lastKey === $sendKey;
 
     return [
         'enabled' => $enabled,
@@ -80,10 +93,23 @@ function wa_tagihan_jadwal_context(PDO $pdo, ?string $tanggal = null): array
         'send_key' => $sendKey,
         'is_send_day' => $isSendDay,
         'is_custom_masehi' => $isCustomMasehi,
+        'recurring' => $recurring,
+        'kumulatif' => wa_tagihan_kumulatif_enabled($pdo),
         'last_period_key' => $lastKey,
         'last_sent_at' => trim((string) app_setting($pdo, 'wa_tagihan_last_sent_at', '')),
-        'period_already_sent' => $lastKey === $sendKey,
+        'last_sent_date' => $lastSentDate,
+        'period_already_sent' => $periodAlreadySent,
     ];
+}
+
+function wa_tagihan_kumulatif_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_tagihan_kumulatif', '1')) === '1';
+}
+
+function wa_tagihan_recurring_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_tagihan_recurring', '1')) === '1';
 }
 
 /**
@@ -104,8 +130,91 @@ function wa_tagihan_jadwal_simpan(PDO $pdo, array $post): array
     if (array_key_exists('wa_tagihan_auto_enabled', $post)) {
         save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($post['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
     }
+    save_setting($pdo, 'wa_tagihan_kumulatif', isset($post['wa_tagihan_kumulatif']) ? '1' : '0');
+    save_setting($pdo, 'wa_tagihan_recurring', isset($post['wa_tagihan_recurring']) ? '1' : '0');
 
     return ['ok' => true, 'message' => 'Jadwal WA tagihan disimpan.'];
+}
+
+/**
+ * Status tagihan santri untuk kirim WA (bulan tunggal atau kumulatif TA).
+ *
+ * @param array<int, array<string, int>>|null $paidMap
+ * @return array<string, mixed>
+ */
+function wa_tagihan_santri_status(
+    PDO $pdo,
+    int $santriId,
+    string $kelas,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai,
+    ?array $paidMap = null,
+    ?array $syCtx = null
+): array {
+    if (!function_exists('tagihan_wajib_status_kumulatif_ta')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (wa_tagihan_kumulatif_enabled($pdo)) {
+        return tagihan_wajib_status_kumulatif_ta($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai, $kelas);
+    }
+    if ($paidMap === null || $syCtx === null) {
+        $ctx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
+        $paidMap = $ctx['paid_map'];
+        $syCtx = $ctx['sy_ctx'];
+    }
+
+    return tagihan_wajib_status_for_month_bulk(
+        $pdo,
+        $santriId,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $kelas,
+        $paidMap,
+        $syCtx
+    );
+}
+
+/** Label periode tagihan untuk teks WA. */
+function wa_tagihan_periode_label_dari_status(PDO $pdo, array $status): string
+{
+    $perBulan = $status['per_bulan'] ?? null;
+    if (is_array($perBulan) && $perBulan !== []) {
+        if (count($perBulan) === 1) {
+            return (string) ($perBulan[0]['label'] ?? '');
+        }
+        $first = (string) ($perBulan[0]['label'] ?? '');
+        $last = (string) ($perBulan[count($perBulan) - 1]['label'] ?? '');
+
+        return $first !== '' && $last !== '' ? $first . ' s.d. ' . $last : $first;
+    }
+    $bulanAkhir = (int) ($status['bulan_akhir'] ?? 0);
+    $tm = (int) ($status['tahun_mulai'] ?? 0);
+    $ts = (int) ($status['tahun_selesai'] ?? 0);
+    if ($bulanAkhir > 0 && $tm > 0 && $ts > 0) {
+        return pondok_bulan_label($pdo, $bulanAkhir, $tm, $ts);
+    }
+
+    return '';
+}
+
+/**
+ * @param list<array{slug:string,nama:string,nominal:int}> $components
+ * @param array<string, mixed> $status
+ */
+function wa_tagihan_format_pesan_santri(PDO $pdo, string $namaSantri, array $components, array $status): string
+{
+    $labelKekurangan = wa_tagihan_label_kekurangan($components, (array) ($status['per_pos'] ?? []));
+    $periode = wa_tagihan_periode_label_dari_status($pdo, $status);
+
+    return wa_format_tagihan_otomatis_wali(
+        $pdo,
+        $namaSantri,
+        $labelKekurangan,
+        (int) ($status['sisa_total'] ?? 0),
+        $periode
+    );
 }
 
 /** Hari dalam bulan (1–30), hijriyah dari kalender pondok bila perlu. */
@@ -177,13 +286,17 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             ];
         }
         if ($ctx['period_already_sent']) {
+            $sudahMsg = !empty($ctx['recurring'])
+                ? 'Hari ini sudah dikirim (' . (string) ($ctx['last_sent_at'] ?: $ctx['last_sent_date']) . ').'
+                : 'Periode ini sudah dikirim (' . (string) $ctx['last_sent_at'] . ').';
+
             return [
                 'ok' => true,
                 'sent' => 0,
                 'failed' => 0,
                 'skipped' => 0,
                 'eligible' => 0,
-                'message' => 'Periode ini sudah dikirim (' . (string) $ctx['last_sent_at'] . ').',
+                'message' => $sudahMsg,
                 'blocked_reason' => 'already_sent',
             ];
         }
@@ -216,9 +329,10 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Tidak ada santri aktif.'];
     }
 
-    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulan, $tahunMulai, $tahunSelesai);
-    $paidMap = $tagihanCtx['paid_map'];
-    $syCtx = $tagihanCtx['sy_ctx'];
+    $kumulatif = wa_tagihan_kumulatif_enabled($pdo);
+    $tagihanCtx = $kumulatif ? null : tagihan_bulanan_page_context($pdo, $bulan, $tahunMulai, $tahunSelesai);
+    $paidMap = $tagihanCtx['paid_map'] ?? null;
+    $syCtx = $tagihanCtx['sy_ctx'] ?? null;
     $tingkatanMap = $tagihanCtx['tingkatan_map'] ?? null;
     if (!is_array($tingkatanMap) && function_exists('santri_tingkatan_map_for_ta')) {
         require_once __DIR__ . '/santri_ta.php';
@@ -246,16 +360,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             $skipped++;
             continue;
         }
-        $st = tagihan_wajib_status_for_month_bulk(
-            $pdo,
-            $santriId,
-            $bulan,
-            $tahunMulai,
-            $tahunSelesai,
-            $kelas,
-            $paidMap,
-            $syCtx
-        );
+        $st = wa_tagihan_santri_status($pdo, $santriId, $kelas, $bulan, $tahunMulai, $tahunSelesai, $paidMap, $syCtx);
         $sisa = (int) ($st['sisa_total'] ?? 0);
         if ($sisa <= 0) {
             $skipped++;
@@ -263,8 +368,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         }
         $eligible++;
         $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
-        $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
-        $message = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
+        $message = wa_tagihan_format_pesan_santri($pdo, $nama, $components, $st);
         $phone = wa_otomatis_santri_wali_phone($pdo, $row);
         if ($phone === '') {
             $failed++;
@@ -279,7 +383,13 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         usleep(350000);
     }
 
-    if (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0) {
+    if (!$paksaTanpaJadwal && $sent > 0) {
+        save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
+        if (!empty($ctx['recurring'])) {
+            save_setting($pdo, 'wa_tagihan_last_sent_date', date('Y-m-d'));
+        }
+    }
+    if (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0 && empty($ctx['recurring'])) {
         save_setting($pdo, 'wa_tagihan_last_period_key', (string) $ctx['send_key']);
         save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
     } elseif (!$paksaTanpaJadwal && $eligible > 0 && $failed > 0) {

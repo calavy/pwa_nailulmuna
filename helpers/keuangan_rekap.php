@@ -299,7 +299,15 @@ function keuangan_tagihan_breakdown_for_santri(
             $sisa = (int) ($perPosWajib[$slug]['sisa'] ?? 0);
             $status = (string) ($perPosWajib[$slug]['status'] ?? '—');
         } else {
-            $expected = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+            if ($jenisPeriode === 'AWAL_TAHUN') {
+                if (!function_exists('keuangan_fee_nominal_awal_tahun')) {
+                    require_once __DIR__ . '/tagihan_santri_masuk.php';
+                }
+                $jenisSantri = tagihan_santri_jenis_ta($pdo, $santriId, $tahunMulai);
+                $expected = keuangan_fee_nominal_awal_tahun($pdo, $def, $tier, $jenisSantri);
+            } else {
+                $expected = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+            }
             if (
                 $jenisPeriode === 'BULANAN'
                 && $bulanTagihan >= 1

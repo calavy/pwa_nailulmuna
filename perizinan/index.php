@@ -7,10 +7,12 @@ require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/perizinan_jenis.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 perizinan_rombongan_ensure_schema($pdo);
 perizinan_approval_ensure_schema($pdo);
+$hideCetakSurat = user_is_pengasuh_kiai();
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
@@ -52,6 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'create_rombongan') {
         $santriIds = array_map('intval', (array) ($_POST['santri_ids_rombongan'] ?? []));
         $res = perizinan_rombongan_create($pdo, $_POST, $santriIds, (int) ($_SESSION['user']['id'] ?? 0));
+        if ($res['ok']) {
+            $jenisRombongan = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
+            perizinan_push_setelah_pengajuan(
+                $pdo,
+                'Izin rombongan (' . count($santriIds) . ' santri)',
+                '',
+                $jenisRombongan,
+                trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
+                trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d')))
+            );
+        }
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
         header('Location: ' . app_href('/perizinan/index.php'));
         exit;
@@ -73,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bypassAlpa = is_super_admin() && isset($_POST['bypass_alpa']) && $_POST['bypass_alpa'] === '1';
         if ($id > 0) {
             $izinInfoStmt = $pdo->prepare('
-                SELECT i.id, i.santri_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, i.qr_token, i.approval_status,
+                SELECT i.id, i.santri_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, i.qr_token, i.approval_status, i.pengasuh_approved_at,
                        s.nama_santri, s.nis, s.tingkatan, s.no_wa_wali
                 FROM perizinan i
                 INNER JOIN santri s ON s.id = i.santri_id
@@ -93,6 +106,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $alpaErr = perizinan_validasi_setujui_alpa($pdo, $santriId, $jenisIzinRaw, $bypassAlpa);
             if ($alpaErr !== null) {
                 set_flash('error', $alpaErr);
+                header('Location: ' . app_href('/perizinan/index.php'));
+                exit;
+            }
+            if (perizinan_izin_menunggu_persetujuan_pengasuh($pdo, is_array($izinInfo) ? $izinInfo : [])) {
+                set_flash('error', 'Izin syar\'i belum disetujui pengasuh. Minta pengasuh meninjau di menu Persetujuan Izin Pengasuh terlebih dahulu.');
                 header('Location: ' . app_href('/perizinan/index.php'));
                 exit;
             }
@@ -264,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $defaultPengasuh = app_setting($pdo, 'nama_pengasuh', '');
     $graceMenit = (int) app_setting($pdo, 'grace_period_menit', '15');
-    $jenisIzinPost = in_array(($_POST['jenis_izin'] ?? ''), ['SAKIT', 'KELUAR', 'TUGAS', 'PULANG'], true) ? $_POST['jenis_izin'] : 'KELUAR';
+    $jenisIzinPost = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
     $santriIdPost = (int) ($_POST['santri_id'] ?? 0);
 
     if ($santriIdPost > 0) {
@@ -357,7 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         substr((string) $data['jam_selesai'], 0, 5),
         (string) $data['alasan']
     );
-    push_event_izin_pengajuan_baru(
+    perizinan_push_setelah_pengajuan(
         $pdo,
         (string) ($sInfoRow['nama_santri'] ?? '-'),
         (string) ($sInfoRow['nis'] ?? ''),
@@ -380,9 +398,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
         }
     }
-    $okMsg = $data['jenis_izin'] === 'SAKIT'
-        ? 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan.'
-        : 'Pengajuan izin tersimpan (status: PENDING). Menunggu persetujuan.';
+    if ($data['jenis_izin'] === 'SAKIT') {
+        $okMsg = 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan pengurus.';
+    } elseif (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
+        $okMsg = 'Pengajuan izin syar\'i tersimpan. Menunggu persetujuan pengasuh lalu pengurus.';
+    } else {
+        $okMsg = 'Pengajuan izin tersimpan. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
+    }
     set_flash('success', $okMsg);
     header('Location: ' . app_href('/perizinan/index.php'));
     exit;
@@ -395,7 +417,7 @@ $santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s 
 $rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 $izinList = $pdo->query('
-    SELECT i.id, i.santri_id, i.rombongan_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.alasan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis, s.tingkatan
+    SELECT i.id, i.santri_id, i.rombongan_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.pengasuh_approved_at, i.alasan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis, s.tingkatan
     FROM perizinan i
     INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifS . '
     ORDER BY COALESCE(i.rombongan_id, i.id) DESC, i.rombongan_id DESC, i.id DESC
@@ -498,8 +520,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-6">
                         <label class="form-label">Jenis Izin</label>
                         <select class="form-select" name="jenis_izin" required>
-                            <option value="KELUAR">Keluar</option>
-                            <option value="TUGAS">Tugas</option>
+                            <?php $selectedJenis = 'KELUAR'; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
                         </select>
                     </div>
                     <div class="col-6">
@@ -553,9 +574,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-6">
                         <label class="form-label">Jenis Izin</label>
                         <select class="form-select" name="jenis_izin" id="jenis-izin-input" required>
-                            <option value="KELUAR">Keluar</option>
-                            <option value="SAKIT">Sakit</option>
-                            <option value="TUGAS">Tugas</option>
+                            <?php $selectedJenis = 'KELUAR'; $includeSakit = true; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
                         </select>
                     </div>
                     <div class="col-6">
@@ -654,9 +673,19 @@ require_once __DIR__ . '/../includes/header.php';
                     <strong>Izin rombongan menunggu persetujuan</strong>
                     <span class="d-block small fw-normal text-muted">Satu surat A4 berlaku untuk semua santri dalam rombongan yang sama.</span>
                     <ul class="mb-0 small ps-3">
-                        <?php foreach ($rombonganPending as $rm): ?>
+                        <?php foreach ($rombonganPending as $rm):
+                            $rombonganTungguPengasuh = false;
+                            if (perizinan_memerlukan_persetujuan_pengasuh((string) ($rm['jenis_izin'] ?? '')) && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
+                                $stRp = $pdo->prepare('SELECT COUNT(*) FROM perizinan WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL');
+                                $stRp->execute(['rid' => (int) $rm['id']]);
+                                $rombonganTungguPengasuh = (int) ($stRp->fetchColumn() ?: 0) > 0;
+                            }
+                        ?>
                             <li class="mt-1">
                                 #<?= (int) $rm['id'] ?> — <?= (int) ($rm['jumlah_santri'] ?? 0) ?> santri · <?= htmlspecialchars(jenis_izin_label((string) ($rm['jenis_izin'] ?? ''))) ?>
+                                <?php if ($rombonganTungguPengasuh): ?>
+                                    <span class="badge text-bg-warning ms-1">Menunggu pengasuh</span>
+                                <?php endif; ?>
                                 <form method="post" class="d-inline ms-1">
                                     <input type="hidden" name="action" value="approve_rombongan">
                                     <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
@@ -667,8 +696,10 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php if (is_super_admin()): ?>
                                         <label class="small ms-1"><input type="checkbox" name="bypass_alpa" value="1"> Lewati ALPA</label>
                                     <?php endif; ?>
-                                    <button type="submit" class="btn btn-sm btn-success">Setujui</button>
+                                    <button type="submit" class="btn btn-sm btn-success" <?= $rombonganTungguPengasuh && !is_super_admin() ? 'disabled title="Menunggu persetujuan pengasuh (izin syar\'i)"' : '' ?>>Setujui</button>
+                                    <?php if (!$hideCetakSurat): ?>
                                     <a class="btn btn-sm btn-outline-dark" target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . (int) $rm['id'])) ?>">Cetak A4</a>
+                                    <?php endif; ?>
                                 </form>
                             </li>
                         <?php endforeach; ?>
@@ -705,6 +736,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 if (($i['jenis_izin'] ?? '') === 'TUGAS' || ($i['jenis_izin'] ?? '') === 'PULANG') { $badge = 'danger'; }
                                 if (($i['jenis_izin'] ?? '') === 'KELUAR') { $badge = 'primary'; }
                                 if (($i['jenis_izin'] ?? '') === 'SAKIT') { $badge = 'success'; }
+                                if (($i['jenis_izin'] ?? '') === 'SYARI') { $badge = 'warning'; }
                                 ?>
                                 <span class="badge text-bg-<?= $badge ?>"><?= htmlspecialchars(jenis_izin_label((string) ($i['jenis_izin'] ?? 'KELUAR'))) ?></span>
                             </td>
@@ -720,6 +752,13 @@ require_once __DIR__ . '/../includes/header.php';
                                 <span class="badge text-bg-<?= ($i['approval_status'] ?? 'PENDING') === 'DISETUJUI' ? 'success' : (($i['approval_status'] ?? 'PENDING') === 'DITOLAK' ? 'danger' : 'warning') ?>">
                                     <?= htmlspecialchars($i['approval_status'] ?? 'PENDING') ?>
                                 </span>
+                                <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
+                                    <?php if (trim((string) ($i['pengasuh_approved_at'] ?? '')) !== ''): ?>
+                                        <div class="small text-success mt-1">Pengasuh ✓ <?= htmlspecialchars(app_format_datetime_id((string) $i['pengasuh_approved_at'])) ?></div>
+                                    <?php else: ?>
+                                        <div class="small text-muted mt-1">Menunggu pengasuh (izin syar'i)</div>
+                                    <?php endif; ?>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING'): ?>
@@ -742,6 +781,10 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php
                                     $alpaCekBtn = $izinAlpaMap[(int) $i['id']] ?? ['subject' => false, 'allowed' => true];
                                     $blokirAlpa = !empty($alpaCekBtn['subject']) && empty($alpaCekBtn['allowed']) && !is_super_admin();
+                                    $blokirPengasuh = perizinan_izin_menunggu_persetujuan_pengasuh($pdo, $i) && !is_super_admin();
+                                    $blokirTitle = $blokirAlpa
+                                        ? 'Tidak memenuhi syarat ALPA'
+                                        : ($blokirPengasuh ? 'Menunggu persetujuan pengasuh (izin syar\'i)' : '');
                                     ?>
                                     <button type="button"
                                             class="btn btn-sm btn-success js-open-approve"
@@ -763,7 +806,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             data-alpa-allowed="<?= !empty($alpaCekBtn['allowed']) ? '1' : '0' ?>"
                                             data-alpa-subject="<?= !empty($alpaCekBtn['subject']) ? '1' : '0' ?>"
                                             data-alpa-message="<?= htmlspecialchars((string) ($alpaCekBtn['message'] ?? '')) ?>"
-                                            <?= $blokirAlpa ? 'disabled title="Tidak memenuhi syarat ALPA"' : '' ?>>
+                                            <?= ($blokirAlpa || $blokirPengasuh) ? 'disabled title="' . htmlspecialchars($blokirTitle) . '"' : '' ?>>
                                         Setujui
                                     </button>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Tolak permohonan izin ini?');">
@@ -796,7 +839,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php
                                 $apStat = strtoupper((string) ($i['approval_status'] ?? ''));
                                 $apTok = trim((string) ($i['qr_token'] ?? ''));
-                                $canPrint = !($apStat === 'DITOLAK' || ($apStat === 'PENDING' && $apTok === ''));
+                                $canPrint = !$hideCetakSurat && !($apStat === 'DITOLAK' || ($apStat === 'PENDING' && $apTok === ''));
                                 ?>
                                 <?php if ($canPrint && $ridCetak > 0 && $tampilkanCetakRombongan): ?>
                                     <a target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . $ridCetak)) ?>" class="btn btn-sm btn-outline-dark" title="Satu surat untuk seluruh rombongan"><i class="fa-solid fa-print me-1"></i> Surat rombongan (A4)</a>
@@ -939,7 +982,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="font-monospace small mt-2 text-break"><?= htmlspecialchars((string) $i['qr_token']) ?></div>
                 </div>
                 <div class="modal-footer">
+                    <?php if (!$hideCetakSurat): ?>
                     <a class="btn btn-outline-dark" target="_blank" href="/perizinan/surat.php?id=<?= (int) $i['id'] ?>">Cetak surat</a>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Selesai</button>
                 </div>
             </div>

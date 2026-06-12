@@ -35,6 +35,15 @@ function keuangan_pengeluaran_count(PDO $pdo): int
     return (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pengeluaran')->fetchColumn();
 }
 
+function keuangan_pengeluaran_sum_nominal(PDO $pdo): int
+{
+    if (!table_exists($pdo, 'keuangan_pengeluaran')) {
+        return 0;
+    }
+
+    return (int) round((float) ($pdo->query('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran')->fetchColumn() ?: 0));
+}
+
 /** @return array<string, mixed>|null */
 function keuangan_pengeluaran_get(PDO $pdo, int $id): ?array
 {

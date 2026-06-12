@@ -1,102 +1,44 @@
 (function () {
     var form = document.getElementById('form-tagihan-filter');
     var cari = document.getElementById('tagihan-cari');
-    var ringkasBtn = document.getElementById('btn-tagihan-ringkas');
     var ringkasInput = document.getElementById('tagihan-ringkas-input');
-    var card = document.querySelector('.tagihan-list-card');
+    var listRoot = document.getElementById('tagihan-list-root');
     var debounceTimer = null;
+    var partialBusy = false;
     var apiBase = window.TAGIHAN_WA_API || '/api/wa/tagihan_santri.php';
 
-    if (cari && form) {
-        cari.addEventListener('input', function () {
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-            }
-            debounceTimer = setTimeout(function () {
-                debounceTimer = null;
-                if (form.requestSubmit) {
-                    form.requestSubmit();
-                } else {
-                    form.submit();
-                }
-            }, 450);
-        });
-        cari.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Enter') {
-                ev.preventDefault();
-                if (debounceTimer) {
-                    clearTimeout(debounceTimer);
-                }
-                if (form.requestSubmit) {
-                    form.requestSubmit();
-                } else {
-                    form.submit();
-                }
-            }
-        });
+    function buildParams(opts) {
+        opts = opts || {};
+        var params = new URLSearchParams(new FormData(form));
+        if (opts.page) {
+            params.set('page', String(opts.page));
+        } else if (opts.resetPage) {
+            params.set('page', '1');
+        }
+        return params;
     }
 
-    if (ringkasBtn && ringkasInput && form) {
-        ringkasBtn.addEventListener('click', function () {
-            var on = ringkasInput.value !== '1';
-            ringkasInput.value = on ? '1' : '0';
-            if (card) {
-                card.classList.toggle('tagihan-list-card--ringkas', on);
+    function restoreCariFocus(selStart, selEnd) {
+        if (!cari) {
+            return;
+        }
+        cari.focus();
+        if (typeof selStart === 'number' && typeof selEnd === 'number') {
+            try {
+                cari.setSelectionRange(selStart, selEnd);
+            } catch (e) {
+                /* ignore */
             }
-            ringkasBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            ringkasBtn.textContent = on ? 'Tampilkan detail kolom' : 'Mode ringkas';
-            if (form.requestSubmit) {
-                form.requestSubmit();
-            } else {
-                form.submit();
-            }
-        });
-    }
-
-    document.querySelectorAll('.tagihan-btn-detail').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var id = btn.getAttribute('data-row');
-            var row = document.getElementById('tagihan-detail-' + id);
-            if (!row) {
-                return;
-            }
-            var open = row.classList.toggle('is-open');
-            row.classList.toggle('d-none', !open);
-            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        });
-    });
-
-    function fetchWaPreview(grup) {
-        var sid = grup.getAttribute('data-santri-id');
-        var bulan = grup.getAttribute('data-bulan');
-        var taMulai = grup.getAttribute('data-ta-mulai');
-        var taSelesai = grup.getAttribute('data-ta-selesai');
-        var url = apiBase + '?santri_id=' + encodeURIComponent(sid)
-            + '&bulan=' + encodeURIComponent(bulan)
-            + '&ta_mulai=' + encodeURIComponent(taMulai)
-            + '&ta_selesai=' + encodeURIComponent(taSelesai);
-        return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then(function (r) { return r.json(); });
-    }
-
-    function setBtnLoading(btn, loading) {
-        if (!btn) return;
-        btn.disabled = loading;
-        if (loading) {
-            btn.dataset.prevHtml = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-        } else if (btn.dataset.prevHtml) {
-            btn.innerHTML = btn.dataset.prevHtml;
-            delete btn.dataset.prevHtml;
         }
     }
 
-    document.querySelectorAll('.tagihan-wa-grup').forEach(function (grup) {
+    function wireWaGrup(grup) {
         var btnChat = grup.querySelector('.tagihan-btn-wa-chat');
         var btnGw = grup.querySelector('.tagihan-btn-wa-gateway');
         var nama = grup.getAttribute('data-nama') || 'santri';
 
-        if (btnChat) {
+        if (btnChat && !btnChat.dataset.wired) {
+            btnChat.dataset.wired = '1';
             btnChat.addEventListener('click', function () {
                 setBtnLoading(btnChat, true);
                 fetchWaPreview(grup).then(function (data) {
@@ -113,7 +55,8 @@
             });
         }
 
-        if (btnGw) {
+        if (btnGw && !btnGw.dataset.wired) {
+            btnGw.dataset.wired = '1';
             btnGw.addEventListener('click', function () {
                 if (!confirm('Kirim tagihan via gateway ke wali ' + nama + '?')) {
                     return;
@@ -142,5 +85,154 @@
                     });
             });
         }
-    });
+    }
+
+    function wireTagihanList(root) {
+        if (!root) {
+            return;
+        }
+        root.querySelectorAll('.tagihan-wa-grup').forEach(wireWaGrup);
+    }
+
+    function loadTagihanPartial(opts) {
+        if (!form || !listRoot || partialBusy) {
+            return;
+        }
+        partialBusy = true;
+        var selStart = cari ? cari.selectionStart : null;
+        var selEnd = cari ? cari.selectionEnd : null;
+        var params = buildParams(opts);
+        var url = '?' + params.toString();
+
+        fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Tagihan-Partial': '1', Accept: 'text/html' },
+        })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('HTTP ' + r.status);
+                }
+                return r.text();
+            })
+            .then(function (html) {
+                listRoot.innerHTML = html;
+                wireTagihanList(listRoot);
+                restoreCariFocus(selStart, selEnd);
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', url);
+                }
+            })
+            .catch(function () {
+                if (form.requestSubmit) {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
+            })
+            .finally(function () {
+                partialBusy = false;
+            });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (ev) {
+            if (ev.submitter && ev.submitter.type === 'submit' && ev.submitter.closest('form') !== form) {
+                return;
+            }
+            ev.preventDefault();
+            loadTagihanPartial({ resetPage: true });
+        });
+
+        form.querySelectorAll('[data-auto-submit="1"]').forEach(function (el) {
+            el.addEventListener('change', function () {
+                loadTagihanPartial({ resetPage: true });
+            });
+        });
+    }
+
+    if (cari && form) {
+        cari.addEventListener('input', function () {
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+            debounceTimer = setTimeout(function () {
+                debounceTimer = null;
+                loadTagihanPartial({ resetPage: true });
+            }, 400);
+        });
+        cari.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = null;
+                }
+                loadTagihanPartial({ resetPage: true });
+            }
+        });
+    }
+
+    if (listRoot) {
+        listRoot.addEventListener('click', function (ev) {
+            var ringkasBtn = ev.target.closest('#btn-tagihan-ringkas');
+            if (ringkasBtn && ringkasInput && form) {
+                ev.preventDefault();
+                var on = ringkasInput.value !== '1';
+                ringkasInput.value = on ? '1' : '0';
+                loadTagihanPartial({ resetPage: false });
+                return;
+            }
+
+            var pageBtn = ev.target.closest('.tagihan-page-link');
+            if (pageBtn) {
+                ev.preventDefault();
+                var p = parseInt(pageBtn.getAttribute('data-page') || '1', 10);
+                if (p > 0) {
+                    loadTagihanPartial({ page: p });
+                }
+                return;
+            }
+
+            var detailBtn = ev.target.closest('.tagihan-btn-detail');
+            if (detailBtn) {
+                var id = detailBtn.getAttribute('data-row');
+                var row = document.getElementById('tagihan-detail-' + id);
+                if (!row) {
+                    return;
+                }
+                var open = row.classList.toggle('is-open');
+                row.classList.toggle('d-none', !open);
+                detailBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+        });
+    }
+
+    wireTagihanList(listRoot);
+
+    function fetchWaPreview(grup) {
+        var sid = grup.getAttribute('data-santri-id');
+        var bulan = grup.getAttribute('data-bulan');
+        var taMulai = grup.getAttribute('data-ta-mulai');
+        var taSelesai = grup.getAttribute('data-ta-selesai');
+        var url = apiBase + '?santri_id=' + encodeURIComponent(sid)
+            + '&bulan=' + encodeURIComponent(bulan)
+            + '&ta_mulai=' + encodeURIComponent(taMulai)
+            + '&ta_selesai=' + encodeURIComponent(taSelesai);
+        return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); });
+    }
+
+    function setBtnLoading(btn, loading) {
+        if (!btn) {
+            return;
+        }
+        btn.disabled = loading;
+        if (loading) {
+            btn.dataset.prevHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+        } else if (btn.dataset.prevHtml) {
+            btn.innerHTML = btn.dataset.prevHtml;
+            delete btn.dataset.prevHtml;
+        }
+    }
 })();

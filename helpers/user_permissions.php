@@ -255,6 +255,7 @@ function user_permission_path_map_base(): array
         '/rekap/santri_bagus.php' => 'rekap_keaktifan',
         '/pengasuh/dashboard.php' => 'rekap_keaktifan_hari',
         '/pengasuh/laporan_hari.php' => 'rekap_keaktifan_hari',
+        '/pengasuh/perizinan.php' => 'rekap_keaktifan_hari',
         '/pengasuh/sdm_hari.php' => 'rekap_keaktifan_hari',
         '/pengasuh/nilai_keaktifan.php' => 'rekap_keaktifan',
         '/rekap/index.php' => 'rekap',

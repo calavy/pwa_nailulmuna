@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/push_fcm.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
+require_once __DIR__ . '/perizinan_jenis.php';
 
 function push_event_izin_pengajuan_baru(
     PDO $pdo,
@@ -19,6 +20,29 @@ function push_event_izin_pengajuan_baru(
         'nis' => $nis,
         'jenis' => $jenisIzin,
     ], '/perizinan/index.php');
+}
+
+/** Notifikasi ke pengasuh setelah pengajuan izin (staff sudah diberi tahu terpisah). */
+function perizinan_push_setelah_pengajuan(
+    PDO $pdo,
+    string $namaSantri,
+    string $nis,
+    string $jenisKode,
+    string $tanggalMulai,
+    string $tanggalSelesai
+): void {
+    $label = jenis_izin_label($jenisKode);
+    push_event_izin_pengajuan_baru($pdo, $namaSantri, $nis, $label, $tanggalMulai, $tanggalSelesai);
+    $body = $namaSantri . ' (' . $nis . ') — ' . $label . ' ' . $tanggalMulai . ' s/d ' . $tanggalSelesai;
+    if (perizinan_memerlukan_persetujuan_pengasuh($jenisKode)) {
+        push_notify_all_kiai($pdo, 'izin_pengajuan', 'Izin syar\'i menunggu persetujuan', $body, [
+            'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+        ], '/pengasuh/perizinan.php');
+    } else {
+        push_notify_all_kiai($pdo, 'izin_pengajuan', 'Pemberitahuan izin baru', $body, [
+            'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+        ], '/perizinan/index.php');
+    }
 }
 
 function push_event_izin_disetujui_wali(
@@ -213,13 +237,17 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
     if (trim((string) app_setting($pdo, 'wa_tagihan_auto_enabled', '0')) !== '1') {
         return;
     }
-    $dueDay = max(1, min(30, (int) app_setting($pdo, 'wa_tagihan_day', '5')));
-    if ((int) date('j') !== $dueDay) {
+    require_once __DIR__ . '/wa_tagihan.php';
+    require_once __DIR__ . '/pondok_kalender.php';
+    $ctx = wa_tagihan_jadwal_context($pdo);
+    if (!$ctx['is_send_day'] || !$ctx['send_time_ok'] || $ctx['period_already_sent']) {
         return;
     }
-    $periodKey = date('Y-m');
+
+    $today = date('Y-m-d');
+    $periodKey = !empty($ctx['recurring']) ? ('push-day:' . $today) : ('push:' . (string) ($ctx['period_key'] ?? date('Y-m')));
     $lastPush = trim((string) app_setting($pdo, 'fcm_tagihan_last_period_key', ''));
-    if ($lastPush === 'push:' . $periodKey) {
+    if ($lastPush === $periodKey) {
         return;
     }
 
@@ -234,7 +262,8 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
     $stmt = $pdo->query('SELECT ' . $cols . ' FROM santri WHERE 1=1 ' . $activeExpr . ' ORDER BY id ASC LIMIT 300');
     $rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
 
-    $bulan = (int) date('n');
+    $periodeBerjalan = pondok_periode_berjalan($pdo);
+    $bulan = max(1, min(12, (int) ($periodeBerjalan['bulan'] ?? 1)));
     $periode = keuangan_tahun_ajaran_aktif($pdo);
     $tm = (int) $periode['mulai'];
     $ts = (int) $periode['selesai'];
@@ -246,7 +275,7 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
             continue;
         }
         $kat = trim((string) ($row['kelas_kategori'] ?? ''));
-        $st = tagihan_wajib_status_for_month($pdo, $sid, $bulan, $tm, $ts, $kat);
+        $st = wa_tagihan_santri_status($pdo, $sid, $kat, $bulan, $tm, $ts);
         $sisa = (int) ($st['sisa_total'] ?? 0);
         if ($sisa <= 0) {
             continue;
@@ -267,8 +296,8 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
             $sent++;
         }
     }
-    if ($rows !== []) {
-        save_setting($pdo, 'fcm_tagihan_last_period_key', 'push:' . $periodKey);
+    if ($sent > 0) {
+        save_setting($pdo, 'fcm_tagihan_last_period_key', $periodKey);
     }
 }
 

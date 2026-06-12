@@ -188,12 +188,18 @@ function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
     $stAktif->execute(['t' => $tanggal]);
     $aktif = $stAktif->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    require_once __DIR__ . '/perizinan_jenis.php';
+    $syari = perizinan_jenis_syari_kode();
+    $filterPengasuh = column_exists($pdo, 'perizinan', 'pengasuh_approved_at')
+        ? ' AND i.pengasuh_approved_at IS NULL'
+        : '';
     $stPending = $pdo->prepare("
         SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.alasan, i.created_at,
                s.{$nameCol} AS nama_santri, s.nis, s.tingkatan
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktifSql}
         WHERE i.approval_status = 'PENDING'
+          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
         ORDER BY i.created_at DESC
         LIMIT 20
     ");
@@ -201,13 +207,12 @@ function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
     $pending = $stPending->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $pendingCount = 0;
-    if ($pending !== []) {
-        $pendingCount = count($pending);
-    } elseif (column_exists($pdo, 'perizinan', 'approval_status')) {
+    if (column_exists($pdo, 'perizinan', 'approval_status')) {
         $pendingCount = (int) $pdo->query("
             SELECT COUNT(*) FROM perizinan i
             INNER JOIN santri s ON s.id = i.santri_id AND {$aktifSql}
             WHERE i.approval_status = 'PENDING'
+              AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
         ")->fetchColumn();
     }
 

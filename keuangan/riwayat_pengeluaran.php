@@ -48,6 +48,11 @@ if ($page > $totalPages) {
     $page = $totalPages;
 }
 $rows = keuangan_pengeluaran_list($pdo, $perPage, ($page - 1) * $perPage);
+$sumPage = 0;
+foreach ($rows as $r) {
+    $sumPage += (int) ($r['nominal'] ?? 0);
+}
+$sumAll = keuangan_pengeluaran_sum_nominal($pdo);
 $akunRows = keuangan_fetch_akun_aktif($pdo);
 $editId = (int) ($_GET['edit'] ?? 0);
 $editRow = $editId > 0 && $canEdit ? keuangan_pengeluaran_get($pdo, $editId) : null;
@@ -193,6 +198,20 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr><td colspan="6" class="text-center text-muted py-4">Belum ada pengeluaran.</td></tr>
                 <?php endif; ?>
                 </tbody>
+                <?php if ($rows !== []): ?>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold">
+                        <td colspan="4">Jumlah total halaman ini</td>
+                        <td class="text-end font-monospace text-danger"><?= keuangan_format_rupiah($sumPage) ?></td>
+                        <td></td>
+                    </tr>
+                    <tr class="small text-muted">
+                        <td colspan="4">Jumlah total keseluruhan (<?= $total ?> transaksi)</td>
+                        <td class="text-end font-monospace fw-semibold text-danger"><?= keuangan_format_rupiah($sumAll) ?></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                <?php endif; ?>
             </table>
         </div>
     </div>

@@ -5,6 +5,15 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
 require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/perizinan_approval.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (user_is_pengasuh_kiai()) {
+    http_response_code(403);
+    exit('Akses cetak surat tidak tersedia untuk akun pengasuh.');
+}
 
 $id = (int) ($_GET['id'] ?? 0);
 
@@ -43,8 +52,8 @@ if ($blockPrint) {
 
 $kop = pondok_kop_data($pdo);
 $namaPonpes = (string) $kop['nama_ponpes'];
-$namaPengasuhDefault = (string) $kop['nama_pengasuh'];
 $kotaPonpes = (string) $kop['kota_ponpes'];
+$pengasuhBlok = perizinan_surat_blok_pengasuh($pdo, $izin);
 $logoHref = (string) ($kop['logo_href'] ?? '');
 $jamTerbit = app_format_datetime_id(date('Y-m-d H:i:s'));
 $returnCode = trim((string) ($izin['qr_token'] ?? ''));
@@ -292,8 +301,16 @@ $nbText = $jenisIzin === 'TUGAS'
                 </div>
                 <div class="box">
                     <div>Pengasuh,</div>
-                    <div class="sign-space"></div>
-                    <div class="line"><?= htmlspecialchars($namaPengasuhDefault !== '' ? $namaPengasuhDefault : $izin['penandatangan_pengasuh']) ?></div>
+                    <?php if ($pengasuhBlok['disetujui']): ?>
+                        <div class="sign-space" style="font-size:9pt;color:#15803d;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;">
+                            <?= htmlspecialchars($pengasuhBlok['keterangan']) ?>
+                        </div>
+                        <div class="line"><?= htmlspecialchars($pengasuhBlok['nama']) ?></div>
+                        <div class="line" style="font-size:9pt;color:#475569;"><?= htmlspecialchars($pengasuhBlok['waktu']) ?></div>
+                    <?php else: ?>
+                        <div class="sign-space"></div>
+                        <div class="line"><?= htmlspecialchars($pengasuhBlok['nama'] !== '' ? $pengasuhBlok['nama'] : '(_____________________)') ?></div>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="return-box">

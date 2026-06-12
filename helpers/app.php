@@ -2403,6 +2403,13 @@ function tagihan_wajib_paid_for_month(PDO $pdo, int $santriId, int $bulanTagihan
  */
 function tagihan_wajib_status_for_month(PDO $pdo, int $santriId, int $bulanTagihan, int $tahunAjaranMulai, int $tahunAjaranSelesai, string $kelasKategori): array
 {
+    if (!function_exists('tagihan_bulan_dibebankan')) {
+        require_once __DIR__ . '/tagihan_santri_masuk.php';
+    }
+    if (!tagihan_bulan_dibebankan($pdo, $santriId, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)) {
+        return tagihan_wajib_status_kosong();
+    }
+
     $perPos = [];
     $expectedTotal = 0;
     $paidTotal = 0;
@@ -2549,9 +2556,13 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
         return ['ok' => false, 'sent' => 0, 'skipped' => 0, 'message' => 'Tidak ada santri dengan nomor WA wali.'];
     }
 
-    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
-    $paidMap = $tagihanCtx['paid_map'];
-    $syCtx = $tagihanCtx['sy_ctx'];
+    if (!function_exists('wa_tagihan_santri_status')) {
+        require_once __DIR__ . '/wa_tagihan.php';
+    }
+    $kumulatif = wa_tagihan_kumulatif_enabled($pdo);
+    $tagihanCtx = $kumulatif ? null : tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $paidMap = $tagihanCtx['paid_map'] ?? null;
+    $syCtx = $tagihanCtx['sy_ctx'] ?? null;
     $sent = 0;
     $skipped = 0;
     foreach ($santriRows as $row) {
@@ -2565,24 +2576,14 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
             $skipped++;
             continue;
         }
-        $st = tagihan_wajib_status_for_month_bulk(
-            $pdo,
-            $santriId,
-            $bulanTagihan,
-            $tahunAjaranMulai,
-            $tahunAjaranSelesai,
-            $kelas,
-            $paidMap,
-            $syCtx
-        );
+        $st = wa_tagihan_santri_status($pdo, $santriId, $kelas, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai, $paidMap, $syCtx);
         $sisa = (int) ($st['sisa_total'] ?? 0);
         if ($sisa <= 0) {
             $skipped++;
             continue;
         }
         $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
-        $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
-        $message = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
+        $message = wa_tagihan_format_pesan_santri($pdo, $nama, $components, $st);
         if (send_wa_message($pdo, (string) ($row['no_wa_wali'] ?? ''), $message)) {
             $sent++;
         }
@@ -2641,8 +2642,16 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     if ($phone === '') {
         return ['ok' => false, 'message' => 'Nomor WA wali kosong.', 'error' => 'Nomor WA wali kosong.', 'phone' => '', 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
-    $tagihanCtx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
+    if (!function_exists('wa_tagihan_santri_status')) {
+        require_once __DIR__ . '/wa_tagihan.php';
+    }
+    $kumulatif = wa_tagihan_kumulatif_enabled($pdo);
+    $tagihanCtx = $kumulatif ? null : tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     $tingkatanMap = $tagihanCtx['tingkatan_map'] ?? null;
+    if (!is_array($tingkatanMap) && function_exists('santri_tingkatan_map_for_ta')) {
+        require_once __DIR__ . '/santri_ta.php';
+        $tingkatanMap = santri_tingkatan_map_for_ta($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    }
     if (!function_exists('keuangan_santri_kelas_tagihan')) {
         require_once __DIR__ . '/santri_ta.php';
     }
@@ -2654,24 +2663,23 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
         $row,
         is_array($tingkatanMap) ? $tingkatanMap : null
     );
-    $stTag = tagihan_wajib_status_for_month_bulk(
+    $stTag = wa_tagihan_santri_status(
         $pdo,
         $santriId,
+        $kelas,
         $bulanTagihan,
         $tahunAjaranMulai,
         $tahunAjaranSelesai,
-        $kelas,
-        $tagihanCtx['paid_map'],
-        $tagihanCtx['sy_ctx']
+        $tagihanCtx['paid_map'] ?? null,
+        $tagihanCtx['sy_ctx'] ?? null
     );
     $sisa = (int) ($stTag['sisa_total'] ?? 0);
     if ($sisa <= 0) {
         return ['ok' => false, 'message' => 'Tagihan wajib sudah lunas.', 'error' => 'Tagihan wajib sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
     $components = keuangan_tagihan_wajib_components($pdo, $kelas);
-    $labelKekurangan = wa_tagihan_label_kekurangan($components, $stTag['per_pos'] ?? []);
     $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
-    $pesan = wa_format_tagihan_otomatis_wali($pdo, $nama, $labelKekurangan, $sisa);
+    $pesan = wa_tagihan_format_pesan_santri($pdo, $nama, $components, $stTag);
 
     return [
         'ok' => true,
@@ -2964,6 +2972,7 @@ function jenis_izin_label(string $jenis): string
         'KELUAR' => 'Keluar',
         'TUGAS' => 'Tugas',
         'PULANG' => 'Tugas',
+        'SYARI' => 'Izin Syar\'i',
         default => $jenis !== '' ? $jenis : 'Keluar',
     };
 }
@@ -3006,8 +3015,13 @@ function wa_tagihan_label_kekurangan(array $components, array $perPos): string
 }
 
 /** Teks WA otomatis tagihan kekurangan ke wali (bahasa Jawa sopan). */
-function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $labelKekurangan, int $totalSisa): string
-{
+function wa_format_tagihan_otomatis_wali(
+    PDO $pdo,
+    string $namaSantri,
+    string $labelKekurangan,
+    int $totalSisa,
+    string $periodeTagihan = ''
+): string {
     if (!function_exists('wa_template_render')) {
         require_once __DIR__ . '/wa_templates.php';
     }
@@ -3020,6 +3034,8 @@ function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $l
         'Bertanggung jawab atas administrasi keuangan dan tagihan santri.'
     ));
     $ketKeuanganLine = $ketKeuangan !== '' ? "\n_" . $ketKeuangan . "_\n" : "\n";
+    $periode = trim($periodeTagihan);
+    $periodeSnippet = $periode !== '' ? ' untuk periode *' . $periode . '*' : '';
 
     return wa_template_render($pdo, 'tagihan_wali', [
         'nama_santri' => $nama,
@@ -3027,6 +3043,7 @@ function wa_format_tagihan_otomatis_wali(PDO $pdo, string $namaSantri, string $l
         'label_kekurangan' => $labelKekurangan,
         'total_sisa' => '*' . $totalFmt . '*',
         'keterangan_keuangan' => $ketKeuanganLine,
+        'periode_tagihan' => $periodeSnippet,
     ]);
 }
 
@@ -3344,6 +3361,9 @@ function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap,
     if ($role === 'kiai' && !in_array('/pengasuh/laporan_hari.php', $candidates, true)) {
         $candidates[] = '/pengasuh/laporan_hari.php';
     }
+    if ($role === 'kiai' && !in_array('/pengasuh/perizinan.php', $candidates, true)) {
+        $candidates[] = '/pengasuh/perizinan.php';
+    }
     if ($role === 'kiai' && !in_array('/pengasuh/nilai_keaktifan.php', $candidates, true)) {
         $candidates[] = '/pengasuh/nilai_keaktifan.php';
     }
@@ -3524,9 +3544,21 @@ function app_menu_acl_lookup_path(string $path, array $permissionPathMap): strin
     return $path;
 }
 
+/** Pengasuh (kiai): sembunyikan menu pengajuan izin saja; modul lain tetap. */
+function filter_menu_items_hide_kiai_permohonan_izin(array $menuItems): array
+{
+    if (strtolower((string) ($_SESSION['user']['role'] ?? '')) !== 'kiai') {
+        return $menuItems;
+    }
+    unset($menuItems['/perizinan/permohonan.php']);
+
+    return $menuItems;
+}
+
 function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionPathMap): array
 {
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
+
     $menuSig = md5(implode('|', array_keys($menuItems)));
     $cacheKey = 'menu_items_acl_' . $userId;
     $sigKey = 'menu_items_acl_sig_' . $userId;
@@ -3536,12 +3568,12 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
         && is_array($_SESSION[$cacheKey])
         && (string) $_SESSION[$sigKey] === $menuSig
     ) {
-        return $_SESSION[$cacheKey];
+        return filter_menu_items_hide_kiai_permohonan_izin($_SESSION[$cacheKey]);
     }
 
     $allowedMap = get_allowed_permission_key_map($pdo);
     if ($allowedMap === null) {
-        return $menuItems;
+        return filter_menu_items_hide_kiai_permohonan_izin($menuItems);
     }
 
     $filtered = array_filter(
@@ -3565,6 +3597,7 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
         },
         ARRAY_FILTER_USE_BOTH
     );
+    $filtered = filter_menu_items_hide_kiai_permohonan_izin($filtered);
     if ($userId > 0) {
         $_SESSION[$cacheKey] = $filtered;
         $_SESSION[$sigKey] = $menuSig;

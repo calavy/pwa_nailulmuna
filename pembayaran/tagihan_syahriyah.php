@@ -65,12 +65,14 @@ if ($filterStatus === 'harus_bayar') {
 
 $sumTagihan = 0;
 $sumBayar = 0;
+$sumSisa = 0;
 $countLunas = 0;
 $countBelum = 0;
 $countSebagian = 0;
 foreach ($body as $r) {
     $sumTagihan += (int) ($r['tagihan'] ?? 0);
     $sumBayar += min((int) ($r['bayar'] ?? 0), (int) ($r['tagihan'] ?? 0));
+    $sumSisa += (int) ($r['sisa'] ?? 0);
     $status = (string) ($r['status'] ?? '');
     if ($status === 'Lunas') {
         $countLunas++;
@@ -119,6 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim
     $res = wa_tagihan_jalankan_kirim($pdo, true, $bulanTagihan);
     set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
     header('Location: ' . app_href('/pembayaran/tagihan_syahriyah.php?' . http_build_query(array_merge($queryBase, ['page' => $page]))));
+    exit;
+}
+
+if (strtoupper(trim((string) ($_SERVER['HTTP_X_TAGIHAN_PARTIAL'] ?? ''))) === '1') {
+    header('Content-Type: text/html; charset=utf-8');
+    require __DIR__ . '/partials/tagihan_syahriyah_list_block.php';
     exit;
 }
 
@@ -191,7 +199,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
     </div>
     <div class="col-12 col-md-3">
         <label class="form-label small mb-0">Cari nama / NIS</label>
-        <input class="form-control form-control-sm" type="search" name="q" id="tagihan-cari" value="<?= htmlspecialchars($q) ?>" placeholder="Ketik lalu Enter atau tunggu…" autocomplete="off">
+        <input class="form-control form-control-sm" type="search" name="q" id="tagihan-cari" value="<?= htmlspecialchars($q) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off">
     </div>
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Per halaman</label>
@@ -206,202 +214,10 @@ $iconTagihan = bendahara_page_icon('tagihan');
         <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-filter me-1"></i> Filter</button>
     </div>
 </form>
-<p class="small text-muted mb-2">
-    Menampilkan <strong><?= $totalRows ?></strong> santri
-    <?php if ($filterStatus === 'harus_bayar'): ?>(belum lunas tagihan wajib)<?php endif; ?>
-    · halaman <?= $page ?> / <?= $totalPages ?>
-    <?php if (count($bodyAll) !== $totalRows): ?>
-        · dari <?= count($bodyAll) ?> santri aktif
-    <?php endif; ?>
-    <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="btn-tagihan-ringkas" aria-pressed="<?= $ringkas ? 'true' : 'false' ?>">
-        <?= $ringkas ? 'Tampilkan detail kolom' : 'Mode ringkas' ?>
-    </button>
-    <form method="post" class="d-inline ms-2" onsubmit="return confirm('Kirim WA tagihan ke wali santri yang masih punya tagihan belum lunas? (Tidak mengganggu jadwal otomatis.)')">
-        <input type="hidden" name="action" value="kirim_wa_tagihan">
-        <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i>Kirim WA tagihan</button>
-    </form>
-</p>
 
-<div class="row g-2 mb-3">
-    <div class="col-6 col-md-3">
-        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-tagihan">
-            <div class="app-mini-stat-label">Total tagihan (filter)</div>
-            <div class="app-mini-stat-value">Rp <?= number_format($sumTagihan, 0, ',', '.') ?></div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-bayar">
-            <div class="app-mini-stat-label">Terpenuhi</div>
-            <div class="app-mini-stat-value text-success">Rp <?= number_format($sumBayar, 0, ',', '.') ?></div>
-        </div>
-    </div>
-    <div class="col-4 col-md-2">
-        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-lunas">
-            <div class="app-mini-stat-label">Lunas</div>
-            <div class="app-mini-stat-value"><?= $countLunas ?></div>
-        </div>
-    </div>
-    <div class="col-4 col-md-2">
-        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-belum">
-            <div class="app-mini-stat-label">Belum</div>
-            <div class="app-mini-stat-value text-danger"><?= $countBelum ?></div>
-        </div>
-    </div>
-    <div class="col-4 col-md-2">
-        <div class="app-mini-stat h-100 bendahara-stat-icon bendahara-stat-sebagian">
-            <div class="app-mini-stat-label">Sebagian</div>
-            <div class="app-mini-stat-value text-warning"><?= $countSebagian ?></div>
-        </div>
-    </div>
+<div id="tagihan-list-root">
+<?php require __DIR__ . '/partials/tagihan_syahriyah_list_block.php'; ?>
 </div>
-
-<div class="card shadow-sm tagihan-list-card<?= $ringkas ? ' tagihan-list-card--ringkas' : '' ?>">
-    <div class="card-body p-0 app-table-mobile">
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle mb-0 tagihan-santri-table" id="tabel-tagihan">
-                <thead class="table-light">
-                    <tr>
-                        <th>NIS</th>
-                        <th>Nama</th>
-                        <th class="tagihan-col-detail">Kelas</th>
-                        <th class="text-end">Sisa wajib</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-end" style="min-width:11rem">WA / Bayar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if ($bodyPage === []): ?>
-                    <tr><td colspan="6" class="text-muted text-center py-4">Tidak ada data atau tidak cocok filter.</td></tr>
-                <?php endif; ?>
-                <?php foreach ($bodyPage as $r): ?>
-                    <?php
-                    $kkDisp = trim((string) ($r['kategori'] ?? ''));
-                    $kelasLabel = $kkDisp === ''
-                        ? (string) ($r['tingkatan'] !== '' ? $r['tingkatan'] : '—')
-                        : ($kelasLabels[strtoupper($kkDisp)] ?? $kkDisp);
-                    $hasOps = (int) ($r['mk_expected'] ?? 0) > 0 || (int) ($r['sk_expected'] ?? 0) > 0;
-                    ?>
-                    <tr class="tagihan-row" data-id="<?= (int) $r['id'] ?>">
-                        <td class="font-monospace small"><?= htmlspecialchars((string) $r['nis']) ?></td>
-                        <td>
-                            <span class="fw-semibold"><?= htmlspecialchars((string) $r['nama']) ?></span>
-                            <?php if ($hasOps && $ringkas): ?>
-                                <span class="badge text-bg-light text-dark border ms-1" style="font-size:.65rem">+opsional</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="small tagihan-col-detail"><?= htmlspecialchars($kelasLabel) ?></td>
-                        <td class="text-end font-monospace small fw-semibold <?= (int) $r['sisa'] > 0 ? 'text-danger' : 'text-success' ?>">
-                            <?= (int) $r['sisa'] > 0 ? 'Rp ' . number_format((int) $r['sisa'], 0, ',', '.') : '—' ?>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge text-bg-<?= htmlspecialchars((string) $r['statusClass']) ?>"><?= htmlspecialchars((string) $r['status']) ?></span>
-                        </td>
-                        <td class="text-end text-nowrap">
-                            <button type="button" class="btn btn-sm btn-outline-secondary tagihan-btn-detail d-none d-md-inline-flex" data-row="<?= (int) $r['id'] ?>" title="Detail">
-                                <i class="fa-solid fa-chevron-down"></i>
-                            </button>
-                            <?php
-                            $punyaTagihan = (int) ($r['sisa'] ?? 0) > 0;
-                            $punyaWa = trim((string) ($r['no_wa_wali'] ?? '')) !== '';
-                            ?>
-                            <?php if ($punyaTagihan && $punyaWa): ?>
-                                <div class="btn-group btn-group-sm tagihan-wa-grup" role="group"
-                                    data-santri-id="<?= (int) $r['id'] ?>"
-                                    data-bulan="<?= (int) $bulanTagihan ?>"
-                                    data-ta-mulai="<?= (int) $tahunAjaranMulai ?>"
-                                    data-ta-selesai="<?= (int) $tahunAjaranSelesai ?>"
-                                    data-nama="<?= htmlspecialchars((string) $r['nama'], ENT_QUOTES) ?>">
-                                    <button type="button" class="btn btn-success tagihan-btn-wa-chat" title="Buka WhatsApp dengan teks tagihan">
-                                        <i class="fa-brands fa-whatsapp me-1"></i><span class="d-none d-lg-inline">WA</span>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-success tagihan-btn-wa-gateway" title="Kirim otomatis via gateway">
-                                        <i class="fa-solid fa-paper-plane"></i>
-                                    </button>
-                                </div>
-                            <?php elseif ($punyaTagihan): ?>
-                                <span class="badge text-bg-warning text-dark" title="Isi nomor WA wali di data santri">Tanpa no. WA</span>
-                            <?php endif; ?>
-                            <a class="btn btn-sm btn-outline-primary" href="/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
-                        </td>
-                    </tr>
-                    <tr class="tagihan-row-detail d-none" id="tagihan-detail-<?= (int) $r['id'] ?>" data-parent="<?= (int) $r['id'] ?>">
-                        <td colspan="6" class="small bg-light py-2">
-                            <div class="row g-2">
-                                <div class="col-md-4">
-                                    <strong class="text-success">Wajib · Syahriyah</strong>
-                                    <?php if ((int) $r['sy_expected'] > 0): ?>
-                                        <div>Sisa: <strong>Rp <?= number_format((int) $r['sy_sisa'], 0, ',', '.') ?></strong>
-                                            <span class="text-muted">/ Rp <?= number_format((int) $r['sy_expected'], 0, ',', '.') ?></span></div>
-                                        <?php if (!empty($r['sy_dijeda'])): ?>
-                                            <div class="text-secondary">Potongan dijeda (tarif penuh)</div>
-                                        <?php elseif ($r['sy_persen'] > 0 && $r['sy_ket_potongan'] !== ''): ?>
-                                            <div class="text-warning">Potongan <?= rtrim(rtrim(number_format((float) $r['sy_persen'], 1, ',', '.'), '0'), ',') ?>% · <?= htmlspecialchars((string) $r['sy_ket_potongan']) ?></div>
-                                        <?php endif; ?>
-                                        <?php if ((int) ($r['sy_pkpps'] ?? 0) > 0): ?>
-                                            <div class="text-info">Tambahan PKPPS: Rp <?= number_format((int) $r['sy_pkpps'], 0, ',', '.') ?></div>
-                                        <?php endif; ?>
-                                    <?php else: ?>
-                                        <div class="text-muted">Tidak ada tarif</div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="col-md-4">
-                                    <strong class="text-info">Opsional · Makan</strong>
-                                    <?php if ((int) $r['mk_expected'] > 0): ?>
-                                        <div>Sisa: Rp <?= number_format((int) $r['mk_sisa'], 0, ',', '.') ?>
-                                            <span class="text-muted">/ Rp <?= number_format((int) $r['mk_expected'], 0, ',', '.') ?></span></div>
-                                    <?php else: ?>
-                                        <div class="text-muted">—</div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="col-md-4">
-                                    <strong class="text-info">Opsional · Saku</strong>
-                                    <?php if ((int) $r['sk_expected'] > 0): ?>
-                                        <div>Sisa: Rp <?= number_format((int) $r['sk_sisa'], 0, ',', '.') ?>
-                                            <span class="text-muted">/ Rp <?= number_format((int) $r['sk_expected'], 0, ',', '.') ?></span></div>
-                                    <?php else: ?>
-                                        <div class="text-muted">—</div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <?php if (!$ringkas): ?>
-                            <div class="mt-1 text-muted">Terbayar wajib: Rp <?= number_format(min((int) $r['bayar'], (int) $r['tagihan']), 0, ',', '.') ?> · Tier <?= htmlspecialchars((string) $r['tier']) ?></div>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<?php if ($totalPages > 1): ?>
-<nav class="mt-3 d-flex flex-wrap justify-content-center gap-1" aria-label="Halaman tagihan">
-    <?php
-    $pageWindow = 5;
-    $startP = max(1, $page - (int) floor($pageWindow / 2));
-    $endP = min($totalPages, $startP + $pageWindow - 1);
-    $startP = max(1, $endP - $pageWindow + 1);
-    if ($page > 1):
-        $prevQ = $queryBase;
-        $prevQ['page'] = $page - 1;
-        ?>
-        <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($prevQ)) ?>">«</a>
-    <?php endif;
-    for ($p = $startP; $p <= $endP; $p++):
-        $pq = $queryBase;
-        $pq['page'] = $p;
-        ?>
-        <a class="btn btn-sm <?= $p === $page ? 'btn-primary' : 'btn-outline-secondary' ?>" href="?<?= htmlspecialchars(http_build_query($pq)) ?>"><?= $p ?></a>
-    <?php endfor;
-    if ($page < $totalPages):
-        $nextQ = $queryBase;
-        $nextQ['page'] = $page + 1;
-        ?>
-        <a class="btn btn-sm btn-outline-secondary" href="?<?= htmlspecialchars(http_build_query($nextQ)) ?>">»</a>
-    <?php endif; ?>
-</nav>
-<?php endif; ?>
 
 <link rel="stylesheet" href="<?= htmlspecialchars(app_href('/assets/css/tagihan-list.css')) ?>">
 <script>

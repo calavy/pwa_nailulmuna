@@ -15,12 +15,12 @@ function wa_template_definitions(): array
         'tagihan_wali' => [
             'label' => 'Tagihan syahriyah ke wali',
             'hint' => 'Dikirim otomatis / manual ke wali santri yang masih punya tagihan.',
-            'placeholders' => '{nama_santri}, {nama_ponpes}, {label_kekurangan}, {total_sisa}, {keterangan_keuangan}',
+            'placeholders' => '{nama_santri}, {nama_ponpes}, {label_kekurangan}, {total_sisa}, {periode_tagihan}, {keterangan_keuangan}',
             'default' => "Assalamu'alaikum Wr. Wb.\n"
                 . 'Nyuwun pangapunten, kepareng matur dateng Bpk/Ibu wali saking *{nama_santri}*\n'
                 . 'Atasnama Pengurus *{nama_ponpes}* *Pengurus Bidang Keuangan*,\n'
                 . '{keterangan_keuangan}'
-                . 'memberitahukan bahwa putra/putri Bapak/Ibu masih mempunyai kekurangan '
+                . 'memberitahukan bahwa putra/putri Bapak/Ibu masih mempunyai kekurangan{periode_tagihan} '
                 . '{label_kekurangan}, dan jumlah total *{total_sisa}*.\n'
                 . 'Berkenaan dengan hal tersebut, kami mohon maaf baru saat ini dapat melaporkan kepada Bapak/Ibu. '
                 . 'Atas pengertian dan kerja samanya kami ucapkan terima kasih 🙏.',

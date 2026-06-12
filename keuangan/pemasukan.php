@@ -36,6 +36,10 @@ if ($defaultAkunId <= 0 && $akunRows !== []) {
 }
 
 $recentRows = keuangan_recent_pemasukan($pdo, 20);
+$sumRecent = 0;
+foreach ($recentRows as $pr) {
+    $sumRecent += (int) round((float) ($pr['nominal'] ?? 0));
+}
 
 $pageTitle = 'Input Pemasukan Lain';
 $bodyClass = keuangan_body_class('keuangan-form-page');
@@ -148,6 +152,14 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                         <?php endif; ?>
                         </tbody>
+                        <?php if ($recentRows !== []): ?>
+                        <tfoot class="table-light">
+                            <tr class="fw-semibold">
+                                <td colspan="2">Jumlah total (<?= count($recentRows) ?> entri)</td>
+                                <td class="text-end"><?= htmlspecialchars($formatRupiah($sumRecent)) ?></td>
+                            </tr>
+                        </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>

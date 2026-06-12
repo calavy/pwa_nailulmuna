@@ -54,9 +54,8 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
         return ['ok' => false, 'message' => 'Izin rombongan minimal 2 santri.'];
     }
 
-    $jenisIzin = in_array(strtoupper((string) ($post['jenis_izin'] ?? '')), ['SAKIT', 'KELUAR', 'TUGAS', 'PULANG'], true)
-        ? strtoupper((string) $post['jenis_izin'])
-        : 'KELUAR';
+    require_once __DIR__ . '/perizinan_jenis.php';
+    $jenisIzin = perizinan_jenis_izin_normalize((string) ($post['jenis_izin'] ?? 'KELUAR'));
     if ($jenisIzin === 'SAKIT') {
         return ['ok' => false, 'message' => 'Izin rombongan tidak untuk jenis sakit — gunakan izin per santri + E-Health.'];
     }
@@ -284,6 +283,16 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $nama = (string) ($ang['nama_santri'] ?? 'Santri #' . $sid);
 
             return ['ok' => false, 'message' => $nama . ': ' . $alpaErr];
+        }
+    }
+    if (perizinan_memerlukan_persetujuan_pengasuh($jenisIzin) && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
+        $stPengasuh = $pdo->prepare('
+            SELECT COUNT(*) FROM perizinan
+            WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL
+        ');
+        $stPengasuh->execute(['rid' => $rombonganId]);
+        if ((int) ($stPengasuh->fetchColumn() ?: 0) > 0) {
+            return ['ok' => false, 'message' => 'Izin syar\'i rombongan belum disetujui pengasuh. Minta pengasuh meninjau terlebih dahulu.'];
         }
     }
 

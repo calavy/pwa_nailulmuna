@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/perizinan_jenis.php';
 require_once __DIR__ . '/entity_list_sort.php';
 require_once __DIR__ . '/wa_templates.php';
 require_once __DIR__ . '/push_fcm.php';
@@ -42,6 +43,16 @@ function perizinan_approval_ensure_schema(PDO $pdo): void
             /* abaikan */
         }
     }
+
+    if (table_exists($pdo, 'perizinan') && !column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
+        try {
+            $pdo->exec('ALTER TABLE perizinan ADD COLUMN pengasuh_approved_by INT NULL DEFAULT NULL');
+            $pdo->exec('ALTER TABLE perizinan ADD COLUMN pengasuh_approved_at DATETIME NULL DEFAULT NULL');
+        } catch (PDOException $e) {
+            /* abaikan */
+        }
+    }
+    perizinan_jenis_ensure_enum($pdo);
 }
 
 /**
@@ -920,4 +931,199 @@ function perizinan_validasi_setujui_alpa(PDO $pdo, int $santriId, string $jenisI
     }
 
     return (string) ($cek['message'] ?? 'Tidak memenuhi syarat ALPA untuk disetujui.');
+}
+
+function user_is_pengasuh_kiai(): bool
+{
+    return strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'kiai';
+}
+
+/** Pengasuh tidak mengajukan izin — arahkan ke halaman persetujuan. */
+function perizinan_redirect_kiai_dari_permohonan(): void
+{
+    if (!user_is_pengasuh_kiai() || (function_exists('is_super_admin') && is_super_admin())) {
+        return;
+    }
+    require_once __DIR__ . '/app_path.php';
+    header('Location: ' . app_href('/pengasuh/perizinan.php'));
+    exit;
+}
+
+/**
+ * Blok tampilan pengasuh pada surat cetak.
+ *
+ * @param array<string, mixed> $izin
+ * @return array{disetujui:bool,keterangan:string,nama:string,waktu:string}
+ */
+function perizinan_surat_blok_pengasuh(PDO $pdo, array $izin): array
+{
+    require_once __DIR__ . '/pondok_cetak.php';
+    $kop = pondok_kop_data($pdo);
+    $namaDefault = trim((string) ($kop['nama_pengasuh'] ?? ''));
+    $perluPersetujuan = perizinan_memerlukan_persetujuan_pengasuh((string) ($izin['jenis_izin'] ?? ''));
+    $approvedAt = trim((string) ($izin['pengasuh_approved_at'] ?? ''));
+    if ($perluPersetujuan && $approvedAt !== '') {
+        $nama = $namaDefault;
+        $byId = (int) ($izin['pengasuh_approved_by'] ?? 0);
+        if ($byId > 0 && table_exists($pdo, 'users')) {
+            $st = $pdo->prepare('SELECT nama_lengkap, username FROM users WHERE id = :id LIMIT 1');
+            $st->execute(['id' => $byId]);
+            $u = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($u)) {
+                $namaUser = trim((string) ($u['nama_lengkap'] ?? ''));
+                if ($namaUser === '') {
+                    $namaUser = trim((string) ($u['username'] ?? ''));
+                }
+                if ($namaUser !== '') {
+                    $nama = $namaUser;
+                }
+            }
+        }
+
+        return [
+            'disetujui' => true,
+            'keterangan' => 'Telah disetujui pengasuh',
+            'nama' => $nama !== '' ? $nama : '(Pengasuh)',
+            'waktu' => app_format_datetime_id($approvedAt),
+        ];
+    }
+
+    return [
+        'disetujui' => false,
+        'keterangan' => '',
+        'nama' => $namaDefault !== '' ? $namaDefault : trim((string) ($izin['penandatangan_pengasuh'] ?? '')),
+        'waktu' => '',
+    ];
+}
+
+/** @return array{disetujui:bool,keterangan:string,nama:string,waktu:string} */
+function perizinan_rombongan_surat_blok_pengasuh(PDO $pdo, int $rombonganId, array $meta = []): array
+{
+    perizinan_approval_ensure_schema($pdo);
+    if ($rombonganId <= 0 || !table_exists($pdo, 'perizinan') || !column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
+        return perizinan_surat_blok_pengasuh($pdo, $meta);
+    }
+    $st = $pdo->prepare('
+        SELECT pengasuh_approved_by, pengasuh_approved_at
+        FROM perizinan
+        WHERE rombongan_id = :rid AND pengasuh_approved_at IS NOT NULL
+        ORDER BY pengasuh_approved_at DESC
+        LIMIT 1
+    ');
+    $st->execute(['rid' => $rombonganId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $blok = is_array($row) ? $row : [];
+    $blok['jenis_izin'] = (string) ($meta['jenis_izin'] ?? '');
+
+    return perizinan_surat_blok_pengasuh($pdo, $blok);
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId): array
+{
+    perizinan_approval_ensure_schema($pdo);
+    if ($izinId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'message' => 'Data tidak valid.'];
+    }
+    $st = $pdo->prepare('
+        SELECT id, approval_status, pengasuh_approved_at, jenis_izin
+        FROM perizinan
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return ['ok' => false, 'message' => 'Permohonan izin tidak ditemukan.'];
+    }
+    if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($row['jenis_izin'] ?? ''))) {
+        return ['ok' => false, 'message' => 'Hanya izin syar\'i yang memerlukan persetujuan pengasuh di menu ini.'];
+    }
+    if (strtoupper((string) ($row['approval_status'] ?? '')) !== 'PENDING') {
+        return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat disetujui pengasuh.'];
+    }
+    if (trim((string) ($row['pengasuh_approved_at'] ?? '')) !== '') {
+        return ['ok' => false, 'message' => 'Permohonan ini sudah disetujui pengasuh.'];
+    }
+    $up = $pdo->prepare("
+        UPDATE perizinan
+        SET pengasuh_approved_by = :uid, pengasuh_approved_at = NOW()
+        WHERE id = :id AND approval_status = 'PENDING' AND pengasuh_approved_at IS NULL
+    ");
+    $up->execute(['uid' => $userId, 'id' => $izinId]);
+    if ($up->rowCount() < 1) {
+        return ['ok' => false, 'message' => 'Gagal menyimpan persetujuan pengasuh.'];
+    }
+
+    return ['ok' => true, 'message' => 'Persetujuan pengasuh tersimpan. Menunggu persetujuan pengurus.'];
+}
+
+/**
+ * @return array{ok:bool,message:string,jumlah:int}
+ */
+function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $userId): array
+{
+    perizinan_approval_ensure_schema($pdo);
+    require_once __DIR__ . '/perizinan_rombongan.php';
+    if ($rombonganId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'message' => 'Data tidak valid.', 'jumlah' => 0];
+    }
+    $meta = perizinan_rombongan_meta($pdo, $rombonganId);
+    if (!$meta) {
+        return ['ok' => false, 'message' => 'Data rombongan tidak ditemukan.', 'jumlah' => 0];
+    }
+    if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($meta['jenis_izin'] ?? ''))) {
+        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang memerlukan persetujuan pengasuh.', 'jumlah' => 0];
+    }
+    $syari = perizinan_jenis_syari_kode();
+    $up = $pdo->prepare("
+        UPDATE perizinan
+        SET pengasuh_approved_by = :uid, pengasuh_approved_at = NOW()
+        WHERE rombongan_id = :rid
+          AND approval_status = 'PENDING'
+          AND pengasuh_approved_at IS NULL
+          AND UPPER(TRIM(jenis_izin)) = '{$syari}'
+    ");
+    $up->execute(['uid' => $userId, 'rid' => $rombonganId]);
+    $jumlah = $up->rowCount();
+    if ($jumlah < 1) {
+        return ['ok' => false, 'message' => 'Tidak ada permohonan rombongan yang menunggu persetujuan pengasuh.', 'jumlah' => 0];
+    }
+
+    return ['ok' => true, 'message' => 'Persetujuan pengasuh rombongan tersimpan (' . $jumlah . ' santri).', 'jumlah' => $jumlah];
+}
+
+/**
+ * Daftar permohonan menunggu persetujuan pengasuh.
+ *
+ * @return list<array<string, mixed>>
+ */
+function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
+{
+    perizinan_approval_ensure_schema($pdo);
+    if (!table_exists($pdo, 'perizinan') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    require_once __DIR__ . '/santri_operasional.php';
+    $aktif = santri_sql_aktif_only('s');
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $syari = perizinan_jenis_syari_kode();
+    $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
+    $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
+    $limit = max(1, min(200, $limit));
+    $st = $pdo->query("
+        SELECT i.id, i.santri_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai,
+               i.jam_mulai, i.jam_selesai, i.alasan, i.created_at, i.rombongan_id,
+               s.{$nameCol} AS nama_santri, s.nis, s.tingkatan
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
+        WHERE i.approval_status = 'PENDING'
+          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+        ORDER BY i.created_at DESC
+        LIMIT {$limit}
+    ");
+
+    return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }

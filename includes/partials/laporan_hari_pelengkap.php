@@ -158,8 +158,8 @@ $telatIzin = $telatData['izin'] ?? [];
     <?php if ((int) ($perizinanHari['pending_count'] ?? 0) > 0): ?>
         <div class="alert alert-warning py-2 small mb-3">
             <i class="fa-solid fa-hourglass-half me-1"></i>
-            <strong><?= (int) $perizinanHari['pending_count'] ?></strong> pengajuan izin menunggu persetujuan.
-            <a href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>" class="alert-link ms-1">Tinjau</a>
+            <strong><?= (int) $perizinanHari['pending_count'] ?></strong> pengajuan izin menunggu persetujuan pengasuh.
+            <a href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>" class="alert-link ms-1">Tinjau</a>
         </div>
     <?php endif; ?>
     <?php if (($perizinanHari['aktif'] ?? []) === []): ?>

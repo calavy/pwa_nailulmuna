@@ -18,8 +18,6 @@ $pdo->exec('
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
 tingkatan_ensure_urutan_column($pdo);
 
-pkpps_sync_from_kelas_keuangan($pdo);
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'save_pkpps_syahriyah') {
@@ -218,7 +216,7 @@ $pkppsRows = pkpps_tingkatan_list($pdo, false);
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
             <h2 class="h6 mb-0 fw-bold">Tingkatan PKPPS</h2>
-            <p class="small text-muted mb-0">Disinkronkan dari kelas keuangan · dipakai data santri PKPPS &amp; jadwal khusus.</p>
+            <p class="small text-muted mb-0">Disinkronkan dari kelas keuangan (klik <em>Sinkron ulang</em>) · status aktif dapat diubah manual dan akan tetap tersimpan.</p>
         </div>
         <form method="post" class="m-0">
             <input type="hidden" name="action" value="sync_pkpps">

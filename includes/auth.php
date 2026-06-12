@@ -78,7 +78,8 @@ function auth_redirect_access_denied(): void
         if (!app_acl_request_paths_equal($requestPath, '/pengasuh/dashboard.php')
             && !app_acl_request_paths_equal($requestPath, '/pengasuh/laporan_hari.php')
             && !app_acl_request_paths_equal($requestPath, '/pengasuh/nilai_keaktifan.php')
-            && !app_acl_request_paths_equal($requestPath, '/pengasuh/sdm_hari.php')) {
+            && !app_acl_request_paths_equal($requestPath, '/pengasuh/sdm_hari.php')
+            && !app_acl_request_paths_equal($requestPath, '/pengasuh/perizinan.php')) {
             app_redirect('pengasuh/dashboard.php');
         }
     }
@@ -368,6 +369,11 @@ function user_can_access_permission_key(string $permissionKey): bool
     if (!function_exists('get_allowed_permission_key_map')) {
         return false;
     }
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'kiai' && $permissionKey === 'perizinan_permohonan') {
+        return false;
+    }
+
     $allowed = get_allowed_permission_key_map($pdo);
     if ($allowed === null) {
         return true;

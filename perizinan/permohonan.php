@@ -6,8 +6,12 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
+require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/perizinan_jenis.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
+perizinan_redirect_kiai_dari_permohonan();
+perizinan_approval_ensure_schema($pdo);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql terlebih dahulu.');
@@ -47,7 +51,7 @@ $pdo->exec('
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $defaultPengasuh = (string) app_setting($pdo, 'nama_pengasuh', '');
     $graceMenit = (int) app_setting($pdo, 'grace_period_menit', '15');
-    $jenisIzinPost = in_array(($_POST['jenis_izin'] ?? ''), ['SAKIT', 'KELUAR', 'TUGAS', 'PULANG'], true) ? $_POST['jenis_izin'] : 'KELUAR';
+    $jenisIzinPost = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
     $santriIdPost = (int) ($_POST['santri_id'] ?? 0);
     $alasanPost = trim((string) ($_POST['alasan'] ?? ''));
     $pemberiIzinPost = trim((string) ($_POST['pemberi_izin'] ?? ''));
@@ -153,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         substr((string) $data['jam_selesai'], 0, 5),
         (string) $data['alasan']
     );
-    push_event_izin_pengajuan_baru(
+    perizinan_push_setelah_pengajuan(
         $pdo,
         (string) ($sInfoRow['nama_santri'] ?? '-'),
         (string) ($sInfoRow['nis'] ?? ''),
@@ -168,7 +172,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    set_flash('success', 'Permohonan izin terkirim. Status: PENDING. Pengurus akan meninjau di menu Perizinan.');
+    if (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
+        $flashOk = 'Permohonan izin syar\'i terkirim. Menunggu persetujuan pengasuh lalu pengurus.';
+    } else {
+        $flashOk = 'Permohonan izin terkirim. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
+    }
+    set_flash('success', $flashOk);
     header('Location: ' . app_href('/perizinan/permohonan.php'));
     exit;
 }
@@ -248,9 +257,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="col-6">
                         <label class="form-label">Jenis izin</label>
                         <select class="form-select" name="jenis_izin" id="jenis-izin-permohonan" required>
-                            <option value="KELUAR" selected>Keluar</option>
-                            <option value="SAKIT">Sakit</option>
-                            <option value="TUGAS">Tugas</option>
+                            <?php $selectedJenis = 'KELUAR'; $includeSakit = true; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
                         </select>
                     </div>
                     <div class="col-6">

@@ -2,8 +2,11 @@
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../helpers/perizinan_jenis.php';
+require_once __DIR__ . '/../helpers/perizinan_approval.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
+perizinan_approval_ensure_schema($pdo);
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
@@ -25,7 +28,7 @@ if (!$izin) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'id' => $id,
-        'jenis_izin' => in_array($_POST['jenis_izin'] ?? '', ['SAKIT', 'KELUAR', 'TUGAS', 'PULANG'], true) ? $_POST['jenis_izin'] : 'KELUAR',
+        'jenis_izin' => perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR')),
         'tanggal_mulai' => $_POST['tanggal_mulai'] ?? date('Y-m-d'),
         'tanggal_selesai' => $_POST['tanggal_selesai'] ?? date('Y-m-d'),
         'jam_mulai' => $_POST['jam_mulai'] ?? date('H:i'),
@@ -70,9 +73,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-md-6">
                 <label class="form-label">Jenis Izin</label>
                 <select name="jenis_izin" class="form-select" required>
-                    <option value="KELUAR" <?= $izin['jenis_izin'] === 'KELUAR' ? 'selected' : '' ?>>Keluar</option>
-                    <option value="SAKIT" <?= $izin['jenis_izin'] === 'SAKIT' ? 'selected' : '' ?>>Sakit</option>
-                    <option value="TUGAS" <?= in_array((string) $izin['jenis_izin'], ['TUGAS', 'PULANG'], true) ? 'selected' : '' ?>>Tugas</option>
+                    <?php $selectedJenis = (string) ($izin['jenis_izin'] ?? 'KELUAR'); $includeSakit = true; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
                 </select>
             </div>
             <div class="col-md-4">

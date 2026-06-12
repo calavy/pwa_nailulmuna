@@ -39,6 +39,16 @@ $saldoPos = keuangan_talangan_saldo_per_pos($pdo);
 $ledger = keuangan_talangan_ledger($pdo, 25);
 $totalPiutangAktif = (int) ($ledger['total_aktif'] ?? 0);
 $jumlahPinjamanAktif = count($ledger['aktif']);
+$sumSaldoAktual = 0;
+$sumSaldoTersedia = 0;
+foreach ($saldoPos as $sp) {
+    $sumSaldoAktual += (int) ($sp['saldo_aktual'] ?? 0);
+    $sumSaldoTersedia += (int) ($sp['saldo_tersedia'] ?? 0);
+}
+$sumRiwayatLunas = 0;
+foreach ($ledger['riwayat'] as $h) {
+    $sumRiwayatLunas += (int) round((float) ($h['nominal'] ?? 0));
+}
 
 $pageTitle = 'Dana Talangan';
 $bodyClass = keuangan_body_class('keuangan-talangan-page');
@@ -175,6 +185,15 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         <?php endforeach; ?>
                         </tbody>
+                        <?php if ($saldoPos !== []): ?>
+                        <tfoot class="table-light">
+                            <tr class="fw-semibold">
+                                <td>Jumlah total</td>
+                                <td class="text-end font-monospace"><?= htmlspecialchars($formatRupiah($sumSaldoAktual)) ?></td>
+                                <td class="text-end font-monospace <?= $sumSaldoTersedia < 0 ? 'text-danger' : 'text-success' ?>"><?= htmlspecialchars($formatRupiah($sumSaldoTersedia)) ?></td>
+                            </tr>
+                        </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>
@@ -227,6 +246,15 @@ require_once __DIR__ . '/../includes/header.php';
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
+                            <?php if ($ledger['aktif'] !== []): ?>
+                            <tfoot class="table-light">
+                                <tr class="fw-semibold">
+                                    <td colspan="2">Jumlah total pinjaman aktif (<?= $jumlahPinjamanAktif ?>)</td>
+                                    <td class="text-end font-monospace"><?= htmlspecialchars($formatRupiah($totalPiutangAktif)) ?></td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tfoot>
+                            <?php endif; ?>
                         </table>
                     </div>
                 <?php endif; ?>
@@ -260,6 +288,12 @@ require_once __DIR__ . '/../includes/header.php';
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
+                        <tfoot class="table-light">
+                            <tr class="fw-semibold">
+                                <td colspan="3">Jumlah total pelunasan (<?= count($ledger['riwayat']) ?>)</td>
+                                <td class="text-end font-monospace"><?= htmlspecialchars($formatRupiah($sumRiwayatLunas)) ?></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

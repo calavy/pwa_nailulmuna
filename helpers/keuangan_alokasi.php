@@ -7,11 +7,12 @@ require_once __DIR__ . '/pondok_ta.php';
 
 const KEUNGAN_ALOKASI_JENIS_SYAHRIYAH = 'SYAHRIYAH';
 const KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN = 'AWAL_TAHUN';
+const KEUNGAN_ALOKASI_JENIS_MAKAN = 'MAKAN';
 
 /** @return list<string> */
 function keuangan_alokasi_jenis_valid(): array
 {
-    return [KEUNGAN_ALOKASI_JENIS_SYAHRIYAH, KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN];
+    return [KEUNGAN_ALOKASI_JENIS_SYAHRIYAH, KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN, KEUNGAN_ALOKASI_JENIS_MAKAN];
 }
 
 function keuangan_alokasi_normalize_jenis(string $jenis): string
@@ -23,9 +24,11 @@ function keuangan_alokasi_normalize_jenis(string $jenis): string
 
 function keuangan_alokasi_label_jenis(string $jenis): string
 {
-    return keuangan_alokasi_normalize_jenis($jenis) === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
-        ? 'dana awal tahun'
-        : 'syahriyah';
+    return match (keuangan_alokasi_normalize_jenis($jenis)) {
+        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'dana awal tahun',
+        KEUNGAN_ALOKASI_JENIS_MAKAN => 'dana makan',
+        default => 'syahriyah',
+    };
 }
 
 function ensure_keuangan_alokasi_jenis_dana(PDO $pdo): void
@@ -39,11 +42,51 @@ function ensure_keuangan_alokasi_jenis_dana(PDO $pdo): void
     if (!column_exists($pdo, 'keuangan_alokasi', 'jenis_dana')) {
         $pdo->exec("
             ALTER TABLE keuangan_alokasi
-            ADD COLUMN jenis_dana ENUM('SYAHRIYAH','AWAL_TAHUN') NOT NULL DEFAULT 'SYAHRIYAH'
+            ADD COLUMN jenis_dana ENUM('SYAHRIYAH','AWAL_TAHUN','MAKAN') NOT NULL DEFAULT 'SYAHRIYAH'
             AFTER kategori
         ");
+    } else {
+        try {
+            $pdo->exec("
+                ALTER TABLE keuangan_alokasi
+                MODIFY COLUMN jenis_dana ENUM('SYAHRIYAH','AWAL_TAHUN','MAKAN') NOT NULL DEFAULT 'SYAHRIYAH'
+            ");
+        } catch (PDOException $e) {
+            /* abaikan jika ENUM sudah mendukung MAKAN */
+        }
     }
     keuangan_seed_alokasi_awal_tahun_default($pdo);
+    keuangan_seed_alokasi_makan_default($pdo);
+}
+
+function keuangan_seed_alokasi_makan_default(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'keuangan_alokasi') || !column_exists($pdo, 'keuangan_alokasi', 'jenis_dana')) {
+        return;
+    }
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM keuangan_alokasi WHERE jenis_dana = :jenis');
+    $stmt->execute(['jenis' => KEUNGAN_ALOKASI_JENIS_MAKAN]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        return;
+    }
+    $defaults = [
+        ['Bahan baku & konsumsi dapur', 'Bahan', 55, 1],
+        ['Gaji karyawan dapur', 'Gaji', 25, 2],
+        ['Operasional dapur', 'Operasional', 20, 3],
+    ];
+    $ins = $pdo->prepare('
+        INSERT INTO keuangan_alokasi (nama_komponen, kategori, jenis_dana, persen, urutan, is_active)
+        VALUES (:nama, :kat, :jenis, :persen, :urutan, 1)
+    ');
+    foreach ($defaults as [$nama, $kat, $persen, $urutan]) {
+        $ins->execute([
+            'nama' => $nama,
+            'kat' => $kat,
+            'jenis' => KEUNGAN_ALOKASI_JENIS_MAKAN,
+            'persen' => $persen,
+            'urutan' => $urutan,
+        ]);
+    }
 }
 
 function keuangan_seed_alokasi_awal_tahun_default(PDO $pdo): void
@@ -94,7 +137,7 @@ function keuangan_fetch_alokasi_aktif(PDO $pdo, ?string $jenisDana = null): arra
     $params = [];
     if ($jenisDana !== null && $jenisDana !== '') {
         $j = strtoupper(trim($jenisDana));
-        if (!in_array($j, ['SYAHRIYAH', 'AWAL_TAHUN'], true)) {
+        if (!in_array($j, keuangan_alokasi_jenis_valid(), true)) {
             $j = 'SYAHRIYAH';
         }
         $sql .= ' AND jenis_dana = :jenis';
@@ -312,6 +355,17 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
             'group' => 'Dana awal tahun',
         ];
     }
+    foreach (keuangan_fetch_alokasi_aktif($pdo, KEUNGAN_ALOKASI_JENIS_MAKAN) as $ar) {
+        $nama = trim((string) ($ar['nama_komponen'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $out[] = [
+            'value' => $nama,
+            'label' => $nama . ' (' . (string) ($ar['persen'] ?? '0') . '%)',
+            'group' => 'Dana makan',
+        ];
+    }
     if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
         require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
     }
@@ -345,11 +399,39 @@ function keuangan_awal_tahun_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?in
     });
 }
 
+/** Realisasi pembayaran pos makan (bulanan) pada tahun ajaran aktif. */
+function keuangan_makan_realisasi_ta(PDO $pdo, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        return 0;
+    }
+    $periode = pondok_tahun_ajaran_aktif($pdo);
+    $mulai = $tahunMulai ?? $periode['mulai'];
+    $selesai = $tahunSelesai ?? $periode['selesai'];
+
+    return keuangan_alokasi_realisasi_cached($pdo, 'makan', $mulai, $selesai, static function () use ($pdo, $mulai, $selesai): int {
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(d.nominal), 0)
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            WHERE LOWER(TRIM(d.pos_slug)) = 'makan'
+              AND p.jenis_periode = 'BULANAN'
+              AND p.tahun_ajaran_mulai = :mulai
+              AND p.tahun_ajaran_selesai = :selesai
+        ");
+        $stmt->execute(['mulai' => $mulai, 'selesai' => $selesai]);
+
+        return (int) round((float) ($stmt->fetchColumn() ?: 0));
+    });
+}
+
 function keuangan_alokasi_realisasi_ta(PDO $pdo, string $jenisDana, ?int $tahunMulai = null, ?int $tahunSelesai = null): int
 {
-    return keuangan_alokasi_normalize_jenis($jenisDana) === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
-        ? keuangan_awal_tahun_realisasi_ta($pdo, $tahunMulai, $tahunSelesai)
-        : keuangan_syahriyah_realisasi_ta($pdo, $tahunMulai, $tahunSelesai);
+    return match (keuangan_alokasi_normalize_jenis($jenisDana)) {
+        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => keuangan_awal_tahun_realisasi_ta($pdo, $tahunMulai, $tahunSelesai),
+        KEUNGAN_ALOKASI_JENIS_MAKAN => keuangan_makan_realisasi_ta($pdo, $tahunMulai, $tahunSelesai),
+        default => keuangan_syahriyah_realisasi_ta($pdo, $tahunMulai, $tahunSelesai),
+    };
 }
 
 /**
@@ -370,9 +452,10 @@ function keuangan_alokasi_simulasi(PDO $pdo, array $persenMap = [], string $jeni
 {
     $jenisDana = keuangan_alokasi_normalize_jenis($jenisDana);
     $rows = keuangan_fetch_alokasi_aktif($pdo, $jenisDana);
-    $realisasi = $jenisDana === KEUNGAN_ALOKASI_JENIS_SYAHRIYAH
-        ? keuangan_syahriyah_realisasi_dasar_ta($pdo)
-        : keuangan_alokasi_realisasi_ta($pdo, $jenisDana);
+    $realisasi = match ($jenisDana) {
+        KEUNGAN_ALOKASI_JENIS_SYAHRIYAH => keuangan_syahriyah_realisasi_dasar_ta($pdo),
+        default => keuangan_alokasi_realisasi_ta($pdo, $jenisDana),
+    };
     $baris = [];
     $totalPersen = 0.0;
 
@@ -438,7 +521,9 @@ function keuangan_alokasi_edit_for_jenis(?array $editAlokasi, string $jenisDana)
 
 function keuangan_alokasi_section_for_jenis(string $jenisDana): string
 {
-    return keuangan_alokasi_normalize_jenis($jenisDana) === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN
-        ? 'alokasi_awal'
-        : 'alokasi';
+    return match (keuangan_alokasi_normalize_jenis($jenisDana)) {
+        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'alokasi_awal',
+        KEUNGAN_ALOKASI_JENIS_MAKAN => 'alokasi_makan',
+        default => 'alokasi',
+    };
 }

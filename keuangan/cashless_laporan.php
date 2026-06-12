@@ -170,6 +170,14 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr><td colspan="<?= $filterKoperasiId === 0 ? 7 : 6 ?>" class="text-center text-muted py-4">Tidak ada transaksi pada periode ini.</td></tr>
                 <?php endif; ?>
                 </tbody>
+                <?php if ($laporan['rows'] !== []): ?>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold">
+                        <td colspan="<?= $filterKoperasiId === 0 ? 6 : 5 ?>">Jumlah total</td>
+                        <td class="text-end">Rp <?= number_format((int) $laporan['total_debit'], 0, ',', '.') ?></td>
+                    </tr>
+                </tfoot>
+                <?php endif; ?>
             </table>
         </div>
     </div>

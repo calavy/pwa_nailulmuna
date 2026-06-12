@@ -246,10 +246,7 @@ function pkpps_sync_from_kelas_keuangan(PDO $pdo, int $subLevels = 3): void
         return;
     }
     $subLevels = max(1, min(6, $subLevels));
-    $kelasRows = array_values(array_filter(
-        kelas_keuangan_all_rows($pdo),
-        static fn (array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1
-    ));
+    $kelasRows = kelas_keuangan_all_rows($pdo);
     usort($kelasRows, static function (array $a, array $b): int {
         $ua = (int) ($a['urutan'] ?? 0);
         $ub = (int) ($b['urutan'] ?? 0);
@@ -261,14 +258,15 @@ function pkpps_sync_from_kelas_keuangan(PDO $pdo, int $subLevels = 3): void
     });
 
     $urut = 0;
-    $seenIds = [];
+    $seenLinkedIds = [];
+    $validKelasIds = [];
     $ins = $pdo->prepare('
         INSERT INTO pkpps_tingkatan (urutan, kelas_keuangan_id, sub_level, nama_tingkatan, is_aktif)
-        VALUES (:u, :kid, :sl, :n, 1)
+        VALUES (:u, :kid, :sl, :n, :a)
     ');
     $upd = $pdo->prepare('
         UPDATE pkpps_tingkatan
-        SET urutan = :u, nama_tingkatan = :n, is_aktif = 1, kelas_keuangan_id = :kid, sub_level = :sl
+        SET urutan = :u, nama_tingkatan = :n, kelas_keuangan_id = :kid, sub_level = :sl
         WHERE id = :id
     ');
     $findLinked = $pdo->prepare('
@@ -293,10 +291,12 @@ function pkpps_sync_from_kelas_keuangan(PDO $pdo, int $subLevels = 3): void
             if ($kid <= 0) {
                 continue;
             }
+            $validKelasIds[$kid] = $kid;
             $baseNama = trim((string) ($kr['nama_tampilan'] ?? $kr['kode'] ?? ''));
             if ($baseNama === '') {
                 continue;
             }
+            $kelasAktif = (int) ($kr['is_aktif'] ?? 0) === 1 ? 1 : 0;
             for ($sl = 1; $sl <= $subLevels; $sl++) {
                 $urut++;
                 $nama = $baseNama . ' ' . $sl;
@@ -311,23 +311,38 @@ function pkpps_sync_from_kelas_keuangan(PDO $pdo, int $subLevels = 3): void
                 }
 
                 if ($existingId > 0) {
-                    $upd->execute(['u' => $urut, 'n' => $nama, 'kid' => $kid, 'sl' => $sl, 'id' => $existingId]);
-                    $seenIds[$existingId] = $existingId;
+                    $upd->execute([
+                        'u' => $urut,
+                        'n' => $nama,
+                        'kid' => $kid,
+                        'sl' => $sl,
+                        'id' => $existingId,
+                    ]);
+                    $seenLinkedIds[$existingId] = $existingId;
                 } else {
-                    $ins->execute(['u' => $urut, 'kid' => $kid, 'sl' => $sl, 'n' => $nama]);
+                    $ins->execute([
+                        'u' => $urut,
+                        'kid' => $kid,
+                        'sl' => $sl,
+                        'n' => $nama,
+                        'a' => $kelasAktif,
+                    ]);
                     $newId = (int) $pdo->lastInsertId();
                     if ($newId > 0) {
-                        $seenIds[$newId] = $newId;
+                        $seenLinkedIds[$newId] = $newId;
                     }
                 }
             }
         }
 
-        if ($seenIds !== []) {
-            $in = implode(',', array_map('intval', array_values($seenIds)));
-            $pdo->exec('UPDATE pkpps_tingkatan SET is_aktif = 0 WHERE id NOT IN (' . $in . ')');
-        } else {
-            $pdo->exec('UPDATE pkpps_tingkatan SET is_aktif = 0');
+        // Nonaktifkan hanya baris yang terhubung ke kelas yang sudah dihapus.
+        // Tingkatan manual (tanpa kelas_keuangan_id) dan pilihan aktif/nonaktif manual tidak disentuh.
+        if ($validKelasIds !== []) {
+            $inKelas = implode(',', array_map('intval', array_values($validKelasIds)));
+            $pdo->exec(
+                'UPDATE pkpps_tingkatan SET is_aktif = 0
+                 WHERE kelas_keuangan_id IS NOT NULL AND kelas_keuangan_id NOT IN (' . $inKelas . ')'
+            );
         }
 
         $pdo->commit();
