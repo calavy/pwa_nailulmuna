@@ -50,6 +50,8 @@ $keaktivanPanels = [
 $adaKegiatanLive = $kegiatanAktif !== [];
 $keaktivanModeLive = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'live'
     || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'live';
+$keaktivanModeProgress = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'progress'
+    || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'progress';
 
 $rowsLive = pengasuh_dashboard_filter_rows_berlangsung($rowsHari, $kegiatanAktif);
 $detailLive = pengasuh_dashboard_urutkan_kegiatan(rekap_keaktifan_hari_detail_by_kegiatan($rowsLive));
@@ -131,7 +133,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="dash-page">
-    <div class="dash-hero mb-4">
+    <div class="dash-hero mb-3 pg-dash-hero">
         <div class="dash-hero-inner">
             <?php
             $brandTitle = $namaPonpes;
@@ -183,7 +185,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <p class="small text-muted mb-0">
                             Ada <strong><?= (int) $jumlahKegiatanBerlangsung ?></strong>
                             kegiatan sedang berlangsung
-                            · slot <?= htmlspecialchars($jamServerLabel) ?> WIB
+                            · slot <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span> WIB
                         </p>
                     </div>
                     <?php if ($kegiatanAktifPresensi !== []): ?>

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/munawib.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 munawib_ensure_schema($pdo);
@@ -30,7 +31,7 @@ if (table_exists($pdo, 'presensi_pembimbing')) {
           ON pp.pembimbing_id = b.id
          AND pp.tanggal BETWEEN :dari AND :sampai
         GROUP BY b.id, b.nama_pembimbing, b.nip
-        ORDER BY total_hadir DESC, b.nama_pembimbing ASC
+        ORDER BY total_hadir DESC, ' . pembimbing_list_order_sql('b') . '
     ');
     $st->execute(['dari' => $dari, 'sampai' => $sampai]);
     $pembimbingRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -49,7 +50,7 @@ if (table_exists($pdo, 'presensi_munawib')) {
          AND pm.tanggal BETWEEN :dari AND :sampai
         WHERE COALESCE(m.is_aktif,1)=1
         GROUP BY m.id, m.nama, m.nip
-        ORDER BY total_hadir DESC, m.nama ASC
+        ORDER BY total_hadir DESC, ' . munawib_list_order_by_induk_sql('m', $sampai) . '
     ');
     $st->execute(['dari' => $dari, 'sampai' => $sampai]);
     $munawibRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];

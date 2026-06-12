@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/entity_list_sort.php';
 require_once __DIR__ . '/munawib.php';
 require_once __DIR__ . '/akademik.php';
 
@@ -151,7 +152,7 @@ function munawib_portal_penugasan_berlangsung(PDO $pdo, int $munawibId, ?string 
           AND mp.kegiatan_id IS NOT NULL
           AND mp.kegiatan_id > 0
           ' . $kategoriFilterSql . '
-        ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC, b.nama_pembimbing ASC
+        ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC, ' . pembimbing_list_order_sql('b') . '
     ';
     $st = $pdo->prepare($sql);
     $st->execute([

@@ -89,30 +89,20 @@ declare(strict_types=1);
 
 <div class="card shadow-sm border-0">
     <div class="card-body">
-        <h2 class="h6 mb-2">3. Nomor penerima umum</h2>
-        <p class="small text-muted mb-3">Digunakan untuk rekap alpa, notifikasi pengurus, dan fallback petugas pendidikan.</p>
+        <h2 class="h6 mb-2">3. Presensi &amp; petugas pendidikan</h2>
+        <p class="small text-muted mb-3">
+            Nomor untuk <strong>munawib belum hadir</strong>, <strong>kelas kosong</strong>, dan laporan presensi terkait.
+            Notifikasi <strong>alpa</strong> dan <strong>permohonan izin</strong> diatur terpisah di tab masing-masing.
+        </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_penerima">
             <input type="hidden" name="redirect_tab" value="gateway">
             <div class="col-md-6">
-                <label class="form-label">No. pengurus (alpa &amp; umum)</label>
-                <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Beberapa nomor: pisah koma.</div>
-            </div>
-            <div class="col-md-6">
                 <label class="form-label">No. petugas pendidikan</label>
                 <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
-                <div class="form-text">Mudabir / kelas kosong. Kosong = pakai pengurus.</div>
+                <div class="form-text">Munawib belum hadir, kelas kosong. Kosong = fallback nomor alpa (tab Alpa).</div>
             </div>
-            <div class="col-md-4">
-                <label class="form-label">Jam kirim WA otomatis (alpa)</label>
-                <input type="time" class="form-control input-time-24" name="jam_kirim_wa_auto" value="<?= htmlspecialchars(app_format_jam($values['jam_kirim_wa_auto'])) ?>">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Batas alpa (mode lama)</label>
-                <input type="number" min="1" class="form-control" name="batas_alpa_notif" value="<?= htmlspecialchars($values['batas_alpa_notif']) ?>">
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label class="form-label">Batas telat presensi (menit)</label>
                 <input type="number" min="0" class="form-control" name="batas_telat_menit" value="<?= htmlspecialchars($values['batas_telat_menit']) ?>">
             </div>
@@ -121,8 +111,15 @@ declare(strict_types=1);
                 <textarea class="form-control" name="keterangan_pengurus_bidang_keuangan" rows="2" maxlength="500"><?= htmlspecialchars((string) ($values['keterangan_pengurus_bidang_keuangan'] ?? '')) ?></textarea>
             </div>
             <div class="col-12">
-                <button type="submit" class="btn btn-success btn-sm">Simpan penerima</button>
+                <button type="submit" class="btn btn-success btn-sm">Simpan</button>
             </div>
         </form>
     </div>
+</div>
+
+<div class="alert alert-light border small mt-3 mb-0">
+    <strong>Penerima lain:</strong>
+    <a href="?tab=alpa">Alpa otomatis</a> ·
+    <a href="?tab=izin">Permohonan izin baru</a> ·
+    <a href="?tab=izin">Izin disetujui</a>
 </div>

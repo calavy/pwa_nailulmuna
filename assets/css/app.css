@@ -136,6 +136,9 @@ body {
 .app-topbar-left {
     flex: 1 1 auto;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
 }
 
 .app-topbar-right {
@@ -179,11 +182,13 @@ body {
 }
 
 .app-topbar-page {
+    display: none;
     flex-direction: column;
     align-items: flex-start;
+    justify-content: center;
     gap: 0.05rem;
     min-width: 0;
-    padding-left: 0.25rem;
+    padding-left: 0.15rem;
 }
 
 .app-topbar-page-kicker {
@@ -253,39 +258,117 @@ body {
     line-height: 1.1;
 }
 
-.app-topbar-stack {
-    display: flex;
-    flex-direction: column;
+.app-topbar-toolgroup {
+    display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 0.2rem;
+    padding: 0.18rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-topbar-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.15rem;
+    min-width: 2.15rem;
+    padding: 0.35rem 0.6rem;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-topbar-tool-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.app-topbar-tool-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+.app-topbar-tool-btn__label {
+    line-height: 1.1;
+}
+
+.app-topbar-vdivider {
+    flex: 0 0 auto;
+    align-self: stretch;
+    width: 1px;
+    min-height: 1.75rem;
+    margin: 0.15rem 0;
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.app-topbar-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    max-width: 100%;
+}
+
+.app-topbar-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.15rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-decoration: none;
+    white-space: nowrap;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.app-topbar-action-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.app-topbar-action-btn__label {
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .app-topbar-back {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
-    padding: 0.15rem 0.45rem;
-    border-radius: 999px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    line-height: 1.2;
-    text-decoration: none;
-    color: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.08);
-    white-space: nowrap;
+    order: -1;
 }
 
-@media (max-width: 767.98px) {
-    .app-topbar-back {
-        display: inline-flex;
+.app-topbar-back .app-topbar-action-btn__label {
+    max-width: 5.5rem;
+}
+
+@media (max-width: 575.98px) {
+    .app-topbar-back .app-topbar-action-btn__label {
+        display: none;
     }
-}
 
-.app-topbar-back:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.16);
+    .app-topbar-back {
+        min-width: 2.15rem;
+        padding-inline: 0.5rem;
+    }
 }
 
 .app-topbar-profile-menu .dropdown-toggle::after {
@@ -324,11 +407,6 @@ body {
     background: rgba(255, 255, 255, 0.18) !important;
     border-color: rgba(255, 255, 255, 0.45) !important;
     color: #fff !important;
-}
-
-.app-topbar-menu-btn {
-    border-radius: 10px !important;
-    font-weight: 600;
 }
 
 .app-brand-link {
@@ -601,7 +679,8 @@ body {
 
 .app-sidebar--desktop {
     flex-direction: column;
-    width: 300px;
+    width: min(300px, 28vw);
+    max-width: 300px;
     flex-shrink: 0;
     padding: 0.85rem 0.7rem 1rem;
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -613,6 +692,41 @@ body {
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+    transition: width 0.24s ease, max-width 0.24s ease, padding 0.24s ease, opacity 0.2s ease, border-color 0.24s ease;
+}
+
+.app-sidebar-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--app-nav-border);
+}
+
+.app-sidebar-hide-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--app-nav-border);
+    border-radius: 10px;
+    background: #fff;
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-sidebar-hide-btn:hover {
+    background: var(--app-nav-surface-hover);
+    color: var(--app-primary-dark);
+    border-color: rgba(15, 118, 110, 0.28);
+}
+
+.app-sidebar-hide-btn__text {
+    line-height: 1.2;
 }
 
 /* —— Sidebar: identitas pondok + profil pengguna —— */
@@ -696,8 +810,7 @@ body {
     object-position: center center;
     border-radius: 50%;
     display: block;
-    transform: scale(1.14);
-    background: transparent;
+    background: #fff;
 }
 
 .app-sidebar-pondok-logo-fallback {
@@ -929,7 +1042,7 @@ body {
     }
 
     .app-brand-mark--logo {
-        padding: 0.18rem;
+        padding: var(--pondok-logo-ring, 2px);
         background: #fff;
     }
 
@@ -973,20 +1086,41 @@ body {
         order: 2;
     }
 
-    .app-topbar-menu-btn {
+    .app-topbar-toolgroup {
         flex-shrink: 0;
     }
 
     .app-topbar-right {
         flex-shrink: 0;
-        gap: 0.35rem;
+    }
+
+    .app-topbar-actions {
+        gap: 0.3rem;
+    }
+
+    .app-topbar-role {
+        display: none !important;
+    }
+
+    .app-topbar-user-pill {
+        padding: 0.22rem 0.45rem 0.22rem 0.22rem;
+        max-width: none;
+    }
+
+    .app-topbar-logout .app-topbar-action-btn__label {
+        display: none;
+    }
+
+    .app-topbar-logout {
+        min-width: 2.15rem;
+        padding-inline: 0.5rem;
     }
 
     #mobileSidebar .app-sidebar-head--mobile .app-sidebar-pondok-logo-wrap,
     .app-sidebar-head--mobile .app-sidebar-pondok-logo-wrap {
         width: 3.5rem;
         height: 3.5rem;
-        padding: 0.12rem;
+        padding: var(--pondok-logo-ring, 2px);
     }
 
     #mobileSidebar .app-sidebar-pondok-title,
@@ -1133,8 +1267,7 @@ body {
     border-radius: 50%;
     object-fit: cover;
     object-position: center center;
-    transform: scale(1.14);
-    background: transparent;
+    background: #fff;
 }
 
 .app-sidebar-brand-mark--fallback {
@@ -1160,8 +1293,7 @@ body {
     border-radius: 50%;
     object-fit: cover;
     object-position: center center;
-    transform: scale(1.14);
-    background: transparent;
+    background: #fff;
 }
 
 .app-brand-mark--fallback {
@@ -1231,6 +1363,131 @@ body {
     text-transform: uppercase;
     color: var(--app-nav-muted);
     padding: 0.35rem 0.5rem 0.55rem;
+}
+
+.app-sidebar-nav-label--toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0 0.15rem 0.1rem;
+    padding: 0.5rem 0.55rem;
+    border-radius: 10px;
+    border: 1px solid rgba(15, 118, 110, 0.22);
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.1) 0%, rgba(14, 165, 233, 0.06) 100%);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-sidebar-nav-label__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.app-sidebar-nav-label__arrow {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 8px;
+    background: var(--app-primary);
+    color: #fff;
+    font-size: 0.72rem;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.35);
+    transition: background 0.15s ease, transform 0.2s ease, box-shadow 0.15s ease;
+}
+
+.app-sidebar-nav-label--toggle:hover,
+.app-sidebar-nav-label--toggle:focus-visible {
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.16) 0%, rgba(14, 165, 233, 0.1) 100%);
+    color: var(--app-primary-dark);
+    border-color: rgba(15, 118, 110, 0.38);
+    outline: none;
+    box-shadow: 0 2px 10px rgba(15, 118, 110, 0.12);
+}
+
+.app-sidebar-nav-label--toggle:hover .app-sidebar-nav-label__arrow,
+.app-sidebar-nav-label--toggle:focus-visible .app-sidebar-nav-label__arrow {
+    background: var(--app-primary-dark);
+    transform: translateX(-2px);
+    box-shadow: 0 3px 8px rgba(15, 118, 110, 0.45);
+}
+
+.app-body-shell.app-sidebar-hidden .app-sidebar-nav-label__arrow i,
+html.app-sidebar-hidden-boot .app-sidebar-nav-label__arrow i {
+    transform: rotate(180deg);
+}
+
+.app-body-shell.app-sidebar-hidden .app-sidebar-nav-label--toggle:hover .app-sidebar-nav-label__arrow,
+html.app-sidebar-hidden-boot .app-sidebar-nav-label--toggle:hover .app-sidebar-nav-label__arrow {
+    transform: translateX(2px);
+}
+
+.app-sidebar-reveal {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 22px;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1040;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    border: 0;
+    background: linear-gradient(90deg, rgba(15, 118, 110, 0.55) 0%, rgba(15, 118, 110, 0.18) 60%, transparent 100%);
+    transition: opacity 0.2s ease, width 0.2s ease;
+}
+
+.app-sidebar-reveal::after {
+    content: "\f101";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+}
+
+.app-sidebar-reveal:hover {
+    width: 26px;
+}
+
+.app-sidebar-reveal:focus-visible {
+    outline: 2px solid var(--app-primary);
+    outline-offset: 2px;
+}
+
+html.app-sidebar-hidden-boot .app-sidebar-reveal,
+.app-body-shell.app-sidebar-hidden .app-sidebar-reveal {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.app-topbar-title-mobile--menu-hit {
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.app-topbar-title-mobile--menu-hit::before {
+    content: "\f0c9";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-right: 0.4rem;
+    font-size: 0.82em;
+    opacity: 0.88;
+}
+
+.app-topbar-title-mobile--menu-hit:hover,
+.app-topbar-title-mobile--menu-hit:focus-visible {
+    opacity: 0.92;
+    outline: none;
 }
 
 .app-side-nav-item {
@@ -2339,7 +2596,7 @@ html[data-theme-transitioning] .app-theme-switch {
     font-weight: 700;
 }
 
-/* Sidebar tidak disembunyikan di desktop */
+/* Desktop: sidebar + konten sejajar; sidebar bisa disembunyikan */
 @media (min-width: 992px) {
     .app-frame {
         flex-direction: row;
@@ -2349,30 +2606,124 @@ html[data-theme-transitioning] .app-theme-switch {
     .app-frame-main {
         flex: 1 1 auto;
         min-width: 0;
+        width: 100%;
     }
 
-    .app-shell.sidebar-collapsed .app-sidebar--desktop {
-        width: 280px;
-        opacity: 1;
-        pointer-events: auto;
+    html.app-sidebar-hidden-boot .app-sidebar--desktop,
+    .app-body-shell.app-sidebar-hidden .app-sidebar--desktop {
+        width: 0 !important;
+        max-width: 0 !important;
+        min-width: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+        border-right-color: transparent;
+        box-shadow: none;
+        overflow: hidden;
     }
 
-    .app-shell.sidebar-collapsed .app-sidebar--desktop .app-sidebar-inner {
-        display: flex;
+    html.app-sidebar-hidden-boot .app-sidebar--desktop > *,
+    .app-body-shell.app-sidebar-hidden .app-sidebar--desktop > * {
+        visibility: hidden;
+    }
+
+    html.app-sidebar-hidden-boot .app-brand-link.d-lg-none,
+    .app-body-shell.app-sidebar-hidden .app-topbar-left .app-brand-link.d-lg-none {
+        display: inline-flex !important;
+    }
+
+    html.app-sidebar-hidden-boot .app-topbar-page.d-none.d-lg-flex,
+    .app-body-shell.app-sidebar-hidden .app-topbar-page.d-none.d-lg-flex {
+        display: flex !important;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    html.app-sidebar-hidden-boot .app-topbar-page-title,
+    .app-body-shell.app-sidebar-hidden .app-topbar-page-title {
+        cursor: pointer;
+    }
+
+    html.app-sidebar-hidden-boot .app-topbar-page,
+    .app-body-shell.app-sidebar-hidden .app-topbar-page {
+        cursor: pointer;
     }
 }
 
+/* Responsif konten utama */
+.app-main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.app-main .table-responsive {
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-main img,
+.app-main video,
+.app-main canvas,
+.app-main svg {
+    max-width: 100%;
+    height: auto;
+}
+
 @media (max-width: 991.98px) {
-    .app-shell.sidebar-collapsed .app-sidebar {
-        width: 0;
-        opacity: 0;
-        pointer-events: none;
+    .app-shell {
+        padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+        padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .app-shell {
+        padding-left: max(0.4rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.4rem, env(safe-area-inset-right, 0px));
+    }
+
+    .app-main .card-body {
+        padding-left: 0.85rem;
+        padding-right: 0.85rem;
     }
 }
 
 [data-theme="dark"] .app-sidebar--desktop {
     background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
     border-right-color: rgba(71, 85, 105, 0.5);
+}
+
+[data-theme="dark"] .app-sidebar-nav-label--toggle {
+    border-color: rgba(45, 212, 191, 0.28);
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.22) 0%, rgba(30, 41, 59, 0.65) 100%);
+}
+
+[data-theme="dark"] .app-sidebar-nav-label--toggle:hover,
+[data-theme="dark"] .app-sidebar-nav-label--toggle:focus-visible {
+    border-color: rgba(45, 212, 191, 0.45);
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.32) 0%, rgba(30, 41, 59, 0.75) 100%);
+}
+
+[data-theme="dark"] .app-sidebar-nav-label__arrow {
+    background: #0d9488;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .app-sidebar-hide-btn {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(71, 85, 105, 0.45);
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .app-sidebar-hide-btn:hover {
+    background: rgba(15, 118, 110, 0.22);
+    color: #99f6e4;
+}
+
+[data-theme="dark"] .app-sidebar-footer {
+    border-top-color: rgba(71, 85, 105, 0.45);
 }
 
 [data-theme="dark"] .app-sidebar-brand {
@@ -2936,7 +3287,7 @@ html[data-theme-transitioning] .app-theme-switch {
     border-radius: 50%;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
     overflow: hidden;
-    padding: 0.35rem;
+    padding: var(--pondok-logo-ring, 2px);
     max-width: none;
     max-height: none;
 }
@@ -2966,7 +3317,7 @@ html[data-theme-transitioning] .app-theme-switch {
     height: 100%;
     max-width: none;
     max-height: none;
-    object-fit: contain;
+    object-fit: cover;
     object-position: center;
     border-radius: 50%;
     filter: none;
@@ -2982,11 +3333,12 @@ html[data-theme-transitioning] .app-theme-switch {
     display: block;
     width: 72px;
     height: 72px;
-    object-fit: contain;
+    object-fit: cover;
+    object-position: center;
     border-radius: 50%;
     background: #fff;
     border: 2px solid #e2e8f0;
-    padding: 0.35rem;
+    padding: var(--pondok-logo-ring, 2px);
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
@@ -5514,11 +5866,6 @@ input[type="time"].input-time-24 {
     color: #f0fdfa;
 }
 
-/* Dashboard — tampilan utama (hero + pintasan) */
-.dash-page .dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder) {
-    background: transparent;
-}
-
 .dash-panel .card-header h2,
 .dash-panel .card-header .h5 {
     letter-spacing: -0.02em;
@@ -6380,4 +6727,149 @@ html {
 [data-theme="dark"] .jadwal-slot-card {
     background: rgba(30, 41, 59, 0.6);
     border-color: rgba(148, 163, 184, 0.2);
+}
+
+/* Responsif global — semua halaman aplikasi */
+.app-main {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-main .container,
+.app-main .container-fluid {
+    max-width: 100%;
+}
+
+.app-main .table-responsive {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 991.98px) {
+    .app-shell {
+        padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+        padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+    }
+
+    .app-main .card-body {
+        padding: 0.85rem 0.75rem;
+    }
+
+    .app-main .card-header {
+        padding: 0.75rem 0.85rem;
+    }
+
+    .app-main .btn-toolbar,
+    .app-main .page-actions,
+    .app-main .d-flex.gap-2 {
+        flex-wrap: wrap;
+    }
+
+    .app-main h1,
+    .app-main .h1 {
+        font-size: clamp(1.15rem, 4.5vw, 1.5rem);
+        line-height: 1.25;
+    }
+
+    .app-main .page-intro {
+        font-size: 0.88rem;
+    }
+}
+
+/* Logo pondok — isi penuh, pinggir putih tipis */
+:root {
+    --pondok-logo-ring: 2px;
+}
+
+.app-sidebar-pondok-logo-wrap,
+.app-sidebar-brand-mark--logo,
+.app-brand-mark--logo,
+.dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder),
+.pb-dash-hero-banner__logo-wrap,
+.st-id-logo-wrap,
+.pb-id-logo-wrap,
+.mw-logo-wrap {
+    padding: var(--pondok-logo-ring) !important;
+}
+
+.app-sidebar-pondok-logo,
+.app-sidebar-brand-logo,
+.app-brand-logo,
+.dash-hero-logo,
+.pondok-logo-preview,
+.pb-dash-hero-banner__logo,
+.st-id-logo,
+.pb-id-logo,
+.mw-logo,
+.koperasi-topbar-logo,
+.auth-portal-logo-img,
+.auth-portal-kop__logo .logo-ring img,
+.auth-portal-hero .logo-ring img,
+.wali-login-logo {
+    object-fit: cover !important;
+    object-position: center center;
+    background: #fff;
+}
+
+.pb-dash-hero-banner__logo-wrap,
+.st-id-logo-wrap,
+.pb-id-logo-wrap,
+.mw-logo-wrap {
+    background: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+@media (max-width: 575.98px) {
+    .app-shell {
+        padding-left: max(0.4rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.4rem, env(safe-area-inset-right, 0px));
+    }
+
+    .app-main .table {
+        font-size: 0.82rem;
+    }
+
+    .app-main .table td,
+    .app-main .table th {
+        white-space: nowrap;
+    }
+
+    .app-main .table-responsive .table td,
+    .app-main .table-responsive .table th {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .app-main .form-control,
+    .app-main .form-select,
+    .app-main textarea.form-control {
+        font-size: 16px;
+    }
+
+    .app-main .row > [class*="col-"] {
+        min-width: 0;
+    }
+
+    .app-main .modal-dialog:not(.modal-fullscreen) {
+        margin: 0.5rem auto;
+        max-width: calc(100% - 1rem);
+    }
+
+    .app-main .input-group {
+        flex-wrap: wrap;
+    }
+
+    .app-main .input-group > .form-control,
+    .app-main .input-group > .form-select,
+    .app-main .input-group > .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
 }

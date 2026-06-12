@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
 pkpps_ensure_schema($pdo);
@@ -21,7 +22,7 @@ $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kam
 $tingkatanList = pkpps_tingkatan_list($pdo, true);
 $kegiatanList = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $pembimbingList = table_exists($pdo, 'pembimbing')
-    ? $pdo->query('SELECT id, nip, nama_pembimbing, no_wa FROM pembimbing WHERE COALESCE(is_aktif, 1) = 1 ORDER BY nama_pembimbing ASC')->fetchAll(PDO::FETCH_ASSOC) ?: []
+    ? $pdo->query('SELECT id, nip, nama_pembimbing, no_wa FROM pembimbing WHERE COALESCE(is_aktif, 1) = 1 ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll(PDO::FETCH_ASSOC) ?: []
     : [];
 
 $filterTingkatan = (int) ($_GET['tingkatan'] ?? 0);

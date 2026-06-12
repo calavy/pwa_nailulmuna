@@ -93,6 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $message = 'Check-in selesai: ' . $activeIzin['nama_santri'] . ($latePoint > 0 ? ' (terlambat, poin pelanggaran +' . $latePoint . ')' : '');
+
+                require_once __DIR__ . '/../helpers/perizinan_approval.php';
+                perizinan_kirim_wa_pengurus_izin_selesai($pdo, (int) $activeIzin['id'], $lateMinutes, $latePoint);
             }
         }
         }

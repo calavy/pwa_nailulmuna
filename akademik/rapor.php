@@ -388,7 +388,7 @@ $ikhtibarSantri = $filterSantri > 0 ? ikhtibar_riwayat_hasil_santri($pdo, $filte
                         </tbody>
                     </table>
                 </div>
-                <p class="small text-muted mb-0 mt-2">Nomor WA diambil dari data santri (No WA Wali). Atur juga <strong>wa_pengurus</strong> di Settings untuk tombol di portal wali.</p>
+                <p class="small text-muted mb-0 mt-2">Nomor WA diambil dari data santri (No WA Wali). Tombol hubungi pengurus memakai nomor di <strong>WA Otomatis → tab Izin</strong>.</p>
             </div>
         </div>
     </div>

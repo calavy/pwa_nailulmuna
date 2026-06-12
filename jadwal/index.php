@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
 require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
 require_once __DIR__ . '/../helpers/jadwal_form_handlers.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 jadwal_require_module_access();
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -156,7 +157,7 @@ array_unshift($tingkatanList, 'Semua Tingkatan');
 $kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, COALESCE(is_active, 1) AS is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $kegiatanListAktif = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll();
 $pembimbingList = (!$jadwalPembimbingScope && table_exists($pdo, 'pembimbing'))
-    ? $pdo->query('SELECT id, nama_pembimbing FROM pembimbing ORDER BY nama_pembimbing ASC')->fetchAll()
+    ? $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll()
     : [];
 $panelOpen = trim((string) ($_GET['panel'] ?? ''));
 if (!in_array($panelOpen, ['kegiatan', 'jadwal'], true)) {

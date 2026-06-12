@@ -64,8 +64,8 @@ declare(strict_types=1);
             <li class="mb-1"><strong>Gateway</strong> — isi token Fonnte &amp; tes kirim ke satu nomor.</li>
             <li class="mb-1"><strong>Tagihan Wali</strong> — atur jadwal &amp; aktifkan pengingat syahriyah.</li>
             <li class="mb-1"><strong>Presensi</strong> — pengingat scan, munawib, laporan kelas kosong.</li>
-            <li class="mb-1"><strong>Alpa</strong> — tier penerima saat santri alpa bertambah.</li>
-            <li class="mb-1"><strong>Izin</strong> — notifikasi ke pembimbing &amp; grup saat izin disetujui.</li>
+            <li class="mb-1"><strong>Alpa</strong> — tier penerima &amp; nomor fallback alpa otomatis.</li>
+            <li class="mb-1"><strong>Izin</strong> — permohonan baru (PENDING) &amp; notifikasi saat izin disetujui.</li>
             <li><strong>Template</strong> — sesuaikan teks pesan bila perlu.</li>
         </ol>
     </div>

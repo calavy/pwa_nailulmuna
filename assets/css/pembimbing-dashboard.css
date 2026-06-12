@@ -1060,17 +1060,19 @@ a.pb-dash-tile--keaktifan:focus-visible {
     height: 2.85rem;
     border-radius: 50%;
     background: #fff;
-    padding: 0.2rem;
+    padding: 2px;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
 }
 
 .pb-dash-hero-banner__logo {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
+    object-position: center;
     border-radius: 50%;
     display: block;
 }

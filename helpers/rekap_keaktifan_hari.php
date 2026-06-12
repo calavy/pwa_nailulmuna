@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/entity_list_sort.php';
 require_once __DIR__ . '/santri_operasional.php';
 require_once __DIR__ . '/presensi_jadwal.php';
 
@@ -506,7 +507,7 @@ function rekap_keaktifan_hari_sdm(PDO $pdo, string $tanggal): array
     if (table_exists($pdo, 'munawib')) {
         require_once __DIR__ . '/munawib.php';
         munawib_ensure_schema($pdo);
-        $orderMw = munawib_list_order_sql('m');
+        $orderMw = munawib_list_order_by_induk_sql('m', $tanggal);
         $list = $pdo->query('SELECT m.id, m.nama, m.nip FROM munawib m WHERE COALESCE(m.is_aktif,1)=1 ORDER BY ' . $orderMw)->fetchAll(PDO::FETCH_ASSOC) ?: [];
         $hadirIds = [];
         if (table_exists($pdo, 'presensi_munawib')) {
@@ -545,6 +546,7 @@ function rekap_keaktifan_hari_riwayat_pembimbing_masuk(PDO $pdo, string $tanggal
     if (!table_exists($pdo, 'presensi_pembimbing') || !table_exists($pdo, 'pembimbing')) {
         return [];
     }
+    require_once __DIR__ . '/entity_list_sort.php';
     $sql = '
         SELECT
             b.id,
@@ -562,7 +564,7 @@ function rekap_keaktifan_hari_riwayat_pembimbing_masuk(PDO $pdo, string $tanggal
             AND pp.jam BETWEEN j.jam_mulai AND j.jam_selesai
             AND (j.pembimbing_id IS NULL OR j.pembimbing_id = pp.pembimbing_id)
         WHERE pp.tanggal = :t
-        ORDER BY pp.jam DESC, b.nama_pembimbing ASC
+        ORDER BY pp.jam DESC, ' . pembimbing_list_order_sql('b') . '
     ';
     $st = $pdo->prepare($sql);
     $st->execute([

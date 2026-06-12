@@ -32,10 +32,43 @@ $tabPartial = match ($waActiveTab) {
 .wa-otomatis-page .wa-otomatis-nav__item { display: flex; align-items: flex-start; gap: .65rem; padding: .55rem .75rem; border-radius: .5rem; }
 .wa-otomatis-page .wa-otomatis-nav__item.active { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
 .wa-otomatis-page .wa-otomatis-nav__item.active small { color: rgba(255,255,255,.82); }
-.wa-otomatis-page .wa-otomatis-nav__icon { width: 1.35rem; text-align: center; margin-top: .1rem; opacity: .9; }
-.wa-otomatis-page .wa-otomatis-nav__text { display: flex; flex-direction: column; line-height: 1.25; }
+.wa-otomatis-page .wa-otomatis-nav__icon { width: 1.35rem; text-align: center; margin-top: .1rem; opacity: .9; flex-shrink: 0; }
+.wa-otomatis-page .wa-otomatis-nav__text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .wa-otomatis-page .wa-otomatis-nav__text small { color: var(--bs-secondary-color); font-size: .72rem; }
 .wa-otomatis-page .wa-otomatis-panel-title { font-size: 1rem; font-weight: 600; margin-bottom: .25rem; }
+.wa-otomatis-page .wa-otomatis-panel { min-width: 0; }
+.wa-otomatis-page .card-body { min-width: 0; }
+.wa-otomatis-page .table-responsive { -webkit-overflow-scrolling: touch; }
+@media (max-width: 991.98px) {
+    .wa-otomatis-page .wa-otomatis-nav {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: .35rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: .35rem;
+        margin-bottom: 1rem !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .wa-otomatis-page .wa-otomatis-nav__item {
+        flex: 0 0 auto;
+        min-width: 7.5rem;
+        max-width: 10rem;
+        padding: .5rem .65rem;
+        white-space: normal;
+    }
+    .wa-otomatis-page .wa-otomatis-nav__text strong { font-size: .82rem; line-height: 1.2; }
+    .wa-otomatis-page .wa-otomatis-nav__text small { display: none; }
+    .wa-otomatis-page .wa-otomatis-layout > [class*="col-"] { width: 100%; max-width: 100%; }
+}
+@media (max-width: 575.98px) {
+    .wa-otomatis-page .page-intro .h4 { font-size: 1.15rem; }
+    .wa-otomatis-page .input-group { flex-wrap: wrap; }
+    .wa-otomatis-page .input-group .form-control { min-width: 0; }
+    .wa-otomatis-page .wa-otomatis-nav__item { min-width: 6.75rem; }
+}
 </style>
 
 <div class="page-intro mb-3">
@@ -54,11 +87,11 @@ $tabPartial = match ($waActiveTab) {
     <div class="alert alert-warning py-2 small"><?= htmlspecialchars((string) $msg) ?></div>
 <?php endif; ?>
 
-<div class="row g-3">
+<div class="row g-3 wa-otomatis-layout">
     <div class="col-lg-3">
         <?php require __DIR__ . '/partials/wa_otomatis_tabs_nav.php'; ?>
     </div>
-    <div class="col-lg-9">
+    <div class="col-lg-9 wa-otomatis-panel">
         <div class="wa-otomatis-panel-title">
             <?= htmlspecialchars($waTabs[$waActiveTab]['label'] ?? 'Ringkasan') ?>
         </div>

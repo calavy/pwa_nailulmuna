@@ -15,6 +15,13 @@ function user_profil_ensure_schema(PDO $pdo): void
     if (!column_exists($pdo, 'users', 'jenis_kelamin')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN jenis_kelamin ENUM('Laki-laki','Perempuan') NULL DEFAULT NULL");
     }
+    if (!column_exists($pdo, 'users', 'no_wa')) {
+        try {
+            $pdo->exec('ALTER TABLE users ADD COLUMN no_wa VARCHAR(32) NULL DEFAULT NULL');
+        } catch (PDOException $e) {
+            /* abaikan */
+        }
+    }
 }
 
 /** @return 'Laki-laki'|'Perempuan'|null */

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/entity_list_sort.php';
 require_once __DIR__ . '/wa_templates.php';
 require_once __DIR__ . '/push_fcm.php';
 
@@ -29,6 +30,14 @@ function perizinan_approval_ensure_schema(PDO $pdo): void
         try {
             $after = column_exists($pdo, 'pembimbing', 'wa_scan_reminder') ? ' AFTER wa_scan_reminder' : '';
             $pdo->exec('ALTER TABLE pembimbing ADD COLUMN wa_izin_notif TINYINT(1) NOT NULL DEFAULT 1' . $after);
+        } catch (PDOException $e) {
+            /* abaikan */
+        }
+    }
+
+    if (table_exists($pdo, 'users') && !column_exists($pdo, 'users', 'no_wa')) {
+        try {
+            $pdo->exec('ALTER TABLE users ADD COLUMN no_wa VARCHAR(32) NULL DEFAULT NULL');
         } catch (PDOException $e) {
             /* abaikan */
         }
@@ -241,7 +250,7 @@ function perizinan_pembimbing_nama_untuk_santri(PDO $pdo, int $santriId): string
     }
     $placeholders = implode(',', array_fill(0, count($pbIds), '?'));
     $st = $pdo->prepare(
-        'SELECT nama_pembimbing FROM pembimbing WHERE id IN (' . $placeholders . ') AND is_aktif = 1 ORDER BY nama_pembimbing ASC'
+        'SELECT nama_pembimbing FROM pembimbing WHERE id IN (' . $placeholders . ') AND is_aktif = 1 ORDER BY ' . pembimbing_list_order_sql('')
     );
     $st->execute($pbIds);
     $names = [];
@@ -372,27 +381,201 @@ function wa_format_izin_disetujui_pembimbing(
 }
 
 /**
- * Kirim WA ke pembimbing terkait (+ opsional grup) saat izin disetujui.
- *
- * @param array<string,mixed> $izinRow minimal: santri_id, nama_santri, nis, tingkatan, jenis_izin, alasan
+ * ID grup WA Fonte untuk notifikasi izin disetujui (bisa beberapa, pisah koma).
  */
-function perizinan_kirim_wa_pembimbing_disetujui(PDO $pdo, array $izinRow, string $tglMulai, string $tglSelesai, string $jamMulai, string $jamSelesai): int
+function wa_izin_grup_fonte_targets(PDO $pdo): string
 {
+    $grupId = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
+    if ($grupId !== '') {
+        return $grupId;
+    }
+
+    return trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
+}
+
+/** Apakah kirim otomatis ke grup saat izin disetujui. */
+function wa_izin_grup_fonte_enabled(PDO $pdo): bool
+{
+    $targets = wa_izin_grup_fonte_targets($pdo);
+    if ($targets === '') {
+        return false;
+    }
+
+    $flag = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', '1'));
+    if ($flag === '0') {
+        return false;
+    }
+    if ($flag === '1') {
+        return true;
+    }
+
+    return trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
+}
+
+/**
+ * @return array{pembimbing:int,grup:int,pengurus:int,total:int}
+ */
+function perizinan_wa_kirim_ringkasan(int $pembimbing, int $grup, int $pengurus = 0): array
+{
+    $pb = max(0, $pembimbing);
+    $gr = max(0, $grup);
+    $pg = max(0, $pengurus);
+
+    return [
+        'pembimbing' => $pb,
+        'grup' => $gr,
+        'pengurus' => $pg,
+        'total' => $pb + $gr + $pg,
+    ];
+}
+
+/** Teks flash singkat hasil kirim WA izin disetujui. */
+function perizinan_wa_flash_kirim_disetujui(array $ringkasan): string
+{
+    $parts = [];
+    if ((int) ($ringkasan['pembimbing'] ?? 0) > 0) {
+        $parts[] = (int) $ringkasan['pembimbing'] . ' pembimbing';
+    }
+    if ((int) ($ringkasan['grup'] ?? 0) > 0) {
+        $parts[] = (int) $ringkasan['grup'] . ' grup WA';
+    }
+    if ((int) ($ringkasan['pengurus'] ?? 0) > 0) {
+        $parts[] = (int) $ringkasan['pengurus'] . ' pengurus';
+    }
+    if ($parts === []) {
+        return '';
+    }
+
+    return ' WA terkirim ke ' . implode(' & ', $parts) . '.';
+}
+
+/** @return list<string> */
+function perizinan_wa_pengurus_phone_list(PDO $pdo, int $approvedByUserId = 0): array
+{
+    $phones = [];
+    $setting = wa_izin_pengurus_target($pdo);
+    if ($setting !== '') {
+        foreach (preg_split('/\s*,\s*/', $setting) ?: [] as $ph) {
+            $ph = trim((string) $ph);
+            if ($ph !== '') {
+                $phones[$ph] = true;
+            }
+        }
+    }
+    if ($approvedByUserId > 0 && table_exists($pdo, 'users') && column_exists($pdo, 'users', 'no_wa')) {
+        $st = $pdo->prepare('SELECT no_wa FROM users WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $approvedByUserId]);
+        $noWa = trim((string) ($st->fetchColumn() ?: ''));
+        if ($noWa !== '') {
+            $phones[$noWa] = true;
+        }
+    }
+
+    return array_keys($phones);
+}
+
+function perizinan_nama_pengurus_by_id(PDO $pdo, int $userId): string
+{
+    if ($userId <= 0 || !table_exists($pdo, 'users')) {
+        return 'Pengurus';
+    }
+    $st = $pdo->prepare('SELECT nama FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $userId]);
+    $nama = trim((string) ($st->fetchColumn() ?: ''));
+
+    return $nama !== '' ? $nama : 'Pengurus';
+}
+
+function wa_format_izin_disetujui_pengurus(
+    PDO $pdo,
+    string $namaSantri,
+    string $nis,
+    string $tingkatan,
+    string $jenisLabel,
+    string $tanggalMulai,
+    string $tanggalSelesai,
+    string $jamMulai,
+    string $jamSelesai,
+    string $alasan,
+    string $namaPengurus = '',
+    string $daftarSantri = ''
+): string {
+    $slug = 'izin_disetujui_pengurus';
+    $pesan = wa_template_render($pdo, $slug, [
+        'nama_santri' => $namaSantri,
+        'daftar_santri' => '',
+        'nis' => $nis,
+        'tingkatan' => $tingkatan,
+        'jenis_izin' => $jenisLabel,
+        'tanggal_mulai' => $tanggalMulai,
+        'tanggal_selesai' => $tanggalSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'alasan' => $alasan,
+        'nama_pengurus' => $namaPengurus !== '' ? $namaPengurus : 'Pengurus',
+        'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+    ]);
+
+    return perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+}
+
+function wa_format_izin_selesai_pengurus(
+    PDO $pdo,
+    string $namaSantri,
+    string $nis,
+    string $tingkatan,
+    string $jenisLabel,
+    string $waktuKembali,
+    int $lateMinutes = 0,
+    int $latePoint = 0
+): string {
+    $infoTelat = '';
+    if ($latePoint > 0) {
+        $infoTelat = '⚠️ Terlambat ' . $lateMinutes . ' menit (poin +' . $latePoint . ').';
+    }
+    $slug = 'izin_selesai_pengurus';
+
+    return wa_template_render($pdo, $slug, [
+        'nama_santri' => $namaSantri,
+        'nis' => $nis,
+        'tingkatan' => $tingkatan,
+        'jenis_izin' => $jenisLabel,
+        'waktu_kembali' => $waktuKembali,
+        'info_telat' => $infoTelat !== '' ? $infoTelat . "\n" : '',
+        'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+    ]);
+}
+
+/**
+ * Kirim WA ke pengurus/petugas surat saat izin disetujui.
+ *
+ * @param array<string,mixed> $izinRow
+ */
+function perizinan_kirim_wa_pengurus_disetujui(
+    PDO $pdo,
+    array $izinRow,
+    string $tglMulai,
+    string $tglSelesai,
+    string $jamMulai,
+    string $jamSelesai,
+    int $approvedByUserId = 0,
+    string $daftarSantri = ''
+): int {
     require_once __DIR__ . '/wa_otomatis.php';
-    if (!wa_otomatis_should_run($pdo, 'izin')) {
+    if (!wa_otomatis_should_run($pdo, 'izin') || !wa_izin_pengurus_enabled($pdo)) {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
         return 0;
     }
 
-    $santriId = (int) ($izinRow['santri_id'] ?? 0);
-    $phones = perizinan_pembimbing_wa_targets($pdo, $santriId);
+    $phones = perizinan_wa_pengurus_phone_list($pdo, $approvedByUserId);
     if ($phones === []) {
-        return perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+        return 0;
     }
 
     $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'KELUAR'));
-    $santriIdWa = (int) ($izinRow['santri_id'] ?? 0);
-    $namaPb = perizinan_pembimbing_nama_untuk_santri($pdo, $santriIdWa);
-    $msg = wa_format_izin_disetujui_pembimbing(
+    $msg = wa_format_izin_disetujui_pengurus(
         $pdo,
         (string) ($izinRow['nama_santri'] ?? '-'),
         trim((string) ($izinRow['nis'] ?? '')),
@@ -403,19 +586,124 @@ function perizinan_kirim_wa_pembimbing_disetujui(PDO $pdo, array $izinRow, strin
         $jamMulai,
         $jamSelesai,
         (string) ($izinRow['alasan'] ?? '-'),
-        $namaPb,
-        $jenisRaw
+        perizinan_nama_pengurus_by_id($pdo, $approvedByUserId),
+        $daftarSantri
     );
 
-    $sent = send_wa_bulk($pdo, implode(',', $phones), $msg);
+    return send_wa_bulk($pdo, implode(',', $phones), $msg);
+}
 
-    return $sent + perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+/** Kirim laporan WA ke pengurus saat santri tercatat kembali / izin selesai. */
+function perizinan_kirim_wa_pengurus_izin_selesai(
+    PDO $pdo,
+    int $izinId,
+    int $lateMinutes = 0,
+    int $latePoint = 0
+): int {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if ($izinId <= 0 || !wa_otomatis_should_run($pdo, 'izin') || !wa_izin_selesai_enabled($pdo)) {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return 0;
+    }
+
+    $phones = perizinan_wa_pengurus_phone_list($pdo);
+    if ($phones === []) {
+        return 0;
+    }
+
+    $st = $pdo->prepare('
+        SELECT i.jenis_izin, i.waktu_kembali, i.approved_by,
+               s.nama_santri, s.nis, s.tingkatan
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE i.id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return 0;
+    }
+
+    $waktuKembali = trim((string) ($row['waktu_kembali'] ?? ''));
+    if ($waktuKembali === '') {
+        $waktuKembali = date('Y-m-d H:i');
+    } else {
+        $ts = strtotime($waktuKembali);
+        $waktuKembali = $ts !== false ? date('d/m/Y H:i', $ts) : $waktuKembali;
+    }
+
+    $jenisRaw = strtoupper((string) ($row['jenis_izin'] ?? 'KELUAR'));
+    $msg = wa_format_izin_selesai_pengurus(
+        $pdo,
+        (string) ($row['nama_santri'] ?? '-'),
+        trim((string) ($row['nis'] ?? '')),
+        trim((string) ($row['tingkatan'] ?? '')),
+        jenis_izin_label($jenisRaw),
+        $waktuKembali,
+        $lateMinutes,
+        $latePoint
+    );
+
+    return send_wa_bulk($pdo, implode(',', $phones), $msg);
+}
+
+/**
+ * Kirim WA ke pembimbing terkait (+ opsional grup) saat izin disetujui.
+ *
+ * @param array<string,mixed> $izinRow minimal: santri_id, nama_santri, nis, tingkatan, jenis_izin, alasan
+ * @return array{pembimbing:int,grup:int,pengurus:int,total:int}
+ */
+function perizinan_kirim_wa_pembimbing_disetujui(
+    PDO $pdo,
+    array $izinRow,
+    string $tglMulai,
+    string $tglSelesai,
+    string $jamMulai,
+    string $jamSelesai,
+    int $approvedByUserId = 0
+): array {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin')) {
+        return perizinan_wa_kirim_ringkasan(0, 0, 0);
+    }
+
+    $sentPb = 0;
+    $santriId = (int) ($izinRow['santri_id'] ?? 0);
+    $phones = perizinan_pembimbing_wa_targets($pdo, $santriId);
+    if ($phones !== []) {
+        $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'KELUAR'));
+        $namaPb = perizinan_pembimbing_nama_untuk_santri($pdo, $santriId);
+        $msg = wa_format_izin_disetujui_pembimbing(
+            $pdo,
+            (string) ($izinRow['nama_santri'] ?? '-'),
+            trim((string) ($izinRow['nis'] ?? '')),
+            trim((string) ($izinRow['tingkatan'] ?? '')),
+            jenis_izin_label($jenisRaw),
+            $tglMulai,
+            $tglSelesai,
+            $jamMulai,
+            $jamSelesai,
+            (string) ($izinRow['alasan'] ?? '-'),
+            $namaPb,
+            $jenisRaw
+        );
+        $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg);
+    }
+
+    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+    $sentPg = perizinan_kirim_wa_pengurus_disetujui($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $approvedByUserId);
+
+    return perizinan_wa_kirim_ringkasan($sentPb, $sentGrup, $sentPg);
 }
 
 /**
  * Kirim satu pesan WA untuk seluruh anggota izin rombongan (bukan per santri).
  *
  * @param list<array<string,mixed>> $anggota
+ * @return array{pembimbing:int,grup:int,pengurus:int,total:int}
  */
 function perizinan_kirim_wa_rombongan_disetujui(
     PDO $pdo,
@@ -425,11 +713,12 @@ function perizinan_kirim_wa_rombongan_disetujui(
     string $tglMulai,
     string $tglSelesai,
     string $jamMulai,
-    string $jamSelesai
-): int {
+    string $jamSelesai,
+    int $approvedByUserId = 0
+): array {
     require_once __DIR__ . '/wa_otomatis.php';
     if (!wa_otomatis_should_run($pdo, 'izin') || $anggota === []) {
-        return 0;
+        return perizinan_wa_kirim_ringkasan(0, 0, 0);
     }
 
     $jenisRaw = strtoupper(trim($jenisIzin));
@@ -460,7 +749,7 @@ function perizinan_kirim_wa_rombongan_disetujui(
     $phoneList = array_keys($phones);
     $namaPbAll = implode(', ', array_keys($pbNames));
 
-    $sent = 0;
+    $sentPb = 0;
     if ($phoneList !== []) {
         $msg = wa_format_izin_disetujui_pembimbing(
             $pdo,
@@ -477,7 +766,7 @@ function perizinan_kirim_wa_rombongan_disetujui(
             $jenisRaw,
             $daftarSantri
         );
-        $sent += send_wa_bulk($pdo, implode(',', $phoneList), $msg);
+        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg);
     }
 
     $izinRowGrup = [
@@ -489,7 +778,19 @@ function perizinan_kirim_wa_rombongan_disetujui(
         'daftar_santri' => $daftarSantri,
     ];
 
-    return $sent + perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri);
+    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri);
+    $sentPg = perizinan_kirim_wa_pengurus_disetujui(
+        $pdo,
+        $izinRowGrup,
+        $tglMulai,
+        $tglSelesai,
+        $jamMulai,
+        $jamSelesai,
+        $approvedByUserId,
+        $daftarSantri
+    );
+
+    return perizinan_wa_kirim_ringkasan($sentPb, $sentGrup, $sentPg);
 }
 
 /**
@@ -513,17 +814,11 @@ function perizinan_kirim_wa_grup_fonte(
     if (wa_otomatis_gateway_error($pdo) !== null) {
         return 0;
     }
-    if (trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', '')) !== '1') {
-        $legacy = trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
-        if (!$legacy) {
-            return 0;
-        }
+    if (!wa_izin_grup_fonte_enabled($pdo)) {
+        return 0;
     }
 
-    $grupId = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
-    if ($grupId === '') {
-        $grupId = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
-    }
+    $grupId = wa_izin_grup_fonte_targets($pdo);
     if ($grupId === '') {
         return 0;
     }

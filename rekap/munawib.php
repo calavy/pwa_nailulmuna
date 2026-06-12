@@ -42,7 +42,7 @@ require __DIR__ . '/../includes/partials/rekap_periode_filter.php';
         <select name="munawib_id" class="form-select form-select-sm">
             <option value="0">Semua</option>
             <?php foreach ($munawibList as $m): ?>
-                <option value="<?= (int) $m['id'] ?>" <?= $munawibId === (int) $m['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $m['nama']) ?></option>
+                <option value="<?= (int) $m['id'] ?>" <?= $munawibId === (int) $m['id'] ? 'selected' : '' ?>><?= htmlspecialchars(trim((string) ($m['nip'] ?? '') . ' — ' . (string) ($m['nama'] ?? ''), ' —')) ?></option>
             <?php endforeach; ?>
         </select>
     </div>

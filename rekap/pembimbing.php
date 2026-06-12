@@ -81,7 +81,7 @@ $stmt = $pdo->prepare('
         ON p.pembimbing_id = b.id
        AND p.tanggal BETWEEN :start_date AND :end_date
     GROUP BY b.id, b.nip, b.nama_pembimbing, b.gaji_pokok, b.tarif_kriteria
-    ORDER BY b.nama_pembimbing ASC
+    ORDER BY ' . pembimbing_list_order_sql('b') . '
 ');
 $stmt->execute([
     'start_date' => $startDate,

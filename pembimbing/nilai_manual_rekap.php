@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'pembimbing']);
 
@@ -41,7 +42,7 @@ $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $pembimbingList = [];
 if ($bolehSemua && table_exists($pdo, 'pembimbing')) {
-    $pembimbingList = $pdo->query('SELECT id, nama_pembimbing FROM pembimbing WHERE COALESCE(is_aktif,1)=1 ORDER BY nama_pembimbing')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $pembimbingList = $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing WHERE COALESCE(is_aktif,1)=1 ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 $pageTitle = 'Rekapan Nilai Manual';

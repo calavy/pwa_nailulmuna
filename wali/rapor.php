@@ -21,7 +21,7 @@ if (table_exists($pdo, 'akademik_rapor')) {
     $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
-$waPengurus = trim((string) app_setting($pdo, 'wa_pengurus', ''));
+$waPengurus = wa_permohonan_izin_target($pdo);
 $namaAnak = (string) ($waliSantriRow['nama_tampil'] ?? '');
 $pesanTanya = 'Assalamu\'alaikum, saya wali dari *' . $namaAnak . '* (NIS ' . ($waliSantriRow['nis'] ?? '') . '). Mohon penjelasan terkait rapor akademik di portal wali. Terima kasih.';
 $waAdminUrl = $waPengurus !== '' ? wa_me_chat_url($waPengurus, $pesanTanya) : null;
@@ -38,7 +38,7 @@ wali_layout_head('Rapor — Portal Wali', true, 'rapor');
         <?php if ($waAdminUrl): ?>
             <a class="btn btn-success w-100 mb-3" target="_blank" rel="noopener" href="<?= htmlspecialchars($waAdminUrl) ?>">Chat WhatsApp pengurus</a>
         <?php else: ?>
-            <div class="alert alert-light border small mb-3">Nomor WhatsApp pengurus belum diatur di Settings (wa_pengurus).</div>
+            <div class="alert alert-light border small mb-3">Nomor WhatsApp pengurus belum diatur. Isi di <strong>Pengaturan → WA Otomatis → tab Izin</strong> (permohonan izin) atau tab Alpa.</div>
         <?php endif; ?>
 
         <?php if (!$rows): ?>

@@ -36,6 +36,8 @@ $pondokWaFields = [
     'wa_gateway_token',
     'wa_sender',
     'wa_pengurus',
+    'wa_permohonan_izin',
+    'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled',
     'mudabir_batas_menit',

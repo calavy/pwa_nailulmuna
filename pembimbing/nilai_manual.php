@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
 require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 require_once __DIR__ . '/../helpers/munawib_portal.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'pembimbing']);
 munawib_portal_guard_halaman();
@@ -249,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pembimbingList = [];
 if ($bolehSemua && table_exists($pdo, 'pembimbing')) {
-    $pembimbingList = $pdo->query('SELECT id, nama_pembimbing FROM pembimbing WHERE COALESCE(is_aktif,1)=1 ORDER BY nama_pembimbing')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $pembimbingList = $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing WHERE COALESCE(is_aktif,1)=1 ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 $santriRows = [];

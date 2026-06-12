@@ -74,6 +74,31 @@ function wa_template_definitions(): array
                 . '— {nama_ponpes}'
                 . '{doa}',
         ],
+        'izin_disetujui_pengurus' => [
+            'label' => 'Izin disetujui → pengurus (petugas surat)',
+            'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Izin rombongan: {daftar_santri}.',
+            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
+            'default' => "📄 *Izin disetujui — siap cetak surat*\n\n"
+                . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . '{daftar_santri}'
+                . 'Jenis: {jenis_izin}\n'
+                . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Jam: {jam_mulai} – {jam_selesai}\n'
+                . 'Keperluan: {alasan}\n'
+                . 'Disetujui oleh: *{nama_pengurus}*\n'
+                . '— {nama_ponpes}',
+        ],
+        'izin_selesai_pengurus' => [
+            'label' => 'Izin selesai → pengurus (laporan kembali)',
+            'hint' => 'Dikirim saat santri tercatat kembali (scan QR atau tandai selesai). {info_telat} kosong jika tepat waktu.',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {waktu_kembali}, {info_telat}, {nama_ponpes}',
+            'default' => "✅ *Laporan izin selesai*\n\n"
+                . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . 'Jenis izin: {jenis_izin}\n'
+                . 'Waktu kembali: {waktu_kembali}\n'
+                . '{info_telat}'
+                . '— {nama_ponpes}',
+        ],
         'izin_sakit_doa' => [
             'label' => 'Doa tambahan izin sakit',
             'hint' => 'Ditambahkan otomatis di akhir pesan WA saat jenis izin sakit disetujui. Kosongkan untuk menonaktifkan.',

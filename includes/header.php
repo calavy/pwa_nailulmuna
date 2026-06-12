@@ -153,7 +153,14 @@ if (!function_exists('render_app_sidebar_nav')) {
         $mode = (string) ($options['mode'] ?? 'hub');
         $isAccordion = $mode === 'accordion';
         echo '<nav class="app-sidebar-nav' . ($isAccordion ? ' app-sidebar-nav--accordion' : '') . '" aria-label="Menu utama">';
-        echo '<div class="app-sidebar-nav-label">Menu modul</div>';
+        if ($isAccordion) {
+            echo '<div class="app-sidebar-nav-label">Menu modul</div>';
+        } else {
+            echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle role="button" tabindex="0" title="Klik untuk sembunyikan menu" aria-label="Sembunyikan menu samping">';
+            echo '<span class="app-sidebar-nav-label__text">Menu modul</span>';
+            echo '<span class="app-sidebar-nav-label__arrow" aria-hidden="true"><i class="fa-solid fa-angles-left"></i></span>';
+            echo '</div>';
+        }
         foreach ($structure as $node) {
             $type = (string) ($node['type'] ?? 'item');
             if ($type === 'item') {
@@ -263,6 +270,15 @@ if (!function_exists('render_app_sidebar_nav')) {
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('app-sidebar-hidden') === '1') {
+                    document.documentElement.classList.add('app-sidebar-hidden-boot');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <link rel="preload" href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" as="style">
     <?php if (!empty($pageStylesheets) && is_array($pageStylesheets)): ?>
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
@@ -364,18 +380,13 @@ if (!function_exists('render_app_sidebar_nav')) {
             <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'hub']); ?>
         </div>
     </aside>
+    <div class="app-sidebar-reveal d-none d-lg-block" data-app-sidebar-toggle role="button" tabindex="0" aria-hidden="true" title="Klik untuk tampilkan menu" aria-label="Tampilkan menu samping"></div>
     <?php endif; ?>
 
     <div class="app-frame-main">
         <header class="app-topbar">
             <div class="app-topbar-inner">
                 <div class="app-topbar-left">
-                    <?php if (!$hideAppSidebar): ?>
-                    <button class="btn btn-light btn-sm app-topbar-menu-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" aria-label="Buka menu">
-                        <i class="fa-solid fa-bars" aria-hidden="true"></i>
-                        <span class="d-none d-sm-inline ms-1">Menu</span>
-                    </button>
-                    <?php endif; ?>
                     <a href="<?= htmlspecialchars($hideAppSidebar ? app_href('/pembimbing/dashboard.php') : app_href('/dashboard.php')) ?>" class="app-brand-link<?= $hideAppSidebar ? '' : ' d-lg-none' ?>" title="<?= htmlspecialchars($appBrandTitle) ?>">
                         <?php if ($appLogoHref !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
@@ -397,11 +408,22 @@ if (!function_exists('render_app_sidebar_nav')) {
                     </div>
                 </div>
                 <div class="app-topbar-center d-lg-none">
+                    <?php if (!$hideAppSidebar): ?>
+                    <span class="app-topbar-title-mobile app-topbar-title-mobile--menu-hit" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" role="button" tabindex="0" title="Klik untuk buka menu" aria-label="Buka menu"><?= htmlspecialchars($pageTitleHeader) ?></span>
+                    <?php else: ?>
                     <span class="app-topbar-title-mobile"><?= htmlspecialchars($pageTitleHeader) ?></span>
+                    <?php endif; ?>
                 </div>
                 <div class="app-topbar-right">
                     <?php if (isset($_SESSION['user'])): ?>
-                        <span class="app-topbar-role badge rounded-pill d-none d-md-inline-flex"><?= htmlspecialchars($currentRoleLabel) ?></span>
+                    <div class="app-topbar-actions" role="group" aria-label="Akun">
+                        <?php if ($topbarBackHref !== ''): ?>
+                        <a class="app-topbar-action-btn app-topbar-back" href="<?= htmlspecialchars($topbarBackHref) ?>" title="<?= htmlspecialchars($topbarBackLabel) ?>">
+                            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                            <span class="app-topbar-action-btn__label"><?= htmlspecialchars($topbarBackLabel) ?></span>
+                        </a>
+                        <?php endif; ?>
+                        <span class="app-topbar-role badge rounded-pill d-none d-lg-inline-flex"><?= htmlspecialchars($currentRoleLabel) ?></span>
                         <div class="dropdown app-topbar-profile-menu">
                             <button type="button" class="app-topbar-user-pill dropdown-toggle d-none d-sm-inline-flex" data-bs-toggle="dropdown" aria-expanded="false" title="Profil &amp; pengaturan">
                                 <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>
@@ -426,18 +448,11 @@ if (!function_exists('render_app_sidebar_nav')) {
                                 </li>
                             </ul>
                         </div>
-                        <div class="app-topbar-stack">
-                            <a class="btn btn-sm app-topbar-icon-btn app-topbar-logout" href="<?= htmlspecialchars(app_href('/logout.php')) ?>" title="Keluar">
-                                <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                                <span class="d-none d-sm-inline ms-1">Keluar</span>
-                            </a>
-                            <?php if ($topbarBackHref !== ''): ?>
-                            <a class="app-topbar-back" href="<?= htmlspecialchars($topbarBackHref) ?>" title="<?= htmlspecialchars($topbarBackLabel) ?>">
-                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-                                <span><?= htmlspecialchars($topbarBackLabel) ?></span>
-                            </a>
-                            <?php endif; ?>
-                        </div>
+                        <a class="app-topbar-action-btn app-topbar-logout" href="<?= htmlspecialchars(app_href('/logout.php')) ?>" title="Keluar">
+                            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                            <span class="app-topbar-action-btn__label d-none d-md-inline">Keluar</span>
+                        </a>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -469,10 +484,3 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php if ($error = get_flash('error')): ?>
         <div class="alert alert-danger app-flash mb-3" role="alert"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
-    <script>
-        (function () {
-            try {
-                localStorage.removeItem('sidebar-collapsed');
-            } catch (e) {}
-        })();
-    </script>

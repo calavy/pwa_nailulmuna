@@ -11,7 +11,7 @@ user_profil_ensure_schema($pdo);
 const PROFIL_PASSWORD_MIN_LEN = 6;
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
-$st = $pdo->prepare('SELECT id, nama, username, role, foto_profil, jenis_kelamin, password FROM users WHERE id = :id LIMIT 1');
+$st = $pdo->prepare('SELECT id, nama, username, role, foto_profil, jenis_kelamin, no_wa, password FROM users WHERE id = :id LIMIT 1');
 $st->execute(['id' => $userId]);
 $userRow = $st->fetch(PDO::FETCH_ASSOC);
 
@@ -44,6 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $_SESSION['user']['jenis_kelamin'] = $jk;
             set_flash('success', 'Foto default disesuaikan.');
+        header('Location: ' . app_href('/settings/profil.php'));
+        exit;
+    }
+
+    if ($action === 'save_no_wa') {
+        $noWa = trim((string) ($_POST['no_wa'] ?? ''));
+        $pdo->prepare('UPDATE users SET no_wa = :wa WHERE id = :id')->execute([
+            'wa' => $noWa !== '' ? $noWa : null,
+            'id' => $userId,
+        ]);
+        set_flash('success', 'Nomor WhatsApp disimpan.');
         header('Location: ' . app_href('/settings/profil.php'));
         exit;
     }
@@ -186,6 +197,22 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn btn-outline-primary js-fcm-subscribe" id="btn-fcm-subscribe-profil">
                     <i class="fa-regular fa-bell me-1" aria-hidden="true"></i> Aktifkan notifikasi
                 </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-2">WhatsApp pribadi</h2>
+                <p class="small text-muted mb-3">Dipakai untuk notifikasi otomatis izin (saat Anda menyetujui surat) jika diaktifkan di Pengaturan → WA Otomatis → Izin.</p>
+                <form method="post" class="d-flex flex-wrap gap-2 align-items-end">
+                    <input type="hidden" name="action" value="save_no_wa">
+                    <div class="flex-grow-1" style="min-width:12rem;">
+                        <label class="form-label small mb-1" for="profil-no-wa">No. WhatsApp</label>
+                        <input type="text" class="form-control form-control-sm" id="profil-no-wa" name="no_wa" value="<?= htmlspecialchars(trim((string) ($userRow['no_wa'] ?? ''))) ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="tel">
+                    </div>
+                    <button type="submit" class="btn btn-success btn-sm">Simpan</button>
+                </form>
             </div>
         </div>
     </div>

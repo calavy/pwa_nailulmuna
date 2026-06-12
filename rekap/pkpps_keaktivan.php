@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 pkpps_ensure_schema($pdo);
@@ -89,7 +90,7 @@ if (table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'presensi_pembimbin
           ON pp.pembimbing_id = b.id
          AND pp.tanggal BETWEEN :dari AND :sampai
         GROUP BY b.id, b.nama_pembimbing, b.nip
-        ORDER BY total_hadir DESC, b.nama_pembimbing ASC
+        ORDER BY total_hadir DESC, ' . pembimbing_list_order_sql('b') . '
     ');
     $st->execute(['dari' => $dari, 'sampai' => $sampai]);
     $pembimbingRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];

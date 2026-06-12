@@ -338,7 +338,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         $pdo->commit();
 
         $alasanMeta = (string) ($meta['alasan'] ?? '');
-        $waTotal = perizinan_kirim_wa_rombongan_disetujui(
+        $waRingkasan = perizinan_kirim_wa_rombongan_disetujui(
             $pdo,
             $anggota,
             $jenisIzin,
@@ -346,15 +346,14 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $tglMulai,
             $tglSelesai,
             $jamMulai,
-            $jamSelesai
+            $jamSelesai,
+            $userId
         );
         $msg = 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
         if ($bypassAlpa) {
             $msg .= ' (Syarat ALPA dilewati.)';
         }
-        if ($waTotal > 0) {
-            $msg .= ' WA rombongan terkirim (' . $waTotal . ' penerima).';
-        }
+        $msg .= perizinan_wa_flash_kirim_disetujui($waRingkasan);
 
         return ['ok' => true, 'message' => $msg];
     } catch (Throwable $e) {
@@ -405,6 +404,19 @@ function perizinan_rombongan_proses_kembali(PDO $pdo, int $rombonganId, array $s
         }
         $pdo->commit();
         $n = count($ids);
+
+        require_once __DIR__ . '/perizinan_approval.php';
+        foreach ($ids as $sid) {
+            if (!in_array($sid, $validIds, true)) {
+                continue;
+            }
+            $stIz = $pdo->prepare('SELECT id FROM perizinan WHERE rombongan_id = :rid AND santri_id = :sid LIMIT 1');
+            $stIz->execute(['rid' => $rombonganId, 'sid' => $sid]);
+            $izinId = (int) ($stIz->fetchColumn() ?: 0);
+            if ($izinId > 0) {
+                perizinan_kirim_wa_pengurus_izin_selesai($pdo, $izinId);
+            }
+        }
 
         return ['ok' => true, 'message' => $n . ' santri dicatat kembali ke asrama.'];
     } catch (Throwable $e) {

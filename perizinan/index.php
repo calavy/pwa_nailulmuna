@@ -175,13 +175,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     send_wa_message($pdo, $waliPhone, $msg);
                 }
             }
-            $waPb = perizinan_kirim_wa_pembimbing_disetujui($pdo, $izinInfo, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+            $waRingkasan = perizinan_kirim_wa_pembimbing_disetujui(
+                $pdo,
+                $izinInfo,
+                $tglMulai,
+                $tglSelesai,
+                $jamMulai,
+                $jamSelesai,
+                (int) ($_SESSION['user']['id'] ?? 0)
+            );
             $flashMsg = 'Izin disetujui. QR digital aktif dan surat siap dicetak.';
             if ($bypassAlpa) {
                 $flashMsg .= ' (Syarat ALPA dilewati oleh admin super.)';
             }
-            if ($waPb > 0) {
-                $flashMsg .= ' WA terkirim ke ' . $waPb . ' pembimbing.';
+            $flashMsg .= perizinan_wa_flash_kirim_disetujui($waRingkasan);
+            if ($waRingkasan['total'] === 0 && wa_izin_grup_fonte_targets($pdo) !== '' && !wa_izin_grup_fonte_enabled($pdo)) {
+                $flashMsg .= ' (Kirim grup nonaktif — aktifkan di Pengaturan → WA Otomatis → Izin.)';
+            } elseif ($waRingkasan['total'] === 0 && wa_izin_grup_fonte_targets($pdo) === '' && trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1') {
+                $flashMsg .= ' (WA pembimbing/grup belum terkirim — periksa nomor pembimbing & ID grup.)';
             }
             set_flash('success', $flashMsg);
             header('Location: ' . app_rewrite_internal_url('/perizinan/surat.php?id=' . $id));
@@ -377,8 +388,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
         );
     }
-    if (push_should_send_wa($pdo)) {
-        send_wa_bulk($pdo, app_setting($pdo, 'wa_pengurus', ''), $notifMsg);
+    if (push_should_send_wa($pdo) && wa_permohonan_izin_enabled($pdo)) {
+        $waIzinTarget = wa_permohonan_izin_target($pdo);
+        if ($waIzinTarget !== '') {
+            send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
+        }
     }
     $okMsg = $data['jenis_izin'] === 'SAKIT'
         ? 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan.'

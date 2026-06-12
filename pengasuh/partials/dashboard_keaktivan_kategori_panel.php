@@ -26,6 +26,10 @@ $sdmByTingkatan = is_array($panel['sdmByTingkatan'] ?? null) ? $panel['sdmByTing
 $kegiatanAktifPanel = is_array($panel['kegiatanAktif'] ?? null) ? $panel['kegiatanAktif'] : [];
 $panelMode = (string) ($panel['mode'] ?? 'hari');
 $panelIsLive = $panelMode === 'live';
+$panelIsProgress = $panelMode === 'progress';
+$panelModeLabel = $panelIsLive
+    ? 'Berlangsung <span data-pg-sync-clock="hm">' . htmlspecialchars($jamServerLabel) . '</span> WIB'
+    : ($panelIsProgress ? 'Sudah berjalan hari ini' : 'Ringkasan hari ini');
 
 $totalPerhatian = (int) ($totalsLive['alpa'] ?? 0);
 $kegiatanPerhatian = array_values(array_filter(
@@ -43,7 +47,9 @@ $heroId = 'khHero-' . $panelSlug;
             <div class="dash-empty-chart__inner">
                 <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
                 <?php if ($panelIsLive): ?>
-                    <p class="mb-0 fw-semibold">Belum ada kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> berlangsung di jam <?= htmlspecialchars($jamServerLabel) ?>.</p>
+                    <p class="mb-0 fw-semibold">Belum ada kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> berlangsung di jam <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span>.</p>
+                <?php elseif ($panelIsProgress): ?>
+                    <p class="mb-0 fw-semibold">Belum ada data presensi kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> yang sudah berjalan hari ini.</p>
                 <?php else: ?>
                     <p class="mb-0 fw-semibold">Belum ada data presensi <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> hari ini.</p>
                 <?php endif; ?>
@@ -79,7 +85,7 @@ $heroId = 'khHero-' . $panelSlug;
             ?>
         <div class="kh-hero kh-section mb-4" id="<?= htmlspecialchars($heroId) ?>">
             <div class="kh-hero__top">
-                <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?> · <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> · <?= $panelIsLive ? 'Berlangsung ' . htmlspecialchars($jamServerLabel) . ' WIB' : 'Ringkasan hari ini' ?></div>
+                <div class="kh-hero__date"><?= htmlspecialchars($tglLabel) ?> · <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> · <?= $panelModeLabel ?></div>
                 <div class="small text-muted"><?= count($detailLive) ?> kegiatan · <?= (int) $totalsLive['total'] ?> pencatatan (santri × kegiatan)</div>
             </div>
             <div class="kh-totals">
@@ -264,7 +270,7 @@ $heroId = 'khHero-' . $panelSlug;
         if ($sdmPb !== [] || $sdmMw !== []):
         ?>
         <div class="pg-dash-sdm-inline mt-4 pt-3 border-top">
-            <h3 class="h6 fw-bold mb-3">Keaktivan SDM berlangsung · <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?></h3>
+            <h3 class="h6 fw-bold mb-3">Keaktivan SDM<?= $panelIsLive ? ' berlangsung' : ' hari ini' ?> · <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?></h3>
             <div class="row g-4">
                 <?php if ($sdmPb !== []): ?>
                 <div class="col-lg-6">

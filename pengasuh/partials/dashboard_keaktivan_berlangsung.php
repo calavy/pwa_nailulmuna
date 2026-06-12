@@ -35,9 +35,11 @@ $panelOrder = ['TAALIM', 'JAMAAH'];
                     <h2 class="h5 mb-1">Keaktivan hari ini</h2>
                     <p class="small text-muted mb-0">
                         <?php if (!empty($keaktivanModeLive)): ?>
-                            Kegiatan sedang berlangsung · slot <?= htmlspecialchars($jamServerLabel) ?> WIB
+                            Kegiatan sedang berlangsung · slot <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span> WIB
+                        <?php elseif (!empty($keaktivanModeProgress)): ?>
+                            Semua kegiatan yang sudah berjalan hari ini · jam <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span> WIB
                         <?php else: ?>
-                            Ringkasan presensi hari ini · belum ada kegiatan berlangsung di jam <?= htmlspecialchars($jamServerLabel) ?> WIB
+                            Ringkasan presensi hari ini · belum ada kegiatan berjalan di jam <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span> WIB
                         <?php endif; ?>
                     </p>
                 </div>

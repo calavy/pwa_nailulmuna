@@ -10,6 +10,10 @@ require_once __DIR__ . '/helpers/login_pembimbing.php';
 require_once __DIR__ . '/helpers/munawib.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
+if ($pdo instanceof PDO) {
+    ensure_pondok_settings_defaults($pdo);
+}
+
 if (isset($_SESSION['user']) && $pdo instanceof PDO) {
     $peranGate = strtolower(trim((string) ($_GET['peran'] ?? $_POST['peran'] ?? '')));
     $pbActGate = strtolower(trim((string) ($_GET['act'] ?? '')));
@@ -215,6 +219,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         ];
         if ($isRegisteredPembimbing && $userId > 0) {
             login_pembimbing_ensure_acl($pdo, $userId);
+        } elseif ($userId > 0 && in_array($sessionRole, ['pengurus', 'petugas_absensi'], true)) {
+            require_once __DIR__ . '/helpers/user_permissions.php';
+            user_permission_ensure_role_defaults($pdo, $userId, $sessionRole);
         }
         if ($pembimbingIdLogin > 0) {
             require_once __DIR__ . '/helpers/akademik_setoran.php';

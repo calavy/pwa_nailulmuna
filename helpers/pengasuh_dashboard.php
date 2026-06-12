@@ -6,6 +6,7 @@ require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/rekap_keaktifan_hari.php';
 require_once __DIR__ . '/jadwal_ui.php';
 require_once __DIR__ . '/santri_operasional.php';
+require_once __DIR__ . '/entity_list_sort.php';
 
 /**
  * Jadwal kegiatan yang sedang berlangsung (seluruh pondok).
@@ -36,6 +37,43 @@ function pengasuh_dashboard_kegiatan_aktif(PDO $pdo, ?string $jamNow = null): ar
         . $pbJoin . '
          WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
            AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
+           AND k.is_active = 1
+         ORDER BY j.jam_mulai ASC, j.tingkatan ASC'
+    );
+    $st->execute(['hari_ke' => $hariKe, 'jam_now' => $jamNow]);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Jadwal kegiatan yang sudah dimulai hari ini (termasuk yang sudah selesai).
+ *
+ * @return list<array<string, mixed>>
+ */
+function pengasuh_dashboard_kegiatan_sudah_berjalan(PDO $pdo, ?string $jamNow = null): array
+{
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    ensure_jadwal_kegiatan_tempat($pdo);
+    $jamNow = $jamNow ?? date('H:i:s');
+    $hariKe = (int) date('N');
+
+    $pbSelect = '';
+    $pbJoin = '';
+    if (column_exists($pdo, 'jadwal_kegiatan', 'pembimbing_id') && table_exists($pdo, 'pembimbing')) {
+        $pbSelect = ', j.pembimbing_id, p.nama_pembimbing';
+        $pbJoin = ' LEFT JOIN pembimbing p ON p.id = j.pembimbing_id';
+    }
+
+    $st = $pdo->prepare(
+        'SELECT k.id AS kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, \'TAALIM\') AS kategori_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat'
+        . $pbSelect . '
+         FROM jadwal_kegiatan j
+         INNER JOIN kegiatan k ON k.id = j.kegiatan_id'
+        . $pbJoin . '
+         WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
+           AND j.jam_mulai <= :jam_now
            AND k.is_active = 1
          ORDER BY j.jam_mulai ASC, j.tingkatan ASC'
     );
@@ -266,26 +304,34 @@ function pengasuh_dashboard_keaktivan_bundle(
     array $kegiatanAktif,
     string $kategori
 ): array {
+    $jamNow = date('H:i:s');
     $aktif = pengasuh_dashboard_filter_kegiatan_aktif_kategori($kegiatanAktif, $kategori);
+    $sudahBerjalan = pengasuh_dashboard_filter_kegiatan_aktif_kategori(
+        pengasuh_dashboard_kegiatan_sudah_berjalan($pdo, $jamNow),
+        $kategori
+    );
     $rowsKat = pengasuh_dashboard_filter_rows_kategori($rowsHari, $kategori);
     $isLive = $aktif !== [];
+    $hasStarted = $sudahBerjalan !== [];
 
-    if ($isLive) {
-        $rowsDetail = pengasuh_dashboard_filter_rows_berlangsung($rowsKat, $aktif);
-        $keaktivanByTingkatan = pengasuh_dashboard_keaktivan_by_tingkatan($rowsKat, $aktif);
-        $sdmByTingkatan = pengasuh_dashboard_sdm_by_tingkatan($pdo, $today, $aktif);
+    if ($hasStarted) {
+        $rowsDetail = pengasuh_dashboard_filter_rows_berlangsung($rowsKat, $sudahBerjalan);
+        $keaktivanByTingkatan = pengasuh_dashboard_keaktivan_by_tingkatan($rowsKat, $sudahBerjalan);
+        $sdmByTingkatan = pengasuh_dashboard_sdm_by_tingkatan($pdo, $today, $sudahBerjalan);
+        $mode = $isLive ? 'live' : 'progress';
     } else {
         $rowsDetail = $rowsKat;
         $keaktivanByTingkatan = pengasuh_dashboard_keaktivan_by_tingkatan_hari_penuh($rowsKat);
         $sdmByTingkatan = ['pembimbing' => [], 'munawib' => []];
+        $mode = 'hari';
     }
 
     $detailLive = pengasuh_dashboard_urutkan_kegiatan(rekap_keaktifan_hari_detail_by_kegiatan($rowsDetail));
     $totalsLive = rekap_keaktifan_hari_totals(rekap_keaktifan_hari_ringkasan_from_detail($detailLive));
 
     return [
-        'mode' => $isLive ? 'live' : 'hari',
-        'kegiatanAktif' => $aktif,
+        'mode' => $mode,
+        'kegiatanAktif' => $isLive ? $aktif : $sudahBerjalan,
         'keaktivanByTingkatan' => $keaktivanByTingkatan,
         'detailLive' => $detailLive,
         'totalsLive' => $totalsLive,
@@ -510,7 +556,7 @@ function pengasuh_dashboard_sdm_by_tingkatan(PDO $pdo, string $tanggal, array $k
                   AND mp.kegiatan_id = :k
                   AND mp.tanggal_mulai <= :t AND mp.tanggal_selesai >= :t
                   AND COALESCE(m.is_aktif, 1) = 1
-                ORDER BY m.nama ASC
+                ORDER BY ' . munawib_list_order_by_induk_sql('m') . '
             ');
             $stMw->execute(['k' => $kid, 't' => $tanggal]);
             foreach ($stMw->fetchAll(PDO::FETCH_ASSOC) ?: [] as $mw) {

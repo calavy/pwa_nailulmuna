@@ -109,7 +109,7 @@ function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailu
     if (!isset($_SESSION[$sessionKey]) || !is_array($_SESSION[$sessionKey])) {
         $title = app_brand_nama_ponpes($pdo, $fallbackTitle);
         $_SESSION[$sessionKey] = [
-            'title' => $title,
+            'title' => app_brand_title_display($title),
             'tagline' => trim((string) app_setting($pdo, 'jenis_pendidikan', '')),
             'initials' => app_pondok_logo_initials($pdo, $fallbackTitle),
             'alamat' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
@@ -117,6 +117,7 @@ function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailu
     }
     $_SESSION[$sessionKey]['logo'] = app_pondok_logo_src($pdo);
     $_SESSION[$sessionKey]['logo_href'] = app_pondok_logo_href($pdo, false);
+    $_SESSION[$sessionKey]['title'] = app_brand_title_display((string) ($_SESSION[$sessionKey]['title'] ?? $fallbackTitle));
 
     return $_SESSION[$sessionKey];
 }
@@ -188,6 +189,13 @@ function app_ensure_schema_deferred(PDO $pdo): void
     }
     if (function_exists('login_pembimbing_ensure_password_plain_column')) {
         login_pembimbing_ensure_password_plain_column($pdo);
+    }
+
+    if (!function_exists('logo_ensure_white_bg_pwa_icons') && file_exists(__DIR__ . '/pwa_brand.php')) {
+        require_once __DIR__ . '/pwa_brand.php';
+    }
+    if (function_exists('logo_ensure_white_bg_pwa_icons')) {
+        logo_ensure_white_bg_pwa_icons($pdo);
     }
 
     $_SESSION['app_schema_ready_v1'] = 1;
@@ -292,10 +300,22 @@ function app_brand_nama_ponpes(PDO $pdo, string $fallback = 'A.P.I Nailul Muna')
 {
     $nama = trim((string) app_setting($pdo, 'nama_ponpes', ''));
     if ($nama === '' || $nama === 'Nama Pondok Pesantren') {
-        return $fallback;
+        return app_brand_title_display($fallback);
     }
 
-    return $nama;
+    return app_brand_title_display($nama);
+}
+
+/** Seragamkan penulisan singkatan lembaga (mis. A.P.I tanpa spasi antar huruf). */
+function app_brand_title_display(string $title): string
+{
+    $title = trim(preg_replace('/\s+/u', ' ', $title));
+    if ($title === '') {
+        return $title;
+    }
+    $title = preg_replace('/\bA\s*\.\s*P\s*\.\s*I\.?\s*/iu', 'A.P.I ', $title);
+
+    return trim(preg_replace('/\s{2,}/u', ' ', $title));
 }
 
 /** Path/URL logo pesantren untuk tampilan UI (kosong jika belum diatur / file hilang). */
@@ -472,6 +492,8 @@ function pondok_settings_defaults(): array
         'wa_gateway_token' => '',
         'wa_sender' => '',
         'wa_pengurus' => '',
+        'wa_permohonan_izin' => '',
+        'wa_permohonan_izin_enabled' => '1',
         'wa_petugas_pendidikan' => '',
         'wa_notif_mudabir_enabled' => '1',
         'mudabir_batas_menit' => '30',
@@ -501,6 +523,11 @@ function pondok_settings_defaults(): array
         'wa_izin_pembimbing_enabled' => '1',
         'wa_izin_pembimbing_grup' => '',
         'wa_izin_pembimbing_kirim_grup' => '0',
+        'wa_izin_grup_fonte' => '',
+        'wa_izin_grup_fonte_enabled' => '1',
+        'wa_izin_pengurus' => '',
+        'wa_izin_pengurus_enabled' => '1',
+        'wa_izin_selesai_enabled' => '1',
         'keuangan_pkpps_alokasi_komponen' => '',
         'app_tahun_masehi_mode' => 'BERJALAN',
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
@@ -578,8 +605,51 @@ function akademik_libur_presensi_filter_sql_by_mode(string $mode, string $katego
     return '';
 }
 
+/** Nomor penerima notifikasi alpa otomatis (mode lama / fallback tanpa tier). */
+function wa_alpa_notif_target(PDO $pdo): string
+{
+    return trim((string) app_setting($pdo, 'wa_pengurus', ''));
+}
+
+/** Nomor penerima permohonan izin baru (PENDING). Fallback ke wa_pengurus jika belum diisi. */
+function wa_permohonan_izin_target(PDO $pdo): string
+{
+    $izin = trim((string) app_setting($pdo, 'wa_permohonan_izin', ''));
+    if ($izin !== '') {
+        return $izin;
+    }
+
+    return wa_alpa_notif_target($pdo);
+}
+
+function wa_permohonan_izin_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_permohonan_izin_enabled', '1')) === '1';
+}
+
+/** Nomor penerima laporan izin disetujui & izin selesai untuk pengurus/petugas surat. */
+function wa_izin_pengurus_target(PDO $pdo): string
+{
+    $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
+    if ($nomor !== '') {
+        return $nomor;
+    }
+
+    return wa_permohonan_izin_target($pdo);
+}
+
+function wa_izin_pengurus_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_izin_pengurus_enabled', '1')) === '1';
+}
+
+function wa_izin_selesai_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
+}
+
 /**
- * WA pengawas pendidikan untuk notifikasi pembimbing/munawib.
+ * WA petugas pendidikan: munawib belum hadir, kelas kosong, dll.
  */
 function wa_petugas_pendidikan_target(PDO $pdo): string
 {
@@ -588,7 +658,7 @@ function wa_petugas_pendidikan_target(PDO $pdo): string
         return $petugas;
     }
 
-    return trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    return wa_alpa_notif_target($pdo);
 }
 
 /** Isi kunci pengaturan pondok yang belum ada di app_settings (tanpa menimpa nilai lama). */
@@ -603,6 +673,12 @@ function ensure_pondok_settings_defaults(PDO $pdo): void
     ');
     foreach (pondok_settings_defaults() as $key => $value) {
         $ins->execute(['k' => $key, 'v' => $value]);
+    }
+    if (function_exists('logo_ensure_white_bg_pwa_icons')) {
+        logo_ensure_white_bg_pwa_icons($pdo);
+    } elseif (file_exists(__DIR__ . '/pwa_brand.php')) {
+        require_once __DIR__ . '/pwa_brand.php';
+        logo_ensure_white_bg_pwa_icons($pdo);
     }
 }
 
@@ -1070,7 +1146,7 @@ function trigger_auto_wa_notifications(PDO $pdo): void
         return;
     }
 
-    $pengurusWa = trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    $pengurusWa = wa_alpa_notif_target($pdo);
     if ($pengurusWa === '') {
         return;
     }
@@ -3163,6 +3239,15 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     }
 
     $cacheKey = 'acl_map_v2_' . $userId;
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if (!isset($_SESSION[$cacheKey]) || !is_array($_SESSION[$cacheKey])) {
+        if (in_array($role, ['pengurus', 'petugas_absensi', 'pembimbing'], true)) {
+            if (!function_exists('user_permission_ensure_role_defaults')) {
+                require_once __DIR__ . '/user_permissions.php';
+            }
+            user_permission_ensure_role_defaults($pdo, $userId, $role);
+        }
+    }
     if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
         return app_acl_normalize_allowed_map($_SESSION[$cacheKey]);
     }
@@ -3172,7 +3257,7 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
     if (
         $allowedKeys === []
-        && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'admin'
+        && in_array($role, ['admin', 'pengurus'], true)
     ) {
         return null;
     }
@@ -3189,16 +3274,31 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
  */
 function app_acl_normalize_allowed_map(array $map): array
 {
-    if ($map === []) {
-        return $map;
+    if ($map !== []) {
+        if (!function_exists('user_permission_expand_allowed_map')) {
+            require_once __DIR__ . '/user_permissions.php';
+        }
+        $map = user_permission_expand_allowed_map($map);
     }
-    if (!function_exists('user_permission_expand_allowed_map')) {
-        require_once __DIR__ . '/user_permissions.php';
-    }
-    $map = user_permission_expand_allowed_map($map);
     $map['dashboard'] = 1;
 
     return $map;
+}
+
+/** Rute yang selalu boleh diakses user login (profil, keluar, dll.). */
+function app_acl_is_public_route(string $requestPath): bool
+{
+    static $paths = [
+        '/settings/profil.php',
+        '/logout.php',
+    ];
+    foreach ($paths as $path) {
+        if ($path !== '' && str_contains($requestPath, $path)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -3459,6 +3559,9 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
 {
     $allowedMap = get_allowed_permission_key_map($pdo);
     if ($allowedMap === null) {
+        return;
+    }
+    if (app_acl_is_public_route($requestPath)) {
         return;
     }
 

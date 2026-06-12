@@ -146,10 +146,16 @@ function pwa_brand_load_image(string $absolutePath)
     return $img instanceof GdImage ? $img : null;
 }
 
+/** Warna latar ikon/logo PWA — selalu putih agar konsisten di semua perangkat. */
+function pwa_brand_logo_background_hex(): string
+{
+    return '#ffffff';
+}
+
 /**
- * Render logo ke kanvas persegi PNG.
+ * Render logo ke kanvas persegi PNG dengan latar putih.
  *
- * @param bool $opaqueBackground false = transparan (ikon any); true = warna tema (maskable)
+ * @param bool $opaqueBackground diabaikan (tetap putih); dipertahankan untuk kompatibilitas pemanggil
  */
 function pwa_brand_render_square_png(
     string $sourceAbsolute,
@@ -158,6 +164,7 @@ function pwa_brand_render_square_png(
     float $logoScale = 0.82,
     bool $opaqueBackground = false
 ): ?string {
+    unset($opaqueBackground, $bgHex);
     $src = pwa_brand_load_image($sourceAbsolute);
     if ($src === null) {
         return null;
@@ -171,17 +178,10 @@ function pwa_brand_render_square_png(
         return null;
     }
 
-    imagealphablending($canvas, false);
-    imagesavealpha($canvas, true);
-    $clear = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
-    imagefilledrectangle($canvas, 0, 0, $size, $size, $clear);
-
-    if ($opaqueBackground) {
-        imagealphablending($canvas, true);
-        $rgb = kartu_brand_hex_to_rgb(pwa_brand_normalize_hex($bgHex, '#0d9488')) ?? ['r' => 13, 'g' => 148, 'b' => 136];
-        $bg = imagecolorallocate($canvas, $rgb['r'], $rgb['g'], $rgb['b']);
-        imagefilledrectangle($canvas, 0, 0, $size, $size, $bg);
-    }
+    imagealphablending($canvas, true);
+    $rgb = kartu_brand_hex_to_rgb(pwa_brand_logo_background_hex()) ?? ['r' => 255, 'g' => 255, 'b' => 255];
+    $bg = imagecolorallocate($canvas, $rgb['r'], $rgb['g'], $rgb['b']);
+    imagefilledrectangle($canvas, 0, 0, $size, $size, $bg);
 
     $sw = imagesx($src);
     $sh = imagesy($src);
@@ -249,9 +249,9 @@ function pwa_brand_sync_from_logo(PDO $pdo): bool
 
     $stamp = date('YmdHis');
     $map = [
-        'pwa_icon_192' => ['size' => 192, 'maskable' => false, 'scale' => 0.88],
-        'pwa_icon_512' => ['size' => 512, 'maskable' => false, 'scale' => 0.88],
-        'pwa_icon_maskable_512' => ['size' => 512, 'maskable' => true, 'scale' => 0.72],
+        'pwa_icon_192' => ['size' => 192, 'maskable' => false, 'scale' => 0.96],
+        'pwa_icon_512' => ['size' => 512, 'maskable' => false, 'scale' => 0.96],
+        'pwa_icon_maskable_512' => ['size' => 512, 'maskable' => true, 'scale' => 0.84],
     ];
 
     foreach ($map as $settingKey => $cfg) {
@@ -274,6 +274,22 @@ function pwa_brand_sync_from_logo(PDO $pdo): bool
     }
 
     return true;
+}
+
+/** Sekali jalan setelah pembaruan: regenerasi ikon PWA (latar putih, logo memenuhi). */
+function logo_ensure_white_bg_pwa_icons(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'app_settings')) {
+        return;
+    }
+    if (app_setting($pdo, 'pwa_icon_full_logo_v1', '') === '1') {
+        return;
+    }
+    if (trim((string) app_setting($pdo, 'logo_path', '')) !== '') {
+        pwa_brand_sync_from_logo($pdo);
+    }
+    save_setting($pdo, 'pwa_icon_full_logo_v1', '1');
+    save_setting($pdo, 'pwa_icon_white_bg_v1', '1');
 }
 
 /** Sinkron tema PWA dari palet kartu (tanpa regenerasi ikon). */

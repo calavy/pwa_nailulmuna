@@ -17,7 +17,8 @@ ensure_pondok_settings_defaults($pdo);
 $pondokDefaults = pondok_settings_defaults();
 $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
-    'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_pengurus', 'wa_petugas_pendidikan',
+    'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
+    'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit',
     'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
     'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit',
@@ -32,6 +33,9 @@ $values['wa_kelas_kosong_enabled'] = ($values['wa_kelas_kosong_enabled'] ?? '') 
 $pengurusWaCount = trim((string) ($values['wa_pengurus'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
+$permohonanIzinWaCount = trim((string) ($values['wa_permohonan_izin'] ?? '')) === ''
+    ? 0
+    : count(preg_split('/[\s,;]+/', (string) $values['wa_permohonan_izin'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
 
 /** @var array<string, mixed>|null $waTestResult */
 $waTestResult = null;
@@ -43,7 +47,7 @@ $waTabs = [
     'tagihan' => ['label' => 'Tagihan Wali', 'icon' => 'fa-hand-holding-dollar', 'desc' => 'Jadwal & kirim manual'],
     'presensi' => ['label' => 'Presensi', 'icon' => 'fa-qrcode', 'desc' => 'Scan, mudabir, kelas kosong'],
     'alpa' => ['label' => 'Alpa', 'icon' => 'fa-tower-broadcast', 'desc' => 'Tier penerima'],
-    'izin' => ['label' => 'Izin', 'icon' => 'fa-person-walking', 'desc' => 'Pembimbing & grup'],
+    'izin' => ['label' => 'Izin', 'icon' => 'fa-person-walking', 'desc' => 'Permohonan baru & disetujui'],
     'template' => ['label' => 'Template', 'icon' => 'fa-message', 'desc' => 'Teks pesan'],
     'log' => ['label' => 'Riwayat', 'icon' => 'fa-clipboard-list', 'desc' => 'Log pengiriman'],
 ];
@@ -84,13 +88,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $redirectUrl);
         exit;
     } elseif ($action === 'save_penerima') {
-        foreach (['wa_pengurus', 'wa_petugas_pendidikan', 'jam_kirim_wa_auto', 'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit'] as $field) {
+        foreach (['wa_petugas_pendidikan', 'keterangan_pengurus_bidang_keuangan', 'batas_telat_menit'] as $field) {
             if (array_key_exists($field, $_POST)) {
                 save_setting($pdo, $field, trim((string) $_POST[$field]));
             }
         }
-        set_flash('success', 'Nomor penerima & batas disimpan.');
+        set_flash('success', 'Pengaturan presensi & petugas pendidikan disimpan.');
         header('Location: ' . $redirectUrl);
+        exit;
+    } elseif ($action === 'save_alpa_penerima') {
+        foreach (['wa_pengurus', 'jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
+            if (array_key_exists($field, $_POST)) {
+                save_setting($pdo, $field, trim((string) $_POST[$field]));
+            }
+        }
+        set_flash('success', 'Penerima notifikasi alpa disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
     } elseif ($action === 'save_presensi') {
         foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3'] as $field) {
@@ -119,17 +132,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=template'));
         exit;
+    } elseif ($action === 'save_permohonan_izin_wa') {
+        save_setting($pdo, 'wa_permohonan_izin_enabled', isset($_POST['wa_permohonan_izin_enabled']) ? '1' : '0');
+        if (array_key_exists('wa_permohonan_izin', $_POST)) {
+            save_setting($pdo, 'wa_permohonan_izin', trim((string) $_POST['wa_permohonan_izin']));
+        }
+        set_flash('success', 'Pengaturan WA permohonan izin disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
+        exit;
+    } elseif ($action === 'save_izin_grup_wa') {
+        save_setting($pdo, 'wa_izin_grup_fonte_enabled', isset($_POST['wa_izin_grup_fonte_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_izin_grup_fonte', trim((string) ($_POST['wa_izin_grup_fonte'] ?? '')));
+        set_flash('success', 'Pengaturan grup WA izin disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
+        exit;
     } elseif ($action === 'save_izin_wa') {
         save_setting($pdo, 'wa_izin_pembimbing_enabled', isset($_POST['wa_izin_pembimbing_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_izin_pembimbing_kirim_grup', isset($_POST['wa_izin_pembimbing_kirim_grup']) ? '1' : '0');
         save_setting($pdo, 'wa_izin_pembimbing_grup', trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? '')));
-        save_setting($pdo, 'wa_izin_grup_fonte_enabled', isset($_POST['wa_izin_grup_fonte_enabled']) ? '1' : '0');
-        $grupFonte = trim((string) ($_POST['wa_izin_grup_fonte'] ?? ''));
-        if ($grupFonte === '') {
-            $grupFonte = trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? ''));
+        set_flash('success', 'Pengaturan WA pembimbing izin disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
+        exit;
+    } elseif ($action === 'save_izin_pengurus_wa') {
+        save_setting($pdo, 'wa_izin_pengurus_enabled', isset($_POST['wa_izin_pengurus_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_izin_selesai_enabled', isset($_POST['wa_izin_selesai_enabled']) ? '1' : '0');
+        if (array_key_exists('wa_izin_pengurus', $_POST)) {
+            save_setting($pdo, 'wa_izin_pengurus', trim((string) $_POST['wa_izin_pengurus']));
         }
-        save_setting($pdo, 'wa_izin_grup_fonte', $grupFonte);
-        set_flash('success', 'Pengaturan WA izin disimpan.');
+        set_flash('success', 'Pengaturan WA pengurus izin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
         exit;
     } elseif ($action === 'save_periode') {
@@ -237,8 +267,15 @@ $alpaModeLabel = match ($periodeMode) {
 $waIzinEnabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1';
 $waIzinGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
 $waIzinKirimGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
-$waIzinGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', $waIzinKirimGrup ? '1' : '0')) === '1';
+$waIzinGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', '1')) !== '0';
 $waIzinGrupFonte = trim((string) app_setting($pdo, 'wa_izin_grup_fonte', ''));
+if ($waIzinGrupFonte === '') {
+    $waIzinGrupFonte = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
+}
+$waIzinGrupAktifOtomatis = $waIzinGrupFonte !== '' && $waIzinGrupFonteEnabled;
+$waIzinPengurusEnabled = trim((string) app_setting($pdo, 'wa_izin_pengurus_enabled', '1')) === '1';
+$waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
+$waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
 
 // Presensi
 $scanEnabled = trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) === '1';

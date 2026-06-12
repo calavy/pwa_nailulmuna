@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/operasional_audit.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -145,7 +146,7 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
     : [];
 array_unshift($tingkatanList, 'Semua Tingkatan');
 $pembimbingList = table_exists($pdo, 'pembimbing')
-    ? $pdo->query('SELECT id, nama_pembimbing FROM pembimbing ORDER BY nama_pembimbing ASC')->fetchAll()
+    ? $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll()
     : [];
 $kegiatanList = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];

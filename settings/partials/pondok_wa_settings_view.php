@@ -38,14 +38,19 @@
                 <input type="text" class="form-control" name="wa_sender" value="<?= htmlspecialchars($values['wa_sender']) ?>">
             </div>
             <div class="col-md-6">
-                <label class="form-label">No WA Pengurus (notifikasi alpa)</label>
+                <label class="form-label">No. penerima alpa otomatis</label>
                 <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Beberapa nomor: pisahkan koma atau spasi.</div>
+                <div class="form-text">Rekap &amp; generate alpa (fallback tanpa tier). Atur juga di WA Otomatis → tab Alpa.</div>
             </div>
             <div class="col-md-6">
-                <label class="form-label">No WA Petugas Pendidikan</label>
+                <label class="form-label">No. permohonan izin baru</label>
+                <input type="text" class="form-control" name="wa_permohonan_izin" value="<?= htmlspecialchars((string) ($values['wa_permohonan_izin'] ?? '')) ?>">
+                <div class="form-text">Saat wali/petugas ajukan izin. Atur juga di WA Otomatis → tab Izin.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">No. petugas pendidikan</label>
                 <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
-                <div class="form-text">Izin pembimbing / munawib. Kosong = pakai No WA Pengurus.</div>
+                <div class="form-text">Munawib belum hadir, kelas kosong. Kosong = fallback nomor alpa.</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Jam kirim WA otomatis</label>

@@ -190,17 +190,19 @@ body.wali-portal {
 
 .wali-login-hero .wali-login-logo {
     display: inline-block;
-    width: auto;
-    height: auto;
-    max-width: 120px;
-    max-height: 96px;
-    object-fit: contain;
+    width: 88px;
+    height: 88px;
+    max-width: 88px;
+    max-height: 88px;
+    object-fit: cover;
     object-position: center;
     border: none;
-    border-radius: 0;
+    border-radius: 50%;
     margin-bottom: 0.5rem;
-    box-shadow: none;
-    background: transparent;
+    box-shadow: 0 2px 10px rgba(15, 118, 110, 0.14);
+    background: #fff;
+    padding: 2px;
+    box-sizing: border-box;
 }
 
 .wali-login-hero .wali-login-initial {

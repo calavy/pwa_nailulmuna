@@ -153,21 +153,36 @@ html.pondok-offline .wali-login-logo {
 
 .app-brand-logo,
 .app-sidebar-pondok-logo,
-.app-user-avatar__img,
+.app-sidebar-brand-logo,
 .auth-portal-logo-img,
 .wali-login-logo,
 .koperasi-topbar-logo,
 .dash-hero-logo,
-.pondok-logo-preview {
+.pondok-logo-preview,
+.pb-dash-hero-banner__logo,
+.st-id-logo,
+.pb-id-logo,
+.mw-logo {
     object-fit: cover;
     object-position: center center;
     background-color: #fff;
 }
 
+.app-user-avatar__img {
+    object-fit: cover;
+    object-position: center center;
+}
+
 .app-brand-mark--logo,
 .app-sidebar-pondok-logo-wrap,
+.app-sidebar-brand-mark--logo,
 .auth-portal-kop__logo .logo-ring:not(.logo-ring--fallback),
-.dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder) {
+.auth-portal-hero .logo-ring:not(.logo-ring--fallback),
+.dash-hero-logo-wrap:not(.dash-hero-logo-wrap--placeholder),
+.pb-dash-hero-banner__logo-wrap,
+.pb-id-logo-wrap,
+.mw-logo-wrap,
+.st-id-logo-wrap {
     background: #fff !important;
     border-radius: 50%;
 }

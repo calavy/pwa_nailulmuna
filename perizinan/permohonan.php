@@ -161,8 +161,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (string) $data['tanggal_mulai'],
         (string) $data['tanggal_selesai']
     );
-    if (push_should_send_wa($pdo)) {
-        send_wa_bulk($pdo, (string) app_setting($pdo, 'wa_pengurus', ''), $notifMsg);
+    if (push_should_send_wa($pdo) && wa_permohonan_izin_enabled($pdo)) {
+        $waIzinTarget = wa_permohonan_izin_target($pdo);
+        if ($waIzinTarget !== '') {
+            send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
+        }
     }
 
     set_flash('success', 'Permohonan izin terkirim. Status: PENDING. Pengurus akan meninjau di menu Perizinan.');

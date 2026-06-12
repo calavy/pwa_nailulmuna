@@ -43,11 +43,6 @@ $scanUangEnabled = app_setting($pdo, 'cashless_scan_uang_enabled', '1') === '1';
 $scanUangVoice = app_setting($pdo, 'cashless_scan_uang_voice', '1') === '1';
 $scanUangMaxNominal = (int) app_setting($pdo, 'cashless_scan_uang_max_nominal', '200000');
 $scanUangMaxNominal = max(1000, $scanUangMaxNominal);
-$qrNominalMapRows = $pdo->query('
-    SELECT kode_qr, nominal, keterangan, is_aktif
-    FROM cashless_nominal_qr_map
-    ORDER BY is_aktif DESC, nominal ASC, kode_qr ASC
-')->fetchAll();
 $lastSantriSummary = null;
 $verifiedSantri = null;
 $lastSuccessNominal = 0;
@@ -219,13 +214,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     require_once __DIR__ . '/../helpers/offline_sync_http.php';
-    if (offline_sync_wants_json()) {
+    if (offline_sync_wants_json() || trim((string) ($_SERVER['HTTP_X_CASHLESS_AJAX'] ?? '')) === '1') {
         $jsonType = $resultType === 'danger' ? 'error' : $resultType;
-        offline_sync_json_response($jsonType, $resultMessage ?? 'OK', [
+        $jsonExtra = [
             'action' => $action,
             'verified' => isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verified']),
             'auto_nominal' => ($action === 'verify_cashless_pin' && $resultType === 'success'),
-        ]);
+        ];
+        if ($action === 'verify_cashless_pin' && $resultType === 'success' && is_array($verifiedSantri)) {
+            $jsonExtra['santri'] = [
+                'id' => (int) ($verifiedSantri['id'] ?? 0),
+                'nis' => (string) ($verifiedSantri['nis'] ?? ''),
+                'nama' => (string) ($verifiedSantri['nama_santri'] ?? ''),
+                'balance' => (int) ((float) ($verifiedSantri['balance'] ?? 0)),
+            ];
+        }
+        offline_sync_json_response($jsonType, $resultMessage ?? 'OK', $jsonExtra);
     }
 }
 
@@ -250,144 +254,115 @@ if ($koperasiPortal) {
     require_once __DIR__ . '/../includes/header.php';
 }
 ?>
+<?php if (!$koperasiPortal): ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="h4 mb-0">Scan Cashless<?= $koperasiId > 0 ? ' · ' . htmlspecialchars($koperasiNama) : '' ?></h1>
-    <?php if (!$koperasiPortal && $koperasiListAdmin !== []): ?>
+    <?php if ($koperasiListAdmin !== []): ?>
         <form method="post" class="d-flex align-items-center gap-2">
             <input type="hidden" name="action" value="select_koperasi">
-            <label class="small text-muted mb-0">Koperasi:</label>
-            <select name="koperasi_id" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+            <select name="koperasi_id" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()" aria-label="Koperasi">
                 <?php foreach ($koperasiListAdmin as $kop): ?>
                     <option value="<?= (int) $kop['id'] ?>" <?= (int) $kop['id'] === $koperasiId ? 'selected' : '' ?>><?= htmlspecialchars((string) $kop['nama']) ?></option>
                 <?php endforeach; ?>
             </select>
         </form>
-        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?koperasi_id=' . $koperasiId . '&dari=' . date('Y-m-d') . '&sampai=' . date('Y-m-d'))) ?>" class="btn btn-outline-secondary btn-sm">Laporan hari ini</a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?koperasi_id=' . $koperasiId . '&dari=' . date('Y-m-d') . '&sampai=' . date('Y-m-d'))) ?>" class="btn btn-outline-secondary btn-sm">Laporan</a>
     <?php endif; ?>
 </div>
-
-<?php if ($resultMessage !== null): ?>
-    <div class="alert alert-<?= $resultType === 'success' ? 'success' : ($resultType === 'danger' ? 'danger' : 'warning') ?>"><?= htmlspecialchars($resultMessage) ?></div>
-<?php endif; ?>
-<?php if (is_array($lastSantriSummary)): ?>
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                <div>
-                    <div class="fw-semibold"><?= htmlspecialchars($lastSantriSummary['nama']) ?></div>
-                    <div class="text-muted small">NIS: <?= htmlspecialchars($lastSantriSummary['nis'] !== '' ? $lastSantriSummary['nis'] : '-') ?></div>
-                </div>
-                <div class="text-end">
-                    <div class="small text-muted">Saldo Total</div>
-                    <div class="fw-semibold">Rp <?= number_format((int) $lastSantriSummary['saldo_total'], 0, ',', '.') ?></div>
-                </div>
-            </div>
-            <hr class="my-2">
-            <div class="row g-2">
-                <div class="col-md-4">
-                    <div class="small text-muted">Limit Harian</div>
-                    <div class="fw-semibold">Rp <?= number_format((int) $lastSantriSummary['limit_harian'], 0, ',', '.') ?></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="small text-muted">Terpakai Hari Ini</div>
-                    <div class="fw-semibold">Rp <?= number_format((int) $lastSantriSummary['terpakai_hari_ini'], 0, ',', '.') ?></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="small text-muted">Sisa Limit Hari Ini</div>
-                    <div class="fw-semibold">Rp <?= number_format((int) $lastSantriSummary['sisa_limit'], 0, ',', '.') ?></div>
-                </div>
-            </div>
-        </div>
-    </div>
 <?php endif; ?>
 
-<div class="row g-3">
-    <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div id="camera_status" class="alert alert-secondary py-2 small mb-2">Menyiapkan kamera...</div>
-                <div id="reader" style="width:100%; max-width:420px;"></div>
-                <div class="d-flex gap-2 mt-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="retry_camera_btn">Ulangi Kamera</button>
-                </div>
-                <form method="post" class="mt-3">
-                    <input type="hidden" name="action" value="verify_cashless_pin">
-                    <input type="hidden" name="scan_source" id="scan_source" value="camera">
-                    <input type="hidden" name="kode_qr" id="kode_qr" value="" required>
-                    <div class="mb-2">
-                        <label class="form-label">PIN Santri</label>
-                        <input type="password" name="pin" class="form-control" required>
-                    </div>
-                    <button class="btn btn-primary w-100">Verifikasi PIN</button>
-                </form>
-            </div>
-        </div>
+<?php if ($resultMessage !== null && ($resultType !== 'success' || $lastSuccessNominal > 0)): ?>
+    <div class="alert alert-<?= $resultType === 'success' ? 'success' : ($resultType === 'danger' ? 'danger' : 'warning') ?> py-2 mb-2"><?= htmlspecialchars($resultMessage) ?></div>
+<?php endif; ?>
+
+<style>
+.cashless-scan-wrap {
+    max-width: 480px;
+    margin: 0 auto;
+}
+.cashless-scan-wrap #reader,
+.cashless-scan-wrap #money_reader {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #0f172a;
+}
+.cashless-scan-wrap #reader video,
+.cashless-scan-wrap #money_reader video {
+    border-radius: 12px;
+}
+.cashless-pin-input {
+    font-size: 1.5rem;
+    letter-spacing: 0.35em;
+    text-align: center;
+    padding: 0.65rem 0.75rem;
+}
+.cashless-phase-uang { display: none; }
+.cashless-scan-wrap.is-money-phase .cashless-phase-santri { display: none; }
+.cashless-scan-wrap.is-money-phase .cashless-phase-uang { display: block; }
+.cashless-santri-chip {
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 0.75rem;
+}
+.cashless-flash-mini {
+    font-size: 0.875rem;
+    text-align: center;
+    min-height: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+</style>
+
+<div class="cashless-scan-wrap<?= ($autoStartNominalScan && $verifiedSantri) ? ' is-money-phase' : '' ?>" id="cashless_scan_wrap">
+    <div class="cashless-phase-santri" id="phase_santri">
+        <div id="reader"></div>
+        <input type="password" id="pin_input" class="form-control cashless-pin-input mt-3" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="PIN" aria-label="PIN">
+        <form method="post" id="pin_form" class="d-none">
+            <input type="hidden" name="action" value="verify_cashless_pin">
+            <input type="hidden" name="scan_source" value="camera">
+            <input type="hidden" name="kode_qr" id="kode_qr" value="">
+            <input type="hidden" name="pin" id="pin_hidden" value="">
+        </form>
     </div>
-    <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h6 mb-2">Alur Pembayaran Cashless</h2>
-                <ol class="small text-muted mb-3">
-                    <li>Scan QR santri</li>
-                    <li>Masukkan PIN — setelah benar, kamera beralih otomatis ke scan nominal</li>
-                    <li>Scan QR nominal; transaksi diproses dan suara konfirmasi</li>
-                </ol>
-                <?php if ($verifiedSantri): ?>
-                    <div class="border rounded p-3 mb-3 bg-light-subtle" id="cashless-panel-bayar">
-                        <div class="fw-semibold"><?= htmlspecialchars((string) ($verifiedSantri['nama_santri'] ?? '-')) ?></div>
-                        <div class="small text-muted mb-2">NIS: <?= htmlspecialchars((string) ($verifiedSantri['nis'] ?? '-')) ?></div>
-                        <div class="small">Saldo saat ini: <strong>Rp <?= number_format((int) ((float) ($verifiedSantri['balance'] ?? 0)), 0, ',', '.') ?></strong></div>
-                        <form method="post" id="scan_uang_form" class="mt-2">
-                            <input type="hidden" name="action" value="process_scan_uang">
-                            <input type="hidden" name="scan_source" value="camera">
-                            <input type="hidden" name="nominal_scan" id="nominal_scan" value="">
-                            <div class="mb-2">
-                                <label class="form-label">Keterangan</label>
-                                <input type="text" name="keterangan" class="form-control" value="Belanja">
-                            </div>
-                            <button type="button" class="btn btn-danger" id="start_money_scan_btn">Bayar (Scan Uang)</button>
-                        </form>
-                        <div id="money_scan_status" class="small text-muted mt-2"></div>
-                        <div class="small text-muted mt-1">
-                            <?php
-                            $mapAktif = array_values(array_filter($qrNominalMapRows, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
-                            if ($mapAktif !== []): ?>
-                                <span class="text-dark">Kode QR yang dikenali:</span>
-                                <?php foreach ($mapAktif as $mi): ?>
-                                    <span class="badge text-bg-light border me-1 mb-1"><code><?= htmlspecialchars((string) $mi['kode_qr']) ?></code> = Rp <?= number_format((int) ($mi['nominal'] ?? 0), 0, ',', '.') ?></span>
-                                <?php endforeach; ?>
-                                <br><span class="text-muted">Maks. per scan: Rp <?= number_format($scanUangMaxNominal, 0, ',', '.') ?>.</span>
-                            <?php else: ?>
-                                Belum ada peta QR. Atur di <a href="/keuangan/cashless_pin.php">Setting PIN Cashless</a> → Peta QR nominal.
-                            <?php endif; ?>
-                        </div>
-                        <div id="money_reader" style="width:100%; max-width:420px; display:none;" class="mt-2"></div>
-                    </div>
-                <?php endif; ?>
-                <h2 class="h6">Transaksi Debit Hari Ini</h2>
-                <div class="small text-muted mb-2">Batas harian aktif: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong> (atur di menu Setting PIN Cashless)</div>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead><tr><th>Waktu</th><th>NIS</th><th>Nama</th><th>Keterangan</th><th class="text-end">Nominal</th></tr></thead>
-                        <tbody>
-                        <?php if ($todayRows): foreach ($todayRows as $r): ?>
-                            <tr>
-                                <td><?= htmlspecialchars((string) $r['tanggal']) ?></td>
-                                <td><?= htmlspecialchars((string) $r['nis']) ?></td>
-                                <td><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
-                                <td><?= htmlspecialchars((string) ($r['keterangan'] ?: '-')) ?></td>
-                                <td class="text-end">Rp <?= number_format((int) ((float) $r['nominal']), 0, ',', '.') ?></td>
-                            </tr>
-                        <?php endforeach; else: ?>
-                            <tr><td colspan="5" class="text-center text-muted">Belum ada transaksi debit hari ini.</td></tr>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+
+    <div class="cashless-phase-uang" id="phase_uang">
+        <div class="cashless-santri-chip" id="santri_chip"><?php if ($verifiedSantri): ?><?= htmlspecialchars((string) ($verifiedSantri['nama_santri'] ?? '')) ?><?php endif; ?></div>
+        <div id="money_reader"></div>
+        <form method="post" id="scan_uang_form" class="d-none">
+            <input type="hidden" name="action" value="process_scan_uang">
+            <input type="hidden" name="scan_source" value="camera">
+            <input type="hidden" name="nominal_scan" id="nominal_scan" value="">
+            <input type="hidden" name="keterangan" value="Belanja">
+        </form>
     </div>
+
+    <div class="cashless-flash-mini text-danger" id="cashless_flash" role="status" aria-live="polite"></div>
+    <button type="button" class="btn btn-link btn-sm w-100 text-muted" id="retry_camera_btn">Ulangi kamera</button>
 </div>
+
+<?php if (!$koperasiPortal): ?>
+<details class="mt-3 small">
+    <summary class="text-muted">Riwayat debit hari ini</summary>
+    <div class="table-responsive mt-2">
+        <table class="table table-sm table-striped mb-0">
+            <thead><tr><th>Waktu</th><th>NIS</th><th>Nama</th><th class="text-end">Nominal</th></tr></thead>
+            <tbody>
+            <?php if ($todayRows): foreach ($todayRows as $r): ?>
+                <tr>
+                    <td><?= htmlspecialchars((string) $r['tanggal']) ?></td>
+                    <td><?= htmlspecialchars((string) $r['nis']) ?></td>
+                    <td><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
+                    <td class="text-end">Rp <?= number_format((int) ((float) $r['nominal']), 0, ',', '.') ?></td>
+                </tr>
+            <?php endforeach; else: ?>
+                <tr><td colspan="4" class="text-center text-muted">—</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</details>
+<?php endif; ?>
 
 <?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
 <script>
@@ -395,17 +370,30 @@ if ($koperasiPortal) {
         const CFG = {
             autoNominalAfterPin: <?= ($autoStartNominalScan && $verifiedSantri) ? 'true' : 'false' ?>,
             scanUangEnabled: <?= $scanUangEnabled ? 'true' : 'false' ?>,
-            voiceEnabled: <?= $scanUangVoice ? 'true' : 'false' ?>
+            voiceEnabled: <?= $scanUangVoice ? 'true' : 'false' ?>,
+            pinMinLen: 4
         };
+        const wrap = document.getElementById('cashless_scan_wrap');
         const input = document.getElementById('kode_qr');
-        const statusEl = document.getElementById('camera_status');
+        const pinInput = document.getElementById('pin_input');
+        const pinHidden = document.getElementById('pin_hidden');
+        const pinForm = document.getElementById('pin_form');
+        const flashEl = document.getElementById('cashless_flash');
         const retryBtn = document.getElementById('retry_camera_btn');
+        const santriChip = document.getElementById('santri_chip');
         const readerId = 'reader';
         if (!input || typeof Html5Qrcode === 'undefined') return;
+
         let html5QrCode = null;
         let activeCameraId = null;
+        let moneyQr = null;
+        let moneyPhase = wrap && wrap.classList.contains('is-money-phase');
+        let pinVerifyBusy = false;
+        let pinDebounce = null;
 
-        /** Prioritas kamera belakang (environment); fallback label / hindari depan. */
+        const nominalScanInput = document.getElementById('nominal_scan');
+        const moneyForm = document.getElementById('scan_uang_form');
+
         function pickPreferredCamera(cameras) {
             if (!cameras || cameras.length === 0) return null;
             let c = cameras.find(function (cam) {
@@ -435,10 +423,10 @@ if ($koperasiPortal) {
             }
         }
 
-        function setStatus(type, message) {
-            if (!statusEl) return;
-            statusEl.className = 'alert py-2 small mb-2 alert-' + type;
-            statusEl.textContent = message;
+        function setFlash(msg, isError) {
+            if (!flashEl) return;
+            flashEl.textContent = msg || '';
+            flashEl.className = 'cashless-flash-mini' + (isError ? ' text-danger' : ' text-muted');
         }
 
         async function stopCurrentScanner() {
@@ -448,50 +436,6 @@ if ($koperasiPortal) {
             html5QrCode = null;
         }
 
-        async function startScanner(preferredCameraId) {
-            await stopCurrentScanner();
-            html5QrCode = new Html5Qrcode(readerId);
-            const onSuccess = function (decodedText) {
-                input.value = decodedText;
-                setStatus('success', 'Santri terbaca. Silakan masukkan PIN.');
-            };
-            const onError = function () {};
-            const scanConfig = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.333334 };
-            try {
-                let useId = preferredCameraId;
-                if (useId === 'environment') {
-                    useId = null;
-                }
-                if (useId) {
-                    const cameras = await Html5Qrcode.getCameras();
-                    const byId = cameras.find((c) => c.id === useId);
-                    if (!byId) useId = null;
-                }
-                activeCameraId = await startScannerDevice(html5QrCode, scanConfig, onSuccess, onError, useId || null);
-                setStatus('info', 'Kamera belakang aktif (jika tersedia). Arahkan QR ke kotak scanner.');
-            } catch (e) {
-                setStatus('danger', 'Gagal membuka kamera. Klik "Ulangi Kamera" atau cek izin kamera browser.');
-            }
-        }
-
-        if (retryBtn) {
-            retryBtn.addEventListener('click', function () {
-                setStatus('secondary', 'Mencoba mengaktifkan ulang kamera...');
-                startScanner(activeCameraId);
-            });
-        }
-
-        if (!window.isSecureContext) {
-            setStatus('warning', 'Akses kamera butuh koneksi aman. Gunakan localhost/https agar kamera berfungsi normal.');
-        }
-
-        const startMoneyBtn = document.getElementById('start_money_scan_btn');
-        const moneyReader = document.getElementById('money_reader');
-        const moneyStatus = document.getElementById('money_scan_status');
-        const nominalScanInput = document.getElementById('nominal_scan');
-        const moneyForm = document.getElementById('scan_uang_form');
-        let moneyQr = null;
-
         async function stopMoneyScanner() {
             if (!moneyQr) return;
             try { await moneyQr.stop(); } catch (e) {}
@@ -499,41 +443,69 @@ if ($koperasiPortal) {
             moneyQr = null;
         }
 
-        function speakPinOkThenNominal() {
-            if (!CFG.voiceEnabled) return;
+        async function startSantriScanner(preferredCameraId) {
+            if (moneyPhase) return;
+            await stopCurrentScanner();
+            html5QrCode = new Html5Qrcode(readerId);
+            const onSuccess = async function (decodedText) {
+                input.value = decodedText;
+                await stopCurrentScanner();
+                setFlash('');
+                if (pinInput) {
+                    pinInput.value = '';
+                    pinInput.focus();
+                }
+            };
+            const scanConfig = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.333334 };
+            try {
+                let useId = preferredCameraId;
+                if (useId === 'environment') useId = null;
+                if (useId) {
+                    const cameras = await Html5Qrcode.getCameras();
+                    if (!cameras.find(function (c) { return c.id === useId; })) useId = null;
+                }
+                activeCameraId = await startScannerDevice(html5QrCode, scanConfig, onSuccess, function () {}, useId || null);
+            } catch (e) {
+                setFlash('Kamera gagal. Ketuk ulangi kamera.', true);
+            }
+        }
+
+        function speak(text) {
+            if (!CFG.voiceEnabled || !text) return;
             try {
                 window.speechSynthesis.cancel();
-                var u = new SpeechSynthesisUtterance('PIN benar. Silakan scan kode nominal.');
+                var u = new SpeechSynthesisUtterance(text);
                 u.lang = 'id-ID';
                 u.rate = 1;
                 window.speechSynthesis.speak(u);
             } catch (e) {}
         }
 
+        function switchToMoneyPhase(santriName) {
+            moneyPhase = true;
+            if (wrap) wrap.classList.add('is-money-phase');
+            if (santriChip && santriName) santriChip.textContent = santriName;
+            setFlash('');
+        }
+
         async function beginMoneyQrScan() {
-            if (!moneyReader || !nominalScanInput || !moneyForm) return;
             if (!CFG.scanUangEnabled) {
-                if (moneyStatus) moneyStatus.textContent = 'Mode scan uang sedang nonaktif di pengaturan.';
+                setFlash('Scan uang nonaktif.', true);
                 return;
             }
             await stopCurrentScanner();
-            moneyReader.style.display = '';
-            if (moneyStatus) moneyStatus.textContent = 'Arahkan QR nominal ke kamera belakang...';
             await stopMoneyScanner();
+            switchToMoneyPhase(santriChip ? santriChip.textContent : '');
             moneyQr = new Html5Qrcode('money_reader');
             try {
-                var moneyConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+                var moneyConfig = { fps: 10, qrbox: { width: 260, height: 260 }, aspectRatio: 1.333334 };
                 await startScannerDevice(
                     moneyQr,
                     moneyConfig,
                     async function (decodedText) {
                         var raw = (decodedText || '').trim();
-                        if (!raw) {
-                            if (moneyStatus) moneyStatus.textContent = 'Kode nominal belum valid.';
-                            return;
-                        }
+                        if (!raw || !nominalScanInput || !moneyForm) return;
                         nominalScanInput.value = raw;
-                        if (moneyStatus) moneyStatus.textContent = 'Memproses transaksi...';
                         await stopMoneyScanner();
                         if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {
                             return;
@@ -544,36 +516,95 @@ if ($koperasiPortal) {
                     null
                 );
             } catch (e) {
-                if (moneyStatus) moneyStatus.textContent = 'Gagal membuka kamera scan nominal. Cek izin kamera.';
+                setFlash('Kamera nominal gagal.', true);
             }
+        }
+
+        async function verifyPinAjax() {
+            if (pinVerifyBusy || moneyPhase) return;
+            var qr = (input.value || '').trim();
+            var pin = (pinInput && pinInput.value) ? pinInput.value.trim() : '';
+            if (!qr || pin.length < CFG.pinMinLen) return;
+
+            pinVerifyBusy = true;
+            setFlash('');
+            if (pinHidden) pinHidden.value = pin;
+
+            var body = new FormData(pinForm);
+            body.set('kode_qr', qr);
+            body.set('pin', pin);
+
+            try {
+                var res = await fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'X-Cashless-Ajax': '1' },
+                    body: body,
+                    credentials: 'same-origin'
+                });
+                var data = await res.json();
+                if (data.ok && data.auto_nominal) {
+                    if (data.santri && data.santri.nama && santriChip) {
+                        santriChip.textContent = data.santri.nama;
+                    }
+                    speak('PIN benar');
+                    await beginMoneyQrScan();
+                } else {
+                    setFlash(data.message || 'PIN salah.', true);
+                    if (pinInput) {
+                        pinInput.value = '';
+                        pinInput.focus();
+                    }
+                    await startSantriScanner(activeCameraId);
+                }
+            } catch (e) {
+                setFlash('Gagal verifikasi. Coba lagi.', true);
+                await startSantriScanner(activeCameraId);
+            } finally {
+                pinVerifyBusy = false;
+            }
+        }
+
+        function schedulePinVerify() {
+            if (pinDebounce) clearTimeout(pinDebounce);
+            pinDebounce = setTimeout(function () {
+                var pin = (pinInput && pinInput.value) ? pinInput.value.trim() : '';
+                if ((input.value || '').trim() && pin.length >= CFG.pinMinLen) {
+                    verifyPinAjax();
+                }
+            }, 280);
+        }
+
+        if (pinInput) {
+            pinInput.addEventListener('input', schedulePinVerify);
+            pinInput.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    if (pinDebounce) clearTimeout(pinDebounce);
+                    verifyPinAjax();
+                }
+            });
+        }
+
+        if (retryBtn) {
+            retryBtn.addEventListener('click', async function () {
+                setFlash('');
+                if (moneyPhase) {
+                    await beginMoneyQrScan();
+                } else {
+                    await startSantriScanner(activeCameraId);
+                }
+            });
         }
 
         async function pageInit() {
             if (CFG.autoNominalAfterPin) {
-                setStatus('success', 'PIN benar. Kamera dialihkan ke scan nominal.');
-                await stopCurrentScanner();
-                var bayarPanel = document.getElementById('cashless-panel-bayar');
-                if (bayarPanel) {
-                    bayarPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-                speakPinOkThenNominal();
-                await new Promise(function (r) { setTimeout(r, 450); });
-                if (CFG.scanUangEnabled) {
-                    await beginMoneyQrScan();
-                } else if (moneyStatus) {
-                    moneyStatus.textContent = 'Mode scan uang nonaktif. Aktifkan di Setting PIN Cashless.';
-                }
+                speak('PIN benar');
+                await beginMoneyQrScan();
             } else {
-                await startScanner(null);
+                await startSantriScanner(null);
             }
         }
         pageInit();
-
-        if (startMoneyBtn) {
-            startMoneyBtn.addEventListener('click', function () {
-                beginMoneyQrScan();
-            });
-        }
     })();
 </script>
 

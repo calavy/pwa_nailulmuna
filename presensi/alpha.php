@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $izinTetapIds = santri_izin_tetap_santri_ids_pada_tanggal($pdo, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
 
     $threshold = (int) app_setting($pdo, 'batas_alpa_notif', '3');
-    $pengurusWa = app_setting($pdo, 'wa_pengurus', '');
+    $pengurusWa = wa_alpa_notif_target($pdo);
     $jamAutoWa = trim((string) app_setting($pdo, 'jam_kirim_wa_auto', ''));
     $canSendNow = $jamAutoWa === '' || date('H:i') >= $jamAutoWa;
     $created = 0;
@@ -242,7 +242,7 @@ require_once __DIR__ . '/../includes/header.php';
                 ?>.
                 <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=alpa')) ?>">Ubah pengaturan</a>.
             <?php else: ?>
-                <strong>Notifikasi tier belum diatur.</strong> Sistem akan memakai notifikasi tunggal lama (≥ <?= (int) app_setting($pdo, 'batas_alpa_notif', '3') ?> kali alpa → <code>wa_pengurus</code>).
+                <strong>Notifikasi tier belum diatur.</strong> Sistem memakai mode lama (≥ <?= (int) app_setting($pdo, 'batas_alpa_notif', '3') ?> kali alpa → nomor di tab <strong>Alpa</strong> / Gateway).
                 <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=alpa')) ?>">Aktifkan notifikasi alpa bertahap</a>.
             <?php endif; ?>
         </div>

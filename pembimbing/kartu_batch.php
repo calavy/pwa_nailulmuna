@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/kartu_brand_colors.php';
 require_once __DIR__ . '/../helpers/pembimbing_kelas.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -32,7 +33,7 @@ $ph = implode(',', array_fill(0, count($ids), '?'));
 $sql = 'SELECT p.id, p.nip, p.nama_pembimbing, p.no_wa, p.qr, p.is_aktif
         FROM pembimbing p
         WHERE p.id IN (' . $ph . ')
-        ORDER BY p.nama_pembimbing ASC';
+        ORDER BY ' . pembimbing_list_order_sql('p');
 $st = $pdo->prepare($sql);
 $st->execute($ids);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];

@@ -93,6 +93,9 @@ function perizinan_tandai_kembali_manual(PDO $pdo, int $izinId, int $userId): ar
 
     $pdo->prepare('UPDATE santri SET is_aktif = 1 WHERE id = :id')->execute(['id' => (int) $row['santri_id']]);
 
+    require_once __DIR__ . '/perizinan_approval.php';
+    perizinan_kirim_wa_pengurus_izin_selesai($pdo, $izinId, $lateMinutes, $latePoint);
+
     if ($latePoint > 0 && function_exists('ensure_point_tables')) {
         ensure_point_tables($pdo);
         $ledger = $pdo->prepare('

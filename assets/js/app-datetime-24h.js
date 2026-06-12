@@ -141,7 +141,12 @@
 
         function tick() {
             var now = new Date(Date.now() + driftMs);
-            clockEl.textContent = formatTime24FromDate(now);
+            var timeFull = formatTime24FromDate(now);
+            clockEl.textContent = timeFull;
+            document.querySelectorAll('[data-pg-sync-clock]').forEach(function (el) {
+                var mode = el.getAttribute('data-pg-sync-clock') || 'hm';
+                el.textContent = mode === 'hms' ? timeFull : timeFull.slice(0, 5);
+            });
             if (dateEl) {
                 var compact = document.body.classList.contains('pb-dash-home-mobile-fit')
                     || document.body.classList.contains('dash-home-mobile-fit');

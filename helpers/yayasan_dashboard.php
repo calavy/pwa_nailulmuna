@@ -79,7 +79,7 @@ function yayasan_dashboard_sdm_kpi(PDO $pdo, string $dari, string $sampai): arra
     }
 
     if (table_exists($pdo, 'presensi_munawib') && table_exists($pdo, 'munawib')) {
-        $orderMw = munawib_list_order_sql('m');
+        $orderMw = munawib_list_order_by_induk_sql('m', $sampai);
         $rows = $pdo->prepare("
             SELECT m.id, m.nama, m.nip, COUNT(pm.id) AS total_hadir
             FROM munawib m

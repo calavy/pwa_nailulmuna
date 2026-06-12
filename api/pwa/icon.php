@@ -14,7 +14,7 @@ $maskable = isset($_GET['maskable']) && (string) $_GET['maskable'] === '1';
 
 $theme = app_pwa_theme($pdo);
 $bg = (string) ($theme['background_color'] ?? '#0d9488');
-$scale = $maskable ? 0.72 : 0.84;
+$scale = $maskable ? 0.84 : 0.96;
 
 $relStored = pwa_brand_icon_relative_path($pdo, $size, $maskable);
 if ($relStored !== '') {

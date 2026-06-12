@@ -5,6 +5,36 @@ declare(strict_types=1);
 ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
+        <h2 class="h6 mb-2">Notifikasi alpa otomatis (fallback)</h2>
+        <p class="small text-muted mb-3">
+            Dipakai saat <strong>generate alpa</strong> atau cron harian jika tier belum diatur di bawah.
+            Terpisah dari notifikasi <strong>permohonan izin</strong> (<a href="?tab=izin">tab Izin</a>).
+        </p>
+        <form method="post" class="row g-3">
+            <input type="hidden" name="action" value="save_alpa_penerima">
+            <div class="col-md-6">
+                <label class="form-label">No. penerima alpa</label>
+                <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
+                <div class="form-text">Beberapa nomor: pisah koma.</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Jam kirim WA otomatis</label>
+                <input type="time" class="form-control input-time-24" name="jam_kirim_wa_auto" value="<?= htmlspecialchars(app_format_jam($values['jam_kirim_wa_auto'])) ?>">
+                <div class="form-text">Kosong = kirim langsung.</div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Batas alpa (mode lama)</label>
+                <input type="number" min="1" class="form-control" name="batas_alpa_notif" value="<?= htmlspecialchars($values['batas_alpa_notif']) ?>">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-success btn-sm">Simpan penerima alpa</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
         <h2 class="h6 mb-2">Periode perhitungan alpa</h2>
         <form method="post" class="row g-2 align-items-end">
             <input type="hidden" name="action" value="save_periode">
@@ -43,7 +73,7 @@ declare(strict_types=1);
         <form method="post" id="wa-tier-del-<?= (int) $t['id'] ?>" onsubmit="return confirm('Hapus tier ini?');"><input type="hidden" name="action" value="delete_tier"><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"></form>
     <?php endforeach; ?>
     <form method="post" id="wa-tier-form-new"><input type="hidden" name="action" value="save_tier"></form>
-    <div class="table-responsive">
+    <div class="table-responsive border-top">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
                 <tr><th>Ambang</th><th>Label</th><th>Nomor WA</th><th class="text-center">Aktif</th><th></th></tr>
@@ -75,4 +105,4 @@ declare(strict_types=1);
         </table>
     </div>
 </div>
-<p class="small text-muted">Tanpa tier aktif, sistem memakai mode lama: alpa ≥ batas di tab Gateway → kirim ke nomor pengurus.</p>
+<p class="small text-muted">Tanpa tier aktif, sistem memakai mode fallback di atas: alpa ≥ batas → kirim ke <strong>No. penerima alpa</strong>.</p>

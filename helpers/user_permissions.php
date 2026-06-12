@@ -188,7 +188,6 @@ function user_permission_path_map_base(): array
         '/rekap/pkpps_keaktivan.php' => 'jadwal',
         '/settings/tingkatan.php' => 'pengaturan',
         '/settings/tingkatan.php#pkpps' => 'pengaturan',
-        '/jadwal/edit.php' => 'jadwal',
         '/pembimbing/munawib.php' => 'munawib',
         '/rekap/hub.php' => 'rekap_hub',
         '/rekap/keaktivan_sdm.php' => 'rekap_hub',
@@ -233,11 +232,9 @@ function user_permission_path_map_base(): array
         '/settings/kelas_syahriyah.php' => 'pengaturan',
         '/settings/tarif_payroll.php' => 'pengaturan',
         '/settings/opsional_santri.php' => 'pengaturan',
-        '/settings/tingkatan.php' => 'pengaturan',
         '/settings/kamar_ranjang.php' => 'pengaturan',
         '/settings/index.php' => 'pengaturan',
         '/settings/kalender.php' => 'pengaturan',
-        '/settings/push.php' => 'pengaturan',
         '/settings/hijri_mappings.php' => 'pengaturan',
         '/perizinan/index.php' => 'perizinan',
         '/perizinan/rekap_aktif.php' => 'perizinan',
@@ -418,4 +415,74 @@ function user_permission_preset_keys(string $presetId): array
         'keuangan_laporan_saja' => ['keuangan_laporan'],
         default => [],
     };
+}
+
+/** Izin bawaan saat akun belum punya baris ACL (mis. pengurus lama sebelum migrasi). */
+function user_permission_default_keys_for_role(string $role): array
+{
+    $role = strtolower(trim($role));
+    if ($role === 'petugas_absensi') {
+        return [
+            'dashboard',
+            'presensi_scan',
+            'perizinan_scan',
+            'perizinan_permohonan',
+        ];
+    }
+    if ($role === 'pengurus') {
+        $keys = array_keys(user_permission_flat_options());
+
+        return array_values(array_filter(
+            $keys,
+            static fn(string $k): bool => !in_array($k, ['settings_admin'], true)
+        ));
+    }
+
+    return ['dashboard'];
+}
+
+/** Sisipkan izin bawaan ke DB bila user belum punya satupun permission_key. */
+function user_permission_ensure_role_defaults(PDO $pdo, int $userId, string $role): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    if (!function_exists('table_exists')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'user_access_permissions')) {
+        return;
+    }
+
+    $role = strtolower(trim($role));
+    if ($role === 'pembimbing') {
+        if (!function_exists('login_pembimbing_ensure_acl')) {
+            require_once __DIR__ . '/login_pembimbing.php';
+        }
+        login_pembimbing_ensure_acl($pdo, $userId);
+
+        return;
+    }
+    if (!in_array($role, ['pengurus', 'petugas_absensi'], true)) {
+        return;
+    }
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM user_access_permissions WHERE user_id = :uid');
+    $st->execute(['uid' => $userId]);
+    if ((int) $st->fetchColumn() > 0) {
+        return;
+    }
+
+    $keys = user_permission_default_keys_for_role($role);
+    if ($keys === []) {
+        return;
+    }
+
+    $ins = $pdo->prepare('INSERT IGNORE INTO user_access_permissions (user_id, permission_key) VALUES (:uid, :pk)');
+    foreach ($keys as $key) {
+        $ins->execute(['uid' => $userId, 'pk' => $key]);
+    }
+    if (function_exists('app_acl_session_cache_clear')) {
+        app_acl_session_cache_clear($userId);
+    }
 }

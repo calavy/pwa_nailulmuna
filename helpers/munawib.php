@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/entity_list_sort.php';
 
 function munawib_ensure_schema(PDO $pdo): void
 {
@@ -71,11 +72,29 @@ function munawib_ensure_schema(PDO $pdo): void
 /**
  * @return list<array<string, mixed>>
  */
-function munawib_list_aktif(PDO $pdo): array
+function munawib_list_aktif(PDO $pdo, ?string $tanggalYmd = null): array
 {
     munawib_ensure_schema($pdo);
+    $tanggalExpr = $tanggalYmd !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalYmd)
+        ? "'" . $tanggalYmd . "'"
+        : 'CURDATE()';
+    $order = munawib_list_order_by_induk_sql('m', $tanggalYmd);
+    $indukNipSub = '(
+        SELECT MIN(pb.nip)
+        FROM munawib_penugasan mp
+        INNER JOIN pembimbing pb ON pb.id = mp.pembimbing_id
+        WHERE mp.munawib_id = m.id
+          AND mp.status = "AKTIF"
+          AND mp.pembimbing_id IS NOT NULL
+          AND ' . $tanggalExpr . ' BETWEEN mp.tanggal_mulai AND mp.tanggal_selesai
+    )';
     try {
-        return $pdo->query('SELECT id, nama, nip, qr, no_wa FROM munawib WHERE COALESCE(is_aktif,1)=1 ORDER BY nama ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $pdo->query(
+            'SELECT m.id, m.nama, m.nip, m.qr, m.no_wa, ' . $indukNipSub . ' AS pembimbing_induk_nip
+             FROM munawib m
+             WHERE COALESCE(m.is_aktif, 1) = 1
+             ORDER BY ' . $order
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (PDOException $e) {
         return [];
     }
@@ -391,7 +410,7 @@ function munawib_laporan_kehadiran(PDO $pdo, ?string $dari, ?string $sampai, int
         LEFT JOIN pembimbing b ON b.id = mp.pembimbing_id
         {$joinKeg}
         WHERE {$where}
-        ORDER BY pm.tanggal DESC, pm.jam DESC
+        ORDER BY pm.tanggal DESC, pm.jam DESC, ' . munawib_list_order_by_induk_sql('m', $sampai) . '
     ";
     $st = $pdo->prepare($sql);
     $st->execute($params);

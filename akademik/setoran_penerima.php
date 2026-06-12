@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 require_once __DIR__ . '/../helpers/akademik_setoran.php';
 
 require_roles(['admin', 'pengurus']);
@@ -108,7 +109,7 @@ if ($tab === 'tambah') {
             FROM munawib m
             INNER JOIN akademik_penerima_setoran ps ON ps.peran = "munawib" AND ps.ref_id = m.id AND ps.is_aktif = 1
             WHERE COALESCE(m.is_aktif, 1) = 1
-            ORDER BY m.nama ASC
+            ORDER BY ' . munawib_list_order_by_induk_sql('m') . '
         ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if ($tkSelectedId <= 0 && $tkPenerimaRows !== []) {
             $tkSelectedId = (int) ($tkPenerimaRows[0]['id'] ?? 0);
@@ -120,7 +121,7 @@ if ($tab === 'tambah') {
             FROM pembimbing p
             INNER JOIN akademik_penerima_setoran ps ON ps.peran = "pembimbing" AND ps.ref_id = p.id AND ps.is_aktif = 1
             WHERE COALESCE(p.is_aktif, 1) = 1
-            ORDER BY p.nama_pembimbing ASC
+            ORDER BY ' . pembimbing_list_order_sql('p') . '
         ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
         if ($tkSelectedId <= 0 && $tkPenerimaRows !== []) {
             $tkSelectedId = (int) ($tkPenerimaRows[0]['id'] ?? 0);

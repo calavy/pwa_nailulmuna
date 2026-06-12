@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/akademik.php';
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/entity_list_sort.php';
 
 /** Schema minimal untuk halaman data / penugasan penerima setoran (tanpa migrasi hafalan/bait). */
 function ensure_akademik_setoran_penerima_schema(PDO $pdo): void
@@ -503,7 +504,7 @@ function akademik_setoran_penerima_list(PDO $pdo, ?string $peranFilter = null, b
                 LEFT JOIN akademik_setoran_pembimbing_tingkatan pst ON pst.pembimbing_id = p.id
                 WHERE COALESCE(p.is_aktif, 1) = 1
                 GROUP BY p.id, p.nama_pembimbing, p.nip, ps.is_aktif, ps.catatan, ps.ditugaskan_pada
-                ORDER BY p.nama_pembimbing ASC
+                ORDER BY ' . pembimbing_list_order_sql('p') . '
             ')->fetchAll(PDO::FETCH_ASSOC) ?: []);
         }
     }
@@ -519,7 +520,7 @@ function akademik_setoran_penerima_list(PDO $pdo, ?string $peranFilter = null, b
                 LEFT JOIN akademik_setoran_munawib_tingkatan mst ON mst.munawib_id = m.id
                 WHERE COALESCE(m.is_aktif, 1) = 1
                 GROUP BY m.id, m.nama, m.nip, ps.is_aktif, ps.catatan, ps.ditugaskan_pada
-                ORDER BY m.nama ASC
+                ORDER BY ' . munawib_list_order_by_induk_sql('m') . '
             ')->fetchAll(PDO::FETCH_ASSOC) ?: []);
         }
     }
@@ -580,7 +581,7 @@ function akademik_setoran_penerima_kandidat(PDO $pdo): array
         LEFT JOIN akademik_penerima_setoran ps
             ON ps.peran = "pembimbing" AND ps.ref_id = p.id AND ps.is_aktif = 1
         WHERE COALESCE(p.is_aktif, 1) = 1 AND ps.id IS NULL
-        ORDER BY p.nama_pembimbing ASC
+        ORDER BY ' . pembimbing_list_order_sql('p') . '
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $munawib = $pdo->query('
@@ -589,7 +590,7 @@ function akademik_setoran_penerima_kandidat(PDO $pdo): array
         LEFT JOIN akademik_penerima_setoran ps
             ON ps.peran = "munawib" AND ps.ref_id = m.id AND ps.is_aktif = 1
         WHERE COALESCE(m.is_aktif, 1) = 1 AND ps.id IS NULL
-        ORDER BY m.nama ASC
+        ORDER BY ' . munawib_list_order_by_induk_sql('m') . '
     ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     return ['pembimbing' => $pembimbing, 'munawib' => $munawib];

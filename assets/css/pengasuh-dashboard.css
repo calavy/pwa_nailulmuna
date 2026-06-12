@@ -1,3 +1,157 @@
+/* Dashboard pengasuh — banner kompak (~18% lebih rendah) */
+
+.page-pengasuh-dashboard .pg-dash-hero {
+    margin-bottom: 0.85rem !important;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-inner {
+    padding: clamp(0.5rem, 1.8vw, 0.75rem) clamp(0.65rem, 2.4vw, 1rem);
+}
+
+@media (min-width: 768px) {
+    .page-pengasuh-dashboard .pg-dash-hero .dash-hero-inner {
+        padding: 0.85rem 1.1rem;
+    }
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-brand--top {
+    margin-bottom: 0.55rem !important;
+    gap: 0.55rem;
+    align-items: center;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-logo-wrap {
+    width: 58px;
+    height: 58px;
+    padding: 2px;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-logo-wrap--placeholder {
+    width: 64px;
+    height: 64px;
+}
+
+@media (min-width: 992px) {
+    .page-pengasuh-dashboard .pg-dash-hero .dash-hero-logo-wrap--placeholder {
+        width: 72px;
+        height: 72px;
+    }
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-pesantren-kicker {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    line-height: 1.3;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-pesantren {
+    font-size: clamp(0.92rem, 2vw, 1.15rem);
+    line-height: 1.22;
+}
+
+@media (min-width: 992px) {
+    .page-pengasuh-dashboard .pg-dash-hero .dash-hero-pesantren {
+        font-size: 1.35rem;
+    }
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-pesantren-sub {
+    font-size: 0.68rem;
+    line-height: 1.3;
+    margin-top: 0.1rem;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-layout--slim {
+    gap: 0.6rem 1rem;
+    align-items: center;
+}
+
+@media (min-width: 768px) {
+    .page-pengasuh-dashboard .pg-dash-hero .dash-hero-layout--slim {
+        align-items: center;
+    }
+
+    .page-pengasuh-dashboard .pg-dash-hero .dash-hero-clock {
+        align-self: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 0;
+    }
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-greeting {
+    padding-block: 0.1rem;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-kicker {
+    font-size: 0.65rem;
+    margin-bottom: 0.12rem;
+    line-height: 1.3;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-title {
+    font-size: clamp(1rem, 2.4vw, 1.2rem);
+    margin-bottom: 0.3rem !important;
+    line-height: 1.2;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-greeting .small {
+    line-height: 1.35;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-hijri {
+    margin-top: 0.15rem;
+    line-height: 1.3;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-clock {
+    padding: 0.6rem 0.8rem;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-clock__top {
+    margin-bottom: 0.25rem;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-clock__time {
+    font-size: clamp(1.2rem, 3.5vw + 0.25rem, 1.6rem);
+    line-height: 1.05;
+}
+
+.page-pengasuh-dashboard .pg-dash-hero .dash-hero-clock__date {
+    font-size: 0.7rem;
+    margin-top: 0.15rem;
+    line-height: 1.3;
+}
+
+@media (max-width: 767.98px) {
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero {
+        margin-bottom: 0.6rem !important;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-inner {
+        padding: 0.55rem 0.7rem 0.6rem;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-brand--top {
+        margin-bottom: 0.4rem !important;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-logo-wrap {
+        width: 50px;
+        height: 50px;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-title {
+        font-size: 0.95rem;
+        margin-bottom: 0.15rem !important;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-clock {
+        padding: 0.4rem 0.5rem;
+    }
+}
+
 /* Dashboard pengasuh — grup tingkatan & SDM */
 
 .pg-dash-keg-live-summary .pg-dash-keg-live-toggle {

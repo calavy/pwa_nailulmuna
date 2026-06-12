@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/munawib.php';
+require_once __DIR__ . '/../helpers/entity_list_sort.php';
 require_once __DIR__ . '/../helpers/excel.php';
 
 require_roles(['admin', 'pengurus']);
@@ -245,7 +246,7 @@ $flashOk = get_flash('success');
                         <select class="form-select form-select-sm" name="pembimbing_id" required>
                             <option value="0">Tanpa pembimbing khusus (fleksibel)</option>
                             <?php foreach ($pembimbingList as $p): ?>
-                                <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars((string) $p['nama_pembimbing']) ?></option>
+                                <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars(trim((string) ($p['nip'] ?? '') . ' — ' . (string) ($p['nama_pembimbing'] ?? ''), ' —')) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -253,7 +254,7 @@ $flashOk = get_flash('success');
                         <select class="form-select form-select-sm" name="munawib_id" required>
                             <option value="">Munawib *</option>
                             <?php foreach ($munawibList as $m): ?>
-                                <option value="<?= (int) $m['id'] ?>"><?= htmlspecialchars((string) $m['nama']) ?></option>
+                                <option value="<?= (int) $m['id'] ?>"><?= htmlspecialchars(trim((string) ($m['nip'] ?? '') . ' — ' . (string) ($m['nama'] ?? ''), ' —')) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -278,13 +279,14 @@ $flashOk = get_flash('success');
             <div class="card-header py-2"><strong>Daftar munawib</strong></div>
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Nama</th><th>NIP</th><th>QR</th><th>No WA</th><th class="text-end">Aksi</th></tr></thead>
+                    <thead class="table-light"><tr><th>Nama</th><th>NIP</th><th>Induk (NIP PB)</th><th>QR</th><th>No WA</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
-                    <?php if ($munawibList === []): ?><tr><td colspan="5" class="text-muted text-center py-3">Belum ada data munawib.</td></tr><?php endif; ?>
+                    <?php if ($munawibList === []): ?><tr><td colspan="6" class="text-muted text-center py-3">Belum ada data munawib.</td></tr><?php endif; ?>
                     <?php foreach ($munawibList as $mw): ?>
                         <tr>
                             <td class="small fw-semibold"><?= htmlspecialchars((string) ($mw['nama'] ?? '')) ?></td>
-                            <td class="small"><?= htmlspecialchars((string) (($mw['nip'] ?? '') !== '' ? $mw['nip'] : '-')) ?></td>
+                            <td class="small font-monospace"><?= htmlspecialchars((string) (($mw['nip'] ?? '') !== '' ? $mw['nip'] : '-')) ?></td>
+                            <td class="small font-monospace text-muted"><?= htmlspecialchars((string) (($mw['pembimbing_induk_nip'] ?? '') !== '' ? $mw['pembimbing_induk_nip'] : '—')) ?></td>
                             <td class="small font-monospace"><?= htmlspecialchars((string) (($mw['qr'] ?? '') !== '' ? $mw['qr'] : '-')) ?></td>
                             <td class="small"><?= htmlspecialchars((string) (($mw['no_wa'] ?? '') !== '' ? $mw['no_wa'] : '-')) ?></td>
                             <td class="text-end text-nowrap">
