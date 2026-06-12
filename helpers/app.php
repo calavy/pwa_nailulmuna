@@ -528,6 +528,9 @@ function pondok_settings_defaults(): array
         'wa_izin_pengurus' => '',
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
+        'wa_izin_wali_enabled' => '1',
+        'cashless_saldo_rendah_wa_enabled' => '1',
+        'cashless_saldo_rendah_wa_ambang' => '30000',
         'keuangan_pkpps_alokasi_komponen' => '',
         'app_tahun_masehi_mode' => 'BERJALAN',
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
@@ -646,6 +649,11 @@ function wa_izin_pengurus_enabled(PDO $pdo): bool
 function wa_izin_selesai_enabled(PDO $pdo): bool
 {
     return trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
+}
+
+function wa_izin_wali_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
 }
 
 /**
@@ -3171,23 +3179,33 @@ function wa_format_izin_disetujui_untuk_wali(
     string $jenisLabel,
     string $tanggalSelesai,
     string $jamSelesai,
-    string $alasan
+    string $alasan,
+    string $tanggalMulai = '',
+    string $jamMulai = ''
 ): string {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
     $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
+    $periode = $tanggalMulai !== ''
+        ? $tanggalMulai . ' s/d ' . $tanggalSelesai
+        : $tanggalSelesai;
+    $waktu = ($jamMulai !== '' || $jamSelesai !== '')
+        ? trim($jamMulai . ' – ' . $jamSelesai, ' –')
+        : '';
 
-    return wa_salam_pembuka() . "\n\n"
-        . '*Yth. Wali santri ' . $namaSantri . '*' . "\n\n"
-        . wa_kop_instansi($pdo) . "\n\n"
-        . "*SURAT PEMBERITAHUAN (digital)*\n\n"
-        . 'Dengan hormat kami sampaikan bahwa permohonan *' . $jenisLabel . '* atas nama putra/putri Anda *'
-        . $namaSantri . '* telah *DISETUJUI* oleh pengurus *' . $namaPonpes . "*.\n\n"
-        . "Rincian penting:\n"
-        . '• Jadwal kembali ke pesantren: *' . $tanggalSelesai . '* pukul *' . $jamSelesai . "*\n"
-        . '• Keterangan: _' . $alasan . "_\n\n"
-        . "Mohon putra/putri Anda kembali tepat waktu sesuai ketentuan yang berlaku.\n"
-        . "Atas perhatian dan kerja samanya disampaikan terima kasih.\n\n"
-        . '*Wassalamu\'alaikum warahmatullahi wabarakatuh.*' . "\n"
-        . '_' . $namaPonpes . '_';
+    return wa_template_render($pdo, 'izin_disetujui_wali', [
+        'nama_santri' => $namaSantri,
+        'jenis_izin' => $jenisLabel,
+        'tanggal_mulai' => $tanggalMulai !== '' ? $tanggalMulai : $tanggalSelesai,
+        'tanggal_selesai' => $tanggalSelesai,
+        'jam_mulai' => $jamMulai !== '' ? $jamMulai : '-',
+        'jam_selesai' => $jamSelesai !== '' ? $jamSelesai : '-',
+        'periode' => $periode,
+        'waktu' => $waktu !== '' ? $waktu : ($jamSelesai !== '' ? $jamSelesai : '-'),
+        'alasan' => $alasan,
+        'nama_ponpes' => $namaPonpes,
+    ]);
 }
 
 function user_has_acl_permission_matrix(PDO $pdo): bool

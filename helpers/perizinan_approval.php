@@ -651,6 +651,53 @@ function perizinan_kirim_wa_pengurus_izin_selesai(
 }
 
 /**
+ * Kirim WA ke nomor wali santri saat permohonan izin disetujui.
+ *
+ * @param array<string,mixed> $izinRow minimal: santri_id, nama_santri, jenis_izin, alasan (+ kolom wali jika ada)
+ */
+function perizinan_kirim_wa_wali_disetujui(
+    PDO $pdo,
+    array $izinRow,
+    string $tglMulai,
+    string $tglSelesai,
+    string $jamMulai,
+    string $jamSelesai
+): int {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin') || !wa_izin_wali_enabled($pdo)) {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return 0;
+    }
+
+    $waliPhone = wa_otomatis_santri_wali_phone($pdo, $izinRow);
+    if ($waliPhone === '') {
+        $santriId = (int) ($izinRow['santri_id'] ?? 0);
+        if ($santriId > 0) {
+            $waliPhone = wa_otomatis_santri_wali_phone($pdo, $santriId);
+        }
+    }
+    if ($waliPhone === '') {
+        return 0;
+    }
+
+    $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'KELUAR'));
+    $msg = wa_format_izin_disetujui_untuk_wali(
+        $pdo,
+        (string) ($izinRow['nama_santri'] ?? '-'),
+        jenis_izin_label($jenisRaw),
+        $tglSelesai,
+        $jamSelesai,
+        (string) ($izinRow['alasan'] ?? '-'),
+        $tglMulai,
+        $jamMulai
+    );
+
+    return send_wa_message($pdo, $waliPhone, $msg) ? 1 : 0;
+}
+
+/**
  * Kirim WA ke pembimbing terkait (+ opsional grup) saat izin disetujui.
  *
  * @param array<string,mixed> $izinRow minimal: santri_id, nama_santri, nis, tingkatan, jenis_izin, alasan
@@ -789,6 +836,16 @@ function perizinan_kirim_wa_rombongan_disetujui(
         $approvedByUserId,
         $daftarSantri
     );
+
+    foreach ($anggota as $ang) {
+        $izinRowWali = [
+            'santri_id' => (int) ($ang['santri_id'] ?? 0),
+            'nama_santri' => (string) ($ang['nama_santri'] ?? '-'),
+            'jenis_izin' => $jenisRaw,
+            'alasan' => $alasan,
+        ];
+        perizinan_kirim_wa_wali_disetujui($pdo, $izinRowWali, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+    }
 
     return perizinan_wa_kirim_ringkasan($sentPb, $sentGrup, $sentPg);
 }

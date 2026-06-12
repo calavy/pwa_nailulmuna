@@ -162,6 +162,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('success', 'Pengaturan WA pengurus izin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
         exit;
+    } elseif ($action === 'save_izin_wali_wa') {
+        save_setting($pdo, 'wa_izin_wali_enabled', isset($_POST['wa_izin_wali_enabled']) ? '1' : '0');
+        set_flash('success', 'Pengaturan WA wali izin disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
+        exit;
+    } elseif ($action === 'save_cashless_saldo_wa') {
+        save_setting($pdo, 'cashless_saldo_rendah_wa_enabled', isset($_POST['cashless_saldo_rendah_wa_enabled']) ? '1' : '0');
+        save_setting($pdo, 'cashless_saldo_rendah_wa_ambang', (string) max(0, (int) ($_POST['cashless_saldo_rendah_wa_ambang'] ?? 30000)));
+        set_flash('success', 'Pengaturan WA saldo cashless rendah disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
+        exit;
     } elseif ($action === 'save_periode') {
         $mode = strtolower(trim((string) ($_POST['periode_mode'] ?? 'monthly')));
         if (!in_array($mode, ['weekly', 'monthly', 'default'], true)) {
@@ -275,7 +286,10 @@ if ($waIzinGrupFonte === '') {
 $waIzinGrupAktifOtomatis = $waIzinGrupFonte !== '' && $waIzinGrupFonteEnabled;
 $waIzinPengurusEnabled = trim((string) app_setting($pdo, 'wa_izin_pengurus_enabled', '1')) === '1';
 $waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
+$waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
+$cashlessSaldoRendahWaEnabled = trim((string) app_setting($pdo, 'cashless_saldo_rendah_wa_enabled', '1')) === '1';
+$cashlessSaldoRendahWaAmbang = max(0, (int) app_setting($pdo, 'cashless_saldo_rendah_wa_ambang', '30000'));
 
 // Presensi
 $scanEnabled = trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) === '1';

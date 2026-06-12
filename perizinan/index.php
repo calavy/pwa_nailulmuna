@@ -160,21 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tglSelesai,
                 $jamSelesai
             );
-            if (in_array($jenisIzinRaw, ['PULANG', 'TUGAS'], true)) {
-                require_once __DIR__ . '/../helpers/wa_otomatis.php';
-                $waliPhone = wa_otomatis_santri_wali_phone($pdo, $izinInfo);
-                if ($waliPhone !== '' && wa_otomatis_should_run($pdo, 'izin')) {
-                    $msg = wa_format_izin_disetujui_untuk_wali(
-                        $pdo,
-                        (string) ($izinInfo['nama_santri'] ?? '-'),
-                        $jenisLabel,
-                        $tglSelesai,
-                        $jamSelesai,
-                        (string) ($izinInfo['alasan'] ?? '-')
-                    );
-                    send_wa_message($pdo, $waliPhone, $msg);
-                }
-            }
+            perizinan_kirim_wa_wali_disetujui($pdo, $izinInfo, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
             $waRingkasan = perizinan_kirim_wa_pembimbing_disetujui(
                 $pdo,
                 $izinInfo,

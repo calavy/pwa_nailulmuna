@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 /** @var array<string, string> $kalenderV */
+/** @var bool $cashlessSaldoRendahWaEnabled */
+/** @var int $cashlessSaldoRendahWaAmbang */
 
 ?>
 <div class="card shadow-sm border-0 mb-3">
@@ -80,6 +82,35 @@ declare(strict_types=1);
         </form>
     </div>
 </div>
+<div class="card shadow-sm border-0 mb-3 border-warning-subtle">
+    <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-wallet text-warning me-1"></i> Saldo cashless rendah → wali santri</h2>
+        <p class="small text-muted mb-3">
+            Kirim WA otomatis ke nomor wali saat saldo cashless (saku) santri turun ke ambang atau di bawahnya.
+            Notifikasi dikirim sekali per periode saldo rendah; reset otomatis setelah top-up melebihi ambang.
+        </p>
+        <form method="post" class="row g-3">
+            <input type="hidden" name="action" value="save_cashless_saldo_wa">
+            <input type="hidden" name="redirect_tab" value="tagihan">
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="cashless_saldo_rendah_wa_enabled" name="cashless_saldo_rendah_wa_enabled" value="1" <?= $cashlessSaldoRendahWaEnabled ? 'checked' : '' ?>>
+                    <label class="form-check-label fw-semibold" for="cashless_saldo_rendah_wa_enabled">Aktifkan notifikasi</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="cashless_saldo_rendah_wa_ambang">Ambang saldo (Rp)</label>
+                <input type="number" class="form-control" id="cashless_saldo_rendah_wa_ambang" name="cashless_saldo_rendah_wa_ambang" min="0" step="1000" value="<?= (int) $cashlessSaldoRendahWaAmbang ?>">
+                <div class="form-text">Default: Rp 30.000</div>
+            </div>
+            <div class="col-12">
+                <p class="small text-muted mb-2">Template pesan di tab <strong>Template</strong> (saldo cashless rendah → wali santri).</p>
+                <button type="submit" class="btn btn-success btn-sm">Simpan saldo cashless</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 (function () {
     var sel = document.getElementById('wa-sel-kalender');

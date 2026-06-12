@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /** @var bool $waIzinPengurusEnabled */
 /** @var bool $waIzinSelesaiEnabled */
+/** @var bool $waIzinWaliEnabled */
 /** @var string $waIzinPengurus */
 /** @var bool $waIzinEnabled */
 /** @var bool $waIzinGrupFonteEnabled */
@@ -63,6 +64,27 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
                     <input type="text" class="form-control font-monospace mb-1" id="wa_izin_grup_fonte" name="wa_izin_grup_fonte" value="<?= htmlspecialchars($waIzinGrupFonte) ?>" placeholder="120363xxxxx@g.us" autocomplete="off">
                     <div class="form-text mb-3">Salin dari panel Fonte → Grup. Beberapa grup: pisah koma.</div>
                     <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan grup WA</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+        <div class="card shadow-sm border-0 h-100 border-info-subtle">
+            <div class="card-body">
+                <h2 class="h6 mb-2"><i class="fa-solid fa-user-group text-info me-1"></i> Wali santri — izin disetujui</h2>
+                <p class="small text-muted mb-3">
+                    WA otomatis ke nomor wali santri saat permohonan izin (dari wali/petugas) <strong>disetujui</strong> pengurus.
+                    Nomor diambil dari data wali terhubung, no. WA wali, atau kontak ayah/ibu.
+                </p>
+                <form method="post">
+                    <input type="hidden" name="action" value="save_izin_wali_wa">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="wa_izin_wali_enabled" name="wa_izin_wali_enabled" value="1" <?= $waIzinWaliEnabled ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-semibold" for="wa_izin_wali_enabled">Kirim WA ke wali saat izin disetujui</label>
+                    </div>
+                    <p class="small text-muted mb-3">Template pesan dapat disesuaikan di tab <strong>Template</strong> (izin disetujui → wali santri).</p>
+                    <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan notifikasi wali</button>
                 </form>
             </div>
         </div>

@@ -74,6 +74,33 @@ function wa_template_definitions(): array
                 . '— {nama_ponpes}'
                 . '{doa}',
         ],
+        'izin_disetujui_wali' => [
+            'label' => 'Izin disetujui → wali santri',
+            'hint' => 'Dikirim otomatis ke nomor WA wali saat permohonan izin disetujui pengurus.',
+            'placeholders' => '{nama_santri}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . '*SURAT PEMBERITAHUAN (digital)*\n\n'
+                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_ponpes}*.\n\n'
+                . 'Periode: *{periode}*\n'
+                . 'Waktu: *{waktu}*\n'
+                . 'Keterangan: _{alasan}_\n\n'
+                . 'Mohon putra/putri Anda kembali tepat waktu sesuai ketentuan yang berlaku.\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
+        'cashless_saldo_rendah_wali' => [
+            'label' => 'Saldo cashless rendah → wali santri',
+            'hint' => 'Dikirim otomatis ke wali saat saldo cashless turun ke ambang atau di bawahnya.',
+            'placeholders' => '{nama_santri}, {saldo_tersisa}, {ambang}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . 'Saldo *cashless* (saku) putra/putri Anda di *{nama_ponpes}* tersisa *{saldo_tersisa}* '
+                . '(ambang peringatan: {ambang}).\n\n'
+                . 'Mohon segera melakukan top-up agar kegiatan belanja harian tidak terganggu.\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
         'izin_disetujui_pengurus' => [
             'label' => 'Izin disetujui → pengurus (petugas surat)',
             'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Izin rombongan: {daftar_santri}.',

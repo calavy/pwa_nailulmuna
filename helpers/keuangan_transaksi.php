@@ -729,6 +729,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
             'ref_pembayaran_id' => $pembayaranId,
             'created_by' => $userId > 0 ? $userId : null,
         ]);
+        require_once __DIR__ . '/cashless_wa.php';
+        $stSaldo = $pdo->prepare('SELECT COALESCE(balance, 0) FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
+        $stSaldo->execute(['id' => $santriId]);
+        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) ($stSaldo->fetchColumn() ?: 0));
     }
 
     keuangan_transaksi_bootstrap_jurnal();

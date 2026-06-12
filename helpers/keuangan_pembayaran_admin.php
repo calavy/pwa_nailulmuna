@@ -150,6 +150,10 @@ function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, in
             'created_by' => $userId > 0 ? $userId : null,
         ]);
     }
+    require_once __DIR__ . '/cashless_wa.php';
+    $stSaldo = $pdo->prepare('SELECT COALESCE(balance, 0) FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
+    $stSaldo->execute(['id' => $santriId]);
+    cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) ($stSaldo->fetchColumn() ?: 0));
 }
 
 /**

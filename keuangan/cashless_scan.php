@@ -200,6 +200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $createdByUserId,
                             $koperasiId > 0 ? $koperasiId : null
                         );
+                        require_once __DIR__ . '/../helpers/cashless_wa.php';
+                        $saldoSetelah = (float) ($account['balance'] ?? 0) - $nominal;
+                        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
                         $lastSuccessNominal = $nominal;
                         $resultType = 'success';
                         $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp ' . number_format($nominal, 0, ',', '.') . '.';
