@@ -2349,6 +2349,127 @@ html[data-theme-transitioning] .app-theme-switch {
     border-left-color: #f87171;
 }
 
+.app-hub-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--card-border, rgba(15, 23, 42, 0.08));
+    border-radius: var(--radius-md, 0.75rem);
+}
+
+[data-theme="dark"] .app-hub-tabs {
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.app-hub-tabs__title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+}
+
+.app-hub-tabs__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.app-hub-tabs__link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    text-decoration: none;
+    background: #f1f5f9;
+}
+
+.app-hub-tabs__link:hover {
+    color: #0f766e;
+    background: #ecfdf5;
+}
+
+.app-hub-tabs__link.active {
+    color: #fff;
+    background: #0f766e;
+}
+
+[data-theme="dark"] .app-hub-tabs__link {
+    background: rgba(51, 65, 85, 0.6);
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .app-hub-tabs__link.active {
+    background: #0f766e;
+    color: #fff;
+}
+
+/* Sub-menu horizontal swipe — HP & tablet */
+@media (max-width: 991.98px) {
+    .app-swipe-row,
+    .app-hub-tabs__links,
+    .wali-portal-tabs,
+    .ikhtibar-portal-tabs,
+    .wali-nav-scroll,
+    .btn-group.flex-wrap[role="group"],
+    .nav.nav-tabs.flex-wrap,
+    .nav.nav-pills.flex-wrap,
+    .nav.nav-tabs.flex-nowrap,
+    .nav.nav-tabs.overflow-auto {
+        display: flex;
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x;
+        scrollbar-width: none;
+        scroll-behavior: smooth;
+        padding-bottom: 0.15rem;
+        max-width: 100%;
+    }
+
+    .app-swipe-row::-webkit-scrollbar,
+    .app-hub-tabs__links::-webkit-scrollbar,
+    .wali-portal-tabs::-webkit-scrollbar,
+    .ikhtibar-portal-tabs::-webkit-scrollbar,
+    .wali-nav-scroll::-webkit-scrollbar,
+    .btn-group.flex-wrap[role="group"]::-webkit-scrollbar,
+    .nav.nav-tabs.flex-wrap::-webkit-scrollbar,
+    .nav.nav-pills.flex-wrap::-webkit-scrollbar,
+    .nav.nav-tabs.flex-nowrap::-webkit-scrollbar,
+    .nav.nav-tabs.overflow-auto::-webkit-scrollbar {
+        display: none;
+        height: 0;
+        width: 0;
+    }
+
+    .app-hub-tabs__link,
+    .wali-portal-tabs a,
+    .ikhtibar-portal-tabs a,
+    .wali-nav-scroll .btn,
+    .btn-group.flex-wrap[role="group"] > .btn,
+    .nav.nav-tabs.flex-wrap .nav-link,
+    .nav.nav-pills.flex-wrap .nav-link,
+    .nav.nav-tabs.flex-nowrap .nav-link,
+    .nav.nav-tabs.overflow-auto .nav-link {
+        flex: 0 0 auto !important;
+        white-space: nowrap;
+        scroll-snap-align: center;
+    }
+
+    .wali-portal-tabs a,
+    .ikhtibar-portal-tabs a {
+        font-size: 0.78rem;
+    }
+}
+
 .table-responsive {
     border-radius: var(--radius-md);
     border: 1px solid var(--card-border);
@@ -6422,6 +6543,48 @@ html.pondok-offline body.wali-portal #pondok-offline-banner {
     display: block;
 }
 
+/* PWA — banner pembaruan aplikasi */
+#pondok-pwa-update-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 1100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding: 0.55rem 0.85rem;
+    padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #0d9488 0%, #0891b2 100%);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.22);
+}
+
+html.pondok-pwa-update #pondok-pwa-update-banner {
+    display: flex;
+}
+
+.pondok-pwa-update-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f766e;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pondok-pwa-update-btn:disabled {
+    opacity: 0.75;
+    cursor: wait;
+}
+
 /* PWA terpasang — latar splash mengikuti tema teal aplikasi */
 html {
     background-color: #0d9488;
@@ -6872,4 +7035,60 @@ html {
         flex: 1 1 auto;
         min-width: 0;
     }
+}
+
+/* Syarat ALPA — tampilan perizinan */
+.izin-alpa-cell {
+    min-width: 9.5rem;
+    max-width: 16rem;
+    line-height: 1.35;
+}
+
+.izin-alpa-cell__head {
+    margin-bottom: 0.2rem;
+}
+
+.izin-alpa-cell__badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: normal;
+    text-align: left;
+}
+
+.izin-alpa-cell__stat {
+    font-size: 0.78rem;
+}
+
+.izin-alpa-cell__stat strong {
+    font-weight: 700;
+}
+
+.izin-alpa-cell__rule {
+    font-size: 0.7rem;
+    line-height: 1.3;
+}
+
+.izin-alpa-cell__progress-label {
+    font-size: 0.65rem;
+    margin-top: 0.15rem;
+}
+
+.izin-alpa-cell__note {
+    line-height: 1.35;
+}
+
+.izin-alpa-panel-modal .izin-alpa-cell {
+    max-width: none;
+}
+
+.izin-alpa-panel-modal .izin-alpa-cell__badge {
+    font-size: 0.75rem;
+}
+
+.izin-alpa-glosarium {
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color);
+    border-left: 3px solid rgba(var(--bs-warning-rgb), 0.55);
+    padding-left: 0.65rem;
+    margin-bottom: 0.75rem;
 }

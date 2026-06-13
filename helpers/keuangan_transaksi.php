@@ -485,7 +485,22 @@ function keuangan_build_santri_keuangan_map(PDO $pdo, array $biayaDefinitions, ?
             if ($slug === '') {
                 continue;
             }
-            $fees[$slug] = (int) ($feeMatrix[$slug][$tier] ?? 0);
+            if ($slug === 'makan') {
+                if (!function_exists('keuangan_makan_nominal_for_kelas')) {
+                    require_once __DIR__ . '/keuangan_kelas_makan.php';
+                }
+                $bulan = keuangan_bulan_berjalan(null, $pdo);
+                $periode = keuangan_tahun_ajaran_aktif($pdo);
+                $fees[$slug] = keuangan_makan_nominal_for_kelas(
+                    $pdo,
+                    $kat,
+                    $bulan,
+                    (int) ($periode['mulai'] ?? 0),
+                    (int) ($periode['selesai'] ?? 0)
+                );
+            } else {
+                $fees[$slug] = (int) ($feeMatrix[$slug][$tier] ?? 0);
+            }
         }
         $map[(string) $id] = [
             'kelas_label' => $kat !== '' ? $kat : 'Belum diset',
@@ -627,7 +642,11 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
                 ];
             }
         }
-        $detailRows[] = ['slug' => $slug, 'nama' => $def['nama'], 'nominal' => $nominal];
+        $detailRows[] = [
+            'slug' => $slug,
+            'nama' => keuangan_pos_display_nama($pdo, $slug, (string) ($def['nama'] ?? $slug)),
+            'nominal' => $nominal,
+        ];
         $totalNominal += $nominal;
     }
 

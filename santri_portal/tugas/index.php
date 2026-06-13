@@ -12,22 +12,11 @@ $santriId = (int) ($santriPortalRow['id'] ?? 0);
 $tingkatan = (string) ($santriPortalRow['tingkatan'] ?? '');
 $tugasList = ikhtibar_tugas_tersedia_santri($pdo, $santriId, $tingkatan);
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => 'Tugas Ikhtibar',
-    'welcome' => 'Tugas & Ujian',
-    'subtitle' => (string) ($santriPortalRow['nama_santri'] ?? ''),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '520px',
-    'accent' => 'teal',
-]);
-$ok = get_flash('success');
-$err = get_flash('error');
+require_once __DIR__ . '/../includes/layout.php';
+santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
 ?>
-<?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
-<?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+<h1 class="h5 fw-bold mb-1">Tugas &amp; ujian</h1>
+<p class="small text-muted mb-3"><?= htmlspecialchars((string) ($santriPortalRow['nama_santri'] ?? '')) ?></p>
 
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
 <nav class="ikhtibar-portal-tabs" aria-label="Menu tugas">
@@ -67,8 +56,5 @@ $err = get_flash('error');
     </div>
 <?php endif; ?>
 
-<p class="text-center mt-3 mb-0">
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/index.php')) ?>" class="small">← Beranda portal</a>
-</p>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('tugas');

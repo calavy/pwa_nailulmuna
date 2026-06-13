@@ -39,7 +39,7 @@ wali_layout_head('Riwayat santri — Portal Wali', true, 'riwayat');
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
             <div class="flex-grow-1">
                 <h1 class="h5 mb-1 wali-brand fw-bold">Riwayat Santri</h1>
-                <p class="small text-muted mb-0"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?> · <a href="/wali/pembayaran.php">Riwayat Keuangan</a></p>
+                <p class="small text-muted mb-0"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?> · <a href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>">Riwayat Keuangan</a></p>
             </div>
             <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="/wali/logout.php">Keluar</a>
         </div>

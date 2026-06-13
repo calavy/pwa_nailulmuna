@@ -238,7 +238,14 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
         if ($nominal <= 0) {
             continue;
         }
-        $detailRows[] = ['slug' => $slug, 'nama' => (string) $def['nama'], 'nominal' => $nominal];
+        if (!function_exists('keuangan_pos_display_nama')) {
+            require_once __DIR__ . '/keuangan_kelas_makan.php';
+        }
+        $detailRows[] = [
+            'slug' => $slug,
+            'nama' => keuangan_pos_display_nama($pdo, $slug, (string) ($def['nama'] ?? $slug)),
+            'nominal' => $nominal,
+        ];
         $totalNominal += $nominal;
     }
     if ($detailRows === []) {

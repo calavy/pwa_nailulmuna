@@ -11,18 +11,12 @@ ensure_akademik_ikhtibar_tables($pdo);
 $santriId = (int) ($santriPortalRow['id'] ?? 0);
 $riwayat = ikhtibar_riwayat_hasil_santri($pdo, $santriId);
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => 'Hasil Tugas — Portal Santri',
-    'welcome' => 'Nilai & Hasil Ujian',
-    'subtitle' => (string) ($santriPortalRow['nama_santri'] ?? ''),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '520px',
-    'accent' => 'teal',
-]);
+require_once __DIR__ . '/../includes/layout.php';
+santri_portal_layout_head('Hasil Tugas — Portal Santri', 'tugas');
 ?>
+<h1 class="h5 fw-bold mb-1">Nilai &amp; hasil ujian</h1>
+<p class="small text-muted mb-3"><?= htmlspecialchars((string) ($santriPortalRow['nama_santri'] ?? '')) ?></p>
+
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
 
 <nav class="ikhtibar-portal-tabs" aria-label="Menu tugas">
@@ -89,8 +83,5 @@ auth_portal_layout_begin([
     </div>
 <?php endif; ?>
 
-<p class="text-center mt-3 mb-0">
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/index.php')) ?>" class="small">← Beranda portal</a>
-</p>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('tugas');

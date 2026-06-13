@@ -41,7 +41,7 @@ function perizinan_jenis_izin_valid(string $jenis): bool
     return in_array(perizinan_jenis_izin_normalize($jenis), perizinan_jenis_izin_kodes(), true);
 }
 
-/** Hanya izin syar'i yang wajib persetujuan pengasuh sebelum pengurus. */
+/** Hanya izin syar'i yang wajib persetujuan pengasuh; setelah itu pengurus hanya cetak surat. */
 function perizinan_memerlukan_persetujuan_pengasuh(string $jenis): bool
 {
     return perizinan_jenis_izin_normalize($jenis) === perizinan_jenis_syari_kode();
@@ -85,4 +85,50 @@ function perizinan_jenis_label(string $jenis): string
     $map = perizinan_jenis_izin_dropdown();
 
     return $map[$kode] ?? ($jenis !== '' ? $jenis : 'Keluar');
+}
+
+/** Izin keluar, tugas, dan syar'i wajib isi tujuan. */
+function perizinan_memerlukan_tujuan(string $jenis): bool
+{
+    return in_array(perizinan_jenis_izin_normalize($jenis), ['KELUAR', 'TUGAS', 'SYARI'], true);
+}
+
+function perizinan_tujuan_normalize(string $raw): string
+{
+    return mb_substr(trim($raw), 0, 255);
+}
+
+function perizinan_validasi_tujuan(string $jenis, string $tujuan): ?string
+{
+    if (!perizinan_memerlukan_tujuan($jenis)) {
+        return null;
+    }
+    if (perizinan_tujuan_normalize($tujuan) === '') {
+        return 'Tujuan wajib diisi untuk izin keluar, tugas, dan syar\'i.';
+    }
+
+    return null;
+}
+
+function perizinan_tujuan_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done || !table_exists($pdo, 'perizinan')) {
+        return;
+    }
+    $done = true;
+    if (!column_exists($pdo, 'perizinan', 'tujuan')) {
+        try {
+            $pdo->exec('ALTER TABLE perizinan ADD COLUMN tujuan VARCHAR(255) NULL DEFAULT NULL AFTER alasan');
+        } catch (Throwable $e) {
+            /* abaikan */
+        }
+    }
+    if (table_exists($pdo, 'perizinan_rombongan_meta') && !column_exists($pdo, 'perizinan_rombongan_meta', 'tujuan')) {
+        try {
+            $pdo->exec('ALTER TABLE perizinan_rombongan_meta ADD COLUMN tujuan VARCHAR(255) NULL DEFAULT NULL AFTER alasan');
+        } catch (Throwable $e) {
+            /* abaikan */
+        }
+    }
 }

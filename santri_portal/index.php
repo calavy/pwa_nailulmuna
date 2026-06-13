@@ -16,47 +16,21 @@ foreach ($tugasTersedia as $tugasRow) {
     }
 }
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../includes/auth_portal_layout.php';
+require_once __DIR__ . '/includes/layout.php';
+santri_portal_layout_head('Beranda — Portal Santri', 'beranda');
 
-auth_portal_layout_begin([
-    'title' => 'Beranda — Portal Santri',
-    'welcome' => (string) ($santriPortalRow['nama_santri'] ?? 'Santri'),
-    'subtitle' => 'NIS ' . (string) ($santriPortalRow['nis'] ?? ''),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '480px',
-    'accent' => 'teal',
-]);
-$ok = get_flash('success');
+$portalProfileRow = $santriPortalRow;
+$portalProfileContext = 'santri';
+$portalProfileShowLogout = true;
+require __DIR__ . '/../includes/partials/portal_profile_hero.php';
 ?>
-<?php if ($ok): ?>
-    <div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div>
-<?php endif; ?>
-
-<?php if ($tugasBelumSelesai > 0): ?>
-    <div class="alert alert-info py-2 small mb-2">
-        Ada <strong><?= (int) $tugasBelumSelesai ?></strong> tugas dari pembimbing yang belum selesai dikerjakan.
-    </div>
-<?php endif; ?>
-
-<div class="d-grid gap-2">
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="btn btn-auth-primary position-relative">
-        <i class="fa-solid fa-list-check me-1"></i> Tugas Ikhtibar (ujian)
         <?php if ($tugasBelumSelesai > 0): ?>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int) $tugasBelumSelesai ?></span>
+            <div class="alert alert-info py-2 small mb-3 shadow-sm">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Ada <strong><?= (int) $tugasBelumSelesai ?></strong> tugas pembimbing yang belum selesai.
+            </div>
         <?php endif; ?>
-    </a>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="btn btn-outline-secondary">
-        <i class="fa-solid fa-chart-simple me-1"></i> Hasil &amp; nilai tugas saya
-    </a>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/keaktifan.php')) ?>" class="btn btn-outline-primary">
-        <i class="fa-solid fa-star-half-stroke me-1"></i> Nilai keaktifan saya
-    </a>
-    <a href="/santri_portal/riwayat.php" class="btn btn-outline-secondary">
-        <i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat domisili, khidmah &amp; pelanggaran
-    </a>
-    <a href="/santri_portal/logout.php" class="btn btn-outline-secondary">Keluar</a>
-</div>
 
+        <p class="text-center small text-muted mb-0">Butuh ubah PIN? Minta bantuan pengurus pondok.</p>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('beranda');

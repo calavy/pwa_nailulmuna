@@ -6,8 +6,10 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_portal.php';
+require_once __DIR__ . '/../helpers/santri_foto.php';
 
 ensure_santri_portal_pin_column($pdo);
+santri_foto_ensure_schema($pdo);
 
 $santriPortalId = (int) ($_SESSION['santri_portal']['santri_id'] ?? 0);
 if ($santriPortalId <= 0) {
@@ -16,7 +18,7 @@ if ($santriPortalId <= 0) {
 }
 
 $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-$st = $pdo->prepare('SELECT id, nis, ' . $nameCol . ' AS nama_santri, tingkatan, kategori_kelas'
+$st = $pdo->prepare('SELECT id, nis, ' . $nameCol . ' AS nama_santri, tingkatan, kategori_kelas, jenis_kelamin, foto_profil'
     . (column_exists($pdo, 'santri', 'is_aktif') ? ', is_aktif' : '')
     . ' FROM santri WHERE id = :id LIMIT 1');
 $st->execute(['id' => $santriPortalId]);

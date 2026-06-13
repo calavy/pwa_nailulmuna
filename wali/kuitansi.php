@@ -7,14 +7,14 @@ require_once __DIR__ . '/inc_portal.php';
 $id = (int) ($_GET['id'] ?? 0);
 if ($id <= 0) {
     set_flash('error', 'Bukti pembayaran tidak ditemukan.');
-    header('Location: ' . app_href('/wali/pembayaran.php'));
+    header('Location: ' . app_href('/wali/keuangan.php?tab=bayar'));
     exit;
 }
 
 $row = wali_portal_fetch_pembayaran_for_wali($pdo, $id, $waliSantriId);
 if (!$row) {
     set_flash('error', 'Bukti pembayaran tidak dapat diakses.');
-    header('Location: ' . app_href('/wali/pembayaran.php'));
+    header('Location: ' . app_href('/wali/keuangan.php?tab=bayar'));
     exit;
 }
 
@@ -34,11 +34,11 @@ $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logo = app_pondok_logo_href($pdo, false);
 
 require_once __DIR__ . '/includes/layout.php';
-wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');
+wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'keuangan');
 ?>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <a class="btn btn-sm btn-outline-secondary" href="/wali/pembayaran.php"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>"><i class="fa-solid fa-arrow-left me-1"></i> Kembali</a>
             <button type="button" class="btn btn-sm btn-teal" onclick="window.print()"><i class="fa-solid fa-print me-1"></i> Cetak</button>
         </div>
 
@@ -114,4 +114,4 @@ wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'pembayaran');
 </style>
 
 <?php
-wali_layout_foot(true, 'pembayaran');
+wali_layout_foot(true, 'keuangan');

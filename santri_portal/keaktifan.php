@@ -15,22 +15,13 @@ if (!user_can_view_keaktifan_nilai_for_santri($santriId)) {
 
 ensure_santri_nilai_keaktifan_table($pdo);
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => 'Nilai Keaktifan — Portal Santri',
-    'welcome' => 'Nilai keaktifan saya',
-    'subtitle' => htmlspecialchars((string) $santriPortalRow['nama_santri']) . ' · NIS ' . htmlspecialchars((string) $santriPortalRow['nis']),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '640px',
-    'accent' => 'teal',
-]);
+require_once __DIR__ . '/includes/layout.php';
+santri_portal_layout_head('Nilai Keaktifan — Portal Santri', 'keaktifan');
 ?>
-<p class="mb-3"><a href="/santri_portal/index.php" class="small">&larr; Beranda</a></p>
+<h1 class="h5 fw-bold mb-1">Nilai keaktifan</h1>
+<p class="small text-muted mb-3"><?= htmlspecialchars((string) $santriPortalRow['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santriPortalRow['nis']) ?></p>
 
 <?php require __DIR__ . '/../includes/partials/santri_keaktifan_nilai_view.php'; ?>
 
-<p class="text-center mt-3 mb-0"><a href="/santri_portal/logout.php" class="btn btn-sm btn-outline-secondary">Keluar</a></p>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('keaktifan');

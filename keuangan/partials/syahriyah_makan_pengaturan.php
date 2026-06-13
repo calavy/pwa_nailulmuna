@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../helpers/keuangan_kelas_makan.php';
+
 /**
  * @var PDO $pdo
  * @var array<string, string> $tiers
@@ -11,7 +13,7 @@ declare(strict_types=1);
  * @var array<int, array<string, mixed>> $bulanSlotsTarif
  * @var array<int, array<string, array<string, int>>> $tarifBulanMap
  */
-$posLabels = ['syahriyah' => 'Syahriyah', 'makan' => 'Makan'];
+$posLabels = ['syahriyah' => 'Syahriyah', 'makan' => keuangan_makan_pos_nama($pdo)];
 ?>
 <div class="card shadow-sm mb-3">
     <div class="card-header fw-semibold">1. Tarif default (semua bulan)</div>

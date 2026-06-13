@@ -1813,8 +1813,20 @@ function pembimbing_dashboard_santri_dalam_scope(
     $st = $pdo->prepare('SELECT tingkatan FROM santri WHERE id = :id LIMIT 1');
     $st->execute(['id' => $santriId]);
     $tk = trim((string) ($st->fetchColumn() ?: ''));
+    if ($tk === '') {
+        return false;
+    }
+    foreach ($tingkatanAllowed as $allowed) {
+        if (function_exists('perizinan_pembimbing_tingkatan_cocok')) {
+            if (perizinan_pembimbing_tingkatan_cocok($pdo, $tk, (string) $allowed)) {
+                return true;
+            }
+        } elseif ($tk === trim((string) $allowed)) {
+            return true;
+        }
+    }
 
-    return $tk !== '' && in_array($tk, $tingkatanAllowed, true);
+    return false;
 }
 
 /**

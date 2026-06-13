@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/wali.php';
+require_once __DIR__ . '/../helpers/wali_portal.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_wali_santri_table($pdo);
@@ -61,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 wali_santri_ensure_automatic_nomor($pdo, $newWaliId);
             }
             set_flash('success', 'Data wali ditambahkan.');
-            header('Location: ' . app_href($redirectAfter));
+            header('Location: ' . app_href('/data/wali.php?daftar=1'));
             exit;
         }
     } elseif ($action === 'update') {
@@ -113,23 +114,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
             header('Location: ' . app_href($redirectAfter));
             exit;
         }
-    } elseif ($action === 'set_portal_pin') {
+    } elseif ($action === 'set_portal_settings' || $action === 'set_portal_pin') {
         $santriId = (int) ($_POST['santri_id'] ?? 0);
-        $pinBaru = trim((string) ($_POST['wali_pin_baru'] ?? ''));
-        $pinKonf = trim((string) ($_POST['wali_pin_konfirmasi'] ?? ''));
-        if ($santriId <= 0) {
-            set_flash('error', 'Santri tidak valid.');
-        } elseif (strlen($pinBaru) < 6) {
-            set_flash('error', 'PIN portal minimal 6 karakter.');
-        } elseif ($pinBaru !== $pinKonf) {
-            set_flash('error', 'PIN dan konfirmasi tidak sama.');
-        } else {
-            $pdo->prepare('UPDATE santri SET wali_portal_pin_hash = :h WHERE id = :id')->execute([
-                'h' => password_hash($pinBaru, PASSWORD_DEFAULT),
-                'id' => $santriId,
-            ]);
-            set_flash('success', 'PIN portal wali berhasil disimpan.');
-        }
+        $result = wali_portal_save_settings(
+            $pdo,
+            $santriId,
+            trim((string) ($_POST['wali_pin_baru'] ?? '')),
+            trim((string) ($_POST['wali_pin_konfirmasi'] ?? '')),
+            trim((string) ($_POST['wali_nama'] ?? '')),
+            trim((string) ($_POST['wali_no_wa'] ?? ''))
+        );
+        set_flash($result['ok'] ? 'success' : 'error', $result['message']);
     } elseif ($action === 'delete') {
         $id = (int) ($_POST['id'] ?? 0);
         if ($id > 0) {
@@ -168,17 +163,48 @@ $rows = $pdo->query($sqlList)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $total = count($rows);
 $linked = count(array_filter($rows, static fn(array $r): bool => !empty($r['user_id'])));
 $editOpenId = $canMutate ? (int) ($_GET['edit'] ?? 0) : 0;
+$bukaDaftarWali = $editOpenId > 0 || isset($_GET['daftar']) || (isset($_GET['tambah']) && $canMutate);
 
 $portalSantriRows = [];
 if (column_exists($pdo, 'santri', 'wali_portal_pin_hash')) {
+    ensure_santri_identity_columns($pdo);
+    ensure_wali_santri_table($pdo);
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $portalSantriRows = $pdo->query("
-        SELECT s.id, s.nis, s.{$nameCol} AS nama_santri,
-               (s.wali_portal_pin_hash IS NOT NULL AND s.wali_portal_pin_hash <> '') AS pin_ada
-        FROM santri s
+    $joinWali = column_exists($pdo, 'santri', 'wali_santri_id') && table_exists($pdo, 'wali_santri');
+    $sqlPortal = "
+        SELECT s.id, s.nis, s.{$nameCol} AS nama_santri, s.no_wa_wali, s.wali_portal_pin_hash,
+               (s.wali_portal_pin_hash IS NOT NULL AND s.wali_portal_pin_hash <> '') AS pin_ada";
+    if (column_exists($pdo, 'santri', 'nama_ayah')) {
+        $sqlPortal .= ', s.nama_ayah';
+    }
+    if (column_exists($pdo, 'santri', 'nama_kafil')) {
+        $sqlPortal .= ', s.nama_kafil';
+    }
+    if (column_exists($pdo, 'santri', 'no_kontak_ayah')) {
+        $sqlPortal .= ', s.no_kontak_ayah';
+    }
+    if (column_exists($pdo, 'santri', 'no_kontak_ibu')) {
+        $sqlPortal .= ', s.no_kontak_ibu';
+    }
+    if ($joinWali) {
+        $sqlPortal .= ', s.wali_santri_id, w.nama AS wali_nama, w.no_wa AS wali_no_wa';
+    }
+    $sqlPortal .= "
+        FROM santri s";
+    if ($joinWali) {
+        $sqlPortal .= ' LEFT JOIN wali_santri w ON w.id = s.wali_santri_id';
+    }
+    $sqlPortal .= "
         ORDER BY s.nama_santri ASC
-        LIMIT 500
-    ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        LIMIT 500";
+    $portalSantriRows = $pdo->query($sqlPortal)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($portalSantriRows as &$psRow) {
+        $contact = wali_portal_contact_from_row($pdo, $psRow);
+        $psRow['wali_nama_tampil'] = $contact['nama'];
+        $psRow['wali_wa_tampil'] = $contact['no_wa'];
+        $psRow['pin_ada'] = $contact['pin_ada'];
+    }
+    unset($psRow);
 }
 
 $pageTitle = 'Wali santri';
@@ -191,8 +217,8 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="sdm-hub-kicker mb-1">Manajemen SDM</p>
             <h1 class="h3 mb-2 sdm-hub-title">Wali santri</h1>
             <p class="text-muted mb-0 small">
-                Data wali pondok dan <strong>PIN portal</strong> untuk login wali di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">portal wali</a> (NIS + PIN).
-                Klik <strong>Edit</strong> pada baris untuk mengubah profil; PIN portal per santri di bagian bawah.
+                Data wali pondok dan <strong>portal wali per santri</strong> (NIS + PIN, nama wali, WhatsApp) untuk login di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">portal wali</a>.
+                Klik <strong>Edit</strong> pada baris untuk mengubah profil; pengaturan portal per santri di bagian bawah.
             </p>
         </div>
         <div class="col-lg-4">
@@ -218,16 +244,72 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="alert alert-info">Anda dapat melihat daftar. Untuk menambah / mengubah / menghapus, minta izin <strong>Tambah/Edit Santri</strong> kepada admin.</div>
 <?php endif; ?>
 
+<?php if ($canMutate && $portalSantriRows !== []): ?>
+<div class="card shadow-sm border-0 mt-4">
+    <div class="card-header bg-white fw-semibold small">Portal wali (per santri)</div>
+    <div class="card-body p-0">
+        <p class="small text-muted px-3 pt-3 mb-2">
+            Login portal: <strong>NIS</strong> + PIN. Isi <strong>nama wali</strong> dan <strong>WhatsApp</strong> agar notifikasi otomatis (tagihan, izin, cashless, dll.) terkirim.
+            PIN kosong = tidak diubah.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>NIS</th>
+                        <th>Nama santri</th>
+                        <th class="text-center">PIN</th>
+                        <th style="min-width:18rem">Nama wali · WhatsApp · PIN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($portalSantriRows as $ps): ?>
+                    <tr>
+                        <td class="font-monospace small"><?= htmlspecialchars((string) $ps['nis']) ?></td>
+                        <td class="small"><?= htmlspecialchars((string) $ps['nama_santri']) ?></td>
+                        <td class="text-center">
+                            <span class="badge text-bg-<?= !empty($ps['pin_ada']) ? 'success' : 'warning' ?>"><?= !empty($ps['pin_ada']) ? 'Sudah' : 'Belum' ?></span>
+                        </td>
+                        <td>
+                            <form method="post" class="d-flex flex-wrap align-items-center gap-1">
+                                <input type="hidden" name="action" value="set_portal_settings">
+                                <input type="hidden" name="santri_id" value="<?= (int) $ps['id'] ?>">
+                                <input type="text" name="wali_nama" class="form-control form-control-sm" style="min-width:7rem;max-width:9rem" maxlength="120" placeholder="Nama wali" value="<?= htmlspecialchars((string) ($ps['wali_nama_tampil'] ?? '')) ?>" aria-label="Nama wali">
+                                <input type="text" name="wali_no_wa" class="form-control form-control-sm font-monospace" style="min-width:7rem;max-width:9.5rem" maxlength="40" placeholder="628…" value="<?= htmlspecialchars((string) ($ps['wali_wa_tampil'] ?? '')) ?>" inputmode="tel" aria-label="WhatsApp wali">
+                                <input type="password" name="wali_pin_baru" class="form-control form-control-sm" style="max-width:5.5rem" minlength="6" placeholder="PIN" autocomplete="new-password" aria-label="PIN baru">
+                                <input type="password" name="wali_pin_konfirmasi" class="form-control form-control-sm" style="max-width:5.5rem" minlength="6" placeholder="Ulangi" autocomplete="new-password" aria-label="Ulangi PIN">
+                                <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Simpan</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mt-4 mb-2">
+    <button type="button"
+        class="btn btn-outline-primary btn-sm"
+        data-bs-toggle="collapse"
+        data-bs-target="#daftar-wali-panel"
+        aria-expanded="<?= $bukaDaftarWali ? 'true' : 'false' ?>"
+        aria-controls="daftar-wali-panel">
+        <i class="fa-solid fa-list me-1"></i> Daftar wali (<?= (int) $total ?>)
+    </button>
+    <?php if ($canMutate): ?>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#daftar-wali-panel, #form-tambah-wali" aria-expanded="false" aria-controls="form-tambah-wali">
+            <i class="fa-solid fa-plus me-1"></i> Tambah wali
+        </button>
+    <?php endif; ?>
+    <span class="small text-muted">Klik tombol untuk menampilkan / menyembunyikan daftar profil wali.</span>
+</div>
+
+<div class="collapse<?= $bukaDaftarWali ? ' show' : '' ?>" id="daftar-wali-panel">
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
-        <div class="px-3 py-3 border-bottom bg-light bg-opacity-50 d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <h2 class="h6 mb-0">Daftar wali</h2>
-            <?php if ($canMutate): ?>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#form-tambah-wali" aria-expanded="false" aria-controls="form-tambah-wali">
-                    <i class="fa-solid fa-plus me-1"></i> Tambah wali
-                </button>
-            <?php endif; ?>
-        </div>
         <?php if ($canMutate): ?>
         <div id="form-tambah-wali" class="collapse border-bottom">
             <div class="p-3 bg-light bg-opacity-25">
@@ -381,42 +463,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
-
-<?php if ($canMutate && $portalSantriRows !== []): ?>
-<div class="card shadow-sm border-0 mt-4">
-    <div class="card-header bg-white fw-semibold small">PIN portal wali (per santri)</div>
-    <div class="card-body p-0">
-        <p class="small text-muted px-3 pt-3 mb-2">Login portal: <strong>NIS</strong> + PIN. Minimal 6 karakter.</p>
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                    <tr><th>NIS</th><th>Nama</th><th class="text-center">Status</th><th>Atur PIN</th></tr>
-                </thead>
-                <tbody>
-                <?php foreach ($portalSantriRows as $ps): ?>
-                    <tr>
-                        <td class="font-monospace small"><?= htmlspecialchars((string) $ps['nis']) ?></td>
-                        <td class="small"><?= htmlspecialchars((string) $ps['nama_santri']) ?></td>
-                        <td class="text-center">
-                            <span class="badge text-bg-<?= !empty($ps['pin_ada']) ? 'success' : 'warning' ?>"><?= !empty($ps['pin_ada']) ? 'Sudah' : 'Belum' ?></span>
-                        </td>
-                        <td>
-                            <form method="post" class="d-flex flex-wrap gap-1">
-                                <input type="hidden" name="action" value="set_portal_pin">
-                                <input type="hidden" name="santri_id" value="<?= (int) $ps['id'] ?>">
-                                <input type="password" name="wali_pin_baru" class="form-control form-control-sm" style="max-width:6.5rem" minlength="6" placeholder="PIN" required autocomplete="new-password">
-                                <input type="password" name="wali_pin_konfirmasi" class="form-control form-control-sm" style="max-width:6.5rem" minlength="6" placeholder="Ulangi" required autocomplete="new-password">
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Simpan</button>
-                            </form>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
 </div>
-<?php endif; ?>
 
 <div class="card shadow-sm border-0 mt-4">
     <div class="card-body">
@@ -427,5 +474,6 @@ require_once __DIR__ . '/../includes/header.php';
         <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/settings/akses_mukimin.php')) ?>">Kelola akses portal mukimin</a>
         <a class="btn btn-outline-secondary btn-sm ms-1" href="<?= htmlspecialchars(app_href('/mukimin/login.php')) ?>" target="_blank" rel="noopener">Buka halaman login</a>
     </div>
+</div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -26,21 +26,13 @@ $nilai = $sesi['nilai_total'] !== null ? (float) $sesi['nilai_total'] : null;
 $bobot = $detail['bobot'];
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => 'Detail Hasil — ' . (string) ($sesi['judul'] ?? ''),
-    'welcome' => (string) ($sesi['judul'] ?? 'Tugas'),
-    'subtitle' => ikhtibar_hari_label((int) ($sesi['hari_ke'] ?? 0)) . ' · ' . (string) ($sesi['tanggal'] ?? ''),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '560px',
-    'accent' => 'teal',
-]);
-$ok = get_flash('success');
+require_once __DIR__ . '/../includes/layout.php';
+santri_portal_layout_head('Detail Hasil — ' . (string) ($sesi['judul'] ?? ''), 'tugas');
 ?>
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
 
-<?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+<h1 class="h5 fw-bold mb-1"><?= htmlspecialchars((string) ($sesi['judul'] ?? 'Tugas')) ?></h1>
+<p class="small text-muted mb-3"><?= htmlspecialchars(ikhtibar_hari_label((int) ($sesi['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) ($sesi['tanggal'] ?? '')) ?></p>
 
 <nav class="ikhtibar-portal-tabs mb-3">
     <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>">Kerjakan</a>
@@ -149,4 +141,4 @@ $ok = get_flash('success');
 <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100">← Kembali ke daftar hasil</a>
 
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('tugas');

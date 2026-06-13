@@ -53,8 +53,8 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                                 <li><a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php')) ?>">Laporan syahriyah</a></li>
                                 <li><a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">Laporan PKPPS</a></li>
                                 <li><a href="<?= htmlspecialchars(app_href('/keuangan/neraca.php')) ?>">Neraca</a> · <a href="<?= htmlspecialchars(app_href('/keuangan/arus-kas.php')) ?>">Arus kas</a></li>
-                                <li><a href="<?= htmlspecialchars(app_href('/wali/tagihan.php')) ?>">Portal wali — tagihan</a></li>
-                                <li><a href="<?= htmlspecialchars(app_href('/wali/pembayaran.php')) ?>">Portal wali — pembayaran</a></li>
+                                <li><a href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=tagihan')) ?>">Portal wali — tagihan</a></li>
+                                <li><a href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>">Portal wali — pembayaran</a></li>
                             </ul>
                         </div>
                     </div>

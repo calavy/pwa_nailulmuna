@@ -62,7 +62,9 @@ $hubLinks = [
 
     ['path' => '/pkpps/jadwal.php', 'icon' => 'fa-solid fa-calendar-days', 'label' => 'Jadwal PKPPS', 'desc' => 'Jadwal kegiatan dan pembimbing'],
 
-    ['path' => '/rekap/pkpps_keaktivan.php', 'icon' => 'fa-solid fa-chart-line', 'label' => 'Rekap keaktivan', 'desc' => 'Kehadiran santri & pembimbing PKPPS'],
+    ['path' => '/rekap/pkpps_keaktifan_hari.php', 'icon' => 'fa-solid fa-id-card', 'label' => 'Keaktifan hari ini', 'desc' => 'Kartu presensi santri & pembimbing PKPPS hari ini'],
+
+    ['path' => '/rekap/pkpps_keaktivan.php', 'icon' => 'fa-solid fa-chart-line', 'label' => 'Rekap keaktivan', 'desc' => 'Kehadiran santri & pembimbing PKPPS per periode'],
 
     ['path' => '/pembayaran/laporan_pkpps_syahriyah.php', 'icon' => 'fa-solid fa-coins', 'label' => 'Syahriyah PKPPS', 'desc' => 'Laporan pembayaran syahriyah PKPPS'],
 
@@ -149,15 +151,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 <div class="alert alert-info py-2 small mb-3">
-
     <strong>Tarif syahriyah PKPPS</strong> di
-
     <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Keuangan → Pengaturan → Syahriyah</a>.
-
     Import data: <a href="<?= htmlspecialchars(app_href('/pkpps/import_santri.php')) ?>">santri</a> ·
-
     <a href="<?= htmlspecialchars(app_href('/pkpps/import.php')) ?>">jadwal</a>.
-
+    · <a href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktifan_hari.php')) ?>"><strong>Keaktifan PKPPS hari ini</strong></a> (tampilan kartu)
 </div>
 
 

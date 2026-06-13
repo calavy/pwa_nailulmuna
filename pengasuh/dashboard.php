@@ -11,6 +11,7 @@ require_once __DIR__ . '/../helpers/akademik_pasaran.php';
 require_once __DIR__ . '/../helpers/pengasuh_dashboard.php';
 require_once __DIR__ . '/../helpers/pengasuh_laporan_hari.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
+require_once __DIR__ . '/../helpers/perizinan_approval.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 
@@ -122,6 +123,11 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
 
 $tglLabel = (string) ($konteks['tgl_label'] ?? $today);
 
+$izinPengasuhAntrian = perizinan_pengasuh_antrian($pdo, 6);
+$izinPengasuhPendingCount = (int) ($izinPengasuhAntrian['total'] ?? 0);
+$izinPengasuhIndividu = $izinPengasuhAntrian['individu'] ?? [];
+$izinPengasuhRombongan = $izinPengasuhAntrian['rombongan'] ?? [];
+
 $pageTitle = 'Dashboard Pengasuh';
 $bodyClass = 'dash-page dash-home-mobile-fit page-pengasuh-dashboard kh-wrap';
 $pageStylesheets = [
@@ -169,6 +175,94 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
                     <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?>>—</div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <div class="card border-warning shadow-sm dash-panel<?= $izinPengasuhPendingCount > 0 ? '' : ' border-opacity-50' ?>">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                    <div>
+                        <h2 class="h6 fw-bold mb-1 text-warning">
+                            <i class="fa-solid fa-file-signature me-1"></i>
+                            Persetujuan izin syar'i
+                            <?php if ($izinPengasuhPendingCount > 0): ?>
+                                <span class="badge text-bg-warning ms-1"><?= (int) $izinPengasuhPendingCount ?></span>
+                            <?php endif; ?>
+                        </h2>
+                        <p class="small text-muted mb-0">
+                            <?php if ($izinPengasuhPendingCount > 0): ?>
+                                <strong><?= (int) $izinPengasuhPendingCount ?></strong> permohonan menunggu persetujuan pengasuh.
+                            <?php else: ?>
+                                Tidak ada permohonan izin syar'i yang menunggu saat ini.
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                    <a href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>" class="btn btn-sm btn-warning">
+                        <i class="fa-solid fa-check-double me-1"></i> Buka persetujuan
+                    </a>
+                </div>
+
+                <?php if ($izinPengasuhRombongan !== []): ?>
+                <div class="mb-3">
+                    <div class="small fw-semibold text-warning mb-2">Izin rombongan</div>
+                    <div class="d-flex flex-column gap-2">
+                        <?php foreach ($izinPengasuhRombongan as $rm): ?>
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 border rounded-3 px-3 py-2 bg-warning-subtle">
+                                <div class="small">
+                                    <strong>Rombongan #<?= (int) $rm['id'] ?></strong>
+                                    · <?= (int) ($rm['jumlah'] ?? 0) ?> santri
+                                    · <?= htmlspecialchars(app_format_izin_rentang(
+                                        (string) ($rm['tanggal_mulai'] ?? ''),
+                                        (string) ($rm['tanggal_selesai'] ?? ''),
+                                        substr((string) ($rm['jam_mulai'] ?? ''), 0, 5),
+                                        substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)
+                                    )) ?>
+                                </div>
+                                <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>">Setujui</a>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($izinPengasuhIndividu !== []): ?>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Santri</th>
+                                <th>Periode</th>
+                                <th class="text-end">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($izinPengasuhIndividu as $ip): ?>
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold small"><?= htmlspecialchars((string) ($ip['nama_santri'] ?? '')) ?></div>
+                                    <div class="text-muted font-monospace" style="font-size:.72rem"><?= htmlspecialchars((string) ($ip['nis'] ?? '')) ?></div>
+                                </td>
+                                <td class="small text-nowrap">
+                                    <?= htmlspecialchars(app_format_izin_rentang(
+                                        (string) ($ip['tanggal_mulai'] ?? ''),
+                                        (string) ($ip['tanggal_selesai'] ?? ''),
+                                        substr((string) ($ip['jam_mulai'] ?? ''), 0, 5),
+                                        substr((string) ($ip['jam_selesai'] ?? ''), 0, 5)
+                                    )) ?>
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-warning" href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>">Setujui</a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php elseif ($izinPengasuhPendingCount === 0): ?>
+                    <div class="small text-muted text-center py-2">Permohonan baru dari wali santri akan muncul di sini.</div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

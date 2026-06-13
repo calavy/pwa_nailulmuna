@@ -11,6 +11,8 @@ function perizinan_rombongan_ensure_schema(PDO $pdo): void
     if (!table_exists($pdo, 'perizinan')) {
         return;
     }
+    require_once __DIR__ . '/perizinan_jenis.php';
+    perizinan_tujuan_ensure_schema($pdo);
     if (!column_exists($pdo, 'perizinan', 'rombongan_id')) {
         $pdo->exec('ALTER TABLE perizinan ADD COLUMN rombongan_id INT UNSIGNED NULL AFTER santri_id');
     }
@@ -65,12 +67,17 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
     $jamMulai = trim((string) ($post['jam_mulai'] ?? date('H:i')));
     $jamSelesai = trim((string) ($post['jam_selesai'] ?? date('H:i')));
     $alasan = trim((string) ($post['alasan'] ?? ''));
+    $tujuan = perizinan_tujuan_normalize((string) ($post['tujuan'] ?? ''));
     $pemberi = trim((string) ($post['pemberi_izin'] ?? ''));
     $pengasuh = trim((string) ($post['penandatangan_pengasuh'] ?? ''));
     $grace = max(0, (int) ($post['grace_menit'] ?? app_setting($pdo, 'grace_period_menit', '15')));
 
     if ($alasan === '' || $pemberi === '' || $pengasuh === '') {
         return ['ok' => false, 'message' => 'Alasan, pemberi izin, dan pengasuh wajib diisi.'];
+    }
+    $tujuanErr = perizinan_validasi_tujuan($jenisIzin, $tujuan);
+    if ($tujuanErr !== null) {
+        return ['ok' => false, 'message' => $tujuanErr];
     }
 
     foreach ($santriIds as $sid) {
@@ -83,8 +90,8 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
 
     $insMeta = $pdo->prepare('
         INSERT INTO perizinan_rombongan_meta
-        (jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, pemberi_izin, penandatangan_pengasuh, grace_menit)
-        VALUES (:jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :pemberi, :pengasuh, :grace)
+        (jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, tujuan, pemberi_izin, penandatangan_pengasuh, grace_menit)
+        VALUES (:jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :tujuan, :pemberi, :pengasuh, :grace)
     ');
     $durasi = (float) ($post['durasi_jam'] ?? 0);
     $pdo->beginTransaction();
@@ -97,6 +104,7 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
             'jm2' => $jamSelesai,
             'dur' => $durasi,
             'alasan' => $alasan,
+            'tujuan' => $tujuan !== '' ? $tujuan : null,
             'pemberi' => $pemberi,
             'pengasuh' => $pengasuh,
             'grace' => $grace,
@@ -106,8 +114,8 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
         $insIzin = $pdo->prepare('
             INSERT INTO perizinan
             (santri_id, rombongan_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam,
-             alasan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
-            VALUES (:sid, :rid, :jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :pemberi, :pengasuh, "IZIN", "PENDING", :grace)
+             alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
+            VALUES (:sid, :rid, :jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :tujuan, :pemberi, :pengasuh, "IZIN", "PENDING", :grace)
         ');
         foreach ($santriIds as $sid) {
             $insIzin->execute([
@@ -120,6 +128,7 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
                 'jm2' => $jamSelesai,
                 'dur' => $durasi,
                 'alasan' => $alasan,
+                'tujuan' => $tujuan !== '' ? $tujuan : null,
                 'pemberi' => $pemberi,
                 'pengasuh' => $pengasuh,
                 'grace' => $grace,
@@ -264,7 +273,7 @@ function perizinan_rombongan_by_qr(PDO $pdo, string $qrToken): ?array
  *
  * @return array{ok:bool,message:string}
  */
-function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId, bool $bypassAlpa = false): array
+function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId, bool $bypassAlpa = false, bool $stampPengasuh = false): array
 {
     require_once __DIR__ . '/perizinan_approval.php';
     perizinan_approval_ensure_schema($pdo);
@@ -275,17 +284,20 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
     }
 
     $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
+    if ($stampPengasuh && !perizinan_memerlukan_persetujuan_pengasuh($jenisIzin)) {
+        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang dapat disetujui pengasuh.'];
+    }
     $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
     foreach ($anggota as $ang) {
         $sid = (int) ($ang['santri_id'] ?? 0);
-        $alpaErr = perizinan_validasi_setujui_alpa($pdo, $sid, $jenisIzin, $bypassAlpa);
+        $alpaErr = perizinan_validasi_setujui_alpa($pdo, $sid, $jenisIzin, $bypassAlpa, $stampPengasuh);
         if ($alpaErr !== null) {
             $nama = (string) ($ang['nama_santri'] ?? 'Santri #' . $sid);
 
             return ['ok' => false, 'message' => $nama . ': ' . $alpaErr];
         }
     }
-    if (perizinan_memerlukan_persetujuan_pengasuh($jenisIzin) && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
+    if (!$stampPengasuh && perizinan_memerlukan_persetujuan_pengasuh($jenisIzin) && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
         $stPengasuh = $pdo->prepare('
             SELECT COUNT(*) FROM perizinan
             WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL
@@ -304,6 +316,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
     $tglSelesai = trim((string) ($post['tanggal_selesai'] ?? $meta['tanggal_selesai'] ?? ''));
     $jamMulai = trim((string) ($post['jam_mulai'] ?? substr((string) ($meta['jam_mulai'] ?? ''), 0, 5)));
     $jamSelesai = trim((string) ($post['jam_selesai'] ?? substr((string) ($meta['jam_selesai'] ?? ''), 0, 5)));
+    $pengasuhSql = $stampPengasuh ? ', pengasuh_approved_by = :uid, pengasuh_approved_at = NOW()' : '';
 
     $pdo->beginTransaction();
     try {
@@ -326,7 +339,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             SET approval_status = "DISETUJUI", approved_by = :uid, approved_at = NOW(),
                 approved_bypass_alpa = :bypass,
                 qr_token = :qr, status_izin = "IZIN",
-                tanggal_mulai = :t1, tanggal_selesai = :t2, jam_mulai = :j1, jam_selesai = :j2
+                tanggal_mulai = :t1, tanggal_selesai = :t2, jam_mulai = :j1, jam_selesai = :j2' . $pengasuhSql . '
             WHERE rombongan_id = :rid
         ')->execute([
             'uid' => $userId,
@@ -358,7 +371,9 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $jamSelesai,
             $userId
         );
-        $msg = 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
+        $msg = $stampPengasuh
+            ? 'Izin syar\'i rombongan disetujui pengasuh (' . count($anggota) . ' santri). Pengurus tinggal cetak surat rombongan.'
+            : 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
         if ($bypassAlpa) {
             $msg .= ' (Syarat ALPA dilewati.)';
         }

@@ -6,8 +6,10 @@ require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/wali_portal.php';
+require_once __DIR__ . '/../helpers/santri_foto.php';
 
 ensure_santri_identity_columns($pdo);
+santri_foto_ensure_schema($pdo);
 
 $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 
@@ -65,7 +67,7 @@ if ($waliSantriId <= 0) {
     exit;
 }
 
-$cols = 'id, nis, ' . $nameCol . ' AS nama_tampil, tingkatan, kategori_kelas, no_wa_wali';
+$cols = 'id, nis, ' . $nameCol . ' AS nama_tampil, tingkatan, kategori_kelas, no_wa_wali, jenis_kelamin, foto_profil';
 if (column_exists($pdo, 'santri', 'nama_kafil')) {
     $cols .= ', nama_kafil';
 }
@@ -101,7 +103,7 @@ $waliGroupId = (int) ($_SESSION['wali']['wali_santri_id'] ?? 0);
 /** Daftar santri yang boleh dilihat wali: hanya anak dengan wali_santri_id sama, atau hanya anak login jika belum tertaut grup. */
 $waliAnakRows = [];
 if ($waliGroupId > 0 && column_exists($pdo, 'santri', 'wali_santri_id')) {
-    $sq = 'SELECT id, nis, ' . $nameCol . ' AS nama_tampil, tingkatan FROM santri WHERE wali_santri_id = :w AND COALESCE(is_aktif,1)=1 ORDER BY ' . $nameCol . ' ASC';
+    $sq = 'SELECT id, nis, ' . $nameCol . ' AS nama_tampil, tingkatan, jenis_kelamin, foto_profil FROM santri WHERE wali_santri_id = :w AND COALESCE(is_aktif,1)=1 ORDER BY ' . $nameCol . ' ASC';
     $wa = $pdo->prepare($sq);
     $wa->execute(['w' => $waliGroupId]);
     $waliAnakRows = $wa->fetchAll(PDO::FETCH_ASSOC) ?: [];

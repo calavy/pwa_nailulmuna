@@ -7,7 +7,8 @@
     --wali-bottom-nav-h: 4.25rem;
 }
 
-body.wali-portal {
+body.wali-portal,
+body.santri-portal {
     background: linear-gradient(165deg, #ecfdf5 0%, #e0f2fe 38%, #f8fafc 100%);
     min-height: 100dvh;
     font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -70,6 +71,45 @@ body.wali-portal {
 .btn-teal:hover {
     filter: brightness(0.94);
     color: #fff !important;
+}
+
+.btn-auth-primary {
+    background-color: var(--wali-teal) !important;
+    border-color: var(--wali-teal) !important;
+    color: #fff !important;
+    font-weight: 600;
+    border-radius: 0.75rem;
+    padding-block: 0.65rem;
+}
+
+.btn-auth-primary:hover {
+    filter: brightness(1.06);
+    color: #fff !important;
+}
+
+.wali-portal-tabs {
+    display: flex;
+    gap: 0.35rem;
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 2rem;
+}
+
+.wali-portal-tabs a {
+    flex: 1;
+    text-align: center;
+    padding: 0.45rem 0.65rem;
+    border-radius: 2rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+}
+
+.wali-portal-tabs a.active {
+    background: #fff;
+    color: var(--wali-teal);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .text-teal {
@@ -388,4 +428,110 @@ html {
     .wali-shell .table td {
         font-size: 0.82rem;
     }
+}
+
+/* —— Profil & portal santri (shared) —— */
+.portal-profile-hero {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdfa 55%, #ecfeff 100%);
+    padding: 1.1rem 1rem;
+}
+
+.portal-profile-hero__glow {
+    position: absolute;
+    top: -2rem;
+    right: -1rem;
+    width: 8rem;
+    height: 8rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(15, 118, 110, 0.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.portal-profile-hero__inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.portal-profile-hero__name {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #0f172a;
+}
+
+.portal-profile-hero__sub {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+.portal-profile-hero__badges .badge {
+    font-weight: 600;
+    font-size: 0.68rem;
+    margin-right: 0.25rem;
+    margin-bottom: 0.2rem;
+}
+
+.portal-avatar--hero,
+.portal-avatar--hero.app-user-avatar {
+    width: 4.5rem;
+    height: 4.5rem;
+    flex-shrink: 0;
+    box-shadow: 0 8px 24px rgba(15, 118, 110, 0.22);
+    border: 3px solid #fff;
+}
+
+.portal-avatar--pill,
+.portal-avatar--pill.app-user-avatar {
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+}
+
+.wali-anak-pill {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.45rem;
+    text-align: left !important;
+}
+
+.wali-tile-link--accent-wallet { border-color: rgba(14, 165, 233, 0.35); }
+.wali-tile-link--accent-wallet .wali-tile-ico { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+.wali-tile-link--accent-aktif { border-color: rgba(16, 185, 129, 0.35); }
+.wali-tile-link--accent-aktif .wali-tile-ico { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.wali-tile-link--accent-izin { border-color: rgba(245, 158, 11, 0.35); }
+.wali-tile-link--accent-izin .wali-tile-ico { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.wali-tile-link--accent-riwayat { border-color: rgba(99, 102, 241, 0.35); }
+.wali-tile-link--accent-riwayat .wali-tile-ico { background: rgba(99, 102, 241, 0.12); color: #4f46e5; }
+.wali-tile-link--accent-tugas { border-color: rgba(139, 92, 246, 0.35); }
+.wali-tile-link--accent-tugas .wali-tile-ico { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
+.wali-tile-link--accent-hasil { border-color: rgba(236, 72, 153, 0.35); }
+.wali-tile-link--accent-hasil .wali-tile-ico { background: rgba(236, 72, 153, 0.12); color: #db2777; }
+
+.wali-tile-link:hover,
+.wali-tile-link:focus-visible {
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+    transform: translateY(-1px);
+}
+
+.santri-portal .wali-shell {
+    max-width: 28rem;
+}
+
+.santri-foto-upload-preview .app-user-avatar--xl {
+    width: 6rem;
+    height: 6rem;
+}
+
+.santri-list-avatar-cell {
+    width: 3rem;
+    vertical-align: middle;
+}
+
+.santri-list-name-cell {
+    min-width: 10rem;
 }

@@ -4,10 +4,12 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/wali.php';
+require_once __DIR__ . '/../helpers/wali_portal.php';
 require_once __DIR__ . '/../helpers/asrama.php';
 require_once __DIR__ . '/../helpers/kelas_ruangan.php';
 require_once __DIR__ . '/../helpers/sdm_embed.php';
 require_once __DIR__ . '/../helpers/santri_portal.php';
+require_once __DIR__ . '/../helpers/santri_foto.php';
 
 require_roles(['admin', 'pengurus']);
 $embed = sdm_is_embed();
@@ -113,6 +115,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
+
+    santri_foto_ensure_schema($pdo);
+    $fotoProfil = trim((string) ($santri['foto_profil'] ?? ''));
+    if (isset($_POST['hapus_foto_profil']) && (string) $_POST['hapus_foto_profil'] === '1') {
+        santri_foto_delete_file($fotoProfil);
+        $fotoProfil = '';
+    }
+    if (!empty($_FILES['foto_profil']['name'])) {
+        $fotoUp = santri_foto_handle_upload($_FILES['foto_profil'], $fotoProfil !== '' ? $fotoProfil : null, $id);
+        if (!$fotoUp['ok']) {
+            set_flash('error', (string) ($fotoUp['error'] ?? 'Gagal mengunggah foto.'));
+            header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
+            exit;
+        }
+        if (!empty($fotoUp['path'])) {
+            $fotoProfil = (string) $fotoUp['path'];
+        }
+    }
+
     $data = [
         'id' => $id,
         'qr' => trim($_POST['qr'] ?? ''),
@@ -155,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'mengapa_nailul' => trim($_POST['mengapa_nailul'] ?? ''),
         'tingkatan' => trim($_POST['tingkatan'] ?? ''),
         'kategori_kelas' => $kategoriKelas,
-        'no_wa_wali' => trim($_POST['no_wa_wali'] ?? ''),
+        'no_wa_wali' => trim((string) ($_POST['wali_portal_no_wa'] ?? $_POST['no_wa_wali'] ?? '')),
         'status_santri' => $statusSantri,
         'alasan_keluar' => $alasanKeluar,
         'tanggal_keluar' => $tanggalKeluar,
@@ -165,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'no_ranjang' => $noRanjang,
         'asrama_ranjang_id' => $asramaRanjangDb,
         'kelas_ruangan_id' => $kelasRuanganDb,
+        'foto_profil' => $fotoProfil,
     ];
 
     if ($pinWaliBaru !== '') {
@@ -182,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $update = $pdo->prepare('
         UPDATE santri
-        SET qr = :qr, nis = :nis, nama_santri = :nama_santri, nik = :nik, jenis_kelamin = :jenis_kelamin, tempat_lahir_kab = :tempat_lahir_kab, tanggal_lahir = :tanggal_lahir, bulan_lahir = :bulan_lahir, tahun_lahir = :tahun_lahir, jumlah_saudara = :jumlah_saudara, anak_ke = :anak_ke, hobi = :hobi, cita_cita = :cita_cita, dusun = :dusun, rt_rw = :rt_rw, desa_kelurahan = :desa_kelurahan, kecamatan = :kecamatan, kabupaten = :kabupaten, propinsi = :propinsi, nama_ayah = :nama_ayah, pekerjaan_ayah = :pekerjaan_ayah, no_kontak_ayah = :no_kontak_ayah, nama_ibu = :nama_ibu, pekerjaan_ibu = :pekerjaan_ibu, no_kontak_ibu = :no_kontak_ibu, nama_kafil = :nama_kafil, status_kafil = :status_kafil, pekerjaan_kafil = :pekerjaan_kafil, no_kontak_kafil = :no_kontak_kafil, pendidikan_diniyyah_terakhir = :pendidikan_diniyyah_terakhir, pendidikan_formal_terakhir = :pendidikan_formal_terakhir, kitab_yang_pernah_dikaji = :kitab_yang_pernah_dikaji, keluhan_sakit = :keluhan_sakit, pengobatan = :pengobatan, tanggal_masuk = :tanggal_masuk, alasan_mondok = :alasan_mondok, atas_keinginan = :atas_keinginan, mengapa_nailul = :mengapa_nailul, tingkatan = :tingkatan, kategori_kelas = :kategori_kelas, no_wa_wali = :no_wa_wali, status_santri = :status_santri, alasan_keluar = :alasan_keluar, tanggal_keluar = :tanggal_keluar, keluar_kategori = :keluar_kategori, nama_kamar = :nama_kamar, no_ranjang = :no_ranjang, asrama_ranjang_id = :asrama_ranjang_id, kelas_ruangan_id = :kelas_ruangan_id, is_aktif = :is_aktif
+        SET qr = :qr, nis = :nis, nama_santri = :nama_santri, nik = :nik, jenis_kelamin = :jenis_kelamin, tempat_lahir_kab = :tempat_lahir_kab, tanggal_lahir = :tanggal_lahir, bulan_lahir = :bulan_lahir, tahun_lahir = :tahun_lahir, jumlah_saudara = :jumlah_saudara, anak_ke = :anak_ke, hobi = :hobi, cita_cita = :cita_cita, dusun = :dusun, rt_rw = :rt_rw, desa_kelurahan = :desa_kelurahan, kecamatan = :kecamatan, kabupaten = :kabupaten, propinsi = :propinsi, nama_ayah = :nama_ayah, pekerjaan_ayah = :pekerjaan_ayah, no_kontak_ayah = :no_kontak_ayah, nama_ibu = :nama_ibu, pekerjaan_ibu = :pekerjaan_ibu, no_kontak_ibu = :no_kontak_ibu, nama_kafil = :nama_kafil, status_kafil = :status_kafil, pekerjaan_kafil = :pekerjaan_kafil, no_kontak_kafil = :no_kontak_kafil, pendidikan_diniyyah_terakhir = :pendidikan_diniyyah_terakhir, pendidikan_formal_terakhir = :pendidikan_formal_terakhir, kitab_yang_pernah_dikaji = :kitab_yang_pernah_dikaji, keluhan_sakit = :keluhan_sakit, pengobatan = :pengobatan, tanggal_masuk = :tanggal_masuk, alasan_mondok = :alasan_mondok, atas_keinginan = :atas_keinginan, mengapa_nailul = :mengapa_nailul, tingkatan = :tingkatan, kategori_kelas = :kategori_kelas, no_wa_wali = :no_wa_wali, status_santri = :status_santri, alasan_keluar = :alasan_keluar, tanggal_keluar = :tanggal_keluar, keluar_kategori = :keluar_kategori, nama_kamar = :nama_kamar, no_ranjang = :no_ranjang, asrama_ranjang_id = :asrama_ranjang_id, kelas_ruangan_id = :kelas_ruangan_id, is_aktif = :is_aktif, foto_profil = :foto_profil
         WHERE id = :id
     ');
     $update->execute($data);
@@ -196,6 +218,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         santri_hapus_data_operasional_nonaktif($pdo, $id);
     }
     sync_santri_wali_from_kafil($pdo, $id);
+    $waliPortalNamaPost = trim((string) ($_POST['wali_portal_nama'] ?? ''));
+    $waliPortalWaPost = trim((string) ($_POST['wali_portal_no_wa'] ?? ''));
+    if ($waliPortalNamaPost !== '' || $waliPortalWaPost !== '') {
+        wali_portal_apply_contact($pdo, $id, $waliPortalNamaPost, $waliPortalWaPost);
+    }
 
     $wasKeluar = santri_status_is_nonaktif(santri_status_from_row($santri));
     $settled = trim((string) ($santri['keluar_settled_at'] ?? '')) !== '';
@@ -280,6 +307,8 @@ if (column_exists($pdo, 'santri', 'asrama_ranjang_id') && (int) ($santri['asrama
     }
 }
 
+$waliPortalContact = wali_portal_fetch_contact($pdo, $id);
+
 $pageTitle = 'Edit santri';
 if ($embed) {
     sdm_embed_layout_start($pageTitle);
@@ -307,7 +336,25 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <form method="post" class="row g-3">
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+            <div class="col-12">
+                <div class="border rounded-3 p-3 santri-foto-upload-preview bg-light">
+                    <div class="d-flex flex-wrap align-items-center gap-3">
+                        <?= santri_foto_render_avatar($santri, 'app-user-avatar--xl') ?>
+                        <div class="flex-grow-1 min-w-0">
+                            <label class="form-label fw-semibold mb-1">Foto profil</label>
+                            <p class="small text-muted mb-2">Ditampilkan di portal wali &amp; portal santri. JPG/PNG/WEBP, maks. 2 MB.</p>
+                            <input type="file" name="foto_profil" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp">
+                            <?php if (trim((string) ($santri['foto_profil'] ?? '')) !== ''): ?>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="hapus_foto_profil" value="1" id="hapus-foto-profil">
+                                    <label class="form-check-label small" for="hapus-foto-profil">Hapus foto saat simpan</label>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="col-md-6">
                 <label class="form-label">QR</label>
                 <input type="text" name="qr" class="form-control" value="<?= htmlspecialchars($santri['qr'] ?? '') ?>">
@@ -356,10 +403,6 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
                 <?php else: ?>
                     <input type="text" name="tingkatan" class="form-control" value="<?= htmlspecialchars($santri['tingkatan'] ?? '') ?>">
                 <?php endif; ?>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">No WA Wali</label>
-                <input type="text" name="no_wa_wali" class="form-control" value="<?= htmlspecialchars($santri['no_wa_wali'] ?? '') ?>">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Kelas/Kategori Keuangan</label>
@@ -456,21 +499,29 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-12">
                 <div class="alert alert-info py-3 mb-0">
                     <h2 class="h6 mb-2">Portal wali santri</h2>
-                    <p class="small mb-2">Wali login di <a href="/wali/login.php" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS</strong> santri dan <strong>PIN</strong> yang Anda atur di sini.</p>
+                    <p class="small mb-2">Wali login di <a href="/wali/login.php" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS</strong> santri dan <strong>PIN</strong>. Nama &amp; WhatsApp dipakai untuk notifikasi otomatis ke wali.</p>
                     <p class="small mb-3 <?= !empty($santri['wali_portal_pin_hash']) ? 'text-success' : 'text-warning' ?>">
                         <?= !empty($santri['wali_portal_pin_hash']) ? 'PIN portal sudah diatur.' : 'PIN portal belum diatur — wali belum bisa masuk.' ?>
                     </p>
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label small">PIN portal wali (baru)</label>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label small">Nama wali</label>
+                            <input type="text" name="wali_portal_nama" class="form-control form-control-sm" maxlength="120" placeholder="Nama lengkap wali" value="<?= htmlspecialchars($waliPortalContact['nama']) ?>">
+                        </div>
+                        <div class="col-md-4 col-lg-3">
+                            <label class="form-label small">WhatsApp wali</label>
+                            <input type="text" name="wali_portal_no_wa" class="form-control form-control-sm font-monospace" maxlength="40" placeholder="628xxxxxxxxxx" inputmode="tel" value="<?= htmlspecialchars($waliPortalContact['no_wa']) ?>">
+                        </div>
+                        <div class="col-md-4 col-lg-2">
+                            <label class="form-label small">PIN portal (baru)</label>
                             <input type="password" name="wali_pin_baru" class="form-control form-control-sm" autocomplete="new-password" minlength="6" placeholder="Kosongkan jika tidak diubah">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4 col-lg-2">
                             <label class="form-label small">Ulangi PIN</label>
                             <input type="password" name="wali_pin_konfirmasi" class="form-control form-control-sm" autocomplete="new-password" minlength="6" placeholder="Konfirmasi">
                         </div>
                     </div>
-                    <div class="form-text mt-1">Minimal 6 karakter. Isi hanya jika ingin membuat atau mengganti PIN.</div>
+                    <div class="form-text mt-1">PIN minimal 6 karakter. Isi hanya jika ingin membuat atau mengganti PIN.</div>
                 </div>
             </div>
             <div class="col-12">

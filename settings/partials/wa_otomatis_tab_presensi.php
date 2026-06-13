@@ -27,14 +27,14 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
             <div class="col-12"><hr class="my-1"></div>
             <div class="col-12"><h3 class="h6 text-primary mb-2">Munawib belum hadir (pembimbing izin)</h3></div>
             <div class="col-md-4">
-                <label class="form-label">Notifikasi mudabir</label>
+                <label class="form-label">Notifikasi munawib</label>
                 <select class="form-select" name="wa_notif_mudabir_enabled">
                     <option value="1" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Aktif</option>
                     <option value="0" <?= ($values['wa_notif_mudabir_enabled'] ?? '1') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label">Batas menit dari jam mulai</label>
+                <label class="form-label">Batas munawib (menit dari jam mulai)</label>
                 <input type="number" min="5" max="180" class="form-control" name="mudabir_batas_menit" value="<?= htmlspecialchars((string) (($values['mudabir_batas_menit'] ?? '') !== '' ? $values['mudabir_batas_menit'] : '30')) ?>">
             </div>
             <div class="col-12"><hr class="my-1"></div>

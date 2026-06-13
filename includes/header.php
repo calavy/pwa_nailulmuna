@@ -484,3 +484,9 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php if ($error = get_flash('error')): ?>
         <div class="alert alert-danger app-flash mb-3" role="alert"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
+    <?php
+    if (isset($_SESSION['user'])) {
+        require_once __DIR__ . '/../helpers/app_hub.php';
+        app_hub_render_tabs_for_path($requestPath);
+    }
+    ?>

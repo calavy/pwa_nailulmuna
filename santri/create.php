@@ -11,10 +11,12 @@ require_once __DIR__ . '/../helpers/santri_status.php';
 require_once __DIR__ . '/../helpers/asrama.php';
 require_once __DIR__ . '/../helpers/kelas_ruangan.php';
 require_once __DIR__ . '/../helpers/sdm_embed.php';
+require_once __DIR__ . '/../helpers/santri_foto.php';
 
 require_roles(['admin', 'pengurus']);
 $embed = sdm_is_embed();
 ensure_santri_identity_columns($pdo);
+santri_foto_ensure_schema($pdo);
 ensure_wali_santri_table($pdo);
 ensure_asrama_kamar_ranjang_tables($pdo);
 ensure_kelas_ruangan_table($pdo);
@@ -171,6 +173,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($tglMasuk !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglMasuk)) {
             santri_riwayat_upsert_tingkatan($pdo, $newId, trim((string) ($data['tingkatan'] ?? '')), $data['kategori_kelas'] ?: null, $tglMasuk, 'Tahun masuk pondok');
         }
+        if (!empty($_FILES['foto_profil']['name'])) {
+            $fotoUp = santri_foto_handle_upload($_FILES['foto_profil'], null, $newId);
+            if (!$fotoUp['ok']) {
+                set_flash('error', (string) ($fotoUp['error'] ?? 'Upload foto gagal.'));
+            } elseif (!empty($fotoUp['path'])) {
+                $pdo->prepare('UPDATE santri SET foto_profil = :f WHERE id = :id')->execute([
+                    'f' => $fotoUp['path'],
+                    'id' => $newId,
+                ]);
+            }
+        }
     }
 
     set_flash('success', 'Data santri berhasil ditambahkan.');
@@ -199,7 +212,14 @@ if ($embed) {
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <form method="post" class="row g-3">
+        <form method="post" enctype="multipart/form-data" class="row g-3">
+            <div class="col-12">
+                <div class="border rounded-3 p-3 santri-foto-upload-preview bg-light">
+                    <label class="form-label fw-semibold mb-1">Foto profil</label>
+                    <p class="small text-muted mb-2">Ditampilkan di portal wali &amp; portal santri. JPG/PNG/WEBP, maks. 2 MB.</p>
+                    <input type="file" name="foto_profil" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp">
+                </div>
+            </div>
             <div class="col-md-6">
                 <label class="form-label">QR</label>
                 <input type="text" name="qr" class="form-control">

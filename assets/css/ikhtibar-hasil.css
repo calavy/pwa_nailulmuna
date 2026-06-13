@@ -142,18 +142,6 @@
     .ikhtibar-score-tile__lbl {
         font-size: 0.65rem;
     }
-    .ikhtibar-portal-tabs {
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        -webkit-overflow-scrolling: touch;
-        padding: 0.2rem;
-    }
-    .ikhtibar-portal-tabs a {
-        flex: 0 0 auto;
-        white-space: nowrap;
-        padding: 0.4rem 0.7rem;
-        font-size: 0.8rem;
-    }
     .ikhtibar-rekap-stat {
         padding: 0.7rem 0.55rem;
     }

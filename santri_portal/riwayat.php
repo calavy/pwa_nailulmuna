@@ -33,23 +33,15 @@ $ringkasan = santri_riwayat_ringkasan($pdo, $santri);
 $taAktif = santri_tahun_ajaran_for_date($pdo);
 $statusRiwayat = santri_status_from_row($santri);
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => 'Riwayat — Portal Santri',
-    'welcome' => 'Riwayat saya',
-    'subtitle' => htmlspecialchars((string) $santri['nama_santri']) . ' · NIS ' . htmlspecialchars((string) $santri['nis']),
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '640px',
-    'accent' => 'teal',
-]);
+require_once __DIR__ . '/includes/layout.php';
+santri_portal_layout_head('Riwayat — Portal Santri', 'riwayat');
 ?>
-<p class="mb-2"><a href="/santri_portal/index.php" class="small">&larr; Beranda</a></p>
+<h1 class="h5 fw-bold mb-1">Riwayat saya</h1>
+<p class="small text-muted mb-3"><?= htmlspecialchars((string) $santri['nama_santri']) ?> · NIS <?= htmlspecialchars((string) $santri['nis']) ?></p>
 
 <div class="row g-2 mb-3">
     <div class="col-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm wali-card">
             <div class="card-body py-2 small">
                 <div class="text-muted">Status</div>
                 <span class="badge <?= santri_status_badge_class($statusRiwayat) ?>"><?= htmlspecialchars(santri_status_label($statusRiwayat)) ?></span>
@@ -57,7 +49,7 @@ auth_portal_layout_begin([
         </div>
     </div>
     <div class="col-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm wali-card">
             <div class="card-body py-2 small">
                 <div class="text-muted">Tingkatan</div>
                 <strong><?= htmlspecialchars((string) ($ringkasan['tingkatan_saat_ini'] ?: '—')) ?></strong>
@@ -65,7 +57,7 @@ auth_portal_layout_begin([
         </div>
     </div>
     <div class="col-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm wali-card">
             <div class="card-body py-2 small">
                 <div class="text-muted">TA berjalan</div>
                 <strong><?= htmlspecialchars(santri_tahun_ajaran_label($taAktif, $pdo)) ?></strong>
@@ -87,7 +79,7 @@ auth_portal_layout_begin([
 </div>
 
 <p class="mb-3">
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/keaktifan.php')) ?>" class="btn btn-sm btn-outline-primary">
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/keaktifan.php')) ?>" class="btn btn-sm btn-teal">
         <i class="fa-solid fa-star-half-stroke me-1"></i> Lihat nilai keaktifan saya
     </a>
 </p>
@@ -113,6 +105,5 @@ if ($section === 'pelanggaran' || $section === 'semua') {
 }
 ?>
 
-<p class="text-center mt-3 mb-0"><a href="/santri_portal/logout.php" class="btn btn-sm btn-outline-secondary">Keluar</a></p>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot('riwayat');

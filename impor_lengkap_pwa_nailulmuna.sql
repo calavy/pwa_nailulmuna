@@ -422,7 +422,13 @@ CREATE TABLE IF NOT EXISTS kelas_keuangan (
 INSERT IGNORE INTO kelas_keuangan (kode, nama_tampilan, tarif_keuangan_tier, urutan, is_aktif) VALUES
 ('MUAD',  'Muadalah', 'muadalah', 1, 1),
 ('WUSTO', 'Wustho',   'wustho',   2, 1),
-('ULYA',  'Ulya',     'ulya',     3, 1);
+('ULYA',  'Ulya',     'ulya',     3, 1),
+('WUSTO1', 'Wustho 1', 'wustho', 21, 1),
+('WUSTO2', 'Wustho 2', 'wustho', 22, 1),
+('WUSTO3', 'Wustho 3', 'wustho', 23, 1),
+('ULYA1',  'Ulya 1',   'ulya',   31, 1),
+('ULYA2',  'Ulya 2',   'ulya',   32, 1),
+('ULYA3',  'Ulya 3',   'ulya',   33, 1);
 
 CREATE TABLE IF NOT EXISTS keuangan_pembayaran (
     id INT AUTO_INCREMENT PRIMARY KEY,

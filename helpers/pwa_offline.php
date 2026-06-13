@@ -12,9 +12,14 @@ function pwa_cache_version(): string
     foreach ([
         '/assets/css/app.css',
         '/assets/css/auth-portal.css',
+        '/assets/css/offline-sync.css',
         '/assets/vendor/bootstrap/5.3.3/bootstrap.min.css',
         '/assets/vendor/fontawesome/6.5.2/all.min.css',
         '/assets/vendor/html5-qrcode/2.3.8/html5-qrcode.min.js',
+        '/assets/js/app-shell.js',
+        '/assets/js/pwa-register.js',
+        '/assets/js/offline-sync.js',
+        '/assets/js/theme-mode.js',
     ] as $rel) {
         $full = $root . $rel;
         $parts[] = is_file($full) ? (string) filemtime($full) : '0';

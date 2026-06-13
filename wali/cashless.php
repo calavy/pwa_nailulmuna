@@ -31,7 +31,7 @@ require __DIR__ . '/partials/greeting.php';
 
         <div class="d-flex flex-wrap gap-2 mb-3">
             <a class="btn btn-sm btn-outline-secondary" href="/wali/keuangan.php"><i class="fa-solid fa-wallet me-1"></i> Ringkasan keuangan</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/wali/pembayaran.php"><i class="fa-solid fa-receipt me-1"></i> Riwayat Keuangan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>"><i class="fa-solid fa-receipt me-1"></i> Riwayat Keuangan</a>
         </div>
 
         <div class="card shadow-sm wali-card mb-3 border-primary border-opacity-25">

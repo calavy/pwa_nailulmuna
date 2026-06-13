@@ -80,7 +80,7 @@ function push_event_tagihan_syahriyah_wali(
 ): void {
     $title = 'Pemberitahuan tagihan';
     $body = trim($namaSantri) . ' — ' . $periodeLabel . '. Sisa: ' . $sisaFormatted;
-    push_notify_wali_for_santri($pdo, $santriId, 'syahriyah', $title, $body, [], '/wali/tagihan.php');
+    push_notify_wali_for_santri($pdo, $santriId, 'syahriyah', $title, $body, [], '/wali/keuangan.php?tab=tagihan');
 }
 
 function push_event_pelanggaran_berat_kiai(
@@ -291,7 +291,7 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
             'Pemberitahuan tagihan',
             $body,
             ['sisa' => (string) $sisa],
-            '/wali/tagihan.php'
+            '/wali/keuangan.php?tab=tagihan'
         ) > 0) {
             $sent++;
         }

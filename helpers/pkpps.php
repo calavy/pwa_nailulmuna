@@ -291,6 +291,10 @@ function pkpps_sync_from_kelas_keuangan(PDO $pdo, int $subLevels = 3): void
             if ($kid <= 0) {
                 continue;
             }
+            $kodeKk = strtoupper(trim((string) ($kr['kode'] ?? '')));
+            if (function_exists('kelas_keuangan_is_sublevel_kode') && kelas_keuangan_is_sublevel_kode($kodeKk)) {
+                continue;
+            }
             $validKelasIds[$kid] = $kid;
             $baseNama = trim((string) ($kr['nama_tampilan'] ?? $kr['kode'] ?? ''));
             if ($baseNama === '') {

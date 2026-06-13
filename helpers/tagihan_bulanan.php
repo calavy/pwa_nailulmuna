@@ -251,7 +251,20 @@ function tagihan_opsional_pos_for_month_bulk(
     $perPos = [];
     $overridesMap = $santriId > 0 ? keuangan_santri_opsional_map_cached($pdo) : [];
     foreach (keuangan_tagihan_opsional_bulanan_slugs() as $slug) {
-        $expected = max(0, (int) ($tarif[$slug][$tier] ?? 0));
+        if ($slug === 'makan') {
+            if (!function_exists('keuangan_makan_nominal_for_kelas')) {
+                require_once __DIR__ . '/keuangan_kelas_makan.php';
+            }
+            $expected = keuangan_makan_nominal_for_kelas(
+                $pdo,
+                $kelasKategori,
+                $bulanTagihan,
+                $tahunAjaranMulai,
+                $tahunAjaranSelesai
+            );
+        } else {
+            $expected = max(0, (int) ($tarif[$slug][$tier] ?? 0));
+        }
         if ($santriId > 0 && isset($overridesMap[$santriId][$slug])) {
             $ov = $overridesMap[$santriId][$slug];
             if (!$ov['aktif']) {
@@ -943,7 +956,7 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
     $paidMap = $tagihanCtx['paid_map'];
     $tingkatanMap = $tagihanCtx['tingkatan_map'];
 
-    $rows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo, column_exists($pdo, 'santri', 'no_wa_wali')) : [];
+    $rows = $tablesOk ? tagihan_santri_aktif_rows_cached($pdo, true) : [];
 
     $body = [];
     $sumTagihan = 0;

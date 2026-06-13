@@ -356,7 +356,10 @@ $ikhtibarSantri = $filterSantri > 0 ? ikhtibar_riwayat_hasil_santri($pdo, $filte
                         <?php endif; ?>
                         <?php foreach ($daftar as $d): ?>
                             <?php
-                            $waWali = trim((string) ($d['no_wa_wali'] ?? ''));
+                            if (!function_exists('santri_resolve_no_wa_wali')) {
+                                require_once __DIR__ . '/../helpers/santri_wa.php';
+                            }
+                            $waWali = santri_resolve_no_wa_wali($pdo, (int) ($d['santri_id'] ?? 0));
                             $namaS = (string) ($d['nama_santri'] ?? '');
                             $periodeRow = rapor_periode_dari_row($pdo, $d);
                             $pesanWa = 'Assalamu\'alaikum, kami informasikan rapor akademik untuk *' . $namaS . '* (' . ($d['judul_periode'] ?? '') . '). Silakan cek di portal wali pondok. Terima kasih.';

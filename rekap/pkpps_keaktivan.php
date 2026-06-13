@@ -103,7 +103,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/pkpps/index.php')) ?>">PKPPS</a></p>
     <h1 class="h4 mb-1">Laporan Keaktivan PKPPS</h1>
-    <p class="text-muted mb-0 small">Rekap kehadiran santri PKPPS (tahun) dan pembimbing PKPPS (periode).</p>
+    <p class="text-muted mb-0 small">Rekap kehadiran santri PKPPS (tahun) dan pembimbing PKPPS (periode). Untuk tampilan harian kartu, buka <a href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktifan_hari.php')) ?>">Keaktifan PKPPS hari ini</a>.</p>
 </div>
 
 <form class="row g-2 align-items-end mb-3" method="get">

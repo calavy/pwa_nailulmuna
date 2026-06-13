@@ -30,6 +30,15 @@ if (!$izin) {
     exit('Data izin tidak ditemukan.');
 }
 
+perizinan_syari_backfill_finalize($pdo, $id);
+
+$statement->execute(['id' => $id]);
+$izin = $statement->fetch();
+
+if (!$izin) {
+    exit('Data izin tidak ditemukan.');
+}
+
 $approvalStatus = strtoupper((string) ($izin['approval_status'] ?? ''));
 $existingToken = trim((string) ($izin['qr_token'] ?? ''));
 $blockPrint = $approvalStatus === 'DITOLAK' || ($approvalStatus === 'PENDING' && $existingToken === '');
@@ -44,7 +53,12 @@ if ($blockPrint) {
         . '.btn{display:inline-block;padding:8px 16px;border-radius:8px;background:#1d4ed8;color:#fff;text-decoration:none;font-weight:600;font-size:14px;}'
         . '</style></head><body><div class="box">';
     echo '<h1>Surat izin belum dapat dicetak</h1>';
-    echo '<p>Permohonan izin atas nama <strong>' . htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) . '</strong> ' . htmlspecialchars($statusLabel) . '. Surat hanya dapat dicetak setelah pengurus berwenang menyetujui permohonan.</p>';
+    echo '<p>Permohonan izin atas nama <strong>' . htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) . '</strong> ' . htmlspecialchars($statusLabel) . '. ';
+    if (perizinan_memerlukan_persetujuan_pengasuh((string) ($izin['jenis_izin'] ?? ''))) {
+        echo 'Izin syar\'i menunggu persetujuan pengasuh atau surat siap dicetak setelah pengasuh menyetujui.</p>';
+    } else {
+        echo 'Surat hanya dapat dicetak setelah pengurus berwenang menyetujui permohonan.</p>';
+    }
     echo '<p>Silakan kembali ke halaman <a class="btn" href="/perizinan/index.php">Perizinan</a> untuk meninjau atau menyetujui permohonan ini.</p>';
     echo '</div></body></html>';
     exit;
@@ -197,6 +211,60 @@ $nbText = $jenisIzin === 'TUGAS'
             line-height: 1.35;
         }
 
+        .pengasuh-paraf {
+            margin: 10px 0 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 14px;
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 72%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+            position: relative;
+            z-index: 1;
+        }
+        .pengasuh-paraf__badge {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #15803d;
+            color: #fff;
+            font-size: 13pt;
+            font-weight: 700;
+            line-height: 28px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+        }
+        .pengasuh-paraf__body { flex: 1; min-width: 0; }
+        .pengasuh-paraf__head {
+            font-size: 7.4pt;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #166534;
+            margin-bottom: 3px;
+        }
+        .pengasuh-paraf__text {
+            margin: 0 0 4px;
+            font-size: 8.1pt;
+            color: #334155;
+            line-height: 1.4;
+        }
+        .pengasuh-paraf__nama {
+            margin: 0;
+            font-size: 9.6pt;
+            font-weight: 700;
+            color: #14532d;
+            letter-spacing: 0.02em;
+        }
+        .pengasuh-paraf__waktu {
+            margin: 4px 0 0;
+            font-size: 7.6pt;
+            color: #64748b;
+        }
+
         .return-box {
             margin-top: 8px;
             border: 1px dashed #94a3b8;
@@ -210,28 +278,40 @@ $nbText = $jenisIzin === 'TUGAS'
         .return-box img { width: 3cm; height: 3cm; min-width: 3cm; min-height: 3cm; object-fit: contain; }
         .return-box p { margin: 0; font-size: 7.5pt; color: #334155; line-height: 1.25; }
 
-        .ttd-wrap { margin-top: auto; margin-bottom: 10px; position: relative; z-index: 1; }
-        .ttd-meta { text-align: right; font-size: 8pt; color: #334155; margin-bottom: 14px; }
-        .ttd {
-            margin-top: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 28px;
-            position: relative;
-            z-index: 1;
-        }
-        .box { width: 45%; text-align: center; padding: 0 4px; }
-        .box > div:first-child { margin-bottom: 6px; }
-        .box .sign-space { height: 18mm; min-height: 52px; }
-        .line { 
-            margin: 0 auto; 
-            width: 90%; 
-            border-top: 1px solid #0f172a;
-            font-weight: 700; 
-            padding-top: 8px;
-            margin-top: 4px;
+        .surat-footer { margin-top: auto; padding-top: 12px; position: relative; z-index: 1; }
+        .surat-ttd { margin-bottom: 14px; }
+        .surat-ttd__tempat {
+            margin: 0 0 16px;
+            text-align: right;
             font-size: 8.5pt;
+            color: #334155;
+            line-height: 1.45;
+        }
+        .surat-ttd__blok {
+            margin-left: auto;
+            width: 46%;
+            max-width: 210px;
+            min-width: 130px;
+            text-align: center;
+        }
+        .surat-ttd__jabatan {
+            margin: 0 0 6px;
+            font-size: 8.5pt;
+            color: #0f172a;
+        }
+        .surat-ttd__ruang {
+            height: 20mm;
+            min-height: 56px;
+        }
+        .surat-ttd__nama {
+            margin: 0;
+            padding-top: 8px;
+            border-top: 1px solid #0f172a;
+            font-size: 8.5pt;
+            font-weight: 700;
+            line-height: 1.35;
+            word-break: break-word;
+            color: #0f172a;
         }
 
         .print-time {
@@ -247,6 +327,11 @@ $nbText = $jenisIzin === 'TUGAS'
             body { background: #fff; }
             .sheet { border: 1px solid #cbd5e1; box-shadow: none; padding: 7mm 8mm; min-height: calc(210mm - 12mm); }
             .badge {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+            .pengasuh-paraf__badge {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
                 color-adjust: exact !important;
@@ -281,38 +366,27 @@ $nbText = $jenisIzin === 'TUGAS'
                 <strong>Keperluan/Alasan Izin:</strong><br>
                 <?= nl2br(htmlspecialchars($izin['alasan'])) ?>
             </div>
+            <?php $tujuanSurat = trim((string) ($izin['tujuan'] ?? '')); ?>
+            <?php if ($tujuanSurat !== ''): ?>
+            <div class="box-note">
+                <strong>Tujuan:</strong><br>
+                <?= nl2br(htmlspecialchars($tujuanSurat)) ?>
+            </div>
+            <?php endif; ?>
             <div class="box-nb">
                 <strong>NB:</strong><br>
                 <?= htmlspecialchars($nbText) ?>
             </div>
+            <?php require __DIR__ . '/partials/surat_pengasuh_paraf.php'; ?>
             <p class="mb-0">Demikian surat izin ini dibuat agar dapat dipergunakan sebagaimana mestinya dan dipatuhi waktu kembalinya.</p>
 
         </div>
 
-        <div class="ttd-wrap">
-            <div class="ttd-meta">
-                <?= htmlspecialchars($kotaPonpes) ?>, <?= htmlspecialchars(app_format_tanggal_id(date('Y-m-d'))) ?>
-            </div>
-            <div class="ttd">
-                <div class="box">
-                    <div>Pemberi Izin,</div>
-                    <div class="sign-space"></div>
-                    <div class="line"><?= htmlspecialchars($izin['pemberi_izin']) ?></div>
-                </div>
-                <div class="box">
-                    <div>Pengasuh,</div>
-                    <?php if ($pengasuhBlok['disetujui']): ?>
-                        <div class="sign-space" style="font-size:9pt;color:#15803d;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;">
-                            <?= htmlspecialchars($pengasuhBlok['keterangan']) ?>
-                        </div>
-                        <div class="line"><?= htmlspecialchars($pengasuhBlok['nama']) ?></div>
-                        <div class="line" style="font-size:9pt;color:#475569;"><?= htmlspecialchars($pengasuhBlok['waktu']) ?></div>
-                    <?php else: ?>
-                        <div class="sign-space"></div>
-                        <div class="line"><?= htmlspecialchars($pengasuhBlok['nama'] !== '' ? $pengasuhBlok['nama'] : '(_____________________)') ?></div>
-                    <?php endif; ?>
-                </div>
-            </div>
+        <div class="surat-footer">
+            <?php
+            $pemberiIzin = (string) ($izin['pemberi_izin'] ?? '');
+            require __DIR__ . '/partials/surat_ttd_pemberi.php';
+            ?>
             <div class="return-box">
                 <img src="<?= htmlspecialchars($returnQr) ?>" alt="QR Kembali">
                 <p>

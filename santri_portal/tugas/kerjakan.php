@@ -79,22 +79,13 @@ $statusSesi = (string) ($sesi['status'] ?? 'menunggu');
 $berjalan = $statusSesi === 'berjalan';
 $selesai = $statusSesi === 'selesai';
 
-$namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', ''));
-require_once __DIR__ . '/../../includes/auth_portal_layout.php';
-
-auth_portal_layout_begin([
-    'title' => (string) ($tugas['judul'] ?? 'Tugas'),
-    'welcome' => (string) ($tugas['judul'] ?? 'Tugas'),
-    'subtitle' => 'Durasi ' . (int) ($tugas['durasi_menit'] ?? 0) . ' menit · urutan soal diacak',
-    'nama_ponpes' => $namaPonpes,
-    'max_width' => '640px',
-    'accent' => 'teal',
-]);
-
-$err = get_flash('error');
-$ok = get_flash('success');
-if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif;
-if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif;
+$navActive = $berjalan ? null : 'tugas';
+require_once __DIR__ . '/../includes/layout.php';
+santri_portal_layout_head((string) ($tugas['judul'] ?? 'Tugas'), $navActive);
+?>
+<h1 class="h5 fw-bold mb-1"><?= htmlspecialchars((string) ($tugas['judul'] ?? 'Tugas')) ?></h1>
+<p class="small text-muted mb-3">Durasi <?= (int) ($tugas['durasi_menit'] ?? 0) ?> menit · urutan soal diacak</p>
+<?php
 
 if ($selesai):
     $sesiSelesaiId = (int) ($sesi['id'] ?? 0);
@@ -192,6 +183,8 @@ if ($selesai):
     </script>
 <?php endif; ?>
 
+<?php if (!$berjalan): ?>
 <p class="text-center mt-3 mb-0"><a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="small">← Daftar tugas</a></p>
+<?php endif; ?>
 <?php
-auth_portal_layout_end([], true);
+santri_portal_layout_foot($navActive);

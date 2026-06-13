@@ -26,21 +26,31 @@ if (!$izin) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $jenisEdit = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
+    $tujuanEdit = perizinan_tujuan_normalize((string) ($_POST['tujuan'] ?? ''));
+    $tujuanErr = perizinan_validasi_tujuan($jenisEdit, $tujuanEdit);
+    if ($tujuanErr !== null) {
+        set_flash('error', $tujuanErr);
+        header('Location: ' . app_href('/perizinan/edit.php?id=' . $id));
+        exit;
+    }
+
     $data = [
         'id' => $id,
-        'jenis_izin' => perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR')),
+        'jenis_izin' => $jenisEdit,
         'tanggal_mulai' => $_POST['tanggal_mulai'] ?? date('Y-m-d'),
         'tanggal_selesai' => $_POST['tanggal_selesai'] ?? date('Y-m-d'),
         'jam_mulai' => $_POST['jam_mulai'] ?? date('H:i'),
         'jam_selesai' => $_POST['jam_selesai'] ?? date('H:i'),
         'durasi_jam' => (float) ($_POST['durasi_jam'] ?? 0),
         'alasan' => trim($_POST['alasan'] ?? ''),
+        'tujuan' => $tujuanEdit !== '' ? $tujuanEdit : null,
         'pemberi_izin' => trim($_POST['pemberi_izin'] ?? ''),
         'penandatangan_pengasuh' => trim($_POST['penandatangan_pengasuh'] ?? ''),
         'status_izin' => in_array($_POST['status_izin'] ?? '', ['IZIN', 'SELESAI'], true) ? $_POST['status_izin'] : 'IZIN',
     ];
 
-    $update = $pdo->prepare('UPDATE perizinan SET jenis_izin = :jenis_izin, tanggal_mulai = :tanggal_mulai, tanggal_selesai = :tanggal_selesai, jam_mulai = :jam_mulai, jam_selesai = :jam_selesai, durasi_jam = :durasi_jam, alasan = :alasan, pemberi_izin = :pemberi_izin, penandatangan_pengasuh = :penandatangan_pengasuh, status_izin = :status_izin WHERE id = :id');
+    $update = $pdo->prepare('UPDATE perizinan SET jenis_izin = :jenis_izin, tanggal_mulai = :tanggal_mulai, tanggal_selesai = :tanggal_selesai, jam_mulai = :jam_mulai, jam_selesai = :jam_selesai, durasi_jam = :durasi_jam, alasan = :alasan, tujuan = :tujuan, pemberi_izin = :pemberi_izin, penandatangan_pengasuh = :penandatangan_pengasuh, status_izin = :status_izin WHERE id = :id');
     $update->execute($data);
 
     if ($data['status_izin'] === 'SELESAI') {
@@ -72,7 +82,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-6">
                 <label class="form-label">Jenis Izin</label>
-                <select name="jenis_izin" class="form-select" required>
+                <select name="jenis_izin" id="jenis-izin-edit" class="form-select" required>
                     <?php $selectedJenis = (string) ($izin['jenis_izin'] ?? 'KELUAR'); $includeSakit = true; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
                 </select>
             </div>
@@ -107,6 +117,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <label class="form-label">Alasan</label>
                 <textarea name="alasan" class="form-control" rows="3" required><?= htmlspecialchars($izin['alasan'] ?? '') ?></textarea>
             </div>
+            <?php
+            $tujuanWrapId = 'wrap-tujuan-edit';
+            $tujuanJenisSelectId = 'jenis-izin-edit';
+            $tujuanValue = (string) ($izin['tujuan'] ?? '');
+            require __DIR__ . '/partials/tujuan_izin_field.php';
+            ?>
             <div class="col-md-6">
                 <label class="form-label">Pemberi Izin</label>
                 <input type="text" name="pemberi_izin" class="form-control" value="<?= htmlspecialchars($izin['pemberi_izin'] ?? '') ?>" required>
@@ -122,4 +138,5 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-tujuan-field.js')) ?>" defer></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

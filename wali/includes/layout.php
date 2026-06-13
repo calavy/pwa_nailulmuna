@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/app.php';
+require_once __DIR__ . '/../partials/portal_hub_tabs.php';
 
 /** @return list<array{href:string,icon:string,label:string,key:string}> */
 function wali_bottom_nav_items(): array
@@ -11,7 +12,7 @@ function wali_bottom_nav_items(): array
     return [
         ['href' => app_href('/wali/index.php'), 'icon' => 'fa-house', 'label' => 'Beranda', 'key' => 'beranda'],
         ['href' => app_href('/wali/keuangan.php'), 'icon' => 'fa-wallet', 'label' => 'Keuangan', 'key' => 'keuangan'],
-        ['href' => app_href('/wali/keaktifan.php'), 'icon' => 'fa-calendar-check', 'label' => 'Aktif', 'key' => 'keaktifan'],
+        ['href' => app_href('/wali/keaktifan.php'), 'icon' => 'fa-calendar-check', 'label' => 'Presensi', 'key' => 'keaktifan'],
         ['href' => app_href('/wali/izin.php'), 'icon' => 'fa-person-walking-arrow-right', 'label' => 'Izin', 'key' => 'izin'],
     ];
 }
@@ -20,18 +21,38 @@ function wali_bottom_nav_items(): array
 function wali_more_nav_items(): array
 {
     return [
-        ['href' => app_href('/wali/tagihan.php'), 'icon' => 'fa-file-invoice', 'label' => 'Tagihan bulanan', 'key' => 'tagihan'],
-        ['href' => app_href('/wali/pembayaran.php'), 'icon' => 'fa-receipt', 'label' => 'Riwayat pembayaran', 'key' => 'pembayaran'],
         ['href' => app_href('/wali/riwayat.php'), 'icon' => 'fa-clock-rotate-left', 'label' => 'Riwayat santri', 'key' => 'riwayat'],
-        ['href' => app_href('/wali/rapor.php'), 'icon' => 'fa-scroll', 'label' => 'Rapor', 'key' => 'rapor'],
-        ['href' => app_href('/wali/hafalan.php'), 'icon' => 'fa-book-quran', 'label' => 'Hafalan', 'key' => 'hafalan'],
+        ['href' => app_href('/wali/akademik.php'), 'icon' => 'fa-graduation-cap', 'label' => 'Akademik', 'key' => 'akademik'],
     ];
+}
+
+function wali_nav_resolve_active(?string $navActive): ?string
+{
+    if ($navActive === null || $navActive === '') {
+        return $navActive;
+    }
+    if (in_array($navActive, ['tagihan', 'pembayaran', 'ringkasan', 'bayar'], true)) {
+        return 'keuangan';
+    }
+    if (in_array($navActive, ['rapor', 'hafalan'], true)) {
+        return 'akademik';
+    }
+
+    return $navActive;
+}
+
+function wali_nav_more_active(?string $navActive): bool
+{
+    $resolved = wali_nav_resolve_active($navActive);
+    $moreKeys = array_column(wali_more_nav_items(), 'key');
+
+    return in_array($resolved, $moreKeys, true);
 }
 
 /** @deprecated Gunakan wali_more_nav_items() */
 function wali_extra_nav_items(): array
 {
-    return array_values(array_filter(wali_more_nav_items(), static fn(array $item): bool => in_array($item['key'], ['riwayat', 'rapor'], true)));
+    return array_values(array_filter(wali_more_nav_items(), static fn(array $item): bool => in_array($item['key'], ['riwayat', 'akademik'], true)));
 }
 
 function wali_layout_head(string $title, bool $withManifest = true, ?string $navActive = null, array $loginBrand = []): void
@@ -65,6 +86,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/../../includes/partials/app_vendor_assets.php'; ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
@@ -110,12 +132,15 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
             <div class="alert alert-danger py-2 small mb-2 shadow-sm" role="alert"><?= htmlspecialchars($waliFlashErr) ?></div>
         <?php endif; ?>
         <nav class="wali-nav-scroll wali-nav-scroll--desktop-only mb-2" role="navigation" aria-label="Menu portal wali">
-            <?php foreach (wali_bottom_nav_items() as $item): ?>
-                <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navActive === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
+            <?php
+            $navResolved = wali_nav_resolve_active($navActive);
+            foreach (wali_bottom_nav_items() as $item):
+            ?>
+                <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navResolved === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
             <?php endforeach; ?>
-            <?php foreach (wali_more_nav_items() as $item): ?>
-                <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navActive === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
-            <?php endforeach; ?>
+            <button type="button" class="btn btn-sm btn-outline-secondary <?= wali_nav_more_active($navActive) ? 'active' : '' ?>" data-bs-toggle="offcanvas" data-bs-target="#waliMoreNav" aria-controls="waliMoreNav">
+                <i class="fa-solid fa-ellipsis me-1" aria-hidden="true"></i>Lainnya
+            </button>
             <button type="button" class="btn btn-sm btn-outline-success" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
         </nav>
         <?php if (isset($waliAnakRows) && count($waliAnakRows) > 1): ?>
@@ -128,12 +153,12 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
 function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActive = null): void
 {
     $showBottomNav = $navActive !== null && $navActive !== '';
-    $moreKeys = array_column(wali_more_nav_items(), 'key');
-    $moreActive = in_array($navActive, $moreKeys, true);
+    $navResolved = wali_nav_resolve_active($navActive);
+    $moreActive = wali_nav_more_active($navActive);
     if ($showBottomNav): ?>
     <nav class="wali-bottom-nav d-md-none" aria-label="Navigasi utama portal wali">
         <?php foreach (wali_bottom_nav_items() as $item): ?>
-            <a href="<?= htmlspecialchars($item['href']) ?>" class="<?= $navActive === $item['key'] ? 'active' : '' ?>">
+            <a href="<?= htmlspecialchars($item['href']) ?>" class="<?= $navResolved === $item['key'] ? 'active' : '' ?>">
                 <i class="fa-solid <?= htmlspecialchars($item['icon']) ?>" aria-hidden="true"></i>
                 <span><?= htmlspecialchars($item['label']) ?></span>
             </a>
@@ -151,7 +176,7 @@ function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActiv
         <div class="offcanvas-body pt-2">
             <div class="list-group list-group-flush">
                 <?php foreach (wali_more_nav_items() as $item): ?>
-                    <a href="<?= htmlspecialchars($item['href']) ?>" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3<?= $navActive === $item['key'] ? ' active' : '' ?>">
+                    <a href="<?= htmlspecialchars($item['href']) ?>" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3<?= wali_nav_resolve_active($navActive) === $item['key'] ? ' active' : '' ?>">
                         <i class="fa-solid <?= htmlspecialchars($item['icon']) ?> text-muted" aria-hidden="true"></i>
                         <span><?= htmlspecialchars($item['label']) ?></span>
                     </a>

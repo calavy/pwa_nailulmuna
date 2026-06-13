@@ -35,11 +35,11 @@ if (table_exists($pdo, 'presensi')) {
 }
 
 require_once __DIR__ . '/includes/layout.php';
-wali_layout_head('Keaktifan — Portal Wali', true, 'keaktifan');
+wali_layout_head('Presensi — Portal Wali', true, 'keaktifan');
 ?>
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-                <h1 class="h5 mb-0 wali-brand fw-bold">Keaktifan &amp; presensi</h1>
+                <h1 class="h5 mb-0 wali-brand fw-bold">Presensi</h1>
                 <p class="small text-muted mb-0">Hanya data <strong>anak Anda</strong> (<?= htmlspecialchars((string) ($waliSantriRow['nama_tampil'] ?? '')) ?>).</p>
             </div>
             <a class="btn btn-sm btn-outline-secondary" href="/wali/logout.php">Keluar</a>

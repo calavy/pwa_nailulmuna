@@ -1,8 +1,12 @@
 /**
- * Daftarkan service worker PWA (offline + FCM).
+ * Daftarkan service worker PWA (offline + FCM) dan banner pembaruan.
  */
 (function (global) {
     'use strict';
+
+    var updateCheckIntervalMs = 30 * 60 * 1000;
+    var activeRegistration = null;
+    var refreshing = false;
 
     function appBase() {
         var b = (global.PONDOK_PWA_BASE != null)
@@ -50,6 +54,65 @@
         document.body.appendChild(el);
     }
 
+    function ensureUpdateBanner() {
+        if (!document.body || document.getElementById('pondok-pwa-update-banner')) {
+            return;
+        }
+        var el = document.createElement('div');
+        el.id = 'pondok-pwa-update-banner';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.hidden = true;
+        el.innerHTML = '<span class="pondok-pwa-update-text">Pembaruan aplikasi tersedia.</span>'
+            + '<button type="button" class="pondok-pwa-update-btn" id="pondok-pwa-update-btn">Muat ulang</button>';
+        document.body.appendChild(el);
+    }
+
+    function showUpdateBanner(reg) {
+        ensureUpdateBanner();
+        document.documentElement.classList.add('pondok-pwa-update');
+        var el = document.getElementById('pondok-pwa-update-banner');
+        if (!el) {
+            return;
+        }
+        el.hidden = false;
+        var btn = document.getElementById('pondok-pwa-update-btn');
+        if (btn && !btn._pondokUpdateBound) {
+            btn._pondokUpdateBound = true;
+            btn.addEventListener('click', function () {
+                var waiting = reg && reg.waiting;
+                if (waiting) {
+                    waiting.postMessage({ type: 'SKIP_WAITING' });
+                } else if (reg && reg.installing) {
+                    reg.installing.addEventListener('statechange', function () {
+                        if (reg.installing && reg.installing.state === 'installed' && reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                }
+                btn.disabled = true;
+                btn.textContent = 'Memuat…';
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 400);
+            });
+        }
+    }
+
+    function bindUpdateFound(reg) {
+        reg.addEventListener('updatefound', function () {
+            var worker = reg.installing;
+            if (!worker) {
+                return;
+            }
+            worker.addEventListener('statechange', function () {
+                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                    showUpdateBanner(reg);
+                }
+            });
+        });
+    }
+
     function updateOnlineClass() {
         var offline = !navigator.onLine;
         var root = document.documentElement;
@@ -79,6 +142,7 @@
             '/assets/css/app.css',
             '/assets/css/offline-sync.css',
             '/assets/css/presensi-scan.css',
+            '/assets/js/app-shell.js',
             '/assets/js/offline-sync.js',
             '/assets/js/pwa-register.js',
         ].forEach(function (rel) {
@@ -95,26 +159,34 @@
         var scope = swScope();
         try {
             var reg = await navigator.serviceWorker.register(url, { scope: scope, updateViaCache: 'none' });
+            activeRegistration = reg;
             try {
                 await reg.update();
             } catch (updateErr) {
                 /* abaikan */
             }
-            reg.addEventListener('updatefound', function () {
-                var worker = reg.installing;
-                if (!worker) {
-                    return;
-                }
-                worker.addEventListener('statechange', function () {
-                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                        document.documentElement.classList.add('pondok-pwa-update');
-                    }
-                });
-            });
+            if (reg.waiting && navigator.serviceWorker.controller) {
+                showUpdateBanner(reg);
+            }
+            bindUpdateFound(reg);
             return reg;
         } catch (e) {
             return null;
         }
+    }
+
+    function scheduleUpdateChecks() {
+        window.setInterval(function () {
+            if (!navigator.onLine || !activeRegistration) {
+                return;
+            }
+            activeRegistration.update().catch(function () {});
+        }, updateCheckIntervalMs);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && navigator.onLine && activeRegistration) {
+                activeRegistration.update().catch(function () {});
+            }
+        });
     }
 
     global.PondokPwa = {
@@ -125,9 +197,23 @@
     };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', ensureOfflineBanner);
+        document.addEventListener('DOMContentLoaded', function () {
+            ensureOfflineBanner();
+            ensureUpdateBanner();
+        });
     } else {
         ensureOfflineBanner();
+        ensureUpdateBanner();
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (refreshing) {
+                return;
+            }
+            refreshing = true;
+            window.location.reload();
+        });
     }
 
     updateOnlineClass();
@@ -140,11 +226,13 @@
     if (document.readyState === 'complete') {
         registerPwa().then(function () {
             warmUiCacheWhenOnline();
+            scheduleUpdateChecks();
         });
     } else {
         window.addEventListener('load', function () {
             registerPwa().then(function () {
                 warmUiCacheWhenOnline();
+                scheduleUpdateChecks();
             });
         });
     }

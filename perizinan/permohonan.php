@@ -97,6 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $tujuanPost = perizinan_tujuan_normalize((string) ($_POST['tujuan'] ?? ''));
+    $tujuanErr = perizinan_validasi_tujuan($jenisIzinPost, $tujuanPost);
+    if ($tujuanErr !== null) {
+        set_flash('error', $tujuanErr);
+        header('Location: ' . app_href('/perizinan/permohonan.php'));
+        exit;
+    }
+
     $data = [
         'santri_id' => $santriIdPost,
         'tanggal_mulai' => $_POST['tanggal_mulai'] ?? date('Y-m-d'),
@@ -106,14 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'durasi_jam' => (float) ($_POST['durasi_jam'] ?? 0),
         'jenis_izin' => $jenisIzinPost,
         'alasan' => $alasanPost,
+        'tujuan' => $tujuanPost !== '' ? $tujuanPost : null,
         'pemberi_izin' => $pemberiIzinPost,
         'penandatangan_pengasuh' => $defaultPengasuh !== '' ? $defaultPengasuh : trim((string) ($_POST['penandatangan_pengasuh'] ?? '')),
         'grace_menit' => $graceMenit,
     ];
 
     $insert = $pdo->prepare('
-        INSERT INTO perizinan (santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
-        VALUES (:santri_id, :jenis_izin, :tanggal_mulai, :tanggal_selesai, :jam_mulai, :jam_selesai, :durasi_jam, :alasan, :pemberi_izin, :penandatangan_pengasuh, "IZIN", "PENDING", :grace_menit)
+        INSERT INTO perizinan (santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
+        VALUES (:santri_id, :jenis_izin, :tanggal_mulai, :tanggal_selesai, :jam_mulai, :jam_selesai, :durasi_jam, :alasan, :tujuan, :pemberi_izin, :penandatangan_pengasuh, "IZIN", "PENDING", :grace_menit)
     ');
     $insHealth = $pdo->prepare('
         INSERT INTO ehealth_records (santri_id, gejala, suhu_tubuh, tindakan, status_kesehatan, notifikasi_wali, created_by)
@@ -155,7 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (string) $data['tanggal_selesai'],
         substr((string) $data['jam_mulai'], 0, 5),
         substr((string) $data['jam_selesai'], 0, 5),
-        (string) $data['alasan']
+        (string) $data['alasan'],
+        (string) ($data['tujuan'] ?? '')
     );
     perizinan_push_setelah_pengajuan(
         $pdo,
@@ -173,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
-        $flashOk = 'Permohonan izin syar\'i terkirim. Menunggu persetujuan pengasuh lalu pengurus.';
+        $flashOk = 'Permohonan izin syar\'i terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
     } else {
         $flashOk = 'Permohonan izin terkirim. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
     }
@@ -288,6 +298,12 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Alasan</label>
                         <textarea class="form-control" name="alasan" rows="2" required placeholder="Contoh: menjenguk orang tua sakit"></textarea>
                     </div>
+                    <?php
+                    $tujuanWrapId = 'wrap-tujuan-permohonan';
+                    $tujuanJenisSelectId = 'jenis-izin-permohonan';
+                    $tujuanValue = '';
+                    require __DIR__ . '/partials/tujuan_izin_field.php';
+                    ?>
                     <input type="hidden" name="penandatangan_pengasuh" value="<?= htmlspecialchars($namaPengasuh) ?>">
 
                     <div id="ehealth-permohonan" class="col-12 mt-2 pt-3 border-top ehealth-block d-none">
@@ -423,4 +439,5 @@ require_once __DIR__ . '/../includes/header.php';
     syncPermohonanEhealth();
 })();
 </script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-tujuan-field.js')) ?>" defer></script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

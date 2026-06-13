@@ -13,12 +13,20 @@ declare(strict_types=1);
         ke <?= htmlspecialchars((string) ($waTestResult['target'] ?? '-')) ?>
         <?php if (!empty($waTestResult['error'])): ?> — <?= htmlspecialchars((string) $waTestResult['error']) ?><?php endif; ?>
     </div>
+<?php elseif ($waGatewayLastErr !== '' && stripos($waGatewayLastErr, 'disconnected') !== false): ?>
+    <div class="alert alert-warning py-2 small mb-0">
+        <strong>Perangkat Fonnte terputus.</strong> Terakhir: <?= htmlspecialchars($waGatewayLastErr) ?>
+    </div>
 <?php endif; ?>
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">1. Koneksi gateway (Fonnte)</h2>
-        <p class="small text-muted mb-3">Token dari dashboard Fonnte. URL kosong = otomatis <code>api.fonnte.com/send</code>.</p>
+        <p class="small text-muted mb-3">
+            Token dari dashboard Fonnte. URL kosong = otomatis <code>api.fonnte.com/send</code>.
+            Jika tes gagal <em>disconnected device</em>, hubungkan ulang perangkat WA di
+            <a href="https://md.fonnte.com" target="_blank" rel="noopener">dashboard Fonnte</a> (scan QR).
+        </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_gateway">
             <input type="hidden" name="redirect_tab" value="gateway">
@@ -44,6 +52,13 @@ declare(strict_types=1);
                     <input class="form-check-input" type="checkbox" id="wa_otomatis_master_enabled" name="wa_otomatis_master_enabled" value="1" <?= $waMasterOn ? 'checked' : '' ?>>
                     <label class="form-check-label" for="wa_otomatis_master_enabled">Master WA otomatis aktif</label>
                 </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wa_fonnte_queue_offline" name="wa_fonnte_queue_offline" value="1" <?= ($values['wa_fonnte_queue_offline'] ?? '0') === '1' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_fonnte_queue_offline">Antrekan saat perangkat offline</label>
+                </div>
+                <div class="form-text">Pesan ditahan Fonnte sampai WA terhubung lagi (bukan gagal langsung).</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Mode notifikasi aplikasi</label>

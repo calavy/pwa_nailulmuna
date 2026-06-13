@@ -69,6 +69,7 @@ $rentangIzin = app_format_izin_rentang(
 );
 $pemberiIzin = trim((string) ($meta['pemberi_izin'] ?? ''));
 $alasan = trim((string) ($meta['alasan'] ?? ''));
+$tujuan = trim((string) ($meta['tujuan'] ?? ''));
 $autoPrint = ($_GET['print'] ?? '1') !== '0';
 $logoHref = (string) ($kop['logo_href'] ?? '');
 ?>
@@ -152,15 +153,74 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         .info td:first-child { width: 110px; font-weight: 700; color: #334155; }
         .box-note { margin: 8px 0; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 8px 10px; }
         .box-nb { margin: 8px 0; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; font-size: 9pt; }
+        .pengasuh-paraf {
+            margin: 10px 0 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 14px;
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 72%);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+            position: relative;
+            z-index: 1;
+        }
+        .pengasuh-paraf__badge {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #15803d;
+            color: #fff;
+            font-size: 13pt;
+            font-weight: 700;
+            line-height: 28px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+        }
+        .pengasuh-paraf__body { flex: 1; min-width: 0; }
+        .pengasuh-paraf__head {
+            font-size: 7.8pt;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #166534;
+            margin-bottom: 3px;
+        }
+        .pengasuh-paraf__text { margin: 0 0 4px; font-size: 8.5pt; color: #334155; line-height: 1.4; }
+        .pengasuh-paraf__nama { margin: 0; font-size: 10pt; font-weight: 700; color: #14532d; }
+        .pengasuh-paraf__waktu { margin: 4px 0 0; font-size: 8pt; color: #64748b; }
         .return-box { margin-top: auto; border: 1px dashed #94a3b8; border-radius: 10px; padding: 8px; display: flex; align-items: center; gap: 10px; z-index: 1; }
         .return-box img { width: 3cm; height: 3cm; min-width: 3cm; min-height: 3cm; object-fit: contain; }
         .return-box p { margin: 0; font-size: 8.5pt; line-height: 1.35; }
-        .ttd-wrap { margin-top: 14px; z-index: 1; }
-        .ttd-meta { text-align: right; font-size: 9pt; margin-bottom: 10px; }
-        .ttd { display: flex; justify-content: space-between; gap: 24px; }
-        .ttd .box { width: 46%; text-align: center; }
-        .ttd .sign-space { height: 20mm; min-height: 56px; }
-        .ttd .line { margin: 0 auto; width: 90%; border-top: 1px solid #0f172a; font-weight: 700; padding-top: 6px; font-size: 9pt; }
+        .surat-footer { margin-top: 14px; z-index: 1; }
+        .surat-ttd { margin-bottom: 14px; }
+        .surat-ttd__tempat {
+            margin: 0 0 16px;
+            text-align: right;
+            font-size: 9pt;
+            color: #334155;
+            line-height: 1.45;
+        }
+        .surat-ttd__blok {
+            margin-left: auto;
+            width: 46%;
+            max-width: 220px;
+            min-width: 140px;
+            text-align: center;
+        }
+        .surat-ttd__jabatan { margin: 0 0 6px; font-size: 9pt; color: #0f172a; }
+        .surat-ttd__ruang { height: 20mm; min-height: 56px; }
+        .surat-ttd__nama {
+            margin: 0;
+            padding-top: 8px;
+            border-top: 1px solid #0f172a;
+            font-size: 9pt;
+            font-weight: 700;
+            line-height: 1.35;
+            word-break: break-word;
+        }
         .print-time { margin-top: 10px; border-top: 1px dashed #cbd5e1; text-align: right; font-size: 8pt; color: #64748b; }
         @media print {
             body { background: #fff; }
@@ -168,6 +228,7 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
             .sheet-wrap { padding: 0; }
             .sheet { border: 1px solid #cbd5e1; border-radius: 0; box-shadow: none; max-width: none; }
             .badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .pengasuh-paraf__badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
     </style>
 </head>
@@ -228,43 +289,33 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
             <strong>Keperluan / alasan izin:</strong><br>
             <?= $alasan !== '' ? nl2br(htmlspecialchars($alasan)) : '—' ?>
         </div>
+        <?php if ($tujuan !== ''): ?>
+        <div class="box-note">
+            <strong>Tujuan:</strong><br>
+            <?= nl2br(htmlspecialchars($tujuan)) ?>
+        </div>
+        <?php endif; ?>
 
         <div class="box-nb">
             <strong>Catatan:</strong> Surat ini berlaku untuk seluruh rombongan dengan satu kode verifikasi (QR). Saat rombongan tiba kembali di pesantren, petugas memindai QR ini lalu mencatat kehadiran tiap santri yang telah masuk asrama melalui sistem perizinan.
         </div>
 
+        <?php require __DIR__ . '/partials/surat_pengasuh_paraf.php'; ?>
+
         <p>Demikian surat keterangan izin keluar rombongan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya. Seluruh santri rombongan wajib mematuhi tata tertib pondok dan kembali tepat pada waktu yang ditetapkan.</p>
     </div>
 
-    <div class="return-box">
-        <img src="<?= htmlspecialchars($returnQr) ?>" alt="QR verifikasi kembali">
-        <p>
-            <strong>Verifikasi kedatangan rombongan:</strong> pindai QR ini kepada petugas keamanan atau petugas perizinan saat rombongan tiba di lingkungan pesantren.<br>
-            <span style="font-family:monospace;font-size:8pt">Kode: <?= htmlspecialchars($returnCode) ?></span>
-        </p>
-    </div>
-
-    <div class="ttd-wrap">
-        <div class="ttd-meta"><?= htmlspecialchars($kotaPonpes) ?>, <?= htmlspecialchars(app_format_tanggal_id(date('Y-m-d'))) ?></div>
-        <div class="ttd">
-            <div class="box">
-                <div>Pemberi Izin,</div>
-                <div class="sign-space"></div>
-                <div class="line"><?= htmlspecialchars($pemberiIzin !== '' ? $pemberiIzin : '(_____________________)') ?></div>
-            </div>
-            <div class="box">
-                <div>Pengasuh,</div>
-                <?php if ($pengasuhBlok['disetujui']): ?>
-                    <div class="sign-space" style="font-size:9pt;color:#15803d;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:600;">
-                        <?= htmlspecialchars($pengasuhBlok['keterangan']) ?>
-                    </div>
-                    <div class="line"><?= htmlspecialchars($pengasuhBlok['nama']) ?></div>
-                    <div class="line" style="font-size:9pt;color:#475569;"><?= htmlspecialchars($pengasuhBlok['waktu']) ?></div>
-                <?php else: ?>
-                    <div class="sign-space"></div>
-                    <div class="line"><?= htmlspecialchars($pengasuhBlok['nama'] !== '' ? $pengasuhBlok['nama'] : '(_____________________)') ?></div>
-                <?php endif; ?>
-            </div>
+    <div class="surat-footer">
+        <?php
+        $pemberiIzin = (string) ($meta['pemberi_izin'] ?? '');
+        require __DIR__ . '/partials/surat_ttd_pemberi.php';
+        ?>
+        <div class="return-box">
+            <img src="<?= htmlspecialchars($returnQr) ?>" alt="QR verifikasi kembali">
+            <p>
+                <strong>Verifikasi kedatangan rombongan:</strong> pindai QR ini kepada petugas keamanan atau petugas perizinan saat rombongan tiba di lingkungan pesantren.<br>
+                <span style="font-family:monospace;font-size:8pt">Kode: <?= htmlspecialchars($returnCode) ?></span>
+            </p>
         </div>
         <div class="print-time">Dicetak: <?= htmlspecialchars($jamTerbit) ?></div>
     </div>

@@ -15,11 +15,9 @@ function wa_otomatis_normalize_target(string $raw): string
         return '';
     }
 
-    if (stripos($raw, '@g.us') !== false) {
-        $beforeAt = strstr($raw, '@', true);
-        $digits = preg_replace('/[^0-9]/', '', (string) ($beforeAt !== false ? $beforeAt : $raw)) ?? '';
-
-        return $digits !== '' ? $digits : '';
+    $compact = preg_replace('/\s+/', '', $raw) ?? $raw;
+    if (preg_match('/^[\d-]+@g\.us$/i', $compact)) {
+        return strtolower($compact);
     }
 
     $digits = preg_replace('/[^0-9]/', '', $raw) ?? '';
@@ -57,7 +55,60 @@ function wa_otomatis_is_group_digits(string $digits): bool
 
 function wa_otomatis_is_group_target(string $normalized): bool
 {
+    if (str_ends_with(strtolower($normalized), '@g.us')) {
+        return true;
+    }
+
     return wa_otomatis_is_group_digits($normalized);
+}
+
+/**
+ * Fonnte connectOnly: true = tolak jika perangkat WA putus; false = antrekan sampai online.
+ *
+ * @param array<string, mixed> $override
+ */
+function wa_otomatis_fonnte_connect_only(PDO $pdo, array $override = []): bool
+{
+    if (array_key_exists('connect_only', $override)) {
+        return (bool) $override['connect_only'];
+    }
+
+    return trim((string) app_setting($pdo, 'wa_fonnte_queue_offline', '0')) !== '1';
+}
+
+function wa_otomatis_enrich_api_error(string $error, string $target): string
+{
+    if ($error === '') {
+        return '';
+    }
+    $low = strtolower($error);
+    if (str_contains($low, 'disconnected device') || str_contains($low, 'device disconnected')) {
+        return $error
+            . ' — perangkat WA di Fonnte tidak terhubung. Buka dashboard Fonnte → Device → scan QR WhatsApp, '
+            . 'atau aktifkan opsi "Antrekan saat perangkat offline" di tab Gateway.';
+    }
+    if (str_contains($low, 'input invalid') && wa_otomatis_is_group_target($target)) {
+        return $error
+            . ' — untuk grup: salin ID dari Fonnte (format …@g.us), update daftar grup, pastikan nomor WA perangkat masih anggota grup.';
+    }
+
+    return $error;
+}
+
+/** Format target untuk payload gateway (Fonnte grup wajib …@g.us). */
+function wa_otomatis_format_target_for_payload(string $normalized, bool $isFonte): string
+{
+    if ($normalized === '') {
+        return '';
+    }
+    if (str_ends_with(strtolower($normalized), '@g.us')) {
+        return $normalized;
+    }
+    if ($isFonte && wa_otomatis_is_group_digits($normalized)) {
+        return $normalized . '@g.us';
+    }
+
+    return $normalized;
 }
 
 /** @return list<string> */
@@ -272,15 +323,17 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
     $token = $cfg['token'];
     $sender = $cfg['sender'];
 
+    $ch = curl_init($endpoint);
+    $isFonte = (bool) preg_match('/fonte|fonnte/i', $endpoint);
+    $apiTarget = wa_otomatis_format_target_for_payload($target, $isFonte);
+
     $payload = [
         'token' => $token,
         'sender' => $sender,
-        'target' => $target,
+        'target' => $apiTarget,
         'message' => $message,
     ];
 
-    $ch = curl_init($endpoint);
-    $isFonte = (bool) preg_match('/fonte|fonnte/i', $endpoint);
     $headers = [];
     if ($isFonte && $token !== '') {
         $headers[] = 'Authorization: ' . $token;
@@ -289,11 +342,14 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         $headers[] = 'Content-Type: application/x-www-form-urlencoded';
         $payload = [
             'token' => $token,
-            'target' => $target,
+            'target' => $apiTarget,
             'message' => $message,
         ];
         if (!wa_otomatis_is_group_target($target)) {
             $payload['countryCode'] = '62';
+        }
+        if (!wa_otomatis_fonnte_connect_only($pdo, $override)) {
+            $payload['connectOnly'] = 'false';
         }
     }
 
@@ -347,12 +403,18 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         ]);
     }
 
+    $displayTarget = $apiTarget !== '' ? $apiTarget : $target;
+    $errorOut = $isSuccess ? '' : wa_otomatis_enrich_api_error($apiError !== '' ? $apiError : $curlError, $target);
+    if (!$isSuccess && $errorOut !== '' && function_exists('save_setting')) {
+        save_setting($pdo, 'wa_auto_last_gateway_error', $errorOut);
+    }
+
     return [
         'success' => $isSuccess,
         'http_code' => $statusCode,
-        'error' => $isSuccess ? '' : ($apiError !== '' ? $apiError : $curlError),
+        'error' => $errorOut,
         'response' => $responseText,
-        'target' => $target,
+        'target' => $displayTarget,
     ];
 }
 

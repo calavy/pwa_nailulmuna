@@ -318,7 +318,18 @@ function keuangan_tagihan_breakdown_for_santri(
                     require_once __DIR__ . '/keuangan_tarif_bulanan.php';
                 }
                 $slugLower = strtolower($slug);
-                if (in_array($slugLower, keuangan_tarif_bulanan_pos_slugs(), true)) {
+                if ($slugLower === 'makan') {
+                    if (!function_exists('keuangan_makan_nominal_for_kelas')) {
+                        require_once __DIR__ . '/keuangan_kelas_makan.php';
+                    }
+                    $expected = keuangan_makan_nominal_for_kelas(
+                        $pdo,
+                        $kat,
+                        $bulanTagihan,
+                        $tahunMulai,
+                        $tahunSelesai
+                    );
+                } elseif (in_array($slugLower, keuangan_tarif_bulanan_pos_slugs(), true)) {
                     $expected = keuangan_tarif_bulanan_resolve(
                         $pdo,
                         $slugLower,

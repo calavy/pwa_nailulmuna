@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/santri_status.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
+require_once __DIR__ . '/../helpers/santri_foto.php';
 
 require_roles(['admin', 'pengurus']);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
@@ -13,6 +14,7 @@ require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/kelas_ruangan.php';
 ensure_santri_keluar_columns($pdo);
 ensure_kelas_ruangan_table($pdo);
+santri_foto_ensure_schema($pdo);
 
 $q = trim((string) ($_GET['q'] ?? ''));
 $page = max(1, (int) ($_GET['page'] ?? 1));
@@ -45,7 +47,7 @@ if ($page > $totalPages) {
 $offset = ($page - 1) * $perPage;
 
 $listSql = '
-    SELECT id, qr, nis, nama_santri, nik, jenis_kelamin, tingkatan, kategori_kelas, no_wa_wali, is_aktif, status_santri, keluar_kategori, alasan_keluar, tanggal_keluar, nama_kamar, no_ranjang, keluar_settled_at' . $extraRuanganSelect . '
+    SELECT id, qr, nis, nama_santri, nik, jenis_kelamin, foto_profil, tingkatan, kategori_kelas, no_wa_wali, is_aktif, status_santri, keluar_kategori, alasan_keluar, tanggal_keluar, nama_kamar, no_ranjang, keluar_settled_at' . $extraRuanganSelect . '
     FROM santri
     WHERE ' . $whereSql . '
     ORDER BY ' . santri_list_order_sql('santri') . '
@@ -151,7 +153,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </th>
                     <th class="santri-col-extra">QR</th>
                     <th>NIS</th>
-                    <th>Nama</th>
+                    <th class="santri-list-name-cell">Nama</th>
                     <th class="santri-col-extra">NIK</th>
                     <th class="santri-col-extra">JK</th>
                     <th class="santri-col-detail">Tingkatan</th>
@@ -174,7 +176,12 @@ require_once __DIR__ . '/../includes/header.php';
                             </td>
                             <td class="santri-col-extra"><?= htmlspecialchars($item['qr'] ?: '-') ?></td>
                             <td class="font-monospace small"><?= htmlspecialchars($item['nis']) ?></td>
-                            <td class="fw-semibold"><?= htmlspecialchars($item['nama_santri']) ?></td>
+                            <td class="santri-list-name-cell">
+                                <div class="d-flex align-items-center gap-2">
+                                    <?= santri_foto_render_avatar($item, 'app-user-avatar--table') ?>
+                                    <span class="fw-semibold"><?= htmlspecialchars($item['nama_santri']) ?></span>
+                                </div>
+                            </td>
                             <td class="santri-col-extra"><?= htmlspecialchars($item['nik'] ?: '-') ?></td>
                             <td class="santri-col-extra"><?= htmlspecialchars($item['jenis_kelamin'] ?: '-') ?></td>
                             <td class="santri-col-detail"><?= htmlspecialchars($item['tingkatan'] ?: '-') ?></td>

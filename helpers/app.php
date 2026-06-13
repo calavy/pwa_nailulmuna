@@ -491,6 +491,7 @@ function pondok_settings_defaults(): array
         'wa_gateway_url' => '',
         'wa_gateway_token' => '',
         'wa_sender' => '',
+        'wa_fonnte_queue_offline' => '0',
         'wa_pengurus' => '',
         'wa_permohonan_izin' => '',
         'wa_permohonan_izin_enabled' => '1',
@@ -520,6 +521,7 @@ function pondok_settings_defaults(): array
         'izin_alpa_keluar_hari' => '4',
         'izin_alpa_pulang_max' => '3',
         'izin_alpa_pulang_hari' => '4',
+        'izin_alpa_bypass_user_ids' => '',
         'wa_izin_pembimbing_enabled' => '1',
         'wa_izin_pembimbing_grup' => '',
         'wa_izin_pembimbing_kirim_grup' => '0',
@@ -532,6 +534,7 @@ function pondok_settings_defaults(): array
         'cashless_saldo_rendah_wa_enabled' => '1',
         'cashless_saldo_rendah_wa_ambang' => '30000',
         'keuangan_pkpps_alokasi_komponen' => '',
+        'keuangan_pos_nama_makan' => 'Makan',
         'app_tahun_masehi_mode' => 'BERJALAN',
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
         'pondok_ta_bulan_awal_hijri' => '1',
@@ -1250,7 +1253,7 @@ function trigger_auto_wa_notifications(PDO $pdo): void
 }
 
 /**
- * Notifikasi ketika pembimbing izin namun pengganti (mudabir/munawib) belum scan
+ * Notifikasi ketika pembimbing izin namun munawib pengganti belum scan
  * setelah batas menit dari jam mulai jadwal.
  */
 function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
@@ -1916,6 +1919,7 @@ function ensure_santri_identity_columns(PDO $pdo): void
         'no_ranjang' => 'VARCHAR(80) NULL',
         'asrama_ranjang_id' => 'INT NULL',
         'kelas_ruangan_id' => 'INT NULL',
+        'foto_profil' => 'VARCHAR(255) NULL',
     ];
 
     foreach ($definitions as $column => $typeSql) {
@@ -1969,6 +1973,77 @@ function kelas_keuangan_kode_preference_rank(string $kode): int
     return 10;
 }
 
+/** Kode sub-level kelas keuangan (WUSTO1, ULYA-2, …) — tidak digabung saat cleanup. */
+function kelas_keuangan_is_sublevel_kode(string $kode): bool
+{
+    $k = strtoupper(trim($kode));
+    if ($k === '') {
+        return false;
+    }
+    $k = str_replace([' ', '_'], '-', $k);
+
+    return (bool) preg_match('/^(MUAD|WUSTO|ULYA)-?[123]$/', $k);
+}
+
+/**
+ * Normalisasi input "Wustho 1" / "WUSTO 2" ke kode master (WUSTO1, ULYA2, …).
+ */
+function kelas_keuangan_resolve_sublevel_pattern(string $raw): ?string
+{
+    $t = strtoupper(trim($raw));
+    if ($t === '') {
+        return null;
+    }
+    $compact = preg_replace('/[\s_-]+/', '', $t) ?? $t;
+    if (preg_match('/^(MUAD|WUSTO|WUSTHO|WUST|ULYA|ULY)([123])$/', $compact, $m)) {
+        $fam = $m[1];
+        if (str_starts_with($fam, 'WUST')) {
+            return 'WUSTO' . $m[2];
+        }
+        if (str_starts_with($fam, 'ULY')) {
+            return 'ULYA' . $m[2];
+        }
+        if ($fam === 'MUAD') {
+            return 'MUAD' . $m[2];
+        }
+    }
+    $spaced = preg_replace('/\s+/', ' ', $t) ?? $t;
+    if (preg_match('/^(MUADALAH|MUAD)\s+([123])$/', $spaced, $m)) {
+        return 'MUAD' . $m[2];
+    }
+    if (preg_match('/^(WUSTHO|WUSTO|WUST)\s+([123])$/', $spaced, $m)) {
+        return 'WUSTO' . $m[2];
+    }
+    if (preg_match('/^(ULYA|ULY)\s+([123])$/', $spaced, $m)) {
+        return 'ULYA' . $m[2];
+    }
+
+    return null;
+}
+
+/** Pastikan Wustho 1–3 dan Ulya 1–3 ada di master kelas keuangan. */
+function kelas_keuangan_ensure_sublevel_rows(PDO $pdo): void
+{
+    static $done = false;
+    if ($done || !table_exists($pdo, 'kelas_keuangan')) {
+        return;
+    }
+    $done = true;
+
+    $subs = [
+        ['WUSTO1', 'Wustho 1', 'wustho', 21],
+        ['WUSTO2', 'Wustho 2', 'wustho', 22],
+        ['WUSTO3', 'Wustho 3', 'wustho', 23],
+        ['ULYA1', 'Ulya 1', 'ulya', 31],
+        ['ULYA2', 'Ulya 2', 'ulya', 32],
+        ['ULYA3', 'Ulya 3', 'ulya', 33],
+    ];
+    $ins = $pdo->prepare('INSERT IGNORE INTO kelas_keuangan (kode, nama_tampilan, tarif_keuangan_tier, urutan, is_aktif) VALUES (:k, :n, :t, :u, 1)');
+    foreach ($subs as $s) {
+        $ins->execute(['k' => $s[0], 'n' => $s[1], 't' => $s[2], 'u' => $s[3]]);
+    }
+}
+
 /** Gabungkan entri lama (kode 1/2/3) ke MUAD/WUSTO/ULYA dan hapus duplikat per tarif. */
 function kelas_keuangan_cleanup_duplicate_rows(PDO $pdo): void
 {
@@ -2015,6 +2090,9 @@ function kelas_keuangan_cleanup_duplicate_rows(PDO $pdo): void
             $tier = 'wustho';
         }
         $kode = strtoupper(trim((string) ($row['kode'] ?? '')));
+        if (kelas_keuangan_is_sublevel_kode($kode)) {
+            continue;
+        }
         if (!isset($bestByTier[$tier])) {
             $bestByTier[$tier] = ['id' => (int) $row['id'], 'kode' => $kode, 'tarif_keuangan_tier' => $tier];
             continue;
@@ -2041,11 +2119,15 @@ function kelas_keuangan_cleanup_duplicate_rows(PDO $pdo): void
 
 function ensure_kelas_keuangan_table(PDO $pdo): void
 {
+    static $doneCli = false;
     if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_kelas_keuangan_v1'])) {
+        kelas_keuangan_ensure_sublevel_rows($pdo);
+
         return;
     }
-    static $doneCli = false;
     if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        kelas_keuangan_ensure_sublevel_rows($pdo);
+
         return;
     }
 
@@ -2073,10 +2155,11 @@ function ensure_kelas_keuangan_table(PDO $pdo): void
             $ins->execute(['k' => $s[0], 'n' => $s[1], 't' => $s[2], 'u' => $s[3]]);
         }
     }
-    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['kelas_keuangan_cleanup_v1'])) {
+    kelas_keuangan_ensure_sublevel_rows($pdo);
+    if (session_status() !== PHP_SESSION_ACTIVE || empty($_SESSION['kelas_keuangan_cleanup_v2'])) {
         kelas_keuangan_cleanup_duplicate_rows($pdo);
         if (session_status() === PHP_SESSION_ACTIVE) {
-            $_SESSION['kelas_keuangan_cleanup_v1'] = 1;
+            $_SESSION['kelas_keuangan_cleanup_v2'] = 1;
         }
     }
 
@@ -2134,6 +2217,15 @@ function kelas_keuangan_resolve_kode(PDO $pdo, string $raw): ?string
     $t = trim($raw);
     if ($t === '') {
         return null;
+    }
+    $subKode = kelas_keuangan_resolve_sublevel_pattern($t);
+    if ($subKode !== null) {
+        $stSub = $pdo->prepare('SELECT kode FROM kelas_keuangan WHERE UPPER(TRIM(kode)) = :u LIMIT 1');
+        $stSub->execute(['u' => $subKode]);
+        $rowSub = $stSub->fetch(PDO::FETCH_ASSOC);
+        if (is_array($rowSub) && isset($rowSub['kode'])) {
+            return strtoupper(trim((string) $rowSub['kode']));
+        }
     }
     $u = strtoupper($t);
     $st = $pdo->prepare('SELECT kode FROM kelas_keuangan WHERE UPPER(TRIM(kode)) = :u LIMIT 1');
@@ -2535,14 +2627,30 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
         require_once __DIR__ . '/keuangan_transaksi.php';
     }
     ensure_santri_identity_columns($pdo);
-    if (!column_exists($pdo, 'santri', 'no_wa_wali')) {
-        return ['ok' => false, 'sent' => 0, 'skipped' => 0, 'message' => 'Kolom no_wa_wali belum tersedia.'];
+    ensure_wali_santri_table($pdo);
+    if (!function_exists('santri_resolve_no_wa_wali')) {
+        require_once __DIR__ . '/santri_wa.php';
+    }
+    if (!function_exists('wa_otomatis_santri_wali_phone')) {
+        require_once __DIR__ . '/wa_otomatis.php';
     }
 
     $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $classExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 'kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "''");
-    $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND is_aktif = 1 ' : '';
-    $sql = 'SELECT id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas, no_wa_wali FROM santri WHERE COALESCE(no_wa_wali, "") <> "" ' . $activeExpr;
+    $activeExpr = column_exists($pdo, 'santri', 'is_aktif') ? ' AND COALESCE(is_aktif, 1) = 1 ' : '';
+    $waCols = 'id, nis, ' . $nameExpr . ' AS nama_santri, ' . $classExpr . ' AS kategori_kelas';
+    if (column_exists($pdo, 'santri', 'no_wa_wali')) {
+        $waCols .= ', no_wa_wali';
+    }
+    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+        $waCols .= ', wali_santri_id';
+    }
+    foreach (['nama_ayah', 'no_kontak_ayah', 'nama_ibu', 'no_kontak_ibu'] as $col) {
+        if (column_exists($pdo, 'santri', $col)) {
+            $waCols .= ', ' . $col;
+        }
+    }
+    $sql = 'SELECT ' . $waCols . ' FROM santri WHERE 1=1 ' . $activeExpr;
     $params = [];
     if (is_array($santriIdsFilter) && $santriIdsFilter !== []) {
         $ids = array_values(array_filter(array_map('intval', $santriIdsFilter)));
@@ -2584,7 +2692,12 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
         }
         $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
         $message = wa_tagihan_format_pesan_santri($pdo, $nama, $components, $st);
-        if (send_wa_message($pdo, (string) ($row['no_wa_wali'] ?? ''), $message)) {
+        $phone = wa_otomatis_santri_wali_phone($pdo, $row);
+        if ($phone === '') {
+            $skipped++;
+            continue;
+        }
+        if (send_wa_message($pdo, $phone, $message)) {
             $sent++;
         }
     }
@@ -3159,13 +3272,19 @@ function wa_format_pengajuan_izin_baru(
     string $tanggalSelesai,
     string $jamMulai,
     string $jamSelesai,
-    string $alasan
+    string $alasan,
+    string $tujuan = ''
 ): string {
     $jenis = jenis_izin_label($jenisKode);
     $nisT = trim($nis);
     $tgT = trim($tingkatan);
+    $tujuanT = trim($tujuan);
 
-    $body = 'Ada pengajuan izin baru: ' . $namaSantri . ' - Alasan: ' . $alasan . "\n\n"
+    $body = 'Ada pengajuan izin baru: ' . $namaSantri . ' - Alasan: ' . $alasan;
+    if ($tujuanT !== '') {
+        $body .= ' - Tujuan: ' . $tujuanT;
+    }
+    $body .= "\n\n"
         . wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
         . "*PEMBERITAHUAN RESMI*\n"
         . "Perihal: Pengajuan perizinan santri (menunggu persetujuan)\n\n"
@@ -3181,8 +3300,11 @@ function wa_format_pengajuan_izin_baru(
     $body .= '• Jenis izin: *' . $jenis . "*\n"
         . '• Tanggal: *' . $tanggalMulai . '* s/d *' . $tanggalSelesai . "*\n"
         . '• Waktu: *' . $jamMulai . '* – *' . $jamSelesai . "*\n"
-        . '• Ringkasan keperluan: _' . $alasan . "_\n\n"
-        . "Mohon segera ditinjau melalui panel perizinan.\n"
+        . '• Ringkasan keperluan: _' . $alasan . "_\n";
+    if ($tujuanT !== '') {
+        $body .= '• Tujuan: *' . $tujuanT . "*\n";
+    }
+    $body .= "\nMohon segera ditinjau melalui panel perizinan.\n"
         . "Demikian disampaikan.\n\n"
         . '_Hormat kami,_' . "\n"
         . '_Sistem Informasi_';
