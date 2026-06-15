@@ -46,6 +46,7 @@ $waTabs = [
     'ringkasan' => ['label' => 'Ringkasan', 'icon' => 'fa-gauge-high', 'desc' => 'Status & cron'],
     'gateway' => ['label' => 'Gateway', 'icon' => 'fa-plug', 'desc' => 'Token & tes kirim'],
     'tagihan' => ['label' => 'Tagihan Wali', 'icon' => 'fa-hand-holding-dollar', 'desc' => 'Jadwal & kirim manual'],
+    'cashless' => ['label' => 'Cashless', 'icon' => 'fa-wallet', 'desc' => 'Saku, transaksi & laporan'],
     'presensi' => ['label' => 'Presensi', 'icon' => 'fa-qrcode', 'desc' => 'Scan, munawib, kelas kosong'],
     'alpa' => ['label' => 'Alpa', 'icon' => 'fa-tower-broadcast', 'desc' => 'Tier penerima'],
     'izin' => ['label' => 'Izin', 'icon' => 'fa-person-walking', 'desc' => 'Permohonan baru & disetujui'],
@@ -169,11 +170,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('success', 'Pengaturan WA wali izin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
         exit;
-    } elseif ($action === 'save_cashless_saldo_wa') {
+    } elseif ($action === 'save_cashless_saldo_wa' || $action === 'save_cashless_wa_settings') {
         save_setting($pdo, 'cashless_saldo_rendah_wa_enabled', isset($_POST['cashless_saldo_rendah_wa_enabled']) ? '1' : '0');
         save_setting($pdo, 'cashless_saldo_rendah_wa_ambang', (string) max(0, (int) ($_POST['cashless_saldo_rendah_wa_ambang'] ?? 30000)));
-        set_flash('success', 'Pengaturan WA saldo cashless rendah disimpan.');
-        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
+        save_setting($pdo, 'cashless_transaksi_wa_enabled', isset($_POST['cashless_transaksi_wa_enabled']) ? '1' : '0');
+        save_setting($pdo, 'cashless_laporan_harian_wa_enabled', isset($_POST['cashless_laporan_harian_wa_enabled']) ? '1' : '0');
+        save_setting($pdo, 'cashless_laporan_harian_wa_jam', trim((string) ($_POST['cashless_laporan_harian_wa_jam'] ?? '20:00')));
+        save_setting($pdo, 'cashless_laporan_harian_wa_targets', trim((string) ($_POST['cashless_laporan_harian_wa_targets'] ?? '')));
+        set_flash('success', 'Pengaturan WA cashless disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=cashless'));
+        exit;
+    } elseif ($action === 'jalankan_cashless_laporan_harian') {
+        require_once __DIR__ . '/../../helpers/cashless_wa.php';
+        $res = cashless_wa_jalankan_laporan_harian($pdo, true);
+        set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
+        $cashlessRedirect = trim((string) ($_POST['redirect_tab'] ?? 'cashless'));
+        if (!isset($waTabs[$cashlessRedirect])) {
+            $cashlessRedirect = 'cashless';
+        }
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=' . rawurlencode($cashlessRedirect)));
         exit;
     } elseif ($action === 'save_periode') {
         $mode = strtolower(trim((string) ($_POST['periode_mode'] ?? 'monthly')));
@@ -292,6 +307,12 @@ $waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1'
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
 $cashlessSaldoRendahWaEnabled = trim((string) app_setting($pdo, 'cashless_saldo_rendah_wa_enabled', '1')) === '1';
 $cashlessSaldoRendahWaAmbang = max(0, (int) app_setting($pdo, 'cashless_saldo_rendah_wa_ambang', '30000'));
+require_once __DIR__ . '/../../helpers/cashless_wa.php';
+$cashlessTransaksiWaEnabled = cashless_wa_transaksi_sukses_enabled($pdo);
+$cashlessLaporanHarianWaEnabled = cashless_wa_laporan_harian_enabled($pdo);
+$cashlessLaporanHarianWaJam = cashless_wa_laporan_harian_jam($pdo);
+$cashlessLaporanHarianWaTargets = trim((string) app_setting($pdo, 'cashless_laporan_harian_wa_targets', ''));
+$cashlessLaporanStatus = cashless_wa_laporan_status_hari_ini($pdo);
 
 // Presensi
 $scanEnabled = trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) === '1';

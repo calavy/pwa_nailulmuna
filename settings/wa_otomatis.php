@@ -19,6 +19,7 @@ require_once __DIR__ . '/../includes/header.php';
 $tabPartial = match ($waActiveTab) {
     'gateway' => 'wa_otomatis_tab_gateway.php',
     'tagihan' => 'wa_otomatis_tab_tagihan.php',
+    'cashless' => 'wa_otomatis_tab_cashless.php',
     'presensi' => 'wa_otomatis_tab_presensi.php',
     'alpa' => 'wa_otomatis_tab_alpa.php',
     'izin' => 'wa_otomatis_tab_izin.php',

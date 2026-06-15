@@ -101,6 +101,30 @@ function wa_template_definitions(): array
                 . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
+        'cashless_transaksi_sukses_wali' => [
+            'label' => 'Transaksi cashless berhasil → wali santri',
+            'hint' => 'Dikirim ke wali setiap transaksi scan cashless berhasil.',
+            'placeholders' => '{nama_santri}, {nominal}, {nama_koperasi}, {saldo_keseluruhan}, {sisa_jatah_hari}, {limit_harian}, {terpakai_hari}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . 'Transaksi *cashless* berhasil di *{nama_koperasi}*:\n'
+                . 'Nominal: *{nominal}*\n\n'
+                . 'Saldo keseluruhan: *{saldo_keseluruhan}*\n'
+                . 'Jatah belanja hari ini (sisa): *{sisa_jatah_hari}* dari {limit_harian} (terpakai {terpakai_hari})\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
+        'cashless_laporan_harian_pengurus' => [
+            'label' => 'Laporan harian transaksi cashless → pengurus',
+            'hint' => 'Rekap total transaksi debit cashless satu hari, dipecah per koperasi.',
+            'placeholders' => '{tanggal}, {total_transaksi}, {total_nominal}, {rincian_koperasi}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
+                . '*LAPORAN CASHLESS HARIAN*\n'
+                . 'Tanggal: *{tanggal}*\n'
+                . 'Total: *{total_transaksi}* transaksi · *{total_nominal}*\n\n'
+                . "*Rincian per koperasi:*\n{rincian_koperasi}\n\n"
+                . '— {nama_ponpes}',
+        ],
         'izin_disetujui_pengurus' => [
             'label' => 'Izin disetujui → pengurus (petugas surat)',
             'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Izin rombongan: {daftar_santri}.',

@@ -166,23 +166,13 @@ function perizinan_alpa_cek_approval(PDO $pdo, int $santriId, string $jenisIzin,
         $hari = $cfg['pulang_hari'];
         $jenisLabel = 'izin pulang/tugas';
     } elseif (perizinan_memerlukan_persetujuan_pengasuh($jenis)) {
-        require_once __DIR__ . '/perizinan_syari_kategori.php';
-        $katBatas = ($syariKategori !== null && trim($syariKategori) !== '')
-            ? perizinan_syari_kategori_alpa_batas($pdo, trim($syariKategori))
-            : null;
-        if (is_array($katBatas)) {
-            $max = (int) $katBatas['max'];
-            $hari = (int) $katBatas['hari'];
-            $jenisLabel = (string) $katBatas['label'];
-        } else {
-            $max = $cfg['keluar_max'];
-            $hari = $cfg['keluar_hari'];
-            $jenisLabel = 'izin syar\'i';
-        }
+        $max = $cfg['keluar_max'];
+        $hari = $cfg['keluar_hari'];
+        $jenisLabel = 'izin keluar / syar\'i';
     } else {
         $max = $cfg['keluar_max'];
         $hari = $cfg['keluar_hari'];
-        $jenisLabel = 'izin keluar';
+        $jenisLabel = 'izin keluar / syar\'i';
     }
 
     $base['subject'] = true;

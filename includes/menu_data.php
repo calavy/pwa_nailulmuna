@@ -242,6 +242,9 @@ return [
             ]],
             ['title' => 'Rekap', 'paths' => [
                 '/rekap/presensi.php',
+                '/rekap/keaktivan_sdm.php',
+                '/rekap/munawib.php',
+                '/rekap/pembimbing.php',
             ]],
             ['title' => 'Setoran Hafalan', 'paths' => [
                 '/akademik/setoran.php',

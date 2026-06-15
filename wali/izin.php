@@ -13,6 +13,8 @@ if ($defaultPemohon === '') {
 }
 
 $syariKategoriOpsi = perizinan_syari_kategori_list_portal($pdo);
+$alpaInfoAwal = wali_perizinan_alpa_info_portal($pdo, $waliSantriId, date('Y-m-d'));
+$apiAlpaUrl = app_href('/wali/api_alpa.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetSantriId = (int) ($_POST['santri_id'] ?? $waliSantriId);
@@ -45,6 +47,8 @@ $riwayatIzin = wali_perizinan_list_for_santri($pdo, $waliAnakIds, 50);
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Izin Syar\'i — Portal Wali', true, 'izin');
 require __DIR__ . '/partials/greeting.php';
+$waliSwitcherRedirect = '/wali/izin.php';
+require __DIR__ . '/partials/anak_switcher.php';
 ?>
 
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
@@ -117,6 +121,19 @@ require __DIR__ . '/partials/greeting.php';
                     $tujuanInputClass = 'form-control-sm';
                     require __DIR__ . '/../perizinan/partials/tujuan_izin_field.php';
                     ?>
+                    <div class="col-12 d-none" id="wrap-alpa-peringatan">
+                        <div class="alert alert-warning border-warning small mb-0 py-2">
+                            <div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i> Perhatian syarat ALPA</div>
+                            <div id="alpa-peringatan-teks"></div>
+                            <div class="mt-2 mb-0">Anda tetap dapat mengirim permohonan. Pengasuh pondok yang menilai apakah izin syar'i dapat disetujui.</div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-none" id="wrap-alpa-ok">
+                        <div class="alert alert-success border-success small mb-0 py-2">
+                            <div class="fw-semibold mb-1"><i class="fa-solid fa-circle-check me-1"></i> Syarat ALPA</div>
+                            <div id="alpa-ok-teks"></div>
+                        </div>
+                    </div>
                     <div class="col-12">
                         <button type="submit" class="btn btn-teal btn-sm w-100" <?= $syariKategoriOpsi === [] ? 'disabled' : '' ?>>Kirim permohonan izin syar'i</button>
                     </div>
@@ -170,7 +187,12 @@ require __DIR__ . '/partials/greeting.php';
     var select = document.getElementById('syari-kategori-select');
     var tglMulai = document.getElementById('tanggal-mulai-input');
     var tglSelesaiTampil = document.getElementById('tanggal-selesai-tampil');
-    if (!select || !tglMulai || !tglSelesaiTampil) return;
+    var santriSelect = form.querySelector('[name="santri_id"]');
+    var wrapBlocked = document.getElementById('wrap-alpa-peringatan');
+    var wrapOk = document.getElementById('wrap-alpa-ok');
+    var txtBlocked = document.getElementById('alpa-peringatan-teks');
+    var txtOk = document.getElementById('alpa-ok-teks');
+    var apiAlpaUrl = <?= json_encode($apiAlpaUrl, JSON_UNESCAPED_UNICODE) ?>;
 
     function formatDate(d) {
         var y = d.getFullYear();
@@ -180,12 +202,14 @@ require __DIR__ . '/partials/greeting.php';
     }
 
     function selectedDurasi() {
+        if (!select) return 0;
         var opt = select.options[select.selectedIndex];
         if (!opt || !opt.value) return 0;
         return parseInt(opt.getAttribute('data-durasi') || '0', 10);
     }
 
     function updateSelesai() {
+        if (!select || !tglMulai || !tglSelesaiTampil) return;
         var durasi = selectedDurasi();
         if (!durasi || !tglMulai.value) {
             tglSelesaiTampil.value = '—';
@@ -197,9 +221,52 @@ require __DIR__ . '/partials/greeting.php';
         tglSelesaiTampil.value = formatDate(end);
     }
 
-    select.addEventListener('change', updateSelesai);
-    tglMulai.addEventListener('change', updateSelesai);
-    updateSelesai();
+    function renderAlpa(data) {
+        if (!wrapBlocked || !wrapOk || !txtBlocked || !txtOk) return;
+        wrapBlocked.classList.add('d-none');
+        wrapOk.classList.add('d-none');
+        if (!data || !data.enabled) {
+            return;
+        }
+        var teks = (data.penjelasan || data.ringkasan || data.message || '').trim();
+        if (data.blocked) {
+            txtBlocked.textContent = teks !== '' ? teks : 'Santri terhalang syarat ALPA saat ini.';
+            wrapBlocked.classList.remove('d-none');
+            return;
+        }
+        if (data.subject) {
+            txtOk.textContent = teks !== '' ? teks : 'Syarat ALPA masih terpenuhi.';
+            wrapOk.classList.remove('d-none');
+        }
+    }
+
+    function refreshAlpa() {
+        if (!apiAlpaUrl) return;
+        var sidInput = form.querySelector('[name="santri_id"]');
+        var sid = sidInput ? parseInt(sidInput.value || '0', 10) : 0;
+        var tgl = tglMulai && tglMulai.value ? tglMulai.value : formatDate(new Date());
+        if (sid <= 0) return;
+        fetch(apiAlpaUrl + '?santri_id=' + encodeURIComponent(String(sid)) + '&tanggal=' + encodeURIComponent(tgl), {
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { if (data && data.ok) renderAlpa(data); })
+            .catch(function () { /* abaikan */ });
+    }
+
+    if (select && tglMulai && tglSelesaiTampil) {
+        select.addEventListener('change', updateSelesai);
+        tglMulai.addEventListener('change', function () {
+            updateSelesai();
+            refreshAlpa();
+        });
+        updateSelesai();
+    }
+    if (santriSelect) {
+        santriSelect.addEventListener('change', refreshAlpa);
+    }
+    renderAlpa(<?= json_encode($alpaInfoAwal, JSON_UNESCAPED_UNICODE) ?>);
+    refreshAlpa();
 })();
 </script>
 

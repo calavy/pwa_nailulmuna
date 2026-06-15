@@ -14,13 +14,14 @@ require_once __DIR__ . '/../helpers/app.php';
 
 require_once __DIR__ . '/../helpers/pkpps.php';
 
-
-
-require_roles(['admin', 'pengurus']);
-
 pkpps_ensure_schema($pdo);
 
-
+$mingguKeaktivan = pkpps_dashboard_keaktivan_minggu($pdo);
+$mingguTotals = $mingguKeaktivan['totals'];
+$mingguPersen = $mingguTotals['total'] > 0
+    ? round(($mingguTotals['hadir'] / $mingguTotals['total']) * 100, 1)
+    : 0;
+$pbMinggu = $mingguKeaktivan['pembimbing'];
 
 $stats = [
 
@@ -146,6 +147,133 @@ require_once __DIR__ . '/../includes/header.php';
 
     </div>
 
+</div>
+
+
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+        <div>
+            <h2 class="h6 mb-0">Keaktivan 1 minggu</h2>
+            <div class="small text-muted"><?= htmlspecialchars((string) $mingguKeaktivan['label']) ?></div>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php')) ?>">Rekap lengkap</a>
+    </div>
+    <div class="card-body">
+        <?php if (!table_exists($pdo, 'presensi')): ?>
+            <p class="small text-muted mb-0">Modul presensi belum diaktifkan.</p>
+        <?php else: ?>
+            <div class="row g-2 mb-3 text-center">
+                <div class="col-6 col-md">
+                    <div class="app-mini-stat h-100">
+                        <div class="app-mini-stat-label text-success">Hadir</div>
+                        <div class="app-mini-stat-value text-success"><?= (int) $mingguTotals['hadir'] ?></div>
+                    </div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="app-mini-stat h-100">
+                        <div class="app-mini-stat-label text-warning">Izin</div>
+                        <div class="app-mini-stat-value text-warning"><?= (int) $mingguTotals['izin'] ?></div>
+                    </div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="app-mini-stat h-100">
+                        <div class="app-mini-stat-label text-primary">Sakit</div>
+                        <div class="app-mini-stat-value text-primary"><?= (int) $mingguTotals['sakit'] ?></div>
+                    </div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="app-mini-stat h-100">
+                        <div class="app-mini-stat-label text-danger">Alpa</div>
+                        <div class="app-mini-stat-value text-danger"><?= (int) $mingguTotals['alpa'] ?></div>
+                    </div>
+                </div>
+                <div class="col-12 col-md">
+                    <div class="app-mini-stat h-100">
+                        <div class="app-mini-stat-label">Total sesi · kehadiran</div>
+                        <div class="app-mini-stat-value"><?= (int) $mingguTotals['total'] ?> <span class="fs-6 text-muted">/ <?= htmlspecialchars((string) $mingguPersen) ?>%</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <div class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing:.05em;">Per hari (santri PKPPS)</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Hari</th>
+                                    <th class="text-center">H</th>
+                                    <th class="text-center">I</th>
+                                    <th class="text-center">S</th>
+                                    <th class="text-center">A</th>
+                                    <th class="text-center">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($mingguKeaktivan['per_hari'] as $hariRow): ?>
+                                <tr>
+                                    <td class="small"><?= htmlspecialchars((string) ($hariRow['label'] ?? '')) ?></td>
+                                    <td class="text-center text-success"><?= (int) ($hariRow['hadir'] ?? 0) ?></td>
+                                    <td class="text-center text-warning"><?= (int) ($hariRow['izin'] ?? 0) ?></td>
+                                    <td class="text-center text-primary"><?= (int) ($hariRow['sakit'] ?? 0) ?></td>
+                                    <td class="text-center text-danger"><?= (int) ($hariRow['alpa'] ?? 0) ?></td>
+                                    <td class="text-center"><?= (int) ($hariRow['total'] ?? 0) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing:.05em;">Per tingkatan</div>
+                    <?php if ($mingguKeaktivan['per_tingkatan'] === []): ?>
+                        <p class="small text-muted mb-3">Belum ada data presensi minggu ini.</p>
+                    <?php else: ?>
+                        <div class="table-responsive mb-3">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tingkatan</th>
+                                        <th class="text-center">H</th>
+                                        <th class="text-center">A</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($mingguKeaktivan['per_tingkatan'] as $tkRow): ?>
+                                    <tr>
+                                        <td class="small"><?= htmlspecialchars((string) ($tkRow['nama_tingkatan'] ?? '')) ?></td>
+                                        <td class="text-center text-success"><?= (int) ($tkRow['hadir'] ?? 0) ?></td>
+                                        <td class="text-center text-danger"><?= (int) ($tkRow['alpa'] ?? 0) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing:.05em;">Pembimbing</div>
+                    <p class="small mb-2">
+                        <strong><?= (int) ($pbMinggu['pembimbing_hadir'] ?? 0) ?></strong> pembimbing hadir
+                        · total scan <strong><?= (int) ($pbMinggu['total_hadir'] ?? 0) ?></strong>
+                    </p>
+                    <?php if (($pbMinggu['rows'] ?? []) !== []): ?>
+                        <ul class="list-unstyled small mb-0">
+                            <?php foreach ($pbMinggu['rows'] as $pbRow): ?>
+                                <li class="d-flex justify-content-between border-bottom py-1">
+                                    <span><?= htmlspecialchars((string) ($pbRow['nama_pembimbing'] ?? '')) ?></span>
+                                    <span class="text-muted"><?= (int) ($pbRow['total_hadir'] ?? 0) ?>× · <?= (int) ($pbRow['hari_hadir'] ?? 0) ?> hari</span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p class="small text-muted mb-0">Belum ada presensi pembimbing minggu ini.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 
 

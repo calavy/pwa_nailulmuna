@@ -158,3 +158,138 @@ function perizinan_selesai_dari_scan_kartu(PDO $pdo, int $santriId, int $userId)
 
     return $res + ['izin_id' => $izinId];
 }
+
+/**
+ * Scan QR izin digital / rombongan (check-out atau check-in kembali).
+ * Dipakai di gerbang izin dan scan presensi utama.
+ *
+ * @return array{
+ *   handled:bool,
+ *   ok:bool,
+ *   message:string,
+ *   action?:string,
+ *   santri_id?:int,
+ *   redirect?:string
+ * }
+ */
+function perizinan_proses_scan_gerbang(PDO $pdo, string $code, int $userId): array
+{
+    $notHandled = ['handled' => false, 'ok' => false, 'message' => ''];
+    $code = trim($code);
+    if ($code === '' || !table_exists($pdo, 'perizinan')) {
+        return $notHandled;
+    }
+
+    require_once __DIR__ . '/perizinan_rombongan.php';
+    perizinan_rombongan_ensure_schema($pdo);
+
+    $rombonganMeta = perizinan_rombongan_by_qr($pdo, $code);
+    if ($rombonganMeta) {
+        $rid = (int) ($rombonganMeta['id'] ?? 0);
+        if ($rid <= 0) {
+            return ['handled' => true, 'ok' => false, 'message' => 'Data rombongan tidak valid.'];
+        }
+        if (empty($rombonganMeta['waktu_keluar'])) {
+            perizinan_rombongan_scan_checkout($pdo, $rid);
+
+            return [
+                'handled' => true,
+                'ok' => true,
+                'message' => 'Check-out rombongan tercatat. Saat kembali, scan lagi lalu centang santri yang sudah tiba.',
+                'action' => 'rombongan_checkout',
+            ];
+        }
+        require_once __DIR__ . '/app_path.php';
+
+        return [
+            'handled' => true,
+            'ok' => true,
+            'message' => 'Buka centang santri rombongan yang sudah kembali.',
+            'action' => 'rombongan_checkin',
+            'redirect' => app_href('/perizinan/kembali_rombongan.php?id=' . $rid),
+        ];
+    }
+
+    $izin = $pdo->prepare('
+        SELECT i.id, i.tanggal_selesai, i.jam_selesai, i.waktu_keluar, i.grace_menit, i.santri_id, s.nama_santri
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE i.qr_token = :qr_token
+          AND i.status_izin = "IZIN"
+          AND (i.approval_status = "DISETUJUI" OR i.approval_status IS NULL)
+          AND (i.rombongan_id IS NULL OR i.rombongan_id = 0)
+        ORDER BY i.id DESC
+        LIMIT 1
+    ');
+    $izin->execute(['qr_token' => $code]);
+    $activeIzin = $izin->fetch(PDO::FETCH_ASSOC);
+    if (!$activeIzin) {
+        return $notHandled;
+    }
+
+    $izinId = (int) ($activeIzin['id'] ?? 0);
+    $santriId = (int) ($activeIzin['santri_id'] ?? 0);
+    $namaSantri = (string) ($activeIzin['nama_santri'] ?? 'Santri');
+
+    if (empty($activeIzin['waktu_keluar'])) {
+        $pdo->prepare('UPDATE perizinan SET waktu_keluar = NOW() WHERE id = :id')->execute(['id' => $izinId]);
+
+        return [
+            'handled' => true,
+            'ok' => true,
+            'message' => 'Check-out tercatat: ' . $namaSantri,
+            'action' => 'checkout',
+            'santri_id' => $santriId,
+        ];
+    }
+
+    $grace = isset($activeIzin['grace_menit']) ? (int) $activeIzin['grace_menit'] : (int) app_setting($pdo, 'grace_period_menit', '15');
+    $latePoint = 0;
+    $lateMinutes = 0;
+    $batasTs = strtotime((string) $activeIzin['tanggal_selesai'] . ' ' . (string) $activeIzin['jam_selesai']);
+    $nowTs = time();
+    if ($batasTs !== false && $nowTs > $batasTs) {
+        $lateMinutes = (int) floor(($nowTs - $batasTs) / 60);
+        if ($lateMinutes > $grace) {
+            $latePoint = max(1, (int) app_setting($pdo, 'point_auto_telat', '1'));
+        }
+    }
+
+    $pdo->prepare('
+        UPDATE perizinan
+        SET status_izin = "KEMBALI", waktu_kembali = NOW(), poin_pelanggaran = :poin
+        WHERE id = :id
+    ')->execute(['id' => $izinId, 'poin' => $latePoint]);
+
+    $pdo->prepare('UPDATE santri SET is_aktif = 1 WHERE id = :id')->execute(['id' => $santriId]);
+
+    if ($latePoint > 0) {
+        ensure_point_tables($pdo);
+        $ledger = $pdo->prepare('
+            INSERT IGNORE INTO point_ledger
+            (santri_id, tanggal, jenis_perubahan, point_delta, sumber_data, reference_presensi_id, keterangan, created_by)
+            VALUES
+            (:santri_id, CURDATE(), "PLUS", :point_delta, "PERIZINAN_TELAT_AUTO", :reference_id, :keterangan, :created_by)
+        ');
+        $ledger->execute([
+            'santri_id' => $santriId,
+            'point_delta' => $latePoint,
+            'reference_id' => $izinId,
+            'keterangan' => 'Auto poin dari keterlambatan kembali izin. Telat ' . $lateMinutes . ' menit (toleransi ' . $grace . ' menit).',
+            'created_by' => $userId > 0 ? $userId : 1,
+        ]);
+    }
+
+    require_once __DIR__ . '/perizinan_approval.php';
+    perizinan_kirim_wa_pengurus_izin_selesai($pdo, $izinId, $lateMinutes, $latePoint);
+
+    $message = 'Check-in selesai: ' . $namaSantri . ($latePoint > 0 ? ' (terlambat, poin pelanggaran +' . $latePoint . ')' : '');
+
+    return [
+        'handled' => true,
+        'ok' => true,
+        'message' => $message,
+        'action' => 'checkin',
+        'santri_id' => $santriId,
+    ];
+}

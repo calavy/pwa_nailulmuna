@@ -72,7 +72,7 @@ wali_layout_head('Beranda Wali', true, 'beranda');
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="wali-kicker mb-0">Presensi bulan ini</div>
-                    <a class="small fw-semibold" href="/wali/keaktifan.php">Detail presensi</a>
+                    <a class="small fw-semibold" href="/wali/keaktifan.php">Keaktivan bulanan</a>
                 </div>
                 <div class="row g-2 text-center small">
                     <div class="col-3">

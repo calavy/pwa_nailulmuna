@@ -577,3 +577,169 @@ function pkpps_jadwal_slots_for_presensi_scan(PDO $pdo, string $tanggal, int $ha
 
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+
+/**
+ * Ringkasan keaktivan PKPPS 7 hari terakhir (santri & pembimbing).
+ *
+ * @return array{
+ *   dari:string,
+ *   sampai:string,
+ *   label:string,
+ *   totals: array{hadir:int,izin:int,sakit:int,alpa:int,total:int},
+ *   per_tingkatan: list<array{nama_tingkatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>,
+ *   per_hari: list<array{tanggal:string,label:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>,
+ *   pembimbing: array{total_hadir:int,pembimbing_hadir:int,rows:list<array<string,mixed>>}
+ * }
+ */
+function pkpps_dashboard_keaktivan_minggu(PDO $pdo, ?string $sampai = null): array
+{
+    require_once __DIR__ . '/santri_operasional.php';
+    require_once __DIR__ . '/presensi_jadwal.php';
+    require_once __DIR__ . '/rekap_pkpps_keaktifan_hari.php';
+
+    $emptyTotals = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+    $today = date('Y-m-d');
+    $sampai = $sampai ?? $today;
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
+        $sampai = $today;
+    }
+    if ($sampai > $today) {
+        $sampai = $today;
+    }
+    $dari = date('Y-m-d', strtotime($sampai . ' -6 days') ?: time());
+
+    $label = app_format_tanggal_id($dari) . ' – ' . app_format_tanggal_id($sampai);
+
+    $out = [
+        'dari' => $dari,
+        'sampai' => $sampai,
+        'label' => $label,
+        'totals' => $emptyTotals,
+        'per_tingkatan' => [],
+        'per_hari' => [],
+        'pembimbing' => ['total_hadir' => 0, 'pembimbing_hadir' => 0, 'rows' => []],
+    ];
+
+    if ($dari > $sampai) {
+        return $out;
+    }
+
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $dari, $sampai, $auditUserId > 0 ? $auditUserId : 1);
+    ensure_presensi_pkpps_column($pdo);
+
+    if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'presensi') && table_exists($pdo, 'pkpps_tingkatan')) {
+        $aktifSql = santri_sql_aktif_only('s');
+        $st = $pdo->prepare('
+            SELECT
+                t.nama_tingkatan,
+                t.urutan,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+                COALESCE(COUNT(p.id), 0) AS total
+            FROM pkpps_santri ps
+            INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
+            INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id AND t.is_aktif = 1
+            LEFT JOIN presensi p ON p.santri_id = s.id
+                AND p.tanggal_presensi BETWEEN :dari AND :sampai
+            WHERE ps.is_aktif = 1
+            GROUP BY t.id, t.nama_tingkatan, t.urutan
+            ORDER BY t.urutan ASC, t.nama_tingkatan ASC
+        ');
+        $st->execute(['dari' => $dari, 'sampai' => $sampai]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $row = [
+                'nama_tingkatan' => (string) ($r['nama_tingkatan'] ?? ''),
+                'hadir' => (int) ($r['hadir'] ?? 0),
+                'izin' => (int) ($r['izin'] ?? 0),
+                'sakit' => (int) ($r['sakit'] ?? 0),
+                'alpa' => (int) ($r['alpa'] ?? 0),
+                'total' => (int) ($r['total'] ?? 0),
+            ];
+            $out['per_tingkatan'][] = $row;
+            foreach (['hadir', 'izin', 'sakit', 'alpa', 'total'] as $k) {
+                $out['totals'][$k] += $row[$k];
+            }
+        }
+
+        $stHari = $pdo->prepare('
+            SELECT
+                p.tanggal_presensi AS tanggal,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+                COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+                COALESCE(COUNT(p.id), 0) AS total
+            FROM presensi p
+            INNER JOIN pkpps_santri ps ON ps.santri_id = p.santri_id AND ps.is_aktif = 1
+            INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
+            WHERE p.tanggal_presensi BETWEEN :dari AND :sampai
+            GROUP BY p.tanggal_presensi
+            ORDER BY p.tanggal_presensi ASC
+        ');
+        $stHari->execute(['dari' => $dari, 'sampai' => $sampai]);
+        $byDay = [];
+        foreach ($stHari->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $tgl = (string) ($r['tanggal'] ?? '');
+            if ($tgl === '') {
+                continue;
+            }
+            $byDay[$tgl] = [
+                'tanggal' => $tgl,
+                'label' => app_format_tanggal_id($tgl),
+                'hadir' => (int) ($r['hadir'] ?? 0),
+                'izin' => (int) ($r['izin'] ?? 0),
+                'sakit' => (int) ($r['sakit'] ?? 0),
+                'alpa' => (int) ($r['alpa'] ?? 0),
+                'total' => (int) ($r['total'] ?? 0),
+            ];
+        }
+        for ($ts = strtotime($dari) ?: time(); $ts <= (strtotime($sampai) ?: time()); $ts += 86400) {
+            $tgl = date('Y-m-d', $ts);
+            $out['per_hari'][] = $byDay[$tgl] ?? [
+                'tanggal' => $tgl,
+                'label' => app_format_tanggal_id($tgl),
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'total' => 0,
+            ];
+        }
+    }
+
+    if (table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'presensi_pembimbing')) {
+        require_once __DIR__ . '/entity_list_sort.php';
+        $stPb = $pdo->prepare('
+            SELECT
+                b.id,
+                b.nama_pembimbing,
+                COUNT(pp.id) AS total_hadir,
+                COUNT(DISTINCT pp.tanggal) AS hari_hadir
+            FROM pembimbing b
+            INNER JOIN pkpps_jadwal j ON j.pembimbing_id = b.id AND j.is_aktif = 1
+            LEFT JOIN presensi_pembimbing pp
+              ON pp.pembimbing_id = b.id
+             AND pp.tanggal BETWEEN :dari AND :sampai
+            GROUP BY b.id, b.nama_pembimbing
+            HAVING total_hadir > 0
+            ORDER BY total_hadir DESC, ' . pembimbing_list_order_sql('b') . '
+            LIMIT 8
+        ');
+        $stPb->execute(['dari' => $dari, 'sampai' => $sampai]);
+        $pbRows = $stPb->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $totalHadir = 0;
+        foreach ($pbRows as $r) {
+            $totalHadir += (int) ($r['total_hadir'] ?? 0);
+        }
+        $out['pembimbing'] = [
+            'total_hadir' => $totalHadir,
+            'pembimbing_hadir' => count($pbRows),
+            'rows' => $pbRows,
+        ];
+    }
+
+    return $out;
+}

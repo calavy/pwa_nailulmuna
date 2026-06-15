@@ -88,51 +88,61 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <h2 class="h6 mb-2">Keperluan izin syar'i (portal wali)</h2>
                 <p class="small text-muted mb-3">
-                    Centang keperluan yang boleh dipilih wali saat mengajukan izin syar'i.
-                    Atur <strong>durasi maksimal</strong> (hari) dan <strong>batas ALPA</strong> per keperluan.
-                    Item yang dicentang akan muncul di form portal wali sebagai pilihan alasan.
+                    Edit nama keperluan, durasi maksimal (hari), dan centang yang aktif di portal wali.
+                    Syarat ALPA untuk izin syar'i mengikuti pengaturan umum <strong>Izin keluar &amp; syar'i</strong> di bawah.
                 </p>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-2" id="syari-kat-table">
                         <thead class="table-light">
                             <tr>
                                 <th style="width:2.5rem">Aktif</th>
                                 <th>Keperluan syar'i</th>
-                                <th style="min-width:7rem">Durasi max<br><span class="fw-normal text-muted">(hari)</span></th>
-                                <th style="min-width:7rem">Blokir ALPA ≥<br><span class="fw-normal text-muted">(kali)</span></th>
-                                <th style="min-width:7rem">Hitung ALPA<br><span class="fw-normal text-muted">(hari)</span></th>
+                                <th style="min-width:6rem">Durasi<br><span class="fw-normal text-muted">(hari)</span></th>
+                                <th style="width:2.5rem"></th>
                             </tr>
                         </thead>
-                        <tbody>
-                        <?php foreach ($syariKategoriCfg as $kode => $row): ?>
-                            <tr>
+                        <tbody id="syari-kat-tbody">
+                        <?php $syariIdx = 0; foreach ($syariKategoriCfg as $kode => $row): ?>
+                            <tr data-syari-row>
                                 <td>
-                                    <input class="form-check-input" type="checkbox" name="syari_kat_<?= htmlspecialchars((string) $kode) ?>_enabled" value="1" id="syari-kat-<?= htmlspecialchars((string) $kode) ?>" <?= !empty($row['enabled']) ? 'checked' : '' ?>>
+                                    <input type="hidden" name="syari_item[<?= $syariIdx ?>][kode]" value="<?= htmlspecialchars((string) $kode) ?>">
+                                    <input class="form-check-input" type="checkbox" name="syari_item[<?= $syariIdx ?>][enabled]" value="1" id="syari-kat-<?= htmlspecialchars((string) $kode) ?>" <?= !empty($row['enabled']) ? 'checked' : '' ?>>
                                 </td>
                                 <td>
-                                    <label class="mb-0 fw-semibold small" for="syari-kat-<?= htmlspecialchars((string) $kode) ?>">
-                                        <?= htmlspecialchars((string) ($row['label'] ?? $kode)) ?>
-                                    </label>
+                                    <input type="text" class="form-control form-control-sm" name="syari_item[<?= $syariIdx ?>][label]" value="<?= htmlspecialchars((string) ($row['label'] ?? $kode)) ?>" maxlength="200" required placeholder="Nama keperluan">
                                 </td>
                                 <td>
-                                    <input type="number" min="1" max="90" class="form-control form-control-sm" name="syari_kat_<?= htmlspecialchars((string) $kode) ?>_durasi" value="<?= (int) ($row['durasi_hari'] ?? 1) ?>">
+                                    <input type="number" min="1" max="90" class="form-control form-control-sm" name="syari_item[<?= $syariIdx ?>][durasi]" value="<?= (int) ($row['durasi_hari'] ?? 1) ?>">
                                 </td>
-                                <td>
-                                    <input type="number" min="0" max="99" class="form-control form-control-sm" name="syari_kat_<?= htmlspecialchars((string) $kode) ?>_alpa_max" value="<?= (int) ($row['alpa_max'] ?? 0) ?>">
-                                    <div class="form-text">0 = tanpa batas</div>
-                                </td>
-                                <td>
-                                    <input type="number" min="1" max="90" class="form-control form-control-sm" name="syari_kat_<?= htmlspecialchars((string) $kode) ?>_alpa_hari" value="<?= (int) ($row['alpa_hari'] ?? 4) ?>">
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-link btn-sm text-danger p-0 syari-kat-remove" title="Hapus baris" aria-label="Hapus"><i class="fa-solid fa-trash-can"></i></button>
                                 </td>
                             </tr>
-                        <?php endforeach; ?>
+                        <?php $syariIdx++; endforeach; ?>
                         </tbody>
                     </table>
                 </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="syari-kat-add"><i class="fa-solid fa-plus me-1"></i> Tambah keperluan</button>
                 <p class="small text-muted mb-0 mt-2">
-                    Contoh: Walimah durasi 2 hari, blokir jika ALPA ≥ 3 kali dalam 4 hari terakhir.
-                    Batas ALPA per keperluan ini dipakai saat pengasuh/pengurus meninjau permohonan (menggantikan batas umum izin keluar untuk baris yang memilih keperluan tersebut).
+                    Contoh: Walimah durasi 2 hari — tanggal selesai di portal wali dihitung otomatis dari tanggal mulai.
                 </p>
+                <template id="syari-kat-row-tpl">
+                    <tr data-syari-row>
+                        <td>
+                            <input type="hidden" name="syari_item[__IDX__][kode]" value="">
+                            <input class="form-check-input" type="checkbox" name="syari_item[__IDX__][enabled]" value="1" checked>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm" name="syari_item[__IDX__][label]" value="" maxlength="200" required placeholder="Nama keperluan baru">
+                        </td>
+                        <td>
+                            <input type="number" min="1" max="90" class="form-control form-control-sm" name="syari_item[__IDX__][durasi]" value="1">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-link btn-sm text-danger p-0 syari-kat-remove" title="Hapus baris" aria-label="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                        </td>
+                    </tr>
+                </template>
             </div>
         </div>
     </div>
@@ -153,7 +163,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="row g-3">
                     <div class="col-md-6">
                         <div class="border rounded-3 p-3 h-100">
-                            <div class="fw-semibold mb-2">Izin keluar</div>
+                            <div class="fw-semibold mb-2">Izin keluar &amp; syar'i</div>
                             <div class="row g-2">
                                 <div class="col-6">
                                     <label class="form-label small mb-0">Blokir jika ALPA ≥</label>
@@ -165,7 +175,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <input type="number" min="1" max="90" class="form-control form-control-sm" name="izin_alpa_keluar_hari" value="<?= (int) $cfg['keluar_hari'] ?>">
                                 </div>
                             </div>
-                            <p class="small text-muted mb-0 mt-2">Contoh: ≥ 3 ALPA dalam 4 hari → tolak (kecuali bypass admin super / admin ditunjuk).</p>
+                            <p class="small text-muted mb-0 mt-2">Berlaku sama untuk izin keluar biasa dan izin syar'i (termasuk semua keperluan portal wali). Contoh: ≥ 3 ALPA dalam 4 hari → blokir setujui.</p>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -252,6 +262,49 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="submit" class="btn btn-primary">Simpan pengaturan</button>
     </div>
 </form>
+
+<script>
+(function () {
+    var tbody = document.getElementById('syari-kat-tbody');
+    var tpl = document.getElementById('syari-kat-row-tpl');
+    var addBtn = document.getElementById('syari-kat-add');
+    if (!tbody || !tpl || !addBtn) return;
+
+    function reindexRows() {
+        tbody.querySelectorAll('[data-syari-row]').forEach(function (tr, idx) {
+            tr.querySelectorAll('[name^="syari_item["]').forEach(function (el) {
+                el.name = el.name.replace(/syari_item\[\d+]/, 'syari_item[' + idx + ']');
+            });
+        });
+    }
+
+    function bindRemove(btn) {
+        btn.addEventListener('click', function () {
+            var rows = tbody.querySelectorAll('[data-syari-row]');
+            if (rows.length <= 1) {
+                alert('Minimal satu keperluan harus ada.');
+                return;
+            }
+            btn.closest('tr').remove();
+            reindexRows();
+        });
+    }
+
+    tbody.querySelectorAll('.syari-kat-remove').forEach(bindRemove);
+
+    addBtn.addEventListener('click', function () {
+        var idx = tbody.querySelectorAll('[data-syari-row]').length;
+        var html = tpl.innerHTML.replace(/__IDX__/g, String(idx));
+        var wrap = document.createElement('tbody');
+        wrap.innerHTML = html.trim();
+        var tr = wrap.firstElementChild;
+        tbody.appendChild(tr);
+        var input = tr.querySelector('input[type="text"]');
+        if (input) input.focus();
+        tr.querySelectorAll('.syari-kat-remove').forEach(bindRemove);
+    });
+})();
+</script>
 
 <?php
 require_once __DIR__ . '/includes/settings_nav.php';

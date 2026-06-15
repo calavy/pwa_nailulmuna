@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/perizinan_aktif.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_roles(['admin', 'pengurus']);
@@ -16,7 +17,7 @@ if (!table_exists($pdo, 'perizinan')) {
 
 $message = null;
 $type = 'success';
-$redirectAfterPost = null;
+$lastGerbangResult = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['scan_source'] ?? '') !== 'camera') {
@@ -24,87 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = 'Input manual dinonaktifkan. Gunakan scan kamera.';
     } else {
         $code = trim((string) ($_POST['kode_qr'] ?? ''));
-        $rombonganMeta = perizinan_rombongan_by_qr($pdo, $code);
-        if ($rombonganMeta) {
-            $rid = (int) ($rombonganMeta['id'] ?? 0);
-            if (empty($rombonganMeta['waktu_keluar'])) {
-                perizinan_rombongan_scan_checkout($pdo, $rid);
-                $type = 'success';
-                $message = 'Check-out rombongan tercatat. Saat kembali, scan lagi lalu centang santri yang sudah tiba.';
-            } else {
-                header('Location: ' . app_href('/perizinan/kembali_rombongan.php?id=' . $rid));
-                exit;
-            }
-        } else {
-        $izin = $pdo->prepare('
-            SELECT i.id, i.tanggal_selesai, i.jam_selesai, i.waktu_keluar, i.grace_menit, i.santri_id, s.nama_santri
-            FROM perizinan i
-            INNER JOIN santri s ON s.id = i.santri_id
-            WHERE i.qr_token = :qr_token
-              AND i.status_izin = "IZIN"
-              AND (i.approval_status = "DISETUJUI" OR i.approval_status IS NULL)
-              AND (i.rombongan_id IS NULL OR i.rombongan_id = 0)
-            ORDER BY i.id DESC
-            LIMIT 1
-        ');
-        $izin->execute(['qr_token' => $code]);
-        $activeIzin = $izin->fetch();
-        if (!$activeIzin) {
+        $userId = (int) ($_SESSION['user']['id'] ?? 1);
+        $lastGerbangResult = perizinan_proses_scan_gerbang($pdo, $code, $userId);
+        if (!($lastGerbangResult['handled'] ?? false)) {
             $type = 'warning';
             $message = 'QR verifikasi izin tidak valid atau izin sudah selesai.';
+        } elseif (!empty($lastGerbangResult['redirect'])) {
+            header('Location: ' . (string) $lastGerbangResult['redirect']);
+            exit;
         } else {
-            if (empty($activeIzin['waktu_keluar'])) {
-                $out = $pdo->prepare('UPDATE perizinan SET waktu_keluar = NOW() WHERE id = :id');
-                $out->execute(['id' => $activeIzin['id']]);
-                $message = 'Check-out tercatat: ' . $activeIzin['nama_santri'];
-            } else {
-                $grace = isset($activeIzin['grace_menit']) ? (int) $activeIzin['grace_menit'] : (int) app_setting($pdo, 'grace_period_menit', '15');
-                $latePoint = 0;
-                $lateMinutes = 0;
-                $batasTs = strtotime((string) $activeIzin['tanggal_selesai'] . ' ' . (string) $activeIzin['jam_selesai']);
-                $nowTs = time();
-                if ($batasTs !== false && $nowTs > $batasTs) {
-                    $lateMinutes = (int) floor(($nowTs - $batasTs) / 60);
-                    if ($lateMinutes > $grace) {
-                        $latePoint = max(1, (int) app_setting($pdo, 'point_auto_telat', '1'));
-                    }
-                }
-                $up = $pdo->prepare('UPDATE perizinan SET status_izin = "KEMBALI", waktu_kembali = NOW(), poin_pelanggaran = :poin WHERE id = :id');
-                $up->execute(['id' => $activeIzin['id'], 'poin' => $latePoint]);
-
-                $santriUp = $pdo->prepare('UPDATE santri SET is_aktif = 1 WHERE id = :id');
-                $santriUp->execute(['id' => $activeIzin['santri_id']]);
-
-                if ($latePoint > 0) {
-                    ensure_point_tables($pdo);
-                    $ledger = $pdo->prepare('
-                        INSERT IGNORE INTO point_ledger
-                        (santri_id, tanggal, jenis_perubahan, point_delta, sumber_data, reference_presensi_id, keterangan, created_by)
-                        VALUES
-                        (:santri_id, CURDATE(), "PLUS", :point_delta, "PERIZINAN_TELAT_AUTO", :reference_id, :keterangan, :created_by)
-                    ');
-                    $ledger->execute([
-                        'santri_id' => (int) $activeIzin['santri_id'],
-                        'point_delta' => $latePoint,
-                        'reference_id' => (int) $activeIzin['id'],
-                        'keterangan' => 'Auto poin dari keterlambatan kembali izin. Telat ' . $lateMinutes . ' menit (toleransi ' . $grace . ' menit).',
-                        'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
-                    ]);
-                }
-
-                $message = 'Check-in selesai: ' . $activeIzin['nama_santri'] . ($latePoint > 0 ? ' (terlambat, poin pelanggaran +' . $latePoint . ')' : '');
-
-                require_once __DIR__ . '/../helpers/perizinan_approval.php';
-                perizinan_kirim_wa_pengurus_izin_selesai($pdo, (int) $activeIzin['id'], $lateMinutes, $latePoint);
-            }
-        }
+            $type = ($lastGerbangResult['ok'] ?? false) ? 'success' : 'warning';
+            $message = (string) ($lastGerbangResult['message'] ?? 'OK');
         }
     }
 
     require_once __DIR__ . '/../helpers/offline_sync_http.php';
     if (offline_sync_wants_json()) {
         offline_sync_json_response($type, $message ?: 'OK', [
-            'redirect' => $redirectAfterPost,
+            'redirect' => is_array($lastGerbangResult) ? ($lastGerbangResult['redirect'] ?? null) : null,
         ]);
     }
 }
@@ -115,7 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Gerbang Pesantren</p>
     <h1 class="h4 mb-1">Scan izin keluar/kembali</h1>
-    <p class="text-muted mb-0">Scan QR izin digital saat santri keluar. Scan QR yang sama saat santri kembali; jika terlambat, poin kedisiplinan otomatis tercatat.</p>
+    <p class="text-muted mb-0">Scan QR izin digital saat santri keluar. Scan QR yang sama saat santri kembali; jika terlambat, poin kedisiplinan otomatis tercatat. QR izin juga bisa discan di <a href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">Scan Presensi utama</a>.</p>
 </div>
 <div class="card shadow-sm">
     <div class="card-body">

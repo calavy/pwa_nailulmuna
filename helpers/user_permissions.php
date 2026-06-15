@@ -73,6 +73,7 @@ function user_permission_groups(): array
                 'perizinan_permohonan' => 'Perizinan — ajukan permohonan',
                 'perizinan_scan' => 'Perizinan — scan keluar/kembali',
                 'munawib' => 'Munawib — data pengganti pembimbing',
+                'pkpps_dashboard' => 'Dashboard PKPPS (ringkasan & keaktivan minggu)',
             ],
         ],
         'pembimbing' => [
@@ -180,7 +181,7 @@ function user_permission_path_map_base(): array
         '/jadwal/kegiatan.php' => 'jadwal',
         '/jadwal/tambah_kegiatan.php' => 'jadwal',
         '/jadwal/import.php' => 'jadwal_import',
-        '/pkpps/index.php' => 'jadwal',
+        '/pkpps/index.php' => 'pkpps_dashboard',
         '/pkpps/santri.php' => 'jadwal',
         '/pkpps/import_santri.php' => 'jadwal_import',
         '/pkpps/jadwal.php' => 'jadwal',

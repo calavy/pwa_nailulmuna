@@ -31,6 +31,8 @@ if (!table_exists($pdo, 'presensi')) {
 
 $resultMessage = null;
 $resultType = 'success';
+$scanRedirect = null;
+$izinSelesaiMsgPreset = '';
 $today = date('Y-m-d');
 $nowTime = date('H:i:s');
 $createdBy = $pbPortalScan ? 0 : (int) ($_SESSION['user']['id'] ?? 1);
@@ -117,21 +119,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$santri && !$pembimbing && !$munawib) {
+            $gerbang = perizinan_proses_scan_gerbang($pdo, $code, $createdBy);
+            if ($gerbang['handled'] ?? false) {
+                if (!empty($gerbang['redirect'])) {
+                    $scanRedirect = (string) $gerbang['redirect'];
+                    $resultType = ($gerbang['ok'] ?? false) ? 'success' : 'warning';
+                    $resultMessage = (string) ($gerbang['message'] ?? 'OK');
+                    goto end_scan_process;
+                }
+                if (!($gerbang['ok'] ?? false)) {
+                    $resultType = 'warning';
+                    $resultMessage = (string) ($gerbang['message'] ?? 'Scan izin gagal.');
+                    goto end_scan_process;
+                }
+                $gerbangAction = (string) ($gerbang['action'] ?? '');
+                if (in_array($gerbangAction, ['checkout', 'rombongan_checkout'], true)) {
+                    $resultType = 'success';
+                    $resultMessage = (string) ($gerbang['message'] ?? 'Check-out tercatat.');
+                    goto end_scan_process;
+                }
+                if ($gerbangAction === 'checkin' && (int) ($gerbang['santri_id'] ?? 0) > 0) {
+                    $loadSantri = $pdo->prepare('SELECT * FROM santri WHERE id = :id LIMIT 1');
+                    $loadSantri->execute(['id' => (int) $gerbang['santri_id']]);
+                    $santri = $loadSantri->fetch() ?: null;
+                    $izinSelesaiMsgPreset = (string) ($gerbang['message'] ?? 'Izin selesai.') . ' Santri kembali aktif. ';
+                }
+            }
+        }
+
+        if (!$santri && !$pembimbing && !$munawib) {
             $resultType = 'warning';
-            $resultMessage = 'Peringatan: kode QR tidak terdaftar (santri, pembimbing, atau munawib).';
+            $resultMessage = 'Peringatan: kode QR tidak terdaftar (santri, pembimbing, munawib, atau izin digital).';
         } elseif ($santri) {
             unset($_SESSION['munawib_scan_pending']);
-            $izinSelesaiMsg = '';
-            $izinSelesai = perizinan_selesai_dari_scan_kartu($pdo, (int) $santri['id'], $createdBy);
-            if ($izinSelesai !== null && ($izinSelesai['ok'] ?? false)) {
-                $izinSelesaiMsg = (string) ($izinSelesai['message'] ?? 'Izin selesai.') . ' Santri kembali aktif. ';
+            $izinSelesaiMsg = $izinSelesaiMsgPreset;
+            if ($izinSelesaiMsg === '') {
+                $izinSelesai = perizinan_selesai_dari_scan_kartu($pdo, (int) $santri['id'], $createdBy);
+                if ($izinSelesai !== null && ($izinSelesai['ok'] ?? false)) {
+                    $izinSelesaiMsg = (string) ($izinSelesai['message'] ?? 'Izin selesai.') . ' Santri kembali aktif. ';
+                }
+            } else {
+                $izinSelesai = ['ok' => true];
             }
             $chkAktif = $pdo->prepare('SELECT 1 FROM santri s WHERE s.id = :id AND ' . santri_sql_aktif_only('s') . ' LIMIT 1');
             $chkAktif->execute(['id' => (int) $santri['id']]);
             if (!$chkAktif->fetchColumn()) {
                 if ($izinSelesai === null || !($izinSelesai['ok'] ?? false)) {
                     $resultType = 'warning';
-                    $resultMessage = 'Santri tidak aktif atau sedang izin — presensi tidak dicatat. Scan surat izin di gerbang jika baru kembali.';
+                    $resultMessage = 'Santri tidak aktif atau sedang izin — presensi tidak dicatat. Scan QR izin atau kartu santri saat kembali.';
                     goto end_scan_process;
                 }
             }
@@ -444,6 +479,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $extra['munawib_pending'] = false;
         }
+        if ($scanRedirect !== null && $scanRedirect !== '') {
+            $extra['redirect'] = $scanRedirect;
+        }
         offline_sync_json_response(
             $resultType ?: 'success',
             $resultMessage ?: 'OK',
@@ -720,6 +758,10 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
             });
         }).then(function (data) {
             submitting = false;
+            if (data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
             if (data.munawib_pending) {
                 window.location.reload();
                 return;

@@ -96,7 +96,7 @@ function wali_perizinan_ajukan(
         return ['ok' => false, 'message' => 'Portal wali hanya menerima pengajuan Izin Syar\'i.'];
     }
 
-    $syariKategori = perizinan_syari_kategori_normalize_kode($syariKategori);
+    $syariKategori = perizinan_syari_kategori_normalize_kode($pdo, $syariKategori);
     if ($syariKategori === '') {
         return ['ok' => false, 'message' => 'Pilih keperluan izin syar\'i terlebih dahulu.'];
     }
@@ -191,9 +191,15 @@ function wali_perizinan_ajukan(
             $tanggalSelesai
         );
 
+        $msg = 'Permohonan izin syar\'i #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
+        $alpaPortal = wali_perizinan_alpa_info_portal($pdo, $santriId, $tanggalMulai);
+        if (!empty($alpaPortal['blocked'])) {
+            $msg .= ' Catatan: santri terhalang syarat ALPA — pengasuh akan menilai permohonan ini.';
+        }
+
         return [
             'ok' => true,
-            'message' => 'Permohonan izin syar\'i #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.',
+            'message' => $msg,
         ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -211,4 +217,63 @@ function wali_perizinan_status_badge(string $status): string
         'DITOLAK' => 'danger',
         default => 'warning',
     };
+}
+
+/**
+ * Info syarat ALPA untuk tampilan portal wali (informasi saja — pengajuan tetap boleh).
+ *
+ * @return array{
+ *   subject:bool,
+ *   allowed:bool,
+ *   blocked:bool,
+ *   enabled:bool,
+ *   alpa_count:int,
+ *   max:int,
+ *   hari:int,
+ *   ringkasan:string,
+ *   penjelasan:string,
+ *   message:string
+ * }
+ */
+function wali_perizinan_alpa_info_portal(PDO $pdo, int $santriId, ?string $refDate = null): array
+{
+    $base = [
+        'subject' => false,
+        'allowed' => true,
+        'blocked' => false,
+        'enabled' => false,
+        'alpa_count' => 0,
+        'max' => 0,
+        'hari' => 0,
+        'ringkasan' => '',
+        'penjelasan' => '',
+        'message' => '',
+    ];
+    if ($santriId <= 0) {
+        return $base;
+    }
+
+    $ref = $refDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($refDate)) ? trim($refDate) : date('Y-m-d');
+    $cfg = perizinan_alpa_settings($pdo);
+    $base['enabled'] = !empty($cfg['enabled']);
+    if (!$cfg['enabled']) {
+        $base['penjelasan'] = 'Pembatasan ALPA untuk izin belum diaktifkan pengurus pondok.';
+        return $base;
+    }
+
+    $cek = perizinan_alpa_cek_approval($pdo, $santriId, wali_perizinan_jenis_portal(), $ref);
+    $blocked = !empty($cek['subject']) && empty($cek['allowed']);
+
+    return [
+        'subject' => !empty($cek['subject']),
+        'allowed' => !empty($cek['allowed']),
+        'blocked' => $blocked,
+        'enabled' => true,
+        'alpa_count' => (int) ($cek['alpa_count'] ?? 0),
+        'max' => (int) ($cek['max'] ?? 0),
+        'hari' => (int) ($cek['hari'] ?? 0),
+        'ringkasan' => (string) ($cek['ringkasan'] ?? ''),
+        'penjelasan' => perizinan_alpa_penjelasan_plain($cek),
+        'message' => (string) ($cek['message'] ?? ''),
+    ];
 }

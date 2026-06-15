@@ -55,6 +55,9 @@ if ($runHeavy) {
         }
     }
 
+    require_once __DIR__ . '/../helpers/cashless_wa.php';
+    cashless_wa_cron_laporan_harian($pdo);
+
     save_setting($pdo, 'wa_auto_heavy_last_at', (string) $now);
     save_setting($pdo, 'wa_auto_last_heavy_at', date('Y-m-d H:i:s'));
 }

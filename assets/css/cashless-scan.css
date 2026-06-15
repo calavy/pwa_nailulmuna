@@ -1,0 +1,355 @@
+/* Scan cashless — mobile-first, layar penuh di ponsel */
+.cashless-scan-page .app-sidebar,
+.cashless-scan-page .app-sidebar--desktop,
+.cashless-scan-page #mobileSidebar,
+.cashless-scan-page #sidebar-toggle-btn,
+.cashless-scan-page .app-topbar-title,
+.cashless-scan-page .app-topbar-page,
+.cashless-scan-page .app-topbar-user-pill,
+.cashless-scan-page .app-topbar-user {
+    display: none !important;
+}
+
+.cashless-scan-page .app-frame,
+.cashless-scan-page .app-shell {
+    display: block;
+}
+
+.cashless-scan-page .app-main {
+    max-width: 100%;
+    padding: 0 !important;
+}
+
+.cashless-scan-page .app-content {
+    padding-top: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.cashless-scan-app {
+    --cashless-accent: #0d9488;
+    --cashless-accent-dark: #0f766e;
+    --cashless-bg: #0f172a;
+    --cashless-surface: #1e293b;
+    max-width: 520px;
+    margin: 0 auto;
+    min-height: calc(100dvh - 48px);
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #0f172a 0%, #134e4a 120%);
+    color: #e2e8f0;
+}
+
+.cashless-koperasi-page .cashless-scan-app {
+    min-height: calc(100dvh - 120px);
+}
+
+.cashless-scan-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cashless-scan-top h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    color: #f8fafc;
+}
+
+.cashless-scan-top .cashless-kop-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(13, 148, 136, 0.35);
+    color: #99f6e4;
+    white-space: nowrap;
+}
+
+.cashless-steps {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem 0;
+}
+
+.cashless-step {
+    flex: 1;
+    text-align: center;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(148, 163, 184, 0.8);
+    padding: 0.35rem 0.25rem;
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.5);
+    transition: background 0.2s, color 0.2s;
+}
+
+.cashless-scan-wrap.is-money-phase .cashless-step--1 {
+    opacity: 0.55;
+}
+
+.cashless-scan-wrap.is-money-phase .cashless-step--2,
+.cashless-scan-wrap:not(.is-money-phase) .cashless-step--1 {
+    background: rgba(13, 148, 136, 0.45);
+    color: #ccfbf1;
+}
+
+.cashless-scan-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 1rem 1rem;
+}
+
+.cashless-scan-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.cashless-phase-santri,
+.cashless-phase-uang {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.cashless-phase-uang {
+    display: none;
+}
+
+.cashless-scan-wrap.is-money-phase .cashless-phase-santri {
+    display: none;
+}
+
+.cashless-scan-wrap.is-money-phase .cashless-phase-uang {
+    display: flex;
+}
+
+.cashless-viewport {
+    position: relative;
+    flex: 1;
+    min-height: min(52dvh, 420px);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(45, 212, 191, 0.25);
+}
+
+.cashless-viewport #reader,
+.cashless-viewport #money_reader {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: min(52dvh, 420px);
+    border: none !important;
+    padding: 0 !important;
+    background: #000 !important;
+}
+
+.cashless-viewport #reader video,
+.cashless-viewport #money_reader video {
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+}
+
+.cashless-viewport::after {
+    content: '';
+    position: absolute;
+    inset: 12%;
+    border: 2px solid rgba(45, 212, 191, 0.65);
+    border-radius: 12px;
+    pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+}
+
+#reader__dashboard_section_csr,
+#reader__dashboard_section_swaplink,
+#money_reader__dashboard_section_csr,
+#money_reader__dashboard_section_swaplink,
+[id$="scan-result"] {
+    display: none !important;
+}
+
+.cashless-pin-card {
+    margin-top: 0.85rem;
+    padding: 0.85rem 1rem;
+    background: rgba(30, 41, 59, 0.85);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cashless-pin-card label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+    display: block;
+}
+
+.cashless-pin-input {
+    font-size: 1.75rem;
+    letter-spacing: 0.45em;
+    text-align: center;
+    padding: 0.75rem 0.5rem;
+    background: #0f172a;
+    border: 2px solid rgba(45, 212, 191, 0.35);
+    color: #f8fafc;
+    border-radius: 12px;
+    width: 100%;
+}
+
+.cashless-pin-input:focus {
+    border-color: #2dd4bf;
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2);
+    outline: none;
+}
+
+.cashless-pin-input::placeholder {
+    color: #475569;
+    letter-spacing: 0.2em;
+}
+
+.cashless-santri-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.55rem 0.85rem;
+    background: rgba(13, 148, 136, 0.25);
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #ccfbf1;
+}
+
+.cashless-santri-chip i {
+    opacity: 0.85;
+}
+
+.cashless-flash {
+    min-height: 2.5rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    text-align: center;
+    line-height: 1.35;
+    white-space: pre-line;
+}
+
+.cashless-flash.is-empty {
+    visibility: hidden;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.cashless-flash.is-success {
+    background: rgba(34, 197, 94, 0.18);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.cashless-flash.is-error {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fecaca;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.cashless-flash.is-info {
+    background: rgba(56, 189, 248, 0.12);
+    color: #bae6fd;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.cashless-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.cashless-btn-retry {
+    flex: 1;
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(30, 41, 59, 0.8);
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.cashless-btn-retry:active {
+    background: rgba(51, 65, 85, 0.9);
+}
+
+.cashless-admin-bar {
+    padding: 0.5rem 1rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.cashless-alert-page {
+    margin: 0.5rem 1rem 0;
+    border-radius: 10px;
+    font-size: 0.85rem;
+}
+
+.cashless-history {
+    margin: 0.75rem 1rem 1rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(248, 250, 252, 0.06);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cashless-scan-page .cashless-history {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #334155;
+}
+
+.cashless-history summary {
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.cashless-scan-page .cashless-history summary {
+    color: #64748b;
+}
+
+@media (max-width: 380px) {
+    .cashless-pin-input {
+        font-size: 1.45rem;
+        letter-spacing: 0.35em;
+    }
+
+    .cashless-step {
+        font-size: 0.62rem;
+    }
+}
+
+@media (min-width: 768px) {
+    .cashless-scan-app {
+        border-radius: 20px;
+        margin-top: 0.75rem;
+        margin-bottom: 1rem;
+        min-height: auto;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    }
+
+    .cashless-viewport {
+        min-height: 380px;
+    }
+}

@@ -400,18 +400,18 @@ function munawib_laporan_kehadiran(PDO $pdo, ?string $dari, ?string $sampai, int
         ? 'LEFT JOIN kegiatan k ON k.id = pm.kegiatan_id'
         : '';
     $namaKeg = table_exists($pdo, 'kegiatan') ? 'k.nama_kegiatan' : "''";
-    $sql = "
+    $sql = '
         SELECT pm.*, m.nama AS munawib_nama, m.nip AS munawib_nip,
-               {$namaKeg} AS nama_kegiatan,
+               ' . $namaKeg . ' AS nama_kegiatan,
                b.nama_pembimbing AS pembimbing_diganti
         FROM presensi_munawib pm
         INNER JOIN munawib m ON m.id = pm.munawib_id
         LEFT JOIN munawib_penugasan mp ON mp.id = pm.penugasan_id
         LEFT JOIN pembimbing b ON b.id = mp.pembimbing_id
-        {$joinKeg}
-        WHERE {$where}
+        ' . $joinKeg . '
+        WHERE ' . $where . '
         ORDER BY pm.tanggal DESC, pm.jam DESC, ' . munawib_list_order_by_induk_sql('m', $sampai) . '
-    ";
+    ';
     $st = $pdo->prepare($sql);
     $st->execute($params);
 

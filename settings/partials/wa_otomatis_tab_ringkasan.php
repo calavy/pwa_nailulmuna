@@ -43,7 +43,7 @@ declare(strict_types=1);
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron otomatis</h2>
-        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1 menit</strong>. Tick ringan: scan pembimbing. Tick berat (~5 menit): tagihan, alpa, kelas kosong.</p>
+        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1 menit</strong>. Tick ringan: scan pembimbing. Tick berat (~5 menit): tagihan, alpa, kelas kosong, laporan cashless harian.</p>
         <ul class="small mb-3 ps-3">
             <li>Terakhir jalan: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
             <li>Tick berat terakhir: <strong><?= $waLastHeavy !== '' ? htmlspecialchars($waLastHeavy) : '—' ?></strong></li>

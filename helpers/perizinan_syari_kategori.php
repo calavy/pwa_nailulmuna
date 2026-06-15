@@ -8,16 +8,10 @@ require_once __DIR__ . '/perizinan_jenis.php';
 /** @return list<string> */
 function perizinan_syari_kategori_kodes(): array
 {
-    return [
-        'walimah_saudara',
-        'musibah_saudara',
-        'berobat_santri',
-        'menjenguk_ortu_saudara_sakit',
-        'menjenguk_keluarga_sakit',
-    ];
+    return array_keys(perizinan_syari_kategori_defaults());
 }
 
-/** @return array<string, array{label:string,enabled:bool,durasi_hari:int,alpa_max:int,alpa_hari:int}> */
+/** @return array<string, array{label:string,enabled:bool,durasi_hari:int}> */
 function perizinan_syari_kategori_defaults(): array
 {
     return [
@@ -25,36 +19,26 @@ function perizinan_syari_kategori_defaults(): array
             'label' => 'Izin Walimah Saudara Kandung',
             'enabled' => true,
             'durasi_hari' => 2,
-            'alpa_max' => 3,
-            'alpa_hari' => 4,
         ],
         'musibah_saudara' => [
             'label' => 'Izin Musibah / Saudara Kandung Wafat',
             'enabled' => true,
             'durasi_hari' => 7,
-            'alpa_max' => 3,
-            'alpa_hari' => 4,
         ],
         'berobat_santri' => [
             'label' => 'Izin Berobat Santri',
             'enabled' => true,
             'durasi_hari' => 1,
-            'alpa_max' => 3,
-            'alpa_hari' => 4,
         ],
         'menjenguk_ortu_saudara_sakit' => [
             'label' => 'Izin Menjenguk Orang Tua / Saudara Kandung Sakit',
             'enabled' => true,
             'durasi_hari' => 3,
-            'alpa_max' => 3,
-            'alpa_hari' => 4,
         ],
         'menjenguk_keluarga_sakit' => [
             'label' => 'Izin Menjenguk Kakek / Nenek / Paman / Bibi Sekandung Sakit',
             'enabled' => true,
             'durasi_hari' => 2,
-            'alpa_max' => 3,
-            'alpa_hari' => 4,
         ],
     ];
 }
@@ -80,6 +64,16 @@ function perizinan_syari_kategori_ensure_schema(PDO $pdo): void
     }
 }
 
+/** @param array<string, mixed> $row */
+function perizinan_syari_kategori_normalize_row(array $row, array $fallback): array
+{
+    return [
+        'label' => trim((string) ($row['label'] ?? $fallback['label'] ?? '')) ?: (string) ($fallback['label'] ?? ''),
+        'enabled' => array_key_exists('enabled', $row) ? !empty($row['enabled']) : !empty($fallback['enabled']),
+        'durasi_hari' => max(1, (int) ($row['durasi_hari'] ?? $fallback['durasi_hari'] ?? 1)),
+    ];
+}
+
 /** @return array<string, array<string, mixed>> */
 function perizinan_syari_kategori_settings(PDO $pdo): array
 {
@@ -94,19 +88,27 @@ function perizinan_syari_kategori_settings(PDO $pdo): array
     $merged = [];
     foreach ($defaults as $kode => $def) {
         $row = is_array($saved[$kode] ?? null) ? $saved[$kode] : [];
-        $merged[$kode] = [
-            'label' => trim((string) ($row['label'] ?? $def['label'])) ?: $def['label'],
-            'enabled' => array_key_exists('enabled', $row) ? !empty($row['enabled']) : $def['enabled'],
-            'durasi_hari' => max(1, (int) ($row['durasi_hari'] ?? $def['durasi_hari'])),
-            'alpa_max' => max(0, (int) ($row['alpa_max'] ?? $def['alpa_max'])),
-            'alpa_hari' => max(1, (int) ($row['alpa_hari'] ?? $def['alpa_hari'])),
-        ];
+        $merged[$kode] = perizinan_syari_kategori_normalize_row($row, $def);
+    }
+    foreach ($saved as $kode => $row) {
+        if (!is_string($kode) || isset($merged[$kode]) || !is_array($row)) {
+            continue;
+        }
+        $kodeNorm = perizinan_syari_kategori_sanitize_kode($kode);
+        if ($kodeNorm === '') {
+            continue;
+        }
+        $merged[$kodeNorm] = perizinan_syari_kategori_normalize_row($row, [
+            'label' => (string) ($row['label'] ?? $kodeNorm),
+            'enabled' => true,
+            'durasi_hari' => 1,
+        ]);
     }
 
     return $merged;
 }
 
-/** @return list<array{kode:string,label:string,durasi_hari:int,alpa_max:int,alpa_hari:int}> */
+/** @return list<array{kode:string,label:string,durasi_hari:int}> */
 function perizinan_syari_kategori_list_portal(PDO $pdo): array
 {
     $out = [];
@@ -118,8 +120,6 @@ function perizinan_syari_kategori_list_portal(PDO $pdo): array
             'kode' => (string) $kode,
             'label' => (string) ($row['label'] ?? ''),
             'durasi_hari' => (int) ($row['durasi_hari'] ?? 1),
-            'alpa_max' => (int) ($row['alpa_max'] ?? 0),
-            'alpa_hari' => (int) ($row['alpa_hari'] ?? 4),
         ];
     }
 
@@ -129,7 +129,7 @@ function perizinan_syari_kategori_list_portal(PDO $pdo): array
 /** @return array<string, mixed>|null */
 function perizinan_syari_kategori_by_kode(PDO $pdo, string $kode): ?array
 {
-    $kode = trim($kode);
+    $kode = perizinan_syari_kategori_sanitize_kode($kode);
     if ($kode === '') {
         return null;
     }
@@ -145,28 +145,106 @@ function perizinan_syari_kategori_label(PDO $pdo, string $kode): string
     return $kat ? (string) ($kat['label'] ?? $kode) : $kode;
 }
 
-function perizinan_syari_kategori_normalize_kode(string $raw): string
+function perizinan_syari_kategori_sanitize_kode(string $raw): string
 {
     $k = strtolower(trim($raw));
+    $k = preg_replace('/[^a-z0-9_]+/', '_', $k) ?? '';
+    $k = trim($k, '_');
+    if ($k === '' || !preg_match('/^[a-z][a-z0-9_]{0,62}$/', $k)) {
+        return '';
+    }
 
-    return in_array($k, perizinan_syari_kategori_kodes(), true) ? $k : '';
+    return $k;
+}
+
+function perizinan_syari_kategori_slug_from_label(string $label, array $usedKodes = []): string
+{
+    $slug = perizinan_syari_kategori_sanitize_kode($label);
+    if ($slug === '') {
+        $slug = 'keperluan';
+    }
+    $base = $slug;
+    $n = 2;
+    while (isset($usedKodes[$slug])) {
+        $slug = $base . '_' . $n;
+        $n++;
+    }
+
+    return $slug;
+}
+
+function perizinan_syari_kategori_normalize_kode(PDO $pdo, string $raw): string
+{
+    $k = perizinan_syari_kategori_sanitize_kode($raw);
+    if ($k === '') {
+        return '';
+    }
+    $all = perizinan_syari_kategori_settings($pdo);
+
+    return isset($all[$k]) ? $k : '';
 }
 
 /** @param array<string, mixed> $post */
 function perizinan_syari_kategori_save_from_post(PDO $pdo, array $post): void
 {
-    $defaults = perizinan_syari_kategori_defaults();
+    $items = $post['syari_item'] ?? null;
+    if (!is_array($items)) {
+        $items = perizinan_syari_kategori_legacy_post_rows($post);
+    }
+
     $payload = [];
-    foreach (array_keys($defaults) as $kode) {
+    $usedKodes = [];
+    foreach ($items as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        if (!empty($row['delete'])) {
+            continue;
+        }
+        $label = trim((string) ($row['label'] ?? ''));
+        if ($label === '') {
+            continue;
+        }
+        $kode = perizinan_syari_kategori_sanitize_kode((string) ($row['kode'] ?? ''));
+        if ($kode === '') {
+            $kode = perizinan_syari_kategori_slug_from_label($label, $usedKodes);
+        }
+        while (isset($usedKodes[$kode])) {
+            $kode = perizinan_syari_kategori_slug_from_label($kode . '_2', $usedKodes);
+        }
+        $usedKodes[$kode] = true;
         $payload[$kode] = [
-            'label' => (string) ($defaults[$kode]['label'] ?? $kode),
-            'enabled' => isset($post['syari_kat_' . $kode . '_enabled']) ? 1 : 0,
-            'durasi_hari' => max(1, (int) ($post['syari_kat_' . $kode . '_durasi'] ?? $defaults[$kode]['durasi_hari'])),
-            'alpa_max' => max(0, (int) ($post['syari_kat_' . $kode . '_alpa_max'] ?? $defaults[$kode]['alpa_max'])),
-            'alpa_hari' => max(1, (int) ($post['syari_kat_' . $kode . '_alpa_hari'] ?? $defaults[$kode]['alpa_hari'])),
+            'label' => $label,
+            'enabled' => !empty($row['enabled']) ? 1 : 0,
+            'durasi_hari' => max(1, min(90, (int) ($row['durasi'] ?? $row['durasi_hari'] ?? 1))),
         ];
     }
+
+    if ($payload === []) {
+        $payload = perizinan_syari_kategori_defaults();
+        foreach ($payload as $k => $v) {
+            $payload[$k]['enabled'] = !empty($v['enabled']) ? 1 : 0;
+        }
+    }
+
     save_setting($pdo, 'izin_syari_kategori_json', json_encode($payload, JSON_UNESCAPED_UNICODE));
+}
+
+/** @return list<array<string, mixed>> */
+function perizinan_syari_kategori_legacy_post_rows(array $post): array
+{
+    $defaults = perizinan_syari_kategori_defaults();
+    $rows = [];
+    foreach (array_keys($defaults) as $kode) {
+        $rows[] = [
+            'kode' => $kode,
+            'label' => trim((string) ($post['syari_kat_' . $kode . '_label'] ?? $defaults[$kode]['label'] ?? $kode)),
+            'enabled' => isset($post['syari_kat_' . $kode . '_enabled']) ? 1 : 0,
+            'durasi' => max(1, (int) ($post['syari_kat_' . $kode . '_durasi'] ?? $defaults[$kode]['durasi_hari'] ?? 1)),
+        ];
+    }
+
+    return $rows;
 }
 
 function perizinan_syari_kategori_hitung_hari(string $tanggalMulai, string $tanggalSelesai): int
@@ -225,23 +303,4 @@ function perizinan_syari_kategori_susun_alasan(PDO $pdo, string $kode, string $k
     $detail = trim($keteranganTambahan);
 
     return $detail !== '' ? $label . ' — ' . $detail : $label;
-}
-
-/**
- * Ambil batas ALPA khusus kategori syar'i (null = pakai aturan umum izin syar'i).
- *
- * @return array{max:int,hari:int,label:string}|null
- */
-function perizinan_syari_kategori_alpa_batas(PDO $pdo, string $kode): ?array
-{
-    $kat = perizinan_syari_kategori_by_kode($pdo, $kode);
-    if (!$kat || empty($kat['enabled'])) {
-        return null;
-    }
-
-    return [
-        'max' => max(0, (int) ($kat['alpa_max'] ?? 0)),
-        'hari' => max(1, (int) ($kat['alpa_hari'] ?? 4)),
-        'label' => (string) ($kat['label'] ?? 'izin syar\'i'),
-    ];
 }

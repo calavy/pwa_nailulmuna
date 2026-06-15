@@ -12,7 +12,7 @@ function wali_bottom_nav_items(): array
     return [
         ['href' => app_href('/wali/index.php'), 'icon' => 'fa-house', 'label' => 'Beranda', 'key' => 'beranda'],
         ['href' => app_href('/wali/keuangan.php'), 'icon' => 'fa-wallet', 'label' => 'Keuangan', 'key' => 'keuangan'],
-        ['href' => app_href('/wali/keaktifan.php'), 'icon' => 'fa-calendar-check', 'label' => 'Presensi', 'key' => 'keaktifan'],
+        ['href' => app_href('/wali/keaktifan.php'), 'icon' => 'fa-calendar-check', 'label' => 'Keaktivan', 'key' => 'keaktifan'],
         ['href' => app_href('/wali/izin.php'), 'icon' => 'fa-person-walking-arrow-right', 'label' => 'Izin', 'key' => 'izin'],
     ];
 }

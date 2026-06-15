@@ -207,6 +207,9 @@ $totalPembimbingRekap = count($rows);
 $totalHadirRekap = 0;
 $totalAlpaRekap = 0;
 $totalTelatRekap = 0;
+$totalGajiKeseluruhan = 0;
+$totalGajiSudahBayar = 0;
+$totalGajiBelumBayar = 0;
 $kategoriBagus = 0;
 foreach ($rows as $r) {
     $totalHadirRekap += (int) ($r['total_datang'] ?? 0);
@@ -214,6 +217,14 @@ foreach ($rows as $r) {
     $totalTelatRekap += (int) ($r['telat'] ?? 0);
     if (($r['kategori'] ?? '') === 'Bagus') {
         $kategoriBagus++;
+    }
+    $gajiRow = (int) ($r['gaji_bulanan'] ?? 0);
+    $totalGajiKeseluruhan += $gajiRow;
+    $pidRowSum = (int) ($r['pembimbing_id'] ?? 0);
+    if (isset($paidGajiMap[$pidRowSum])) {
+        $totalGajiSudahBayar += $gajiRow;
+    } else {
+        $totalGajiBelumBayar += $gajiRow;
     }
 }
 $periodeLabelP = $periodLabel;
@@ -236,7 +247,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3 print-controls">
-    <p class="page-intro-kicker mb-1">Modul Rekap Pembimbing</p>
+    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
     <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
     <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Jam kegiatan dari jadwal kajian atau <strong>jadwal PKPPS</strong>.</p>
 </div>
@@ -264,6 +275,27 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="app-mini-stat h-100">
             <div class="app-mini-stat-label">Total alpa</div>
             <div class="app-mini-stat-value text-danger"><?= $totalAlpaRekap ?></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3 print-controls">
+    <div class="col-12 col-md-4">
+        <div class="app-mini-stat h-100 border border-success border-opacity-25">
+            <div class="app-mini-stat-label">Total gaji periode</div>
+            <div class="app-mini-stat-value text-success" style="font-size:1.15rem;"><?= htmlspecialchars(keuangan_format_rupiah($totalGajiKeseluruhan)) ?></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="app-mini-stat h-100">
+            <div class="app-mini-stat-label">Sudah dibayar</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars(keuangan_format_rupiah($totalGajiSudahBayar)) ?></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="app-mini-stat h-100 border border-warning border-opacity-25">
+            <div class="app-mini-stat-label">Belum dibayar</div>
+            <div class="app-mini-stat-value text-warning" style="font-size:1.15rem;"><?= htmlspecialchars(keuangan_format_rupiah($totalGajiBelumBayar)) ?></div>
         </div>
     </div>
 </div>
@@ -426,6 +458,23 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr><td colspan="15" class="text-center text-muted">Belum ada data pembimbing pada periode ini.</td></tr>
                 <?php endif; ?>
                 </tbody>
+                <?php if ($rows): ?>
+                <tfoot class="table-light fw-semibold">
+                    <tr>
+                        <td colspan="2">Total keseluruhan</td>
+                        <td class="text-center"><?= $totalHadirRekap ?></td>
+                        <td colspan="3"></td>
+                        <td class="text-center"><?= $totalTelatRekap ?></td>
+                        <td colspan="4"></td>
+                        <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah($totalGajiKeseluruhan)) ?></td>
+                        <td class="text-end small text-muted">
+                            Lunas: <?= htmlspecialchars(keuangan_format_rupiah($totalGajiSudahBayar)) ?><br>
+                            Sisa: <?= htmlspecialchars(keuangan_format_rupiah($totalGajiBelumBayar)) ?>
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                <?php endif; ?>
             </table>
         </div>
     </div>

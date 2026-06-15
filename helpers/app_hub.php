@@ -65,6 +65,8 @@ function app_hub_registry(): array
                 ['path' => '/rekap/keaktifan_hari.php', 'label' => 'Harian'],
                 ['path' => '/rekap/santri_bagus.php', 'label' => 'Keaktifan santri'],
                 ['path' => '/rekap/keaktivan_sdm.php', 'label' => 'SDM'],
+                ['path' => '/rekap/munawib.php', 'label' => 'Munawib'],
+                ['path' => '/rekap/pembimbing.php', 'label' => 'Pembimbing'],
                 ['path' => '/rekap/izin_telat.php', 'label' => 'Telat'],
                 ['path' => '/rekap/kegiatan_khusus.php', 'label' => 'Khusus'],
             ],

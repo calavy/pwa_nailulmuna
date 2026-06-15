@@ -555,3 +555,152 @@ function wali_portal_tagihan_sampai_bulan_berjalan(PDO $pdo, int $santriId, stri
         'statusClass' => $statusClass,
     ];
 }
+
+/**
+ * Parse filter bulan Hijriyah portal wali keaktivan.
+ *
+ * @param array<string,mixed> $get
+ * @return array{year:int,month:int,start:string,end:string,label:string,value:string}
+ */
+function wali_portal_keaktifan_bulan_parse(PDO $pdo, array $get = []): array
+{
+    require_once __DIR__ . '/akademik.php';
+    require_once __DIR__ . '/hijri_kalender.php';
+
+    $anchor = akademik_hijri_anchor_hari_ini($pdo);
+    $year = (int) ($get['tahun_h'] ?? $get['year'] ?? 0);
+    $month = (int) ($get['bulan_h'] ?? $get['month'] ?? 0);
+
+    $legacy = trim((string) ($get['bulan'] ?? ''));
+    if ($legacy !== '' && preg_match('/^(\d{4})-(\d{2})$/', $legacy, $m)) {
+        $year = (int) $m[1];
+        $month = (int) $m[2];
+    }
+
+    if ($year <= 0) {
+        $year = (int) $anchor['y'];
+    }
+    if ($month <= 0) {
+        $month = (int) $anchor['m'];
+    }
+
+    $year = max(1300, min(1700, $year));
+    $month = max(1, min(12, $month));
+
+    [$start, $end] = akademik_gregorian_range_from_hijri_month($pdo, $year, $month);
+    $label = hijri_indeks_ke_nama($month) . ' ' . $year . ' H';
+
+    return [
+        'year' => $year,
+        'month' => $month,
+        'start' => $start,
+        'end' => $end,
+        'label' => $label,
+        'value' => sprintf('%04d-%02d', $year, $month),
+    ];
+}
+
+/**
+ * Rekap keaktivan santri per kegiatan dalam rentang tanggal (hanya kegiatan jadwal tingkatan santri).
+ *
+ * @return array{
+ *   tingkatan:string,
+ *   totals: array{hadir:int,izin:int,sakit:int,alpa:int,total:int},
+ *   kegiatan: list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
+ * }
+ */
+function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $startDate, string $endDate, string $tingkatan = ''): array
+{
+    $empty = [
+        'tingkatan' => '',
+        'totals' => ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0],
+        'kegiatan' => [],
+    ];
+    if ($santriId <= 0 || !table_exists($pdo, 'presensi')) {
+        return $empty;
+    }
+
+    $tingkatan = trim($tingkatan);
+    if ($tingkatan === '' && table_exists($pdo, 'santri')) {
+        $stTg = $pdo->prepare('SELECT tingkatan FROM santri WHERE id = :id LIMIT 1');
+        $stTg->execute(['id' => $santriId]);
+        $tingkatan = trim((string) ($stTg->fetchColumn() ?: ''));
+    }
+    if ($tingkatan === '') {
+        return array_merge($empty, ['tingkatan' => '']);
+    }
+
+    require_once __DIR__ . '/presensi_jadwal.php';
+
+    $st = $pdo->prepare('
+        SELECT
+            p.kegiatan_id,
+            p.tanggal_presensi,
+            p.status_presensi,
+            COALESCE(NULLIF(TRIM(k.nama_kegiatan), ""), "Tanpa kegiatan") AS nama_kegiatan
+        FROM presensi p
+        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        WHERE p.santri_id = :sid
+          AND p.tanggal_presensi BETWEEN :start_date AND :end_date
+        ORDER BY p.tanggal_presensi ASC, p.id ASC
+    ');
+    $st->execute([
+        'sid' => $santriId,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+    ]);
+    $rawRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rawRows as &$rawRow) {
+        $rawRow['tingkatan'] = $tingkatan;
+    }
+    unset($rawRow);
+
+    $rows = presensi_filter_rows_eligible($pdo, $rawRows, $startDate, $endDate);
+
+    $byKeg = [];
+    $totals = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+    foreach ($rows as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        if ($kid <= 0) {
+            continue;
+        }
+        $label = (string) ($row['nama_kegiatan'] ?? 'Tanpa kegiatan');
+        $key = $kid . '|' . $label;
+        if (!isset($byKeg[$key])) {
+            $byKeg[$key] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => $label,
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'total' => 0,
+            ];
+        }
+        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
+        $byKeg[$key]['total']++;
+        $totals['total']++;
+        if ($status === 'HADIR') {
+            $byKeg[$key]['hadir']++;
+            $totals['hadir']++;
+        } elseif ($status === 'IZIN') {
+            $byKeg[$key]['izin']++;
+            $totals['izin']++;
+        } elseif ($status === 'SAKIT') {
+            $byKeg[$key]['sakit']++;
+            $totals['sakit']++;
+        } elseif ($status === 'ALPA') {
+            $byKeg[$key]['alpa']++;
+            $totals['alpa']++;
+        }
+    }
+
+    $kegiatan = array_values($byKeg);
+    usort($kegiatan, static fn(array $a, array $b): int => strcasecmp((string) $a['nama_kegiatan'], (string) $b['nama_kegiatan']));
+
+    return [
+        'tingkatan' => $tingkatan,
+        'totals' => $totals,
+        'kegiatan' => $kegiatan,
+    ];
+}
