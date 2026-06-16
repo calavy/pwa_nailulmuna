@@ -137,9 +137,11 @@ require_once __DIR__ . '/../includes/header.php';
             </h1>
             <p class="text-muted mb-0 small">Scan gerbang · Santri, Pembimbing, Munawib, Jama'ah & Ta'lim</p>
         </div>
-        <a class="btn btn-sm btn-outline-secondary align-self-start" href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">
-            <i class="fa-solid fa-qrcode me-1"></i>Scan
-        </a>
+        <div class="d-flex flex-wrap gap-2 align-self-start">
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">
+                <i class="fa-solid fa-qrcode me-1"></i>Scan
+            </a>
+        </div>
     </div>
 
     <form class="row g-2 align-items-end mb-3 yp-filter-bar kh-filter-form kh-section" method="get">

@@ -38,7 +38,27 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                 <input type="number" min="5" max="180" class="form-control" name="mudabir_batas_menit" value="<?= htmlspecialchars((string) (($values['mudabir_batas_menit'] ?? '') !== '' ? $values['mudabir_batas_menit'] : '30')) ?>">
             </div>
             <div class="col-12"><hr class="my-1"></div>
-            <div class="col-12"><h3 class="h6 text-primary mb-2">Laporan kelas kosong</h3></div>
+            <div class="col-12"><h3 class="h6 text-primary mb-2">Laporan presensi musyawarah (pengasuh)</h3></div>
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wa_musyawarah_enabled" name="wa_musyawarah_enabled" value="1" <?= ($values['wa_musyawarah_enabled'] ?? '0') === '1' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_musyawarah_enabled">Aktifkan laporan musyawarah</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wa_musyawarah_auto_selesai" name="wa_musyawarah_auto_selesai" value="1" <?= ($values['wa_musyawarah_auto_selesai'] ?? '0') === '1' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_musyawarah_auto_selesai">Kirim otomatis saat rapat selesai</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Nomor WA pengasuh / grup</label>
+                <input type="text" class="form-control form-control-sm" name="wa_musyawarah_target" value="<?= htmlspecialchars((string) ($values['wa_musyawarah_target'] ?? '')) ?>" placeholder="Nomor atau grup Fonte">
+            </div>
+            <div class="col-12">
+                <div class="form-text small">Isi daftar hadir, izin, dan tidak hadir dari halaman <a href="<?= htmlspecialchars(app_href('/yayasan/musyawarah_presensi.php')) ?>">Presensi Musyawarah</a> — scan di <a href="<?= htmlspecialchars(app_href('/yayasan/scan_musyawarah.php')) ?>">Scan Musyawarah</a>.</div>
+            </div>
+            <div class="col-12"><hr class="my-1"></div>
             <div class="col-md-3">
                 <label class="form-label">Aktifkan</label>
                 <select class="form-select" name="wa_kelas_kosong_enabled">

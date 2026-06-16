@@ -16,6 +16,31 @@
 .yp-card-kas--krisis { border-left-color: #dc3545; }
 .yp-nav-card { transition: transform .15s, box-shadow .15s; }
 .yp-nav-card:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; }
+.yp-nav-card--toggle {
+    border: 0;
+    background: #fff;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+}
+.yp-nav-card--toggle:focus-visible {
+    outline: 2px solid #0d9488;
+    outline-offset: 2px;
+}
+.yp-nav-card--toggle:not(.collapsed) {
+    box-shadow: 0 .35rem 1rem rgba(14, 116, 144, 0.15) !important;
+    border: 1px solid rgba(14, 116, 144, 0.25) !important;
+}
+.yp-nav-card__chev {
+    display: inline-block;
+    transition: transform .2s ease;
+}
+.yp-nav-card--toggle:not(.collapsed) .yp-nav-card__chev {
+    transform: rotate(180deg);
+}
+#ypKeaktifanBulanPanel.collapsing {
+    transition: height .28s ease;
+}
 .yp-chart {
     display: flex;
     align-items: flex-end;
@@ -257,6 +282,26 @@ a.yp-kelas-card:hover { color: inherit; border-color: #0f766e; box-shadow: 0 4px
     padding-left: 1rem;
     font-size: .72rem;
     color: #b91c1c;
+}
+
+.yp-keaktifan-bulan .yp-mini-stat {
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    border-radius: .65rem;
+    padding: .55rem .7rem;
+    background: #f8fafc;
+    height: 100%;
+}
+.yp-keaktifan-bulan .yp-mini-stat__label {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+}
+.yp-keaktifan-bulan .yp-mini-stat__value {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.2;
 }
 
 @media (max-width: 767.98px) {

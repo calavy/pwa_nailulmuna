@@ -410,6 +410,41 @@ body {
     line-height: 1;
 }
 
+/* Desktop: satu panah di topbar hanya saat sidebar disembunyikan */
+.app-topbar-menu-btn--desktop {
+    width: 2.35rem;
+    height: 2.35rem;
+    min-width: 2.35rem;
+    min-height: 2.35rem;
+    margin-right: 0.35rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.app-topbar-menu-btn--desktop:hover {
+    background: rgba(255, 255, 255, 0.24);
+}
+
+.app-topbar-menu-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 8px;
+    background: var(--app-primary);
+    color: #fff;
+    font-size: 0.72rem;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.35);
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.app-topbar-menu-btn--desktop:hover .app-topbar-menu-arrow {
+    background: var(--app-primary-dark);
+    transform: translateX(2px);
+}
+
 /* Panel menu mobile */
 .app-mobile-sidebar {
     --bs-offcanvas-width: min(88vw, 20.5rem);
@@ -1542,60 +1577,6 @@ body {
     background: var(--app-primary-dark);
     transform: translateX(-2px);
     box-shadow: 0 3px 8px rgba(15, 118, 110, 0.45);
-}
-
-.app-body-shell.app-sidebar-hidden .app-sidebar-nav-label__arrow i,
-html.app-sidebar-hidden-boot .app-sidebar-nav-label__arrow i {
-    transform: rotate(180deg);
-}
-
-.app-body-shell.app-sidebar-hidden .app-sidebar-nav-label--toggle:hover .app-sidebar-nav-label__arrow,
-html.app-sidebar-hidden-boot .app-sidebar-nav-label--toggle:hover .app-sidebar-nav-label__arrow {
-    transform: translateX(2px);
-}
-
-.app-sidebar-reveal {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 22px;
-    height: 100vh;
-    height: 100dvh;
-    z-index: 1040;
-    cursor: pointer;
-    opacity: 0;
-    pointer-events: none;
-    border: 0;
-    background: linear-gradient(90deg, rgba(15, 118, 110, 0.55) 0%, rgba(15, 118, 110, 0.18) 60%, transparent 100%);
-    transition: opacity 0.2s ease, width 0.2s ease;
-}
-
-.app-sidebar-reveal::after {
-    content: "\f101";
-    font-family: "Font Awesome 6 Free";
-    font-weight: 900;
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.75rem;
-    color: #fff;
-    text-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
-}
-
-.app-sidebar-reveal:hover {
-    width: 26px;
-}
-
-.app-sidebar-reveal:focus-visible {
-    outline: 2px solid var(--app-primary);
-    outline-offset: 2px;
-}
-
-html.app-sidebar-hidden-boot .app-sidebar-reveal,
-.app-body-shell.app-sidebar-hidden .app-sidebar-reveal {
-    opacity: 1;
-    pointer-events: auto;
 }
 
 .app-topbar-title-mobile--menu-hit {
@@ -2889,14 +2870,9 @@ html[data-theme-transitioning] .app-theme-switch {
         min-width: 0;
     }
 
-    html.app-sidebar-hidden-boot .app-topbar-page-title,
-    .app-body-shell.app-sidebar-hidden .app-topbar-page-title {
-        cursor: pointer;
-    }
-
-    html.app-sidebar-hidden-boot .app-topbar-page,
-    .app-body-shell.app-sidebar-hidden .app-topbar-page {
-        cursor: pointer;
+    html.app-sidebar-hidden-boot #appMenuBtnDesktop,
+    .app-body-shell.app-sidebar-hidden #appMenuBtnDesktop {
+        display: inline-flex !important;
     }
 }
 
@@ -2975,6 +2951,11 @@ html[data-theme-transitioning] .app-theme-switch {
     background: rgba(15, 23, 42, 0.4);
     border-color: rgba(148, 163, 184, 0.35);
     color: #f1f5f9;
+}
+
+[data-theme="dark"] .app-topbar-menu-btn--desktop {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: rgba(148, 163, 184, 0.35);
 }
 
 [data-theme="dark"] .app-mobile-sidebar__header {

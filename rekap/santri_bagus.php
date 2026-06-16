@@ -8,6 +8,9 @@ require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
+$rekapKeaktifanPagePath = (string) ($rekapKeaktifanBasePath ?? '/rekap/santri_bagus.php');
+$rekapKeaktifanModulKicker = (string) ($rekapKeaktifanModulLabel ?? 'Modul Kajian · Poin & Keaktifan');
+
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 if (!table_exists($pdo, 'presensi')) {
@@ -71,6 +74,29 @@ $ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
 $byKegiatan = rekap_keaktifan_build_per_kegiatan($rawRows);
 $byTingkatan = rekap_keaktifan_build_per_tingkatan($ranked);
 
+$chartRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, $kegiatanId);
+$chartRanked = rekap_keaktifan_build_per_santri($chartRows, $goodMax, $mediumMax);
+$byTingkatanChart = rekap_keaktifan_build_per_tingkatan($chartRanked);
+$tingkatanKategoriPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
+$tingkatanKategoriChart = rekap_keaktifan_chart_tingkatan_kategori($tingkatanKategoriPersen);
+$showTingkatanKategoriChart = $santriId <= 0 && $tingkatanKategoriPersen !== [];
+
+$kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
+    $pdo,
+    $startDate,
+    $endDate,
+    $tingkatan !== '' ? $tingkatan : null,
+    $kegiatanId
+);
+$santriTanpaScan = rekap_keaktifan_santri_tanpa_scan_bulan(
+    $pdo,
+    $startDate,
+    $endDate,
+    $tingkatan !== '' ? $tingkatan : null
+);
+$showKegiatanTanpaScan = $santriId <= 0;
+$showSantriTanpaScan = $santriId <= 0;
+
 $totalSantriRekap = count($ranked);
 $totalHadir = array_sum(array_column($ranked, 'hadir'));
 $totalIzin = array_sum(array_column($ranked, 'izin'));
@@ -102,7 +128,7 @@ $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 $pageTitle = 'Rekap Keaktifan Santri';
 
-$buildQuery = static function (array $overrides = []) use ($mode, $month, $year, $tingkatan, $santriId, $kegiatanId, $tampilan, $paper): string {
+$buildQuery = static function (array $overrides = []) use ($mode, $month, $year, $tingkatan, $santriId, $kegiatanId, $tampilan, $paper, $rekapKeaktifanPagePath): string {
     $q = [
         'mode' => $mode,
         'month' => $month,
@@ -117,14 +143,14 @@ $buildQuery = static function (array $overrides = []) use ($mode, $month, $year,
         $q[$k] = $v;
     }
 
-    return '?' . http_build_query($q);
+    return app_href($rekapKeaktifanPagePath . '?' . http_build_query($q));
 };
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3 print-controls">
-    <p class="page-intro-kicker mb-1">Modul Kajian · Poin & Keaktifan</p>
+    <p class="page-intro-kicker mb-1"><?= htmlspecialchars($rekapKeaktifanModulKicker) ?></p>
     <h1 class="h4 mb-1">Rekap Keaktifan Santri</h1>
     <p class="text-muted mb-0 small">
         Hanya presensi yang <strong>terikat jadwal</strong> (tingkatan santri masuk jadwal kegiatan).
@@ -198,6 +224,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <button class="btn btn-success">Tampilkan</button>
                 <button type="button" class="btn btn-outline-dark" onclick="window.print()">Cetak</button>
                 <a href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Rekap presensi</a>
+                <?php if ($rekapKeaktifanPagePath !== '/yayasan/operasional.php'): ?>
+                <a href="<?= htmlspecialchars(app_href('/yayasan/operasional.php#yp-keaktifan-bulan')) ?>" class="btn btn-outline-secondary btn-sm">Buka di Dashboard Yayasan</a>
+                <?php endif; ?>
             </div>
         </form>
     </div>
@@ -294,6 +323,167 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="small text-muted mb-0 mt-2">Ambang batas dapat diubah di Pengaturan Pondok (kategori baik/sedang max alpa).</p>
     </div>
 </div>
+
+<?php if ($showTingkatanKategoriChart): ?>
+<div id="grafik-keaktifan-tingkatan" class="card shadow-sm mb-4 keaktifan-tingkatan-chart-card print-controls">
+    <div class="card-body">
+        <h2 class="h6 mb-1">Perbandingan kategori keaktifan per tingkatan</h2>
+        <p class="small text-muted mb-3">
+            Bulan <?= htmlspecialchars($periodeLabel) ?>
+            (<?= $mode === 'hijriyah' ? 'kalender Hijriyah' : 'kalender Masehi' ?>).
+            Persentase dihitung dari jumlah santri per tingkatan pada periode ini.
+            <?= $kegiatanId > 0 ? 'Hanya kegiatan terpilih.' : 'Semua kegiatan jadwal.' ?>
+        </p>
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-striped rekap-official-table mb-0">
+                <thead>
+                <tr>
+                    <th>Tingkatan</th>
+                    <th class="text-center">Santri</th>
+                    <th class="text-center text-success">Bagus</th>
+                    <th class="text-center text-info">Baik</th>
+                    <th class="text-center text-warning">Sedang</th>
+                    <th class="text-center text-danger">Buruk</th>
+                    <th class="text-center text-info">% Baik</th>
+                    <th class="text-center text-warning">% Sedang</th>
+                    <th class="text-center text-danger">% Buruk</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($tingkatanKategoriPersen as $tg => $tkRow): ?>
+                    <tr>
+                        <td class="fw-semibold"><?= htmlspecialchars((string) $tg) ?></td>
+                        <td class="text-center"><?= (int) $tkRow['santri_count'] ?></td>
+                        <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                            <td class="text-center"><?= (int) ($tkRow['kategori'][$katKey] ?? 0) ?></td>
+                        <?php endforeach; ?>
+                        <?php foreach (rekap_keaktifan_kategori_perbandingan() as $katKey): ?>
+                            <td class="text-center fw-semibold"><?= htmlspecialchars((string) ($tkRow['persen'][$katKey] ?? 0)) ?>%</td>
+                        <?php endforeach; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="row g-3">
+            <div class="col-12 col-xl-7">
+                <h3 class="h6 text-secondary">Diagram batang — Baik, Sedang, Buruk (%)</h3>
+                <div class="position-relative" style="min-height: 300px;">
+                    <canvas id="chartKeaktifanTingkatanGrouped" aria-label="Grafik perbandingan Baik Sedang Buruk per tingkatan"></canvas>
+                </div>
+            </div>
+            <div class="col-12 col-xl-5">
+                <h3 class="h6 text-secondary">Komposisi kategori per tingkatan (100%)</h3>
+                <div class="position-relative" style="min-height: 300px;">
+                    <canvas id="chartKeaktifanTingkatanStacked" aria-label="Grafik komposisi kategori keaktifan per tingkatan"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($showKegiatanTanpaScan): ?>
+<div class="card shadow-sm mb-4 keaktifan-kegiatan-kosong-card print-controls">
+    <div class="card-body">
+        <h2 class="h6 mb-1">Kegiatan tanpa scan santri sama sekali</h2>
+        <p class="small text-muted mb-3">
+            Periode <strong><?= htmlspecialchars($periodeLabel) ?></strong>
+            (<?= $mode === 'hijriyah' ? 'bulan Hijriyah' : 'bulan Masehi' ?>:
+            <?= htmlspecialchars(date('d-m-Y', strtotime($startDate))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($endDate))) ?>).
+            Daftar kegiatan yang <strong>terjadwal</strong> dalam bulan ini tetapi tidak ada satupun santri yang scan <strong>hadir</strong>.
+            <?= $tingkatan !== '' ? 'Filter tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>.' : '' ?>
+            <?= $kegiatanId > 0 ? 'Filter kegiatan aktif.' : '' ?>
+        </p>
+        <?php if ($kegiatanTanpaScan === []): ?>
+            <div class="alert alert-success py-2 mb-0 small">
+                Semua kegiatan terjadwal pada periode ini sudah pernah discan hadir oleh santri.
+            </div>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped rekap-official-table mb-3">
+                    <thead>
+                    <tr>
+                        <th style="width:3rem">No</th>
+                        <th>Nama kegiatan</th>
+                        <th>Tingkatan</th>
+                        <th class="text-center">Hari terjadwal</th>
+                        <th class="text-center">Slot jadwal</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($kegiatanTanpaScan as $idx => $kgRow): ?>
+                        <tr>
+                            <td><?= $idx + 1 ?></td>
+                            <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
+                            <td><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
+                            <td class="text-center"><?= (int) $kgRow['hari_terjadwal'] ?></td>
+                            <td class="text-center"><?= (int) $kgRow['slot_jadwal'] ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted mb-0">
+                Total: <strong><?= count($kegiatanTanpaScan) ?></strong> kegiatan belum pernah discan hadir santri pada bulan ini.
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($showSantriTanpaScan): ?>
+<div class="card shadow-sm mb-4 keaktifan-santri-kosong-card print-controls">
+    <div class="card-body">
+        <h2 class="h6 mb-1">Santri tanpa scan hadir sama sekali</h2>
+        <p class="small text-muted mb-3">
+            Periode <strong><?= htmlspecialchars($periodeLabel) ?></strong>
+            (<?= $mode === 'hijriyah' ? 'bulan Hijriyah' : 'bulan Masehi' ?>).
+            Santri aktif yang <strong>masuk jadwal</strong> kegiatan pada bulan ini tetapi tidak pernah scan status <strong>hadir</strong>.
+            <?= $tingkatan !== '' ? 'Filter tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>.' : '' ?>
+        </p>
+        <?php if ($santriTanpaScan === []): ?>
+            <div class="alert alert-success py-2 mb-0 small">
+                Semua santri yang terikat jadwal pada periode ini sudah pernah scan hadir minimal sekali.
+            </div>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped rekap-official-table mb-3">
+                    <thead>
+                    <tr>
+                        <th style="width:3rem">No</th>
+                        <th>NIS</th>
+                        <th>Nama santri</th>
+                        <th>Tingkatan</th>
+                        <th class="text-center">Hari wajib</th>
+                        <th class="text-center">Slot jadwal</th>
+                        <th class="print-controls"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($santriTanpaScan as $idx => $sRow): ?>
+                        <tr>
+                            <td><?= $idx + 1 ?></td>
+                            <td><?= htmlspecialchars((string) $sRow['nis']) ?></td>
+                            <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $sRow['nama_santri']) ?></td>
+                            <td><?= htmlspecialchars((string) $sRow['tingkatan']) ?></td>
+                            <td class="text-center"><?= (int) $sRow['hari_wajib'] ?></td>
+                            <td class="text-center"><?= (int) $sRow['slot_wajib'] ?></td>
+                            <td class="print-controls">
+                                <a href="<?= htmlspecialchars($buildQuery(['santri_id' => (int) $sRow['santri_id'], 'tampilan' => 'santri'])) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted mb-0">
+                Total: <strong><?= count($santriTanpaScan) ?></strong> santri belum pernah scan hadir pada bulan ini.
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($tampilan === 'santri'): ?>
     <?php if ($ranked === []): ?>
@@ -462,13 +652,20 @@ require_once __DIR__ . '/../includes/header.php';
                             <th class="text-center text-info">Baik</th>
                             <th class="text-center text-warning">Sedang</th>
                             <th class="text-center text-danger">Buruk</th>
+                            <th class="text-center text-info">% Baik</th>
+                            <th class="text-center text-warning">% Sedang</th>
+                            <th class="text-center text-danger">% Buruk</th>
                         </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($byTingkatan as $tg => $data): ?>
+                            <?php
+                            $tkPersen = $tingkatanKategoriPersen[$tg]['persen'] ?? [];
+                            $tkTotal = (int) ($data['santri_count'] ?? 0);
+                            ?>
                             <tr>
                                 <td class="fw-semibold"><?= htmlspecialchars($tg) ?></td>
-                                <td class="text-center"><?= (int) $data['santri_count'] ?></td>
+                                <td class="text-center"><?= $tkTotal ?></td>
                                 <td class="text-center text-success"><?= (int) $data['hadir'] ?></td>
                                 <td class="text-center text-danger"><?= (int) $data['alpa'] ?></td>
                                 <td class="text-center"><?= (int) $data['izin'] ?></td>
@@ -477,6 +674,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td class="text-center"><?= htmlspecialchars((string) $data['persen_hadir']) ?>%</td>
                                 <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
                                     <td class="text-center fw-semibold"><?= (int) ($data['kategori'][$katKey] ?? 0) ?></td>
+                                <?php endforeach; ?>
+                                <?php foreach (rekap_keaktifan_kategori_perbandingan() as $katKey): ?>
+                                    <td class="text-center fw-semibold"><?= htmlspecialchars((string) ($tkPersen[$katKey] ?? ($tkTotal > 0 ? round(((int) ($data['kategori'][$katKey] ?? 0) / $tkTotal) * 100, 1) : 0))) ?>%</td>
                                 <?php endforeach; ?>
                             </tr>
                         <?php endforeach; ?>
@@ -537,7 +737,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             <td class="text-center"><?= (int) $sRow['total'] ?></td>
                                             <td class="text-center"><?= htmlspecialchars((string) $sRow['persen_hadir']) ?>%</td>
                                             <td class="print-controls">
-                                                <a href="<?= htmlspecialchars(app_href('/rekap/santri_bagus.php' . $buildQuery(['santri_id' => (int) $sRow['santri_id'], 'tampilan' => 'santri', 'tingkatan' => $tg]))) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
+                                                <a href="<?= htmlspecialchars($buildQuery(['santri_id' => (int) $sRow['santri_id'], 'tampilan' => 'santri', 'tingkatan' => $tg])) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -589,7 +789,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-center"><?= htmlspecialchars((string) $row['persen_hadir']) ?>%</td>
                             <td><span class="badge text-bg-<?= htmlspecialchars($badge) ?>"><?= htmlspecialchars((string) $row['kategori']) ?></span></td>
                             <td class="print-controls">
-                                <a href="<?= htmlspecialchars(app_href('/rekap/santri_bagus.php' . $buildQuery(['santri_id' => (int) $row['santri_id'], 'tampilan' => 'santri']))) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
+                                <a href="<?= htmlspecialchars($buildQuery(['santri_id' => (int) $row['santri_id'], 'tampilan' => 'santri'])) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -671,10 +871,11 @@ require_once __DIR__ . '/../includes/header.php';
     .keaktifan-stat--sakit .keaktifan-stat-n { color: #fd7e14; }
     .keaktifan-kegiatan-table th { font-size: 0.75rem; white-space: nowrap; }
     .keaktifan-tingkatan-card { break-inside: avoid; }
+    .keaktifan-tingkatan-chart-card { break-inside: avoid; }
 
     @media print {
         @page { size: <?= $paper === 'F4' ? '8.5in 13in' : 'A4' ?> portrait; margin: 12mm; }
-        .navbar, .app-sidebar, .offcanvas, .print-controls, .keaktifan-kriteria-legend { display: none !important; }
+        .navbar, .app-sidebar, .offcanvas, .print-controls, .keaktifan-kriteria-legend, .keaktifan-tingkatan-chart-card, .keaktifan-kegiatan-kosong-card, .keaktifan-santri-kosong-card { display: none !important; }
         body { background: #fff !important; }
         .app-content, .app-main, main { padding: 0 !important; margin: 0 !important; }
         .rekap-print-title {
@@ -787,4 +988,75 @@ require_once __DIR__ . '/../includes/header.php';
     }
 </style>
 
+<?php if ($showTingkatanKategoriChart): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const labels = <?= json_encode($tingkatanKategoriChart['labels'], JSON_UNESCAPED_UNICODE) ?>;
+    const grouped = <?= json_encode($tingkatanKategoriChart['datasets'], JSON_UNESCAPED_UNICODE) ?>;
+    const stacked = <?= json_encode($tingkatanKategoriChart['stacked_datasets'], JSON_UNESCAPED_UNICODE) ?>;
+
+    const groupedEl = document.getElementById('chartKeaktifanTingkatanGrouped');
+    if (groupedEl && labels.length) {
+        new Chart(groupedEl, {
+            type: 'bar',
+            data: { labels: labels, datasets: grouped },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { callback: function (v) { return v + '%'; } },
+                        title: { display: true, text: 'Persentase santri' }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ctx.dataset.label + ': ' + ctx.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    const stackedEl = document.getElementById('chartKeaktifanTingkatanStacked');
+    if (stackedEl && labels.length) {
+        new Chart(stackedEl, {
+            type: 'bar',
+            data: { labels: labels, datasets: stacked },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { callback: function (v) { return v + '%'; } }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ctx.dataset.label + ': ' + ctx.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+})();
+</script>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

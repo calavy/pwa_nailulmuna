@@ -63,7 +63,7 @@ function app_hub_registry(): array
             'tabs' => [
                 ['path' => '/rekap/index.php', 'label' => 'Periode'],
                 ['path' => '/rekap/keaktifan_hari.php', 'label' => 'Harian'],
-                ['path' => '/rekap/santri_bagus.php', 'label' => 'Keaktifan santri'],
+                ['path' => '/yayasan/operasional.php', 'label' => 'Keaktifan bulanan'],
                 ['path' => '/rekap/keaktivan_sdm.php', 'label' => 'SDM'],
                 ['path' => '/rekap/munawib.php', 'label' => 'Munawib'],
                 ['path' => '/rekap/pembimbing.php', 'label' => 'Pembimbing'],

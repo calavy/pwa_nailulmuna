@@ -166,8 +166,10 @@ return [
         '/settings/push.php' => 'Notifikasi & Lonceng',
         '/settings/admin.php' => 'Kelola Akses User',
         '/settings/presensi_data.php' => 'Kelola Data Presensi',
+        '/yayasan/sdm.php' => 'SDM Musyawarah',
+        '/yayasan/scan_musyawarah.php' => 'Scan Musyawarah',
         '/yayasan/pengurus.php' => 'Pengurus',
-        '/yayasan/rapat.php' => 'Rapat',
+        '/yayasan/rapat.php' => 'Rapat & Musyawarah',
         '/yayasan/notulen.php' => 'Notulen',
         '/yayasan/timeline.php' => 'Timeline & Tugas',
         '/yayasan/operasional.php' => 'Dashboard Operasional',
@@ -280,6 +282,12 @@ return [
             ['title' => 'Pintu masuk', 'paths' => [
                 '/yayasan/operasional.php',
                 '/yayasan/keaktifan.php',
+                '/yayasan/sdm_hari.php',
+            ]],
+            ['title' => 'Musyawarah', 'paths' => [
+                '/yayasan/sdm.php',
+                '/yayasan/rapat.php',
+                '/yayasan/scan_musyawarah.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [

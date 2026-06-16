@@ -42,18 +42,17 @@
     }
 
     function updateSidebarToggleUi(hidden) {
-        var reveal = document.querySelector('.app-sidebar-reveal');
-        if (reveal) {
-            reveal.setAttribute('aria-hidden', hidden ? 'false' : 'true');
-            reveal.setAttribute('title', hidden ? 'Tampilkan menu' : '');
-        }
-        document.querySelectorAll('[data-app-sidebar-toggle].app-sidebar-nav-label--toggle').forEach(function (el) {
-            el.setAttribute('title', hidden ? 'Tampilkan menu' : 'Sembunyikan menu');
-            el.setAttribute('aria-label', hidden ? 'Tampilkan menu samping' : 'Sembunyikan menu samping');
+        document.querySelectorAll('[data-app-sidebar-toggle="hide"].app-sidebar-nav-label--toggle').forEach(function (el) {
+            el.setAttribute('title', 'Sembunyikan menu');
+            el.setAttribute('aria-label', 'Sembunyikan menu samping');
         });
-        var pageBlock = document.querySelector('.app-topbar-page');
-        if (pageBlock) {
-            pageBlock.setAttribute('title', hidden ? 'Klik untuk tampilkan menu' : '');
+        var showBtn = document.getElementById('appMenuBtnDesktop');
+        if (showBtn) {
+            showBtn.classList.toggle('d-none', !hidden);
+            showBtn.classList.toggle('d-lg-inline-flex', hidden);
+            showBtn.setAttribute('aria-hidden', hidden ? 'false' : 'true');
+            showBtn.setAttribute('title', hidden ? 'Tampilkan menu' : '');
+            showBtn.setAttribute('aria-label', hidden ? 'Tampilkan menu samping' : 'Tampilkan menu samping');
         }
     }
 
@@ -71,20 +70,35 @@
         updateSidebarToggleUi(hidden);
     }
 
-    function toggleSidebarHidden() {
-        setSidebarHidden(!document.body.classList.contains('app-sidebar-hidden'), true);
-    }
-
     function bindSidebarToggle(el) {
         if (!el || el.dataset.sidebarToggleBound === '1') {
             return;
         }
         el.dataset.sidebarToggleBound = '1';
-        el.addEventListener('click', toggleSidebarHidden);
+        var mode = el.getAttribute('data-app-sidebar-toggle') || 'toggle';
+        el.addEventListener('click', function () {
+            if (mode === 'hide') {
+                setSidebarHidden(true, true);
+                return;
+            }
+            if (mode === 'show') {
+                setSidebarHidden(false, true);
+                return;
+            }
+            setSidebarHidden(!document.body.classList.contains('app-sidebar-hidden'), true);
+        });
         el.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                toggleSidebarHidden();
+                if (mode === 'hide') {
+                    setSidebarHidden(true, true);
+                    return;
+                }
+                if (mode === 'show') {
+                    setSidebarHidden(false, true);
+                    return;
+                }
+                setSidebarHidden(!document.body.classList.contains('app-sidebar-hidden'), true);
             }
         });
     }
@@ -97,17 +111,6 @@
         var hidden = document.documentElement.classList.contains('app-sidebar-hidden-boot') || sidebarHidden();
         setSidebarHidden(hidden, hidden);
         document.querySelectorAll('[data-app-sidebar-toggle]').forEach(bindSidebarToggle);
-
-        var pageBlock = document.querySelector('.app-topbar-page');
-        if (pageBlock && pageBlock.dataset.sidebarShowBound !== '1') {
-            pageBlock.dataset.sidebarShowBound = '1';
-            pageBlock.addEventListener('click', function () {
-                if (!document.body.classList.contains('app-sidebar-hidden')) {
-                    return;
-                }
-                setSidebarHidden(false, true);
-            });
-        }
     }
 
     function initMobileMenu() {

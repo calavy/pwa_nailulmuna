@@ -157,9 +157,9 @@ if (!function_exists('render_app_sidebar_nav')) {
         if ($isAccordion) {
             echo '<div class="app-sidebar-nav-label">Menu modul</div>';
         } else {
-            echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle role="button" tabindex="0" title="Sembunyikan menu" aria-label="Sembunyikan menu samping">';
+            echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle="hide" role="button" tabindex="0" title="Sembunyikan menu" aria-label="Sembunyikan menu samping">';
             echo '<span class="app-sidebar-nav-label__text">Menu modul</span>';
-            echo '<span class="app-sidebar-nav-label__arrow" aria-hidden="true"><i class="fa-solid fa-angles-left"></i></span>';
+            echo '<span class="app-sidebar-nav-label__arrow" aria-hidden="true"><i class="fa-solid fa-chevron-left"></i></span>';
             echo '</div>';
         }
         foreach ($structure as $node) {
@@ -381,7 +381,6 @@ if (!function_exists('render_app_sidebar_nav')) {
             <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'hub']); ?>
         </div>
     </aside>
-    <div class="app-sidebar-reveal d-none d-lg-block" data-app-sidebar-toggle role="button" tabindex="0" aria-hidden="true" title="Tampilkan menu" aria-label="Tampilkan menu samping"></div>
     <?php endif; ?>
 
     <div class="app-frame-main">
@@ -392,6 +391,9 @@ if (!function_exists('render_app_sidebar_nav')) {
                     <button type="button" class="app-topbar-menu-btn app-topbar-menu-btn--mobile d-lg-none" id="appMenuBtnMobile" aria-label="Buka menu" aria-expanded="false" aria-controls="mobileSidebar" title="Menu">
                         <i class="fa-solid fa-bars" aria-hidden="true"></i>
                         <span class="app-topbar-menu-btn__label">Menu</span>
+                    </button>
+                    <button type="button" class="app-topbar-menu-btn app-topbar-menu-btn--desktop d-none" id="appMenuBtnDesktop" data-app-sidebar-toggle="show" aria-label="Tampilkan menu samping" title="Tampilkan menu">
+                        <span class="app-topbar-menu-arrow" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
                     </button>
                     <?php endif; ?>
                     <a href="<?= htmlspecialchars($hideAppSidebar ? app_href('/pembimbing/dashboard.php') : app_href('/dashboard.php')) ?>" class="app-brand-link<?= $hideAppSidebar ? '' : ' d-lg-none' ?>" title="<?= htmlspecialchars($appBrandTitle) ?>">

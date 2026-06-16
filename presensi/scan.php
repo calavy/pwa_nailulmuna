@@ -117,7 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             munawib_ensure_schema($pdo);
             $munawib = munawib_find_by_code($pdo, $code);
         }
-
         if (!$santri && !$pembimbing && !$munawib) {
             $gerbang = perizinan_proses_scan_gerbang($pdo, $code, $createdBy);
             if ($gerbang['handled'] ?? false) {

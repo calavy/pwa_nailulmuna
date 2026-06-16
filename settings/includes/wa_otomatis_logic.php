@@ -21,6 +21,7 @@ $pondokWaFields = [
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit',
     'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
+    'wa_musyawarah_enabled', 'wa_musyawarah_target', 'wa_musyawarah_auto_selesai',
     'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit',
 ];
 $values = [];
@@ -109,13 +110,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
     } elseif ($action === 'save_presensi') {
-        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3'] as $field) {
+        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_musyawarah_target'] as $field) {
             if (array_key_exists($field, $_POST)) {
                 save_setting($pdo, $field, trim((string) $_POST[$field]));
             }
         }
         save_setting($pdo, 'wa_pembimbing_scan_enabled', isset($_POST['wa_pembimbing_scan_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_pembimbing_scan_menit_sebelum', (string) max(5, min(30, (int) ($_POST['wa_pembimbing_scan_menit_sebelum'] ?? 10))));
+        save_setting($pdo, 'wa_musyawarah_enabled', isset($_POST['wa_musyawarah_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_musyawarah_auto_selesai', isset($_POST['wa_musyawarah_auto_selesai']) ? '1' : '0');
         set_flash('success', 'Pengaturan presensi & kelas kosong disimpan.');
         header('Location: ' . $redirectUrl);
         exit;

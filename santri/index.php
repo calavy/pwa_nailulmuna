@@ -134,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="small text-muted mb-0">
                     Menampilkan <strong><?= count($santri) ?></strong> dari <strong><?= $totalFiltered ?></strong> santri aktif
                     (hal <?= $page ?> / <?= $totalPages ?>).
-                    Lihat skor keaktifan lengkap di <a href="/rekap/santri_bagus.php">Rekap Keaktifan</a>.
+                    Lihat skor keaktifan lengkap di <a href="<?= htmlspecialchars(app_href('/yayasan/operasional.php#yp-keaktifan-bulan')) ?>">Dashboard Yayasan</a>.
                 </p>
             </div>
         </form>

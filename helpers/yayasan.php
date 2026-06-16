@@ -19,7 +19,7 @@ function yayasan_jabatan_opsi(): array
 /** @return list<string> */
 function yayasan_jenis_rapat_opsi(): array
 {
-    return ['RUTIN', 'INSIDENTAL', 'LAIN'];
+    return ['RUTIN', 'INSIDENTAL', 'MUSYAWARAH', 'LAIN'];
 }
 
 function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan): string
@@ -96,6 +96,7 @@ function yayasan_label_jenis_rapat(string $jenis): string
     return match (strtoupper($jenis)) {
         'RUTIN' => 'Rapat rutin',
         'INSIDENTAL' => 'Insidental',
+        'MUSYAWARAH' => 'Musyawarah',
         default => 'Lainnya',
     };
 }

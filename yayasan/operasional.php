@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 require_once __DIR__ . '/../helpers/yayasan_portal.php';
+require_once __DIR__ . '/../helpers/yayasan_keaktifan_bulan.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -16,6 +17,20 @@ $kas = yayasan_kas_status($pdo);
 $tagihan = $kas['tagihan_bulan'] ?? [];
 $hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
+
+$kb = yayasan_keaktifan_bulan_pack($pdo, [
+    'mode' => $_GET['kb_mode'] ?? 'hijriyah',
+    'month' => $_GET['kb_month'] ?? null,
+    'year' => $_GET['kb_year'] ?? null,
+    'tingkatan' => $_GET['kb_tingkatan'] ?? '',
+]);
+$kbFormAction = '/yayasan/operasional.php';
+$kbKegiatanKosongCount = count((array) ($kb['kegiatan_tanpa_scan'] ?? []));
+$kbSantriKosongCount = count((array) ($kb['santri_tanpa_scan'] ?? []));
+$kbPerhatianCount = $kbKegiatanKosongCount + $kbSantriKosongCount;
+$kbPanelOpen = isset($_GET['kb_month']) || isset($_GET['kb_year']) || array_key_exists('kb_tingkatan', $_GET)
+    || (string) ($_GET['kb_open'] ?? '') === '1';
+$kbSaran = yayasan_keaktifan_bulan_saran($kb);
 
 $pageTitle = 'Dashboard Operasional Yayasan';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
@@ -111,6 +126,34 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <div class="row g-3">
+        <?php if (!empty($kb['ready'])): ?>
+        <div class="col-md-4">
+            <button
+                type="button"
+                class="card border-0 shadow-sm text-start w-100 h-100 yp-nav-card yp-nav-card--toggle<?= $kbPanelOpen ? '' : ' collapsed' ?>"
+                id="ypKeaktifanBulanToggle"
+                data-bs-toggle="collapse"
+                data-bs-target="#ypKeaktifanBulanPanel"
+                aria-expanded="<?= $kbPanelOpen ? 'true' : 'false' ?>"
+                aria-controls="ypKeaktifanBulanPanel"
+            >
+                <div class="card-body">
+                    <i class="fa-solid fa-calendar-days text-info mb-2"></i>
+                    <div class="fw-semibold text-dark">Rekap Keaktifan Bulanan</div>
+                    <div class="small text-muted">Bulan Hijriyah · grafik &amp; tanpa scan</div>
+                    <?php if ($kbPerhatianCount > 0): ?>
+                        <span class="badge text-bg-danger mt-2"><?= (int) $kbPerhatianCount ?> perlu perhatian</span>
+                    <?php else: ?>
+                        <span class="badge text-bg-success mt-2">Kondisi baik</span>
+                    <?php endif; ?>
+                    <div class="small text-primary mt-2 yp-nav-card__hint">
+                        <i class="fa-solid fa-chevron-down me-1 yp-nav-card__chev" aria-hidden="true"></i>
+                        <span class="yp-nav-card__hint-text"><?= $kbPanelOpen ? 'Ketuk untuk tutup' : 'Ketuk untuk buka' ?></span>
+                    </div>
+                </div>
+            </button>
+        </div>
+        <?php endif; ?>
         <div class="col-md-4">
             <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/pengawasan.php')) ?>">
                 <div class="card-body">
@@ -202,6 +245,12 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </div>
     </div>
+
+    <?php if (!empty($kb['ready'])): ?>
+    <div class="collapse<?= $kbPanelOpen ? ' show' : '' ?>" id="ypKeaktifanBulanPanel">
+        <?php require __DIR__ . '/partials/keaktifan_bulan_panel.php'; ?>
+    </div>
+    <?php endif; ?>
 </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
