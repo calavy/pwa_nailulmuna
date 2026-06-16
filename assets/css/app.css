@@ -352,12 +352,109 @@ body {
     text-overflow: ellipsis;
 }
 
+/* Tombol menu — mobile (hamburger) & desktop (panah) */
+.app-topbar-menu-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.app-topbar-menu-btn:active {
+    transform: scale(0.96);
+}
+
+.app-topbar-menu-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    border-radius: 10px;
+}
+
+/* Mobile: tombol pill besar */
+.app-topbar-menu-btn--mobile {
+    min-height: 44px;
+    padding: 0.4rem 0.7rem 0.4rem 0.55rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.16);
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.app-topbar-menu-btn--mobile:hover {
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.app-topbar-menu-btn--mobile.is-open {
+    background: rgba(255, 255, 255, 0.28);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.app-topbar-menu-btn--mobile i {
+    font-size: 1.05rem;
+    width: 1.25rem;
+    text-align: center;
+}
+
+.app-topbar-menu-btn__label {
+    line-height: 1;
+}
+
+/* Panel menu mobile */
+.app-mobile-sidebar {
+    --bs-offcanvas-width: min(88vw, 20.5rem);
+}
+
+.app-mobile-sidebar__header {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--card-border);
+    background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+}
+
+.app-mobile-sidebar__body {
+    padding: 0.75rem 0.85rem max(1rem, env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.app-mobile-sidebar .app-side-nav-item {
+    min-height: 48px;
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+    font-size: 0.92rem;
+}
+
+.app-mobile-sidebar .app-side-nav-accordion__summary {
+    min-height: 48px;
+}
+
 .app-topbar-back {
     order: -1;
 }
 
 .app-topbar-back .app-topbar-action-btn__label {
     max-width: 5.5rem;
+}
+
+@media (max-width: 380px) {
+    .app-topbar-menu-btn__label {
+        display: none;
+    }
+
+    .app-topbar-menu-btn--mobile {
+        min-width: 44px;
+        padding-inline: 0.55rem;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -1013,23 +1110,54 @@ body {
         padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
         min-height: 56px;
         gap: 0.5rem;
-    }
-
-    /* Nama pondok di kiri cukup lebar; judul halaman tengah disembunyikan agar tidak terpotong */
-    .app-topbar-center {
-        display: none;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas: "left center right";
+        align-items: center;
     }
 
     .app-topbar-left {
-        flex: 1 1 auto;
+        grid-area: left;
+        flex: 0 0 auto;
         min-width: 0;
+        gap: 0.45rem;
+    }
+
+    .app-topbar-center {
+        grid-area: center;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        min-width: 0;
+        padding: 0 0.35rem;
+    }
+
+    .app-topbar-right {
+        grid-area: right;
+    }
+
+    .app-topbar-title-mobile {
+        font-size: clamp(0.82rem, 3.2vw, 0.95rem);
+        font-weight: 700;
+        line-height: 1.25;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
     }
 
     .app-brand-link {
-        max-width: none;
-        flex: 1 1 auto;
+        max-width: min(38vw, 8.5rem);
+        flex: 0 1 auto;
         min-width: 0;
-        gap: 0.6rem;
+        gap: 0.45rem;
+    }
+
+    .app-topbar-menu-btn__label {
+        display: inline;
     }
 
     .app-brand-mark,
@@ -2841,6 +2969,17 @@ html[data-theme-transitioning] .app-theme-switch {
 [data-theme="dark"] .app-sidebar-hide-btn:hover {
     background: rgba(15, 118, 110, 0.22);
     color: #99f6e4;
+}
+
+[data-theme="dark"] .app-topbar-menu-btn--mobile {
+    background: rgba(15, 23, 42, 0.4);
+    border-color: rgba(148, 163, 184, 0.35);
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .app-mobile-sidebar__header {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border-bottom-color: rgba(71, 85, 105, 0.45);
 }
 
 [data-theme="dark"] .app-sidebar-footer {

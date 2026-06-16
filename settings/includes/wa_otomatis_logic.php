@@ -254,6 +254,17 @@ if ($tabReq !== '' && isset($waTabs[$tabReq])) {
 $waJadwal = wa_tagihan_jadwal_context($pdo);
 $waCronLastRun = trim((string) app_setting($pdo, 'wa_auto_last_run_at', ''));
 $waLastHeavy = trim((string) app_setting($pdo, 'wa_auto_last_heavy_at', ''));
+$waScheduledLastAt = trim((string) app_setting($pdo, 'wa_auto_scheduled_last_at', ''));
+$waScheduledLastRaw = trim((string) app_setting($pdo, 'wa_auto_scheduled_last_result', ''));
+$waScheduledLast = $waScheduledLastRaw !== '' ? json_decode($waScheduledLastRaw, true) : null;
+if (!is_array($waScheduledLast)) {
+    $waScheduledLast = null;
+}
+$waAlpaLastRaw = trim((string) app_setting($pdo, 'wa_auto_alpa_last_result', ''));
+$waAlpaLast = $waAlpaLastRaw !== '' ? json_decode($waAlpaLastRaw, true) : null;
+if (!is_array($waAlpaLast)) {
+    $waAlpaLast = null;
+}
 $waTagihanLastRun = trim((string) app_setting($pdo, 'wa_tagihan_last_run_at', ''));
 $waCronKey = trim((string) app_setting($pdo, 'wa_auto_cron_key', ''));
 $cronUrl = app_href('/cron/wa_auto.php') . ($waCronKey !== '' ? ('?key=' . rawurlencode($waCronKey)) : '');

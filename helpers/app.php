@@ -63,7 +63,7 @@ function app_tahun_masehi_default(PDO $pdo): int
 
 /**
  * Sinkronisasi berat (presensi, poin, WA) — dibatasi agar navigasi menu tidak lambat.
- * Cron/wa_auto.php tetap bisa memanggil fungsi asli langsung.
+ * Cron memakai wa_auto_run_scheduled_wa() langsung (tanpa throttle 10 menit).
  */
 function app_request_path_is_lightweight(string $requestPath): bool
 {

@@ -166,9 +166,12 @@ function wa_otomatis_gateway_error(PDO $pdo, array $override = []): ?string
 }
 
 /**
- * Apakah job otomatis boleh mengirim WA (mode push/wa + master toggle).
+ * Apakah job otomatis boleh mengirim WA (master toggle + pengaturan per jenis).
  *
- * @param string $kind general|tagihan|izin
+ * Mode push/wa (fcm_notify_mode) hanya membatasi notifikasi izin yang punya alternatif push.
+ * Tagihan, presensi, alpa, kelas kosong, dan cashless memakai toggle masing-masing.
+ *
+ * @param string $kind general|tagihan|izin|cashless
  */
 function wa_otomatis_should_run(PDO $pdo, string $kind = 'general'): bool
 {
@@ -188,11 +191,8 @@ function wa_otomatis_should_run(PDO $pdo, string $kind = 'general'): bool
         return push_should_send_wa($pdo);
     }
 
-    if (!function_exists('push_should_send_wa')) {
-        require_once __DIR__ . '/push_fcm.php';
-    }
-
-    return push_should_send_wa($pdo);
+    // general, cashless, presensi — WA native; tidak diblokir mode push-only
+    return true;
 }
 
 function wa_otomatis_extract_api_error(string $response, string $curlError, int $httpCode): string
@@ -489,7 +489,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
 }
 
 /** Nomor WA wali santri (resolver lengkap + normalisasi). */
-function wa_otomatis_santri_wali_phone(PDO $pdo, array $santriRow): string
+function wa_otomatis_santri_wali_phone(PDO $pdo, int|array $santriRow): string
 {
     if (!function_exists('santri_resolve_no_wa_wali')) {
         require_once __DIR__ . '/santri_wa.php';
@@ -497,4 +497,145 @@ function wa_otomatis_santri_wali_phone(PDO $pdo, array $santriRow): string
     $raw = santri_resolve_no_wa_wali($pdo, $santriRow);
 
     return wa_otomatis_normalize_target($raw);
+}
+
+/**
+ * Job WA terjadwal untuk cron (tanpa throttle navigasi web).
+ * Dipanggil dari cron/wa_auto.php pada tick berat (~5 menit).
+ */
+function wa_auto_run_scheduled_wa(PDO $pdo): void
+{
+    if (!function_exists('trigger_auto_wa_notifications')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!function_exists('cashless_wa_cron_laporan_harian')) {
+        require_once __DIR__ . '/cashless_wa.php';
+    }
+
+    $started = microtime(true);
+    $results = [
+        'alpa' => ['ran' => false, 'note' => ''],
+        'tagihan' => ['ran' => false, 'note' => ''],
+        'kelas_kosong' => ['ran' => false, 'note' => ''],
+        'cashless_laporan' => ['ran' => false, 'note' => ''],
+    ];
+
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        save_setting($pdo, 'wa_auto_scheduled_last_at', date('Y-m-d H:i:s'));
+        save_setting($pdo, 'wa_auto_scheduled_last_result', json_encode([
+            'skipped' => true,
+            'reason' => 'gateway',
+            'gateway_error' => wa_otomatis_gateway_error($pdo),
+        ], JSON_UNESCAPED_UNICODE));
+
+        return;
+    }
+
+    trigger_auto_wa_notifications($pdo);
+    $results['alpa']['ran'] = true;
+
+    trigger_auto_wa_tagihan_wali($pdo);
+    $results['tagihan']['ran'] = true;
+
+    trigger_wa_kelas_kosong_bertahap($pdo);
+    $results['kelas_kosong']['ran'] = true;
+
+    cashless_wa_cron_laporan_harian($pdo);
+    $results['cashless_laporan']['ran'] = true;
+
+    save_setting($pdo, 'wa_auto_scheduled_last_at', date('Y-m-d H:i:s'));
+    save_setting($pdo, 'wa_auto_scheduled_last_result', json_encode([
+        'skipped' => false,
+        'duration_ms' => (int) round((microtime(true) - $started) * 1000),
+        'jobs' => $results,
+        'alpa_stats' => json_decode((string) app_setting($pdo, 'wa_auto_alpa_last_result', ''), true),
+        'tagihan_stats' => json_decode((string) app_setting($pdo, 'wa_tagihan_last_run_stats', ''), true),
+    ], JSON_UNESCAPED_UNICODE));
+}
+
+/**
+ * Satu tick WA otomatis (ringan + berat). Dipakai cron dan fallback navigasi web.
+ *
+ * @return array{light:bool,heavy:bool,gateway_ok:bool}
+ */
+function wa_auto_run_tick(PDO $pdo): array
+{
+    $now = time();
+    save_setting($pdo, 'wa_auto_last_run_at', date('Y-m-d H:i:s'));
+    $gwErr = wa_otomatis_gateway_error($pdo);
+    save_setting($pdo, 'wa_auto_last_gateway_ok', $gwErr === null ? '1' : '0');
+    if ($gwErr !== null) {
+        save_setting($pdo, 'wa_auto_last_gateway_error', $gwErr);
+    }
+
+    $runLight = false;
+    $runHeavy = false;
+
+    if ($gwErr === null) {
+        if (!function_exists('trigger_wa_pembimbing_belum_scan')) {
+            require_once __DIR__ . '/wa_pembimbing_scan.php';
+        }
+
+        $lightInterval = max(45, (int) app_setting($pdo, 'wa_auto_light_interval_sec', '60'));
+        $lastLight = (int) app_setting($pdo, 'wa_auto_light_last_at', '0');
+        $runLight = $lastLight <= 0 || ($now - $lastLight) >= $lightInterval;
+        if ($runLight) {
+            trigger_wa_pembimbing_belum_scan($pdo);
+            trigger_wa_mudabir_belum_hadir($pdo);
+            save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
+        }
+
+        $heavyInterval = max(300, (int) app_setting($pdo, 'wa_auto_heavy_interval_sec', '300'));
+        $lastHeavy = (int) app_setting($pdo, 'wa_auto_heavy_last_at', '0');
+        $runHeavy = $lastHeavy <= 0 || ($now - $lastHeavy) >= $heavyInterval;
+        if ($runHeavy) {
+            wa_auto_run_scheduled_wa($pdo);
+            if (!function_exists('trigger_push_tagihan_wali_from_cron')) {
+                require_once __DIR__ . '/push_events.php';
+            }
+            trigger_push_tagihan_wali_from_cron($pdo);
+            trigger_push_daily_kiai($pdo);
+
+            $cleanupLast = trim((string) app_setting($pdo, 'wa_debounce_cleanup_last_date', ''));
+            if ($cleanupLast !== date('Y-m-d')) {
+                $removed = wa_cleanup_old_debounce_keys($pdo, 30);
+                save_setting($pdo, 'wa_debounce_cleanup_last_date', date('Y-m-d'));
+                if ($removed > 0) {
+                    save_setting($pdo, 'wa_debounce_cleanup_last_count', (string) $removed);
+                }
+            }
+
+            save_setting($pdo, 'wa_auto_heavy_last_at', (string) $now);
+            save_setting($pdo, 'wa_auto_last_heavy_at', date('Y-m-d H:i:s'));
+        }
+    }
+
+    return [
+        'light' => $runLight,
+        'heavy' => $runHeavy,
+        'gateway_ok' => $gwErr === null,
+    ];
+}
+
+/**
+ * Fallback bila cron tidak jalan: tick WA saat staf buka aplikasi (throttle sama dengan cron).
+ */
+function wa_auto_web_fallback_tick(PDO $pdo): void
+{
+    static $ranThisRequest = false;
+    if ($ranThisRequest) {
+        return;
+    }
+    $ranThisRequest = true;
+
+    if (trim((string) app_setting($pdo, 'wa_auto_web_fallback_enabled', '1')) !== '1') {
+        return;
+    }
+
+    $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    if ($requestPath !== '' && (app_request_path_is_lightweight($requestPath) || str_contains($requestPath, '/cron/wa_auto.php'))) {
+        return;
+    }
+
+    wa_auto_run_tick($pdo);
 }

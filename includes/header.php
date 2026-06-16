@@ -71,7 +71,8 @@ if (isset($_SESSION['user'])) {
         migrate_keuangan_permissions_split($pdo);
         $_SESSION['acl_keuangan_split_checked'] = 1;
     }
-    // Maintenance berat (presensi/poin/WA massal): hanya cron/wa_auto.php — bukan tiap navigasi web.
+    require_once __DIR__ . '/../helpers/wa_otomatis.php';
+    wa_auto_web_fallback_tick($pdo);
 }
 
 $appBrandTagline = '';
@@ -156,7 +157,7 @@ if (!function_exists('render_app_sidebar_nav')) {
         if ($isAccordion) {
             echo '<div class="app-sidebar-nav-label">Menu modul</div>';
         } else {
-            echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle role="button" tabindex="0" title="Klik untuk sembunyikan menu" aria-label="Sembunyikan menu samping">';
+            echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle role="button" tabindex="0" title="Sembunyikan menu" aria-label="Sembunyikan menu samping">';
             echo '<span class="app-sidebar-nav-label__text">Menu modul</span>';
             echo '<span class="app-sidebar-nav-label__arrow" aria-hidden="true"><i class="fa-solid fa-angles-left"></i></span>';
             echo '</div>';
@@ -380,13 +381,19 @@ if (!function_exists('render_app_sidebar_nav')) {
             <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'hub']); ?>
         </div>
     </aside>
-    <div class="app-sidebar-reveal d-none d-lg-block" data-app-sidebar-toggle role="button" tabindex="0" aria-hidden="true" title="Klik untuk tampilkan menu" aria-label="Tampilkan menu samping"></div>
+    <div class="app-sidebar-reveal d-none d-lg-block" data-app-sidebar-toggle role="button" tabindex="0" aria-hidden="true" title="Tampilkan menu" aria-label="Tampilkan menu samping"></div>
     <?php endif; ?>
 
     <div class="app-frame-main">
         <header class="app-topbar">
             <div class="app-topbar-inner">
                 <div class="app-topbar-left">
+                    <?php if (!$hideAppSidebar): ?>
+                    <button type="button" class="app-topbar-menu-btn app-topbar-menu-btn--mobile d-lg-none" id="appMenuBtnMobile" aria-label="Buka menu" aria-expanded="false" aria-controls="mobileSidebar" title="Menu">
+                        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                        <span class="app-topbar-menu-btn__label">Menu</span>
+                    </button>
+                    <?php endif; ?>
                     <a href="<?= htmlspecialchars($hideAppSidebar ? app_href('/pembimbing/dashboard.php') : app_href('/dashboard.php')) ?>" class="app-brand-link<?= $hideAppSidebar ? '' : ' d-lg-none' ?>" title="<?= htmlspecialchars($appBrandTitle) ?>">
                         <?php if ($appLogoHref !== ''): ?>
                             <span class="app-brand-mark app-brand-mark--logo">
@@ -408,11 +415,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                     </div>
                 </div>
                 <div class="app-topbar-center d-lg-none">
-                    <?php if (!$hideAppSidebar): ?>
-                    <span class="app-topbar-title-mobile app-topbar-title-mobile--menu-hit" data-bs-toggle="offcanvas" data-bs-target="#mobileSidebar" role="button" tabindex="0" title="Klik untuk buka menu" aria-label="Buka menu"><?= htmlspecialchars($pageTitleHeader) ?></span>
-                    <?php else: ?>
                     <span class="app-topbar-title-mobile"><?= htmlspecialchars($pageTitleHeader) ?></span>
-                    <?php endif; ?>
                 </div>
                 <div class="app-topbar-right">
                     <?php if (isset($_SESSION['user'])): ?>
@@ -459,11 +462,12 @@ if (!function_exists('render_app_sidebar_nav')) {
         </header>
 
         <?php if (!$hideAppSidebar): ?>
-        <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileSidebar">
-            <div class="offcanvas-header border-0 pb-0">
-                <button type="button" class="btn-close ms-auto" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+        <div class="offcanvas offcanvas-start app-mobile-sidebar" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">
+            <div class="offcanvas-header app-mobile-sidebar__header">
+                <h2 class="offcanvas-title h6 mb-0" id="mobileSidebarLabel">Navigasi</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup menu"></button>
             </div>
-            <div class="offcanvas-body pt-2">
+            <div class="offcanvas-body app-mobile-sidebar__body">
                 <?php
                 $compact = true;
                 $sidebarHeadIdSuffix = 'mob';
