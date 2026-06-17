@@ -85,7 +85,12 @@ require_once __DIR__ . '/../includes/header.php';
     <section class="mb-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h2 class="h5 mb-0"><i class="fa-solid fa-gavel me-2 text-warning"></i>Ketertiban Hari Ini</h2>
-            <a class="btn btn-sm btn-warning" href="<?= htmlspecialchars(app_href('/yayasan/ketertiban.php')) ?>">Menu Ketertiban</a>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-danger" href="<?= htmlspecialchars(app_href('/yayasan/kesehatan.php')) ?>">
+                    <i class="fa-solid fa-heart-pulse me-1"></i>Laporan kesehatan
+                </a>
+                <a class="btn btn-sm btn-warning" href="<?= htmlspecialchars(app_href('/yayasan/ketertiban.php')) ?>">Menu Ketertiban</a>
+            </div>
         </div>
         <div class="row g-3">
             <div class="col-md-4">

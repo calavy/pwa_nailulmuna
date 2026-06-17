@@ -182,11 +182,11 @@ require_once __DIR__ . '/../includes/header.php';
 
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/pengasuh/dashboard.php')) ?>">Pengasuh</a> · Perizinan</p>
 
-    <h1 class="h4 mb-1">Persetujuan Izin Syar'i</h1>
+    <h1 class="h4 mb-1">Persetujuan Izin</h1>
 
     <p class="text-muted mb-0">
 
-        Hanya <strong>Izin Syar'i</strong> yang memerlukan persetujuan pengasuh di halaman ini.
+        Hanya <strong>Izin</strong> yang memerlukan persetujuan pengasuh di halaman ini.
 
         Setelah disetujui, izin langsung aktif (QR &amp; notifikasi) — pengurus hanya mencetak surat.
 

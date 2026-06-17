@@ -68,8 +68,7 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
     }
 
     $ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
-    $chartRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, 0);
-    $chartRanked = rekap_keaktifan_build_per_santri($chartRows, $goodMax, $mediumMax);
+    $chartRanked = $ranked;
     $byTingkatanChart = rekap_keaktifan_build_per_tingkatan($chartRanked);
     $tingkatanPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
     $tingkatanChart = rekap_keaktifan_chart_tingkatan_kategori($tingkatanPersen);

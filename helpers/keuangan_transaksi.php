@@ -310,6 +310,10 @@ function keuangan_ensure_schema_deferred(PDO $pdo): void
     if (!isset($_SESSION['user'])) {
         return;
     }
+
+    require_once __DIR__ . '/keuangan_alokasi.php';
+    ensure_keuangan_alokasi_jenis_dana($pdo);
+
     if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
         return;
     }
@@ -805,6 +809,10 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Form pengeluaran belum lengkap (penanggung jawab, pos, nominal).'];
     }
+    $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
+    if ($alokasiErr !== null) {
+        return ['ok' => false, 'message' => $alokasiErr];
+    }
     if ($akunId <= 0) {
         return ['ok' => false, 'message' => 'Pilih akun kas/bank sumber dana.'];
     }
@@ -815,7 +823,7 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
         'tanggal' => $tanggal,
         'penanggung_jawab' => $penanggungJawab,
         'pos' => $pos,
-        'alokasi_nama' => $alokasiNama !== '' ? $alokasiNama : null,
+        'alokasi_nama' => $alokasiNama,
         'nominal' => $nominal,
         'keterangan' => $keterangan,
         'created_by' => $userId > 0 ? $userId : null,

@@ -182,6 +182,15 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </div>
         <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/kesehatan.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-heart-pulse text-danger mb-2"></i>
+                    <div class="fw-semibold text-dark">Laporan Kesehatan</div>
+                    <div class="small text-muted">Izin sakit, E-Health &amp; grafik tren</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
             <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/ketertiban.php')) ?>">
                 <div class="card-body">
                     <i class="fa-solid fa-shield-halved text-danger mb-2"></i>

@@ -9,6 +9,24 @@ require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 require_once __DIR__ . '/../helpers/cashless_wa.php';
 
 keuangan_ensure_schema_deferred($pdo);
+cashless_koperasi_ensure_schema($pdo);
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && trim((string) ($_GET['action'] ?? '')) === 'lookup_qr') {
+    header('Content-Type: application/json; charset=utf-8');
+    $code = trim((string) ($_GET['code'] ?? ''));
+    $santri = cashless_lookup_santri_by_code($pdo, $code);
+    if (!$santri) {
+        echo json_encode(['ok' => true, 'registered' => false], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode([
+        'ok' => true,
+        'registered' => true,
+        'nama' => (string) ($santri['nama_santri'] ?? ''),
+        'nis' => (string) ($santri['nis'] ?? ''),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 $koperasiPortal = defined('CASHLESS_KOPERASI_PORTAL') && CASHLESS_KOPERASI_PORTAL === true;
 
@@ -47,6 +65,8 @@ $scanUangMaxNominal = max(1000, $scanUangMaxNominal);
 $lastSantriSummary = null;
 $verifiedSantri = null;
 $lastSuccessNominal = 0;
+$lastSaldoSaku = null;
+$lastSisaJatah = null;
 $cashlessVoiceText = null;
 
 if (isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verified'])) {
@@ -61,6 +81,13 @@ if (isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verifi
         ');
         $vsStmt->execute(['id' => $verifiedId]);
         $verifiedSantri = $vsStmt->fetch();
+        if (is_array($verifiedSantri)) {
+            $balInit = (float) ($verifiedSantri['balance'] ?? 0);
+            $jatahInit = cashless_santri_jatah_harian($pdo, $verifiedId, $balInit);
+            $verifiedSantri['saldo_saku'] = (int) round($balInit);
+            $verifiedSantri['sisa_jatah_hari'] = (int) ($jatahInit['sisa'] ?? 0);
+            $verifiedSantri['limit_harian'] = (int) ($jatahInit['limit'] ?? 0);
+        }
     }
 }
 
@@ -73,9 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kodeQr = trim((string) ($_POST['kode_qr'] ?? ''));
         $pin = trim((string) ($_POST['pin'] ?? ''));
 
-        $findSantri = $pdo->prepare('SELECT id, nis, nama_santri, nama FROM santri WHERE qr = :code OR nis = :code LIMIT 1');
-        $findSantri->execute(['code' => $kodeQr]);
-        $santri = $findSantri->fetch();
+        require_once __DIR__ . '/../helpers/santri_kartu_sementara.php';
+        $santri = santri_resolve_by_scan_code($pdo, $kodeQr);
+        if ($santri) {
+            $loadFull = $pdo->prepare('SELECT id, nis, nama_santri, nama FROM santri WHERE id = :id LIMIT 1');
+            $loadFull->execute(['id' => (int) ($santri['id'] ?? 0)]);
+            $santri = $loadFull->fetch() ?: $santri;
+        }
         if (!$santri) {
             $resultType = 'warning';
             $resultMessage = 'QR/NIS tidak terdaftar.';
@@ -92,33 +123,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $saldoTotal = (int) ((float) ($account['balance'] ?? 0));
                 if ($saldoTotal <= 0) {
                     $resultType = 'warning';
-                    $resultMessage = 'Transaksi ditolak: saldo cashless habis.';
+                    $resultMessage = 'Transaksi ditolak: Saldo Saku habis.';
                     if ($scanUangVoice) {
                         $cashlessVoiceText = 'Saldo kosong. Transaksi ditolak.';
                     }
                 } else {
                     $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoTotal);
-                    $lastSantriSummary = [
-                        'nis' => (string) ($santri['nis'] ?? ''),
-                        'nama' => $nama,
-                        'saldo_total' => $saldoTotal,
-                        'limit_harian' => (int) $jatah['limit'],
-                        'terpakai_hari_ini' => (int) $jatah['terpakai'],
-                        'sisa_limit' => (int) $jatah['sisa'],
-                    ];
-                    $_SESSION['cashless_verified'] = [
-                        'santri_id' => $santriId,
-                        'verified_at' => time(),
-                    ];
-                    $_SESSION['cashless_auto_nominal_scan'] = true;
-                    $verifiedSantri = [
-                        'id' => $santriId,
-                        'nis' => (string) ($santri['nis'] ?? ''),
-                        'nama_santri' => $nama,
-                        'balance' => $saldoTotal,
-                    ];
-                    $resultType = 'success';
-                    $resultMessage = 'PIN benar. Scan nominal dibuka otomatis.';
+                    if ((int) ($jatah['sisa'] ?? 0) <= 0) {
+                        $resultType = 'warning';
+                        $resultMessage = 'Transaksi ditolak: batas belanja harian terlampaui.';
+                        if ($scanUangVoice) {
+                            $cashlessVoiceText = 'Batas belanja harian terlampaui. Transaksi ditolak.';
+                        }
+                    } else {
+                        $lastSantriSummary = [
+                            'nis' => (string) ($santri['nis'] ?? ''),
+                            'nama' => $nama,
+                        ];
+                        $_SESSION['cashless_verified'] = [
+                            'santri_id' => $santriId,
+                            'verified_at' => time(),
+                        ];
+                        $_SESSION['cashless_auto_nominal_scan'] = true;
+                        $verifiedSantri = [
+                            'id' => $santriId,
+                            'nis' => (string) ($santri['nis'] ?? ''),
+                            'nama_santri' => $nama,
+                            'saldo_saku' => $saldoTotal,
+                            'sisa_jatah_hari' => (int) ($jatah['sisa'] ?? 0),
+                            'limit_harian' => (int) ($jatah['limit'] ?? 0),
+                        ];
+                        $resultType = 'success';
+                        $resultMessage = 'PIN benar. Scan nominal dibuka otomatis.';
+                    }
                 }
             }
         }
@@ -177,7 +214,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $saldoErr = cashless_santri_saldo_cukup_debit($pdo, $santriId, $nominal);
                     if ($saldoErr !== null) {
                         $resultType = 'warning';
-                        $resultMessage = $saldoErr;
+                        if (str_contains($saldoErr, 'habis') || str_contains($saldoErr, 'kosong')) {
+                            $resultMessage = 'Transaksi ditolak: Saldo Saku habis.';
+                        } elseif (str_contains($saldoErr, 'tidak cukup')) {
+                            $resultMessage = 'Transaksi ditolak: Saldo Saku tidak cukup.';
+                        } elseif (str_contains($saldoErr, 'batas')) {
+                            $resultMessage = 'Transaksi ditolak: batas belanja harian terlampaui.';
+                        } else {
+                            $resultMessage = $saldoErr;
+                        }
                         if ($scanUangVoice) {
                             if (str_contains($saldoErr, 'habis') || str_contains($saldoErr, 'kosong')) {
                                 $cashlessVoiceText = 'Saldo kosong. Transaksi ditolak.';
@@ -188,38 +233,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                     } else {
-                        $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :nominal WHERE santri_id = :santri_id')->execute([
-                            'nominal' => $nominal,
-                            'santri_id' => $santriId,
-                        ]);
-                        cashless_koperasi_insert_debit(
-                            $pdo,
-                            $santriId,
-                            $nominal,
-                            $keterangan,
-                            $createdByUserId,
-                            $koperasiId > 0 ? $koperasiId : null
-                        );
-                        $saldoSetelah = (float) ($account['balance'] ?? 0) - $nominal;
-                        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
-                        cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
-                        $jatahSetelah = cashless_santri_jatah_harian($pdo, $santriId, $saldoSetelah);
-                        $lastSantriSummary = [
-                            'saldo_keseluruhan' => (int) $jatahSetelah['balance'],
-                            'sisa_jatah_hari' => (int) $jatahSetelah['sisa'],
-                            'limit_harian' => (int) $jatahSetelah['limit'],
-                            'terpakai_hari' => (int) $jatahSetelah['terpakai'],
-                        ];
-                        $lastSuccessNominal = $nominal;
-                        $resultType = 'success';
-                        $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp '
-                            . number_format($nominal, 0, ',', '.')
-                            . '. Saldo Rp ' . number_format((int) $jatahSetelah['balance'], 0, ',', '.')
-                            . ', sisa jatah hari ini Rp ' . number_format((int) $jatahSetelah['sisa'], 0, ',', '.') . '.';
-                        if ($scanUangVoice) {
-                            $cashlessVoiceText = 'Transaksi sebesar ' . number_format($nominal, 0, ',', '.') . ' rupiah berhasil';
+                        $pdo->beginTransaction();
+                        try {
+                            $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :nominal WHERE santri_id = :santri_id')->execute([
+                                'nominal' => $nominal,
+                                'santri_id' => $santriId,
+                            ]);
+                            $txId = cashless_koperasi_insert_debit(
+                                $pdo,
+                                $santriId,
+                                $nominal,
+                                $keterangan,
+                                $createdByUserId,
+                                $koperasiId > 0 ? $koperasiId : null
+                            );
+                            cashless_jurnal_belanja_scan(
+                                $pdo,
+                                $txId,
+                                date('Y-m-d'),
+                                $nominal,
+                                $createdByUserId,
+                                $keterangan
+                            );
+                            $pdo->commit();
+                        } catch (Throwable $e) {
+                            if ($pdo->inTransaction()) {
+                                $pdo->rollBack();
+                            }
+                            $resultType = 'danger';
+                            $resultMessage = 'Transaksi gagal: ' . $e->getMessage();
+                            if ($scanUangVoice) {
+                                $cashlessVoiceText = 'Transaksi gagal.';
+                            }
                         }
-                        unset($_SESSION['cashless_verified']);
+                        if ($resultType !== 'danger') {
+                            $saldoSetelah = (int) round((float) ($account['balance'] ?? 0) - $nominal);
+                            cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
+                            cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
+                            $lastSuccessNominal = $nominal;
+                            $lastSaldoSaku = $saldoSetelah;
+                            $jatahSetelah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoSetelah);
+                            $lastSisaJatah = (int) ($jatahSetelah['sisa'] ?? 0);
+                            $resultType = 'success';
+                            $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp '
+                                . number_format($nominal, 0, ',', '.')
+                                . '. Saldo Saku Rp ' . number_format($saldoSetelah, 0, ',', '.') . '.';
+                            if ($scanUangVoice) {
+                                $cashlessVoiceText = 'Transaksi sebesar ' . number_format($nominal, 0, ',', '.') . ' rupiah berhasil';
+                            }
+                            unset($_SESSION['cashless_verified']);
+                        }
                     }
                 }
             }
@@ -235,25 +298,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'auto_nominal' => ($action === 'verify_cashless_pin' && $resultType === 'success' && $scanUangEnabled),
         ];
         if ($action === 'verify_cashless_pin' && $resultType === 'success' && is_array($verifiedSantri)) {
-            $jatahPin = cashless_santri_jatah_harian($pdo, (int) ($verifiedSantri['id'] ?? 0), (float) ($verifiedSantri['balance'] ?? 0));
             $jsonExtra['santri'] = [
                 'id' => (int) ($verifiedSantri['id'] ?? 0),
                 'nis' => (string) ($verifiedSantri['nis'] ?? ''),
                 'nama' => (string) ($verifiedSantri['nama_santri'] ?? ''),
-                'balance' => (int) ((float) ($verifiedSantri['balance'] ?? 0)),
-                'sisa_jatah_hari' => (int) $jatahPin['sisa'],
-                'limit_harian' => (int) $jatahPin['limit'],
-                'terpakai_hari' => (int) $jatahPin['terpakai'],
+                'saldo_saku' => (int) ($verifiedSantri['saldo_saku'] ?? 0),
+                'sisa_jatah_hari' => (int) ($verifiedSantri['sisa_jatah_hari'] ?? 0),
+                'limit_harian' => (int) ($verifiedSantri['limit_harian'] ?? 0),
             ];
         }
         if ($action === 'process_scan_uang') {
             $jsonExtra['debit_success'] = $lastSuccessNominal > 0;
             $jsonExtra['nominal'] = $lastSuccessNominal;
-            if ($lastSuccessNominal > 0 && is_array($lastSantriSummary)) {
-                $jsonExtra['saldo_keseluruhan'] = (int) ($lastSantriSummary['saldo_keseluruhan'] ?? 0);
-                $jsonExtra['sisa_jatah_hari'] = (int) ($lastSantriSummary['sisa_jatah_hari'] ?? 0);
-                $jsonExtra['limit_harian'] = (int) ($lastSantriSummary['limit_harian'] ?? 0);
-                $jsonExtra['terpakai_hari'] = (int) ($lastSantriSummary['terpakai_hari'] ?? 0);
+            if ($lastSaldoSaku !== null) {
+                $jsonExtra['saldo_saku'] = $lastSaldoSaku;
+            }
+            if ($lastSisaJatah !== null) {
+                $jsonExtra['sisa_jatah_hari'] = $lastSisaJatah;
             }
             if ($cashlessVoiceText !== null && $cashlessVoiceText !== '') {
                 $jsonExtra['voice'] = $cashlessVoiceText;
@@ -331,6 +392,7 @@ if ($koperasiPortal) {
                 <div class="cashless-pin-card">
                     <label for="pin_input">Masukkan PIN santri</label>
                     <input type="password" id="pin_input" class="cashless-pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" aria-label="PIN">
+                    <p class="cashless-pin-hint small text-muted mb-0 mt-1" id="pin_hint">Scan QR santri dulu, lalu masukkan PIN sampai selesai (Enter atau jeda ±1,5 detik).</p>
                 </div>
                 <form method="post" id="pin_form" class="d-none">
                     <input type="hidden" name="action" value="verify_cashless_pin">
@@ -341,12 +403,29 @@ if ($koperasiPortal) {
             </div>
 
             <div class="cashless-phase-uang" id="phase_uang">
+                <?php
+                $initSaldoSaku = is_array($verifiedSantri)
+                    ? (int) ($verifiedSantri['saldo_saku'] ?? round((float) ($verifiedSantri['balance'] ?? 0)))
+                    : null;
+                $initSisaJatah = is_array($verifiedSantri) ? (int) ($verifiedSantri['sisa_jatah_hari'] ?? 0) : null;
+                $showSantriStats = $initSaldoSaku !== null;
+                ?>
                 <div class="cashless-santri-chip" id="santri_chip">
                     <i class="fa-solid fa-user-check"></i>
                     <span id="santri_chip_name"><?php if ($verifiedSantri): ?><?= htmlspecialchars((string) ($verifiedSantri['nama_santri'] ?? '')) ?><?php else: ?>Santri<?php endif; ?></span>
                 </div>
-                <div class="cashless-viewport">
+                <div class="cashless-viewport cashless-viewport--uang">
                     <div id="money_reader"></div>
+                </div>
+                <div class="cashless-santri-stats<?= $showSantriStats ? '' : ' is-hidden' ?>" id="santri_stats" aria-live="polite">
+                    <div class="cashless-santri-stats__item">
+                        <span class="cashless-santri-stats__label"><i class="fa-solid fa-wallet me-1"></i>Saldo Saku</span>
+                        <span class="cashless-santri-stats__value" id="santri_saldo_saku_amount"><?php if ($initSaldoSaku !== null): ?>Rp <?= number_format($initSaldoSaku, 0, ',', '.') ?><?php endif; ?></span>
+                    </div>
+                    <div class="cashless-santri-stats__item">
+                        <span class="cashless-santri-stats__label"><i class="fa-solid fa-chart-pie me-1"></i>Sisa jatah hari ini</span>
+                        <span class="cashless-santri-stats__value cashless-santri-stats__value--jatah" id="santri_sisa_jatah_amount"><?php if ($initSisaJatah !== null): ?>Rp <?= number_format($initSisaJatah, 0, ',', '.') ?><?php endif; ?></span>
+                    </div>
                 </div>
                 <form method="post" id="scan_uang_form" class="d-none">
                     <input type="hidden" name="action" value="process_scan_uang">
@@ -367,9 +446,13 @@ if ($koperasiPortal) {
 <?php if (!$koperasiPortal): ?>
 <details class="cashless-history small">
     <summary>Riwayat debit hari ini</summary>
+    <p class="small text-muted mt-2 mb-2">
+        Saldo Saku santri berkurang saat scan. Uang fisik masih bendahara sampai
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>">setor harian</a> (kas keluar ke koperasi).
+    </p>
     <div class="table-responsive mt-2">
         <table class="table table-sm table-striped mb-0">
-            <thead><tr><th>Waktu</th><th>NIS</th><th>Nama</th><th class="text-end">Nominal</th></tr></thead>
+            <thead><tr><th>Waktu</th><th>NIS</th><th>Nama</th><th class="text-end">Nominal</th><th>Status</th></tr></thead>
             <tbody>
             <?php if ($todayRows): foreach ($todayRows as $r): ?>
                 <tr>
@@ -377,9 +460,10 @@ if ($koperasiPortal) {
                     <td><?= htmlspecialchars((string) $r['nis']) ?></td>
                     <td><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
                     <td class="text-end">Rp <?= number_format((int) ((float) $r['nominal']), 0, ',', '.') ?></td>
+                    <td><?php if (!empty($r['setor_at'])): ?><span class="badge text-bg-success">Setor</span><?php else: ?><span class="badge text-bg-warning text-dark">Menunggu</span><?php endif; ?></td>
                 </tr>
             <?php endforeach; else: ?>
-                <tr><td colspan="4" class="text-center text-muted">—</td></tr>
+                <tr><td colspan="5" class="text-center text-muted">—</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -394,7 +478,8 @@ if ($koperasiPortal) {
             autoNominalAfterPin: <?= ($autoStartNominalScan && $verifiedSantri) ? 'true' : 'false' ?>,
             scanUangEnabled: <?= $scanUangEnabled ? 'true' : 'false' ?>,
             voiceEnabled: <?= $scanUangVoice ? 'true' : 'false' ?>,
-            pinMinLen: 4
+            pinMinLen: 4,
+            pinIdleMs: 1500
         };
         const wrap = document.getElementById('cashless_scan_wrap');
         const input = document.getElementById('kode_qr');
@@ -404,6 +489,9 @@ if ($koperasiPortal) {
         const flashEl = document.getElementById('cashless_flash');
         const retryBtn = document.getElementById('retry_camera_btn');
         const santriChipName = document.getElementById('santri_chip_name');
+        const santriStatsEl = document.getElementById('santri_stats');
+        const santriSaldoAmountEl = document.getElementById('santri_saldo_saku_amount');
+        const santriJatahAmountEl = document.getElementById('santri_sisa_jatah_amount');
         const readerId = 'reader';
         const moneyReaderId = 'money_reader';
         if (!input || typeof Html5Qrcode === 'undefined') return;
@@ -415,6 +503,7 @@ if ($koperasiPortal) {
         let pinVerifyBusy = false;
         let moneyScanBusy = false;
         let pinDebounce = null;
+        let pinEntryActive = false;
 
         const nominalScanInput = document.getElementById('nominal_scan');
         const moneyForm = document.getElementById('scan_uang_form');
@@ -482,16 +571,21 @@ if ($koperasiPortal) {
             return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
         }
 
-        function saldoSuccessLine(data) {
-            if (!data || !data.debit_success) return '';
-            var parts = [];
-            if (data.saldo_keseluruhan !== undefined) {
-                parts.push('Saldo ' + formatRp(data.saldo_keseluruhan));
+        function setSantriStats(saldo, sisaJatah) {
+            if (!santriStatsEl) return;
+            if (saldo === null || saldo === undefined) {
+                santriStatsEl.classList.add('is-hidden');
+                if (santriSaldoAmountEl) santriSaldoAmountEl.textContent = '';
+                if (santriJatahAmountEl) santriJatahAmountEl.textContent = '';
+                return;
             }
-            if (data.sisa_jatah_hari !== undefined) {
-                parts.push('Sisa jatah hari ini ' + formatRp(data.sisa_jatah_hari));
+            santriStatsEl.classList.remove('is-hidden');
+            if (santriSaldoAmountEl) santriSaldoAmountEl.textContent = formatRp(saldo);
+            if (santriJatahAmountEl) {
+                santriJatahAmountEl.textContent = sisaJatah !== null && sisaJatah !== undefined
+                    ? formatRp(sisaJatah)
+                    : '—';
             }
-            return parts.length ? parts.join(' · ') : '';
         }
 
         function setFlash(msg, type) {
@@ -533,17 +627,38 @@ if ($koperasiPortal) {
         }
 
         async function startSantriScanner(preferredCameraId) {
-            if (moneyPhase) return;
+            if (moneyPhase || pinEntryActive) return;
             await stopMoneyScanner();
             await stopCurrentScanner();
             html5QrCode = new Html5Qrcode(readerId);
             const onSuccess = async function (decodedText) {
                 input.value = decodedText;
+                pinEntryActive = true;
                 await stopCurrentScanner();
-                setFlash('QR terbaca. Masukkan PIN.', 'info');
-                if (pinInput) {
-                    pinInput.value = '';
-                    pinInput.focus();
+                try {
+                    var lookupUrl = window.location.pathname + '?action=lookup_qr&code=' + encodeURIComponent(decodedText || '');
+                    var res = await fetch(lookupUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                    var data = await res.json();
+                    if (data && data.ok && data.registered) {
+                        setFlash('\u2713 ' + (data.nama || 'Santri') + ' (' + (data.nis || '-') + ') terdaftar. Selesaikan PIN.', 'success');
+                        if (pinInput) {
+                            pinInput.value = '';
+                            pinInput.disabled = false;
+                            pinInput.focus();
+                        }
+                        return;
+                    }
+                    setFlash('QR/NIS tidak terdaftar di sistem.', 'error');
+                    input.value = '';
+                    pinEntryActive = false;
+                    await startSantriScanner(activeCameraId);
+                } catch (e) {
+                    setFlash('QR terbaca. Lanjutkan masukkan PIN sampai selesai.', 'info');
+                    if (pinInput) {
+                        pinInput.value = '';
+                        pinInput.disabled = false;
+                        pinInput.focus();
+                    }
                 }
             };
             const scanConfigLocal = scanConfig();
@@ -583,10 +698,15 @@ if ($koperasiPortal) {
 
         function resetToSantriPhase() {
             moneyPhase = false;
+            pinEntryActive = false;
             if (wrap) wrap.classList.remove('is-money-phase');
             if (input) input.value = '';
-            if (pinInput) pinInput.value = '';
+            if (pinInput) {
+                pinInput.value = '';
+                pinInput.disabled = false;
+            }
             if (nominalScanInput) nominalScanInput.value = '';
+            setSantriStats(null, null);
             setFlash('', '');
         }
 
@@ -646,8 +766,11 @@ if ($koperasiPortal) {
                 else if (data.ok && data.debit_success) speak('Transaksi berhasil');
 
                 if (data.ok && data.debit_success) {
-                    var extra = saldoSuccessLine(data);
-                    setFlash((data.message || 'Transaksi berhasil.') + (extra ? '\n' + extra : ''), 'success');
+                    var msg = data.message || 'Transaksi berhasil.';
+                    if (data.saldo_saku !== undefined && msg.indexOf('Saldo Saku') < 0) {
+                        msg += ' Saldo Saku ' + formatRp(data.saldo_saku) + '.';
+                    }
+                    setFlash(msg, 'success');
                     resetToSantriPhase();
                     await startSantriScanner(activeCameraId);
                 } else {
@@ -672,10 +795,17 @@ if ($koperasiPortal) {
         async function verifyPinAjax() {
             if (pinVerifyBusy || moneyPhase) return;
             var qr = (input.value || '').trim();
-            var pin = (pinInput && pinInput.value) ? pinInput.value.trim() : '';
+            var pin = (pinInput && pinInput.value) ? pinInput.value.replace(/\D/g, '') : '';
+            if (pinInput) pinInput.value = pin;
             if (!qr || pin.length < CFG.pinMinLen) return;
 
+            if (pinDebounce) {
+                clearTimeout(pinDebounce);
+                pinDebounce = null;
+            }
+
             pinVerifyBusy = true;
+            if (pinInput) pinInput.disabled = true;
             setFlash('Memverifikasi PIN…', 'info');
             if (pinHidden) pinHidden.value = pin;
 
@@ -692,12 +822,20 @@ if ($koperasiPortal) {
                 });
                 var data = await res.json();
                 if (data.ok && data.auto_nominal) {
+                    pinEntryActive = false;
                     var nama = (data.santri && data.santri.nama) ? data.santri.nama : '';
                     setSantriName(nama);
+                    if (data.santri && data.santri.saldo_saku !== undefined) {
+                        setSantriStats(
+                            data.santri.saldo_saku,
+                            data.santri.sisa_jatah_hari
+                        );
+                    }
                     speak('PIN benar');
                     setFlash('PIN benar. Arahkan ke QR nominal.', 'success');
                     await beginMoneyQrScan(nama);
                 } else if (data.ok && !CFG.scanUangEnabled) {
+                    pinEntryActive = false;
                     setFlash(data.message || 'PIN benar. Scan uang nonaktif.', 'success');
                     if (pinInput) pinInput.value = '';
                     await startSantriScanner(activeCameraId);
@@ -705,34 +843,52 @@ if ($koperasiPortal) {
                     setFlash(data.message || 'PIN salah.', 'error');
                     if (pinInput) {
                         pinInput.value = '';
+                        pinInput.disabled = false;
                         pinInput.focus();
                     }
-                    await startSantriScanner(activeCameraId);
                 }
             } catch (e) {
                 setFlash('Gagal verifikasi. Coba lagi.', 'error');
-                await startSantriScanner(activeCameraId);
+                if (pinInput) {
+                    pinInput.disabled = false;
+                    pinInput.focus();
+                }
             } finally {
                 pinVerifyBusy = false;
+                if (pinInput && !moneyPhase && pinEntryActive) {
+                    pinInput.disabled = false;
+                }
             }
         }
 
         function schedulePinVerify() {
+            if (pinVerifyBusy || moneyPhase || !pinEntryActive) return;
             if (pinDebounce) clearTimeout(pinDebounce);
             pinDebounce = setTimeout(function () {
-                var pin = (pinInput && pinInput.value) ? pinInput.value.trim() : '';
-                if ((input.value || '').trim() && pin.length >= CFG.pinMinLen) {
+                pinDebounce = null;
+                var qr = (input.value || '').trim();
+                var pin = (pinInput && pinInput.value) ? pinInput.value.replace(/\D/g, '') : '';
+                if (qr && pin.length >= CFG.pinMinLen) {
                     verifyPinAjax();
                 }
-            }, 280);
+            }, CFG.pinIdleMs);
         }
 
         if (pinInput) {
-            pinInput.addEventListener('input', schedulePinVerify);
+            pinInput.addEventListener('input', function () {
+                var digits = pinInput.value.replace(/\D/g, '');
+                if (pinInput.value !== digits) {
+                    pinInput.value = digits;
+                }
+                schedulePinVerify();
+            });
             pinInput.addEventListener('keydown', function (ev) {
                 if (ev.key === 'Enter') {
                     ev.preventDefault();
-                    if (pinDebounce) clearTimeout(pinDebounce);
+                    if (pinDebounce) {
+                        clearTimeout(pinDebounce);
+                        pinDebounce = null;
+                    }
                     verifyPinAjax();
                 }
             });
@@ -743,7 +899,13 @@ if ($koperasiPortal) {
                 setFlash('', '');
                 if (moneyPhase) {
                     await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
+                } else if (pinEntryActive && (input.value || '').trim()) {
+                    if (pinInput) {
+                        pinInput.disabled = false;
+                        pinInput.focus();
+                    }
                 } else {
+                    pinEntryActive = false;
                     await startSantriScanner(activeCameraId);
                 }
             });
@@ -753,7 +915,7 @@ if ($koperasiPortal) {
             setTimeout(function () {
                 if (moneyPhase) {
                     beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
-                } else {
+                } else if (!pinEntryActive) {
                     startSantriScanner(activeCameraId);
                 }
             }, 400);

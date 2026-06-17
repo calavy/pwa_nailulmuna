@@ -118,22 +118,20 @@ function akademik_setoran_require_access(): void
 /** @return array{id:int,nis:string,nama_santri:string,tingkatan:string}|null */
 function akademik_setoran_resolve_santri_qr(PDO $pdo, string $code): ?array
 {
-    $code = trim($code);
-    if ($code === '') {
+    require_once __DIR__ . '/santri_kartu_sementara.php';
+    $row = santri_resolve_by_scan_code($pdo, $code);
+    if ($row === null) {
         return null;
     }
     ensure_santri_identity_columns($pdo);
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $sql = 'SELECT id, nis, ' . $nameCol . ' AS nama_santri, tingkatan FROM santri WHERE qr = :c OR nis = :c';
-    if (column_exists($pdo, 'santri', 'is_aktif')) {
-        $sql .= ' AND COALESCE(is_aktif, 1) = 1';
-    }
-    $sql .= ' LIMIT 1';
-    $st = $pdo->prepare($sql);
-    $st->execute(['c' => $code]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
 
-    return $row ?: null;
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'nis' => (string) ($row['nis'] ?? ''),
+        'nama_santri' => (string) ($row[$nameCol] ?? $row['nama_santri'] ?? $row['nama'] ?? ''),
+        'tingkatan' => (string) ($row['tingkatan'] ?? ''),
+    ];
 }
 
 /** @return list<string> */

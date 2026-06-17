@@ -57,6 +57,9 @@ require_once __DIR__ . '/../includes/header.php';
     <a href="<?= htmlspecialchars(app_href('/koperasi/index.php')) ?>" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
         <i class="fa-solid fa-store me-1"></i> Portal petugas
     </a>
+    <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>" class="btn btn-success btn-sm">
+        <i class="fa-solid fa-vault me-1"></i> Setor
+    </a>
 </div>
 
 <form method="get" class="row g-2 align-items-end mb-3">

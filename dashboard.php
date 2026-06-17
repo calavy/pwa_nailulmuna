@@ -28,6 +28,7 @@ if (isset($_SESSION['user'])) {
 
 require_roles(['admin', 'pengurus', 'petugas_absensi', 'kiai']);
 
+$pdo = pondok_pdo_ping($pdo);
 $today = date('Y-m-d');
 
 ensure_hijri_mappings_table($pdo);
@@ -38,8 +39,12 @@ $hijriBulanNamaDash = [
 ];
 $dashSyncKey = 'dashboard_hijri_sync_' . date('Y-m-d');
 if (empty($_SESSION[$dashSyncKey])) {
-    hijri_sync_from_akademik_awal_bulan($pdo);
-    akademik_libur_sinkron_hari_khusus_tahun($pdo, (int) date('Y'), $hijriBulanNamaDash);
+    try {
+        hijri_sync_from_akademik_awal_bulan($pdo);
+        akademik_libur_sinkron_hari_khusus_tahun($pdo, (int) date('Y'), $hijriBulanNamaDash);
+    } catch (Throwable $e) {
+        error_log('[dashboard hijri sync] ' . $e->getMessage());
+    }
     $_SESSION[$dashSyncKey] = 1;
 }
 $dashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNamaDash);
@@ -125,8 +130,14 @@ if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
 }
 $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
 if ($kegiatanAktifGrouped !== []) {
-    // Tampilan saja — finalize presensi berat; dijalankan di scan/rekap/cron.
-    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
+    try {
+        $pdo = pondok_pdo_ping($pdo);
+        // Tampilan saja — finalize presensi berat; dijalankan di scan/rekap/cron.
+        $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
+    } catch (Throwable $e) {
+        error_log('[dashboard kegiatan presensi] ' . $e->getMessage());
+        $kegiatanAktifPresensi = [];
+    }
 }
 /** Anchor jam live agar selaras dengan waktu server yang dipakai query jadwal (bukan jam lokal browser). */
 $dashServerClockMs = (int) round(microtime(true) * 1000);

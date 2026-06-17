@@ -82,31 +82,12 @@ require_once __DIR__ . '/../includes/header.php';
                         </datalist>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Alokasi dana (opsional)</label>
-                        <select class="form-select" name="alokasi_nama">
-                            <option value="">— Tidak terkait alokasi —</option>
-                            <?php
-                            $lastGroup = '';
-                            foreach ($alokasiPengeluaranOpts as $opt):
-                                $grp = (string) ($opt['group'] ?? '');
-                                if ($grp !== $lastGroup):
-                                    if ($lastGroup !== '') {
-                                        echo '</optgroup>';
-                                    }
-                                    echo '<optgroup label="' . htmlspecialchars($grp) . '">';
-                                    $lastGroup = $grp;
-                                endif;
-                                ?>
-                                <option value="<?= htmlspecialchars((string) ($opt['value'] ?? '')) ?>">
-                                    <?= htmlspecialchars((string) ($opt['label'] ?? '')) ?>
-                                </option>
-                            <?php endforeach;
-                            if ($lastGroup !== '') {
-                                echo '</optgroup>';
-                            }
-                            ?>
-                        </select>
-                        <div class="form-text">Termasuk dana umum syahriyah PKPPS/kelas — selaras dengan laporan alokasi &amp; pengaturan syahriyah.</div>
+                        <label class="form-label">Alokasi dana <span class="text-danger">*</span></label>
+                        <?php
+                        $alokasiSelected = '';
+                        $alokasiRequired = true;
+                        require __DIR__ . '/partials/alokasi_pengeluaran_select.php';
+                        ?>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Metode</label>

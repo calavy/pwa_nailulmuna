@@ -23,6 +23,7 @@ function app_hub_registry(): array
             'tabs' => [
                 ['path' => '/keuangan/pemasukan.php', 'label' => 'Pemasukan'],
                 ['path' => '/keuangan/pengeluaran.php', 'label' => 'Pengeluaran'],
+                ['path' => '/keuangan/riwayat_pemasukan.php', 'label' => 'Riwayat masuk'],
                 ['path' => '/keuangan/riwayat_pengeluaran.php', 'label' => 'Riwayat keluar'],
             ],
         ],
@@ -31,6 +32,7 @@ function app_hub_registry(): array
             'landing' => '/keuangan/cashless.php',
             'tabs' => [
                 ['path' => '/keuangan/cashless_scan.php', 'label' => 'Top up / scan'],
+                ['path' => '/keuangan/cashless_setor.php', 'label' => 'Setor'],
                 ['path' => '/keuangan/cashless_laporan.php', 'label' => 'Laporan'],
             ],
         ],

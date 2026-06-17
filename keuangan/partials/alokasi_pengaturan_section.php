@@ -154,6 +154,15 @@ $paguSumber = match ($alokasiJenisDana) {
             <?php if ($alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN): ?>
                 <span class="d-block mt-1">Catat pembayaran santri dengan jenis periode <strong>Awal tahun</strong> di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>.</span>
             <?php endif; ?>
+            <?php if ($alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_MAKAN): ?>
+                <span class="d-block mt-1">
+                    Pagu dihitung dari pembayaran bulanan pos <strong>makan</strong> pada TA aktif.
+                    Tarif &amp; kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=makan')) ?>">Makan per kelas</a>.
+                    Catat bayar di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>.
+                    Pengeluaran dapur/konsumsi pilih komponen <strong>Dana makan</strong> di
+                    <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a>.
+                </span>
+            <?php endif; ?>
         </p>
         <div class="row g-2 mb-3">
             <div class="col-md-4"><div class="app-mini-stat h-100"><div class="app-mini-stat-label">Total %</div><div class="app-mini-stat-value" id="sim-total-persen-<?= $simSuffix ?>"><?= htmlspecialchars((string) $simulasi['total_persen']) ?>%</div></div></div>

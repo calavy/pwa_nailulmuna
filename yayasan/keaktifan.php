@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan_hari.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 
 require_roles(['admin', 'pengurus']);
@@ -34,6 +35,7 @@ $byTingkatan = rekap_keaktifan_hari_by_tingkatan($rows);
 $sdm = rekap_keaktifan_hari_sdm($pdo, $tanggal);
 $riwayatPembimbingMasuk = rekap_keaktifan_hari_riwayat_pembimbing_masuk($pdo, $tanggal);
 $kegiatanKosong = rekap_keaktifan_hari_kegiatan_kosong($pdo, $tanggal, $tkFilter, $kategori);
+$kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan($pdo, $tanggal, $tanggal, $tkFilter);
 
 if ($kegiatanId > 0) {
     $detailKeg = array_values(array_filter(
@@ -341,6 +343,33 @@ require_once __DIR__ . '/../includes/header.php';
                                 <li><?= htmlspecialchars((string) $reason) ?></li>
                             <?php endforeach; ?>
                         </ul>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="yp-section-title"><i class="fa-solid fa-qrcode me-2"></i>Kegiatan tanpa scan hadir</h2>
+        <button type="button" class="btn yp-mobile-toggle mb-2" data-target="yp-detail-tanpa-scan" aria-expanded="false">
+            <i class="fa-solid fa-list me-1"></i>Lihat detail
+        </button>
+        <div id="yp-detail-tanpa-scan" class="yp-mobile-detail">
+        <?php if ($kegiatanTanpaScan === []): ?>
+            <div class="yp-empty-inline">Semua kegiatan terjadwal hari ini sudah memiliki scan hadir.</div>
+        <?php else: ?>
+            <div class="yp-kosong-grid">
+                <?php foreach ($kegiatanTanpaScan as $kts): ?>
+                    <article class="yp-kosong-card">
+                        <div class="yp-kosong-card__title"><?= htmlspecialchars((string) ($kts['nama_kegiatan'] ?? 'Kegiatan')) ?></div>
+                        <div class="yp-kosong-card__meta">
+                            Tingkatan: <?= htmlspecialchars((string) ($kts['tingkatan_label'] ?? '-')) ?>
+                            · Slot terjadwal: <?= (int) ($kts['slot_jadwal'] ?? 0) ?>
+                        </div>
+                        <div class="yp-kosong-card__stats text-warning">
+                            Belum ada satupun santri yang scan <strong>hadir</strong> pada hari ini.
+                        </div>
                     </article>
                 <?php endforeach; ?>
             </div>

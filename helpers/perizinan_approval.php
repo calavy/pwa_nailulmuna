@@ -168,11 +168,11 @@ function perizinan_alpa_cek_approval(PDO $pdo, int $santriId, string $jenisIzin,
     } elseif (perizinan_memerlukan_persetujuan_pengasuh($jenis)) {
         $max = $cfg['keluar_max'];
         $hari = $cfg['keluar_hari'];
-        $jenisLabel = 'izin keluar / syar\'i';
+        $jenisLabel = 'izin';
     } else {
         $max = $cfg['keluar_max'];
         $hari = $cfg['keluar_hari'];
-        $jenisLabel = 'izin keluar / syar\'i';
+        $jenisLabel = 'izin';
     }
 
     $base['subject'] = true;
@@ -267,11 +267,10 @@ function perizinan_alpa_lengkapi_tampilan(array $cek, ?string $refDate = null): 
         }
     } else {
         $cek['ringkasan'] = $jumlahTeks . ' · ' . $periodeTeks . ' · terhalang';
-        $cek['penjelasan'] = 'Santri tercatat **' . $jumlahTeks . '** dalam **' . $periodeTeks . '**. '
-            . 'Untuk **' . $jenisLabel . '**, batasnya **kurang dari ' . $batasBlokir . ' kali ALPA** '
-            . '(maks. **' . $batasAman . ' kali**). Saat ini sudah **' . $count . ' kali** — **tidak bisa disetujui** '
-            . 'kecuali ada opsi lewati ALPA.';
-        $cek['catatan'] = 'ALPA = tidak hadir ke kegiatan wajib tanpa izin/sakit resmi.';
+        $cek['penjelasan'] = 'Santri tercatat ' . $jumlahTeks . ' dalam ' . $periodeTeks . '. '
+            . 'Untuk ' . $jenisLabel . ', batasnya kurang dari ' . $batasBlokir . ' kali ALPA '
+            . '(maks. ' . $batasAman . ' kali). Saat ini sudah ' . $count . ' kali — belum memenuhi syarat otomatis.';
+        $cek['catatan'] = 'Anda tetap dapat mengirim permohonan; pengasuh pondok yang menilai.';
         if (trim((string) ($cek['message'] ?? '')) === '') {
             $cek['message'] = 'Santri sudah ' . $count . ' kali ALPA dalam ' . $hari . ' hari. '
                 . 'Batas ' . $jenisLabel . ': maks. ' . $batasAman . ' kali (blokir dari ' . $batasBlokir . ' kali).';

@@ -52,7 +52,11 @@ if (isset($_SESSION['user'])) {
     }
     require_once __DIR__ . '/../helpers/app_cache.php';
     app_performance_cache_prune_expired();
-    app_ensure_schema_deferred($pdo);
+    try {
+        app_ensure_schema_deferred($pdo);
+    } catch (Throwable $e) {
+        error_log('[header schema] ' . $e->getMessage());
+    }
     if (preg_match('#^/(keuangan|pembayaran)(/|$)#', $requestPath)) {
         if (!function_exists('keuangan_ensure_schema_deferred')) {
             require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
@@ -62,17 +66,29 @@ if (isset($_SESSION['user'])) {
     enforce_route_acl_or_redirect($pdo, $requestPath, $permissionPathMap);
     unset($_SESSION['_acl_redirect_guard']);
     if (empty($_SESSION['acl_pengaturan_migrate_checked'])) {
-        require_once __DIR__ . '/../helpers/pengaturan_acl.php';
-        migrate_legacy_permissions_to_pengaturan($pdo);
+        try {
+            require_once __DIR__ . '/../helpers/pengaturan_acl.php';
+            migrate_legacy_permissions_to_pengaturan($pdo);
+        } catch (Throwable $e) {
+            error_log('[acl migrate pengaturan] ' . $e->getMessage());
+        }
         $_SESSION['acl_pengaturan_migrate_checked'] = 1;
     }
     if (empty($_SESSION['acl_keuangan_split_checked'])) {
-        require_once __DIR__ . '/../helpers/user_permissions.php';
-        migrate_keuangan_permissions_split($pdo);
+        try {
+            require_once __DIR__ . '/../helpers/user_permissions.php';
+            migrate_keuangan_permissions_split($pdo);
+        } catch (Throwable $e) {
+            error_log('[acl migrate keuangan] ' . $e->getMessage());
+        }
         $_SESSION['acl_keuangan_split_checked'] = 1;
     }
-    require_once __DIR__ . '/../helpers/wa_otomatis.php';
-    wa_auto_web_fallback_tick($pdo);
+    try {
+        require_once __DIR__ . '/../helpers/wa_otomatis.php';
+        wa_auto_web_fallback_tick($pdo);
+    } catch (Throwable $e) {
+        error_log('[wa_auto_web_fallback_tick] ' . $e->getMessage());
+    }
 }
 
 $appBrandTagline = '';

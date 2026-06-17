@@ -80,6 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
     $ner = $dashSnap['neraca'];
     $tag = $dashSnap['tagihan_bulan'];
     $wa = $dashSnap['wa_tagihan'];
+    $kasBank = $dashSnap['kas_bank'] ?? ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => ''];
     $seimbang = !empty($ner['seimbang']);
     $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan'];
 ?>
@@ -148,6 +149,52 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="progress-bar bg-success" style="width:<?= min(100, max(0, (float) $tag['persen_tertagih'])) ?>%"></div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card dash-kpi h-100 border-0 shadow-sm border-start border-4 border-success">
+                <div class="card-body">
+                    <div class="small text-muted mb-1"><i class="fa-solid fa-money-bill-wave me-1"></i> Kas fisik</div>
+                    <div class="h4 mb-0 text-success"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_kas'] ?? 0))) ?></div>
+                    <div class="small text-muted">per <?= htmlspecialchars((string) ($kasBank['as_of_label'] ?? '')) ?></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card dash-kpi h-100 border-0 shadow-sm border-start border-4 border-primary">
+                <div class="card-body">
+                    <div class="small text-muted mb-1"><i class="fa-solid fa-building-columns me-1"></i> Saldo rekening</div>
+                    <div class="h4 mb-0 text-primary"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_bank'] ?? 0))) ?></div>
+                    <div class="small text-muted">Total likuid <?= htmlspecialchars($formatRupiah((int) ($kasBank['total'] ?? 0))) ?></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-2">
+                    <div class="small fw-semibold mb-2">Rincian akun operasional</div>
+                    <?php if (($kasBank['akun'] ?? []) === []): ?>
+                        <p class="small text-muted mb-0">Belum ada akun kas/rekening aktif.</p>
+                    <?php else: ?>
+                        <ul class="list-unstyled small mb-0">
+                            <?php foreach ($kasBank['akun'] as $ak): ?>
+                                <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-light">
+                                    <span>
+                                        <span class="badge text-bg-<?= strtoupper((string) ($ak['jenis'] ?? '')) === 'BANK' ? 'primary' : 'success' ?> me-1"><?= htmlspecialchars((string) ($ak['jenis'] ?? 'KAS')) ?></span>
+                                        <?= htmlspecialchars((string) ($ak['nama'] ?? '-')) ?>
+                                        <?php if (trim((string) ($ak['nomor'] ?? '')) !== ''): ?>
+                                            <span class="text-muted">· <?= htmlspecialchars((string) $ak['nomor']) ?></span>
+                                        <?php endif; ?>
+                                    </span>
+                                    <strong><?= htmlspecialchars($formatRupiah((int) ($ak['saldo'] ?? 0))) ?></strong>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -312,6 +359,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi syahriyah</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie"></i><span>Alokasi awal tahun</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_makan"><i class="fa-solid fa-utensils"></i><span>Alokasi makan</span></a>
                 <a class="keu-modern-link" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent"></i><span>Potongan syahriyah per santri</span></a>
                 <a class="keu-modern-link" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group"></i><span>Kelas keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse"></i><span>Inventaris aset</span></a>

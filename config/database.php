@@ -57,13 +57,21 @@ if (is_file($localFile)) {
     }
 }
 
+$pondokPdoOptions = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+];
+
 try {
     $dsn = "mysql:host={$host};port={$port};dbname={$dbName};charset=utf8mb4";
-    $pdo = new PDO($dsn, $dbUser, $dbPass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $pdo = new PDO($dsn, $dbUser, $dbPass, $pondokPdoOptions);
     $GLOBALS['pondok_pdo'] = $pdo;
+    $GLOBALS['pondok_pdo_dsn_config'] = [
+        'dsn' => $dsn,
+        'user' => $dbUser,
+        'pass' => $dbPass,
+        'options' => $pondokPdoOptions,
+    ];
 } catch (PDOException $exception) {
     die('Koneksi database gagal: ' . $exception->getMessage());
 }
@@ -80,6 +88,67 @@ function pondok_pdo(): PDO
     }
 
     throw new RuntimeException('Koneksi database tidak tersedia.');
+}
+
+/** Koneksi putus (timeout / MySQL restart) — umum saat sinkron presensi panjang. */
+function pondok_pdo_is_gone_away(Throwable $e): bool
+{
+    $msg = strtolower($e->getMessage());
+
+    return str_contains($msg, 'server has gone away')
+        || str_contains($msg, 'lost connection')
+        || str_contains($msg, '2006')
+        || str_contains($msg, '2013');
+}
+
+function pondok_pdo_reconnect(): PDO
+{
+    $cfg = $GLOBALS['pondok_pdo_dsn_config'] ?? null;
+    if (!is_array($cfg)) {
+        throw new RuntimeException('Konfigurasi PDO tidak tersedia untuk reconnect.');
+    }
+    $pdo = new PDO((string) $cfg['dsn'], (string) $cfg['user'], (string) $cfg['pass'], (array) ($cfg['options'] ?? []));
+    $GLOBALS['pondok_pdo'] = $pdo;
+
+    return $pdo;
+}
+
+/**
+ * Jalankan callback dengan PDO aktif; reconnect sekali jika "gone away".
+ *
+ * @template T
+ * @param callable(PDO): T $callback
+ * @return T
+ */
+function pondok_pdo_run_with_retry(callable $callback, ?PDO $pdo = null): mixed
+{
+    $pdo = pondok_pdo_ping($pdo ?? pondok_pdo());
+    try {
+        return $callback($pdo);
+    } catch (PDOException $e) {
+        if (!pondok_pdo_is_gone_away($e)) {
+            throw $e;
+        }
+
+        return $callback(pondok_pdo_reconnect());
+    }
+}
+
+/** Ping SELECT 1; reconnect otomatis jika koneksi mati. */
+function pondok_pdo_ping(?PDO $pdo = null): PDO
+{
+    $pdo = $pdo ?? pondok_pdo();
+    try {
+        $pdo->query('SELECT 1');
+    } catch (PDOException $e) {
+        if (!pondok_pdo_is_gone_away($e)) {
+            throw $e;
+        }
+        $pdo = pondok_pdo_reconnect();
+        $pdo->query('SELECT 1');
+    }
+
+    return $pdo;
 }
 
 // Samakan jadwal/presensi/tanggal PHP dengan operasional pondok (cron WA memakai Asia/Jakarta).

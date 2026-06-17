@@ -132,70 +132,74 @@ function app_ensure_schema_deferred(PDO $pdo): void
         return;
     }
 
-    if (table_exists($pdo, 'users')) {
-        $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0');
-    }
-    if (table_exists($pdo, 'users') && !table_exists($pdo, 'user_access_permissions')) {
-        $pdo->exec('
-            CREATE TABLE IF NOT EXISTS user_access_permissions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                permission_key VARCHAR(80) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_user_permission (user_id, permission_key),
-                CONSTRAINT fk_user_access_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ');
-    }
-    if (table_exists($pdo, 'jadwal_kegiatan')) {
-        ensure_jadwal_kegiatan_tempat($pdo);
-    }
+    try {
+        if (table_exists($pdo, 'users')) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        if (table_exists($pdo, 'users') && !table_exists($pdo, 'user_access_permissions')) {
+            $pdo->exec('
+                CREATE TABLE IF NOT EXISTS user_access_permissions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    permission_key VARCHAR(80) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_user_permission (user_id, permission_key),
+                    CONSTRAINT fk_user_access_permissions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            ');
+        }
+        if (table_exists($pdo, 'jadwal_kegiatan')) {
+            ensure_jadwal_kegiatan_tempat($pdo);
+        }
 
-    if (function_exists('ensure_santri_compat_schema')) {
-        ensure_santri_compat_schema($pdo);
-    }
-    ensure_santri_identity_columns($pdo);
-    if (function_exists('ensure_kelas_keuangan_table')) {
-        ensure_kelas_keuangan_table($pdo);
-    }
-    if (!function_exists('ensure_wali_santri_table')) {
-        require_once __DIR__ . '/wali.php';
-    }
-    if (function_exists('ensure_wali_santri_table')) {
-        ensure_wali_santri_table($pdo);
-    }
-    if (!function_exists('ensure_surat_nomor_schema')) {
-        require_once __DIR__ . '/surat_nomor.php';
-    }
-    if (function_exists('ensure_surat_nomor_schema')) {
-        ensure_surat_nomor_schema($pdo);
-    }
-    if (!function_exists('ensure_alpa_tier_tables')) {
-        require_once __DIR__ . '/alpa_tier.php';
-    }
-    if (function_exists('ensure_alpa_tier_tables')) {
-        ensure_alpa_tier_tables($pdo);
-    }
+        if (function_exists('ensure_santri_compat_schema')) {
+            ensure_santri_compat_schema($pdo);
+        }
+        ensure_santri_identity_columns($pdo);
+        if (function_exists('ensure_kelas_keuangan_table')) {
+            ensure_kelas_keuangan_table($pdo);
+        }
+        if (!function_exists('ensure_wali_santri_table')) {
+            require_once __DIR__ . '/wali.php';
+        }
+        if (function_exists('ensure_wali_santri_table')) {
+            ensure_wali_santri_table($pdo);
+        }
+        if (!function_exists('ensure_surat_nomor_schema')) {
+            require_once __DIR__ . '/surat_nomor.php';
+        }
+        if (function_exists('ensure_surat_nomor_schema')) {
+            ensure_surat_nomor_schema($pdo);
+        }
+        if (!function_exists('ensure_alpa_tier_tables')) {
+            require_once __DIR__ . '/alpa_tier.php';
+        }
+        if (function_exists('ensure_alpa_tier_tables')) {
+            ensure_alpa_tier_tables($pdo);
+        }
 
-    if (!function_exists('payroll_pembimbing_ensure_schema')) {
-        require_once __DIR__ . '/payroll_pembimbing.php';
-    }
-    if (function_exists('payroll_pembimbing_ensure_schema')) {
-        payroll_pembimbing_ensure_schema($pdo);
-    }
+        if (!function_exists('payroll_pembimbing_ensure_schema')) {
+            require_once __DIR__ . '/payroll_pembimbing.php';
+        }
+        if (function_exists('payroll_pembimbing_ensure_schema')) {
+            payroll_pembimbing_ensure_schema($pdo);
+        }
 
-    if (!function_exists('login_pembimbing_ensure_password_plain_column')) {
-        require_once __DIR__ . '/login_pembimbing.php';
-    }
-    if (function_exists('login_pembimbing_ensure_password_plain_column')) {
-        login_pembimbing_ensure_password_plain_column($pdo);
-    }
+        if (!function_exists('login_pembimbing_ensure_password_plain_column')) {
+            require_once __DIR__ . '/login_pembimbing.php';
+        }
+        if (function_exists('login_pembimbing_ensure_password_plain_column')) {
+            login_pembimbing_ensure_password_plain_column($pdo);
+        }
 
-    if (!function_exists('logo_ensure_white_bg_pwa_icons') && file_exists(__DIR__ . '/pwa_brand.php')) {
-        require_once __DIR__ . '/pwa_brand.php';
-    }
-    if (function_exists('logo_ensure_white_bg_pwa_icons')) {
-        logo_ensure_white_bg_pwa_icons($pdo);
+        if (!function_exists('logo_ensure_white_bg_pwa_icons') && file_exists(__DIR__ . '/pwa_brand.php')) {
+            require_once __DIR__ . '/pwa_brand.php';
+        }
+        if (function_exists('logo_ensure_white_bg_pwa_icons')) {
+            logo_ensure_white_bg_pwa_icons($pdo);
+        }
+    } catch (Throwable $e) {
+        error_log('[app_ensure_schema_deferred] ' . $e->getMessage());
     }
 
     $_SESSION['app_schema_ready_v1'] = 1;
@@ -2839,6 +2843,24 @@ function wa_tagihan_parse_custom_masehi_dates(string $raw): array
 
 function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $tingkatan, ?int $kegiatanId, int $createdBy, bool $tandaiAlpa = true): void
 {
+    static $retryDepth = 0;
+    try {
+        sync_daily_presence_for_tingkatan_impl($pdo, $tanggal, $tingkatan, $kegiatanId, $createdBy, $tandaiAlpa);
+    } catch (PDOException $e) {
+        if ($retryDepth > 0 || !pondok_pdo_is_gone_away($e)) {
+            throw $e;
+        }
+        $retryDepth++;
+        try {
+            sync_daily_presence_for_tingkatan_impl(pondok_pdo_reconnect(), $tanggal, $tingkatan, $kegiatanId, $createdBy, $tandaiAlpa);
+        } finally {
+            $retryDepth--;
+        }
+    }
+}
+
+function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, string $tingkatan, ?int $kegiatanId, int $createdBy, bool $tandaiAlpa = true): void
+{
     if ($tingkatan === '' || !table_exists($pdo, 'presensi') || !table_exists($pdo, 'perizinan')) {
         return;
     }
@@ -2930,56 +2952,119 @@ function sync_daily_presence_for_tingkatan(PDO $pdo, string $tanggal, string $ti
 
     $izinTetapMap = santri_izin_tetap_map_for_santri_ids($pdo, $santriIds, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
 
-    $insertStmt = $pdo->prepare('
-        INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
-        VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
-    ');
-    $updateStmt = $pdo->prepare('
-        UPDATE presensi
-        SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by
-        WHERE id = :id
-    ');
+    $insertStmt = null;
+    $updateStmt = null;
+    $writePresence = static function (PDO $activePdo, array $ids) use (
+        &$insertStmt,
+        &$updateStmt,
+        $kegiatanIdInt,
+        $jadwalKegiatanId,
+        $tanggal,
+        $jam,
+        $hijri,
+        $createdBy,
+        $tandaiAlpa,
+        $izinMap,
+        $izinTetapMap,
+        $existingMap
+    ): void {
+        $insertStmt = $activePdo->prepare('
+            INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
+            VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
+        ');
+        $updateStmt = $activePdo->prepare('
+            UPDATE presensi
+            SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by
+            WHERE id = :id
+        ');
 
-    foreach ($santriIds as $santriId) {
-        $desiredStatus = 'ALPA';
-        if (isset($izinMap[$santriId])) {
-            $desiredStatus = strtoupper((string) $izinMap[$santriId]) === 'SAKIT' ? 'SAKIT' : 'IZIN';
-        } elseif (isset($izinTetapMap[$santriId])) {
-            $desiredStatus = 'IZIN';
-        }
-        if (!$tandaiAlpa && $desiredStatus === 'ALPA') {
-            continue;
-        }
+        $n = 0;
+        foreach ($ids as $santriId) {
+            $n++;
+            if ($n % 40 === 0) {
+                $activePdo = pondok_pdo_ping($activePdo);
+            }
 
-        $existing = $existingMap[$santriId] ?? null;
-        if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
-            continue;
-        }
+            $desiredStatus = 'ALPA';
+            if (isset($izinMap[$santriId])) {
+                $desiredStatus = strtoupper((string) $izinMap[$santriId]) === 'SAKIT' ? 'SAKIT' : 'IZIN';
+            } elseif (isset($izinTetapMap[$santriId])) {
+                $desiredStatus = 'IZIN';
+            }
+            if (!$tandaiAlpa && $desiredStatus === 'ALPA') {
+                continue;
+            }
 
-        if (!$existing) {
-            $insertStmt->execute([
-                'santri_id' => $santriId,
-                'kegiatan_id' => $kegiatanIdInt,
-                'jadwal_kegiatan_id' => $jadwalKegiatanId,
-                'tanggal_presensi' => $tanggal,
-                'jam_presensi' => $jam,
-                'status_presensi' => $desiredStatus,
-                'kalender_hijriyah' => $hijri,
-                'created_by' => $createdBy,
-            ]);
-            continue;
-        }
+            $existing = $existingMap[$santriId] ?? null;
+            if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
+                continue;
+            }
 
-        if (strtoupper((string) $existing['status_presensi']) !== $desiredStatus) {
-            $updateStmt->execute([
-                'id' => (int) $existing['id'],
-                'status_presensi' => $desiredStatus,
-                'jam_presensi' => $jam,
-                'kalender_hijriyah' => $hijri,
-                'created_by' => $createdBy,
-            ]);
+            try {
+                if (!$existing) {
+                    $insertStmt->execute([
+                        'santri_id' => $santriId,
+                        'kegiatan_id' => $kegiatanIdInt,
+                        'jadwal_kegiatan_id' => $jadwalKegiatanId,
+                        'tanggal_presensi' => $tanggal,
+                        'jam_presensi' => $jam,
+                        'status_presensi' => $desiredStatus,
+                        'kalender_hijriyah' => $hijri,
+                        'created_by' => $createdBy,
+                    ]);
+                    continue;
+                }
+
+                if (strtoupper((string) $existing['status_presensi']) !== $desiredStatus) {
+                    $updateStmt->execute([
+                        'id' => (int) $existing['id'],
+                        'status_presensi' => $desiredStatus,
+                        'jam_presensi' => $jam,
+                        'kalender_hijriyah' => $hijri,
+                        'created_by' => $createdBy,
+                    ]);
+                }
+            } catch (PDOException $e) {
+                if (!pondok_pdo_is_gone_away($e)) {
+                    throw $e;
+                }
+                $activePdo = pondok_pdo_reconnect();
+                $insertStmt = $activePdo->prepare('
+                    INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
+                    VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
+                ');
+                $updateStmt = $activePdo->prepare('
+                    UPDATE presensi
+                    SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by
+                    WHERE id = :id
+                ');
+                if (!$existing) {
+                    $insertStmt->execute([
+                        'santri_id' => $santriId,
+                        'kegiatan_id' => $kegiatanIdInt,
+                        'jadwal_kegiatan_id' => $jadwalKegiatanId,
+                        'tanggal_presensi' => $tanggal,
+                        'jam_presensi' => $jam,
+                        'status_presensi' => $desiredStatus,
+                        'kalender_hijriyah' => $hijri,
+                        'created_by' => $createdBy,
+                    ]);
+                } elseif (strtoupper((string) $existing['status_presensi']) !== $desiredStatus) {
+                    $updateStmt->execute([
+                        'id' => (int) $existing['id'],
+                        'status_presensi' => $desiredStatus,
+                        'jam_presensi' => $jam,
+                        'kalender_hijriyah' => $hijri,
+                        'created_by' => $createdBy,
+                    ]);
+                }
+            }
         }
-    }
+    };
+
+    pondok_pdo_run_with_retry(static function (PDO $activePdo) use ($writePresence, $santriIds): void {
+        $writePresence($activePdo, $santriIds);
+    }, pondok_pdo_ping($pdo));
 }
 
 function sync_presence_for_active_schedules(PDO $pdo, string $tanggal, string $jam, int $createdBy): int
@@ -3089,7 +3174,7 @@ function jenis_izin_label(string $jenis): string
         'KELUAR' => 'Keluar',
         'TUGAS' => 'Tugas',
         'PULANG' => 'Tugas',
-        'SYARI' => 'Izin Syar\'i',
+        'SYARI' => 'Izin',
         default => $jenis !== '' ? $jenis : 'Keluar',
     };
 }

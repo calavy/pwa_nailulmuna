@@ -419,6 +419,76 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
 }
 
 /**
+ * Pecah pesan panjang menjadi beberapa bagian (batas karakter gateway WA).
+ *
+ * @return list<string>
+ */
+function wa_otomatis_chunk_message(string $message, int $maxLen = 100): array
+{
+    $message = trim($message);
+    if ($message === '') {
+        return [''];
+    }
+    $maxLen = max(40, min(2000, $maxLen));
+    if (mb_strlen($message) <= $maxLen) {
+        return [$message];
+    }
+
+    $chunks = [];
+    $paragraphs = preg_split("/\r\n|\n|\r/", $message) ?: [$message];
+    $buffer = '';
+
+    $flush = static function () use (&$buffer, &$chunks): void {
+        $buf = trim($buffer);
+        if ($buf !== '') {
+            $chunks[] = $buf;
+        }
+        $buffer = '';
+    };
+
+    foreach ($paragraphs as $para) {
+        $para = trim((string) $para);
+        if ($para === '') {
+            continue;
+        }
+        if (mb_strlen($para) > $maxLen) {
+            $flush();
+            $words = preg_split('/\s+/u', $para) ?: [$para];
+            $line = '';
+            foreach ($words as $word) {
+                $candidate = $line === '' ? $word : ($line . ' ' . $word);
+                if (mb_strlen($candidate) <= $maxLen) {
+                    $line = $candidate;
+                    continue;
+                }
+                if ($line !== '') {
+                    $chunks[] = $line;
+                }
+                while (mb_strlen($word) > $maxLen) {
+                    $chunks[] = mb_substr($word, 0, $maxLen);
+                    $word = mb_substr($word, $maxLen);
+                }
+                $line = $word;
+            }
+            if ($line !== '') {
+                $buffer = $line;
+            }
+            continue;
+        }
+        $candidate = $buffer === '' ? $para : ($buffer . "\n" . $para);
+        if (mb_strlen($candidate) <= $maxLen) {
+            $buffer = $candidate;
+            continue;
+        }
+        $flush();
+        $buffer = $para;
+    }
+    $flush();
+
+    return $chunks !== [] ? $chunks : [mb_substr($message, 0, $maxLen)];
+}
+
+/**
  * Kirim dengan retry singkat pada gangguan jaringan / server.
  *
  * @param array<string, mixed> $opts endpoint, token, sender, max_retries, delay_ms
@@ -428,27 +498,43 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
 {
     $maxRetries = max(0, min(3, (int) ($opts['max_retries'] ?? 2)));
     $delayMs = max(100, min(2000, (int) ($opts['delay_ms'] ?? 400)));
+    $chunkMax = max(0, (int) ($opts['chunk_max'] ?? (int) app_setting($pdo, 'wa_otomatis_chunk_max', '100')));
+    $chunkDelayMs = max(100, min(3000, (int) ($opts['chunk_delay_ms'] ?? 450)));
     $override = $opts;
-    unset($override['max_retries'], $override['delay_ms']);
+    unset($override['max_retries'], $override['delay_ms'], $override['chunk_max'], $override['chunk_delay_ms']);
 
-    $last = [];
-    $attempts = 0;
-    for ($i = 0; $i <= $maxRetries; $i++) {
-        $attempts++;
-        $last = wa_otomatis_send_once($pdo, $targetRaw, $message, $override);
-        if ($last['success'] ?? false) {
-            $last['attempts'] = $attempts;
-
-            return $last;
-        }
-        if ($i < $maxRetries && wa_otomatis_is_retryable((int) ($last['http_code'] ?? 0), (string) ($last['error'] ?? ''))) {
-            usleep($delayMs * 1000);
-            continue;
-        }
-        break;
+    $chunks = ($chunkMax > 0) ? wa_otomatis_chunk_message($message, $chunkMax) : [trim($message)];
+    if ($chunks === []) {
+        $chunks = [''];
     }
 
-    $last['attempts'] = $attempts;
+    $last = ['success' => false, 'http_code' => 0, 'error' => 'Pesan kosong', 'response' => '', 'target' => '', 'attempts' => 0];
+    $totalAttempts = 0;
+    foreach ($chunks as $idx => $chunk) {
+        if ($idx > 0) {
+            usleep($chunkDelayMs * 1000);
+        }
+        for ($i = 0; $i <= $maxRetries; $i++) {
+            $totalAttempts++;
+            $last = wa_otomatis_send_once($pdo, $targetRaw, $chunk, $override);
+            if ($last['success'] ?? false) {
+                break;
+            }
+            if ($i < $maxRetries && wa_otomatis_is_retryable((int) ($last['http_code'] ?? 0), (string) ($last['error'] ?? ''))) {
+                usleep($delayMs * 1000);
+                continue;
+            }
+            break;
+        }
+        if (!($last['success'] ?? false)) {
+            break;
+        }
+    }
+
+    $last['attempts'] = $totalAttempts;
+    if (count($chunks) > 1) {
+        $last['chunks'] = count($chunks);
+    }
 
     return $last;
 }

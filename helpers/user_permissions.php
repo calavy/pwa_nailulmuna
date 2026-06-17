@@ -18,6 +18,7 @@ function user_permission_keuangan_keys(): array
         'keuangan_pengaturan_modul',
         'keuangan_cashless_scan',
         'keuangan_cashless_laporan',
+        'keuangan_cashless_setor',
         'keuangan_cashless_pin',
     ];
 }
@@ -52,6 +53,7 @@ function user_permission_groups(): array
                 'keuangan_pengaturan_modul' => 'Pengaturan modul keuangan (tarif, akun, alokasi)',
                 'keuangan_cashless_scan' => 'Top Up / Scan Cashless',
                 'keuangan_cashless_laporan' => 'Laporan Cashless Koperasi',
+                'keuangan_cashless_setor' => 'Setor Cashless Koperasi',
                 'keuangan_cashless_pin' => 'Cashless & Uang Saku (PIN santri)',
             ],
         ],
@@ -166,6 +168,8 @@ function user_permission_path_map_base(): array
         '/santri/create.php' => 'santri_create',
         '/santri/edit.php' => 'santri_index',
         '/santri/kartu.php' => 'santri_index',
+        '/santri/kartu_id.php' => 'santri_index',
+        '/santri/kartu_sementara.php' => 'santri_index',
         '/santri/kartu_qr.php' => 'santri_index',
         '/santri/kartu_batch.php' => 'santri_index',
         '/santri/import.php' => 'santri_import',
@@ -281,6 +285,7 @@ function user_permission_path_map_base(): array
         '/yayasan/pengawasan.php' => 'yayasan',
         '/yayasan/ringkasan.php' => 'yayasan',
         '/yayasan/ketertiban.php' => 'yayasan',
+        '/yayasan/kesehatan.php' => 'yayasan',
         '/yayasan/keaktifan.php' => 'yayasan',
         '/yayasan/sdm_hari.php' => 'yayasan',
         '/yayasan/dashboard.php' => 'yayasan',
@@ -321,6 +326,7 @@ function user_permission_path_map_keuangan(): array
         '/pembayaran/riwayat_audit.php' => $transaksi,
         '/keuangan/pemasukan.php' => $transaksi,
         '/keuangan/pengeluaran.php' => $transaksi,
+        '/keuangan/riwayat_pemasukan.php' => $transaksi,
         '/keuangan/riwayat_pengeluaran.php' => $transaksi,
         '/keuangan/potongan_syahriyah.php' => 'keuangan_potongan',
         '/keuangan/talangan.php' => 'keuangan_talangan',
@@ -330,6 +336,7 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/cashless_scan.php' => 'keuangan_cashless_scan',
         '/keuangan/cashless.php' => 'keuangan_cashless_scan',
         '/keuangan/cashless_laporan.php' => 'keuangan_cashless_laporan',
+        '/keuangan/cashless_setor.php' => 'keuangan_cashless_setor',
         '/keuangan/cashless_pin.php' => 'keuangan_cashless_pin',
     ];
 
@@ -427,6 +434,7 @@ function user_permission_preset_keys(string $presetId): array
             'keuangan_potongan',
             'keuangan_cashless_scan',
             'keuangan_cashless_laporan',
+            'keuangan_cashless_setor',
         ],
         'keuangan_laporan_saja' => ['keuangan_laporan'],
         default => [],

@@ -93,16 +93,16 @@ function wali_perizinan_ajukan(
 
     $jenisIzin = perizinan_jenis_izin_normalize($jenisIzin);
     if ($jenisIzin !== wali_perizinan_jenis_portal()) {
-        return ['ok' => false, 'message' => 'Portal wali hanya menerima pengajuan Izin Syar\'i.'];
+        return ['ok' => false, 'message' => 'Portal wali hanya menerima pengajuan Izin.'];
     }
 
     $syariKategori = perizinan_syari_kategori_normalize_kode($pdo, $syariKategori);
     if ($syariKategori === '') {
-        return ['ok' => false, 'message' => 'Pilih keperluan izin syar\'i terlebih dahulu.'];
+        return ['ok' => false, 'message' => 'Pilih keperluan izin terlebih dahulu.'];
     }
     $kat = perizinan_syari_kategori_by_kode($pdo, $syariKategori);
     if (!$kat || empty($kat['enabled'])) {
-        return ['ok' => false, 'message' => 'Keperluan izin syar\'i tidak tersedia. Hubungi pengurus pondok.'];
+        return ['ok' => false, 'message' => 'Keperluan izin tidak tersedia. Hubungi pengurus pondok.'];
     }
 
     if ($tanggalMulai === '') {
@@ -191,7 +191,7 @@ function wali_perizinan_ajukan(
             $tanggalSelesai
         );
 
-        $msg = 'Permohonan izin syar\'i #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
+        $msg = 'Permohonan izin #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
         $alpaPortal = wali_perizinan_alpa_info_portal($pdo, $santriId, $tanggalMulai);
         if (!empty($alpaPortal['blocked'])) {
             $msg .= ' Catatan: santri terhalang syarat ALPA — pengasuh akan menilai permohonan ini.';
@@ -275,5 +275,6 @@ function wali_perizinan_alpa_info_portal(PDO $pdo, int $santriId, ?string $refDa
         'ringkasan' => (string) ($cek['ringkasan'] ?? ''),
         'penjelasan' => perizinan_alpa_penjelasan_plain($cek),
         'message' => (string) ($cek['message'] ?? ''),
+        'catatan' => (string) ($cek['catatan'] ?? ''),
     ];
 }

@@ -328,38 +328,50 @@ function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDa
     }
     $finalizedRanges[$key] = true;
 
-    if (!function_exists('sync_presence_for_ended_schedules')) {
-        require_once __DIR__ . '/app.php';
-    }
-    require_once __DIR__ . '/presensi_admin.php';
-    ensure_presensi_indexes($pdo);
-    if (!table_exists($pdo, 'jadwal_kegiatan')) {
-        return;
-    }
-    if ($forceRefresh) {
-        presensi_finalized_dates_clear_range($pdo, $startDate, $endDate);
-    }
-    $startTs = strtotime($startDate) ?: time();
-    $endTs = strtotime($endDate) ?: $startTs;
-    $today = date('Y-m-d');
-    $nowJam = date('H:i:s');
-    for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
-        $tanggal = date('Y-m-d', $ts);
-        if ($tanggal > $today) {
-            continue;
+    try {
+        if (!function_exists('sync_presence_for_ended_schedules')) {
+            require_once __DIR__ . '/app.php';
         }
-        $isToday = $tanggal === $today;
-        if (!$isToday && !$forceRefresh && presensi_finalized_date_is_set($pdo, $tanggal)) {
-            continue;
+        require_once __DIR__ . '/presensi_admin.php';
+        ensure_presensi_indexes($pdo);
+        if (!table_exists($pdo, 'jadwal_kegiatan')) {
+            return;
         }
-        $jam = $isToday ? $nowJam : '23:59:59';
-        sync_presence_for_ended_schedules($pdo, $tanggal, $jam, $createdBy);
-        if ($isToday && function_exists('sync_presence_for_active_schedules')) {
-            sync_presence_for_active_schedules($pdo, $tanggal, $jam, $createdBy);
+        if ($forceRefresh) {
+            presensi_finalized_dates_clear_range($pdo, $startDate, $endDate);
         }
-        if (!$isToday) {
-            presensi_finalized_date_mark($pdo, $tanggal);
+        $startTs = strtotime($startDate) ?: time();
+        $endTs = strtotime($endDate) ?: $startTs;
+        if ($endTs < $startTs) {
+            return;
         }
+        $maxDays = 62;
+        if ((int) (($endTs - $startTs) / 86400) > $maxDays) {
+            $endTs = $startTs + ($maxDays * 86400);
+        }
+        $today = date('Y-m-d');
+        $nowJam = date('H:i:s');
+        for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
+            $tanggal = date('Y-m-d', $ts);
+            if ($tanggal > $today) {
+                continue;
+            }
+            $isToday = $tanggal === $today;
+            if (!$isToday && !$forceRefresh && presensi_finalized_date_is_set($pdo, $tanggal)) {
+                continue;
+            }
+            $pdo = pondok_pdo_ping($pdo);
+            $jam = $isToday ? $nowJam : '23:59:59';
+            sync_presence_for_ended_schedules($pdo, $tanggal, $jam, $createdBy);
+            if ($isToday && function_exists('sync_presence_for_active_schedules')) {
+                sync_presence_for_active_schedules($pdo, $tanggal, $jam, $createdBy);
+            }
+            if (!$isToday) {
+                presensi_finalized_date_mark($pdo, $tanggal);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[presensi_finalize_date_range] ' . $startDate . '..' . $endDate . ': ' . $e->getMessage());
     }
 }
 

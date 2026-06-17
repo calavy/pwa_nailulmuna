@@ -22,7 +22,7 @@ function perizinan_jenis_izin_dropdown(): array
         'KELUAR' => 'Keluar',
         'SAKIT' => 'Sakit',
         'TUGAS' => 'Tugas',
-        'SYARI' => 'Izin Syar\'i',
+        'SYARI' => 'Izin',
     ];
 }
 

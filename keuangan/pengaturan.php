@@ -155,6 +155,7 @@ if ($section === 'umum') {
     }
 } elseif ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan') {
     require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
+    ensure_keuangan_alokasi_jenis_dana($pdo);
     $keuanganTa = keuangan_ta_resolve($pdo);
     $periode = ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']];
     $editAlokasiId = (int) ($_GET['edit_alokasi'] ?? 0);
@@ -178,7 +179,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Pengaturan</p>
     <h1 class="h4 mb-1">Pengaturan Keuangan</h1>
     <p class="text-muted mb-0">
-        Tahun ajaran, <strong>syahriyah &amp; makan</strong>, tarif lainnya, akun kas/bank, dan alokasi dana — dalam satu halaman.
+        Tahun ajaran, <strong>syahriyah &amp; makan</strong>, tarif lainnya, akun kas/bank, dan alokasi dana (syahriyah, awal tahun, makan) — dalam satu halaman.
         Lainnya di menu pengaturan:
         <a href="/settings/kelas_keuangan.php">Kelas keuangan</a>,
         <a href="/keuangan/inventaris.php">Inventaris aset</a>,
@@ -343,6 +344,8 @@ require_once __DIR__ . '/../includes/header.php';
     Tarif tier global (Muadalah/Wustho/Ulya) tetap di tab
     <a href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>.
     Halaman ini untuk <strong>nama tampilan</strong> dan <strong>override per kelas keuangan</strong> (by name).
+    Atur pembagian dana makan (bahan, gaji dapur, operasional) di tab
+    <a href="?bagian=alokasi_makan"><strong>Alokasi makan</strong></a>.
 </div>
 <?php require __DIR__ . '/partials/makan_kelas_pengaturan.php'; ?>
 <?php endif; ?>

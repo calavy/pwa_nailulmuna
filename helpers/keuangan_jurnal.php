@@ -57,6 +57,7 @@ function keuangan_seed_chart_of_accounts(PDO $pdo): void
         ['1209', 'Akumulasi Penyusutan Aset Tetap', 'ASET', 'KREDIT'],
         ['2101', 'Titipan Saku Santri (Cashless)', 'LIABILITAS', 'KREDIT'],
         ['2102', 'Utang/Pinjaman Internal', 'LIABILITAS', 'KREDIT'],
+        ['2103', 'Belanja Saku Menunggu Setor Koperasi', 'LIABILITAS', 'KREDIT'],
         ['3101', 'Aset Neto Tanpa Pembatasan', 'ASET_NETO', 'KREDIT'],
         ['4101', 'Pendapatan Syahriyah', 'ASET_NETO', 'KREDIT'],
         ['4102', 'Pendapatan Makan', 'ASET_NETO', 'KREDIT'],

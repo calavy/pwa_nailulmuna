@@ -232,6 +232,52 @@
     color: #ccfbf1;
 }
 
+.cashless-viewport--uang {
+    margin-bottom: 0.65rem;
+}
+
+.cashless-santri-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(45, 212, 191, 0.2);
+    border-radius: 12px;
+}
+
+.cashless-santri-stats.is-hidden {
+    display: none;
+}
+
+.cashless-santri-stats__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.cashless-santri-stats__label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #94a3b8;
+    line-height: 1.2;
+}
+
+.cashless-santri-stats__value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fef08a;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.cashless-santri-stats__value--jatah {
+    color: #7dd3fc;
+}
+
 .cashless-santri-chip i {
     opacity: 0.85;
 }
@@ -337,6 +383,10 @@
 
     .cashless-step {
         font-size: 0.62rem;
+    }
+
+    .cashless-santri-stats {
+        grid-template-columns: 1fr;
     }
 }
 

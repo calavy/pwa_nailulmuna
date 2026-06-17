@@ -107,7 +107,7 @@ function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal
     $st->execute(['sid' => $santriId]);
     $balance = (float) ($st->fetchColumn() ?: 0);
     if ($balance <= 0) {
-        return 'Transaksi ditolak: saldo cashless habis.';
+        return 'Transaksi ditolak: saldo uang saku habis.';
     }
     if ($balance < $nominal) {
         return 'Transaksi ditolak: saldo tidak cukup.';
@@ -321,6 +321,19 @@ function cashless_wa_notify_transaksi_sukses(
 }
 
 /**
+ * Tanggal data laporan WA harian: selalu hari kemarin (dikirim setelah hari transaksi).
+ */
+function cashless_wa_laporan_tanggal_data(?string $referensiHariIni = null): string
+{
+    $ref = $referensiHariIni ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ref)) {
+        $ref = date('Y-m-d');
+    }
+
+    return date('Y-m-d', strtotime($ref . ' -1 day'));
+}
+
+/**
  * Ringkasan transaksi debit cashless satu hari (semua koperasi).
  *
  * @return array{
@@ -429,7 +442,8 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
         return ['ok' => false, 'message' => 'Nomor penerima laporan belum diatur.', 'sent' => 0];
     }
 
-    $ringkasan = cashless_wa_ringkasan_harian($pdo, $today);
+    $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
+    $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $msg = wa_format_cashless_laporan_harian_pengurus($pdo, $ringkasan);
 
     $sent = 0;
@@ -443,6 +457,7 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
         save_setting($pdo, 'cashless_laporan_harian_last_date', $today);
         save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
         save_setting($pdo, 'cashless_laporan_harian_last_stats', json_encode([
+            'tanggal' => $laporanTanggal,
             'transaksi' => (int) $ringkasan['total_transaksi'],
             'nominal' => (int) $ringkasan['total_nominal'],
             'sent' => $sent,
@@ -452,7 +467,8 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
     return [
         'ok' => $sent > 0,
         'message' => $sent > 0
-            ? 'Laporan cashless terkirim ke ' . $sent . ' nomor (' . (int) $ringkasan['total_transaksi'] . ' transaksi, ' . cashless_wa_rp((int) $ringkasan['total_nominal']) . ').'
+            ? 'Laporan cashless ' . (string) ($ringkasan['tanggal_label'] ?? '') . ' terkirim ke ' . $sent . ' nomor ('
+                . (int) $ringkasan['total_transaksi'] . ' transaksi, ' . cashless_wa_rp((int) $ringkasan['total_nominal']) . ').'
             : 'Gagal mengirim laporan cashless.',
         'sent' => $sent,
     ];
@@ -468,11 +484,13 @@ function cashless_wa_cron_laporan_harian(PDO $pdo): void
  */
 function cashless_wa_laporan_status_hari_ini(PDO $pdo): array
 {
-    $ringkasan = cashless_wa_ringkasan_harian($pdo, date('Y-m-d'));
+    $laporanTanggal = cashless_wa_laporan_tanggal_data(date('Y-m-d'));
+    $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $lastStats = json_decode((string) app_setting($pdo, 'cashless_laporan_harian_last_stats', ''), true);
 
     return [
         'ringkasan' => $ringkasan,
+        'laporan_tanggal' => $laporanTanggal,
         'enabled' => cashless_wa_laporan_harian_enabled($pdo),
         'jam' => cashless_wa_laporan_harian_jam($pdo),
         'last_date' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_date', '')),

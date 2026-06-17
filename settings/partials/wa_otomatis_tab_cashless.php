@@ -11,14 +11,15 @@ declare(strict_types=1);
 /** @var array<string,mixed> $cashlessLaporanStatus */
 
 $cashlessRingkasanHariIni = $cashlessLaporanStatus['ringkasan'] ?? [];
+$cashlessLaporanTanggalLabel = (string) ($cashlessRingkasanHariIni['tanggal_label'] ?? 'hari kemarin');
 $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === date('Y-m-d'));
 ?>
 <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-wallet text-warning me-1"></i> Pengaturan WA cashless</h2>
         <p class="small text-muted mb-3">
-            Notifikasi ke wali (saldo rendah &amp; setiap transaksi berhasil) dan laporan harian transaksi ke pengurus.
-            Template pesan di tab <strong>Template</strong>.
+            Notifikasi ke wali (saldo rendah &amp; setiap transaksi berhasil) dan laporan harian transaksi ke pengurus
+            (<strong>data hari kemarin</strong>, dikirim sesuai jam di bawah). Template pesan di tab <strong>Template</strong>.
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_cashless_wa_settings">
@@ -74,18 +75,18 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === 
             <li>Transaksi ke wali: <strong><?= $cashlessTransaksiWaEnabled ? 'Aktif' : 'Nonaktif' ?></strong>
                 · Saldo rendah: <strong><?= $cashlessSaldoRendahWaEnabled ? 'Aktif' : 'Nonaktif' ?></strong>
                 (ambang <?= htmlspecialchars(cashless_wa_rp($cashlessSaldoRendahWaAmbang)) ?>)</li>
-            <li>Laporan harian: <strong><?= $cashlessLaporanHarianWaEnabled ? 'Aktif' : 'Nonaktif' ?></strong>
+            <li>Laporan harian (data <strong><?= htmlspecialchars($cashlessLaporanTanggalLabel) ?></strong>): <strong><?= $cashlessLaporanHarianWaEnabled ? 'Aktif' : 'Nonaktif' ?></strong>
                 · jam <?= htmlspecialchars($cashlessLaporanHarianWaJam) ?>
                 · <?= !empty($cashlessLaporanStatus['send_time_ok']) ? '<span class="text-success">sudah lewat</span>' : '<span class="text-warning">belum</span>' ?></li>
             <li>Hari ini <?= $cashlessSudahDikirimHariIni ? '<span class="text-muted">sudah dikirim</span>' : '<span class="text-success">belum dikirim</span>' ?>
                 · Terakhir sukses: <strong><?= ($cashlessLaporanStatus['last_sent_at'] ?? '') !== '' ? htmlspecialchars((string) $cashlessLaporanStatus['last_sent_at']) : 'Belum pernah' ?></strong></li>
-            <li>Total transaksi: <strong><?= (int) ($cashlessRingkasanHariIni['total_transaksi'] ?? 0) ?></strong>
+            <li>Transaksi <?= htmlspecialchars($cashlessLaporanTanggalLabel) ?>: <strong><?= (int) ($cashlessRingkasanHariIni['total_transaksi'] ?? 0) ?></strong>
                 · <?= htmlspecialchars(cashless_wa_rp((int) ($cashlessRingkasanHariIni['total_nominal'] ?? 0))) ?></li>
             <?php foreach (($cashlessRingkasanHariIni['per_koperasi'] ?? []) as $pk): ?>
                 <li><?= htmlspecialchars((string) ($pk['nama'] ?? '')) ?>: <?= (int) ($pk['jumlah'] ?? 0) ?> transaksi · <?= htmlspecialchars(cashless_wa_rp((int) ($pk['nominal'] ?? 0))) ?></li>
             <?php endforeach; ?>
             <?php if (($cashlessRingkasanHariIni['total_transaksi'] ?? 0) === 0): ?>
-                <li class="text-muted">Belum ada transaksi debit hari ini.</li>
+                <li class="text-muted">Tidak ada transaksi debit pada <?= htmlspecialchars($cashlessLaporanTanggalLabel) ?>.</li>
             <?php endif; ?>
         </ul>
     </div>
@@ -94,8 +95,8 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Kirim laporan manual</h2>
-        <p class="small text-muted mb-2">Kirim rekap transaksi debit hari ini (total + rincian per koperasi) ke nomor penerima laporan.</p>
-        <form method="post" class="d-inline" onsubmit="return confirm('Kirim laporan cashless hari ini sekarang?');">
+        <p class="small text-muted mb-2">Kirim rekap transaksi debit <strong>hari kemarin</strong> (total + rincian per koperasi) ke nomor penerima laporan.</p>
+        <form method="post" class="d-inline" onsubmit="return confirm('Kirim laporan cashless hari kemarin sekarang?');">
             <input type="hidden" name="action" value="jalankan_cashless_laporan_harian">
             <input type="hidden" name="redirect_tab" value="cashless">
             <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i> Kirim laporan sekarang</button>

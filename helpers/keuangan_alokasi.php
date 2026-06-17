@@ -8,6 +8,7 @@ require_once __DIR__ . '/pondok_ta.php';
 const KEUNGAN_ALOKASI_JENIS_SYAHRIYAH = 'SYAHRIYAH';
 const KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN = 'AWAL_TAHUN';
 const KEUNGAN_ALOKASI_JENIS_MAKAN = 'MAKAN';
+const KEUNGAN_ALOKASI_SCHEMA_VER = 2;
 
 /** @return list<string> */
 function keuangan_alokasi_jenis_valid(): array
@@ -33,10 +34,19 @@ function keuangan_alokasi_label_jenis(string $jenis): string
 
 function ensure_keuangan_alokasi_jenis_dana(PDO $pdo): void
 {
-    if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
+    static $doneThisRequest = false;
+    if ($doneThisRequest) {
+        return;
+    }
+    $sessionKey = 'keuangan_alokasi_schema_v';
+    if (!empty($_SESSION[$sessionKey]) && (int) $_SESSION[$sessionKey] >= KEUNGAN_ALOKASI_SCHEMA_VER) {
+        $doneThisRequest = true;
+
         return;
     }
     if (!table_exists($pdo, 'keuangan_alokasi')) {
+        $doneThisRequest = true;
+
         return;
     }
     if (!column_exists($pdo, 'keuangan_alokasi', 'jenis_dana')) {
@@ -57,6 +67,10 @@ function ensure_keuangan_alokasi_jenis_dana(PDO $pdo): void
     }
     keuangan_seed_alokasi_awal_tahun_default($pdo);
     keuangan_seed_alokasi_makan_default($pdo);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION[$sessionKey] = KEUNGAN_ALOKASI_SCHEMA_VER;
+    }
+    $doneThisRequest = true;
 }
 
 function keuangan_seed_alokasi_makan_default(PDO $pdo): void
@@ -372,6 +386,26 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     // PKPPS dialokasikan ke komponen gaji — tidak lagi sebagai "Dana Umum" terpisah di dropdown pengeluaran.
 
     return $out;
+}
+
+/** Validasi nama alokasi pengeluaran (wajib; harus dari daftar jika ada opsi). */
+function keuangan_validasi_alokasi_pengeluaran(PDO $pdo, string $alokasiNama): ?string
+{
+    $alokasiNama = trim($alokasiNama);
+    if ($alokasiNama === '') {
+        return 'Alokasi dana wajib dipilih.';
+    }
+    $opts = keuangan_pengeluaran_alokasi_options($pdo);
+    if ($opts === []) {
+        return null;
+    }
+    foreach ($opts as $opt) {
+        if ((string) ($opt['value'] ?? '') === $alokasiNama) {
+            return null;
+        }
+    }
+
+    return 'Alokasi dana tidak valid. Pilih dari daftar alokasi aktif.';
 }
 
 /** Realisasi pembayaran santri periode awal tahun (semua komponen) pada TA aktif. */

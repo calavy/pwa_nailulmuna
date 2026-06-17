@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/keuangan_transaksi.php';
+require_once __DIR__ . '/keuangan_alokasi.php';
 require_once __DIR__ . '/pembayaran_edit_token.php';
 
 /** @return list<array<string, mixed>> */
@@ -104,6 +105,10 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Penanggung jawab, pos, dan nominal wajib diisi.'];
     }
+    $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
+    if ($alokasiErr !== null) {
+        return ['ok' => false, 'message' => $alokasiErr];
+    }
     if (!in_array($metodeKeluar, ['KAS', 'TRANSFER'], true)) {
         $metodeKeluar = 'KAS';
     }
@@ -121,7 +126,7 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
         'tanggal' => $tanggal,
         'penanggung_jawab' => $penanggungJawab,
         'pos' => $pos,
-        'alokasi_nama' => $alokasiNama !== '' ? $alokasiNama : null,
+        'alokasi_nama' => $alokasiNama,
         'nominal' => $nominal,
         'keterangan' => $keterangan,
     ];
@@ -138,7 +143,25 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
         $params['no_bukti'] = $noBukti !== '' ? $noBukti : null;
     }
 
-    $pdo->prepare('UPDATE keuangan_pengeluaran SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($params);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE keuangan_pengeluaran SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($params);
+
+        keuangan_transaksi_bootstrap_jurnal();
+        keuangan_jurnal_delete_by_ref($pdo, 'pengeluaran', $id);
+        $akunJurnal = $akunId > 0 ? $akunId : (int) ($row['akun_id'] ?? 0);
+        if ($akunJurnal > 0) {
+            keuangan_jurnal_pengeluaran($pdo, $id, $tanggal, $akunJurnal, $nominal, $pos, $userId);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memperbarui: ' . $e->getMessage()];
+    }
 
     if (!function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
@@ -147,6 +170,41 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
 
     return [
         'ok' => true,
-        'message' => 'Pengeluaran #' . $id . ' diperbarui. Periksa jurnal/neraca bila nominal atau tanggal berubah signifikan.',
+        'message' => 'Pengeluaran #' . $id . ' diperbarui.',
     ];
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_pengeluaran_delete(PDO $pdo, int $id, int $userId): array
+{
+    pembayaran_edit_token_ensure_schema($pdo);
+    if (!pembayaran_edit_token_user_boleh_edit($pdo)) {
+        return ['ok' => false, 'message' => 'Masukkan token super admin terlebih dahulu.'];
+    }
+    if ($id <= 0 || keuangan_pengeluaran_get($pdo, $id) === null) {
+        return ['ok' => false, 'message' => 'Data pengeluaran tidak ditemukan.'];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        keuangan_transaksi_bootstrap_jurnal();
+        keuangan_jurnal_delete_by_ref($pdo, 'pengeluaran', $id);
+        $pdo->prepare('DELETE FROM keuangan_pengeluaran WHERE id = :id')->execute(['id' => $id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()];
+    }
+
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
+
+    return ['ok' => true, 'message' => 'Pengeluaran #' . $id . ' telah dihapus.'];
 }

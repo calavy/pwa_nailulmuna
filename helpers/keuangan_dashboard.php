@@ -245,6 +245,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
 
     $yearStart = date('Y') . '-01-01';
     $lakRingkas = keuangan_build_arus_kas_cached($pdo, $yearStart, $today);
+    $kasBank = keuangan_dashboard_kas_bank_ringkas($pdo, $today);
 
     return [
         'neraca' => [
@@ -258,6 +259,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'kenaikan_kas' => (int) ($lakRingkas['kenaikan_kas'] ?? 0),
             'periode_label' => (string) ($lakRingkas['periode_label'] ?? ''),
         ],
+        'kas_bank' => $kasBank,
         'tagihan_bulan' => [
             'bulan' => $bulan,
             'bulan_label' => (string) ($periode['periode_tampilan'] ?? $periode['bulan_label']),
@@ -288,6 +290,77 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'penunggak_tanpa_wa' => $penunggakTanpaWa,
         ],
         'tindakan' => $tindakan,
+    ];
+}
+
+/**
+ * Ringkasan saldo kas fisik & rekening operasional untuk dashboard.
+ *
+ * @return array{
+ *   total:int,
+ *   total_kas:int,
+ *   total_bank:int,
+ *   akun:list<array{jenis:string,nama:string,nomor:string,saldo:int}>,
+ *   as_of_label:string
+ * }
+ */
+function keuangan_dashboard_kas_bank_ringkas(PDO $pdo, ?string $asOf = null): array
+{
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        return ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => date('d/m/Y')];
+    }
+    if (!function_exists('keuangan_sql_subquery_masuk_per_akun')) {
+        require_once __DIR__ . '/keuangan_akun_mutasi.php';
+    }
+    $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
+    $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
+    $stmt = $pdo->prepare("
+        SELECT a.id, a.jenis_akun, a.nama_akun, a.nama_bank, a.no_rekening,
+               (COALESCE(a.opening_balance, 0) + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo
+        FROM keuangan_akun a
+        LEFT JOIN ( {$masukSub} ) inc ON inc.akun_id = a.id
+        LEFT JOIN (
+            SELECT akun_id, SUM(nominal) AS total_keluar
+            FROM keuangan_pengeluaran
+            WHERE akun_id IS NOT NULL AND tanggal <= :as_of2
+            GROUP BY akun_id
+        ) exp ON exp.akun_id = a.id
+        WHERE a.is_active = 1
+        ORDER BY a.jenis_akun ASC, a.nama_akun ASC
+    ");
+    $stmt->execute(['as_of' => $asOf, 'as_of2' => $asOf]);
+    $akun = [];
+    $totalKas = 0;
+    $totalBank = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $saldo = (int) round((float) ($row['saldo'] ?? 0));
+        $jenis = strtoupper(trim((string) ($row['jenis_akun'] ?? 'KAS')));
+        if ($jenis === 'BANK') {
+            $totalBank += $saldo;
+        } else {
+            $totalKas += $saldo;
+        }
+        $nomor = trim((string) ($row['no_rekening'] ?? ''));
+        if ($nomor === '' && $jenis === 'BANK') {
+            $nomor = trim((string) ($row['nama_bank'] ?? ''));
+        }
+        $akun[] = [
+            'jenis' => $jenis,
+            'nama' => (string) ($row['nama_akun'] ?? '-'),
+            'nomor' => $nomor,
+            'saldo' => $saldo,
+        ];
+    }
+    $bulanId = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    $ts = strtotime($asOf) ?: time();
+    $asOfLabel = (int) date('j', $ts) . ' ' . ($bulanId[(int) date('n', $ts)] ?? '') . ' ' . date('Y', $ts);
+
+    return [
+        'total' => $totalKas + $totalBank,
+        'total_kas' => $totalKas,
+        'total_bank' => $totalBank,
+        'akun' => $akun,
+        'as_of_label' => $asOfLabel,
     ];
 }
 

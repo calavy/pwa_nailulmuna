@@ -53,6 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
         Catat uang masuk selain pembayaran santri (donasi, hibah, bantuan, bunga bank, dll.).
         Untuk pembayaran syahriyah/saku santri gunakan
         <a href="/keuangan/pembayaran.php">Input pembayaran</a>.
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pemasukan.php')) ?>">Riwayat pemasukan</a>
         · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>
 </div>

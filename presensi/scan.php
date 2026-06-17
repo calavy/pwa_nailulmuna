@@ -102,9 +102,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
     $code = trim($_POST['kode_qr'] ?? '');
     if ($code !== '') {
-        $find = $pdo->prepare('SELECT * FROM santri WHERE qr = :code OR nis = :code LIMIT 1');
-        $find->execute(['code' => $code]);
-        $santri = $find->fetch();
+        require_once __DIR__ . '/../helpers/santri_kartu_sementara.php';
+        $santri = santri_resolve_by_scan_code($pdo, $code);
+        if (is_array($santri)) {
+            $loadFull = $pdo->prepare('SELECT * FROM santri WHERE id = :id LIMIT 1');
+            $loadFull->execute(['id' => (int) ($santri['id'] ?? 0)]);
+            $santri = $loadFull->fetch() ?: $santri;
+        } else {
+            $santri = null;
+        }
 
         $pembimbing = null;
         $munawib = null;

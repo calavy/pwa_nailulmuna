@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $riwayatIzin = wali_perizinan_list_for_santri($pdo, $waliAnakIds, 50);
 
 require_once __DIR__ . '/includes/layout.php';
-wali_layout_head('Izin Syar\'i — Portal Wali', true, 'izin');
+wali_layout_head('Izin — Portal Wali', true, 'izin');
 require __DIR__ . '/partials/greeting.php';
 $waliSwitcherRedirect = '/wali/izin.php';
 require __DIR__ . '/partials/anak_switcher.php';
@@ -53,10 +53,21 @@ require __DIR__ . '/partials/anak_switcher.php';
 
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
             <div>
-                <h1 class="h5 mb-0 wali-brand fw-bold">Ajukan Izin Syar'i</h1>
+                <h1 class="h5 mb-0 wali-brand fw-bold">Ajukan Izin</h1>
                 <p class="small text-muted mb-0">Permohonan ditinjau pengasuh. Setelah disetujui, pengurus pondok mencetak surat resmi.</p>
             </div>
             <a class="btn btn-sm btn-outline-secondary flex-shrink-0" href="<?= htmlspecialchars(app_href('/wali/logout.php')) ?>">Keluar</a>
+        </div>
+
+        <div class="card wali-card shadow-sm mb-3 border-info border-opacity-25">
+            <div class="card-body py-3">
+                <h2 class="h6 mb-2"><i class="fa-solid fa-circle-info text-info me-1"></i> Cara kerja izin</h2>
+                <ol class="small mb-0 ps-3">
+                    <li class="mb-2"><strong>Otomatis sistem</strong> — Izin dapat diberikan otomatis bila dalam seminggu terakhir santri tidak absen kegiatan sebanyak 5 kali.</li>
+                    <li class="mb-2"><strong>Pengurus</strong> — Dapat mengesahkan atau menganulir keputusan sistem.</li>
+                    <li class="mb-0"><strong>Pengasuh</strong> — Dapat menganulir atau mengesahkan keputusan sistem maupun pengurus.</li>
+                </ol>
+            </div>
         </div>
 
         <div class="card wali-card shadow-sm mb-3">
@@ -87,9 +98,9 @@ require __DIR__ . '/partials/anak_switcher.php';
                         <input type="text" name="pemberi_izin" class="form-control form-control-sm" value="<?= htmlspecialchars($defaultPemohon) ?>" required>
                     </div>
                     <div class="col-12">
-                        <label class="form-label small mb-0">Keperluan izin syar'i <span class="text-danger">*</span></label>
+                        <label class="form-label small mb-0">Keperluan izin <span class="text-danger">*</span></label>
                         <?php if ($syariKategoriOpsi === []): ?>
-                            <div class="alert alert-warning small py-2 mb-0">Belum ada keperluan yang diaktifkan pengurus. Hubungi pondok untuk pengaturan izin syar'i.</div>
+                            <div class="alert alert-warning small py-2 mb-0">Belum ada keperluan yang diaktifkan pengurus. Hubungi pondok untuk pengaturan izin.</div>
                         <?php else: ?>
                             <select name="syari_kategori" id="syari-kategori-select" class="form-select form-select-sm" required>
                                 <option value="">— Pilih keperluan —</option>
@@ -123,9 +134,9 @@ require __DIR__ . '/partials/anak_switcher.php';
                     ?>
                     <div class="col-12 d-none" id="wrap-alpa-peringatan">
                         <div class="alert alert-warning border-warning small mb-0 py-2">
-                            <div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i> Perhatian syarat ALPA</div>
-                            <div id="alpa-peringatan-teks"></div>
-                            <div class="mt-2 mb-0">Anda tetap dapat mengirim permohonan. Pengasuh pondok yang menilai apakah izin syar'i dapat disetujui.</div>
+                            <div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i> Perhatian — syarat ALPA</div>
+                            <div id="alpa-peringatan-teks" class="mb-1"></div>
+                            <div class="mb-0">Anda tetap dapat mengirim permohonan. Pengasuh pondok yang menilai apakah izin dapat disetujui.</div>
                         </div>
                     </div>
                     <div class="col-12 d-none" id="wrap-alpa-ok">
@@ -135,7 +146,7 @@ require __DIR__ . '/partials/anak_switcher.php';
                         </div>
                     </div>
                     <div class="col-12">
-                        <button type="submit" class="btn btn-teal btn-sm w-100" <?= $syariKategoriOpsi === [] ? 'disabled' : '' ?>>Kirim permohonan izin syar'i</button>
+                        <button type="submit" class="btn btn-teal btn-sm w-100" <?= $syariKategoriOpsi === [] ? 'disabled' : '' ?>>Kirim permohonan izin</button>
                     </div>
                 </form>
             </div>
@@ -221,6 +232,25 @@ require __DIR__ . '/partials/anak_switcher.php';
         tglSelesaiTampil.value = formatDate(end);
     }
 
+    function alpaBaris(data) {
+        if (!data || !data.enabled || !data.subject) return '';
+        var count = data.alpa_count || 0;
+        var max = data.max || 0;
+        var hari = data.hari || 0;
+        var batasAman = max > 0 ? max - 1 : 0;
+        var lines = [];
+        if (count > 0 && hari > 0) {
+            lines.push('Tercatat ' + count + ' kali ALPA dalam ' + hari + ' hari terakhir.');
+        }
+        if (max > 0) {
+            lines.push('Batas izin: maks. ' + batasAman + ' kali ALPA (terhalang dari ' + max + ' kali).');
+        }
+        if (data.penjelasan) {
+            lines.push(data.penjelasan);
+        }
+        return lines.join(' ');
+    }
+
     function renderAlpa(data) {
         if (!wrapBlocked || !wrapOk || !txtBlocked || !txtOk) return;
         wrapBlocked.classList.add('d-none');
@@ -228,16 +258,17 @@ require __DIR__ . '/partials/anak_switcher.php';
         if (!data || !data.enabled) {
             return;
         }
-        var teks = (data.penjelasan || data.ringkasan || data.message || '').trim();
+        if (!data.subject) {
+            return;
+        }
+        var teks = alpaBaris(data);
         if (data.blocked) {
             txtBlocked.textContent = teks !== '' ? teks : 'Santri terhalang syarat ALPA saat ini.';
             wrapBlocked.classList.remove('d-none');
             return;
         }
-        if (data.subject) {
-            txtOk.textContent = teks !== '' ? teks : 'Syarat ALPA masih terpenuhi.';
-            wrapOk.classList.remove('d-none');
-        }
+        txtOk.textContent = teks !== '' ? teks : 'Syarat ALPA masih terpenuhi.';
+        wrapOk.classList.remove('d-none');
     }
 
     function refreshAlpa() {

@@ -369,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($data['jenis_izin'] === 'SAKIT') {
         $okMsg = 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan pengurus.';
     } elseif (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
-        $okMsg = 'Pengajuan izin syar\'i tersimpan. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
+        $okMsg = 'Pengajuan izin tersimpan. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
     } else {
         $okMsg = 'Pengajuan izin tersimpan. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
     }
@@ -754,7 +754,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?= htmlspecialchars($i['approval_status'] ?? 'PENDING') ?>
                                 </span>
                                 <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
-                                        <div class="small text-muted mt-1">Menunggu pengasuh (izin syar'i)</div>
+                                        <div class="small text-muted mt-1">Menunggu pengasuh (izin)</div>
                                 <?php elseif (($i['approval_status'] ?? '') === 'DISETUJUI' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
                                         <div class="small text-success mt-1">Disetujui pengasuh<?php if (trim((string) ($i['pengasuh_approved_at'] ?? '')) !== ''): ?> · <?= htmlspecialchars(app_format_datetime_id((string) $i['pengasuh_approved_at'])) ?><?php endif; ?></div>
                                 <?php endif; ?>
@@ -780,7 +780,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     $blokirPengasuh = !$isSyariIzin && perizinan_izin_menunggu_persetujuan_pengasuh($pdo, $i);
                                     $blokirTitle = $blokirAlpa
                                         ? 'Tidak memenuhi syarat ALPA'
-                                        : ($blokirPengasuh ? 'Menunggu persetujuan pengasuh (izin syar\'i)' : '');
+                                        : ($blokirPengasuh ? 'Menunggu persetujuan pengasuh (izin)' : '');
                                     ?>
                                     <?php if (!$isSyariIzin): ?>
                                     <button type="button"

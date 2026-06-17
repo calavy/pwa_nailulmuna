@@ -79,7 +79,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                             <tr><td>Tarif global per pos</td><td>Syahriyah, makan, saku, awal tahun, dll.</td></tr>
                             <tr><td>Override per bulan</td><td>Tabel <code>keuangan_tarif_bulanan</code></td></tr>
                             <tr><td>Kelas keuangan</td><td>Mapping kode kelas santri → tier tarif</td></tr>
-                            <tr><td>Alokasi dana</td><td>Persen pembagian syahriyah &amp; awal tahun</td></tr>
+                            <tr><td>Alokasi dana</td><td>Persen pembagian syahriyah, awal tahun, &amp; makan</td></tr>
                             <tr><td>Akun kas/bank</td><td>Rekening saat bayar / terima</td></tr>
                         </tbody>
                     </table>
@@ -157,6 +157,29 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
 
         <div class="accordion-item">
             <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keuPanduanAlokasiMakan">
+                    6b. Alokasi dana makan
+                </button>
+            </h2>
+            <div id="keuPanduanAlokasiMakan" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
+                <div class="accordion-body small">
+                    <p class="mb-2">
+                        Dana makan = total pembayaran bulanan pos <strong>makan</strong> santri pada tahun ajaran aktif.
+                        Bukan transfer otomatis — dipakai untuk melacak pagu virtual per komponen (bahan, gaji dapur, operasional).
+                    </p>
+                    <ol class="mb-2 ps-3">
+                        <li>Atur tarif makan di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan')) ?>">Syahriyah &amp; makan</a> dan override kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=makan')) ?>">Makan per kelas</a></li>
+                        <li>Catat pembayaran pos makan bulanan di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a></li>
+                        <li>Atur persen komponen di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=alokasi_makan')) ?>">Alokasi makan</a> (total aktif ≤ 100%)</li>
+                        <li>Saat pengeluaran dapur/konsumsi, pilih alokasi grup <strong>Dana makan</strong> di <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a></li>
+                    </ol>
+                    <p class="mb-0 text-muted">Default komponen: bahan baku 55%, gaji dapur 25%, operasional 20% — dapat diubah sesuai kebijakan yayasan.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keuPanduanAlokasi">
                     6. Alokasi dana syahriyah
                 </button>
@@ -212,9 +235,10 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
             </h2>
             <div id="keuPanduanCashless" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
                 <div class="accordion-body small">
-                    <p class="mb-2">Pembayaran pos saku → top-up <code>cashless_accounts</code> (titipan COA 2101, bukan pendapatan).</p>
+                    <p class="mb-2">Pembayaran pos Saku → top-up Saldo Saku santri (titipan COA 2101). Scan jajan → Saldo Saku turun, uang fisik masih bendahara (2103). Setor harian → kas keluar ke koperasi.</p>
                     <p class="mb-0">
                         <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_scan.php')) ?>">Cashless scan</a>
+                        · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>">Setor harian</a>
                         · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php')) ?>">Laporan cashless</a>
                         · Wali: <a href="<?= htmlspecialchars(app_href('/wali/keuangan.php')) ?>">saldo saku</a>
                     </p>
@@ -262,7 +286,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         <li>Syahriyah satu-satunya pos wajib bulanan</li>
                         <li>Hanya PKPPS menambah nominal syahriyah (bukan invoice terpisah)</li>
                         <li>Alokasi = % dari koleksi + cocokkan pengeluaran bertag alokasi</li>
-                        <li>Saku = titipan → cashless → belanja koperasi</li>
+                        <li>Saku = titipan → Saldo Saku → scan jajan (saldo turun) → setor harian (kas keluar)</li>
                         <li>Jurnal otomatis menghubungkan operasional dengan neraca</li>
                     </ol>
                     <p class="fw-semibold mb-1">File penting (quick reference)</p>

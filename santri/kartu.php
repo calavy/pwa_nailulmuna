@@ -34,8 +34,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="d-flex flex-wrap gap-2">
         <a href="<?= htmlspecialchars(app_href('/santri/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Kembali</a>
-        <a href="<?= htmlspecialchars(app_href('/santri/kartu_qr.php?id=' . $id)) ?>" class="btn btn-outline-primary btn-sm">
-            <i class="fa-solid fa-qrcode me-1"></i> Cetak QR
+        <a href="<?= htmlspecialchars(app_href('/santri/kartu_id.php?id=' . $id)) ?>" class="btn btn-outline-primary btn-sm">
+            <i class="fa-solid fa-id-card me-1"></i> Kartu ID
         </a>
         <button class="btn btn-primary btn-sm" type="button" onclick="window.print()">
             <i class="fa-solid fa-print me-1"></i> Cetak

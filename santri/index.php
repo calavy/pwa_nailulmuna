@@ -210,8 +210,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="santri-aksi-cell">
                                 <div class="santri-aksi-stack">
                                     <div class="santri-aksi-row">
-                                        <a href="<?= htmlspecialchars(app_href('/santri/kartu_qr.php?id=' . $sid)) ?>" class="btn btn-outline-primary btn-santri-mini" title="Cetak QR" target="_blank" rel="noopener">
-                                            <i class="fa-solid fa-qrcode"></i> QR
+                                        <a href="<?= htmlspecialchars(app_href('/santri/kartu_id.php?id=' . $sid)) ?>" class="btn btn-outline-primary btn-santri-mini" title="Kartu santri 54×86 mm — download JPG" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-id-card"></i> Kartu
+                                        </a>
+                                        <a href="<?= htmlspecialchars(app_href('/santri/kartu_sementara.php?id=' . $sid)) ?>" class="btn btn-outline-warning btn-santri-mini" title="Kartu sementara (QR pengganti)" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-clock"></i> Tmp
                                         </a>
                                         <a href="<?= htmlspecialchars(app_href('/santri/kartu.php?id=' . $sid)) ?>" class="btn btn-outline-success btn-santri-mini" title="Cetak kartu tes A5" target="_blank" rel="noopener">
                                             <i class="fa-solid fa-file-lines"></i> Tes
