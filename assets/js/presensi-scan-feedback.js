@@ -376,7 +376,9 @@
     }
 
     function flashViewport(className) {
-        var vp = document.querySelector('.presensi-scan-viewport') || document.querySelector('.login-pb-qr__viewport');
+        var vp = document.querySelector('.presensi-scan-viewport:not(.d-none)') ||
+            document.querySelector('.cashless-viewport') ||
+            document.querySelector('.login-pb-qr__viewport');
         if (!vp) {
             return;
         }
@@ -491,7 +493,8 @@
         if (!host) {
             host = document.createElement('div');
             host.id = 'presensi-scan-banner-host';
-            var header = document.querySelector('.presensi-scan-top');
+            var header = document.querySelector('.presensi-scan-top') ||
+                document.querySelector('.cashless-scan-top');
             if (header && header.parentNode) {
                 header.parentNode.insertBefore(host, header.nextSibling);
             } else {

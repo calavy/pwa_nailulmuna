@@ -155,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             $statement->execute(['username' => $username]);
             $userRow = $statement->fetch();
 
-            if ($userRow && password_verify($password, $userRow['password'])) {
+            if ($userRow && auth_verify_user_password($password, (string) ($userRow['password'] ?? ''))) {
                 $isValidLogin = true;
                 $userName = $userRow['nama'];
             }
@@ -230,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         ];
         if ($isRegisteredPembimbing && $userId > 0) {
             login_pembimbing_ensure_acl($pdo, $userId);
-        } elseif ($userId > 0 && in_array($sessionRole, ['pengurus', 'petugas_absensi'], true)) {
+        } elseif ($userId > 0 && in_array($sessionRole, ['admin', 'pengurus', 'petugas_absensi'], true)) {
             require_once __DIR__ . '/helpers/user_permissions.php';
             user_permission_ensure_role_defaults($pdo, $userId, $sessionRole);
         }

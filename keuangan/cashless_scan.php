@@ -335,6 +335,7 @@ $koperasiListAdmin = $koperasiPortal ? [] : cashless_koperasi_list($pdo);
 
 $pageTitle = $koperasiPortal ? ('Scan — ' . $koperasiNama) : 'Scan Cashless';
 $cashlessScanCss = app_asset_href('/assets/css/cashless-scan.css');
+$presensiScanCss = app_asset_href('/assets/css/presensi-scan.css');
 if ($koperasiPortal) {
     require_once __DIR__ . '/../includes/koperasi_portal_layout.php';
     koperasi_portal_layout_begin([
@@ -343,9 +344,10 @@ if ($koperasiPortal) {
         'active' => 'scan',
     ]);
     echo '<link href="' . htmlspecialchars($cashlessScanCss) . '" rel="stylesheet">';
+    echo '<link href="' . htmlspecialchars($presensiScanCss) . '" rel="stylesheet">';
 } else {
     $bodyClass = 'cashless-scan-page';
-    $pageStylesheets = [$cashlessScanCss];
+    $pageStylesheets = [$cashlessScanCss, $presensiScanCss];
     require_once __DIR__ . '/../includes/header.php';
 }
 ?>
@@ -386,7 +388,7 @@ if ($koperasiPortal) {
     <div class="cashless-scan-body">
         <div class="cashless-scan-wrap<?= ($autoStartNominalScan && $verifiedSantri) ? ' is-money-phase' : '' ?>" id="cashless_scan_wrap">
             <div class="cashless-phase-santri" id="phase_santri">
-                <div class="cashless-viewport">
+                <div class="cashless-viewport presensi-scan-viewport" id="cashless_viewport_santri">
                     <div id="reader"></div>
                 </div>
                 <div class="cashless-pin-card">
@@ -414,7 +416,7 @@ if ($koperasiPortal) {
                     <i class="fa-solid fa-user-check"></i>
                     <span id="santri_chip_name"><?php if ($verifiedSantri): ?><?= htmlspecialchars((string) ($verifiedSantri['nama_santri'] ?? '')) ?><?php else: ?>Santri<?php endif; ?></span>
                 </div>
-                <div class="cashless-viewport cashless-viewport--uang">
+                <div class="cashless-viewport cashless-viewport--uang presensi-scan-viewport" id="cashless_viewport_uang">
                     <div id="money_reader"></div>
                 </div>
                 <div class="cashless-santri-stats<?= $showSantriStats ? '' : ' is-hidden' ?>" id="santri_stats" aria-live="polite">
@@ -436,8 +438,19 @@ if ($koperasiPortal) {
             </div>
 
             <div class="cashless-flash is-empty" id="cashless_flash" role="status" aria-live="polite"></div>
-            <div class="cashless-actions">
-                <button type="button" class="cashless-btn-retry" id="retry_camera_btn"><i class="fa-solid fa-rotate-right me-1"></i> Ulangi kamera</button>
+            <div class="cashless-scan-controls" id="cashless_scan_controls">
+                <button type="button" class="cashless-btn-ctl" id="cashless_btn_flip" title="Ganti kamera depan/belakang">
+                    <i class="fa-solid fa-camera-rotate" aria-hidden="true"></i>
+                    <span>Ganti kamera</span>
+                </button>
+                <button type="button" class="cashless-btn-ctl" id="cashless_btn_torch" title="Nyalakan/matikan flash" style="display:none">
+                    <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+                    <span>Flash</span>
+                </button>
+                <button type="button" class="cashless-btn-ctl" id="cashless_btn_restart" title="Nyalakan ulang kamera">
+                    <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                    <span>Ulangi</span>
+                </button>
             </div>
         </div>
     </div>
@@ -472,6 +485,7 @@ if ($koperasiPortal) {
 <?php endif; ?>
 
 <?php require __DIR__ . '/../includes/partials/app_html5_qrcode_script.php'; ?>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-feedback.js')) ?>"></script>
 <script>
     (function () {
         const CFG = {
@@ -487,7 +501,9 @@ if ($koperasiPortal) {
         const pinHidden = document.getElementById('pin_hidden');
         const pinForm = document.getElementById('pin_form');
         const flashEl = document.getElementById('cashless_flash');
-        const retryBtn = document.getElementById('retry_camera_btn');
+        const btnFlip = document.getElementById('cashless_btn_flip');
+        const btnTorch = document.getElementById('cashless_btn_torch');
+        const btnRestart = document.getElementById('cashless_btn_restart');
         const santriChipName = document.getElementById('santri_chip_name');
         const santriStatsEl = document.getElementById('santri_stats');
         const santriSaldoAmountEl = document.getElementById('santri_saldo_saku_amount');
@@ -496,8 +512,12 @@ if ($koperasiPortal) {
         const moneyReaderId = 'money_reader';
         if (!input || typeof Html5Qrcode === 'undefined') return;
 
+        const STORAGE_KEY = 'cashless_scan_camera_id';
         let html5QrCode = null;
         let activeCameraId = null;
+        let cameras = [];
+        let currentCameraIndex = 0;
+        let torchOn = false;
         let moneyQr = null;
         let moneyPhase = wrap && wrap.classList.contains('is-money-phase');
         let pinVerifyBusy = false;
@@ -606,6 +626,159 @@ if ($koperasiPortal) {
             }
         }
 
+        function notifyResult(type, message) {
+            var msg = message || '';
+            var flashType = (type === 'danger' || type === 'warning') ? 'error' : type;
+            if (type === 'info') {
+                flashType = 'info';
+            }
+            setFlash(msg, flashType);
+            if (!msg || !window.PresensiScanFeedback) {
+                return;
+            }
+            var fbType = type;
+            if (type === 'error') {
+                fbType = 'danger';
+            }
+            if (typeof PresensiScanFeedback.show === 'function') {
+                PresensiScanFeedback.show(fbType, msg);
+            }
+        }
+
+        function notifyScanTick() {
+            if (window.PresensiScanFeedback && typeof PresensiScanFeedback.scanTick === 'function') {
+                PresensiScanFeedback.scanTick();
+            }
+        }
+
+        async function ensureCamerasList() {
+            if (cameras.length > 0) {
+                return;
+            }
+            try {
+                cameras = await Html5Qrcode.getCameras();
+            } catch (e) {
+                cameras = [];
+            }
+            var savedId = null;
+            try {
+                savedId = localStorage.getItem(STORAGE_KEY);
+            } catch (e) { /* abaikan */ }
+            if (savedId && cameras.some(function (c) { return c.id === savedId; })) {
+                currentCameraIndex = Math.max(0, cameras.findIndex(function (c) { return c.id === savedId; }));
+                activeCameraId = savedId;
+            } else {
+                var pref = pickPreferredCamera(cameras);
+                if (pref) {
+                    activeCameraId = pref.id;
+                    currentCameraIndex = Math.max(0, cameras.findIndex(function (c) { return c.id === pref.id; }));
+                }
+            }
+            updateCameraControls();
+        }
+
+        function updateCameraControls() {
+            if (btnFlip) {
+                var multi = cameras.length >= 2;
+                btnFlip.disabled = !multi;
+                btnFlip.style.opacity = multi ? '1' : '0.45';
+            }
+        }
+
+        function getActiveReaderElementId() {
+            return moneyPhase ? moneyReaderId : readerId;
+        }
+
+        function rememberCameraId(cameraId) {
+            if (!cameraId || cameraId === 'environment') {
+                return;
+            }
+            activeCameraId = cameraId;
+            var idx = cameras.findIndex(function (c) { return c.id === cameraId; });
+            if (idx >= 0) {
+                currentCameraIndex = idx;
+            }
+            try {
+                localStorage.setItem(STORAGE_KEY, cameraId);
+            } catch (e) { /* abaikan */ }
+        }
+
+        async function applyTorchState() {
+            if (!btnTorch) {
+                return;
+            }
+            try {
+                var elId = getActiveReaderElementId();
+                var video = document.querySelector('#' + elId + ' video');
+                if (!video || !video.srcObject) {
+                    btnTorch.style.display = 'none';
+                    torchOn = false;
+                    return;
+                }
+                var track = video.srcObject.getVideoTracks()[0];
+                if (!track) {
+                    btnTorch.style.display = 'none';
+                    return;
+                }
+                var caps = track.getCapabilities ? track.getCapabilities() : {};
+                if (!caps.torch) {
+                    btnTorch.style.display = 'none';
+                    torchOn = false;
+                    btnTorch.classList.remove('is-active');
+                    return;
+                }
+                btnTorch.style.display = '';
+                btnTorch.classList.toggle('is-active', torchOn);
+                await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+            } catch (e) {
+                btnTorch.style.display = 'none';
+                torchOn = false;
+                btnTorch.classList.remove('is-active');
+            }
+        }
+
+        function toggleTorch() {
+            torchOn = !torchOn;
+            applyTorchState();
+        }
+
+        async function flipCamera() {
+            await ensureCamerasList();
+            if (cameras.length < 2) {
+                notifyResult('info', 'Hanya satu kamera tersedia di perangkat ini.');
+                return;
+            }
+            currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+            activeCameraId = cameras[currentCameraIndex].id;
+            rememberCameraId(activeCameraId);
+            var label = /front|user|face|selfie|depan/i.test(cameras[currentCameraIndex].label || '')
+                ? 'Kamera depan'
+                : (/back|rear|environment|belakang|world|wide/i.test(cameras[currentCameraIndex].label || '')
+                    ? 'Kamera belakang'
+                    : 'Kamera ' + (currentCameraIndex + 1));
+            setFlash('Mengganti ke ' + label + '…', 'info');
+            if (moneyPhase) {
+                await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
+            } else if (!pinEntryActive) {
+                await startSantriScanner(activeCameraId);
+            }
+        }
+
+        async function restartCamera() {
+            setFlash('', '');
+            if (moneyPhase) {
+                await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
+            } else if (pinEntryActive && (input.value || '').trim()) {
+                if (pinInput) {
+                    pinInput.disabled = false;
+                    pinInput.focus();
+                }
+            } else {
+                pinEntryActive = false;
+                await startSantriScanner(activeCameraId);
+            }
+        }
+
         function setSantriName(nama) {
             if (santriChipName && nama) {
                 santriChipName.textContent = nama;
@@ -628,10 +801,12 @@ if ($koperasiPortal) {
 
         async function startSantriScanner(preferredCameraId) {
             if (moneyPhase || pinEntryActive) return;
+            await ensureCamerasList();
             await stopMoneyScanner();
             await stopCurrentScanner();
             html5QrCode = new Html5Qrcode(readerId);
             const onSuccess = async function (decodedText) {
+                notifyScanTick();
                 input.value = decodedText;
                 pinEntryActive = true;
                 await stopCurrentScanner();
@@ -640,7 +815,7 @@ if ($koperasiPortal) {
                     var res = await fetch(lookupUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
                     var data = await res.json();
                     if (data && data.ok && data.registered) {
-                        setFlash('\u2713 ' + (data.nama || 'Santri') + ' (' + (data.nis || '-') + ') terdaftar. Selesaikan PIN.', 'success');
+                        notifyResult('success', '\u2713 ' + (data.nama || 'Santri') + ' (' + (data.nis || '-') + ') terdaftar. Masukkan PIN.');
                         if (pinInput) {
                             pinInput.value = '';
                             pinInput.disabled = false;
@@ -648,12 +823,12 @@ if ($koperasiPortal) {
                         }
                         return;
                     }
-                    setFlash('QR/NIS tidak terdaftar di sistem.', 'error');
+                    notifyResult('danger', 'QR/NIS tidak terdaftar di sistem.');
                     input.value = '';
                     pinEntryActive = false;
                     await startSantriScanner(activeCameraId);
                 } catch (e) {
-                    setFlash('QR terbaca. Lanjutkan masukkan PIN sampai selesai.', 'info');
+                    notifyResult('info', 'QR terbaca. Lanjutkan masukkan PIN sampai selesai.');
                     if (pinInput) {
                         pinInput.value = '';
                         pinInput.disabled = false;
@@ -663,15 +838,16 @@ if ($koperasiPortal) {
             };
             const scanConfigLocal = scanConfig();
             try {
-                let useId = preferredCameraId;
+                let useId = preferredCameraId || activeCameraId;
                 if (useId === 'environment') useId = null;
                 if (useId) {
-                    const cameras = await Html5Qrcode.getCameras();
                     if (!cameras.find(function (c) { return c.id === useId; })) useId = null;
                 }
                 activeCameraId = await startScannerDevice(html5QrCode, scanConfigLocal, onSuccess, function () {}, useId || null);
+                rememberCameraId(activeCameraId);
+                await applyTorchState();
             } catch (e) {
-                setFlash('Kamera gagal. Ketuk ulangi kamera.', 'error');
+                notifyResult('danger', 'Kamera gagal dibuka. Izinkan akses kamera atau ketuk Ulangi.');
             }
         }
 
@@ -710,28 +886,37 @@ if ($koperasiPortal) {
             setFlash('', '');
         }
 
-        async function beginMoneyQrScan(santriName) {
+        async function beginMoneyQrScan(santriName, skipSwitch) {
             if (!CFG.scanUangEnabled) {
-                setFlash('Scan uang nonaktif di pengaturan.', 'error');
+                notifyResult('danger', 'Scan uang nonaktif di pengaturan.');
                 return;
             }
+            await ensureCamerasList();
             await stopCurrentScanner();
             await stopMoneyScanner();
-            switchToMoneyPhase(santriName || (santriChipName ? santriChipName.textContent : ''));
+            if (!skipSwitch) {
+                switchToMoneyPhase(santriName || (santriChipName ? santriChipName.textContent : ''));
+            }
             await waitReaderVisible(moneyReaderId);
             moneyQr = new Html5Qrcode(moneyReaderId);
             try {
-                await startScannerDevice(
+                var useId = activeCameraId;
+                if (useId === 'environment') useId = null;
+                if (useId && !cameras.find(function (c) { return c.id === useId; })) useId = null;
+                activeCameraId = await startScannerDevice(
                     moneyQr,
                     scanConfig(),
                     function (decodedText) {
+                        notifyScanTick();
                         submitMoneyScan((decodedText || '').trim());
                     },
                     function () {},
-                    activeCameraId || null
+                    useId || null
                 );
+                rememberCameraId(activeCameraId);
+                await applyTorchState();
             } catch (e) {
-                setFlash('Kamera nominal gagal. Ketuk ulangi kamera.', 'error');
+                notifyResult('danger', 'Kamera nominal gagal. Ketuk Ulangi atau ganti kamera.');
             }
         }
 
@@ -770,20 +955,20 @@ if ($koperasiPortal) {
                     if (data.saldo_saku !== undefined && msg.indexOf('Saldo Saku') < 0) {
                         msg += ' Saldo Saku ' + formatRp(data.saldo_saku) + '.';
                     }
-                    setFlash(msg, 'success');
+                    notifyResult('success', msg);
                     resetToSantriPhase();
                     await startSantriScanner(activeCameraId);
                 } else {
-                    setFlash(data.message || 'Transaksi gagal.', 'error');
+                    notifyResult('danger', data.message || 'Transaksi gagal.');
                     if (data.verified) {
-                        await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
+                        await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
                     } else {
                         resetToSantriPhase();
                         await startSantriScanner(activeCameraId);
                     }
                 }
             } catch (e) {
-                setFlash('Gagal kirim transaksi. Coba lagi.', 'error');
+                notifyResult('danger', 'Gagal kirim transaksi. Periksa koneksi lalu coba lagi.');
                 if (moneyPhase) {
                     await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
                 }
@@ -832,15 +1017,15 @@ if ($koperasiPortal) {
                         );
                     }
                     speak('PIN benar');
-                    setFlash('PIN benar. Arahkan ke QR nominal.', 'success');
+                    notifyResult('success', 'PIN benar. Arahkan ke QR nominal.');
                     await beginMoneyQrScan(nama);
                 } else if (data.ok && !CFG.scanUangEnabled) {
                     pinEntryActive = false;
-                    setFlash(data.message || 'PIN benar. Scan uang nonaktif.', 'success');
+                    notifyResult('success', data.message || 'PIN benar. Scan uang nonaktif.');
                     if (pinInput) pinInput.value = '';
                     await startSantriScanner(activeCameraId);
                 } else {
-                    setFlash(data.message || 'PIN salah.', 'error');
+                    notifyResult('danger', data.message || 'PIN salah atau belum diatur.');
                     if (pinInput) {
                         pinInput.value = '';
                         pinInput.disabled = false;
@@ -848,7 +1033,7 @@ if ($koperasiPortal) {
                     }
                 }
             } catch (e) {
-                setFlash('Gagal verifikasi. Coba lagi.', 'error');
+                notifyResult('danger', 'Gagal verifikasi PIN. Coba lagi.');
                 if (pinInput) {
                     pinInput.disabled = false;
                     pinInput.focus();
@@ -894,27 +1079,20 @@ if ($koperasiPortal) {
             });
         }
 
-        if (retryBtn) {
-            retryBtn.addEventListener('click', async function () {
-                setFlash('', '');
-                if (moneyPhase) {
-                    await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
-                } else if (pinEntryActive && (input.value || '').trim()) {
-                    if (pinInput) {
-                        pinInput.disabled = false;
-                        pinInput.focus();
-                    }
-                } else {
-                    pinEntryActive = false;
-                    await startSantriScanner(activeCameraId);
-                }
-            });
+        if (btnFlip) {
+            btnFlip.addEventListener('click', function () { flipCamera(); });
+        }
+        if (btnTorch) {
+            btnTorch.addEventListener('click', function () { toggleTorch(); });
+        }
+        if (btnRestart) {
+            btnRestart.addEventListener('click', function () { restartCamera(); });
         }
 
         window.addEventListener('orientationchange', function () {
             setTimeout(function () {
                 if (moneyPhase) {
-                    beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
+                    beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
                 } else if (!pinEntryActive) {
                     startSantriScanner(activeCameraId);
                 }
@@ -922,9 +1100,10 @@ if ($koperasiPortal) {
         });
 
         async function pageInit() {
+            await ensureCamerasList();
             if (CFG.autoNominalAfterPin && CFG.scanUangEnabled) {
                 speak('PIN benar');
-                setFlash('PIN benar. Arahkan ke QR nominal.', 'success');
+                notifyResult('success', 'PIN benar. Arahkan ke QR nominal.');
                 await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
             } else {
                 await startSantriScanner(null);

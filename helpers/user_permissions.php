@@ -493,6 +493,9 @@ function user_permission_default_keys_for_role(string $role): array
             static fn(string $k): bool => !in_array($k, ['settings_admin'], true)
         ));
     }
+    if ($role === 'admin') {
+        return user_permission_default_keys_for_role('pengurus');
+    }
 
     return ['dashboard'];
 }
@@ -519,7 +522,7 @@ function user_permission_ensure_role_defaults(PDO $pdo, int $userId, string $rol
 
         return;
     }
-    if (!in_array($role, ['pengurus', 'petugas_absensi'], true)) {
+    if (!in_array($role, ['pengurus', 'petugas_absensi', 'admin'], true)) {
         return;
     }
 

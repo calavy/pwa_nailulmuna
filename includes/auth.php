@@ -27,7 +27,103 @@ function require_login(): void
         require_once __DIR__ . '/../helpers/app_path.php';
         app_redirect('login.php');
     }
+    auth_refresh_user_session_from_db();
+    auth_staff_acl_self_heal();
     auth_pembimbing_acl_self_heal();
+}
+
+/** Sinkronkan role & super-admin dari DB (sekali per sesi). */
+function auth_refresh_user_session_from_db(): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    $uid = (int) ($_SESSION['user']['id'] ?? 0);
+    if ($uid <= 0) {
+        return;
+    }
+    $marker = 'auth_user_db_sync_v1_' . $uid;
+    if (!empty($_SESSION[$marker])) {
+        return;
+    }
+    global $pdo;
+    if (!($pdo instanceof PDO) || !function_exists('table_exists') || !table_exists($pdo, 'users')) {
+        return;
+    }
+    $st = $pdo->prepare('SELECT nama, username, role, is_super_admin, foto_profil FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $uid]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return;
+    }
+    $_SESSION['user']['nama'] = (string) ($row['nama'] ?? $_SESSION['user']['nama'] ?? '');
+    $_SESSION['user']['username'] = (string) ($row['username'] ?? $_SESSION['user']['username'] ?? '');
+    $_SESSION['user']['role'] = (string) ($row['role'] ?? $_SESSION['user']['role'] ?? 'pengurus');
+    $isSuper = (int) ($row['is_super_admin'] ?? 0) === 1;
+    if (($_SESSION['user']['username'] ?? '') === 'admin') {
+        $isSuper = true;
+    }
+    $_SESSION['user']['is_super_admin'] = $isSuper ? 1 : 0;
+    $_SESSION['user']['foto_profil'] = trim((string) ($row['foto_profil'] ?? $_SESSION['user']['foto_profil'] ?? ''));
+    $_SESSION[$marker] = 1;
+}
+
+/**
+ * Pastikan pengurus/admin/petugas punya izin bawaan bila belum pernah diatur super admin.
+ */
+function auth_staff_acl_self_heal(): void
+{
+    if (!isset($_SESSION['user'])) {
+        return;
+    }
+    if (is_super_admin()) {
+        return;
+    }
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if (!in_array($role, ['admin', 'pengurus', 'petugas_absensi'], true)) {
+        return;
+    }
+    $uid = (int) ($_SESSION['user']['id'] ?? 0);
+    if ($uid <= 0) {
+        return;
+    }
+    $marker = 'staff_acl_healed_v1_' . $uid;
+    if (!empty($_SESSION[$marker])) {
+        return;
+    }
+    global $pdo;
+    if (!($pdo instanceof PDO)) {
+        return;
+    }
+    if (!function_exists('user_permission_ensure_role_defaults')) {
+        require_once __DIR__ . '/../helpers/user_permissions.php';
+    }
+    if (function_exists('user_permission_ensure_role_defaults')) {
+        user_permission_ensure_role_defaults($pdo, $uid, $role);
+    }
+    if (function_exists('app_acl_session_cache_clear')) {
+        app_acl_session_cache_clear($uid);
+    }
+    $_SESSION[$marker] = 1;
+}
+
+/** Verifikasi password login (bcrypt + legacy plain/md5). */
+function auth_verify_user_password(string $password, string $storedHash): bool
+{
+    if ($storedHash === '' || $password === '') {
+        return false;
+    }
+    if (password_verify($password, $storedHash)) {
+        return true;
+    }
+    if (hash_equals($storedHash, $password)) {
+        return true;
+    }
+    if (strlen($storedHash) === 32 && ctype_xdigit($storedHash) && hash_equals(md5($password), $storedHash)) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -121,6 +217,9 @@ function auth_redirect_access_denied(): void
         $fallbackPath = app_acl_first_allowed_path(user_permission_path_map(), $allowedMap, $requestPath);
         if ($fallbackPath !== null && app_acl_safe_redirect($fallbackPath, $requestPath)) {
             return;
+        }
+        if (is_array($allowedMap) && isset($allowedMap['dashboard'])) {
+            app_redirect('dashboard.php');
         }
     }
 

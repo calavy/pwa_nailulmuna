@@ -318,6 +318,57 @@
     border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
+.cashless-scan-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    justify-content: center;
+}
+
+.cashless-btn-ctl {
+    flex: 1 1 calc(33% - 0.35rem);
+    min-width: 5.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.55rem 0.4rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(30, 41, 59, 0.92);
+    color: #e2e8f0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.cashless-btn-ctl i {
+    font-size: 1.1rem;
+    color: #5eead4;
+}
+
+.cashless-btn-ctl:active {
+    transform: scale(0.97);
+}
+
+.cashless-btn-ctl:disabled {
+    cursor: not-allowed;
+}
+
+.cashless-btn-ctl.is-active {
+    background: rgba(45, 212, 191, 0.22);
+    border-color: rgba(45, 212, 191, 0.55);
+    color: #ccfbf1;
+}
+
+.cashless-btn-ctl.is-active i {
+    color: #fef08a;
+}
+
 .cashless-actions {
     display: flex;
     gap: 0.5rem;

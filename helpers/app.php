@@ -3486,8 +3486,17 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
 
     $cacheKey = 'acl_map_v2_' . $userId;
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if (!function_exists('user_acl_is_explicitly_configured')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    $aclExplicit = user_acl_is_explicitly_configured($pdo, $userId);
+
+    if ($role === 'admin' && !$aclExplicit) {
+        return null;
+    }
+
     if (!isset($_SESSION[$cacheKey]) || !is_array($_SESSION[$cacheKey])) {
-        if (in_array($role, ['pengurus', 'petugas_absensi', 'pembimbing'], true)) {
+        if (in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'pembimbing'], true)) {
             if (!function_exists('user_permission_ensure_role_defaults')) {
                 require_once __DIR__ . '/user_permissions.php';
             }
@@ -3502,15 +3511,7 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     $allowedPermissions->execute(['user_id' => $userId]);
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
 
-    if (!function_exists('user_acl_is_explicitly_configured')) {
-        require_once __DIR__ . '/user_permissions.php';
-    }
-    $aclExplicit = user_acl_is_explicitly_configured($pdo, $userId);
-
     if ($allowedKeys === [] && !$aclExplicit) {
-        if ($role === 'admin') {
-            return null;
-        }
         if (in_array($role, ['pengurus', 'petugas_absensi'], true)) {
             if (!function_exists('user_permission_ensure_role_defaults')) {
                 require_once __DIR__ . '/user_permissions.php';
@@ -3518,6 +3519,13 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
             user_permission_ensure_role_defaults($pdo, $userId, $role);
             $allowedPermissions->execute(['user_id' => $userId]);
             $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
+        }
+    }
+
+    if (!$aclExplicit && in_array($role, ['pengurus', 'petugas_absensi'], true) && $allowedKeys !== []) {
+        $defaults = user_permission_default_keys_for_role($role);
+        if ($defaults !== []) {
+            $allowedKeys = array_values(array_unique(array_merge($allowedKeys, $defaults)));
         }
     }
 
@@ -3555,6 +3563,8 @@ function app_acl_is_public_route(string $requestPath): bool
     static $paths = [
         '/settings/profil.php',
         '/logout.php',
+        '/dashboard.php',
+        '/menu/menu_hub.php',
     ];
     foreach ($paths as $path) {
         if ($path !== '' && str_contains($requestPath, $path)) {
