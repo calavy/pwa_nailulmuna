@@ -3501,12 +3501,30 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     $allowedPermissions = $pdo->prepare('SELECT permission_key FROM user_access_permissions WHERE user_id = :user_id');
     $allowedPermissions->execute(['user_id' => $userId]);
     $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
-    if (
-        $allowedKeys === []
-        && in_array($role, ['admin', 'pengurus'], true)
-    ) {
+
+    if (!function_exists('user_acl_is_explicitly_configured')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    $aclExplicit = user_acl_is_explicitly_configured($pdo, $userId);
+
+    if ($allowedKeys === [] && !$aclExplicit) {
+        if ($role === 'admin') {
+            return null;
+        }
+        if (in_array($role, ['pengurus', 'petugas_absensi'], true)) {
+            if (!function_exists('user_permission_ensure_role_defaults')) {
+                require_once __DIR__ . '/user_permissions.php';
+            }
+            user_permission_ensure_role_defaults($pdo, $userId, $role);
+            $allowedPermissions->execute(['user_id' => $userId]);
+            $allowedKeys = array_map('strval', $allowedPermissions->fetchAll(PDO::FETCH_COLUMN));
+        }
+    }
+
+    if ($allowedKeys === [] && $role === 'admin' && !$aclExplicit) {
         return null;
     }
+
     $map = app_acl_normalize_allowed_map(array_flip($allowedKeys));
     $_SESSION[$cacheKey] = $map;
     unset($_SESSION['menu_items_acl_' . $userId]);

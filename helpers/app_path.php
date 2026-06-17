@@ -209,6 +209,10 @@ function app_redirect(string $relativePath): void
 /** Lingkungan pengembangan lokal (XAMPP/localhost) — bukan server production yang disebar. */
 function app_is_local_dev(): bool
 {
+    if (strtolower((string) ($GLOBALS['pondok_env'] ?? '')) === 'local') {
+        return true;
+    }
+
     $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
     if (
         $host === 'localhost'

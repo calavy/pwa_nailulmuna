@@ -441,6 +441,38 @@ function user_permission_preset_keys(string $presetId): array
     };
 }
 
+function user_acl_configured_setting_key(int $userId): string
+{
+    return 'acl_user_configured_v1_' . max(0, $userId);
+}
+
+/** Super admin sudah pernah menyimpan hak akses user ini (termasuk kosong). */
+function user_acl_is_explicitly_configured(PDO $pdo, int $userId): bool
+{
+    if ($userId <= 0) {
+        return false;
+    }
+    if (!function_exists('app_setting')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    return app_setting($pdo, user_acl_configured_setting_key($userId), '') === '1';
+}
+
+function user_acl_mark_configured(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    if (!function_exists('save_setting')) {
+        require_once __DIR__ . '/app.php';
+    }
+    save_setting($pdo, user_acl_configured_setting_key($userId), '1');
+    if (function_exists('app_acl_session_cache_clear')) {
+        app_acl_session_cache_clear($userId);
+    }
+}
+
 /** Izin bawaan saat akun belum punya baris ACL (mis. pengurus lama sebelum migrasi). */
 function user_permission_default_keys_for_role(string $role): array
 {

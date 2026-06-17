@@ -8,6 +8,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/login_pembimbing.php';
 require_once __DIR__ . '/helpers/munawib.php';
+require_once __DIR__ . '/helpers/local_dev.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
 if ($pdo instanceof PDO) {
@@ -162,7 +163,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
     }
 
     if (!$isValidLogin && $loginMethod !== 'qr' && app_is_local_dev() && $username === 'admin' && $password === 'admin123') {
-        $isValidLogin = true;
+        $bootAdmin = local_dev_ensure_admin_user($pdo);
+        if (is_array($bootAdmin)) {
+            $userRow = $bootAdmin;
+            $userName = (string) ($bootAdmin['nama'] ?? 'Administrator');
+            $isValidLogin = true;
+        }
     }
 
     if ($isValidLogin) {
@@ -171,7 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
         if ($username === 'admin') {
             $isSuperAdmin = true;
         }
-        $userId = (int) ($userRow['id'] ?? 1);
+        $userId = (int) ($userRow['id'] ?? 0);
+        if ($userId <= 0) {
+            set_flash('error', 'Akun login tidak valid. Hubungi admin.');
+            header('Location: ' . app_url('login.php'));
+            exit;
+        }
 
         $sessionRole = (string) ($userRow['role'] ?? 'admin');
         $isRegisteredPembimbing = false;
@@ -223,6 +234,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             require_once __DIR__ . '/helpers/user_permissions.php';
             user_permission_ensure_role_defaults($pdo, $userId, $sessionRole);
         }
+        if (function_exists('app_acl_session_cache_clear')) {
+            app_acl_session_cache_clear($userId);
+        }
+        app_menu_pack_invalidate();
         if ($pembimbingIdLogin > 0) {
             require_once __DIR__ . '/helpers/akademik_setoran.php';
             akademik_setoran_session_set_pembimbing_id($pembimbingIdLogin);

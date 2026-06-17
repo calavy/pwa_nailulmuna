@@ -8,6 +8,7 @@
  * (host biasanya sqlXXX.infinityfree.com, bukan 127.0.0.1).
  */
 return [
+    'environment' => 'local',
     'host' => '127.0.0.1',
     'port' => '3306',
     'dbname' => 'pwa_nailulmuna',

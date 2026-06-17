@@ -36,9 +36,15 @@ if ($envPass !== false) {
 }
 
 $localFile = __DIR__ . '/database.local.php';
+$GLOBALS['pondok_env'] = 'production';
 if (is_file($localFile)) {
     $local = require $localFile;
     if (is_array($local)) {
+        if (!empty($local['environment'])) {
+            $GLOBALS['pondok_env'] = strtolower(trim((string) $local['environment']));
+        } else {
+            $GLOBALS['pondok_env'] = 'local';
+        }
         if (!empty($local['host'])) {
             $host = (string) $local['host'];
         }
