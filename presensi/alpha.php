@@ -187,7 +187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($activeTiers === [] && $waLaporanSantri !== [] && $pengurusWa !== '' && $canSendNow) {
-        $pesanLaporan = wa_format_laporan_alpa_generate(
+        require_once __DIR__ . '/../helpers/wa_laporan_alpa.php';
+        $pesanLaporan = wa_format_laporan_alpa_generate_messages(
             $pdo,
             $tanggalIdn,
             $tingkatan,
@@ -195,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $threshold,
             $waLaporanSantri
         );
-        send_wa_bulk($pdo, $pengurusWa, $pesanLaporan);
+        send_wa_bulk_messages($pdo, $pengurusWa, $pesanLaporan);
     }
 
     $msg = 'Generate alpa selesai. Total tersimpan: ' . $created . '.';

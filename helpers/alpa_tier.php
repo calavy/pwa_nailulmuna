@@ -358,7 +358,8 @@ function alpa_tier_dispatch_batch(
             continue;
         }
 
-        $waMessage = alpa_tier_wa_message(
+        require_once __DIR__ . '/wa_laporan_alpa.php';
+        $waMessages = wa_format_alpa_tier_messages(
             $pdo,
             $tanggalIdn,
             $tingkatan,
@@ -368,7 +369,7 @@ function alpa_tier_dispatch_batch(
             $periodeLabel,
             $entries
         );
-        $sent = send_wa_bulk($pdo, $tier['wa'], $waMessage);
+        $sent = send_wa_bulk_messages($pdo, $tier['wa'], $waMessages);
         if ($sent <= 0) {
             continue;
         }

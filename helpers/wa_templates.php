@@ -33,7 +33,7 @@ function wa_template_definitions(): array
         ],
         'rekap_alpa' => [
             'label' => 'Rekap ALPA ke pengurus',
-            'hint' => 'Isi utama rekap; daftar santri ditambahkan otomatis setelah template.',
+            'hint' => 'Header pesan rekap bulanan. Daftar santri ditambahkan otomatis: nama santri, lalu kegiatan di bawahnya. Jika panjang, dikirim lanjutan (bagian 2, 3, …).',
             'placeholders' => '{periode}, {ambang}',
             'default' => "Assalamu'alaikum Wr. Wb.\n\n"
                 . '*PEMBERITAHUAN RESMI*\n'

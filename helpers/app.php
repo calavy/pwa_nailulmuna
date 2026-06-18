@@ -1199,8 +1199,8 @@ function trigger_auto_wa_notifications(PDO $pdo): void
           AND p.tanggal_presensi BETWEEN :start_date AND :end_date
         GROUP BY COALESCE(p.kegiatan_id, 0), COALESCE(k.nama_kegiatan, "Tanpa kegiatan"), s.id, s.nama_santri, s.nis, s.tingkatan
         HAVING COUNT(p.id) >= :threshold
-        ORDER BY nama_kegiatan ASC, total_alpha DESC, s.nama_santri ASC
-        LIMIT 80
+        ORDER BY s.nama_santri ASC, nama_kegiatan ASC, total_alpha DESC
+        LIMIT 200
     ';
     $sqlNoKegiatan = '
         SELECT
@@ -1245,12 +1245,15 @@ function trigger_auto_wa_notifications(PDO $pdo): void
         $periodeLabel = $fmt->format($tsPeriode) ?: $periodeLabel;
     }
 
-    $message = wa_format_rekap_alpa_per_kegiatan($pdo, $periodeLabel, $threshold, $rows);
+    require_once __DIR__ . '/wa_laporan_alpa.php';
+    $messages = wa_format_rekap_alpa_per_santri_messages($pdo, $periodeLabel, $threshold, $rows);
 
-    $sent = send_wa_bulk($pdo, $pengurusWa, $message);
+    $sent = send_wa_bulk_messages($pdo, $pengurusWa, $messages);
     save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
         'sent' => (int) $sent,
         'rows' => count($rows),
+        'santri' => count(wa_laporan_alpa_group_by_santri($rows)),
+        'messages' => count($messages),
         'threshold' => $threshold,
         'at' => date('Y-m-d H:i:s'),
     ], JSON_UNESCAPED_UNICODE));
@@ -3266,89 +3269,19 @@ function wa_kop_instansi(PDO $pdo): string
 }
 
 /**
- * Rekap ALPA bulanan: kelompok per nama kegiatan.
- *
- * @param array<int, array{nama_kegiatan: string, nama_santri: string, tingkatan: string, nis: string, total_alpha: int|string}> $rows
- */
-function wa_format_rekap_alpa_per_kegiatan(PDO $pdo, string $periodeLabel, int $ambang, array $rows): string
-{
-    if ($rows === []) {
-        return '';
-    }
-    $byKegiatan = [];
-    foreach ($rows as $row) {
-        $kg = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Tanpa kegiatan';
-        $byKegiatan[$kg][] = $row;
-    }
-    ksort($byKegiatan, SORT_NATURAL);
-
-    $body = wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . "*PEMBERITAHUAN RESMI*\n"
-        . "Perihal: Rekapitulasi ketidakhadiran (*ALPA*)\n"
-        . 'Periode data: ' . $periodeLabel . "\n"
-        . 'Kriteria: jumlah ALPA ≥ *' . $ambang . "* per santri per kegiatan\n\n"
-        . "Berikut daftar santri yang memenuhi kriteria, dikelompokkan menurut *kegiatan*:\n\n";
-
-    foreach ($byKegiatan as $namaKegiatan => $items) {
-        $body .= '▸ *' . $namaKegiatan . "*\n";
-        foreach ($items as $item) {
-            $nama = (string) ($item['nama_santri'] ?? '-');
-            $nis = trim((string) ($item['nis'] ?? ''));
-            $tg = trim((string) ($item['tingkatan'] ?? ''));
-            $n = (int) ($item['total_alpha'] ?? 0);
-            $body .= '   • ' . $nama;
-            if ($nis !== '') {
-                $body .= ' (NIS ' . $nis . ')';
-            }
-            $body .= ' — ' . ($tg !== '' ? $tg : '-');
-            $body .= ': *' . $n . "* kali ALPA\n";
-        }
-        $body .= "\n";
-    }
-
-    $body .= "Mohon arahan dan tindak lanjut sesuai peraturan pesantren.\n"
-        . "Demikian disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
-
-    return $body;
-}
-
-/**
  * Hasil generate ALPA massal (satu tanggal / satu tingkatan / satu konteks kegiatan).
  *
  * @param array<int, array{nama_santri: string, nis: string, total_alpha: int}> $santriList
  */
 function wa_format_laporan_alpa_generate(PDO $pdo, string $tanggalIdn, string $tingkatan, string $namaKegiatan, int $ambang, array $santriList): string
 {
-    if ($santriList === []) {
+    require_once __DIR__ . '/wa_laporan_alpa.php';
+    $messages = wa_format_laporan_alpa_generate_messages($pdo, $tanggalIdn, $tingkatan, $namaKegiatan, $ambang, $santriList);
+    if ($messages === []) {
         return '';
     }
-    $body = wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . "*LAPORAN RESMI — PENCATATAN ALPA*\n\n"
-        . 'Tanggal kegiatan: *' . $tanggalIdn . "*\n"
-        . 'Tingkatan: *' . $tingkatan . "*\n"
-        . 'Kegiatan: *' . $namaKegiatan . "*\n"
-        . 'Ambang pemberitahuan bulan berjalan: *≥ ' . $ambang . "* kali ALPA\n\n"
-        . "Santri berikut memenuhi ambang setelah pencatatan ini:\n\n";
 
-    foreach ($santriList as $s) {
-        $nama = (string) ($s['nama_santri'] ?? '-');
-        $nis = trim((string) ($s['nis'] ?? ''));
-        $n = (int) ($s['total_alpha'] ?? 0);
-        $body .= '• ' . $nama;
-        if ($nis !== '') {
-            $body .= ' (NIS ' . $nis . ')';
-        }
-        $body .= ': *' . $n . "* kali ALPA (kumulatif bulan ini)\n";
-    }
-
-    $body .= "\nMohon ditindaklanjuti sesuai ketentuan.\n"
-        . "Demikian laporan ini disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
-
-    return $body;
+    return implode("\n\n---\n\n", $messages);
 }
 
 function wa_format_pengajuan_izin_baru(
