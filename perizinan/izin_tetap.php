@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
+require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_login();
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
@@ -37,6 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $slots = santri_izin_tetap_slots_dari_post($_POST);
         $result = santri_izin_tetap_simpan($pdo, $_POST, $slots, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
+        if ($result['ok'] && (int) ($result['count'] ?? 1) > 1) {
+            header('Location: ' . app_href('/perizinan/izin_tetap.php' . ($q !== '' ? '?q=' . urlencode($q) : '')));
+            exit;
+        }
         $redirect($result['ok'] ? (int) ($result['id'] ?? $_POST['id'] ?? 0) : (int) ($_POST['id'] ?? 0));
     }
     if ($action === 'toggle_aktif') {
@@ -67,6 +72,7 @@ if ($editSlots === []) {
 
 $listRows = santri_izin_tetap_list($pdo, $q);
 $jumlahAktif = count(array_filter($listRows, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
+$izinTetapSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 
 $pageTitle = 'Izin Tetap Hidmah';
 require_once __DIR__ . '/../includes/header.php';
@@ -79,7 +85,8 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1"><i class="fa-solid fa-calendar-check text-primary me-1"></i> Izin Tetap (Hidmah)</h1>
     <p class="text-muted mb-0">
         Santri hidmah yang keluar pada <strong>hari &amp; jam tertentu</strong> dapat dicetak surat izin tetap resmi.
-        Status presensi disinkronkan otomatis (IZIN) sesuai jadwal. Dapat diubah atau dihentikan kapan saja.
+        Presensi kegiatan <strong>Jama'ah</strong> pada jadwal ini dicatat <strong>IZIN</strong> (bukan ALPA).
+        Kegiatan Ta'lim tetap mengikuti aturan presensi biasa. Dapat diubah atau dihentikan kapan saja.
     </p>
 </div>
 
@@ -90,22 +97,34 @@ require_once __DIR__ . '/../includes/header.php';
                 <?= $editRow ? 'Ubah izin tetap' : 'Tambah izin tetap' ?>
             </div>
             <div class="card-body">
-                <form method="post" id="form-izin-tetap">
+                <form method="post" id="form-izin-tetap"<?= !$editRow ? ' data-rombongan-min="1" data-rombongan-target="izin-tetap-pick"' : '' ?>>
                     <input type="hidden" name="action" value="simpan">
                     <?php if ($editRow): ?>
                         <input type="hidden" name="id" value="<?= (int) $editRow['id'] ?>">
                     <?php endif; ?>
                     <div class="mb-2">
                         <label class="form-label">Santri <span class="text-danger">*</span></label>
+                        <?php if ($editRow): ?>
                         <select class="form-select form-select-sm" name="santri_id" required>
                             <option value="">— pilih —</option>
                             <?php foreach ($santriAktif as $s): ?>
                                 <?php $sid = (int) ($s['id'] ?? 0); ?>
-                                <option value="<?= $sid ?>" <?= $editRow && (int) ($editRow['santri_id'] ?? 0) === $sid ? 'selected' : '' ?>>
+                                <option value="<?= $sid ?>" <?= (int) ($editRow['santri_id'] ?? 0) === $sid ? 'selected' : '' ?>>
                                     <?= htmlspecialchars((string) ($s['nis'] ?? '') . ' — ' . ($s['nama'] ?? '')) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <?php else: ?>
+                        <div class="form-text mb-1">Centang satu atau lebih santri dengan jadwal hidmah yang sama.</div>
+                        <input type="search" class="form-control form-control-sm mb-2" id="izin-tetap-cari-santri" placeholder="Cari NIS atau nama…" autocomplete="off">
+                        <?php
+                        $rombonganSantriGrouped = $izinTetapSantriGrouped;
+                        $rombonganPickerName = 'santri_ids[]';
+                        $rombonganPickerId = 'izin-tetap-pick';
+                        $rombonganPickerHideBelumKembali = true;
+                        require __DIR__ . '/partials/rombongan_santri_picker.php';
+                        ?>
+                        <?php endif; ?>
                     </div>
                     <div class="row g-2 mb-2">
                         <div class="col-7">
@@ -319,7 +338,28 @@ require_once __DIR__ . '/../includes/header.php';
         if (rows.length <= 1) return;
         btn.closest('.slot-row')?.remove();
     });
+
+    const cari = document.getElementById('izin-tetap-cari-santri');
+    const pickWrap = document.getElementById('izin-tetap-pick-wrap');
+    if (cari && pickWrap) {
+        cari.addEventListener('input', function () {
+            const q = (cari.value || '').trim().toLowerCase();
+            pickWrap.querySelectorAll('.rombongan-santri-picker__row').forEach(function (row) {
+                const label = row.querySelector('.form-check-label');
+                const text = (label ? label.textContent : row.textContent || '').toLowerCase();
+                row.style.display = q === '' || text.indexOf(q) !== -1 ? '' : 'none';
+            });
+            pickWrap.querySelectorAll('.rombongan-santri-picker__group').forEach(function (grp) {
+                const visible = Array.prototype.some.call(
+                    grp.querySelectorAll('.rombongan-santri-picker__row'),
+                    function (r) { return r.style.display !== 'none'; }
+                );
+                grp.style.display = visible ? '' : 'none';
+            });
+        });
+    }
 })();
 </script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-rombongan-picker.js')) ?>" defer></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

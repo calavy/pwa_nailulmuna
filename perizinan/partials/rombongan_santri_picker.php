@@ -9,12 +9,14 @@ declare(strict_types=1);
  * @var string $rombonganPickerName nama field checkbox (santri_ids_rombongan[] / santri_kembali[])
  * @var string $rombonganPickerId prefix id elemen
  * @var bool $rombonganPickerShowToolbar tampilkan tombol pilih semua
+ * @var bool $rombonganPickerHideBelumKembali sembunyikan tombol "pilih yang belum kembali"
  * @var array<int, true> $rombonganPickerChecked map santri_id => true (opsional)
  */
 
 $rombonganPickerName = $rombonganPickerName ?? 'santri_ids_rombongan[]';
 $rombonganPickerId = $rombonganPickerId ?? 'rombongan-pick';
 $rombonganPickerShowToolbar = !isset($rombonganPickerShowToolbar) || $rombonganPickerShowToolbar;
+$rombonganPickerHideBelumKembali = !empty($rombonganPickerHideBelumKembali);
 $rombonganPickerChecked = $rombonganPickerChecked ?? [];
 $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
 ?>
@@ -27,9 +29,11 @@ $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
             <button type="button" class="btn btn-sm btn-outline-secondary js-rombongan-bersihkan" data-target="<?= htmlspecialchars($rombonganPickerId) ?>">
                 Bersihkan
             </button>
+            <?php if (!$rombonganPickerHideBelumKembali): ?>
             <button type="button" class="btn btn-sm btn-outline-success js-rombongan-pilih-belum" data-target="<?= htmlspecialchars($rombonganPickerId) ?>">
                 Pilih yang belum kembali
             </button>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
     <div class="rombongan-santri-picker__scroll" style="max-height:min(22rem,50vh);overflow-y:auto">

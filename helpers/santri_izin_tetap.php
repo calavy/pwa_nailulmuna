@@ -47,6 +47,24 @@ function ensure_santri_izin_tetap_tables(PDO $pdo): void
         } catch (PDOException $e) {
         }
     }
+    try {
+        $pdo->exec('
+            ALTER TABLE santri_izin_tetap
+            ADD CONSTRAINT fk_izin_tetap_santri
+            FOREIGN KEY (santri_id) REFERENCES santri(id) ON DELETE CASCADE
+        ');
+    } catch (PDOException $e) {
+        /* abaikan jika sudah ada */
+    }
+    try {
+        $pdo->exec('
+            ALTER TABLE santri_izin_tetap_slot
+            ADD CONSTRAINT fk_izin_tetap_slot_header
+            FOREIGN KEY (izin_tetap_id) REFERENCES santri_izin_tetap(id) ON DELETE CASCADE
+        ');
+    } catch (PDOException $e) {
+        /* abaikan jika sudah ada */
+    }
 }
 
 /** @return array<int, string> */
@@ -69,6 +87,31 @@ function santri_izin_tetap_jenis_label(string $jenis): string
         'TUGAS' => 'Tugas',
         default => 'Hidmah',
     };
+}
+
+/**
+ * Izin tetap hidmah hanya mengecualikan ALPA pada kegiatan berkategori Jama'ah.
+ * Jenis TUGAS tetap berlaku untuk semua kategori kegiatan.
+ */
+function santri_izin_tetap_applies_to_kegiatan(PDO $pdo, int $kegiatanId, string $jenisIzinTetap): bool
+{
+    if ($kegiatanId <= 0) {
+        return true;
+    }
+    if (strtoupper(trim($jenisIzinTetap)) !== 'HIDMAH') {
+        return true;
+    }
+    if (!table_exists($pdo, 'kegiatan')) {
+        return false;
+    }
+    if (!function_exists('ensure_kegiatan_kategori_column')) {
+        require_once __DIR__ . '/app.php';
+    }
+    ensure_kegiatan_kategori_column($pdo);
+    $st = $pdo->prepare('SELECT COALESCE(kategori_kegiatan, "TAALIM") FROM kegiatan WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $kegiatanId]);
+
+    return strtoupper((string) ($st->fetchColumn() ?: 'TAALIM')) === 'JAMAAH';
 }
 
 /**
@@ -167,7 +210,8 @@ function santri_izin_tetap_berlaku(
     int $santriId,
     string $tanggal,
     ?string $jamMulaiKegiatan = null,
-    ?string $jamSelesaiKegiatan = null
+    ?string $jamSelesaiKegiatan = null,
+    ?int $kegiatanId = null
 ): bool {
     if ($santriId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
         return false;
@@ -179,7 +223,7 @@ function santri_izin_tetap_berlaku(
 
     $hariKe = (int) date('N', strtotime($tanggal));
     $stmt = $pdo->prepare('
-        SELECT i.id
+        SELECT i.id, i.jenis, sl.jam_mulai, sl.jam_selesai
         FROM santri_izin_tetap i
         INNER JOIN santri_izin_tetap_slot sl ON sl.izin_tetap_id = i.id
         WHERE i.santri_id = :sid
@@ -193,31 +237,37 @@ function santri_izin_tetap_berlaku(
         'tgl' => $tanggal,
         'hari' => $hariKe,
     ]);
-    $izinIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-    if ($izinIds === []) {
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($rows === []) {
         return false;
     }
 
     if ($jamMulaiKegiatan === null && $jamSelesaiKegiatan === null) {
-        return true;
+        foreach ($rows as $row) {
+            if ($kegiatanId === null || $kegiatanId <= 0
+                || santri_izin_tetap_applies_to_kegiatan($pdo, $kegiatanId, (string) ($row['jenis'] ?? 'HIDMAH'))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     $jamMulaiKegiatan = $jamMulaiKegiatan ?? '00:00:00';
     $jamSelesaiKegiatan = $jamSelesaiKegiatan ?? '23:59:59';
 
-    foreach ($izinIds as $izinId) {
-        foreach (santri_izin_tetap_slots($pdo, $izinId) as $slot) {
-            if ((int) ($slot['hari_ke'] ?? 0) !== $hariKe) {
-                continue;
-            }
-            if (santri_izin_tetap_waktu_overlap(
-                (string) $slot['jam_mulai'],
-                (string) $slot['jam_selesai'],
-                $jamMulaiKegiatan,
-                $jamSelesaiKegiatan
-            )) {
-                return true;
-            }
+    foreach ($rows as $row) {
+        if ($kegiatanId !== null && $kegiatanId > 0
+            && !santri_izin_tetap_applies_to_kegiatan($pdo, $kegiatanId, (string) ($row['jenis'] ?? 'HIDMAH'))) {
+            continue;
+        }
+        if (santri_izin_tetap_waktu_overlap(
+            (string) ($row['jam_mulai'] ?? ''),
+            (string) ($row['jam_selesai'] ?? ''),
+            $jamMulaiKegiatan,
+            $jamSelesaiKegiatan
+        )) {
+            return true;
         }
     }
 
@@ -235,7 +285,8 @@ function santri_izin_tetap_map_for_santri_ids(
     array $santriIds,
     string $tanggal,
     ?string $jamMulaiKegiatan = null,
-    ?string $jamSelesaiKegiatan = null
+    ?string $jamSelesaiKegiatan = null,
+    ?int $kegiatanId = null
 ): array {
     $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn (int $id): bool => $id > 0)));
     if ($santriIds === [] || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
@@ -249,7 +300,7 @@ function santri_izin_tetap_map_for_santri_ids(
     $hariKe = (int) date('N', strtotime($tanggal));
     $placeholders = implode(',', array_fill(0, count($santriIds), '?'));
     $stmt = $pdo->prepare('
-        SELECT i.santri_id, sl.jam_mulai, sl.jam_selesai
+        SELECT i.santri_id, i.jenis, sl.jam_mulai, sl.jam_selesai
         FROM santri_izin_tetap i
         INNER JOIN santri_izin_tetap_slot sl ON sl.izin_tetap_id = i.id
         WHERE i.santri_id IN (' . $placeholders . ')
@@ -266,9 +317,14 @@ function santri_izin_tetap_map_for_santri_ids(
     if ($jamMulaiKegiatan === null && $jamSelesaiKegiatan === null) {
         foreach ($rows as $row) {
             $sid = (int) ($row['santri_id'] ?? 0);
-            if ($sid > 0) {
-                $out[$sid] = true;
+            if ($sid <= 0 || isset($out[$sid])) {
+                continue;
             }
+            if ($kegiatanId !== null && $kegiatanId > 0
+                && !santri_izin_tetap_applies_to_kegiatan($pdo, $kegiatanId, (string) ($row['jenis'] ?? 'HIDMAH'))) {
+                continue;
+            }
+            $out[$sid] = true;
         }
 
         return $out;
@@ -279,6 +335,10 @@ function santri_izin_tetap_map_for_santri_ids(
     foreach ($rows as $row) {
         $sid = (int) ($row['santri_id'] ?? 0);
         if ($sid <= 0 || isset($out[$sid])) {
+            continue;
+        }
+        if ($kegiatanId !== null && $kegiatanId > 0
+            && !santri_izin_tetap_applies_to_kegiatan($pdo, $kegiatanId, (string) ($row['jenis'] ?? 'HIDMAH'))) {
             continue;
         }
         if (santri_izin_tetap_waktu_overlap(
@@ -303,7 +363,8 @@ function santri_izin_tetap_santri_ids_pada_tanggal(
     PDO $pdo,
     string $tanggal,
     ?string $jamMulaiKegiatan = null,
-    ?string $jamSelesaiKegiatan = null
+    ?string $jamSelesaiKegiatan = null,
+    ?int $kegiatanId = null
 ): array {
     ensure_santri_izin_tetap_tables($pdo);
     if (!table_exists($pdo, 'santri') || !table_exists($pdo, 'santri_izin_tetap')) {
@@ -315,7 +376,7 @@ function santri_izin_tetap_santri_ids_pada_tanggal(
     $out = [];
     foreach ($rows as $r) {
         $sid = (int) ($r['id'] ?? 0);
-        if ($sid > 0 && santri_izin_tetap_berlaku($pdo, $sid, $tanggal, $jamMulaiKegiatan, $jamSelesaiKegiatan)) {
+        if ($sid > 0 && santri_izin_tetap_berlaku($pdo, $sid, $tanggal, $jamMulaiKegiatan, $jamSelesaiKegiatan, $kegiatanId)) {
             $out[] = $sid;
         }
     }
@@ -323,16 +384,123 @@ function santri_izin_tetap_santri_ids_pada_tanggal(
     return $out;
 }
 
+/** Parse ID santri dari POST (satu atau banyak). */
+function santri_izin_tetap_santri_ids_dari_post(array $post): array
+{
+    $editId = (int) ($post['id'] ?? 0);
+    if ($editId > 0) {
+        $sid = (int) ($post['santri_id'] ?? 0);
+
+        return $sid > 0 ? [$sid] : [];
+    }
+
+    $raw = $post['santri_ids'] ?? [];
+    if (!is_array($raw)) {
+        $raw = [(string) $raw];
+    }
+    $ids = [];
+    foreach ($raw as $v) {
+        $sid = (int) $v;
+        if ($sid > 0) {
+            $ids[$sid] = $sid;
+        }
+    }
+
+    return array_values($ids);
+}
+
+/**
+ * @param array<int, array{hari_ke:int,jam_mulai:string,jam_selesai:string}> $normalizedSlots
+ * @return array{ok:bool,message:string,id?:int}
+ */
+function santri_izin_tetap_persist_one(
+    PDO $pdo,
+    int $id,
+    int $santriId,
+    string $judul,
+    string $jenis,
+    string $tglMulai,
+    ?string $tglSelesai,
+    int $isAktif,
+    ?string $keterangan,
+    ?string $penanggungJawab,
+    array $normalizedSlots,
+    int $userId
+): array {
+    if ($id > 0) {
+        $existing = santri_izin_tetap_by_id($pdo, $id);
+        if (!$existing) {
+            return ['ok' => false, 'message' => 'Data izin tetap tidak ditemukan.'];
+        }
+        $upd = $pdo->prepare('
+            UPDATE santri_izin_tetap
+            SET santri_id = :sid, judul = :judul, jenis = :jenis,
+                tanggal_mulai = :mulai, tanggal_selesai = :selesai,
+                is_aktif = :aktif, keterangan = :ket, penanggung_jawab = :pj, updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ');
+        $upd->execute([
+            'sid' => $santriId,
+            'judul' => $judul,
+            'jenis' => $jenis,
+            'mulai' => $tglMulai,
+            'selesai' => $tglSelesai,
+            'aktif' => $isAktif,
+            'ket' => $keterangan,
+            'pj' => $penanggungJawab,
+            'id' => $id,
+        ]);
+        $pdo->prepare('DELETE FROM santri_izin_tetap_slot WHERE izin_tetap_id = :id')->execute(['id' => $id]);
+    } else {
+        $ins = $pdo->prepare('
+            INSERT INTO santri_izin_tetap
+                (santri_id, judul, jenis, tanggal_mulai, tanggal_selesai, is_aktif, tanpa_cetak, keterangan, penanggung_jawab, created_by)
+            VALUES
+                (:sid, :judul, :jenis, :mulai, :selesai, :aktif, 0, :ket, :pj, :uid)
+        ');
+        $ins->execute([
+            'sid' => $santriId,
+            'judul' => $judul,
+            'jenis' => $jenis,
+            'mulai' => $tglMulai,
+            'selesai' => $tglSelesai,
+            'aktif' => $isAktif,
+            'ket' => $keterangan,
+            'pj' => $penanggungJawab,
+            'uid' => $userId > 0 ? $userId : null,
+        ]);
+        $id = (int) $pdo->lastInsertId();
+        if ($id <= 0) {
+            return ['ok' => false, 'message' => 'Gagal menyimpan data izin tetap.'];
+        }
+    }
+
+    $slotIns = $pdo->prepare('
+        INSERT INTO santri_izin_tetap_slot (izin_tetap_id, hari_ke, jam_mulai, jam_selesai)
+        VALUES (:iid, :hari, :jm, :js)
+    ');
+    foreach ($normalizedSlots as $slot) {
+        $slotIns->execute([
+            'iid' => $id,
+            'hari' => $slot['hari_ke'],
+            'jm' => $slot['jam_mulai'],
+            'js' => $slot['jam_selesai'],
+        ]);
+    }
+
+    return ['ok' => true, 'message' => '', 'id' => $id];
+}
+
 /**
  * @param array<int, array{hari_ke:int,jam_mulai:string,jam_selesai:string}> $slots
- * @return array{ok:bool,message:string,id?:int}
+ * @return array{ok:bool,message:string,id?:int,count?:int,ids?:list<int>}
  */
 function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $userId): array
 {
     ensure_santri_izin_tetap_tables($pdo);
 
     $id = (int) ($post['id'] ?? 0);
-    $santriId = (int) ($post['santri_id'] ?? 0);
+    $santriIds = santri_izin_tetap_santri_ids_dari_post($post);
     $judul = trim((string) ($post['judul'] ?? 'Hidmah'));
     $jenis = strtoupper(trim((string) ($post['jenis'] ?? 'HIDMAH')));
     $tglMulai = trim((string) ($post['tanggal_mulai'] ?? ''));
@@ -341,8 +509,11 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     $penanggungJawab = trim((string) ($post['penanggung_jawab'] ?? ''));
     $isAktif = isset($post['is_aktif']) ? 1 : 0;
 
-    if ($santriId <= 0) {
-        return ['ok' => false, 'message' => 'Santri wajib dipilih.'];
+    if ($santriIds === []) {
+        return ['ok' => false, 'message' => 'Pilih minimal satu santri.'];
+    }
+    if ($id > 0 && count($santriIds) > 1) {
+        return ['ok' => false, 'message' => 'Ubah izin tetap hanya untuk satu santri.'];
     }
     if ($judul === '') {
         return ['ok' => false, 'message' => 'Judul/keterangan singkat wajib diisi.'];
@@ -364,56 +535,18 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     }
 
     $chk = $pdo->prepare('SELECT id FROM santri WHERE id = :id LIMIT 1');
-    $chk->execute(['id' => $santriId]);
-    if (!$chk->fetch()) {
-        return ['ok' => false, 'message' => 'Santri tidak ditemukan.'];
+    foreach ($santriIds as $santriId) {
+        $chk->execute(['id' => $santriId]);
+        if (!$chk->fetch()) {
+            return ['ok' => false, 'message' => 'Santri tidak ditemukan (ID ' . $santriId . ').'];
+        }
     }
 
-    if ($id > 0) {
-        $upd = $pdo->prepare('
-            UPDATE santri_izin_tetap
-            SET santri_id = :sid, judul = :judul, jenis = :jenis,
-                tanggal_mulai = :mulai, tanggal_selesai = :selesai,
-                is_aktif = :aktif, keterangan = :ket, penanggung_jawab = :pj, updated_at = CURRENT_TIMESTAMP
-            WHERE id = :id
-        ');
-        $upd->execute([
-            'sid' => $santriId,
-            'judul' => $judul,
-            'jenis' => $jenis,
-            'mulai' => $tglMulai,
-            'selesai' => $tglSelesai !== '' ? $tglSelesai : null,
-            'aktif' => $isAktif,
-            'ket' => $keterangan !== '' ? $keterangan : null,
-            'pj' => $penanggungJawab !== '' ? $penanggungJawab : null,
-            'id' => $id,
-        ]);
-        $pdo->prepare('DELETE FROM santri_izin_tetap_slot WHERE izin_tetap_id = :id')->execute(['id' => $id]);
-    } else {
-        $ins = $pdo->prepare('
-            INSERT INTO santri_izin_tetap
-                (santri_id, judul, jenis, tanggal_mulai, tanggal_selesai, is_aktif, tanpa_cetak, keterangan, penanggung_jawab, created_by)
-            VALUES
-                (:sid, :judul, :jenis, :mulai, :selesai, :aktif, 0, :ket, :pj, :uid)
-        ');
-        $ins->execute([
-            'sid' => $santriId,
-            'judul' => $judul,
-            'jenis' => $jenis,
-            'mulai' => $tglMulai,
-            'selesai' => $tglSelesai !== '' ? $tglSelesai : null,
-            'aktif' => $isAktif,
-            'ket' => $keterangan !== '' ? $keterangan : null,
-            'pj' => $penanggungJawab !== '' ? $penanggungJawab : null,
-            'uid' => $userId > 0 ? $userId : null,
-        ]);
-        $id = (int) $pdo->lastInsertId();
-    }
+    $tglSelesaiDb = $tglSelesai !== '' ? $tglSelesai : null;
+    $ketDb = $keterangan !== '' ? $keterangan : null;
+    $pjDb = $penanggungJawab !== '' ? $penanggungJawab : null;
 
-    $slotIns = $pdo->prepare('
-        INSERT INTO santri_izin_tetap_slot (izin_tetap_id, hari_ke, jam_mulai, jam_selesai)
-        VALUES (:iid, :hari, :jm, :js)
-    ');
+    $normalizedSlots = [];
     foreach ($slots as $slot) {
         $hari = (int) ($slot['hari_ke'] ?? 0);
         $jm = trim((string) ($slot['jam_mulai'] ?? ''));
@@ -430,15 +563,81 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         if ($jm >= $js) {
             return ['ok' => false, 'message' => 'Jam selesai harus setelah jam mulai pada setiap baris jadwal.'];
         }
-        $slotIns->execute([
-            'iid' => $id,
-            'hari' => $hari,
-            'jm' => $jm,
-            'js' => $js,
-        ]);
+        $normalizedSlots[] = ['hari_ke' => $hari, 'jam_mulai' => $jm, 'jam_selesai' => $js];
+    }
+    if ($normalizedSlots === []) {
+        return ['ok' => false, 'message' => 'Minimal satu jadwal hari & jam yang valid wajib diisi.'];
     }
 
-    return ['ok' => true, 'message' => 'Izin tetap disimpan. Surat dapat dicetak; presensi mengikuti jadwal ini.', 'id' => $id];
+    $inTransaction = false;
+    $savedIds = [];
+    try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $inTransaction = true;
+        }
+
+        foreach ($santriIds as $santriId) {
+            $rowId = $id > 0 ? $id : 0;
+            $result = santri_izin_tetap_persist_one(
+                $pdo,
+                $rowId,
+                $santriId,
+                $judul,
+                $jenis,
+                $tglMulai,
+                $tglSelesaiDb,
+                $isAktif,
+                $ketDb,
+                $pjDb,
+                $normalizedSlots,
+                $userId
+            );
+            if (!$result['ok']) {
+                if ($inTransaction && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                return $result;
+            }
+            $savedIds[] = (int) ($result['id'] ?? 0);
+            if ($id > 0) {
+                break;
+            }
+        }
+
+        if ($inTransaction && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($inTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menyimpan izin tetap: ' . $e->getMessage()];
+    }
+
+    $presensiNote = $jenis === 'HIDMAH'
+        ? ' Presensi kegiatan Jama\'ah pada jadwal ini dicatat IZIN (bukan ALPA); kegiatan Ta\'lim tetap mengikuti aturan biasa.'
+        : ' Presensi pada jadwal ini dicatat IZIN (bukan ALPA).';
+
+    $count = count($savedIds);
+    if ($count > 1) {
+        return [
+            'ok' => true,
+            'message' => 'Izin tetap disimpan untuk ' . $count . ' santri.' . $presensiNote . ' Cetak surat per santri dari daftar.',
+            'count' => $count,
+            'ids' => $savedIds,
+            'id' => $savedIds[0] ?? 0,
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'Izin tetap disimpan. Surat dapat dicetak.' . $presensiNote,
+        'id' => $savedIds[0] ?? 0,
+        'count' => $count,
+    ];
 }
 
 /**

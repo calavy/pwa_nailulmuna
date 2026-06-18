@@ -2953,7 +2953,7 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
         }
     }
 
-    $izinTetapMap = santri_izin_tetap_map_for_santri_ids($pdo, $santriIds, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
+    $izinTetapMap = santri_izin_tetap_map_for_santri_ids($pdo, $santriIds, $tanggal, $jamMulaiKeg, $jamSelesaiKeg, $kegiatanIdInt);
 
     $insertStmt = null;
     $updateStmt = null;

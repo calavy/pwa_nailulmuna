@@ -116,7 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     ensure_presensi_jadwal_column($pdo);
-    $izinTetapIds = santri_izin_tetap_santri_ids_pada_tanggal($pdo, $tanggal, $jamMulaiKeg, $jamSelesaiKeg);
+    $santriIdsTingkatan = array_map(static fn(array $s): int => (int) ($s['id'] ?? 0), $santriList);
+    $izinTetapMap = santri_izin_tetap_map_for_santri_ids($pdo, $santriIdsTingkatan, $tanggal, $jamMulaiKeg, $jamSelesaiKeg, $kegiatanId);
+    $izinTetapIds = array_keys($izinTetapMap);
 
     $threshold = (int) app_setting($pdo, 'batas_alpa_notif', '3');
     $pengurusWa = wa_alpa_notif_target($pdo);
