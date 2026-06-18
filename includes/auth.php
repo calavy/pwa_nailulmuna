@@ -438,6 +438,15 @@ function user_has_current_page_permission(): bool
         return true;
     }
 
+    $path = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    if ($path === '/presensi/rekap_tanpa_scan.php') {
+        foreach (['rekap_keaktifan', 'rekap', 'rekap_hub', 'presensi_scan'] as $altKey) {
+            if ($altKey !== $permissionKey && user_can_access_permission_key($altKey)) {
+                return true;
+            }
+        }
+    }
+
     // Pembimbing dengan izin jadwal sendiri boleh buka halaman modul jadwal (Kajian).
     if ($permissionKey === 'jadwal' && user_can_access_permission_key('pembimbing_jadwal')) {
         require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';

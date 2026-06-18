@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
+require_once __DIR__ . '/../helpers/izin_tetap_hidmah_kategori.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_login();
@@ -73,6 +74,28 @@ if ($editSlots === []) {
 $listRows = santri_izin_tetap_list($pdo, $q);
 $jumlahAktif = count(array_filter($listRows, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
 $izinTetapSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
+$editKegiatanDitinggalkan = trim((string) ($editRow['kegiatan_ditinggalkan'] ?? ''));
+$editTingkatanList = $editRow
+    ? santri_izin_tetap_tingkatan_for_santri_ids($pdo, [(int) ($editRow['santri_id'] ?? 0)])
+    : [];
+$kegiatanOtomatis = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $editSlots, $editTingkatanList);
+$editKegiatanTerpilih = $editKegiatanDitinggalkan !== ''
+    ? santri_izin_tetap_kegiatan_ditinggalkan_terpilih($editKegiatanDitinggalkan, array_column($kegiatanOtomatis, 'nama'))
+    : array_column($kegiatanOtomatis, 'nama');
+$editKegiatanManual = santri_izin_tetap_kegiatan_ditinggalkan_manual(
+    $editKegiatanDitinggalkan,
+    array_column($kegiatanOtomatis, 'nama')
+);
+$hidmahKategoriList = izin_tetap_hidmah_kategori_list_aktif($pdo);
+$editKategoriHidmah = '';
+if ($editRow) {
+    $editKategoriHidmah = izin_tetap_hidmah_kategori_normalize_kode($pdo, (string) ($editRow['kategori_hidmah'] ?? ''));
+    if ($editKategoriHidmah === '' && $hidmahKategoriList !== []) {
+        $editKategoriHidmah = (string) ($hidmahKategoriList[0]['kode'] ?? '');
+    }
+} elseif ($hidmahKategoriList !== []) {
+    $editKategoriHidmah = (string) ($hidmahKategoriList[0]['kode'] ?? '');
+}
 
 $pageTitle = 'Izin Tetap Hidmah';
 require_once __DIR__ . '/../includes/header.php';
@@ -97,7 +120,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?= $editRow ? 'Ubah izin tetap' : 'Tambah izin tetap' ?>
             </div>
             <div class="card-body">
-                <form method="post" id="form-izin-tetap"<?= !$editRow ? ' data-rombongan-min="1" data-rombongan-target="izin-tetap-pick"' : '' ?>>
+                <form method="post" id="form-izin-tetap"<?= !$editRow ? ' data-rombongan-min="1" data-rombongan-target="izin-tetap-pick"' : '' ?> data-kegiatan-url="<?= htmlspecialchars(app_href('/perizinan/izin_tetap_kegiatan.php')) ?>">
                     <input type="hidden" name="action" value="simpan">
                     <?php if ($editRow): ?>
                         <input type="hidden" name="id" value="<?= (int) $editRow['id'] ?>">
@@ -162,20 +185,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                     </div>
                     <div class="row g-2 mb-2">
-                        <div class="col-7">
-                            <label class="form-label">Judul / lokasi hidmah</label>
-                            <input type="text" class="form-control form-control-sm" name="judul" required maxlength="120"
-                                value="<?= htmlspecialchars($editRow ? (string) ($editRow['judul'] ?? '') : 'Hidmah pondok') ?>">
-                        </div>
-                        <div class="col-5">
-                            <label class="form-label">Jenis</label>
-                            <select class="form-select form-select-sm" name="jenis">
-                                <option value="HIDMAH" <?= !$editRow || ($editRow['jenis'] ?? '') === 'HIDMAH' ? 'selected' : '' ?>>Hidmah</option>
-                                <option value="TUGAS" <?= $editRow && ($editRow['jenis'] ?? '') === 'TUGAS' ? 'selected' : '' ?>>Tugas</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label">Berlaku mulai</label>
                             <input type="date" class="form-control form-control-sm" name="tanggal_mulai" required
@@ -188,7 +197,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="form-text">Kosongkan = tanpa batas</div>
                         </div>
                     </div>
-                    <label class="form-label">Jadwal hari &amp; jam <span class="text-danger">*</span></label>
+                    <label class="form-label">Jadwal hari &amp; jam hidmah <span class="text-danger">*</span></label>
+                    <div class="form-text mb-1">Durasi ini dipakai sistem untuk mendeteksi kegiatan pondok yang ditinggalkan.</div>
                     <div id="slot-rows" class="mb-2">
                         <?php foreach ($editSlots as $i => $sl): ?>
                             <div class="row g-1 align-items-end slot-row mb-1">
@@ -214,6 +224,51 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endforeach; ?>
                     </div>
                     <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="btn-tambah-slot">+ Tambah hari/jam</button>
+                    <div class="mb-2" id="blok-kegiatan-ditinggalkan">
+                        <label class="form-label">Kegiatan pondok yang ditinggalkan</label>
+                        <?php
+                        $izinTetapKegiatanList = $kegiatanOtomatis;
+                        $izinTetapKegiatanChecked = $editKegiatanTerpilih;
+                        require __DIR__ . '/partials/izin_tetap_kegiatan_picker.php';
+                        ?>
+                        <input type="text" class="form-control form-control-sm mt-2" name="kegiatan_ditinggalkan" id="kegiatan-ditinggalkan-manual"
+                            maxlength="500"
+                            placeholder="Kegiatan lain (opsional), pisahkan koma jika lebih dari satu"
+                            value="<?= htmlspecialchars($editKegiatanManual) ?>">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-5" id="blok-kategori-hidmah">
+                            <label class="form-label">Kategori hidmah <span class="text-danger">*</span></label>
+                            <?php if ($hidmahKategoriList === []): ?>
+                                <div class="alert alert-warning small py-2 mb-0">
+                                    Belum ada kategori aktif. Atur di <a href="<?= htmlspecialchars(app_href('/settings/perizinan.php')) ?>">Pengaturan → Perizinan</a>.
+                                </div>
+                            <?php else: ?>
+                                <select class="form-select form-select-sm" name="kategori_hidmah" id="izin-tetap-kategori-hidmah" required>
+                                    <?php foreach ($hidmahKategoriList as $hk): ?>
+                                        <?php $hkode = (string) ($hk['kode'] ?? ''); ?>
+                                        <option value="<?= htmlspecialchars($hkode) ?>" <?= $editKategoriHidmah === $hkode ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars((string) ($hk['label'] ?? $hkode)) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" id="izin-tetap-uraian-label">Uraian hidmah (sebagai …) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" name="judul" id="izin-tetap-uraian-input" required maxlength="120"
+                                placeholder="Mis. membantu Koperasi di Pondok"
+                                value="<?= htmlspecialchars($editRow ? (string) ($editRow['judul'] ?? '') : 'membantu Koperasi di Pondok') ?>">
+                            <div class="form-text" id="izin-tetap-uraian-help">Surat: <em>hidmah sebagai …</em> — isi bagian setelah kata &ldquo;sebagai&rdquo;.</div>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label">Jenis</label>
+                            <select class="form-select form-select-sm" name="jenis" id="izin-tetap-jenis">
+                                <option value="HIDMAH" <?= !$editRow || ($editRow['jenis'] ?? '') === 'HIDMAH' ? 'selected' : '' ?>>Hidmah</option>
+                                <option value="TUGAS" <?= $editRow && ($editRow['jenis'] ?? '') === 'TUGAS' ? 'selected' : '' ?>>Tugas</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="mb-2">
                         <label class="form-label">Penanggung jawab (tanda tangan surat)</label>
                         <input type="text" class="form-control form-control-sm" name="penanggung_jawab" maxlength="120"
@@ -232,12 +287,12 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="alert alert-light border small py-2 mb-3">
                         <i class="fa-solid fa-circle-info text-primary me-1"></i>
-                        Setelah disimpan, cetak surat izin tetap (A5). Presensi: status <strong>IZIN</strong> pada hari/jam jadwal.
+                        Setelah disimpan, cetak surat izin tetap (A4). Presensi: status <strong>IZIN</strong> pada kegiatan Jama'ah yang ditinggalkan.
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-save me-1"></i> Simpan</button>
                         <?php if ($editRow): ?>
-                            <a href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . (int) $editRow['id'])) ?>" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat A5</a>
+                            <a href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . (int) $editRow['id'])) ?>" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat A4</a>
                             <a href="/perizinan/izin_tetap.php" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
@@ -297,6 +352,15 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="small">
                                     <?= htmlspecialchars((string) ($r['judul'] ?? '')) ?><br>
+                                    <?php
+                                    $katKode = trim((string) ($r['kategori_hidmah'] ?? ''));
+                                    if ($katKode !== '' && strtoupper((string) ($r['jenis'] ?? '')) === 'HIDMAH'):
+                                        ?>
+                                        <span class="badge text-bg-secondary" style="font-size:.65rem"><?= htmlspecialchars(izin_tetap_hidmah_kategori_label($pdo, $katKode)) ?></span>
+                                    <?php endif; ?>
+                                    <?php if (trim((string) ($r['kegiatan_ditinggalkan'] ?? '')) !== ''): ?>
+                                        <span class="text-muted">Tinggalkan: <?= htmlspecialchars((string) $r['kegiatan_ditinggalkan']) ?></span><br>
+                                    <?php endif; ?>
                                     <span class="badge text-bg-info" style="font-size:.65rem"><?= htmlspecialchars(santri_izin_tetap_jenis_label((string) ($r['jenis'] ?? 'HIDMAH'))) ?></span>
                                 </td>
                                 <td class="small"><?= htmlspecialchars(santri_izin_tetap_slot_ringkas($pdo, $iid)) ?></td>
@@ -317,7 +381,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="text-end text-nowrap">
                                     <?php if ($aktif): ?>
-                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . $iid)) ?>" target="_blank" rel="noopener" title="Cetak surat A5"><i class="fa-solid fa-print"></i></a>
+                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . $iid)) ?>" target="_blank" rel="noopener" title="Cetak surat A4"><i class="fa-solid fa-print"></i></a>
                                     <?php endif; ?>
                                     <a class="btn btn-sm btn-outline-primary" href="?id=<?= $iid ?>">Ubah</a>
                                     <form method="post" class="d-inline">
@@ -393,8 +457,39 @@ require_once __DIR__ . '/../includes/header.php';
             });
         });
     }
+
+    const jenisSel = document.getElementById('izin-tetap-jenis');
+    const blokKeg = document.getElementById('blok-kegiatan-ditinggalkan');
+    const blokKat = document.getElementById('blok-kategori-hidmah');
+    const katSel = document.getElementById('izin-tetap-kategori-hidmah');
+    const uraianLabel = document.getElementById('izin-tetap-uraian-label');
+    const uraianInput = document.getElementById('izin-tetap-uraian-input');
+    const uraianHelp = document.getElementById('izin-tetap-uraian-help');
+    function syncBlokKegiatan() {
+        if (!jenisSel) return;
+        const isHidmah = jenisSel.value === 'HIDMAH';
+        if (blokKeg) blokKeg.style.display = isHidmah ? '' : 'none';
+        if (blokKat) blokKat.style.display = isHidmah ? '' : 'none';
+        if (katSel) katSel.required = isHidmah;
+        if (uraianLabel) {
+            uraianLabel.innerHTML = (isHidmah ? 'Uraian hidmah (sebagai …)' : 'Tujuan tugas (ke …)') + ' <span class="text-danger">*</span>';
+        }
+        if (uraianInput) {
+            uraianInput.placeholder = isHidmah
+                ? 'Mis. membantu Koperasi di Pondok'
+                : 'Mis. Muntilan';
+        }
+        if (uraianHelp) {
+            uraianHelp.innerHTML = isHidmah
+                ? 'Surat: <em>hidmah sebagai …</em> — isi bagian setelah kata &ldquo;sebagai&rdquo;.'
+                : 'Surat: <em>tugas ke …</em> — isi tujuan setelah kata &ldquo;ke&rdquo;.';
+        }
+    }
+    jenisSel?.addEventListener('change', syncBlokKegiatan);
+    syncBlokKegiatan();
 })();
 </script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/izin-tetap-kegiatan.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-rombongan-picker.js')) ?>" defer></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

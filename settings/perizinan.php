@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/pengaturan_acl.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/wa_templates.php';
 require_once __DIR__ . '/../helpers/perizinan_syari_kategori.php';
+require_once __DIR__ . '/../helpers/izin_tetap_hidmah_kategori.php';
 
 require_roles(['admin', 'pengurus']);
 migrate_legacy_permissions_to_pengaturan($pdo);
@@ -40,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     }
     save_setting($pdo, 'izin_alpa_bypass_user_ids', implode(',', array_values($bypassIds)));
     perizinan_syari_kategori_save_from_post($pdo, $_POST);
+    izin_tetap_hidmah_kategori_save_from_post($pdo, $_POST);
     $doaSakit = trim((string) ($_POST['wa_tpl_izin_sakit_doa'] ?? ''));
     $doaDefault = (string) (wa_template_definitions()['izin_sakit_doa']['default'] ?? '');
     if ($doaSakit === '' || $doaSakit === $doaDefault) {
@@ -58,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 $cfg = perizinan_alpa_settings($pdo);
 $syariKategoriCfg = perizinan_syari_kategori_settings($pdo);
+$hidmahKategoriCfg = izin_tetap_hidmah_kategori_settings($pdo);
 $bypassUserIds = perizinan_alpa_bypass_user_ids($pdo);
 $bypassAdminCandidates = $pdo->query("
     SELECT id, nama, username, role, COALESCE(is_super_admin, 0) AS is_super_admin
@@ -140,6 +143,60 @@ require_once __DIR__ . '/../includes/header.php';
                         </td>
                         <td class="text-center">
                             <button type="button" class="btn btn-link btn-sm text-danger p-0 syari-kat-remove" title="Hapus baris" aria-label="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                        </td>
+                    </tr>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm border-0 border-start border-3 border-info">
+            <div class="card-body">
+                <h2 class="h6 mb-2">Kategori hidmah (izin tetap)</h2>
+                <p class="small text-muted mb-3">
+                    Pilihan kategori saat mencatat izin tetap hidmah dan dicetak pada surat A4.
+                    Default: Pondok, Koperasi, Ndalem — label dapat disesuaikan.
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-2" id="hidmah-kat-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:2.5rem">Aktif</th>
+                                <th>Kategori hidmah</th>
+                                <th style="width:2.5rem"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="hidmah-kat-tbody">
+                        <?php $hidmahIdx = 0; foreach ($hidmahKategoriCfg as $kode => $row): ?>
+                            <tr data-hidmah-row>
+                                <td>
+                                    <input type="hidden" name="hidmah_kat_item[<?= $hidmahIdx ?>][kode]" value="<?= htmlspecialchars((string) $kode) ?>">
+                                    <input class="form-check-input" type="checkbox" name="hidmah_kat_item[<?= $hidmahIdx ?>][enabled]" value="1" id="hidmah-kat-<?= htmlspecialchars((string) $kode) ?>" <?= !empty($row['enabled']) ? 'checked' : '' ?>>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm" name="hidmah_kat_item[<?= $hidmahIdx ?>][label]" value="<?= htmlspecialchars((string) ($row['label'] ?? $kode)) ?>" maxlength="120" required placeholder="Nama kategori">
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-link btn-sm text-danger p-0 hidmah-kat-remove" title="Hapus baris" aria-label="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                                </td>
+                            </tr>
+                        <?php $hidmahIdx++; endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="hidmah-kat-add"><i class="fa-solid fa-plus me-1"></i> Tambah kategori</button>
+                <template id="hidmah-kat-row-tpl">
+                    <tr data-hidmah-row>
+                        <td>
+                            <input type="hidden" name="hidmah_kat_item[__IDX__][kode]" value="">
+                            <input class="form-check-input" type="checkbox" name="hidmah_kat_item[__IDX__][enabled]" value="1" checked>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm" name="hidmah_kat_item[__IDX__][label]" value="" maxlength="120" required placeholder="Nama kategori baru">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-link btn-sm text-danger p-0 hidmah-kat-remove" title="Hapus baris" aria-label="Hapus"><i class="fa-solid fa-trash-can"></i></button>
                         </td>
                     </tr>
                 </template>
@@ -302,6 +359,46 @@ require_once __DIR__ . '/../includes/header.php';
         var input = tr.querySelector('input[type="text"]');
         if (input) input.focus();
         tr.querySelectorAll('.syari-kat-remove').forEach(bindRemove);
+    });
+})();
+(function () {
+    var tbody = document.getElementById('hidmah-kat-tbody');
+    var tpl = document.getElementById('hidmah-kat-row-tpl');
+    var addBtn = document.getElementById('hidmah-kat-add');
+    if (!tbody || !tpl || !addBtn) return;
+
+    function reindexRows() {
+        tbody.querySelectorAll('[data-hidmah-row]').forEach(function (tr, idx) {
+            tr.querySelectorAll('[name^="hidmah_kat_item["]').forEach(function (el) {
+                el.name = el.name.replace(/hidmah_kat_item\[\d+]/, 'hidmah_kat_item[' + idx + ']');
+            });
+        });
+    }
+
+    function bindRemove(btn) {
+        btn.addEventListener('click', function () {
+            var rows = tbody.querySelectorAll('[data-hidmah-row]');
+            if (rows.length <= 1) {
+                alert('Minimal satu kategori hidmah harus ada.');
+                return;
+            }
+            btn.closest('tr').remove();
+            reindexRows();
+        });
+    }
+
+    tbody.querySelectorAll('.hidmah-kat-remove').forEach(bindRemove);
+
+    addBtn.addEventListener('click', function () {
+        var idx = tbody.querySelectorAll('[data-hidmah-row]').length;
+        var html = tpl.innerHTML.replace(/__IDX__/g, String(idx));
+        var wrap = document.createElement('tbody');
+        wrap.innerHTML = html.trim();
+        var tr = wrap.firstElementChild;
+        tbody.appendChild(tr);
+        var input = tr.querySelector('input[type="text"]');
+        if (input) input.focus();
+        tr.querySelectorAll('.hidmah-kat-remove').forEach(bindRemove);
     });
 })();
 </script>

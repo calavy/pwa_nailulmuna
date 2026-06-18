@@ -47,6 +47,18 @@ function ensure_santri_izin_tetap_tables(PDO $pdo): void
         } catch (PDOException $e) {
         }
     }
+    if (table_exists($pdo, 'santri_izin_tetap') && !column_exists($pdo, 'santri_izin_tetap', 'kegiatan_ditinggalkan')) {
+        try {
+            $pdo->exec('ALTER TABLE santri_izin_tetap ADD COLUMN kegiatan_ditinggalkan VARCHAR(500) NULL AFTER judul');
+        } catch (PDOException $e) {
+        }
+    }
+    if (table_exists($pdo, 'santri_izin_tetap') && !column_exists($pdo, 'santri_izin_tetap', 'kategori_hidmah')) {
+        try {
+            $pdo->exec('ALTER TABLE santri_izin_tetap ADD COLUMN kategori_hidmah VARCHAR(64) NULL AFTER jenis');
+        } catch (PDOException $e) {
+        }
+    }
     try {
         $pdo->exec('
             ALTER TABLE santri_izin_tetap
@@ -114,6 +126,268 @@ function santri_izin_tetap_applies_to_kegiatan(PDO $pdo, int $kegiatanId, string
     return strtoupper((string) ($st->fetchColumn() ?: 'TAALIM')) === 'JAMAAH';
 }
 
+/** @return list<string> */
+function santri_izin_tetap_kegiatan_jamaah_list(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    if (!function_exists('ensure_kegiatan_kategori_column')) {
+        require_once __DIR__ . '/app.php';
+    }
+    ensure_kegiatan_kategori_column($pdo);
+    $rows = $pdo->query('
+        SELECT nama_kegiatan
+        FROM kegiatan
+        WHERE COALESCE(is_active, 1) = 1
+          AND COALESCE(kategori_kegiatan, "TAALIM") = "JAMAAH"
+        ORDER BY nama_kegiatan ASC
+    ')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $out = [];
+    foreach ($rows as $nama) {
+        $t = trim((string) $nama);
+        if ($t !== '') {
+            $out[$t] = $t;
+        }
+    }
+
+    return array_values($out);
+}
+
+function santri_izin_tetap_kegiatan_ditinggalkan_dari_post(array $post): ?string
+{
+    $names = [];
+    $picked = $post['kegiatan_ditinggalkan_items'] ?? [];
+    if (is_array($picked)) {
+        foreach ($picked as $nama) {
+            $t = trim((string) $nama);
+            if ($t !== '') {
+                $names[$t] = $t;
+            }
+        }
+    }
+    $manual = trim((string) ($post['kegiatan_ditinggalkan'] ?? ''));
+    if ($manual !== '') {
+        foreach (preg_split('/[\n,;]+/', $manual) ?: [] as $part) {
+            $t = trim((string) $part);
+            if ($t !== '') {
+                $names[$t] = $t;
+            }
+        }
+    }
+
+    return $names === [] ? null : implode(', ', array_values($names));
+}
+
+/** @return list<string> */
+function santri_izin_tetap_kegiatan_ditinggalkan_terpilih(string $stored, array $daftarKegiatan): array
+{
+    $stored = trim($stored);
+    if ($stored === '') {
+        return [];
+    }
+    $parts = [];
+    foreach (preg_split('/[\n,;]+/', $stored) ?: [] as $part) {
+        $t = trim((string) $part);
+        if ($t !== '') {
+            $parts[$t] = $t;
+        }
+    }
+    $out = [];
+    foreach ($daftarKegiatan as $nama) {
+        $nama = trim((string) $nama);
+        if ($nama !== '' && isset($parts[$nama])) {
+            $out[] = $nama;
+        }
+    }
+
+    return $out;
+}
+
+function santri_izin_tetap_kegiatan_ditinggalkan_manual(string $stored, array $daftarKegiatan): string
+{
+    $stored = trim($stored);
+    if ($stored === '') {
+        return '';
+    }
+    $known = [];
+    foreach ($daftarKegiatan as $nama) {
+        $known[trim((string) $nama)] = true;
+    }
+    $manual = [];
+    foreach (preg_split('/[\n,;]+/', $stored) ?: [] as $part) {
+        $t = trim((string) $part);
+        if ($t !== '' && !isset($known[$t])) {
+            $manual[$t] = $t;
+        }
+    }
+
+    return implode(', ', array_values($manual));
+}
+
+/** @return list<string> */
+function santri_izin_tetap_tingkatan_for_santri_ids(PDO $pdo, array $santriIds): array
+{
+    $santriIds = array_values(array_filter(array_map('intval', $santriIds)));
+    if ($santriIds === [] || !table_exists($pdo, 'santri') || !column_exists($pdo, 'santri', 'tingkatan')) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($santriIds), '?'));
+    $st = $pdo->prepare('SELECT DISTINCT tingkatan FROM santri WHERE id IN (' . $placeholders . ')');
+    $st->execute($santriIds);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $t) {
+        $t = trim((string) $t);
+        if ($t !== '') {
+            $out[$t] = $t;
+        }
+    }
+
+    return array_values($out);
+}
+
+/**
+ * Kegiatan jadwal yang bertabrakan dengan slot izin tetap (durasi jam hidmah).
+ *
+ * @param array<int, array{hari_ke:int,jam_mulai:string,jam_selesai:string}> $slots
+ * @param list<string> $tingkatanList
+ * @return list<array{nama:string,label:string,jam:string,hari:string}>
+ */
+function santri_izin_tetap_kegiatan_overlap_dari_jadwal(PDO $pdo, array $slots, array $tingkatanList, bool $hanyaJamaah = true): array
+{
+    if ($slots === [] || !table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    if (!function_exists('ensure_kegiatan_kategori_column')) {
+        require_once __DIR__ . '/app.php';
+    }
+    ensure_kegiatan_kategori_column($pdo);
+
+    $tingkatanList = array_values(array_filter(array_map(static fn ($t): string => trim((string) $t), $tingkatanList)));
+    if ($tingkatanList === []) {
+        $tingkatanList = ['Semua Tingkatan'];
+    }
+
+    $sql = '
+        SELECT j.hari_ke, j.jam_mulai, j.jam_selesai, j.tingkatan, k.nama_kegiatan,
+               COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE COALESCE(k.is_active, 1) = 1
+    ';
+    if ($hanyaJamaah) {
+        $sql .= ' AND COALESCE(k.kategori_kegiatan, "TAALIM") = "JAMAAH"';
+    }
+    $sql .= ' ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC';
+
+    $jadwalRows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $hariMap = santri_izin_tetap_hari_map();
+    $grouped = [];
+
+    foreach ($jadwalRows as $row) {
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $jadwalHari = (int) ($row['hari_ke'] ?? 0);
+        $jadwalTing = trim((string) ($row['tingkatan'] ?? ''));
+        $jmJadwal = substr((string) ($row['jam_mulai'] ?? ''), 0, 8);
+        $jsJadwal = substr((string) ($row['jam_selesai'] ?? ''), 0, 8);
+
+        $tingkatanCocok = false;
+        foreach ($tingkatanList as $tingkatan) {
+            if ($jadwalTing === 'Semua Tingkatan'
+                || strcasecmp($tingkatan, 'Semua Tingkatan') === 0
+                || strcasecmp($jadwalTing, $tingkatan) === 0) {
+                $tingkatanCocok = true;
+                break;
+            }
+        }
+        if (!$tingkatanCocok) {
+            continue;
+        }
+
+        foreach ($slots as $slot) {
+            $slotHari = (int) ($slot['hari_ke'] ?? 0);
+            if ($slotHari < 1 || $slotHari > 7) {
+                continue;
+            }
+            if ($jadwalHari !== 0 && $jadwalHari !== $slotHari) {
+                continue;
+            }
+            $jmSlot = (string) ($slot['jam_mulai'] ?? '');
+            $jsSlot = (string) ($slot['jam_selesai'] ?? '');
+            if (!santri_izin_tetap_waktu_overlap($jmSlot, $jsSlot, $jmJadwal, $jsJadwal)) {
+                continue;
+            }
+
+            $hariLabel = $hariMap[$slotHari] ?? '?';
+            $jamLabel = substr($jmJadwal, 0, 5) . '–' . substr($jsJadwal, 0, 5);
+            $detailKey = $hariLabel . '|' . $jamLabel;
+            if (!isset($grouped[$nama])) {
+                $grouped[$nama] = [
+                    'nama' => $nama,
+                    'details' => [],
+                ];
+            }
+            $grouped[$nama]['details'][$detailKey] = [
+                'hari' => $hariLabel,
+                'jam' => $jamLabel,
+            ];
+        }
+    }
+
+    $out = [];
+    foreach ($grouped as $item) {
+        $details = array_values($item['details']);
+        $hariParts = [];
+        $jamParts = [];
+        foreach ($details as $d) {
+            $hariParts[$d['hari']] = $d['hari'];
+            $jamParts[$d['jam']] = $d['jam'];
+        }
+        $hariText = implode(', ', array_values($hariParts));
+        $jamText = implode(', ', array_values($jamParts));
+        $out[] = [
+            'nama' => (string) $item['nama'],
+            'label' => $hariText . ' · ' . $jamText,
+            'hari' => $hariText,
+            'jam' => $jamText,
+        ];
+    }
+
+    usort($out, static fn (array $a, array $b): int => strcasecmp($a['nama'], $b['nama']));
+
+    return $out;
+}
+
+/** Nama kegiatan ditinggalkan efektif (tersimpan atau dihitung ulang dari jadwal). */
+function santri_izin_tetap_kegiatan_ditinggalkan_efektif(PDO $pdo, array $izinRow, ?array $slots = null): string
+{
+    $stored = trim((string) ($izinRow['kegiatan_ditinggalkan'] ?? ''));
+    if ($stored !== '') {
+        return $stored;
+    }
+    if (strtoupper((string) ($izinRow['jenis'] ?? 'HIDMAH')) !== 'HIDMAH') {
+        return '';
+    }
+    $izinId = (int) ($izinRow['id'] ?? 0);
+    if ($slots === null && $izinId > 0) {
+        $slots = santri_izin_tetap_slots($pdo, $izinId);
+    }
+    if ($slots === [] || $slots === null) {
+        return '';
+    }
+    $tingkatan = trim((string) ($izinRow['tingkatan'] ?? ''));
+    $tingList = $tingkatan !== '' ? [$tingkatan] : [];
+    $auto = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $slots, $tingList);
+    if ($auto === []) {
+        return '';
+    }
+
+    return implode(', ', array_map(static fn (array $r): string => (string) $r['nama'], $auto));
+}
+
 /**
  * @return list<array<string, mixed>>
  */
@@ -143,7 +417,7 @@ function santri_izin_tetap_list(PDO $pdo, string $q = '', bool $hanyaAktif = fal
     $needle = strtolower($q);
     $out = [];
     foreach ($rows as $r) {
-        $hay = strtolower((string) ($r['nama_santri'] ?? '') . ' ' . (string) ($r['nis'] ?? '') . ' ' . (string) ($r['judul'] ?? ''));
+        $hay = strtolower((string) ($r['nama_santri'] ?? '') . ' ' . (string) ($r['nis'] ?? '') . ' ' . (string) ($r['judul'] ?? '') . ' ' . (string) ($r['kegiatan_ditinggalkan'] ?? ''));
         if (str_contains($hay, $needle)) {
             $out[] = $r;
         }
@@ -418,7 +692,9 @@ function santri_izin_tetap_persist_one(
     int $id,
     int $santriId,
     string $judul,
+    ?string $kegiatanDitinggalkan,
     string $jenis,
+    ?string $kategoriHidmah,
     string $tglMulai,
     ?string $tglSelesai,
     int $isAktif,
@@ -434,15 +710,17 @@ function santri_izin_tetap_persist_one(
         }
         $upd = $pdo->prepare('
             UPDATE santri_izin_tetap
-            SET santri_id = :sid, judul = :judul, jenis = :jenis,
-                tanggal_mulai = :mulai, tanggal_selesai = :selesai,
+            SET santri_id = :sid, judul = :judul, kegiatan_ditinggalkan = :keg, jenis = :jenis,
+                kategori_hidmah = :khid, tanggal_mulai = :mulai, tanggal_selesai = :selesai,
                 is_aktif = :aktif, keterangan = :ket, penanggung_jawab = :pj, updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
         ');
         $upd->execute([
             'sid' => $santriId,
             'judul' => $judul,
+            'keg' => $kegiatanDitinggalkan,
             'jenis' => $jenis,
+            'khid' => $kategoriHidmah,
             'mulai' => $tglMulai,
             'selesai' => $tglSelesai,
             'aktif' => $isAktif,
@@ -454,14 +732,16 @@ function santri_izin_tetap_persist_one(
     } else {
         $ins = $pdo->prepare('
             INSERT INTO santri_izin_tetap
-                (santri_id, judul, jenis, tanggal_mulai, tanggal_selesai, is_aktif, tanpa_cetak, keterangan, penanggung_jawab, created_by)
+                (santri_id, judul, kegiatan_ditinggalkan, jenis, kategori_hidmah, tanggal_mulai, tanggal_selesai, is_aktif, tanpa_cetak, keterangan, penanggung_jawab, created_by)
             VALUES
-                (:sid, :judul, :jenis, :mulai, :selesai, :aktif, 0, :ket, :pj, :uid)
+                (:sid, :judul, :keg, :jenis, :khid, :mulai, :selesai, :aktif, 0, :ket, :pj, :uid)
         ');
         $ins->execute([
             'sid' => $santriId,
             'judul' => $judul,
+            'keg' => $kegiatanDitinggalkan,
             'jenis' => $jenis,
+            'khid' => $kategoriHidmah,
             'mulai' => $tglMulai,
             'selesai' => $tglSelesai,
             'aktif' => $isAktif,
@@ -502,6 +782,7 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     $id = (int) ($post['id'] ?? 0);
     $santriIds = santri_izin_tetap_santri_ids_dari_post($post);
     $judul = trim((string) ($post['judul'] ?? 'Hidmah'));
+    $kegiatanDitinggalkan = santri_izin_tetap_kegiatan_ditinggalkan_dari_post($post);
     $jenis = strtoupper(trim((string) ($post['jenis'] ?? 'HIDMAH')));
     $tglMulai = trim((string) ($post['tanggal_mulai'] ?? ''));
     $tglSelesai = trim((string) ($post['tanggal_selesai'] ?? ''));
@@ -530,6 +811,19 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     if (!in_array($jenis, ['HIDMAH', 'TUGAS'], true)) {
         $jenis = 'HIDMAH';
     }
+    require_once __DIR__ . '/izin_tetap_hidmah_kategori.php';
+    $kategoriHidmah = null;
+    if ($jenis === 'HIDMAH') {
+        $kategoriRaw = trim((string) ($post['kategori_hidmah'] ?? ''));
+        $kategoriHidmah = izin_tetap_hidmah_kategori_normalize_kode($pdo, $kategoriRaw);
+        if ($kategoriHidmah === '') {
+            $aktifList = izin_tetap_hidmah_kategori_list_aktif($pdo);
+            $kategoriHidmah = $aktifList !== [] ? (string) ($aktifList[0]['kode'] ?? '') : 'pondok';
+        }
+        if ($kategoriHidmah === '') {
+            return ['ok' => false, 'message' => 'Pilih kategori hidmah. Atur kategori di Pengaturan → Perizinan.'];
+        }
+    }
     if ($slots === []) {
         return ['ok' => false, 'message' => 'Minimal satu jadwal hari & jam wajib diisi.'];
     }
@@ -545,6 +839,7 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     $tglSelesaiDb = $tglSelesai !== '' ? $tglSelesai : null;
     $ketDb = $keterangan !== '' ? $keterangan : null;
     $pjDb = $penanggungJawab !== '' ? $penanggungJawab : null;
+    $kegDb = $kegiatanDitinggalkan !== null && $kegiatanDitinggalkan !== '' ? $kegiatanDitinggalkan : null;
 
     $normalizedSlots = [];
     foreach ($slots as $slot) {
@@ -569,6 +864,14 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         return ['ok' => false, 'message' => 'Minimal satu jadwal hari & jam yang valid wajib diisi.'];
     }
 
+    if (($kegDb === null || $kegDb === '') && $jenis === 'HIDMAH') {
+        $tingList = santri_izin_tetap_tingkatan_for_santri_ids($pdo, $santriIds);
+        $autoKeg = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $normalizedSlots, $tingList);
+        if ($autoKeg !== []) {
+            $kegDb = implode(', ', array_map(static fn (array $r): string => (string) $r['nama'], $autoKeg));
+        }
+    }
+
     $inTransaction = false;
     $savedIds = [];
     try {
@@ -584,7 +887,9 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
                 $rowId,
                 $santriId,
                 $judul,
+                $kegDb,
                 $jenis,
+                $kategoriHidmah,
                 $tglMulai,
                 $tglSelesaiDb,
                 $isAktif,
@@ -711,6 +1016,22 @@ function santri_izin_tetap_slot_ringkas(PDO $pdo, int $izinTetapId): string
     return $parts !== [] ? implode('; ', $parts) : '—';
 }
 
+/** Format hari hidmah untuk surat cetak (tanpa jam — santri tetap di lingkungan pondok). */
+function santri_izin_tetap_slot_hari_html(PDO $pdo, int $izinTetapId): string
+{
+    $hariMap = santri_izin_tetap_hari_map();
+    $days = [];
+    foreach (santri_izin_tetap_slots($pdo, $izinTetapId) as $sl) {
+        $h = (int) ($sl['hari_ke'] ?? 0);
+        if ($h >= 1 && $h <= 7) {
+            $days[$h] = $hariMap[$h] ?? '?';
+        }
+    }
+    ksort($days);
+
+    return $days !== [] ? implode(', ', array_map('htmlspecialchars', array_values($days))) : '—';
+}
+
 /** Format jadwal slot untuk surat cetak (satu baris per hari). */
 function santri_izin_tetap_slot_html(PDO $pdo, int $izinTetapId): string
 {
@@ -724,6 +1045,111 @@ function santri_izin_tetap_slot_html(PDO $pdo, int $izinTetapId): string
     }
 
     return $lines !== [] ? implode('<br>', array_map('htmlspecialchars', $lines)) : '—';
+}
+
+/** Teks tampilan surat: bersihkan garis miring & spasi berlebih. */
+function santri_izin_tetap_surat_teks_bersih(string $raw): string
+{
+    $t = trim($raw);
+    if ($t === '') {
+        return '';
+    }
+    $t = rtrim($t, '/\\');
+    $t = preg_replace('#\s*/\s*#', ', ', $t) ?? $t;
+    $t = preg_replace('/\s+/', ' ', $t) ?? $t;
+
+    return trim($t);
+}
+
+/** Detail uraian tanpa awalan hidmah/tugas (untuk tabel surat). */
+function santri_izin_tetap_surat_detail_teks(string $judul, bool $isTugas): string
+{
+    $judul = santri_izin_tetap_surat_teks_bersih($judul);
+    if ($judul === '') {
+        return '';
+    }
+    $j = strtolower($judul);
+    if ($isTugas) {
+        if (str_starts_with($j, 'tugas ke ')) {
+            return trim(substr($judul, 8));
+        }
+        if (str_starts_with($j, 'tugas ')) {
+            return trim(substr($judul, 5));
+        }
+
+        return $judul;
+    }
+    if (str_starts_with($j, 'hidmah sebagai ')) {
+        return trim(substr($judul, 14));
+    }
+    if (str_starts_with($j, 'sebagai ')) {
+        return trim(substr($judul, 7));
+    }
+    if (str_starts_with($j, 'hidmah ')) {
+        return trim(substr($judul, 6));
+    }
+
+    return $judul;
+}
+
+/** Kalimat uraian resmi di paragraf surat: hidmah sebagai … / tugas ke … */
+function santri_izin_tetap_surat_kalimat_uraian(string $jenis, string $judul): string
+{
+    $isTugas = strtoupper(trim($jenis)) === 'TUGAS';
+    $detail = santri_izin_tetap_surat_detail_teks($judul, $isTugas);
+    if ($detail === '') {
+        return $isTugas ? 'tugas santri' : 'hidmah santri';
+    }
+
+    return $isTugas ? ('tugas ke ' . $detail) : ('hidmah sebagai ' . $detail);
+}
+
+/**
+ * @return array{
+ *   is_tugas:bool,
+ *   jenis_label:string,
+ *   uraian_kalimat:string,
+ *   detail_teks:string,
+ *   label_uraian:string,
+ *   label_jadwal:string,
+ *   label_kegiatan_box:string
+ * }
+ */
+function santri_izin_tetap_surat_konteks(string $jenis, string $judul): array
+{
+    $isTugas = strtoupper(trim($jenis)) === 'TUGAS';
+
+    $detail = santri_izin_tetap_surat_detail_teks($judul, $isTugas);
+
+    return [
+        'is_tugas' => $isTugas,
+        'jenis_label' => santri_izin_tetap_jenis_label($jenis),
+        'uraian_kalimat' => santri_izin_tetap_surat_kalimat_uraian($jenis, $judul),
+        'detail_teks' => $detail,
+        'label_uraian' => $isTugas ? 'Tujuan Tugas' : 'Uraian Hidmah',
+        'label_jadwal' => $isTugas ? 'Hari & Waktu Tugas' : 'Hari & Waktu Hidmah',
+        'label_kegiatan_box' => $isTugas ? 'Kegiatan tidak diikuti' : 'Kegiatan Jama\'ah tidak diikuti',
+    ];
+}
+
+/** Daftar nama kegiatan ringkas untuk surat (nama saja, pisah koma). */
+function santri_izin_tetap_kegiatan_nama_tampil(string $raw): string
+{
+    return implode(', ', santri_izin_tetap_kegiatan_items_dari_raw($raw));
+}
+
+/** @return list<string> */
+function santri_izin_tetap_kegiatan_items_dari_raw(string $raw): array
+{
+    $parts = [];
+    foreach (preg_split('/[\n,;]+/', trim($raw)) ?: [] as $p) {
+        $t = santri_izin_tetap_surat_teks_bersih((string) $p);
+        if ($t !== '') {
+            $parts[$t] = $t;
+        }
+    }
+
+    return array_values($parts);
 }
 
 /**

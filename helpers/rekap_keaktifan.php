@@ -285,6 +285,116 @@ function rekap_keaktifan_chart_tingkatan_kategori(array $persenPerTingkatan): ar
 }
 
 /**
+ * @return array<int, list<array{tingkatan:string,hari_ke:int,jam_mulai:string,jam_selesai:string}>>
+ */
+function rekap_keaktifan_jadwal_rows_by_kegiatan(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    $rows = $pdo->query('
+        SELECT j.kegiatan_id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+    ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $byKid = [];
+    foreach ($rows as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        if ($kid <= 0) {
+            continue;
+        }
+        $byKid[$kid][] = [
+            'tingkatan' => trim((string) ($row['tingkatan'] ?? '')),
+            'hari_ke' => (int) ($row['hari_ke'] ?? 0),
+            'jam_mulai' => substr((string) ($row['jam_mulai'] ?? ''), 0, 8),
+            'jam_selesai' => substr((string) ($row['jam_selesai'] ?? ''), 0, 8),
+        ];
+    }
+
+    return $byKid;
+}
+
+/**
+ * @param list<array{tanggal:string,tk:string}> $slotKeys
+ * @param array<int, list<array{tingkatan:string,hari_ke:int,jam_mulai:string,jam_selesai:string}>> $jadwalByKid
+ * @return list<array{tanggal:string,tanggal_tampil:string,hari:string,jam:string,tingkatan:string}>
+ */
+function rekap_keaktifan_kegiatan_tanpa_scan_buat_detail(
+    int $kegiatanId,
+    array $slotKeys,
+    array $jadwalByKid
+): array {
+    $hariMap = [
+        1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis',
+        5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu',
+    ];
+    $jadwalList = $jadwalByKid[$kegiatanId] ?? [];
+    if ($jadwalList === [] || $slotKeys === []) {
+        return [];
+    }
+
+    $details = [];
+    $seen = [];
+    foreach ($slotKeys as $sk) {
+        $tanggal = (string) ($sk['tanggal'] ?? '');
+        $tkKey = (string) ($sk['tk'] ?? '');
+        if ($tanggal === '') {
+            continue;
+        }
+        $hariKe = (int) date('N', strtotime($tanggal) ?: time());
+        $hariLabel = $hariMap[$hariKe] ?? '-';
+
+        foreach ($jadwalList as $j) {
+            $jHari = (int) ($j['hari_ke'] ?? 0);
+            if ($jHari !== 0 && $jHari !== $hariKe) {
+                continue;
+            }
+            $jTg = trim((string) ($j['tingkatan'] ?? ''));
+            if ($jTg === '') {
+                continue;
+            }
+            if ($tkKey !== '*') {
+                $cocok = strcasecmp($jTg, 'Semua Tingkatan') === 0
+                    || strtolower($jTg) === strtolower($tkKey);
+                if (!$cocok) {
+                    continue;
+                }
+            }
+            $jm = substr((string) ($j['jam_mulai'] ?? ''), 0, 5);
+            $js = substr((string) ($j['jam_selesai'] ?? ''), 0, 5);
+            if ($jm === '' || $js === '') {
+                continue;
+            }
+            $jam = $jm . ' – ' . $js;
+            $tgLabel = strcasecmp($jTg, 'Semua Tingkatan') === 0 ? 'Semua tingkatan' : $jTg;
+            $dedupe = $tanggal . '|' . $jam . '|' . strtolower($tgLabel);
+            if (isset($seen[$dedupe])) {
+                continue;
+            }
+            $seen[$dedupe] = true;
+            $details[] = [
+                'tanggal' => $tanggal,
+                'tanggal_tampil' => date('d/m/Y', strtotime($tanggal) ?: time()),
+                'hari' => $hariLabel,
+                'jam' => $jam,
+                'tingkatan' => $tgLabel,
+            ];
+        }
+    }
+
+    usort($details, static function (array $a, array $b): int {
+        $cmp = strcmp((string) $a['tanggal'], (string) $b['tanggal']);
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+
+        return strcmp((string) $a['jam'], (string) $b['jam']);
+    });
+
+    return $details;
+}
+
+/**
  * Kegiatan terjadwal dalam periode yang tidak pernah discan hadir oleh santri sama sekali.
  *
  * @return list<array{
@@ -292,8 +402,10 @@ function rekap_keaktifan_chart_tingkatan_kategori(array $persenPerTingkatan): ar
  *   nama_kegiatan:string,
  *   hari_terjadwal:int,
  *   slot_jadwal:int,
+ *   jumlah_tidak_scan:int,
  *   tingkatan:list<string>,
- *   tingkatan_label:string
+ *   tingkatan_label:string,
+ *   detail:list<array{tanggal:string,tanggal_tampil:string,hari:string,jam:string,tingkatan:string}>
  * }>
  */
 function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
@@ -310,9 +422,7 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
         return [];
     }
 
-    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
-
+    // Rekap baca-only: cukup cek scan HADIR, tanpa sync ALPA seluruh bulan (lambat / timeout).
     $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $startDate, $endDate);
     if ($eligibilitySet === []) {
         return [];
@@ -320,8 +430,9 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
 
     $tkFilter = trim((string) ($tingkatanFilter ?? ''));
     $tkLower = strtolower($tkFilter);
+    $jadwalByKid = rekap_keaktifan_jadwal_rows_by_kegiatan($pdo);
 
-    /** @var array<int, array{hari: array<string, true>, tingkatan: array<string, true>, slot_count: int}> $scheduled */
+    /** @var array<int, array{hari: array<string, true>, tingkatan: array<string, true>, slot_count: int, keys: list<array{tanggal:string,tk:string}>}> $scheduled */
     $scheduled = [];
     foreach (array_keys($eligibilitySet) as $key) {
         $parts = explode('|', (string) $key, 3);
@@ -342,10 +453,11 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
         }
 
         if (!isset($scheduled[$kid])) {
-            $scheduled[$kid] = ['hari' => [], 'tingkatan' => [], 'slot_count' => 0];
+            $scheduled[$kid] = ['hari' => [], 'tingkatan' => [], 'slot_count' => 0, 'keys' => []];
         }
         $scheduled[$kid]['hari'][$tanggal] = true;
         $scheduled[$kid]['slot_count']++;
+        $scheduled[$kid]['keys'][] = ['tanggal' => $tanggal, 'tk' => $tk];
         if ($tk !== '*') {
             $scheduled[$kid]['tingkatan'][$tk] = true;
         }
@@ -423,13 +535,21 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
             ? implode(', ', $tingkatanList)
             : 'Semua tingkatan';
 
+        $detail = rekap_keaktifan_kegiatan_tanpa_scan_buat_detail($kid, $meta['keys'], $jadwalByKid);
+        $jumlahTidakScan = count($detail);
+        if ($jumlahTidakScan === 0) {
+            $jumlahTidakScan = (int) $meta['slot_count'];
+        }
+
         $out[] = [
             'kegiatan_id' => $kid,
             'nama_kegiatan' => trim((string) ($namaMap[$kid] ?? '')) !== '' ? (string) $namaMap[$kid] : ('Kegiatan #' . $kid),
             'hari_terjadwal' => count($meta['hari']),
             'slot_jadwal' => (int) $meta['slot_count'],
+            'jumlah_tidak_scan' => $jumlahTidakScan,
             'tingkatan' => $tingkatanList,
             'tingkatan_label' => $tingkatanLabel,
+            'detail' => $detail,
         ];
     }
 
@@ -469,9 +589,6 @@ function rekap_keaktifan_santri_tanpa_scan_bulan(
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
         return [];
     }
-
-    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
 
     $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $startDate, $endDate);
     if ($eligibilitySet === []) {

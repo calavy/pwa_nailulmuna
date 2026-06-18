@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
+require_once __DIR__ . '/../helpers/izin_tetap_hidmah_kategori.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 
@@ -61,7 +62,13 @@ if ($nomorSurat === '') {
 $tglMulai = (string) ($izin['tanggal_mulai'] ?? '-');
 $tglSelesai = trim((string) ($izin['tanggal_selesai'] ?? ''));
 $periodeTampil = $tglSelesai !== '' ? ($tglMulai . ' s.d. ' . $tglSelesai) : ($tglMulai . ' (berlaku tanpa batas waktu)');
-$judulKegiatan = trim((string) ($izin['judul'] ?? 'Hidmah'));
+$judulKegiatan = santri_izin_tetap_surat_teks_bersih(trim((string) ($izin['judul'] ?? '')));
+$suratKonteks = santri_izin_tetap_surat_konteks($jenisRaw, $judulKegiatan);
+$kegiatanRaw = trim((string) ($izin['kegiatan_ditinggalkan'] ?? ''));
+$kegiatanItems = santri_izin_tetap_kegiatan_items_dari_raw($kegiatanRaw);
+$kegiatanDitinggalkan = santri_izin_tetap_kegiatan_nama_tampil($kegiatanRaw);
+$kategoriHidmahKode = trim((string) ($izin['kategori_hidmah'] ?? ''));
+$kategoriHidmahLabel = $kategoriHidmahKode !== '' ? izin_tetap_hidmah_kategori_label($pdo, $kategoriHidmahKode) : '';
 $keterangan = trim((string) ($izin['keterangan'] ?? ''));
 
 $namaKetua = yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan');
@@ -79,7 +86,7 @@ if ($kotip === '') {
     $kotip = 'Muntilan';
 }
 
-$slotHtml = santri_izin_tetap_slot_html($pdo, $id);
+$slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
 ?>
 <!doctype html>
 <html lang="id">
@@ -88,22 +95,25 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Surat Keterangan Izin Tetap</title>
     <style>
-        @page { size: A5 portrait; margin: 6mm; }
+        @page { size: A4 portrait; margin: 12mm; }
         * { box-sizing: border-box; }
         body {
             font-family: "Segoe UI", Arial, sans-serif;
-            font-size: 10.5pt;
+            font-size: 11pt;
             color: #111827;
             margin: 0;
-            background: linear-gradient(180deg, #f8fafc 0%, #ecfeff 100%);
+            padding: 10mm 0;
+            background: #e2e8f0;
         }
         .sheet {
             position: relative;
             border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            width: 100%;
-            min-height: calc(210mm - 12mm);
-            padding: 7mm 8mm;
+            border-radius: 8px;
+            width: 210mm;
+            max-width: 100%;
+            min-height: calc(297mm - 24mm);
+            margin: 0 auto;
+            padding: 12mm 14mm;
             background: #fff;
             overflow: hidden;
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
@@ -116,8 +126,8 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-30deg);
-            width: 230px;
-            height: 230px;
+            width: 280px;
+            height: 280px;
             background-image: url("<?= htmlspecialchars($logo) ?>");
             background-repeat: no-repeat;
             background-position: center;
@@ -145,15 +155,15 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
             position: absolute;
             bottom: -6px;
         }
-        .logo { width: 58px; height: 58px; object-fit: cover; border-radius: 999px; border: 1px solid #d1d5db; }
+        .logo { width: 72px; height: 72px; object-fit: cover; border-radius: 999px; border: 1px solid #d1d5db; }
         .brand { flex: 1; text-align: center; }
-        .brand .small { margin: 0; font-size: 8.7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-        .brand h2 { margin: 0; font-size: 14.5pt; color: #065f46; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
-        .brand .addr { margin: 0; font-size: 7.7pt; font-style: italic; color: #334155; }
-        .brand .contact { margin-top: 1px; font-size: 7.4pt; color: #475569; }
-        .title { text-align: center; margin: 8px 0 7px; position: relative; z-index: 1; }
-        .title strong { font-size: 11.4pt; text-decoration: underline; text-transform: uppercase; letter-spacing: 0.3px; }
-        .title .doc-num { display: block; margin-top: 2px; font-size: 7.8pt; color: #475569; }
+        .brand .small { margin: 0; font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+        .brand h2 { margin: 0; font-size: 16pt; color: #065f46; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
+        .brand .addr { margin: 0; font-size: 8.5pt; font-style: italic; color: #334155; }
+        .brand .contact { margin-top: 2px; font-size: 8pt; color: #475569; }
+        .title { text-align: center; margin: 12px 0 10px; position: relative; z-index: 1; }
+        .title strong { font-size: 12.5pt; text-decoration: underline; text-transform: uppercase; letter-spacing: 0.3px; }
+        .title .doc-num { display: block; margin-top: 3px; font-size: 8.5pt; color: #475569; }
         .badge {
             display: inline-block;
             padding: 4px 12px;
@@ -167,11 +177,11 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
         }
         .badge.cat-hidmah { background: #0d9488; border: 1px solid #0f766e; }
         .badge.cat-tugas { background: #dc2626; border: 1px solid #b91c1c; }
-        .content { line-height: 1.42; position: relative; z-index: 1; font-size: 8.8pt; flex: 1; }
-        .content p { margin: 0 0 7px; text-align: justify; }
-        .info { width: 100%; margin: 5px 0 6px; border-collapse: collapse; }
-        .info td { vertical-align: top; padding: 1px 0; }
-        .info td:first-child { width: 92px; color: #334155; font-weight: 700; }
+        .content { line-height: 1.5; position: relative; z-index: 1; font-size: 10pt; flex: 1; }
+        .content p { margin: 0 0 9px; text-align: justify; }
+        .info { width: 100%; margin: 8px 0 10px; border-collapse: collapse; }
+        .info td { vertical-align: top; padding: 2px 0; }
+        .info td:first-child { width: 130px; color: #334155; font-weight: 700; }
         .box-note {
             margin-top: 6px;
             background: #f8fafc;
@@ -179,6 +189,28 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
             border-radius: 8px;
             padding: 6px 8px;
         }
+        .box-kegiatan {
+            margin: 8px 0 10px;
+            border: 1.5px solid #0d9488;
+            border-radius: 8px;
+            padding: 8px 10px;
+            background: #f0fdfa;
+        }
+        .box-kegiatan strong {
+            display: block;
+            font-size: 9pt;
+            color: #0f766e;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+        .box-kegiatan ul {
+            margin: 0;
+            padding-left: 1.1rem;
+            font-size: 9.5pt;
+            line-height: 1.45;
+        }
+        .box-kegiatan li { margin: 1px 0; }
         .box-nb {
             margin-top: 6px;
             background: #fffbeb;
@@ -199,7 +231,7 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
         }
         .box { flex: 1 1 30%; min-width: 0; text-align: center; padding: 0 2px; }
         .box .jab { font-size: 7.6pt; color: #475569; margin-bottom: 4px; min-height: 2.4em; }
-        .sign-space { height: 16mm; min-height: 46px; }
+        .sign-space { height: 22mm; min-height: 56px; }
         .line {
             margin: 0 auto;
             width: 92%;
@@ -218,8 +250,8 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
             color: #64748b;
         }
         @media print {
-            body { background: #fff; }
-            .sheet { border: 1px solid #cbd5e1; box-shadow: none; }
+            body { background: #fff; padding: 0; }
+            .sheet { border: none; box-shadow: none; border-radius: 0; width: auto; max-width: none; margin: 0; }
             .badge {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -249,18 +281,33 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
 
         <div class="content">
             <p>
-                Yang bertanda tangan di bawah ini, Pengurus <?= htmlspecialchars($namaPonpes) ?>, menerangkan bahwa
-                santri berikut memperoleh <strong>izin tetap</strong> resmi untuk melaksanakan kegiatan
-                <strong><?= htmlspecialchars($jenisLabel) ?></strong> (<?= htmlspecialchars($judulKegiatan) ?>)
-                pada hari dan jam sebagaimana tercantum, dalam masa berlaku izin yang ditetapkan.
+                Yang bertanda tangan di bawah ini, Pengurus <?= htmlspecialchars($namaPonpes) ?> menerangkan bahwa
+                santri berikut memperoleh <strong>izin tetap</strong> untuk melaksanakan
+                <strong><?= htmlspecialchars((string) $suratKonteks['uraian_kalimat']) ?></strong>
+                pada hari dan waktu yang tercantum.
             </p>
             <table class="info">
                 <tr><td>Nama Santri</td><td>: <?= htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars((string) ($izin['nis'] ?? '-')) ?></td></tr>
                 <tr><td>Tingkatan</td><td>: <?= htmlspecialchars((string) ($izin['tingkatan'] ?? '-')) ?></td></tr>
+                <tr><td>Jenis Izin</td><td>: <?= htmlspecialchars((string) $suratKonteks['jenis_label']) ?></td></tr>
+                <?php if (!$suratKonteks['is_tugas'] && $kategoriHidmahLabel !== ''): ?>
+                <tr><td>Kategori Hidmah</td><td>: <?= htmlspecialchars($kategoriHidmahLabel) ?></td></tr>
+                <?php endif; ?>
+                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_uraian']) ?></td><td>: <?= htmlspecialchars((string) ($suratKonteks['detail_teks'] ?? '') !== '' ? (string) $suratKonteks['detail_teks'] : '—') ?></td></tr>
                 <tr><td>Masa Berlaku</td><td>: <?= htmlspecialchars($periodeTampil) ?></td></tr>
-                <tr><td>Jadwal Keluar</td><td>: <?= $slotHtml ?></td></tr>
+                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_jadwal']) ?></td><td>: <?= $slotHtml ?></td></tr>
             </table>
+            <?php if (!$suratKonteks['is_tugas'] && $kegiatanItems !== []): ?>
+            <div class="box-kegiatan">
+                <strong><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></strong>
+                <ul>
+                    <?php foreach ($kegiatanItems as $kg): ?>
+                        <li><?= htmlspecialchars($kg) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
             <?php if ($keterangan !== ''): ?>
             <div class="box-note">
                 <strong>Keterangan:</strong><br>
@@ -269,12 +316,16 @@ $slotHtml = santri_izin_tetap_slot_html($pdo, $id);
             <?php endif; ?>
             <div class="box-nb">
                 <strong>Catatan:</strong><br>
-                Santri wajib mematuhi tata tertib pondok, kembali tepat waktu sesuai jadwal, dan menjaga nama baik
-                lembaga. Izin tetap ini berlaku selama status aktif dan dapat ditinjau ulang oleh pengurus apabila diperlukan.
+                Santri wajib mematuhi tata tertib pondok dan menjaga nama baik lembaga.
+                <?php if ($kegiatanDitinggalkan !== '' && !$suratKonteks['is_tugas']): ?>
+                Ketidakhadiran pada kegiatan Jama'ah yang disebutkan dicatat <strong>izin</strong>, bukan alpa.
+                <?php elseif ($kegiatanDitinggalkan !== '' && $suratKonteks['is_tugas']): ?>
+                Ketidakhadiran pada kegiatan terkait dicatat <strong>izin</strong> sesuai ketentuan pondok.
+                <?php endif; ?>
+                Izin tetap berlaku selama status aktif dan dapat ditinjau ulang oleh pengurus bila diperlukan.
             </div>
             <p>
-                Demikian surat keterangan ini dibuat dengan sebenarnya agar dapat dipergunakan sebagaimana mestinya
-                dan dipatuhi oleh santri yang bersangkutan.
+                Demikian surat keterangan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
             </p>
         </div>
 
