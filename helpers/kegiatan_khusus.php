@@ -39,6 +39,152 @@ function kegiatan_khusus_ensure_schema(PDO $pdo): void
     ');
 }
 
+/** @return list<string> */
+function kegiatan_khusus_tingkatan_list(PDO $pdo): array
+{
+    $out = [];
+    if (table_exists($pdo, 'tingkatan')) {
+        $rows = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $r) {
+            $t = trim((string) $r);
+            if ($t !== '') {
+                $out[$t] = $t;
+            }
+        }
+    }
+    if ($out === [] && table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) {
+        $rows = $pdo->query('
+            SELECT DISTINCT tingkatan FROM santri
+            WHERE tingkatan IS NOT NULL AND TRIM(tingkatan) != ""
+            ORDER BY tingkatan ASC
+        ')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $r) {
+            $t = trim((string) $r);
+            if ($t !== '') {
+                $out[$t] = $t;
+            }
+        }
+    }
+    if ($out === [] && table_exists($pdo, 'jadwal_kegiatan')) {
+        $rows = $pdo->query('
+            SELECT DISTINCT tingkatan FROM jadwal_kegiatan
+            WHERE tingkatan IS NOT NULL AND TRIM(tingkatan) != ""
+            ORDER BY tingkatan ASC
+        ')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $r) {
+            $t = trim((string) $r);
+            if ($t !== '') {
+                $out[$t] = $t;
+            }
+        }
+    }
+
+    $list = array_values($out);
+    sort($list, SORT_NATURAL | SORT_FLAG_CASE);
+    array_unshift($list, 'Semua Tingkatan');
+
+    return $list;
+}
+
+function kegiatan_khusus_tingkatan_dari_post(array $post): array
+{
+    $raw = $post['tingkatan'] ?? [];
+    if (!is_array($raw)) {
+        $single = trim((string) $raw);
+        return $single !== '' ? [$single] : [];
+    }
+    $out = [];
+    foreach ($raw as $v) {
+        $t = trim((string) $v);
+        if ($t !== '') {
+            $out[$t] = $t;
+        }
+    }
+    $tingkatan = array_values($out);
+    if (in_array('Semua Tingkatan', $tingkatan, true)) {
+        return ['Semua Tingkatan'];
+    }
+
+    return $tingkatan;
+}
+
+/**
+ * @return array{ok:bool,message:string,count?:int}
+ */
+function kegiatan_khusus_tambah(PDO $pdo, array $post, int $userId): array
+{
+    kegiatan_khusus_ensure_schema($pdo);
+
+    $nama = trim((string) ($post['nama_kegiatan'] ?? ''));
+    $kategori = strtoupper(trim((string) ($post['kategori_kegiatan'] ?? 'TAALIM')));
+    $tingkatanDipilih = kegiatan_khusus_tingkatan_dari_post($post);
+    $tanggal = trim((string) ($post['tanggal'] ?? date('Y-m-d')));
+    $jamMulai = trim((string) ($post['jam_mulai'] ?? ''));
+    $jamSelesai = trim((string) ($post['jam_selesai'] ?? ''));
+    $tempat = trim((string) ($post['tempat'] ?? ''));
+
+    if (strlen($jamMulai) === 5) {
+        $jamMulai .= ':00';
+    }
+    if (strlen($jamSelesai) === 5) {
+        $jamSelesai .= ':00';
+    }
+
+    if (!in_array($kategori, ['JAMAAH', 'TAALIM'], true)) {
+        $kategori = 'TAALIM';
+    }
+    if ($nama === '' || $tanggal === '' || $jamMulai === '' || $jamSelesai === '') {
+        return ['ok' => false, 'message' => 'Nama, tanggal, jam mulai, dan jam selesai wajib diisi.'];
+    }
+    if ($tingkatanDipilih === []) {
+        return ['ok' => false, 'message' => 'Pilih minimal satu tingkatan.'];
+    }
+    if ($jamSelesai <= $jamMulai) {
+        return ['ok' => false, 'message' => 'Jam selesai harus setelah jam mulai.'];
+    }
+
+    $ins = $pdo->prepare('
+        INSERT INTO kegiatan_khusus (nama_kegiatan, kategori_kegiatan, tingkatan, tanggal, jam_mulai, jam_selesai, tempat, created_by)
+        VALUES (:n, :kat, :ting, :tgl, :jm, :js, :tp, :by)
+    ');
+
+    $inTransaction = false;
+    try {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $inTransaction = true;
+        }
+        foreach ($tingkatanDipilih as $tingkatan) {
+            $ins->execute([
+                'n' => $nama,
+                'kat' => $kategori,
+                'ting' => $tingkatan,
+                'tgl' => $tanggal,
+                'jm' => $jamMulai,
+                'js' => $jamSelesai,
+                'tp' => $tempat !== '' ? $tempat : null,
+                'by' => $userId > 0 ? $userId : null,
+            ]);
+        }
+        if ($inTransaction && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($inTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menyimpan: ' . $e->getMessage()];
+    }
+
+    $count = count($tingkatanDipilih);
+    $message = $count > 1
+        ? 'Kegiatan khusus ditambahkan untuk ' . $count . ' tingkatan.'
+        : 'Kegiatan khusus berhasil ditambahkan.';
+
+    return ['ok' => true, 'message' => $message, 'count' => $count];
+}
+
 function kegiatan_khusus_find_active_for_tingkatan(PDO $pdo, string $tanggal, string $jam, string $tingkatan): ?array
 {
     kegiatan_khusus_ensure_schema($pdo);

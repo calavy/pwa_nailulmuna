@@ -117,6 +117,40 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php else: ?>
                         <div class="form-text mb-1">Centang satu atau lebih santri dengan jadwal hidmah yang sama.</div>
                         <input type="search" class="form-control form-control-sm mb-2" id="izin-tetap-cari-santri" placeholder="Cari NIS atau nama…" autocomplete="off">
+                        <?php if ($izinTetapSantriGrouped === [] && $santriAktif !== []): ?>
+                        <div class="rombongan-santri-picker border rounded" id="izin-tetap-pick-wrap">
+                            <div class="d-flex flex-wrap gap-2 p-2 border-bottom bg-light">
+                                <button type="button" class="btn btn-sm btn-outline-primary js-rombongan-pilih-semua" data-target="izin-tetap-pick">
+                                    <i class="fa-solid fa-check-double me-1"></i> Pilih semua
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary js-rombongan-bersihkan" data-target="izin-tetap-pick">
+                                    Bersihkan
+                                </button>
+                            </div>
+                            <div class="rombongan-santri-picker__scroll p-2" style="max-height:min(22rem,50vh);overflow-y:auto">
+                                <?php foreach ($santriAktif as $s):
+                                    $sid = (int) ($s['id'] ?? 0);
+                                    if ($sid <= 0) {
+                                        continue;
+                                    }
+                                    ?>
+                                    <div class="rombongan-santri-picker__row px-1 py-1 border-top">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input rombongan-santri-cb" type="checkbox" name="santri_ids[]"
+                                                   id="izin-tetap-pick-<?= $sid ?>" value="<?= $sid ?>">
+                                            <label class="form-check-label small" for="izin-tetap-pick-<?= $sid ?>">
+                                                <span class="font-monospace fw-semibold"><?= htmlspecialchars((string) ($s['nis'] ?? '')) ?></span>
+                                                <span class="mx-1">—</span>
+                                                <?= htmlspecialchars((string) ($s['nama'] ?? '')) ?>
+                                            </label>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php elseif ($izinTetapSantriGrouped === []): ?>
+                        <p class="text-muted small mb-0">Tidak ada santri aktif.</p>
+                        <?php else: ?>
                         <?php
                         $rombonganSantriGrouped = $izinTetapSantriGrouped;
                         $rombonganPickerName = 'santri_ids[]';
@@ -124,6 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
                         $rombonganPickerHideBelumKembali = true;
                         require __DIR__ . '/partials/rombongan_santri_picker.php';
                         ?>
+                        <?php endif; ?>
                         <?php endif; ?>
                     </div>
                     <div class="row g-2 mb-2">

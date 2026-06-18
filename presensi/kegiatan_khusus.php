@@ -5,49 +5,19 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/kegiatan_khusus.php';
 
 require_roles(['admin', 'pengurus']);
 kegiatan_khusus_ensure_schema($pdo);
 
-$tingkatanList = table_exists($pdo, 'tingkatan')
-    ? $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN)
-    : [];
-array_unshift($tingkatanList, 'Semua Tingkatan');
+$tingkatanList = kegiatan_khusus_tingkatan_list($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
     if ($action === 'tambah_kegiatan_khusus') {
-        $nama = trim((string) ($_POST['nama_kegiatan'] ?? ''));
-        $kategori = strtoupper(trim((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM')));
-        $tingkatan = trim((string) ($_POST['tingkatan'] ?? 'Semua Tingkatan'));
-        $tanggal = trim((string) ($_POST['tanggal'] ?? date('Y-m-d')));
-        $jamMulai = trim((string) ($_POST['jam_mulai'] ?? '00:00'));
-        $jamSelesai = trim((string) ($_POST['jam_selesai'] ?? '00:00'));
-        $tempat = trim((string) ($_POST['tempat'] ?? ''));
-        if (!in_array($kategori, ['JAMAAH', 'TAALIM'], true)) {
-            $kategori = 'TAALIM';
-        }
-        if ($nama === '' || $tanggal === '' || $jamMulai === '' || $jamSelesai === '') {
-            set_flash('error', 'Nama, tanggal, jam mulai, dan jam selesai wajib diisi.');
-            header('Location: ' . app_href('/presensi/kegiatan_khusus.php'));
-            exit;
-        }
-        $ins = $pdo->prepare('
-            INSERT INTO kegiatan_khusus (nama_kegiatan, kategori_kegiatan, tingkatan, tanggal, jam_mulai, jam_selesai, tempat, created_by)
-            VALUES (:n, :kat, :ting, :tgl, :jm, :js, :tp, :by)
-        ');
-        $ins->execute([
-            'n' => $nama,
-            'kat' => $kategori,
-            'ting' => $tingkatan !== '' ? $tingkatan : 'Semua Tingkatan',
-            'tgl' => $tanggal,
-            'jm' => $jamMulai,
-            'js' => $jamSelesai,
-            'tp' => $tempat !== '' ? $tempat : null,
-            'by' => (int) ($_SESSION['user']['id'] ?? 0),
-        ]);
-        set_flash('success', 'Kegiatan khusus berhasil ditambahkan.');
+        $result = kegiatan_khusus_tambah($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
+        set_flash($result['ok'] ? 'success' : 'error', $result['message']);
         header('Location: ' . app_href('/presensi/kegiatan_khusus.php'));
         exit;
     }
@@ -77,30 +47,32 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-3">
     <div class="card-header py-2"><strong>Tambah kegiatan khusus</strong></div>
     <div class="card-body">
-        <form method="post" class="row g-2">
+        <form method="post" class="row g-2" id="form-kegiatan-khusus" data-tingkatan-min="1" data-tingkatan-target="kegiatan-khusus-tingkatan">
             <input type="hidden" name="action" value="tambah_kegiatan_khusus">
-            <div class="col-md-4">
+            <div class="col-md-5">
                 <label class="form-label">Nama kegiatan</label>
                 <input type="text" name="nama_kegiatan" class="form-control" required>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label">Kategori</label>
                 <select class="form-select" name="kategori_kegiatan">
                     <option value="TAALIM">Ta'lim/Ta'alum</option>
                     <option value="JAMAAH">Jama'ah</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Tingkatan</label>
-                <select class="form-select" name="tingkatan">
-                    <?php foreach ($tingkatanList as $tg): ?>
-                        <option value="<?= htmlspecialchars((string) $tg) ?>"><?= htmlspecialchars((string) $tg) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label">Tanggal</label>
                 <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Tingkatan <span class="text-danger">*</span></label>
+                <?php
+                $tingkatanPickerList = $tingkatanList;
+                $tingkatanPickerSelected = [];
+                $tingkatanPickerName = 'tingkatan[]';
+                $tingkatanPickerId = 'kegiatan-khusus-tingkatan';
+                require __DIR__ . '/../includes/partials/tingkatan_multi_picker.php';
+                ?>
             </div>
             <div class="col-md-2">
                 <label class="form-label">Jam mulai</label>
@@ -119,6 +91,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn btn-outline-secondary ms-2" href="<?= htmlspecialchars(app_href('/rekap/kegiatan_khusus.php')) ?>">Rekap</a>
             </div>
         </form>
+        <script src="<?= htmlspecialchars(app_asset_href('/assets/js/tingkatan-multi-picker.js')) ?>" defer></script>
     </div>
 </div>
 
