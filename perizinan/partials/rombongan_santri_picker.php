@@ -10,6 +10,8 @@ declare(strict_types=1);
  * @var string $rombonganPickerId prefix id elemen
  * @var bool $rombonganPickerShowToolbar tampilkan tombol pilih semua
  * @var bool $rombonganPickerHideBelumKembali sembunyikan tombol "pilih yang belum kembali"
+ * @var bool $rombonganPickerHideNamaInList hanya tampilkan NIS di daftar (nama lewat pencarian)
+ * @var bool $rombonganPickerStartHidden sembunyikan daftar sampai pengguna mengetik pencarian
  * @var array<int, true> $rombonganPickerChecked map santri_id => true (opsional)
  */
 
@@ -17,10 +19,12 @@ $rombonganPickerName = $rombonganPickerName ?? 'santri_ids_rombongan[]';
 $rombonganPickerId = $rombonganPickerId ?? 'rombongan-pick';
 $rombonganPickerShowToolbar = !isset($rombonganPickerShowToolbar) || $rombonganPickerShowToolbar;
 $rombonganPickerHideBelumKembali = !empty($rombonganPickerHideBelumKembali);
+$rombonganPickerHideNamaInList = !empty($rombonganPickerHideNamaInList);
+$rombonganPickerStartHidden = !empty($rombonganPickerStartHidden);
 $rombonganPickerChecked = $rombonganPickerChecked ?? [];
 $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
 ?>
-<div class="rombongan-santri-picker border rounded" id="<?= htmlspecialchars($rombonganPickerId) ?>-wrap">
+<div class="rombongan-santri-picker border rounded" id="<?= htmlspecialchars($rombonganPickerId) ?>-wrap"<?= $rombonganPickerStartHidden ? ' hidden' : '' ?>>
     <?php if ($rombonganPickerShowToolbar): ?>
         <div class="d-flex flex-wrap gap-2 p-2 border-bottom bg-light">
             <button type="button" class="btn btn-sm btn-outline-primary js-rombongan-pilih-semua" data-target="<?= htmlspecialchars($rombonganPickerId) ?>">
@@ -57,7 +61,9 @@ $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
                     $nama = trim((string) ($sr['nama_santri'] ?? ''));
                     $sudah = !empty($rombonganPickerChecked[$sid]) || (int) ($sr['rombongan_kembali'] ?? 0) === 1;
                     ?>
-                    <div class="rombongan-santri-picker__row px-2 py-1 border-top<?= $sudah ? ' bg-success bg-opacity-10' : '' ?>">
+                    <div class="rombongan-santri-picker__row px-2 py-1 border-top<?= $sudah ? ' bg-success bg-opacity-10' : '' ?>"
+                         data-search="<?= htmlspecialchars(strtolower($nis . ' ' . $nama)) ?>"
+                         data-nis="<?= htmlspecialchars($nis) ?>">
                         <?php if ($sudah && $rombonganPickerName === 'santri_kembali[]'): ?>
                             <span class="badge text-bg-success me-2"><i class="fa-solid fa-check"></i></span>
                             <span class="text-muted text-decoration-line-through small">
@@ -76,8 +82,10 @@ $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
                                     <?= !empty($rombonganPickerChecked[$sid]) ? ' checked' : '' ?>>
                                 <label class="form-check-label small w-100" for="<?= htmlspecialchars($rombonganPickerId) ?>-<?= $sid ?>">
                                     <span class="font-monospace fw-semibold"><?= htmlspecialchars($nis) ?></span>
+                                    <?php if (!$rombonganPickerHideNamaInList): ?>
                                     <span class="mx-1">—</span>
                                     <?= htmlspecialchars($nama) ?>
+                                    <?php endif; ?>
                                 </label>
                             </div>
                         <?php endif; ?>

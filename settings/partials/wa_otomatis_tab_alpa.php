@@ -10,7 +10,8 @@ declare(strict_types=1);
             Dipakai saat <strong>generate alpa</strong> atau cron harian jika tier belum diatur di bawah.
             Terpisah dari notifikasi <strong>permohonan izin</strong> (<a href="?tab=izin">tab Izin</a>).
             Format pesan: <strong>nama santri</strong>, lalu daftar <strong>kegiatan</strong> di bawahnya; beberapa santri per kiriman.
-            Jika melebihi batas karakter gateway, otomatis dilanjutkan pesan berikutnya.
+            Jika melebihi batas karakter, otomatis dilanjutkan pesan berikutnya (<em>khusus laporan ALPA</em>).
+            Pesan WA otomatis lainnya (izin, tagihan, cashless, dll.) dikirim <strong>satu pesan utuh</strong> per notifikasi.
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">

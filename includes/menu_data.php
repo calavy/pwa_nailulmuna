@@ -25,6 +25,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
             '/pembimbing/perizinan.php' => 'Atur Kegiatan Hari Ini',
             '/jadwal/index.php' => 'Jadwal Kegiatan',
             '/settings/profil.php' => 'Profil & Password',
+        '/settings/akses_saya.php' => 'Hak Akses Saya',
             '/pembimbing/setoran_dashboard.php' => 'Portal Setoran Hafalan',
         ],
         'menuStructure' => [
@@ -184,6 +185,7 @@ return [
         '/yayasan/sdm_hari.php' => 'Keaktifan SDM Hari Ini',
         '/yayasan/executive.php' => 'Executive Summary',
         '/settings/profil.php' => 'Profil & Password',
+        '/settings/akses_saya.php' => 'Hak Akses Saya',
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],

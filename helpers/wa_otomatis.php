@@ -419,6 +419,14 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
 }
 
 /**
+ * Batas pecah pesan ke gateway (hanya dipakai laporan ALPA).
+ */
+function wa_otomatis_gateway_chunk_max(PDO $pdo): int
+{
+    return max(40, (int) app_setting($pdo, 'wa_otomatis_chunk_max', '100'));
+}
+
+/**
  * Pecah pesan panjang menjadi beberapa bagian (batas karakter gateway WA).
  *
  * @return list<string>
@@ -498,7 +506,8 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
 {
     $maxRetries = max(0, min(3, (int) ($opts['max_retries'] ?? 2)));
     $delayMs = max(100, min(2000, (int) ($opts['delay_ms'] ?? 400)));
-    $chunkMax = max(0, (int) ($opts['chunk_max'] ?? (int) app_setting($pdo, 'wa_otomatis_chunk_max', '100')));
+    // Default: satu kiriman penuh. Hanya laporan ALPA yang mengisi chunk_max (lihat send_wa_bulk_messages).
+    $chunkMax = max(0, (int) ($opts['chunk_max'] ?? 0));
     $chunkDelayMs = max(100, min(3000, (int) ($opts['chunk_delay_ms'] ?? 450)));
     $override = $opts;
     unset($override['max_retries'], $override['delay_ms'], $override['chunk_max'], $override['chunk_delay_ms']);

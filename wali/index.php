@@ -39,6 +39,15 @@ if (table_exists($pdo, 'cashless_accounts')) {
     }
 }
 
+$keaktifanPenilaianTahun = wali_portal_keaktifan_penilaian($pdo, $waliSantriId);
+$bulanFilterHijri = wali_portal_keaktifan_bulan_parse($pdo, []);
+$keaktifanPenilaianBulan = wali_portal_keaktifan_penilaian_bulan(
+    $pdo,
+    $waliSantriId,
+    $bulanFilterHijri,
+    trim((string) ($waliSantriRow['tingkatan'] ?? ''))
+);
+
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Beranda Wali', true, 'beranda');
 
@@ -67,6 +76,32 @@ wali_layout_head('Beranda Wali', true, 'beranda');
             </div>
         </div>
         <?php endif; ?>
+
+        <?php
+        $keaktifanPenilaian = $keaktifanPenilaianBulan;
+        $waliKeaktifanPenilaianCompact = true;
+        require __DIR__ . '/partials/keaktifan_penilaian_card.php';
+        ?>
+        <div class="mb-3">
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary w-100 wali-nilai-riwayat-toggle"
+                data-bs-toggle="collapse"
+                data-bs-target="#waliPenilaianTahunWrap"
+                aria-expanded="false"
+                aria-controls="waliPenilaianTahunWrap"
+            >
+                <span class="wali-nilai-riwayat-toggle__label">Lihat rekap penilaian tahunan</span>
+                <i class="fa-solid fa-chevron-down ms-1 wali-nilai-riwayat-toggle__icon" aria-hidden="true"></i>
+            </button>
+            <div class="collapse mt-2" id="waliPenilaianTahunWrap">
+                <?php
+                $keaktifanPenilaian = $keaktifanPenilaianTahun;
+                $waliKeaktifanPenilaianCompact = true;
+                require __DIR__ . '/partials/keaktifan_penilaian_card.php';
+                ?>
+            </div>
+        </div>
 
         <div class="card shadow-sm wali-card mb-3">
             <div class="card-body">

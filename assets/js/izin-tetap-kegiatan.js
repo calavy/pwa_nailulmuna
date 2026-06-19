@@ -19,8 +19,25 @@
     }
 
     function readSlots() {
-        var rows = form.querySelectorAll('#slot-rows .slot-row');
         var fd = new FormData();
+        var bloks = form.querySelectorAll('#izin-tetap-slot-bloks .izin-tetap-slot-blok');
+        if (bloks.length) {
+            bloks.forEach(function (blok, idx) {
+                blok.querySelectorAll('.izin-tetap-hari-cb:checked').forEach(function (cb) {
+                    fd.append('slot_hari[' + idx + '][]', cb.value);
+                });
+                var jm = blok.querySelector('.izin-tetap-jam-mulai');
+                var js = blok.querySelector('.izin-tetap-jam-selesai');
+                if (jm) {
+                    fd.append('slot_jam_mulai[' + idx + ']', jm.value);
+                }
+                if (js) {
+                    fd.append('slot_jam_selesai[' + idx + ']', js.value);
+                }
+            });
+            return fd;
+        }
+        var rows = form.querySelectorAll('#slot-rows .slot-row');
         rows.forEach(function (row) {
             var hari = row.querySelector('[name="hari_ke[]"]');
             var jm = row.querySelector('[name="jam_mulai[]"]');
@@ -119,7 +136,9 @@
         timer = setTimeout(refreshKegiatan, 350);
     }
 
+    form.querySelector('#izin-tetap-slot-bloks')?.addEventListener('izin-tetap-slots-changed', scheduleRefresh);
     form.querySelector('#slot-rows')?.addEventListener('change', scheduleRefresh);
+    form.querySelector('#izin-tetap-slot-bloks')?.addEventListener('input', scheduleRefresh);
     form.querySelector('#slot-rows')?.addEventListener('input', scheduleRefresh);
     form.addEventListener('change', function (ev) {
         var t = ev.target;
@@ -131,6 +150,9 @@
         }
     });
 
+    document.getElementById('btn-tambah-blok-slot')?.addEventListener('click', function () {
+        setTimeout(scheduleRefresh, 80);
+    });
     document.getElementById('btn-tambah-slot')?.addEventListener('click', function () {
         setTimeout(scheduleRefresh, 50);
     });

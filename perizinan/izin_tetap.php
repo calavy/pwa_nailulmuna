@@ -66,10 +66,12 @@ if (table_exists($pdo, 'santri')) {
 }
 
 $editRow = $editId > 0 ? santri_izin_tetap_by_id($pdo, $editId) : null;
-$editSlots = $editRow ? santri_izin_tetap_slots($pdo, $editId) : [];
-if ($editSlots === []) {
-    $editSlots = [['hari_ke' => 1, 'jam_mulai' => '08:00', 'jam_selesai' => '12:00']];
+$editSlotsRaw = $editRow ? santri_izin_tetap_slots($pdo, $editId) : [];
+$izinTetapSlotBloks = santri_izin_tetap_slots_ke_blok_form($editSlotsRaw);
+if ($izinTetapSlotBloks === []) {
+    $izinTetapSlotBloks = [['hari' => [1], 'jam_mulai' => '08:00', 'jam_selesai' => '12:00']];
 }
+$editSlots = santri_izin_tetap_blok_form_ke_slots($izinTetapSlotBloks);
 
 $listRows = santri_izin_tetap_list($pdo, $q);
 $jumlahAktif = count(array_filter($listRows, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
@@ -138,10 +140,11 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endforeach; ?>
                         </select>
                         <?php else: ?>
-                        <div class="form-text mb-1">Centang satu atau lebih santri dengan jadwal hidmah yang sama.</div>
-                        <input type="search" class="form-control form-control-sm mb-2" id="izin-tetap-cari-santri" placeholder="Cari NIS atau nama…" autocomplete="off">
+                        <div class="form-text mb-1">Ketik NIS atau nama di pencarian, lalu centang santri yang muncul.</div>
+                        <input type="search" class="form-control form-control-sm mb-2" id="izin-tetap-cari-santri" placeholder="Cari NIS atau nama santri…" autocomplete="off">
+                        <div id="izin-tetap-santri-terpilih" class="d-flex flex-wrap gap-1 mb-2"></div>
                         <?php if ($izinTetapSantriGrouped === [] && $santriAktif !== []): ?>
-                        <div class="rombongan-santri-picker border rounded" id="izin-tetap-pick-wrap">
+                        <div class="rombongan-santri-picker border rounded" id="izin-tetap-pick-wrap" hidden>
                             <div class="d-flex flex-wrap gap-2 p-2 border-bottom bg-light">
                                 <button type="button" class="btn btn-sm btn-outline-primary js-rombongan-pilih-semua" data-target="izin-tetap-pick">
                                     <i class="fa-solid fa-check-double me-1"></i> Pilih semua
@@ -157,14 +160,14 @@ require_once __DIR__ . '/../includes/header.php';
                                         continue;
                                     }
                                     ?>
-                                    <div class="rombongan-santri-picker__row px-1 py-1 border-top">
+                                    <div class="rombongan-santri-picker__row px-1 py-1 border-top"
+                                         data-search="<?= htmlspecialchars(strtolower((string) ($s['nis'] ?? '') . ' ' . (string) ($s['nama'] ?? ''))) ?>"
+                                         data-nis="<?= htmlspecialchars((string) ($s['nis'] ?? '')) ?>">
                                         <div class="form-check mb-0">
                                             <input class="form-check-input rombongan-santri-cb" type="checkbox" name="santri_ids[]"
                                                    id="izin-tetap-pick-<?= $sid ?>" value="<?= $sid ?>">
                                             <label class="form-check-label small" for="izin-tetap-pick-<?= $sid ?>">
                                                 <span class="font-monospace fw-semibold"><?= htmlspecialchars((string) ($s['nis'] ?? '')) ?></span>
-                                                <span class="mx-1">—</span>
-                                                <?= htmlspecialchars((string) ($s['nama'] ?? '')) ?>
                                             </label>
                                         </div>
                                     </div>
@@ -179,6 +182,8 @@ require_once __DIR__ . '/../includes/header.php';
                         $rombonganPickerName = 'santri_ids[]';
                         $rombonganPickerId = 'izin-tetap-pick';
                         $rombonganPickerHideBelumKembali = true;
+                        $rombonganPickerHideNamaInList = true;
+                        $rombonganPickerStartHidden = true;
                         require __DIR__ . '/partials/rombongan_santri_picker.php';
                         ?>
                         <?php endif; ?>
@@ -197,33 +202,9 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="form-text">Kosongkan = tanpa batas</div>
                         </div>
                     </div>
-                    <label class="form-label">Jadwal hari &amp; jam hidmah <span class="text-danger">*</span></label>
-                    <div class="form-text mb-1">Durasi ini dipakai sistem untuk mendeteksi kegiatan pondok yang ditinggalkan.</div>
-                    <div id="slot-rows" class="mb-2">
-                        <?php foreach ($editSlots as $i => $sl): ?>
-                            <div class="row g-1 align-items-end slot-row mb-1">
-                                <div class="col-4">
-                                    <select class="form-select form-select-sm" name="hari_ke[]" required>
-                                        <?php foreach ($hariMap as $hk => $hl): ?>
-                                            <option value="<?= $hk ?>" <?= (int) ($sl['hari_ke'] ?? 0) === $hk ? 'selected' : '' ?>><?= htmlspecialchars($hl) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="col-3">
-                                    <input type="time" class="form-control form-control-sm" name="jam_mulai[]" required
-                                        value="<?= htmlspecialchars(substr((string) ($sl['jam_mulai'] ?? '08:00'), 0, 5)) ?>">
-                                </div>
-                                <div class="col-3">
-                                    <input type="time" class="form-control form-control-sm" name="jam_selesai[]" required
-                                        value="<?= htmlspecialchars(substr((string) ($sl['jam_selesai'] ?? '12:00'), 0, 5)) ?>">
-                                </div>
-                                <div class="col-2">
-                                    <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-hapus-slot" title="Hapus baris">×</button>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="btn-tambah-slot">+ Tambah hari/jam</button>
+                    <label class="form-label">Hari hidmah &amp; jam <span class="text-danger">*</span></label>
+                    <div class="form-text mb-1">Centang hari yang sama bisa satu blok waktu. Sistem mendeteksi kegiatan Jama'ah yang ditinggalkan otomatis.</div>
+                    <?php require __DIR__ . '/partials/izin_tetap_slot_picker.php'; ?>
                     <div class="mb-2" id="blok-kegiatan-ditinggalkan">
                         <label class="form-label">Kegiatan pondok yang ditinggalkan</label>
                         <?php
@@ -401,61 +382,61 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<template id="tpl-slot-row">
-    <div class="row g-1 align-items-end slot-row mb-1">
-        <div class="col-4">
-            <select class="form-select form-select-sm" name="hari_ke[]" required>
-                <?php foreach ($hariMap as $hk => $hl): ?>
-                    <option value="<?= $hk ?>"><?= htmlspecialchars($hl) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="col-3">
-            <input type="time" class="form-control form-control-sm" name="jam_mulai[]" value="08:00" required>
-        </div>
-        <div class="col-3">
-            <input type="time" class="form-control form-control-sm" name="jam_selesai[]" value="12:00" required>
-        </div>
-        <div class="col-2">
-            <button type="button" class="btn btn-outline-danger btn-sm w-100 btn-hapus-slot">×</button>
-        </div>
-    </div>
-</template>
-
 <script>
 (function () {
-    const container = document.getElementById('slot-rows');
-    const tpl = document.getElementById('tpl-slot-row');
-    document.getElementById('btn-tambah-slot')?.addEventListener('click', function () {
-        if (!container || !tpl) return;
-        container.appendChild(tpl.content.cloneNode(true));
-    });
-    container?.addEventListener('click', function (ev) {
-        const btn = ev.target.closest('.btn-hapus-slot');
-        if (!btn) return;
-        const rows = container.querySelectorAll('.slot-row');
-        if (rows.length <= 1) return;
-        btn.closest('.slot-row')?.remove();
-    });
-
     const cari = document.getElementById('izin-tetap-cari-santri');
     const pickWrap = document.getElementById('izin-tetap-pick-wrap');
-    if (cari && pickWrap) {
-        cari.addEventListener('input', function () {
-            const q = (cari.value || '').trim().toLowerCase();
-            pickWrap.querySelectorAll('.rombongan-santri-picker__row').forEach(function (row) {
-                const label = row.querySelector('.form-check-label');
-                const text = (label ? label.textContent : row.textContent || '').toLowerCase();
-                row.style.display = q === '' || text.indexOf(q) !== -1 ? '' : 'none';
-            });
-            pickWrap.querySelectorAll('.rombongan-santri-picker__group').forEach(function (grp) {
-                const visible = Array.prototype.some.call(
-                    grp.querySelectorAll('.rombongan-santri-picker__row'),
-                    function (r) { return r.style.display !== 'none'; }
-                );
-                grp.style.display = visible ? '' : 'none';
-            });
+    const terpilihWrap = document.getElementById('izin-tetap-santri-terpilih');
+
+    function rowSearchHaystack(row) {
+        const ds = (row.getAttribute('data-search') || '').toLowerCase();
+        if (ds) {
+            return ds;
+        }
+        const label = row.querySelector('.form-check-label');
+        return (label ? label.textContent : row.textContent || '').toLowerCase();
+    }
+
+    function syncSantriTerpilih() {
+        if (!terpilihWrap || !pickWrap) {
+            return;
+        }
+        terpilihWrap.innerHTML = '';
+        pickWrap.querySelectorAll('.rombongan-santri-cb:checked').forEach(function (cb) {
+            const row = cb.closest('.rombongan-santri-picker__row');
+            const nis = row ? (row.getAttribute('data-nis') || '').trim() : '';
+            const badge = document.createElement('span');
+            badge.className = 'badge text-bg-primary';
+            badge.textContent = nis !== '' ? nis : ('#' + cb.value);
+            terpilihWrap.appendChild(badge);
         });
+    }
+
+    function filterSantriPicker() {
+        if (!cari || !pickWrap) {
+            return;
+        }
+        const q = (cari.value || '').trim().toLowerCase();
+        pickWrap.hidden = q.length < 1;
+        if (q.length < 1) {
+            return;
+        }
+        pickWrap.querySelectorAll('.rombongan-santri-picker__row').forEach(function (row) {
+            row.style.display = rowSearchHaystack(row).indexOf(q) !== -1 ? '' : 'none';
+        });
+        pickWrap.querySelectorAll('.rombongan-santri-picker__group').forEach(function (grp) {
+            const visible = Array.prototype.some.call(
+                grp.querySelectorAll('.rombongan-santri-picker__row'),
+                function (r) { return r.style.display !== 'none'; }
+            );
+            grp.style.display = visible ? '' : 'none';
+        });
+    }
+
+    if (cari && pickWrap) {
+        cari.addEventListener('input', filterSantriPicker);
+        pickWrap.addEventListener('change', syncSantriTerpilih);
+        syncSantriTerpilih();
     }
 
     const jenisSel = document.getElementById('izin-tetap-jenis');
@@ -489,6 +470,7 @@ require_once __DIR__ . '/../includes/header.php';
     syncBlokKegiatan();
 })();
 </script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/izin-tetap-slot-picker.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/izin-tetap-kegiatan.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-rombongan-picker.js')) ?>" defer></script>
 

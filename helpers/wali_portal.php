@@ -704,3 +704,203 @@ function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $sta
         'kegiatan' => $kegiatan,
     ];
 }
+
+/**
+ * Penilaian keaktifan tahunan (Baik / Sedang / Buruk) untuk portal wali.
+ *
+ * @return array{
+ *   tahun:int,
+ *   row: array<string,mixed>|null,
+ *   riwayat: list<array<string,mixed>>
+ * }
+ */
+function wali_portal_keaktifan_penilaian(PDO $pdo, int $santriId, ?int $tahun = null): array
+{
+    require_once __DIR__ . '/santri_keaktifan_nilai.php';
+
+    $tahun = $tahun ?? (int) date('Y');
+    if ($santriId <= 0) {
+        return ['tahun' => $tahun, 'scope' => 'tahun', 'row' => null, 'riwayat' => []];
+    }
+
+    ensure_santri_nilai_keaktifan_table($pdo);
+
+    return [
+        'tahun' => $tahun,
+        'scope' => 'tahun',
+        'row' => santri_keaktifan_tampilan_tahun($pdo, $santriId, $tahun),
+        'riwayat' => santri_keaktifan_tampilan_per_tahun($pdo, $santriId),
+    ];
+}
+
+/** @return array{0:int,1:int} */
+function wali_portal_hijri_month_step_back(int $tahunH, int $bulanH): array
+{
+    if ($bulanH > 1) {
+        return [$tahunH, $bulanH - 1];
+    }
+
+    return [$tahunH - 1, 12];
+}
+
+/**
+ * Baris penilaian Baik/Sedang/Buruk dari total presensi.
+ *
+ * @param array{hadir:int,izin:int,sakit:int,alpa:int,total:int} $totals
+ * @return array<string,mixed>|null
+ */
+function wali_portal_keaktifan_penilaian_row_dari_totals(PDO $pdo, array $totals): ?array
+{
+    require_once __DIR__ . '/santri_riwayat.php';
+
+    $hadir = (int) ($totals['hadir'] ?? 0);
+    $izin = (int) ($totals['izin'] ?? 0);
+    $sakit = (int) ($totals['sakit'] ?? 0);
+    $alpa = (int) ($totals['alpa'] ?? 0);
+    $total = (int) ($totals['total'] ?? 0);
+    if ($total <= 0) {
+        return null;
+    }
+
+    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
+    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
+    $persen = round($hadir / $total * 100, 1);
+    $kategori = santri_category($alpa, $goodMax, $mediumMax);
+    $label = santri_riwayat_keaktifan_label_ringkas($kategori);
+
+    return [
+        'hadir' => $hadir,
+        'izin' => $izin,
+        'sakit' => $sakit,
+        'alpa' => $alpa,
+        'total' => $total,
+        'persen_hadir' => $persen,
+        'kategori' => $kategori,
+        'label' => $label,
+        'sumber' => 'presensi',
+        'catatan_pengasuh' => '',
+        'keterangan' => sprintf(
+            'Kehadiran %s%% · Hadir %d · Izin %d · Sakit %d · ALPA %d (dari %d presensi)',
+            number_format($persen, 1, ',', '.'),
+            $hadir,
+            $izin,
+            $sakit,
+            $alpa,
+            $total
+        ),
+    ];
+}
+
+/**
+ * Penilaian keaktifan per bulan Hijriyah (Baik / Sedang / Buruk) untuk portal wali.
+ *
+ * @param array{year:int,month:int,start:string,end:string,label:string} $bulanFilter
+ * @return array{
+ *   scope:string,
+ *   year:int,
+ *   month:int,
+ *   label_bulan:string,
+ *   row: array<string,mixed>|null,
+ *   riwayat: list<array<string,mixed>>
+ * }
+ */
+function wali_portal_keaktifan_penilaian_bulan(
+    PDO $pdo,
+    int $santriId,
+    array $bulanFilter,
+    string $tingkatan = '',
+    bool $withRiwayat = false,
+    int $riwayatCount = 6
+): array {
+    $year = (int) ($bulanFilter['year'] ?? 0);
+    $month = (int) ($bulanFilter['month'] ?? 0);
+    $labelBulan = (string) ($bulanFilter['label'] ?? '');
+
+    if ($santriId <= 0) {
+        return [
+            'scope' => 'bulan',
+            'year' => $year,
+            'month' => $month,
+            'label_bulan' => $labelBulan,
+            'row' => null,
+            'riwayat' => [],
+        ];
+    }
+
+    $rekap = wali_portal_keaktifan_per_kegiatan(
+        $pdo,
+        $santriId,
+        (string) ($bulanFilter['start'] ?? ''),
+        (string) ($bulanFilter['end'] ?? ''),
+        $tingkatan
+    );
+
+    $riwayat = [];
+    if ($withRiwayat && $year > 0 && $month > 0) {
+        $riwayat = wali_portal_keaktifan_penilaian_bulan_riwayat(
+            $pdo,
+            $santriId,
+            $year,
+            $month,
+            $riwayatCount,
+            $tingkatan
+        );
+    }
+
+    return [
+        'scope' => 'bulan',
+        'year' => $year,
+        'month' => $month,
+        'label_bulan' => $labelBulan,
+        'row' => wali_portal_keaktifan_penilaian_row_dari_totals($pdo, $rekap['totals']),
+        'riwayat' => $riwayat,
+    ];
+}
+
+/**
+ * Riwayat penilaian bulanan mundur dari bulan acuan.
+ *
+ * @return list<array<string,mixed>>
+ */
+function wali_portal_keaktifan_penilaian_bulan_riwayat(
+    PDO $pdo,
+    int $santriId,
+    int $yearH,
+    int $monthH,
+    int $count = 6,
+    string $tingkatan = ''
+): array {
+    $count = max(1, min(12, $count));
+    $out = [];
+    $y = $yearH;
+    $m = $monthH;
+
+    for ($i = 0; $i < $count; $i++) {
+        $filter = wali_portal_keaktifan_bulan_parse($pdo, ['tahun_h' => $y, 'bulan_h' => $m]);
+        $rekap = wali_portal_keaktifan_per_kegiatan(
+            $pdo,
+            $santriId,
+            (string) $filter['start'],
+            (string) $filter['end'],
+            $tingkatan
+        );
+        $row = wali_portal_keaktifan_penilaian_row_dari_totals($pdo, $rekap['totals']);
+        $out[] = $row !== null
+            ? array_merge($row, [
+                'year' => $y,
+                'month' => $m,
+                'label_bulan' => (string) $filter['label'],
+            ])
+            : [
+                'year' => $y,
+                'month' => $m,
+                'label_bulan' => (string) $filter['label'],
+                'label' => 'Belum ada',
+                'total' => 0,
+            ];
+
+        [$y, $m] = wali_portal_hijri_month_step_back($y, $m);
+    }
+
+    return $out;
+}

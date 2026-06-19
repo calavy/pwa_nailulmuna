@@ -233,6 +233,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                     } else {
+                        require_once __DIR__ . '/../helpers/keuangan_jurnal.php';
+                        ensure_keuangan_jurnal_tables($pdo);
                         $pdo->beginTransaction();
                         try {
                             $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :nominal WHERE santri_id = :santri_id')->execute([
@@ -255,13 +257,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $createdByUserId,
                                 $keterangan
                             );
-                            $pdo->commit();
+                            if ($pdo->inTransaction()) {
+                                $pdo->commit();
+                            }
                         } catch (Throwable $e) {
                             if ($pdo->inTransaction()) {
                                 $pdo->rollBack();
                             }
                             $resultType = 'danger';
-                            $resultMessage = 'Transaksi gagal: ' . $e->getMessage();
+                            $errMsg = $e->getMessage();
+                            if (stripos($errMsg, 'no active transaction') !== false) {
+                                $resultMessage = 'Transaksi gagal: kesalahan database. Muat ulang halaman lalu coba lagi.';
+                            } else {
+                                $resultMessage = 'Transaksi gagal: ' . $errMsg;
+                            }
                             if ($scanUangVoice) {
                                 $cashlessVoiceText = 'Transaksi gagal.';
                             }

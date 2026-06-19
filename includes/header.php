@@ -461,6 +461,11 @@ if (!function_exists('render_app_sidebar_nav')) {
                                         <i class="fa-solid fa-user me-2 opacity-75" aria-hidden="true"></i> Profil saya
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/settings/akses_saya.php')) ?>">
+                                        <i class="fa-solid fa-shield-halved me-2 opacity-75" aria-hidden="true"></i> Hak akses saya
+                                    </a>
+                                </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <button type="button" class="dropdown-item js-fcm-subscribe" id="btn-fcm-subscribe">

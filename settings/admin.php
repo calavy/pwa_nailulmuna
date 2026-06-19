@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             app_acl_session_cache_clear($targetUserId);
             user_acl_mark_configured($pdo, $targetUserId);
-            set_flash('success', 'Hak akses user berhasil diperbarui.');
+            set_flash('success', 'Hak akses user berhasil diperbarui. Minta user tersebut refresh halaman atau login ulang.');
         } else {
             set_flash('error', 'Hak akses hanya bisa diatur untuk user non super admin.');
         }

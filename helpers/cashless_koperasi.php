@@ -345,7 +345,10 @@ function cashless_jurnal_belanja_scan(PDO $pdo, int $txId, string $tanggal, int 
         return;
     }
     require_once __DIR__ . '/keuangan_jurnal.php';
-    ensure_keuangan_jurnal_tables($pdo);
+    // DDL meng-commit transaksi MySQL — jangan panggil saat sudah beginTransaction().
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
     $ket = $keterangan !== '' ? $keterangan : 'Belanja cashless koperasi';
     keuangan_jurnal_post($pdo, $tanggal, [
         ['kode_akun' => '2101', 'debit' => $nominal, 'kredit' => 0],
@@ -362,7 +365,9 @@ function cashless_jurnal_setor_koperasi(PDO $pdo, int $setorLogId, string $tangg
         return;
     }
     require_once __DIR__ . '/keuangan_jurnal.php';
-    ensure_keuangan_jurnal_tables($pdo);
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
     $kasKode = keuangan_akun_coa_kode($pdo, $akunKasId);
     keuangan_jurnal_post($pdo, $tanggal, [
         ['kode_akun' => '2103', 'debit' => $nominal, 'kredit' => 0],
@@ -780,6 +785,9 @@ function cashless_koperasi_setor_harian(PDO $pdo, ?int $koperasiId, string $tang
     if ($ringkas['jumlah'] <= 0) {
         return ['ok' => false, 'message' => 'Tidak ada transaksi yang perlu disetor untuk tanggal ini.'];
     }
+
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    ensure_keuangan_jurnal_tables($pdo);
 
     $pdo->beginTransaction();
     try {

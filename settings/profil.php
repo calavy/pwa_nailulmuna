@@ -115,6 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $st->execute(['id' => $userId]);
 $userRow = $st->fetch(PDO::FETCH_ASSOC) ?: $userRow;
 
+require_once __DIR__ . '/../helpers/user_permissions.php';
+$aksesSummary = user_permission_access_summary($pdo);
+
 $pageTitle = 'Profil Saya';
 $bodyClass = 'settings-module-page';
 $loadPushFcm = true;
@@ -182,6 +185,11 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<?php
+$aksesPanelCompact = true;
+require __DIR__ . '/partials/akses_saya_panel.php';
+?>
 
 <div class="row g-4 mt-1">
     <div class="col-12 col-lg-6">

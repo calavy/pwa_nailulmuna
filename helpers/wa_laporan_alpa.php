@@ -9,7 +9,8 @@ declare(strict_types=1);
 /** Batas karakter satu pesan logis (sebelum pecahan gateway). */
 function wa_laporan_alpa_message_max_len(PDO $pdo): int
 {
-    $chunk = max(40, (int) app_setting($pdo, 'wa_otomatis_chunk_max', '100'));
+    require_once __DIR__ . '/wa_otomatis.php';
+    $chunk = wa_otomatis_gateway_chunk_max($pdo);
     if ($chunk >= 500) {
         return min(4096, $chunk);
     }
@@ -352,6 +353,10 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
     }
     require_once __DIR__ . '/wa_otomatis.php';
 
+    if (!array_key_exists('chunk_max', $opts)) {
+        $opts['chunk_max'] = wa_otomatis_gateway_chunk_max($pdo);
+    }
+
     $delayMs = max(200, min(5000, (int) ($opts['message_delay_ms'] ?? 650)));
     $sent = 0;
     foreach ($messages as $idx => $message) {
@@ -362,7 +367,8 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
         if ($message === '') {
             continue;
         }
-        $sent += send_wa_bulk($pdo, $phonesRaw, $message, $opts);
+        $bulk = send_wa_bulk_with_result($pdo, $phonesRaw, $message, $opts);
+        $sent += (int) ($bulk['sent'] ?? 0);
     }
 
     return $sent;

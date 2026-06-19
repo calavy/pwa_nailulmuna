@@ -825,7 +825,7 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         }
     }
     if ($slots === []) {
-        return ['ok' => false, 'message' => 'Minimal satu jadwal hari & jam wajib diisi.'];
+        return ['ok' => false, 'message' => 'Centang minimal satu hari hidmah dan isi jam mulai–selesai.'];
     }
 
     $chk = $pdo->prepare('SELECT id FROM santri WHERE id = :id LIMIT 1');
@@ -856,12 +856,12 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
             $js .= ':00';
         }
         if ($jm >= $js) {
-            return ['ok' => false, 'message' => 'Jam selesai harus setelah jam mulai pada setiap baris jadwal.'];
+            return ['ok' => false, 'message' => 'Jam selesai harus setelah jam mulai pada setiap blok waktu.'];
         }
         $normalizedSlots[] = ['hari_ke' => $hari, 'jam_mulai' => $jm, 'jam_selesai' => $js];
     }
     if ($normalizedSlots === []) {
-        return ['ok' => false, 'message' => 'Minimal satu jadwal hari & jam yang valid wajib diisi.'];
+        return ['ok' => false, 'message' => 'Centang minimal satu hari dan isi jam yang valid pada blok waktu.'];
     }
 
     if (($kegDb === null || $kegDb === '') && $jenis === 'HIDMAH') {
@@ -978,9 +978,36 @@ function santri_izin_tetap_hapus(PDO $pdo, int $id): array
     return ['ok' => true, 'message' => 'Izin tetap dihapus.'];
 }
 
-/** Parse slot dari POST form (hari_ke[], jam_mulai[], jam_selesai[]). */
+/** Parse slot dari POST (blok hari centang + jam, atau format lama hari_ke[] per baris). */
 function santri_izin_tetap_slots_dari_post(array $post): array
 {
+    $blokHari = $post['slot_hari'] ?? null;
+    $blokMulai = $post['slot_jam_mulai'] ?? null;
+    $blokSelesai = $post['slot_jam_selesai'] ?? null;
+    if (is_array($blokHari) && is_array($blokMulai) && is_array($blokSelesai)) {
+        $slots = [];
+        foreach ($blokHari as $idx => $hariArr) {
+            if (!is_array($hariArr)) {
+                continue;
+            }
+            $jm = trim((string) ($blokMulai[$idx] ?? ''));
+            $js = trim((string) ($blokSelesai[$idx] ?? ''));
+            if ($jm === '' || $js === '') {
+                continue;
+            }
+            foreach ($hariArr as $hariRaw) {
+                $hari = (int) $hariRaw;
+                if ($hari < 1 || $hari > 7) {
+                    continue;
+                }
+                $slots[] = ['hari_ke' => $hari, 'jam_mulai' => $jm, 'jam_selesai' => $js];
+            }
+        }
+        if ($slots !== []) {
+            return $slots;
+        }
+    }
+
     $hariList = $post['hari_ke'] ?? [];
     $mulaiList = $post['jam_mulai'] ?? [];
     $selesaiList = $post['jam_selesai'] ?? [];
@@ -996,6 +1023,77 @@ function santri_izin_tetap_slots_dari_post(array $post): array
             continue;
         }
         $slots[] = ['hari_ke' => $hari, 'jam_mulai' => $jm, 'jam_selesai' => $js];
+    }
+
+    return $slots;
+}
+
+/**
+ * Kelompokkan slot DB menjadi blok form (hari centang + jam bersama).
+ *
+ * @param list<array{hari_ke:int,jam_mulai:string,jam_selesai:string}> $slots
+ * @return list<array{hari:list<int>,jam_mulai:string,jam_selesai:string}>
+ */
+function santri_izin_tetap_slots_ke_blok_form(array $slots): array
+{
+    /** @var array<string, array{jam_mulai:string,jam_selesai:string,hari:array<int,int>}> $groups */
+    $groups = [];
+    foreach ($slots as $sl) {
+        $h = (int) ($sl['hari_ke'] ?? 0);
+        $jm = substr((string) ($sl['jam_mulai'] ?? ''), 0, 5);
+        $js = substr((string) ($sl['jam_selesai'] ?? ''), 0, 5);
+        if ($h < 1 || $h > 7 || $jm === '' || $js === '') {
+            continue;
+        }
+        $key = $jm . '|' . $js;
+        if (!isset($groups[$key])) {
+            $groups[$key] = ['jam_mulai' => $jm, 'jam_selesai' => $js, 'hari' => []];
+        }
+        $groups[$key]['hari'][$h] = $h;
+    }
+    $out = [];
+    foreach ($groups as $g) {
+        $hari = array_values($g['hari']);
+        sort($hari, SORT_NUMERIC);
+        $out[] = [
+            'hari' => $hari,
+            'jam_mulai' => $g['jam_mulai'],
+            'jam_selesai' => $g['jam_selesai'],
+        ];
+    }
+    usort($out, static function (array $a, array $b): int {
+        $minA = $a['hari'] !== [] ? min($a['hari']) : 99;
+        $minB = $b['hari'] !== [] ? min($b['hari']) : 99;
+        if ($minA !== $minB) {
+            return $minA <=> $minB;
+        }
+
+        return strcmp((string) $a['jam_mulai'], (string) $b['jam_mulai']);
+    });
+
+    return $out;
+}
+
+/** Expand blok form menjadi slot per hari (untuk overlap kegiatan). */
+function santri_izin_tetap_blok_form_ke_slots(array $bloks): array
+{
+    $slots = [];
+    foreach ($bloks as $blok) {
+        if (!is_array($blok)) {
+            continue;
+        }
+        $jm = trim((string) ($blok['jam_mulai'] ?? ''));
+        $js = trim((string) ($blok['jam_selesai'] ?? ''));
+        if ($jm === '' || $js === '') {
+            continue;
+        }
+        foreach ((array) ($blok['hari'] ?? []) as $hariRaw) {
+            $hari = (int) $hariRaw;
+            if ($hari < 1 || $hari > 7) {
+                continue;
+            }
+            $slots[] = ['hari_ke' => $hari, 'jam_mulai' => $jm, 'jam_selesai' => $js];
+        }
     }
 
     return $slots;

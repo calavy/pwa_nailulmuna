@@ -225,6 +225,7 @@ function user_permission_path_map_base(): array
         '/pembimbing/tugas/buat.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/nilai.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/rekap.php' => 'akademik_ikhtibar',
+        '/pembimbing/nilai_manual.php' => 'akademik_ikhtibar',
         '/akademik/ikhtibar_rekap.php' => 'akademik_ikhtibar',
         '/akademik/ikhtibar.php' => 'akademik_ikhtibar',
         '/settings/pusat.php' => 'pengaturan',
@@ -275,14 +276,18 @@ function user_permission_path_map_base(): array
         '/rekap/index.php' => 'rekap',
         '/rekap/presensi.php' => 'rekap',
         '/rekap/panduan.php' => 'rekap',
+        '/rekap/alpa_santri.php' => 'rekap',
         '/rekap/izin_telat.php' => 'rekap_telat',
         '/rekap/pembimbing.php' => 'rekap_pembimbing',
         '/poin/input.php' => 'poin_input',
         '/poin/rekap.php' => 'poin_rekap',
         '/poin/settings.php' => 'pengaturan',
         '/settings/admin.php' => 'settings_admin',
-        '/admin/cek_update.php' => 'settings_admin',
+        '/settings/presensi_data.php' => 'settings_admin',
         '/settings/push.php' => 'settings_admin',
+        '/admin/cek_update.php' => 'settings_admin',
+        '/settings/profil.php' => 'dashboard',
+        '/settings/akses_saya.php' => 'dashboard',
         '/yayasan/timeline.php' => 'yayasan',
         '/yayasan/operasional.php' => 'yayasan',
         '/yayasan/pengawasan.php' => 'yayasan',
@@ -471,8 +476,52 @@ function user_acl_mark_configured(PDO $pdo, int $userId): void
         require_once __DIR__ . '/app.php';
     }
     save_setting($pdo, user_acl_configured_setting_key($userId), '1');
+    user_acl_bump_revision($pdo, $userId);
     if (function_exists('app_acl_session_cache_clear')) {
         app_acl_session_cache_clear($userId);
+    }
+}
+
+/** Revisi ACL per user — invalidasi cache sesi saat super admin mengubah hak akses. */
+function user_acl_revision(PDO $pdo, int $userId): string
+{
+    if ($userId <= 0) {
+        return '0';
+    }
+    if (!function_exists('app_setting')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    return (string) app_setting($pdo, 'acl_user_rev_' . $userId, '0');
+}
+
+function user_acl_bump_revision(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    if (!function_exists('save_setting')) {
+        require_once __DIR__ . '/app.php';
+    }
+    save_setting($pdo, 'acl_user_rev_' . $userId, (string) time());
+}
+
+/** Tandai user yang sudah punya baris ACL (sebelum fitur configured) agar tidak kena izin bawaan. */
+function user_acl_ensure_legacy_configured(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0 || user_acl_is_explicitly_configured($pdo, $userId)) {
+        return;
+    }
+    if (!function_exists('table_exists')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'user_access_permissions')) {
+        return;
+    }
+    $st = $pdo->prepare('SELECT COUNT(*) FROM user_access_permissions WHERE user_id = :uid');
+    $st->execute(['uid' => $userId]);
+    if ((int) $st->fetchColumn() > 0) {
+        user_acl_mark_configured($pdo, $userId);
     }
 }
 
@@ -547,4 +596,112 @@ function user_permission_ensure_role_defaults(PDO $pdo, int $userId, string $rol
     if (function_exists('app_acl_session_cache_clear')) {
         app_acl_session_cache_clear($userId);
     }
+}
+
+/**
+ * Ringkasan hak akses untuk halaman Profil / Akses Saya (read-only).
+ *
+ * @return array{
+ *   user_id:int,
+ *   is_super_admin:bool,
+ *   role:string,
+ *   full_access:bool,
+ *   full_access_note:string,
+ *   explicitly_configured:bool,
+ *   allowed_keys:list<string>,
+ *   groups:list<array{group_id:string,label:string,items:list<array{key:string,label:string}>}>,
+ *   menu_preview:list<array{path:string,label:string}>
+ * }
+ */
+function user_permission_access_summary(PDO $pdo): array
+{
+    if (!function_exists('is_super_admin')) {
+        require_once __DIR__ . '/../includes/auth.php';
+    }
+    if (!function_exists('app_menu_pack')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $isSuper = is_super_admin();
+    $role = strtolower(trim((string) ($_SESSION['user']['role'] ?? '')));
+    user_acl_ensure_legacy_configured($pdo, $userId);
+    $explicit = user_acl_is_explicitly_configured($pdo, $userId);
+    $flat = user_permission_flat_options();
+
+    $fullAccess = false;
+    $fullAccessNote = '';
+    if ($isSuper) {
+        $fullAccess = true;
+        $fullAccessNote = 'Anda login sebagai Super Admin — akses penuh ke seluruh fitur aplikasi.';
+    } else {
+        $allowedMap = get_allowed_permission_key_map($pdo);
+        if ($allowedMap === null) {
+            $fullAccess = true;
+            $fullAccessNote = $role === 'admin'
+                ? 'Peran admin — akses penuh (belum dibatasi oleh super admin).'
+                : 'Akun ini belum dibatasi hak akses per fitur.';
+        }
+    }
+
+    $allowedKeys = $fullAccess
+        ? array_keys($flat)
+        : array_keys(get_allowed_permission_key_map($pdo) ?? []);
+    $allowedKeys = array_values(array_unique(array_filter(
+        $allowedKeys,
+        static fn(string $k): bool => $k !== '' && isset($flat[$k])
+    )));
+    sort($allowedKeys);
+
+    $allowedSet = array_fill_keys($allowedKeys, true);
+    $groups = [];
+    foreach (user_permission_groups() as $groupId => $group) {
+        $items = [];
+        foreach ($group['permissions'] as $key => $label) {
+            if (!isset($allowedSet[$key])) {
+                continue;
+            }
+            $items[] = ['key' => $key, 'label' => (string) $label];
+        }
+        if ($items !== []) {
+            $groups[] = [
+                'group_id' => (string) $groupId,
+                'label' => (string) ($group['label'] ?? $groupId),
+                'items' => $items,
+            ];
+        }
+    }
+
+    $menuPack = app_menu_pack($pdo);
+    $menuPreview = [];
+    foreach ($menuPack['menuItems'] as $path => $label) {
+        if (!is_string($path) || $path === '' || !is_string($label)) {
+            continue;
+        }
+        if (in_array($path, ['/dashboard.php', '/settings/profil.php', '/settings/akses_saya.php'], true)) {
+            continue;
+        }
+        $menuPreview[] = ['path' => $path, 'label' => trim($label)];
+    }
+    usort($menuPreview, static fn(array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+
+    if (!$fullAccess && $explicit) {
+        $fullAccessNote = 'Hak akses diatur oleh super admin. Hanya fitur di bawah yang boleh Anda gunakan.';
+    } elseif (!$fullAccess && !$explicit && $role === 'petugas_absensi') {
+        $fullAccessNote = 'Hak akses mengikuti peran petugas absensi (bawaan sistem).';
+    } elseif (!$fullAccess && !$explicit && in_array($role, ['pengurus', 'petugas_absensi'], true)) {
+        $fullAccessNote = 'Hak akses mengikuti peran ' . $role . ' (bawaan sistem, belum diatur khusus oleh super admin).';
+    }
+
+    return [
+        'user_id' => $userId,
+        'is_super_admin' => $isSuper,
+        'role' => $role,
+        'full_access' => $fullAccess,
+        'full_access_note' => $fullAccessNote,
+        'explicitly_configured' => $explicit,
+        'allowed_keys' => $allowedKeys,
+        'groups' => $groups,
+        'menu_preview' => $menuPreview,
+    ];
 }

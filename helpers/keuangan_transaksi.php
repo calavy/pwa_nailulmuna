@@ -339,6 +339,11 @@ function keuangan_ensure_schema_deferred(PDO $pdo): void
     }
     cashless_koperasi_ensure_schema($pdo);
 
+    if (!function_exists('ensure_keuangan_jurnal_tables')) {
+        require_once __DIR__ . '/keuangan_jurnal.php';
+    }
+    ensure_keuangan_jurnal_tables($pdo);
+
     if (!function_exists('ensure_keuangan_talangan_tables')) {
         require_once __DIR__ . '/keuangan_talangan.php';
     }

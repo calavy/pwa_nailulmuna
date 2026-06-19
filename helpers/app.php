@@ -3418,26 +3418,35 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
     }
 
     $cacheKey = 'acl_map_v2_' . $userId;
+    $revKey = 'acl_map_rev_' . $userId;
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if (!function_exists('user_acl_is_explicitly_configured')) {
         require_once __DIR__ . '/user_permissions.php';
     }
+    if (!function_exists('user_acl_ensure_legacy_configured')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    user_acl_ensure_legacy_configured($pdo, $userId);
     $aclExplicit = user_acl_is_explicitly_configured($pdo, $userId);
+    $aclRevision = user_acl_revision($pdo, $userId);
 
     if ($role === 'admin' && !$aclExplicit) {
         return null;
     }
 
-    if (!isset($_SESSION[$cacheKey]) || !is_array($_SESSION[$cacheKey])) {
-        if (in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'pembimbing'], true)) {
-            if (!function_exists('user_permission_ensure_role_defaults')) {
-                require_once __DIR__ . '/user_permissions.php';
-            }
-            user_permission_ensure_role_defaults($pdo, $userId, $role);
-        }
-    }
-    if (isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+    if (
+        isset($_SESSION[$cacheKey], $_SESSION[$revKey])
+        && is_array($_SESSION[$cacheKey])
+        && (string) $_SESSION[$revKey] === $aclRevision
+    ) {
         return app_acl_normalize_allowed_map($_SESSION[$cacheKey]);
+    }
+
+    if (!$aclExplicit && in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'pembimbing'], true)) {
+        if (!function_exists('user_permission_ensure_role_defaults')) {
+            require_once __DIR__ . '/user_permissions.php';
+        }
+        user_permission_ensure_role_defaults($pdo, $userId, $role);
     }
 
     $allowedPermissions = $pdo->prepare('SELECT permission_key FROM user_access_permissions WHERE user_id = :user_id');
@@ -3455,20 +3464,14 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
         }
     }
 
-    if (!$aclExplicit && in_array($role, ['pengurus', 'petugas_absensi'], true) && $allowedKeys !== []) {
-        $defaults = user_permission_default_keys_for_role($role);
-        if ($defaults !== []) {
-            $allowedKeys = array_values(array_unique(array_merge($allowedKeys, $defaults)));
-        }
-    }
-
     if ($allowedKeys === [] && $role === 'admin' && !$aclExplicit) {
         return null;
     }
 
     $map = app_acl_normalize_allowed_map(array_flip($allowedKeys));
     $_SESSION[$cacheKey] = $map;
-    unset($_SESSION['menu_items_acl_' . $userId]);
+    $_SESSION[$revKey] = $aclRevision;
+    unset($_SESSION['menu_items_acl_' . $userId], $_SESSION['menu_items_acl_sig_' . $userId]);
 
     return $map;
 }
@@ -3495,6 +3498,7 @@ function app_acl_is_public_route(string $requestPath): bool
 {
     static $paths = [
         '/settings/profil.php',
+        '/settings/akses_saya.php',
         '/logout.php',
         '/dashboard.php',
         '/menu/menu_hub.php',
@@ -3637,7 +3641,13 @@ function app_acl_safe_redirect(string $fallbackPath, string $requestPath): bool
 function app_acl_session_cache_clear(int $userId = 0): void
 {
     if ($userId > 0) {
-        unset($_SESSION['acl_map_' . $userId], $_SESSION['acl_map_v2_' . $userId], $_SESSION['menu_items_acl_' . $userId]);
+        unset(
+            $_SESSION['acl_map_' . $userId],
+            $_SESSION['acl_map_v2_' . $userId],
+            $_SESSION['acl_map_rev_' . $userId],
+            $_SESSION['menu_items_acl_' . $userId],
+            $_SESSION['menu_items_acl_sig_' . $userId]
+        );
         app_menu_pack_invalidate();
         return;
     }
@@ -3645,11 +3655,40 @@ function app_acl_session_cache_clear(int $userId = 0): void
         if (!is_string($sk)) {
             continue;
         }
-        if (str_starts_with($sk, 'acl_map_') || str_starts_with($sk, 'acl_map_v2_') || str_starts_with($sk, 'menu_items_acl_')) {
+        if (
+            str_starts_with($sk, 'acl_map_')
+            || str_starts_with($sk, 'acl_map_v2_')
+            || str_starts_with($sk, 'acl_map_rev_')
+            || str_starts_with($sk, 'menu_items_acl_')
+        ) {
             unset($_SESSION[$sk]);
         }
     }
     app_menu_pack_invalidate();
+}
+
+/** Menu publik yang tetap tampil walau ACL aktif. */
+function app_acl_public_menu_paths(): array
+{
+    return [
+        '/dashboard.php',
+        '/settings/profil.php',
+        '/settings/akses_saya.php',
+    ];
+}
+
+/** Apakah path menu boleh ditampilkan menurut ACL. */
+function app_acl_menu_path_allowed(string $path, array $permissionPathMap, array $allowedMap): bool
+{
+    if (in_array($path, app_acl_public_menu_paths(), true)) {
+        return true;
+    }
+    $permPath = app_menu_acl_lookup_path($path, $permissionPathMap);
+    if (!isset($permissionPathMap[$permPath])) {
+        return false;
+    }
+
+    return isset($allowedMap[$permissionPathMap[$permPath]]);
 }
 
 /**
@@ -3754,18 +3793,11 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
             if ($path === '/pengasuh/nilai_keaktifan.php') {
                 require_once __DIR__ . '/../includes/auth.php';
 
-                return user_can_edit_keaktifan_nilai();
+                return app_acl_menu_path_allowed($path, $permissionPathMap, $allowedMap)
+                    && user_can_edit_keaktifan_nilai();
             }
-            if (in_array($path, ['/pengasuh/dashboard.php', '/pengasuh/laporan_hari.php', '/pengasuh/sdm_hari.php'], true)) {
-                require_once __DIR__ . '/../includes/auth.php';
 
-                return user_can_edit_keaktifan_nilai() || in_array(strtolower((string) ($_SESSION['user']['role'] ?? '')), ['admin', 'pengurus'], true);
-            }
-            $permPath = app_menu_acl_lookup_path($path, $permissionPathMap);
-            if (!isset($permissionPathMap[$permPath])) {
-                return true;
-            }
-            return isset($allowedMap[$permissionPathMap[$permPath]]);
+            return app_acl_menu_path_allowed($path, $permissionPathMap, $allowedMap);
         },
         ARRAY_FILTER_USE_BOTH
     );
@@ -3798,14 +3830,9 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         if (is_super_admin()) {
             return;
         }
-        $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-        if (munawib_is_portal_session() || in_array($role, ['pembimbing', 'admin', 'pengurus', 'petugas_absensi'], true)) {
+        if (munawib_is_portal_session()) {
             return;
         }
-    }
-
-    if (munawib_is_portal_session() && str_contains($requestPath, '/pembimbing/setoran')) {
-        return;
     }
 
     $matchedKey = null;
@@ -3822,19 +3849,6 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
     }
     if ($matchedKey === null || isset($allowedMap[$matchedKey])) {
         return;
-    }
-    if (str_contains($requestPath, '/pengasuh/nilai_keaktifan.php')) {
-        require_once __DIR__ . '/../includes/auth.php';
-        if (user_can_edit_keaktifan_nilai()) {
-            return;
-        }
-    }
-    if (str_contains($requestPath, '/pengasuh/dashboard.php') || str_contains($requestPath, '/pengasuh/laporan_hari.php') || str_contains($requestPath, '/pengasuh/sdm_hari.php')) {
-        require_once __DIR__ . '/../includes/auth.php';
-        $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-        if (user_can_edit_keaktifan_nilai() || in_array($role, ['admin', 'pengurus'], true)) {
-            return;
-        }
     }
 
     set_flash('error', 'Anda tidak memiliki akses ke fitur ini. Hubungi admin super.');

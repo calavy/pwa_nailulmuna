@@ -60,6 +60,54 @@ body.santri-portal {
     color: #64748b;
 }
 
+.wali-nilai-card {
+    border-width: 1px;
+}
+.wali-nilai-card--baik {
+    border-color: rgba(22, 163, 74, 0.35);
+    background: linear-gradient(145deg, rgba(240, 253, 244, 0.95) 0%, #fff 55%);
+}
+.wali-nilai-card--sedang {
+    border-color: rgba(217, 119, 6, 0.35);
+    background: linear-gradient(145deg, rgba(255, 251, 235, 0.95) 0%, #fff 55%);
+}
+.wali-nilai-card--buruk {
+    border-color: rgba(220, 38, 38, 0.35);
+    background: linear-gradient(145deg, rgba(254, 242, 242, 0.95) 0%, #fff 55%);
+}
+.wali-nilai-card--netral {
+    background: #fff;
+}
+.wali-nilai-badge {
+    font-size: 1.15rem;
+    font-weight: 700;
+    padding: 0.45rem 0.85rem;
+    border-radius: 0.65rem;
+}
+
+.wali-nilai-riwayat-toggle {
+    font-weight: 600;
+    border-radius: 0.65rem;
+}
+
+.wali-nilai-riwayat-toggle__icon {
+    transition: transform 0.2s ease;
+}
+
+.wali-nilai-riwayat-toggle[aria-expanded="true"] .wali-nilai-riwayat-toggle__icon {
+    transform: rotate(180deg);
+}
+
+.wali-nilai-riwayat-link {
+    padding: 0.35rem 0.5rem;
+    margin: -0.35rem -0.5rem;
+    border-radius: 0.5rem;
+}
+
+.wali-nilai-riwayat-link:hover {
+    background: rgba(15, 118, 110, 0.06);
+}
+
 .btn-teal {
     background-color: var(--wali-teal) !important;
     border-color: var(--wali-teal) !important;
