@@ -103,16 +103,15 @@ function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal
     if (!table_exists($pdo, 'cashless_accounts')) {
         return 'Akun cashless belum tersedia.';
     }
-    $st = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :sid LIMIT 1');
-    $st->execute(['sid' => $santriId]);
-    $balance = (float) ($st->fetchColumn() ?: 0);
-    if ($balance <= 0) {
+    require_once __DIR__ . '/cashless_koperasi.php';
+    $saldo = cashless_santri_saldo_tampil($pdo, $santriId);
+    if ($saldo <= 0) {
         return 'Transaksi ditolak: saldo uang saku habis.';
     }
-    if ($balance < $nominal) {
+    if ($saldo < $nominal) {
         return 'Transaksi ditolak: saldo tidak cukup.';
     }
-    $jatah = cashless_santri_jatah_harian($pdo, $santriId, $balance);
+    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldo);
     if (($jatah['terpakai'] + $nominal) > $jatah['limit']) {
         return 'Transaksi ditolak: batas belanja harian terlampaui. Sisa jatah hari ini Rp '
             . number_format($jatah['sisa'], 0, ',', '.') . '.';

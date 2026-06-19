@@ -5,6 +5,57 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 
 /**
+ * Map santri → jenis izin non-tetap yang masih berlaku pada tanggal (belum kembali).
+ * Santri yang sudah scan presensi HADIR di tanggal itu dikecualikan — izin tidak berlaku.
+ *
+ * @return array<int, string>
+ */
+function perizinan_map_izin_berlaku_tanggal(PDO $pdo, string $tanggal): array
+{
+    if (!table_exists($pdo, 'perizinan') || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return [];
+    }
+
+    $approvalFilter = '';
+    if (column_exists($pdo, 'perizinan', 'approval_status')) {
+        $approvalFilter = ' AND (approval_status = "DISETUJUI" OR approval_status IS NULL)';
+    }
+
+    $st = $pdo->prepare('
+        SELECT santri_id, jenis_izin
+        FROM perizinan
+        WHERE status_izin = "IZIN"
+          AND waktu_kembali IS NULL
+          AND :tanggal BETWEEN tanggal_mulai AND tanggal_selesai' . $approvalFilter . '
+    ');
+    $st->execute(['tanggal' => $tanggal]);
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid > 0) {
+            $map[$sid] = (string) ($row['jenis_izin'] ?? 'IZIN');
+        }
+    }
+
+    if ($map === [] || !table_exists($pdo, 'presensi')) {
+        return $map;
+    }
+
+    $hadirSt = $pdo->prepare('
+        SELECT DISTINCT santri_id
+        FROM presensi
+        WHERE tanggal_presensi = :tgl
+          AND status_presensi = "HADIR"
+    ');
+    $hadirSt->execute(['tgl' => $tanggal]);
+    foreach ($hadirSt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $hadirId) {
+        unset($map[(int) $hadirId]);
+    }
+
+    return $map;
+}
+
+/**
  * Santri izin disetujui yang belum kembali (belum scan QR kembali / belum ditandai selesai).
  *
  * @return list<array<string, mixed>>
@@ -52,13 +103,13 @@ function perizinan_tandai_kembali_manual(PDO $pdo, int $izinId, int $userId): ar
     }
 
     $st = $pdo->prepare('
-        SELECT i.id, i.tanggal_selesai, i.jam_selesai, i.waktu_keluar, i.grace_menit, i.santri_id, s.nama_santri
+        SELECT i.id, i.tanggal_selesai, i.jam_selesai, i.waktu_keluar, i.grace_menit, i.santri_id,
+               i.rombongan_id, s.nama_santri
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.id = :id
           AND i.status_izin = "IZIN"
           AND (i.approval_status = "DISETUJUI" OR i.approval_status IS NULL)
-          AND (i.rombongan_id IS NULL OR i.rombongan_id = 0)
           AND i.waktu_kembali IS NULL
         LIMIT 1
     ');
@@ -84,9 +135,13 @@ function perizinan_tandai_kembali_manual(PDO $pdo, int $izinId, int $userId): ar
         }
     }
 
+    $rombonganId = (int) ($row['rombongan_id'] ?? 0);
+    $setRombongan = $rombonganId > 0 && column_exists($pdo, 'perizinan', 'rombongan_kembali')
+        ? ', rombongan_kembali = 1'
+        : '';
     $up = $pdo->prepare('
         UPDATE perizinan
-        SET status_izin = "KEMBALI", waktu_kembali = NOW(), poin_pelanggaran = :poin
+        SET status_izin = "KEMBALI", waktu_kembali = NOW(), poin_pelanggaran = :poin' . $setRombongan . '
         WHERE id = :id
     ');
     $up->execute(['id' => $izinId, 'poin' => $latePoint]);
@@ -143,7 +198,6 @@ function perizinan_selesai_dari_scan_kartu(PDO $pdo, int $santriId, int $userId)
         WHERE santri_id = :sid
           AND status_izin = "IZIN"
           AND (approval_status = "DISETUJUI" OR approval_status IS NULL)
-          AND (rombongan_id IS NULL OR rombongan_id = 0)
           AND waktu_kembali IS NULL
         ORDER BY id DESC
         LIMIT 1

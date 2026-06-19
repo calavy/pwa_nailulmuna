@@ -85,10 +85,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         SELECT santri_id
         FROM perizinan
         WHERE status_izin = "IZIN"
+          AND waktu_kembali IS NULL
           AND :tanggal_now BETWEEN tanggal_mulai AND tanggal_selesai
     ');
     $izinStmt->execute(['tanggal_now' => $tanggal]);
     $izinIds = array_map('intval', $izinStmt->fetchAll(PDO::FETCH_COLUMN));
+
+    require_once __DIR__ . '/../helpers/perizinan_aktif.php';
+    $hadirHariStmt = $pdo->prepare('
+        SELECT DISTINCT santri_id FROM presensi
+        WHERE tanggal_presensi = :tgl AND status_presensi = "HADIR"
+    ');
+    $hadirHariStmt->execute(['tgl' => $tanggal]);
+    $hadirHariIds = array_map('intval', $hadirHariStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    $izinIds = array_values(array_diff($izinIds, $hadirHariIds));
 
     $jamMulaiKeg = null;
     $jamSelesaiKeg = null;

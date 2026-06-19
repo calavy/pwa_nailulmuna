@@ -357,7 +357,7 @@ function cashless_jurnal_belanja_scan(PDO $pdo, int $txId, string $tanggal, int 
 }
 
 /**
- * Jurnal setor harian: uang fisik keluar dari kas bendahara ke koperasi.
+ * Jurnal setor harian: uang fisik keluar dari kas bendahara ke koperasi (2103 sudah terbentuk saat scan).
  */
 function cashless_jurnal_setor_koperasi(PDO $pdo, int $setorLogId, string $tanggal, int $nominal, int $akunKasId, int $userId, string $keterangan): void
 {
@@ -534,7 +534,8 @@ function cashless_koperasi_ringkas_harian_belum_setor(PDO $pdo, ?int $koperasiId
 }
 
 /**
- * Total debit hari ini yang belum disetor (saldo belum terpotong).
+ * Total debit belum disetor (saldo titipan belum terpotong).
+ * $tanggal null = semua tanggal.
  */
 function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $tanggal = null): int
 {
@@ -542,19 +543,56 @@ function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $t
         return 0;
     }
     cashless_koperasi_ensure_schema($pdo);
-    $tgl = $tanggal !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) ? $tanggal : date('Y-m-d');
     $sql = "
         SELECT COALESCE(SUM(nominal), 0)
         FROM cashless_transactions
-        WHERE santri_id = :sid AND jenis = 'DEBIT' AND DATE(tanggal) = :tgl
+        WHERE santri_id = :sid AND jenis = 'DEBIT'
     ";
+    $params = ['sid' => $santriId];
+    if ($tanggal !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        $sql .= ' AND DATE(tanggal) = :tgl';
+        $params['tgl'] = $tanggal;
+    }
     if (column_exists($pdo, 'cashless_transactions', 'setor_at')) {
         $sql .= ' AND setor_at IS NULL';
     }
     $st = $pdo->prepare($sql);
-    $st->execute(['sid' => $santriId, 'tgl' => $tgl]);
+    $st->execute($params);
 
     return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+/** Saldo tampil = top-up − semua debit (termasuk belum disetor). */
+function cashless_santri_saldo_tampil(PDO $pdo, int $santriId): int
+{
+    if ($santriId <= 0) {
+        return 0;
+    }
+    if (table_exists($pdo, 'cashless_transactions')) {
+        $st = $pdo->prepare("
+            SELECT
+                COALESCE(SUM(CASE WHEN UPPER(jenis) = 'TOPUP' THEN nominal ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN UPPER(jenis) = 'DEBIT' THEN nominal ELSE 0 END), 0) AS saldo
+            FROM cashless_transactions
+            WHERE santri_id = :sid
+        ");
+        $st->execute(['sid' => $santriId]);
+
+        return max(0, (int) round((float) ($st->fetchColumn() ?: 0)));
+    }
+    if (!table_exists($pdo, 'cashless_accounts')) {
+        return 0;
+    }
+    $st = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :sid LIMIT 1');
+    $st->execute(['sid' => $santriId]);
+
+    return max(0, (int) round((float) ($st->fetchColumn() ?: 0)));
+}
+
+/** @deprecated Gunakan cashless_santri_saldo_tampil() */
+function cashless_santri_saldo_efektif(PDO $pdo, int $santriId): int
+{
+    return cashless_santri_saldo_tampil($pdo, $santriId);
 }
 
 /** Apakah koperasi pada tanggal tertentu sudah disetor. */
@@ -709,14 +747,42 @@ function cashless_koperasi_rekap_tanggal_range(PDO $pdo, string $dari, string $s
     return array_values($byDate);
 }
 
-/** Total saldo uang saku (cashless) seluruh santri aktif — nilai real di database. */
+/** Total saldo uang saku seluruh santri aktif — dihitung dari transaksi (top-up − belanja). */
 function cashless_saku_total_real(PDO $pdo): array
 {
-    if (!table_exists($pdo, 'cashless_accounts') || !table_exists($pdo, 'santri')) {
+    if (!table_exists($pdo, 'santri')) {
         return ['total' => 0, 'jumlah_santri' => 0, 'jumlah_bersaldo' => 0];
     }
     require_once __DIR__ . '/santri_operasional.php';
     $aktif = santri_sql_aktif_only('s');
+    if (table_exists($pdo, 'cashless_transactions')) {
+        $rows = $pdo->query("
+            SELECT ct.santri_id,
+                COALESCE(SUM(CASE WHEN UPPER(ct.jenis) = 'TOPUP' THEN ct.nominal ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN UPPER(ct.jenis) = 'DEBIT' THEN ct.nominal ELSE 0 END), 0) AS saldo
+            FROM cashless_transactions ct
+            INNER JOIN santri s ON s.id = ct.santri_id AND {$aktif}
+            GROUP BY ct.santri_id
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $total = 0;
+        $bersaldo = 0;
+        foreach ($rows as $r) {
+            $saldo = max(0, (int) round((float) ($r['saldo'] ?? 0)));
+            $total += $saldo;
+            if ($saldo > 0) {
+                $bersaldo++;
+            }
+        }
+
+        return [
+            'total' => $total,
+            'jumlah_santri' => count($rows),
+            'jumlah_bersaldo' => $bersaldo,
+        ];
+    }
+    if (!table_exists($pdo, 'cashless_accounts')) {
+        return ['total' => 0, 'jumlah_santri' => 0, 'jumlah_bersaldo' => 0];
+    }
     $row = $pdo->query("
         SELECT COALESCE(SUM(ca.balance), 0) AS total,
                COUNT(DISTINCT ca.santri_id) AS jumlah_santri,
@@ -761,7 +827,7 @@ function cashless_user_can_setor_harian(): bool
 
 /**
  * Setor harian satu koperasi: serahkan uang fisik ke koperasi (kas berkurang).
- * Saldo Saku santri sudah terpotong saat scan.
+ * Saldo santri sudah berkurang saat scan (berdasarkan transaksi).
  *
  * @return array{ok:bool,message:string,total?:int,jumlah?:int,koperasi_id?:int}
  */
@@ -888,7 +954,7 @@ function cashless_koperasi_setor_multi(PDO $pdo, array $koperasiIds, string $tan
     }
 
     $msg = 'Setor berhasil untuk ' . $sukses . ' koperasi. Total Rp ' . number_format($total, 0, ',', '.')
-        . '. Kas bendahara berkurang; uang saku menunggu setor berkurang.';
+        . '. Kas bendahara berkurang.';
     if ($gagal > 0) {
         $msg .= ' (' . $gagal . ' koperasi gagal.)';
     }
@@ -904,7 +970,7 @@ function cashless_koperasi_setor_multi(PDO $pdo, array $koperasiIds, string $tan
 }
 
 /**
- * Hapus satu transaksi debit (super admin). Saldo uang saku dikembalikan (sudah terpotong saat scan).
+ * Hapus satu transaksi debit (super admin). Saldo dikembalikan sesuai transaksi.
  *
  * @return array{ok:bool,message:string}
  */
@@ -942,7 +1008,7 @@ function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
         keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
         $pdo->commit();
 
-        return ['ok' => true, 'message' => 'Transaksi dihapus. Saldo uang saku dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.'];
+        return ['ok' => true, 'message' => 'Transaksi dihapus. Saldo dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

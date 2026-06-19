@@ -82,7 +82,8 @@ if (isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verifi
         $vsStmt->execute(['id' => $verifiedId]);
         $verifiedSantri = $vsStmt->fetch();
         if (is_array($verifiedSantri)) {
-            $balInit = (float) ($verifiedSantri['balance'] ?? 0);
+            require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+            $balInit = (float) cashless_santri_saldo_tampil($pdo, $verifiedId);
             $jatahInit = cashless_santri_jatah_harian($pdo, $verifiedId, $balInit);
             $verifiedSantri['saldo_saku'] = (int) round($balInit);
             $verifiedSantri['sisa_jatah_hari'] = (int) ($jatahInit['sisa'] ?? 0);
@@ -120,15 +121,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $resultMessage = 'PIN salah atau belum diatur.';
             } else {
                 $nama = (string) (($santri['nama_santri'] ?? '') !== '' ? $santri['nama_santri'] : ($santri['nama'] ?? 'Santri'));
-                $saldoTotal = (int) ((float) ($account['balance'] ?? 0));
-                if ($saldoTotal <= 0) {
+                require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+                $saldoTampil = cashless_santri_saldo_tampil($pdo, $santriId);
+                if ($saldoTampil <= 0) {
                     $resultType = 'warning';
                     $resultMessage = 'Transaksi ditolak: Saldo Saku habis.';
                     if ($scanUangVoice) {
                         $cashlessVoiceText = 'Saldo kosong. Transaksi ditolak.';
                     }
                 } else {
-                    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoTotal);
+                    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoTampil);
                     if ((int) ($jatah['sisa'] ?? 0) <= 0) {
                         $resultType = 'warning';
                         $resultMessage = 'Transaksi ditolak: batas belanja harian terlampaui.';
@@ -149,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'id' => $santriId,
                             'nis' => (string) ($santri['nis'] ?? ''),
                             'nama_santri' => $nama,
-                            'saldo_saku' => $saldoTotal,
+                            'saldo_saku' => $saldoTampil,
                             'sisa_jatah_hari' => (int) ($jatah['sisa'] ?? 0),
                             'limit_harian' => (int) ($jatah['limit'] ?? 0),
                         ];
@@ -276,7 +278,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                         if ($resultType !== 'danger') {
-                            $saldoSetelah = (int) round((float) ($account['balance'] ?? 0) - $nominal);
+                            require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+                            $saldoSetelah = cashless_santri_saldo_tampil($pdo, $santriId);
                             cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
                             cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
                             $lastSuccessNominal = $nominal;

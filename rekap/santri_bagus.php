@@ -386,18 +386,18 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($showKegiatanTanpaScan): ?>
 <div class="card shadow-sm mb-4 keaktifan-kegiatan-kosong-card print-controls">
     <div class="card-body">
-        <h2 class="h6 mb-1">Kegiatan tanpa scan santri sama sekali</h2>
+        <h2 class="h6 mb-1">Jadwal tanpa scan hadir</h2>
         <p class="small text-muted mb-3">
             Periode <strong><?= htmlspecialchars($periodeLabel) ?></strong>
             (<?= $mode === 'hijriyah' ? 'bulan Hijriyah' : 'bulan Masehi' ?>:
             <?= htmlspecialchars(date('d-m-Y', strtotime($startDate))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($endDate))) ?>).
-            Daftar kegiatan yang <strong>terjadwal</strong> dalam bulan ini tetapi tidak ada satupun santri yang scan <strong>hadir</strong>.
+            Setiap baris = satu jadwal kegiatan (tanggal + tingkatan) tanpa satupun scan <strong>hadir</strong>.
             <?= $tingkatan !== '' ? 'Filter tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>.' : '' ?>
             <?= $kegiatanId > 0 ? 'Filter kegiatan aktif.' : '' ?>
         </p>
         <?php if ($kegiatanTanpaScan === []): ?>
             <div class="alert alert-success py-2 mb-0 small">
-                Semua kegiatan terjadwal pada periode ini sudah pernah discan hadir oleh santri.
+                Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah discan hadir oleh santri.
             </div>
         <?php else: ?>
             <div class="table-responsive">
@@ -405,27 +405,36 @@ require_once __DIR__ . '/../includes/header.php';
                     <thead>
                     <tr>
                         <th style="width:3rem">No</th>
+                        <th>Tanggal</th>
+                        <?php if ($mode === 'hijriyah'): ?>
+                            <th>Hijriyah</th>
+                        <?php endif; ?>
                         <th>Nama kegiatan</th>
+                        <th>Waktu</th>
                         <th>Tingkatan</th>
-                        <th class="text-center">Hari terjadwal</th>
-                        <th class="text-center">Slot jadwal</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php foreach ($kegiatanTanpaScan as $idx => $kgRow): ?>
                         <tr>
                             <td><?= $idx + 1 ?></td>
+                            <td class="text-nowrap small">
+                                <?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?>
+                                <span class="text-muted d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
+                            </td>
+                            <?php if ($mode === 'hijriyah'): ?>
+                                <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['tanggal_hijri'] ?? '')) ?></td>
+                            <?php endif; ?>
                             <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
+                            <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
                             <td><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
-                            <td class="text-center"><?= (int) $kgRow['hari_terjadwal'] ?></td>
-                            <td class="text-center"><?= (int) $kgRow['slot_jadwal'] ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
             <p class="small text-muted mb-0">
-                Total: <strong><?= count($kegiatanTanpaScan) ?></strong> kegiatan belum pernah discan hadir santri pada bulan ini.
+                Total: <strong><?= count($kegiatanTanpaScan) ?></strong> jadwal tanpa scan hadir pada periode ini.
             </p>
         <?php endif; ?>
     </div>

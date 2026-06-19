@@ -97,8 +97,8 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="page-intro-kicker text-muted mb-1">Keuangan · Cashless Koperasi</p>
         <h1 class="h4 mb-0">Setor Uang Saku (Cashless)</h1>
         <p class="small text-muted mb-0">
-            Alur: pembayaran <strong>pos Saku</strong> → Saldo Saku santri naik → <strong>scan jajan</strong> Saldo Saku turun (uang fisik masih bendahara)
-            → <strong>setor harian</strong> uang diserahkan ke koperasi, <strong>kas bendahara berkurang</strong>.
+            Alur: pembayaran <strong>pos Saku</strong> → Saldo Saku naik → <strong>scan jajan</strong> Saldo Saku turun (sesuai transaksi, meski belum setor)
+            → <strong>setor harian</strong> uang fisik diserahkan ke koperasi, <strong>kas bendahara berkurang</strong>.
         </p>
     </div>
     <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php')) ?>" class="btn btn-outline-secondary btn-sm">
@@ -123,8 +123,8 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="fw-semibold mb-2"><i class="fa-solid fa-route me-1"></i> Alur uang saku / cashless / jajan</p>
     <ol class="mb-0 ps-3">
         <li class="mb-1"><strong>Pembayaran pos Saku</strong> — kas masuk, Saldo Saku santri bertambah.</li>
-        <li class="mb-1"><strong>Scan jajan di koperasi</strong> — Saldo Saku santri berkurang; uang fisik masih ditahan bendahara.</li>
-        <li class="mb-0"><strong>Setor harian</strong> — bendahara menyerahkan uang ke koperasi; <strong>kas berkurang</strong>, pos menunggu setor berkurang.</li>
+        <li class="mb-1"><strong>Scan jajan di koperasi</strong> — Saldo Saku santri berkurang sesuai transaksi (walaupun belum disetor).</li>
+        <li class="mb-0"><strong>Setor harian</strong> — bendahara menyerahkan uang fisik ke koperasi; <strong>kas berkurang</strong>.</li>
     </ol>
 </div>
 
@@ -134,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <div class="small text-muted mb-1"><i class="fa-solid fa-wallet me-1"></i> Total Saldo Saku seluruh santri</div>
                 <div class="h4 mb-0 text-primary">Rp <?= number_format((int) ($sakuReal['total'] ?? 0), 0, ',', '.') ?></div>
-                <div class="small text-muted">Dari pembayaran pos Saku · berkurang saat scan jajan</div>
+                <div class="small text-muted">Top-up − belanja (semua transaksi) · turun saat scan jajan</div>
             </div>
         </div>
     </div>
@@ -164,7 +164,7 @@ require_once __DIR__ . '/../includes/header.php';
     <input type="hidden" name="tanggal" value="<?= htmlspecialchars($tanggal) ?>">
     <span class="small fw-semibold me-1">Setor sekaligus:</span>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-pilih-semua-setor">Pilih semua belum setor</button>
-    <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Setor koperasi terpilih? Kas bendahara akan berkurang. Saldo Saku santri sudah terpotong saat scan.');">
+    <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Setor koperasi terpilih? Kas bendahara akan berkurang. Saldo santri sudah terpotong saat scan.');">
         <i class="fa-solid fa-vault me-1"></i> Setor koperasi terpilih
     </button>
 </form>
@@ -217,7 +217,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-check me-1"></i> Sudah disetor
                     </button>
                 <?php elseif ($belumJumlah > 0 && $canSetor): ?>
-                    <form method="post" class="mt-2 mb-0" onsubmit="return confirm('Setor Rp <?= number_format($belumTotal, 0, ',', '.') ?> ke koperasi ini? Kas bendahara akan berkurang.');">
+                    <form method="post" class="mt-2 mb-0" onsubmit="return confirm('Setor Rp <?= number_format($belumTotal, 0, ',', '.') ?> ke koperasi ini? Kas bendahara berkurang (saldo santri sudah terpotong saat scan).');">
                         <input type="hidden" name="action" value="setor_koperasi">
                         <input type="hidden" name="koperasi_id" value="<?= $kid ?>">
                         <input type="hidden" name="tanggal" value="<?= htmlspecialchars($tanggal) ?>">

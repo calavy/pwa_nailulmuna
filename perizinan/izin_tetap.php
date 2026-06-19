@@ -371,6 +371,11 @@ require_once __DIR__ . '/../includes/header.php';
                                         <input type="hidden" name="aktif" value="<?= $aktif ? '0' : '1' ?>">
                                         <button type="submit" class="btn btn-sm btn-outline-<?= $aktif ? 'warning' : 'success' ?>"><?= $aktif ? 'Stop' : 'Aktif' ?></button>
                                     </form>
+                                    <form method="post" class="d-inline" onsubmit="return confirm('Hapus izin tetap ini permanen?');">
+                                        <input type="hidden" name="action" value="hapus">
+                                        <input type="hidden" name="id" value="<?= $iid ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus permanen"><i class="fa-solid fa-trash"></i></button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

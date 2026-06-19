@@ -101,7 +101,7 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 </div>
                 <div class="col-6 col-md-3">
                     <div class="yp-mini-stat">
-                        <div class="yp-mini-stat__label">Kegiatan tanpa scan</div>
+                        <div class="yp-mini-stat__label">Jadwal tanpa scan</div>
                         <div class="yp-mini-stat__value text-danger"><?= count($kbKegiatanKosong) ?></div>
                     </div>
                 </div>
@@ -175,20 +175,31 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
 
             <div class="row g-3">
                 <div class="col-12 col-lg-6">
-                    <h3 class="h6 mb-2">Kegiatan tanpa scan hadir</h3>
+                    <h3 class="h6 mb-2">Jadwal tanpa scan hadir (<?= count($kbKegiatanKosong) ?>)</h3>
                     <?php if ($kbKegiatanKosong === []): ?>
-                        <div class="alert alert-success py-2 small mb-0">Semua kegiatan terjadwal sudah pernah discan hadir.</div>
+                        <div class="alert alert-success py-2 small mb-0">Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah discan hadir.</div>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-sm table-striped mb-0">
                                 <thead>
-                                <tr><th>No</th><th>Kegiatan</th><th>Tingkatan</th></tr>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Tanggal</th>
+                                    <th>Kegiatan</th>
+                                    <th>Waktu</th>
+                                    <th>Tingkatan</th>
+                                </tr>
                                 </thead>
                                 <tbody>
                                 <?php foreach ($kbKegiatanKosong as $idx => $kgRow): ?>
                                     <tr>
                                         <td><?= $idx + 1 ?></td>
+                                        <td class="small text-nowrap">
+                                            <?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?>
+                                            <span class="text-muted d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
+                                        </td>
                                         <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
+                                        <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
                                         <td class="small"><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
                                     </tr>
                                 <?php endforeach; ?>

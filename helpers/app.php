@@ -2888,21 +2888,8 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
     require_once __DIR__ . '/akademik.php';
     $hijri = akademik_hijri_ym_untuk_masehi($pdo, $tanggal);
     $jam = date('H:i:s');
-    $approvalFilter = '';
-    if (table_exists($pdo, 'perizinan') && column_exists($pdo, 'perizinan', 'approval_status')) {
-        $approvalFilter = ' AND approval_status = "DISETUJUI"';
-    }
-    $izinStmt = $pdo->prepare('
-        SELECT santri_id, jenis_izin
-        FROM perizinan
-        WHERE status_izin = "IZIN"
-          AND :tanggal_now BETWEEN tanggal_mulai AND tanggal_selesai' . $approvalFilter . '
-    ');
-    $izinStmt->execute(['tanggal_now' => $tanggal]);
-    $izinMap = [];
-    foreach ($izinStmt->fetchAll() as $izinRow) {
-        $izinMap[(int) $izinRow['santri_id']] = (string) $izinRow['jenis_izin'];
-    }
+    require_once __DIR__ . '/perizinan_aktif.php';
+    $izinMap = perizinan_map_izin_berlaku_tanggal($pdo, $tanggal);
 
     if (!function_exists('santri_izin_tetap_berlaku')) {
         require_once __DIR__ . '/santri_izin_tetap.php';

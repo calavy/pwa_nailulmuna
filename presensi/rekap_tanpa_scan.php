@@ -59,9 +59,9 @@ try {
 }
 
 $jumlahTanpaScan = count($kegiatanTanpaScan);
-$totalTidakScan = array_sum(array_map(static fn(array $r): int => (int) ($r['jumlah_tidak_scan'] ?? 0), $kegiatanTanpaScan));
 $tglAwal = date('d/m/Y', strtotime($startDate) ?: time());
 $tglAkhir = date('d/m/Y', strtotime($endDate) ?: time());
+$hijriLabelPeriode = (string) ($periode['hijri_label'] ?? '');
 
 $pageTitle = 'Kegiatan Tanpa Scan';
 $bodyClass = 'presensi-rekap-tanpa-scan-page';
@@ -219,12 +219,14 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
     <h1 class="h4 mb-1">Kegiatan belum ada scan hadir</h1>
     <p class="text-muted mb-0 small">
-        Daftar kegiatan rutin yang sudah masuk jadwal, tetapi <strong>belum satupun santri scan hadir</strong> pada bulan ini.
+        Hitung <strong>per jadwal kegiatan</strong> (tanggal + tingkatan): 1 kali jadwal tanpa scan hadir = <strong>1</strong>.
+        Periode mengikuti bulan <?= $mode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?> yang dipilih.
     </p>
 </div>
 
 <div class="rts-info mb-3">
-    <strong>Artinya:</strong> kegiatan di bawah perlu dicek — apakah scan belum dilakukan, QR/jadwal salah, atau kegiatan memang kosong.
+    <strong>Artinya:</strong> setiap baris = satu jadwal kegiatan yang sudah lewat waktunya tetapi belum ada scan hadir santri.
+    Jika Subuh tanpa scan 5 hari dalam bulan ini, angka rekap = <strong>5</strong> (bukan 1).
 </div>
 
 <form method="get" action="<?= htmlspecialchars(app_href('/presensi/rekap_tanpa_scan.php')) ?>" class="rts-filter mb-3">
@@ -269,8 +271,11 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
     <p class="small text-muted mb-0 mt-2">
-        Periode: <strong><?= htmlspecialchars($periodeLabel) ?></strong>
-        (<?= htmlspecialchars($tglAwal) ?> – <?= htmlspecialchars($tglAkhir) ?>)
+        Periode <?= $mode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?>: <strong><?= htmlspecialchars($periodeLabel) ?></strong>
+        (<?= htmlspecialchars($tglAwal) ?> – <?= htmlspecialchars($tglAkhir) ?> masehi)
+        <?php if ($hijriLabelPeriode !== '' && $mode === 'masehi'): ?>
+            · setara Hijriyah: <?= htmlspecialchars($hijriLabelPeriode) ?>
+        <?php endif; ?>
         <?= $tingkatan !== '' ? ' · Tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>' : '' ?>
     </p>
 </form>
@@ -290,15 +295,15 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-circle-check me-1"></i> Tidak ada masalah scan
                     </div>
                     <p class="small text-muted mb-0">
-                        Semua kegiatan terjadwal bulan ini sudah pernah ada scan hadir santri.
+                        Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah ada scan hadir.
                     </p>
                 <?php else: ?>
                     <div class="fw-semibold text-danger mb-1">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i> Perlu ditindaklanjuti
                     </div>
                     <p class="small text-muted mb-0">
-                        Ada <strong><?= $jumlahTanpaScan ?></strong> kegiatan · total
-                        <strong><?= $totalTidakScan ?></strong> jadwal tanpa scan hadir.
+                        Ada <strong><?= $jumlahTanpaScan ?></strong> jadwal kegiatan tanpa scan hadir
+                        <?= $tingkatan !== '' ? ' (tingkatan ' . htmlspecialchars($tingkatan) . ')' : '' ?>.
                     </p>
                 <?php endif; ?>
             </div>
@@ -307,82 +312,46 @@ require_once __DIR__ . '/../includes/header.php';
 
     <?php if ($jumlahTanpaScan > 0): ?>
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white fw-semibold py-2 d-flex justify-content-between align-items-center">
-            <span>Daftar kegiatan (<?= $jumlahTanpaScan ?>)</span>
-            <span class="small text-muted fw-normal">Ketuk baris untuk lihat tanggal &amp; waktu</span>
+        <div class="card-header bg-white fw-semibold py-2">
+            Daftar jadwal tanpa scan (<?= $jumlahTanpaScan ?>)
         </div>
-        <div class="card-body pt-2 pb-3">
-            <ol class="rts-list">
-                <?php foreach ($kegiatanTanpaScan as $idx => $kgRow):
-                    $jmlTidak = (int) ($kgRow['jumlah_tidak_scan'] ?? 0);
-                    $detailSlots = (array) ($kgRow['detail'] ?? []);
-                    $itemId = 'rts-detail-' . (int) ($kgRow['kegiatan_id'] ?? $idx);
-                    ?>
-                    <li class="rts-item">
-                        <button type="button" class="rts-item__head" aria-expanded="false" aria-controls="<?= htmlspecialchars($itemId) ?>" data-rts-toggle>
-                            <span class="rts-item__chev"><i class="fa-solid fa-chevron-right"></i></span>
-                            <span class="rts-item__no"><?= $idx + 1 ?></span>
-                            <div class="flex-grow-1 min-w-0">
-                                <div class="rts-item__nama"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></div>
-                                <div class="rts-item__meta">
-                                    Tingkatan: <?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?>
-                                    · <?= (int) $kgRow['hari_terjadwal'] ?> hari terjadwal
-                                </div>
-                            </div>
-                            <span class="rts-item__count" title="Jumlah jadwal tanpa scan">
-                                <?= $jmlTidak ?>
-                                <small>tidak scan</small>
-                            </span>
-                        </button>
-                        <div class="rts-item__detail" id="<?= htmlspecialchars($itemId) ?>" hidden>
-                            <?php if ($detailSlots === []): ?>
-                                <p class="small text-muted mb-0">Detail tanggal/waktu tidak tersedia.</p>
-                            <?php else: ?>
-                                <div class="table-responsive">
-                                    <table class="table table-sm rts-detail-table mb-0">
-                                        <thead>
-                                        <tr>
-                                            <th>Tanggal</th>
-                                            <th>Hari</th>
-                                            <th>Waktu</th>
-                                            <th>Tingkatan</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        <?php foreach ($detailSlots as $slot): ?>
-                                            <tr>
-                                                <td><?= htmlspecialchars((string) ($slot['tanggal_tampil'] ?? '')) ?></td>
-                                                <td><?= htmlspecialchars((string) ($slot['hari'] ?? '')) ?></td>
-                                                <td><?= htmlspecialchars((string) ($slot['jam'] ?? '')) ?></td>
-                                                <td><?= htmlspecialchars((string) ($slot['tingkatan'] ?? '')) ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width:3rem">No</th>
+                        <th>Tanggal</th>
+                        <?php if ($mode === 'hijriyah'): ?>
+                            <th>Hijriyah</th>
+                        <?php endif; ?>
+                        <th>Kegiatan</th>
+                        <th>Waktu</th>
+                        <th>Tingkatan</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($kegiatanTanpaScan as $idx => $kgRow): ?>
+                        <tr>
+                            <td class="text-center text-muted"><?= $idx + 1 ?></td>
+                            <td class="text-nowrap">
+                                <span class="fw-semibold"><?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?></span>
+                                <span class="text-muted small d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
+                            </td>
+                            <?php if ($mode === 'hijriyah'): ?>
+                                <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['tanggal_hijri'] ?? '')) ?></td>
                             <?php endif; ?>
-                        </div>
-                    </li>
-                <?php endforeach; ?>
-            </ol>
+                            <td class="fw-semibold"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
+                            <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
     <?php endif; ?>
 <?php endif; ?>
-
-<script>
-(function () {
-    document.querySelectorAll('[data-rts-toggle]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var expanded = btn.getAttribute('aria-expanded') === 'true';
-            var panel = btn.nextElementSibling;
-            btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-            if (panel) {
-                panel.hidden = expanded;
-            }
-        });
-    });
-})();
-</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

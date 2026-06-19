@@ -351,24 +351,25 @@ require_once __DIR__ . '/../includes/header.php';
     </section>
 
     <section class="mb-4">
-        <h2 class="yp-section-title"><i class="fa-solid fa-qrcode me-2"></i>Kegiatan tanpa scan hadir</h2>
+        <h2 class="yp-section-title"><i class="fa-solid fa-qrcode me-2"></i>Jadwal tanpa scan hadir (<?= count($kegiatanTanpaScan) ?>)</h2>
         <button type="button" class="btn yp-mobile-toggle mb-2" data-target="yp-detail-tanpa-scan" aria-expanded="false">
             <i class="fa-solid fa-list me-1"></i>Lihat detail
         </button>
         <div id="yp-detail-tanpa-scan" class="yp-mobile-detail">
         <?php if ($kegiatanTanpaScan === []): ?>
-            <div class="yp-empty-inline">Semua kegiatan terjadwal hari ini sudah memiliki scan hadir.</div>
+            <div class="yp-empty-inline">Semua jadwal kegiatan hari ini yang sudah lewat waktunya sudah memiliki scan hadir.</div>
         <?php else: ?>
             <div class="yp-kosong-grid">
                 <?php foreach ($kegiatanTanpaScan as $kts): ?>
                     <article class="yp-kosong-card">
                         <div class="yp-kosong-card__title"><?= htmlspecialchars((string) ($kts['nama_kegiatan'] ?? 'Kegiatan')) ?></div>
                         <div class="yp-kosong-card__meta">
-                            Tingkatan: <?= htmlspecialchars((string) ($kts['tingkatan_label'] ?? '-')) ?>
-                            · Slot terjadwal: <?= (int) ($kts['slot_jadwal'] ?? 0) ?>
+                            <?= htmlspecialchars((string) ($kts['tanggal_tampil'] ?? '')) ?>
+                            · <?= htmlspecialchars((string) ($kts['jam'] ?? '')) ?>
+                            · Tingkatan: <?= htmlspecialchars((string) ($kts['tingkatan_label'] ?? '-')) ?>
                         </div>
                         <div class="yp-kosong-card__stats text-warning">
-                            Belum ada satupun santri yang scan <strong>hadir</strong> pada hari ini.
+                            Belum ada satupun santri yang scan <strong>hadir</strong> pada jadwal ini.
                         </div>
                     </article>
                 <?php endforeach; ?>

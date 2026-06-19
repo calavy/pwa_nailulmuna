@@ -28,15 +28,8 @@ if (table_exists($pdo, 'presensi')) {
 }
 
 $cashlessSaldo = null;
-if (table_exists($pdo, 'cashless_accounts')) {
-    $cs = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-    $cs->execute(['id' => $waliSantriId]);
-    $rowC = $cs->fetch(PDO::FETCH_ASSOC);
-    if ($rowC) {
-        $cashlessSaldo = (float) ($rowC['balance'] ?? 0);
-    } else {
-        $cashlessSaldo = 0.0;
-    }
+if (table_exists($pdo, 'cashless_accounts') || table_exists($pdo, 'cashless_transactions')) {
+    $cashlessSaldo = (float) (wali_portal_cashless_saldo($pdo, $waliSantriId) ?? 0);
 }
 
 $keaktifanPenilaianTahun = wali_portal_keaktifan_penilaian($pdo, $waliSantriId);

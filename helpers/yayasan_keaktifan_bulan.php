@@ -134,7 +134,7 @@ function yayasan_keaktifan_bulan_saran(array $kb): array
     $rataHadir = (float) ($kb['rata_hadir'] ?? 0);
 
     if ($kgKosong > 0) {
-        $saran[] = 'Koordinasikan dengan pembimbing/munawib untuk ' . $kgKosong . ' kegiatan yang belum pernah discan hadir — cek apakah jadwal aktif dan perangkat scan berfungsi.';
+        $saran[] = 'Koordinasikan dengan pembimbing/munawib untuk ' . $kgKosong . ' jadwal kegiatan tanpa scan hadir — cek apakah jadwal aktif dan perangkat scan berfungsi.';
     }
     if ($snKosong > 0) {
         $saran[] = 'Follow-up ' . $snKosong . ' santri tanpa scan hadir (wali/pembimbing) agar kebiasaan scan tertanam sebelum akhir bulan.';

@@ -43,11 +43,8 @@ $kurang = (int) ($tagihanKumulatif['sisa_total'] ?? 0);
 $ringkasanPosTa = wali_portal_ringkasan_pos($pdo, $waliSantriId, $periodeMulai, $periodeSelesai);
 
 $cashlessSaldo = null;
-if (table_exists($pdo, 'cashless_accounts')) {
-    $cs = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-    $cs->execute(['id' => $waliSantriId]);
-    $rowC = $cs->fetch(PDO::FETCH_ASSOC);
-    $cashlessSaldo = $rowC ? (float) ($rowC['balance'] ?? 0) : 0.0;
+if (table_exists($pdo, 'cashless_accounts') || table_exists($pdo, 'cashless_transactions')) {
+    $cashlessSaldo = (float) (wali_portal_cashless_saldo($pdo, $waliSantriId) ?? 0);
 }
 
 $rowsTagihan = (array) ($tagihanKumulatif['rows'] ?? []);

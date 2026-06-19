@@ -408,17 +408,12 @@ function wali_portal_cashless_transactions(PDO $pdo, int $santriId, int $limit =
 
 function wali_portal_cashless_saldo(PDO $pdo, int $santriId): ?float
 {
-    if ($santriId <= 0 || !table_exists($pdo, 'cashless_accounts')) {
+    if ($santriId <= 0) {
         return null;
     }
-    $st = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-    $st->execute(['id' => $santriId]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$row) {
-        return 0.0;
-    }
+    require_once __DIR__ . '/cashless_koperasi.php';
 
-    return (float) ($row['balance'] ?? 0);
+    return (float) cashless_santri_saldo_tampil($pdo, $santriId);
 }
 
 /** Total belanja (DEBIT) hari ini untuk santri. */
