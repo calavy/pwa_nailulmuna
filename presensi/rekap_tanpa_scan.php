@@ -17,7 +17,23 @@ if (!table_exists($pdo, 'presensi')) {
     exit;
 }
 
-$periode = rekap_resolve_periode($pdo, $_GET);
+$periode = [
+    'mode' => 'masehi',
+    'month' => (int) date('n'),
+    'year' => (int) date('Y'),
+    'start_date' => date('Y-m-01'),
+    'end_date' => date('Y-m-t'),
+    'label' => date('F') . ' ' . date('Y'),
+    'hijri_label' => '',
+];
+$queryError = '';
+$periodeWarning = '';
+try {
+    $periode = rekap_resolve_periode($pdo, $_GET);
+} catch (Throwable $e) {
+    error_log('[presensi/rekap_tanpa_scan] periode: ' . $e->getMessage());
+    $periodeWarning = 'Periode kalender gagal dimuat — menampilkan bulan masehi berjalan.';
+}
 $startDate = (string) $periode['start_date'];
 $endDate = (string) $periode['end_date'];
 $periodeLabel = (string) $periode['label'];
@@ -45,7 +61,6 @@ if ($tingkatanList === [] && table_exists($pdo, 'santri')) {
 }
 
 $kegiatanTanpaScan = [];
-$queryError = '';
 try {
     $kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
         $pdo,
@@ -54,8 +69,8 @@ try {
         $tingkatan !== '' ? $tingkatan : null
     );
 } catch (Throwable $e) {
-    error_log('[presensi/rekap_tanpa_scan] ' . $e->getMessage());
-    $queryError = 'Gagal memuat rekap. Coba bulan lain atau hubungi admin.';
+    error_log('[presensi/rekap_tanpa_scan] data: ' . $e->getMessage());
+    $queryError = 'Gagal memuat data rekap. Coba bulan lain atau hubungi admin.';
 }
 
 $jumlahTanpaScan = count($kegiatanTanpaScan);
@@ -63,7 +78,7 @@ $tglAwal = date('d/m/Y', strtotime($startDate) ?: time());
 $tglAkhir = date('d/m/Y', strtotime($endDate) ?: time());
 $hijriLabelPeriode = (string) ($periode['hijri_label'] ?? '');
 
-$pageTitle = 'Kegiatan Tanpa Scan';
+$pageTitle = 'Jadwal Tanpa Scan';
 $bodyClass = 'presensi-rekap-tanpa-scan-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -95,114 +110,6 @@ require_once __DIR__ . '/../includes/header.php';
     font-weight: 800;
     line-height: 1;
 }
-.presensi-rekap-tanpa-scan-page .rts-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-.presensi-rekap-tanpa-scan-page .rts-item {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 10px;
-    margin-bottom: .5rem;
-    background: var(--bs-body-bg);
-    overflow: hidden;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__head {
-    display: flex;
-    align-items: flex-start;
-    gap: .75rem;
-    padding: .85rem 1rem;
-    width: 100%;
-    border: 0;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__head:hover {
-    background: rgba(0,0,0,.025);
-}
-[data-theme="dark"] .presensi-rekap-tanpa-scan-page .rts-item__head:hover {
-    background: rgba(255,255,255,.04);
-}
-.presensi-rekap-tanpa-scan-page .rts-item__head[aria-expanded="true"] {
-    border-bottom: 1px solid var(--bs-border-color);
-    background: rgba(254,226,226,.25);
-}
-.presensi-rekap-tanpa-scan-page .rts-item__chev {
-    flex: 0 0 1rem;
-    color: var(--bs-secondary-color);
-    margin-top: .2rem;
-    transition: transform .15s ease;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__head[aria-expanded="true"] .rts-item__chev {
-    transform: rotate(90deg);
-}
-.presensi-rekap-tanpa-scan-page .rts-item__count {
-    flex: 0 0 auto;
-    min-width: 2.5rem;
-    text-align: center;
-    font-weight: 700;
-    font-size: .95rem;
-    padding: .35rem .55rem;
-    border-radius: 8px;
-    background: #fee2e2;
-    color: #b91c1c;
-    line-height: 1.1;
-}
-[data-theme="dark"] .presensi-rekap-tanpa-scan-page .rts-item__count {
-    background: rgba(185,28,28,.35);
-    color: #fecaca;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__count small {
-    display: block;
-    font-size: .62rem;
-    font-weight: 600;
-    opacity: .85;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__detail {
-    padding: .65rem 1rem .85rem 3.5rem;
-    background: rgba(248,250,252,.7);
-}
-[data-theme="dark"] .presensi-rekap-tanpa-scan-page .rts-item__detail {
-    background: rgba(15,23,42,.35);
-}
-.presensi-rekap-tanpa-scan-page .rts-item__detail[hidden] {
-    display: none !important;
-}
-.presensi-rekap-tanpa-scan-page .rts-detail-table {
-    font-size: .82rem;
-    margin: 0;
-}
-.presensi-rekap-tanpa-scan-page .rts-detail-table th {
-    font-weight: 600;
-    white-space: nowrap;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__no {
-    flex: 0 0 1.75rem;
-    height: 1.75rem;
-    border-radius: 999px;
-    background: #fee2e2;
-    color: #b91c1c;
-    font-size: .8rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-[data-theme="dark"] .presensi-rekap-tanpa-scan-page .rts-item__no {
-    background: rgba(185,28,28,.35);
-    color: #fecaca;
-}
-.presensi-rekap-tanpa-scan-page .rts-item__nama {
-    font-weight: 600;
-    font-size: 1rem;
-    color: var(--bs-body-color);
-}
-.presensi-rekap-tanpa-scan-page .rts-item__meta {
-    font-size: .82rem;
-    color: var(--bs-secondary-color);
-    margin-top: .15rem;
-}
 .presensi-rekap-tanpa-scan-page .rts-info {
     font-size: .875rem;
     line-height: 1.5;
@@ -217,7 +124,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1">
         <a href="<?= htmlspecialchars(app_href('/presensi/scan.php')) ?>">Presensi</a>
     </p>
-    <h1 class="h4 mb-1">Kegiatan belum ada scan hadir</h1>
+    <h1 class="h4 mb-1">Jadwal belum ada scan hadir</h1>
     <p class="text-muted mb-0 small">
         Hitung <strong>per jadwal kegiatan</strong> (tanggal + tingkatan): 1 kali jadwal tanpa scan hadir = <strong>1</strong>.
         Periode mengikuti bulan <?= $mode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?> yang dipilih.
@@ -280,6 +187,13 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
 </form>
 
+<?php if ($periodeWarning !== ''): ?>
+    <div class="alert alert-warning d-flex align-items-start gap-2">
+        <i class="fa-solid fa-triangle-exclamation mt-1"></i>
+        <div><?= htmlspecialchars($periodeWarning) ?></div>
+    </div>
+<?php endif; ?>
+
 <?php if ($queryError !== ''): ?>
     <div class="alert alert-danger d-flex align-items-start gap-2">
         <i class="fa-solid fa-circle-exclamation mt-1"></i>
@@ -322,9 +236,6 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr>
                         <th class="text-center" style="width:3rem">No</th>
                         <th>Tanggal</th>
-                        <?php if ($mode === 'hijriyah'): ?>
-                            <th>Hijriyah</th>
-                        <?php endif; ?>
                         <th>Kegiatan</th>
                         <th>Waktu</th>
                         <th>Tingkatan</th>
@@ -337,10 +248,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-nowrap">
                                 <span class="fw-semibold"><?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?></span>
                                 <span class="text-muted small d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
+                                <?php if (!empty($kgRow['tanggal_hijri'])): ?>
+                                    <span class="text-muted small d-block"><?= htmlspecialchars((string) $kgRow['tanggal_hijri']) ?> H</span>
+                                <?php endif; ?>
                             </td>
-                            <?php if ($mode === 'hijriyah'): ?>
-                                <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['tanggal_hijri'] ?? '')) ?></td>
-                            <?php endif; ?>
                             <td class="fw-semibold"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
                             <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
                             <td class="small"><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>

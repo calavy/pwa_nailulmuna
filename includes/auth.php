@@ -99,7 +99,10 @@ function auth_staff_acl_self_heal(): void
         require_once __DIR__ . '/../helpers/user_permissions.php';
     }
     if (function_exists('user_permission_ensure_role_defaults')) {
-        user_permission_ensure_role_defaults($pdo, $uid, $role);
+        user_acl_ensure_legacy_configured($pdo, $uid);
+        if (!user_acl_is_explicitly_configured($pdo, $uid)) {
+            user_permission_ensure_role_defaults($pdo, $uid, $role);
+        }
     }
     if (function_exists('app_acl_session_cache_clear')) {
         app_acl_session_cache_clear($uid);
@@ -438,12 +441,13 @@ function user_has_current_page_permission(): bool
         return true;
     }
 
+    if (!function_exists('user_permission_alt_keys_for_path')) {
+        require_once __DIR__ . '/../helpers/user_permissions.php';
+    }
     $path = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-    if ($path === '/presensi/rekap_tanpa_scan.php') {
-        foreach (['rekap_keaktifan', 'rekap', 'rekap_hub', 'presensi_scan'] as $altKey) {
-            if ($altKey !== $permissionKey && user_can_access_permission_key($altKey)) {
-                return true;
-            }
+    foreach (user_permission_alt_keys_for_path($path) as $altKey) {
+        if ($altKey !== $permissionKey && user_can_access_permission_key($altKey)) {
+            return true;
         }
     }
 

@@ -87,6 +87,84 @@ function perizinan_jenis_label(string $jenis): string
     return $map[$kode] ?? ($jenis !== '' ? $jenis : 'Keluar');
 }
 
+/**
+ * Konteks teks notifikasi otomatis saat izin disetujui — beda per jenis (sakit, keluar, izin, tugas).
+ *
+ * @return array{
+ *   jenis_izin:string,
+ *   label_alasan:string,
+ *   judul_disetujui:string,
+ *   judul_grup:string,
+ *   judul_pengurus:string,
+ *   instruksi_wali:string,
+ *   judul_push_wali:string
+ * }
+ */
+function perizinan_jenis_wa_disetujui_vars(string $jenis): array
+{
+    $kode = perizinan_jenis_izin_normalize($jenis);
+
+    return match ($kode) {
+        'SAKIT' => [
+            'jenis_izin' => 'izin sakit',
+            'label_alasan' => 'Alasan',
+            'judul_disetujui' => 'Izin sakit santri binaan',
+            'judul_grup' => '🤒 *Izin sakit disetujui*',
+            'judul_pengurus' => '📄 *Izin sakit disetujui — siap cetak surat*',
+            'instruksi_wali' => 'Mohon perhatikan kesehatan putra/putri Anda. Pastikan istirahat cukup dan segera hubungi pengasuh pondok bila kondisi tidak membaik.',
+            'judul_push_wali' => 'Izin sakit anak disetujui',
+        ],
+        'KELUAR' => [
+            'jenis_izin' => 'izin keluar',
+            'label_alasan' => 'Keperluan',
+            'judul_disetujui' => 'Izin keluar santri binaan',
+            'judul_grup' => '🚪 *Izin keluar disetujui*',
+            'judul_pengurus' => '📄 *Izin keluar disetujui — siap cetak surat*',
+            'instruksi_wali' => 'Mohon putra/putri Anda menjaga adab, mematuhi tujuan izin, dan kembali tepat waktu sesuai surat izin yang berlaku.',
+            'judul_push_wali' => 'Izin keluar anak disetujui',
+        ],
+        'SYARI' => [
+            'jenis_izin' => 'izin',
+            'label_alasan' => 'Keperluan',
+            'judul_disetujui' => 'Izin santri binaan',
+            'judul_grup' => '📋 *Izin disetujui*',
+            'judul_pengurus' => '📄 *Izin disetujui — siap cetak surat*',
+            'instruksi_wali' => 'Mohon putra/putri Anda kembali tepat waktu sesuai ketentuan pondok dan surat izin yang berlaku.',
+            'judul_push_wali' => 'Izin anak disetujui',
+        ],
+        'TUGAS' => [
+            'jenis_izin' => 'izin tugas',
+            'label_alasan' => 'Keperluan',
+            'judul_disetujui' => 'Izin tugas santri binaan',
+            'judul_grup' => '📌 *Izin tugas disetujui*',
+            'judul_pengurus' => '📄 *Izin tugas disetujui — siap cetak surat*',
+            'instruksi_wali' => 'Mohon putra/putri Anda menyelesaikan tugas sesuai amanah pondok dan kembali tepat waktu.',
+            'judul_push_wali' => 'Izin tugas anak disetujui',
+        ],
+        default => [
+            'jenis_izin' => 'izin',
+            'label_alasan' => 'Keperluan',
+            'judul_disetujui' => 'Izin santri binaan',
+            'judul_grup' => '📋 *Izin disetujui*',
+            'judul_pengurus' => '📄 *Izin disetujui — siap cetak surat*',
+            'instruksi_wali' => 'Mohon putra/putri Anda kembali tepat waktu sesuai ketentuan yang berlaku.',
+            'judul_push_wali' => 'Izin anak disetujui',
+        ],
+    };
+}
+
+/** Label jenis untuk teks WA/laporan otomatis (frasa lengkap). */
+function perizinan_jenis_wa_label(string $jenis): string
+{
+    return perizinan_jenis_wa_disetujui_vars($jenis)['jenis_izin'];
+}
+
+/** Label field isi permohonan di WA: sakit = Alasan; keluar/tugas/izin = Keperluan. */
+function perizinan_jenis_wa_label_alasan(string $jenis): string
+{
+    return perizinan_jenis_wa_disetujui_vars($jenis)['label_alasan'];
+}
+
 /** Izin keluar, tugas, dan syar'i wajib isi tujuan. */
 function perizinan_memerlukan_tujuan(string $jenis): bool
 {

@@ -3284,12 +3284,16 @@ function wa_format_pengajuan_izin_baru(
     string $alasan,
     string $tujuan = ''
 ): string {
-    $jenis = jenis_izin_label($jenisKode);
+    if (!function_exists('perizinan_jenis_wa_label')) {
+        require_once __DIR__ . '/perizinan_jenis.php';
+    }
+    $jenis = perizinan_jenis_wa_label($jenisKode);
+    $labelAlasan = perizinan_jenis_wa_label_alasan($jenisKode);
     $nisT = trim($nis);
     $tgT = trim($tingkatan);
     $tujuanT = trim($tujuan);
 
-    $body = 'Ada pengajuan izin baru: ' . $namaSantri . ' - Alasan: ' . $alasan;
+    $body = 'Ada pengajuan izin baru: ' . $namaSantri . ' — ' . $labelAlasan . ': ' . $alasan;
     if ($tujuanT !== '') {
         $body .= ' - Tujuan: ' . $tujuanT;
     }
@@ -3309,7 +3313,7 @@ function wa_format_pengajuan_izin_baru(
     $body .= '• Jenis izin: *' . $jenis . "*\n"
         . '• Tanggal: *' . $tanggalMulai . '* s/d *' . $tanggalSelesai . "*\n"
         . '• Waktu: *' . $jamMulai . '* – *' . $jamSelesai . "*\n"
-        . '• Ringkasan keperluan: _' . $alasan . "_\n";
+        . '• ' . $labelAlasan . ': _' . $alasan . "_\n";
     if ($tujuanT !== '') {
         $body .= '• Tujuan: *' . $tujuanT . "*\n";
     }
@@ -3324,7 +3328,7 @@ function wa_format_pengajuan_izin_baru(
 function wa_format_izin_disetujui_untuk_wali(
     PDO $pdo,
     string $namaSantri,
-    string $jenisLabel,
+    string $jenisRaw,
     string $tanggalSelesai,
     string $jamSelesai,
     string $alasan,
@@ -3334,6 +3338,9 @@ function wa_format_izin_disetujui_untuk_wali(
     if (!function_exists('wa_template_render')) {
         require_once __DIR__ . '/wa_templates.php';
     }
+    if (!function_exists('perizinan_jenis_wa_disetujui_vars')) {
+        require_once __DIR__ . '/perizinan_jenis.php';
+    }
     $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
     $periode = $tanggalMulai !== ''
         ? $tanggalMulai . ' s/d ' . $tanggalSelesai
@@ -3342,18 +3349,18 @@ function wa_format_izin_disetujui_untuk_wali(
         ? trim($jamMulai . ' – ' . $jamSelesai, ' –')
         : '';
 
-    return wa_template_render($pdo, 'izin_disetujui_wali', [
-        'nama_santri' => $namaSantri,
-        'jenis_izin' => $jenisLabel,
-        'tanggal_mulai' => $tanggalMulai !== '' ? $tanggalMulai : $tanggalSelesai,
-        'tanggal_selesai' => $tanggalSelesai,
-        'jam_mulai' => $jamMulai !== '' ? $jamMulai : '-',
-        'jam_selesai' => $jamSelesai !== '' ? $jamSelesai : '-',
-        'periode' => $periode,
-        'waktu' => $waktu !== '' ? $waktu : ($jamSelesai !== '' ? $jamSelesai : '-'),
-        'alasan' => $alasan,
-        'nama_ponpes' => $namaPonpes,
-    ]);
+    $vars = perizinan_jenis_wa_disetujui_vars($jenisRaw);
+    $vars['nama_santri'] = $namaSantri;
+    $vars['tanggal_mulai'] = $tanggalMulai !== '' ? $tanggalMulai : $tanggalSelesai;
+    $vars['tanggal_selesai'] = $tanggalSelesai;
+    $vars['jam_mulai'] = $jamMulai !== '' ? $jamMulai : '-';
+    $vars['jam_selesai'] = $jamSelesai !== '' ? $jamSelesai : '-';
+    $vars['periode'] = $periode;
+    $vars['waktu'] = $waktu !== '' ? $waktu : ($jamSelesai !== '' ? $jamSelesai : '-');
+    $vars['alasan'] = $alasan;
+    $vars['nama_ponpes'] = $namaPonpes;
+
+    return wa_template_render($pdo, 'izin_disetujui_wali', $vars);
 }
 
 function user_has_acl_permission_matrix(PDO $pdo): bool
@@ -3675,7 +3682,12 @@ function app_acl_menu_path_allowed(string $path, array $permissionPathMap, array
         return false;
     }
 
-    return isset($allowedMap[$permissionPathMap[$permPath]]);
+    $primaryKey = $permissionPathMap[$permPath];
+    if (!function_exists('user_permission_allowed_for_path')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+
+    return user_permission_allowed_for_path($path, $primaryKey, $allowedMap);
 }
 
 /**
@@ -3835,6 +3847,12 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         }
     }
     if ($matchedKey === null || isset($allowedMap[$matchedKey])) {
+        return;
+    }
+    if (!function_exists('user_permission_allowed_for_path')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+    if (user_permission_allowed_for_path($requestPath, $matchedKey, $allowedMap)) {
         return;
     }
 

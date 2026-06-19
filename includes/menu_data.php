@@ -65,7 +65,7 @@ return [
         '/pembimbing/perizinan.php' => 'Izin pembimbing',
         '/presensi/scan.php' => 'Scan Presensi',
         '/presensi/kegiatan_khusus.php' => 'Kegiatan Khusus (Sekali Pakai)',
-        '/presensi/rekap_tanpa_scan.php' => 'Kegiatan Tanpa Scan',
+        '/presensi/rekap_tanpa_scan.php' => 'Jadwal Tanpa Scan',
         '/jadwal/index.php' => 'Jadwal',
         '/jadwal/kegiatan.php' => 'Kegiatan (Ta\'lim / Jama\'ah)',
         '/jadwal/import.php' => 'Import Jadwal',

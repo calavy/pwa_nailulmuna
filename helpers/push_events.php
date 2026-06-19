@@ -49,12 +49,16 @@ function push_event_izin_disetujui_wali(
     PDO $pdo,
     int $santriId,
     string $namaSantri,
-    string $jenisLabel,
+    string $jenisRaw,
     string $tanggalSelesai,
     string $jamSelesai
 ): void {
-    $title = 'Izin anak disetujui';
-    $body = $namaSantri . ' — ' . $jenisLabel . ' hingga ' . $tanggalSelesai . ' ' . substr($jamSelesai, 0, 5);
+    if (!function_exists('perizinan_jenis_wa_disetujui_vars')) {
+        require_once __DIR__ . '/perizinan_jenis.php';
+    }
+    $waVars = perizinan_jenis_wa_disetujui_vars($jenisRaw);
+    $title = (string) ($waVars['judul_push_wali'] ?? 'Izin anak disetujui');
+    $body = $namaSantri . ' — ' . ($waVars['jenis_izin'] ?? 'izin') . ' hingga ' . $tanggalSelesai . ' ' . substr($jamSelesai, 0, 5);
     push_notify_wali_for_santri($pdo, $santriId, 'izin_keluar', $title, $body, [], '/wali/keaktifan.php');
 }
 

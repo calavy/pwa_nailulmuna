@@ -83,7 +83,10 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
                         <input class="form-check-input" type="checkbox" id="wa_izin_wali_enabled" name="wa_izin_wali_enabled" value="1" <?= $waIzinWaliEnabled ? 'checked' : '' ?>>
                         <label class="form-check-label fw-semibold" for="wa_izin_wali_enabled">Kirim WA ke wali saat izin disetujui</label>
                     </div>
-                    <p class="small text-muted mb-3">Template pesan dapat disesuaikan di tab <strong>Template</strong> (izin disetujui → wali santri).</p>
+                    <p class="small text-muted mb-3">
+                        Template pesan dapat disesuaikan di tab <strong>Template</strong> (izin disetujui → wali santri).
+                        Teks otomatis membedakan <strong>izin sakit</strong>, <strong>izin keluar</strong>, <strong>izin</strong>, dan <strong>izin tugas</strong>.
+                    </p>
                     <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan notifikasi wali</button>
                 </form>
             </div>

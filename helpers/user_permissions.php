@@ -85,6 +85,7 @@ function user_permission_groups(): array
                 'pembimbing_dashboard' => 'Dashboard Pembimbing (santri & keaktifan per tingkatan)',
                 'pembimbing_perizinan' => 'Izin Pembimbing',
                 'pembimbing_jadwal' => 'Jadwal Kegiatan Pembimbing',
+                'pembimbing_pkpps' => 'PKPPS Santri (pembimbing)',
                 'rekap_pembimbing' => 'Payroll / Gaji Pembimbing',
             ],
         ],
@@ -166,7 +167,7 @@ function user_permission_path_map_base(): array
         '/santri/alumni_import.php' => 'santri_import',
         '/santri/muqim_boyong.php' => 'santri_index',
         '/santri/create.php' => 'santri_create',
-        '/santri/edit.php' => 'santri_index',
+        '/santri/edit.php' => 'santri_create',
         '/santri/kartu.php' => 'santri_index',
         '/santri/kartu_id.php' => 'santri_index',
         '/santri/kartu_sementara.php' => 'santri_index',
@@ -254,6 +255,7 @@ function user_permission_path_map_base(): array
         '/perizinan/izin_tetap_kegiatan.php' => 'perizinan',
         '/perizinan/surat_izin_tetap.php' => 'perizinan',
         '/perizinan/kembali.php' => 'perizinan_scan',
+        '/perizinan/kembali_rombongan.php' => 'perizinan_scan',
         '/perizinan/permohonan.php' => 'perizinan_permohonan',
         '/admin/surat_nomor.php' => 'perizinan',
         '/admin/rekap_surat_izin.php' => 'perizinan',
@@ -295,6 +297,7 @@ function user_permission_path_map_base(): array
         '/yayasan/ketertiban.php' => 'yayasan',
         '/yayasan/kesehatan.php' => 'yayasan',
         '/yayasan/keaktifan.php' => 'yayasan',
+        '/yayasan/keaktifan_kelas.php' => 'rekap_keaktifan_hari',
         '/yayasan/sdm_hari.php' => 'yayasan',
         '/yayasan/dashboard.php' => 'yayasan',
         '/yayasan/pengurus.php' => 'yayasan',
@@ -381,18 +384,118 @@ function user_permission_key_for_path(string $requestPath): ?string
 }
 
 /**
- * Perluas peta izin: legacy `keuangan` = semua submenu keuangan.
+ * Permission key alternatif yang juga boleh membuka path (selain key utama di path map).
+ *
+ * @return list<string>
+ */
+function user_permission_alt_keys_for_path(string $requestPath): array
+{
+    if (!function_exists('app_normalize_request_path')) {
+        require_once __DIR__ . '/app_path.php';
+    }
+    $path = app_normalize_request_path($requestPath);
+
+    return match ($path) {
+        '/presensi/rekap_tanpa_scan.php' => [
+            'presensi_scan',
+            'rekap',
+            'rekap_hub',
+            'rekap_keaktifan',
+            'rekap_keaktifan_hari',
+            'pkpps_dashboard',
+            'jadwal',
+        ],
+        '/yayasan/keaktifan_kelas.php' => [
+            'yayasan',
+            'rekap_keaktifan_hari',
+            'rekap_hub',
+            'rekap',
+        ],
+        '/yayasan/operasional.php' => [
+            'rekap_hub',
+            'rekap_keaktifan',
+            'rekap_keaktifan_hari',
+        ],
+        '/pengasuh/perizinan.php' => [
+            'perizinan',
+            'perizinan_permohonan',
+            'rekap_keaktifan',
+            'rekap_hub',
+        ],
+        '/pengasuh/dashboard.php' => [
+            'rekap_keaktifan',
+            'rekap_hub',
+            'rekap',
+        ],
+        '/pengasuh/laporan_hari.php' => [
+            'rekap_keaktifan',
+            'rekap_hub',
+            'rekap',
+        ],
+        default => [],
+    };
+}
+
+/**
+ * @param array<string, int> $allowedMap
+ */
+function user_permission_allowed_for_path(string $requestPath, string $primaryKey, array $allowedMap): bool
+{
+    if ($primaryKey !== '' && isset($allowedMap[$primaryKey])) {
+        return true;
+    }
+    foreach (user_permission_alt_keys_for_path($requestPath) as $altKey) {
+        if ($altKey !== $primaryKey && isset($allowedMap[$altKey])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** @return list<string> */
+function user_permission_rekap_bundle_keys(): array
+{
+    return [
+        'rekap_hub',
+        'rekap',
+        'rekap_keaktifan_hari',
+        'rekap_keaktifan',
+        'rekap_telat',
+        'rekap_perizinan',
+        'rekap_munawib',
+        'rekap_pembimbing',
+    ];
+}
+
+/**
+ * Perluas peta izin: legacy / grup bundle (keuangan, pusat rekap, dll.).
  *
  * @param array<string, int> $map
  * @return array<string, int>
  */
 function user_permission_expand_allowed_map(array $map): array
 {
-    if (!isset($map['keuangan'])) {
-        return $map;
+    if (isset($map['keuangan'])) {
+        foreach (user_permission_keuangan_keys() as $k) {
+            $map[$k] = 1;
+        }
     }
-    foreach (user_permission_keuangan_keys() as $k) {
-        $map[$k] = 1;
+    if (isset($map['rekap_hub'])) {
+        foreach (user_permission_rekap_bundle_keys() as $k) {
+            $map[$k] = 1;
+        }
+    }
+    if (isset($map['perizinan'])) {
+        foreach (['perizinan_scan', 'perizinan_permohonan'] as $k) {
+            $map[$k] = 1;
+        }
+    }
+    if (isset($map['jadwal'])) {
+        $map['pkpps_dashboard'] = 1;
+    }
+    if (isset($map['akademik_hafalan'])) {
+        $map['akademik_setoran'] = 1;
     }
 
     return $map;
@@ -562,6 +665,11 @@ function user_permission_ensure_role_defaults(PDO $pdo, int $userId, string $rol
         require_once __DIR__ . '/app.php';
     }
     if (!table_exists($pdo, 'user_access_permissions')) {
+        return;
+    }
+
+    user_acl_ensure_legacy_configured($pdo, $userId);
+    if (user_acl_is_explicitly_configured($pdo, $userId)) {
         return;
     }
 

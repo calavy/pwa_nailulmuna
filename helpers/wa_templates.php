@@ -49,43 +49,43 @@ function wa_template_definitions(): array
         ],
         'izin_disetujui_pembimbing' => [
             'label' => 'Izin disetujui → pembimbing',
-            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin santri disetujui. Izin rombongan: {daftar_santri} berisi semua nama.',
-            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {doa}',
+            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin disetujui. Teks judul & jenis menyesuaikan sakit/keluar/izin/tugas. Placeholder {judul_disetujui}, {jenis_izin}, {doa} (sakit). Izin rombongan: {daftar_santri}.',
+            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {doa}',
             'default' => "Assalamu'alaikum.\n\n"
-                . 'Izin santri binaan *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+                . '{judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
                 . '{daftar_santri}'
                 . 'Pembimbing: *{nama_pembimbing}*\n'
-                . 'Jenis: {jenis_izin}\n'
+                . 'Jenis: *{jenis_izin}*\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
-                . 'Keperluan: {alasan}'
+                . '{label_alasan}: {alasan}'
                 . '{doa}',
         ],
         'izin_grup_fonte' => [
             'label' => 'Izin disetujui → grup WA (Fonte)',
-            'hint' => 'Dikirim ke ID grup Fonte saat izin santri disetujui (pengaturan Perizinan). Izin rombongan: {daftar_santri} berisi semua nama.',
-            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {doa}',
-            'default' => "📋 *Izin santri disetujui*\n\n"
+            'hint' => 'Dikirim ke ID grup Fonte saat izin disetujui. Judul & jenis menyesuaikan sakit/keluar/izin/tugas. Izin rombongan: {daftar_santri}.',
+            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {doa}',
+            'default' => "{judul_grup}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
-                . '{jenis_izin} · {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Jenis: *{jenis_izin}* · {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
-                . 'Keperluan: {alasan}\n'
+                . '{label_alasan}: {alasan}\n'
                 . '— {nama_ponpes}'
                 . '{doa}',
         ],
         'izin_disetujui_wali' => [
             'label' => 'Izin disetujui → wali santri',
-            'hint' => 'Dikirim otomatis ke nomor WA wali saat permohonan izin disetujui pengurus.',
-            'placeholders' => '{nama_santri}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}',
+            'hint' => 'Dikirim otomatis ke nomor WA wali saat permohonan izin disetujui. Teks menyesuaikan jenis: sakit, keluar, izin, atau tugas ({instruksi_wali}).',
+            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {instruksi_wali}',
             'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
                 . '*Yth. Wali santri {nama_santri}*\n\n'
                 . '*SURAT PEMBERITAHUAN (digital)*\n\n'
                 . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_ponpes}*.\n\n'
                 . 'Periode: *{periode}*\n'
                 . 'Waktu: *{waktu}*\n'
-                . 'Keterangan: _{alasan}_\n\n'
-                . 'Mohon putra/putri Anda kembali tepat waktu sesuai ketentuan yang berlaku.\n\n'
+                . '{label_alasan}: _{alasan}_\n\n'
+                . '{instruksi_wali}\n\n'
                 . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
@@ -127,15 +127,15 @@ function wa_template_definitions(): array
         ],
         'izin_disetujui_pengurus' => [
             'label' => 'Izin disetujui → pengurus (petugas surat)',
-            'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Izin rombongan: {daftar_santri}.',
-            'placeholders' => '{nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
-            'default' => "📄 *Izin disetujui — siap cetak surat*\n\n"
+            'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Judul & jenis menyesuaikan sakit/keluar/izin/tugas. Izin rombongan: {daftar_santri}.',
+            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
+            'default' => "{judul_pengurus}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
-                . 'Jenis: {jenis_izin}\n'
+                . 'Jenis: *{jenis_izin}*\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
-                . 'Keperluan: {alasan}\n'
+                . '{label_alasan}: {alasan}\n'
                 . 'Disetujui oleh: *{nama_pengurus}*\n'
                 . '— {nama_ponpes}',
         ],

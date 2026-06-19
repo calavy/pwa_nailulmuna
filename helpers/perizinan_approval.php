@@ -594,6 +594,20 @@ function perizinan_wa_sisipkan_doa(PDO $pdo, string $slug, string $pesan, string
     );
 }
 
+/**
+ * @param array<string, string> $vars
+ * @return array<string, string>
+ */
+function perizinan_wa_vars_disetujui(string $jenisRaw, array $vars): array
+{
+    $waJenis = perizinan_jenis_wa_disetujui_vars($jenisRaw);
+    foreach ($waJenis as $key => $value) {
+        $vars[$key] = $value;
+    }
+
+    return $vars;
+}
+
 function wa_format_izin_disetujui_pembimbing(
     PDO $pdo,
     string $namaSantri,
@@ -611,12 +625,12 @@ function wa_format_izin_disetujui_pembimbing(
 ): string {
     $jenisCek = $jenisRaw !== '' ? $jenisRaw : $jenisLabel;
     $slug = 'izin_disetujui_pembimbing';
-    $pesan = wa_template_render($pdo, $slug, [
+    $pesan = wa_template_render($pdo, $slug, perizinan_wa_vars_disetujui($jenisCek, [
         'nama_santri' => $namaSantri,
         'daftar_santri' => '',
         'nis' => $nis,
         'tingkatan' => $tingkatan,
-        'jenis_izin' => $jenisLabel,
+        'jenis_izin' => perizinan_jenis_wa_label($jenisCek),
         'tanggal_mulai' => $tanggalMulai,
         'tanggal_selesai' => $tanggalSelesai,
         'jam_mulai' => $jamMulai,
@@ -625,7 +639,7 @@ function wa_format_izin_disetujui_pembimbing(
         'nama_pembimbing' => $namaPembimbing,
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         'doa' => '',
-    ]);
+    ]));
     $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
 
     return perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisCek, $namaSantri);
@@ -749,15 +763,17 @@ function wa_format_izin_disetujui_pengurus(
     string $jamSelesai,
     string $alasan,
     string $namaPengurus = '',
-    string $daftarSantri = ''
+    string $daftarSantri = '',
+    string $jenisRaw = ''
 ): string {
+    $jenisCek = $jenisRaw !== '' ? $jenisRaw : $jenisLabel;
     $slug = 'izin_disetujui_pengurus';
-    $pesan = wa_template_render($pdo, $slug, [
+    $pesan = wa_template_render($pdo, $slug, perizinan_wa_vars_disetujui($jenisCek, [
         'nama_santri' => $namaSantri,
         'daftar_santri' => '',
         'nis' => $nis,
         'tingkatan' => $tingkatan,
-        'jenis_izin' => $jenisLabel,
+        'jenis_izin' => perizinan_jenis_wa_label($jenisCek),
         'tanggal_mulai' => $tanggalMulai,
         'tanggal_selesai' => $tanggalSelesai,
         'jam_mulai' => $jamMulai,
@@ -765,7 +781,7 @@ function wa_format_izin_disetujui_pengurus(
         'alasan' => $alasan,
         'nama_pengurus' => $namaPengurus !== '' ? $namaPengurus : 'Pengurus',
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
-    ]);
+    ]));
 
     return perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
 }
@@ -838,7 +854,8 @@ function perizinan_kirim_wa_pengurus_disetujui(
         $jamSelesai,
         (string) ($izinRow['alasan'] ?? '-'),
         perizinan_nama_pengurus_by_id($pdo, $approvedByUserId),
-        $daftarSantri
+        $daftarSantri,
+        $jenisRaw
     );
 
     return send_wa_bulk($pdo, implode(',', $phones), $msg);
@@ -937,7 +954,7 @@ function perizinan_kirim_wa_wali_disetujui(
     $msg = wa_format_izin_disetujui_untuk_wali(
         $pdo,
         (string) ($izinRow['nama_santri'] ?? '-'),
-        jenis_izin_label($jenisRaw),
+        $jenisRaw,
         $tglSelesai,
         $jamSelesai,
         (string) ($izinRow['alasan'] ?? '-'),
@@ -1137,12 +1154,12 @@ function perizinan_kirim_wa_grup_fonte(
     }
     $namaSantri = (string) ($izinRow['nama_santri'] ?? '-');
     $slug = 'izin_grup_fonte';
-    $pesan = wa_template_render($pdo, $slug, [
+    $pesan = wa_template_render($pdo, $slug, perizinan_wa_vars_disetujui($jenisRaw, [
         'nama_santri' => $namaSantri,
         'daftar_santri' => '',
         'nis' => trim((string) ($izinRow['nis'] ?? '')),
         'tingkatan' => trim((string) ($izinRow['tingkatan'] ?? '')),
-        'jenis_izin' => jenis_izin_label($jenisRaw),
+        'jenis_izin' => perizinan_jenis_wa_label($jenisRaw),
         'tanggal_mulai' => $tglMulai,
         'tanggal_selesai' => $tglSelesai,
         'jam_mulai' => $jamMulai,
@@ -1150,7 +1167,7 @@ function perizinan_kirim_wa_grup_fonte(
         'alasan' => (string) ($izinRow['alasan'] ?? '-'),
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         'doa' => '',
-    ]);
+    ]));
     $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
     $msg = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisRaw, $namaSantri);
 
@@ -1416,12 +1433,11 @@ function perizinan_setujui_izin_satu(
 
     $santriId = (int) ($izinInfo['santri_id'] ?? 0);
     $jenisIzinRaw = strtoupper((string) ($izinInfo['jenis_izin'] ?? ''));
-    $jenisLabel = jenis_izin_label($jenisIzinRaw);
     push_event_izin_disetujui_wali(
         $pdo,
         $santriId,
         (string) ($izinInfo['nama_santri'] ?? '-'),
-        $jenisLabel,
+        $jenisIzinRaw,
         $tglSelesai,
         $jamSelesai
     );

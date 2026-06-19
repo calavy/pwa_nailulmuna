@@ -232,7 +232,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($peran, ['pengurus', 'pemb
             login_pembimbing_ensure_acl($pdo, $userId);
         } elseif ($userId > 0 && in_array($sessionRole, ['admin', 'pengurus', 'petugas_absensi'], true)) {
             require_once __DIR__ . '/helpers/user_permissions.php';
-            user_permission_ensure_role_defaults($pdo, $userId, $sessionRole);
+            user_acl_ensure_legacy_configured($pdo, $userId);
+            if (!user_acl_is_explicitly_configured($pdo, $userId)) {
+                user_permission_ensure_role_defaults($pdo, $userId, $sessionRole);
+            }
         }
         if (function_exists('app_acl_session_cache_clear')) {
             app_acl_session_cache_clear($userId);

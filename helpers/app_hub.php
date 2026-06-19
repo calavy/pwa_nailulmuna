@@ -123,19 +123,57 @@ function app_hub_match_path(string $requestPath): ?array
     return null;
 }
 
-function app_hub_render_tabs_for_path(string $requestPath): void
+/**
+ * @param array<string, string> $permissionPathMap
+ */
+function app_hub_tab_allowed(PDO $pdo, string $tabPath, array $permissionPathMap): bool
+{
+    if (!function_exists('get_allowed_permission_key_map')) {
+        require_once __DIR__ . '/app.php';
+    }
+    $allowedMap = get_allowed_permission_key_map($pdo);
+    if ($allowedMap === null) {
+        return true;
+    }
+    if (!function_exists('app_acl_menu_path_allowed')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    return app_acl_menu_path_allowed(app_hub_normalize_path($tabPath), $permissionPathMap, $allowedMap);
+}
+
+/**
+ * @param array<string, string> $permissionPathMap
+ */
+function app_hub_render_tabs_for_path(PDO $pdo, string $requestPath, array $permissionPathMap = []): void
 {
     $match = app_hub_match_path($requestPath);
     if ($match === null) {
         return;
     }
+    if ($permissionPathMap === []) {
+        if (!function_exists('user_permission_path_map')) {
+            require_once __DIR__ . '/user_permissions.php';
+        }
+        $permissionPathMap = user_permission_path_map();
+    }
     $hub = $match['hub'];
     $activePath = app_hub_normalize_path((string) $match['active']['path']);
+    $visibleTabs = [];
+    foreach ($hub['tabs'] as $tab) {
+        $tabPath = app_hub_normalize_path((string) $tab['path']);
+        if (app_hub_tab_allowed($pdo, $tabPath, $permissionPathMap)) {
+            $visibleTabs[] = $tab;
+        }
+    }
+    if ($visibleTabs === []) {
+        return;
+    }
     ?>
 <nav class="app-hub-tabs mb-3" aria-label="<?= htmlspecialchars((string) ($hub['title'] ?? 'Sub-menu')) ?>">
     <span class="app-hub-tabs__title"><?= htmlspecialchars((string) ($hub['title'] ?? '')) ?></span>
     <div class="app-hub-tabs__links">
-        <?php foreach ($hub['tabs'] as $tab):
+        <?php foreach ($visibleTabs as $tab):
             $tabPath = app_hub_normalize_path((string) $tab['path']);
             ?>
         <a href="<?= htmlspecialchars(app_href($tabPath)) ?>" class="app-hub-tabs__link<?= $tabPath === $activePath ? ' active' : '' ?>"><?= htmlspecialchars((string) $tab['label']) ?></a>

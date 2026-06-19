@@ -406,9 +406,6 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr>
                         <th style="width:3rem">No</th>
                         <th>Tanggal</th>
-                        <?php if ($mode === 'hijriyah'): ?>
-                            <th>Hijriyah</th>
-                        <?php endif; ?>
                         <th>Nama kegiatan</th>
                         <th>Waktu</th>
                         <th>Tingkatan</th>
@@ -421,10 +418,10 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="text-nowrap small">
                                 <?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?>
                                 <span class="text-muted d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
+                                <?php if (!empty($kgRow['tanggal_hijri'])): ?>
+                                    <span class="text-muted d-block"><?= htmlspecialchars((string) $kgRow['tanggal_hijri']) ?> H</span>
+                                <?php endif; ?>
                             </td>
-                            <?php if ($mode === 'hijriyah'): ?>
-                                <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['tanggal_hijri'] ?? '')) ?></td>
-                            <?php endif; ?>
                             <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
                             <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
                             <td><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>

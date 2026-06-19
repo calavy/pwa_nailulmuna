@@ -514,6 +514,6 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php
     if (isset($_SESSION['user'])) {
         require_once __DIR__ . '/../helpers/app_hub.php';
-        app_hub_render_tabs_for_path($requestPath);
+        app_hub_render_tabs_for_path($pdo, $requestPath, $permissionPathMap);
     }
     ?>
