@@ -147,7 +147,7 @@ return [
         '/keuangan/cashless_scan.php' => 'Top Up Cashless',
         '/keuangan/cashless_laporan.php' => 'Laporan Cashless Koperasi',
         '/keuangan/cashless_setor.php' => 'Setor Cashless Koperasi',
-        '/keuangan/cashless_pin.php' => 'Cashless & Uang Saku',
+        '/keuangan/cashless_pin.php' => 'Rekap Saldo & PIN Cashless',
         '/pembayaran/tagihan_syahriyah.php' => 'Tagihan Bulanan',
         '/pembayaran/riwayat.php' => 'Riwayat Pembayaran',
         '/pembayaran/laporan.php' => 'Laporan Syahriyah',
@@ -159,6 +159,10 @@ return [
         '/pkpps/jadwal.php' => 'Jadwal PKPPS',
         '/pkpps/import.php' => 'Import Jadwal PKPPS',
         '/pkpps/index.php' => 'Dashboard PKPPS',
+        '/pkpps/tugas/index.php' => 'Tugas & Soal PKPPS',
+        '/pkpps/tugas/buat.php' => 'Buat Tugas PKPPS',
+        '/pkpps/tugas/nilai.php' => 'Nilai Tugas PKPPS',
+        '/pkpps/tugas/rekap.php' => 'Rekap Tugas PKPPS',
         '/rekap/pkpps_keaktivan.php' => 'Keaktivan PKPPS',
         '/settings/kelas_syahriyah.php' => 'Jenis Syahriyah (master)',
         '/pembayaran/rekap_pos.php' => 'Rekap per POS',
@@ -240,6 +244,10 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [
             ['title' => 'PKPPS', 'paths' => [
                 '/pkpps/index.php',
+                '/pkpps/santri.php',
+                '/pkpps/jadwal.php',
+                '/pkpps/tugas/index.php',
+                '/rekap/pkpps_keaktivan.php',
             ]],
             ['title' => 'Jadwal & Scan', 'paths' => [
                 '/jadwal/index.php',

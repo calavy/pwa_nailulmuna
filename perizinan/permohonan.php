@@ -143,6 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
             ]);
         }
+        $izinId = (int) $pdo->lastInsertId();
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -151,9 +152,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $userId = (int) ($_SESSION['user']['id'] ?? 1);
     $sInfoStmt = $pdo->prepare('SELECT nama_santri, nis, tingkatan FROM santri WHERE id = :id LIMIT 1');
     $sInfoStmt->execute(['id' => $data['santri_id']]);
     $sInfoRow = $sInfoStmt->fetch() ?: ['nama_santri' => '-', 'nis' => '', 'tingkatan' => ''];
+
+    if ($data['jenis_izin'] === 'SAKIT' && isset($_POST['notifikasi_wali'])) {
+        push_event_laporan_sakit_wali(
+            $pdo,
+            (int) $data['santri_id'],
+            (string) ($sInfoRow['nama_santri'] ?? '-'),
+            trim((string) ($_POST['gejala'] ?? '')),
+            (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
+        );
+    }
+
+    $fin = perizinan_finalisasi_setelah_input($pdo, $izinId, $userId);
+    if ($fin !== null) {
+        set_flash($fin['ok'] ? 'success' : 'error', $fin['ok']
+            ? ($fin['message'] ?? 'Izin aktif. Notifikasi terkirim.')
+            : ($fin['message'] ?? 'Gagal mengaktifkan izin.'));
+        header('Location: ' . app_rewrite_internal_url($fin['ok'] ? '/perizinan/surat.php?id=' . $izinId : '/perizinan/permohonan.php'));
+        exit;
+    }
+
     $notifMsg = wa_format_pengajuan_izin_baru(
         $pdo,
         (string) ($sInfoRow['nama_santri'] ?? '-'),
@@ -185,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
         $flashOk = 'Permohonan izin syar\'i terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
     } else {
-        $flashOk = 'Permohonan izin terkirim. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
+        $flashOk = 'Permohonan izin tersimpan.';
     }
     set_flash('success', $flashOk);
     header('Location: ' . app_href('/perizinan/permohonan.php'));

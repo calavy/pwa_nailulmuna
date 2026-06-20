@@ -63,6 +63,8 @@ $hubLinks = [
 
     ['path' => '/pkpps/jadwal.php', 'icon' => 'fa-solid fa-calendar-days', 'label' => 'Jadwal PKPPS', 'desc' => 'Jadwal kegiatan dan pembimbing'],
 
+    ['path' => '/pkpps/tugas/index.php', 'icon' => 'fa-solid fa-list-check', 'label' => 'Tugas & soal PKPPS', 'desc' => 'Buat soal untuk santri PKPPS berdasarkan jadwal pembimbing'],
+
     ['path' => '/rekap/pkpps_keaktifan_hari.php', 'icon' => 'fa-solid fa-id-card', 'label' => 'Keaktifan hari ini', 'desc' => 'Kartu presensi santri & pembimbing PKPPS hari ini'],
 
     ['path' => '/rekap/pkpps_keaktivan.php', 'icon' => 'fa-solid fa-chart-line', 'label' => 'Rekap keaktivan', 'desc' => 'Kehadiran santri & pembimbing PKPPS per periode'],

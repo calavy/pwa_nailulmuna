@@ -34,3 +34,6 @@ if (column_exists($pdo, 'santri', 'is_aktif') && (int) ($santriPortalRow['is_akt
     header('Location: ' . app_href('/santri_portal/login.php'));
     exit;
 }
+
+require_once __DIR__ . '/../helpers/akademik_pkpps_tugas.php';
+$santriPortalPkppsAktif = santri_portal_pkpps_aktif($pdo, $santriPortalId);

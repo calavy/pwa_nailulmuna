@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/datetime_display.php';
 require_once __DIR__ . '/akademik.php';
 
 /** @return list<string> */

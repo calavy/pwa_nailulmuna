@@ -747,6 +747,118 @@ function cashless_koperasi_rekap_tanggal_range(PDO $pdo, string $dari, string $s
     return array_values($byDate);
 }
 
+/**
+ * Rekap saldo uang saku per santri aktif + status PIN (satu sumber untuk laporan & pengaturan).
+ *
+ * @return array{
+ *   rows: list<array<string,mixed>>,
+ *   summary: array{total_santri:int,total_saldo:int,jumlah_bersaldo:int,pin_sudah:int,pin_belum:int},
+ *   daily_limit: int
+ * }
+ */
+function cashless_rekap_saldo_santri(PDO $pdo): array
+{
+    require_once __DIR__ . '/santri_list_sort.php';
+
+    cashless_koperasi_ensure_schema($pdo);
+
+    $dailyLimit = max(0, (int) app_setting($pdo, 'cashless_daily_limit', '10000'));
+    $emptySummary = [
+        'total_santri' => 0,
+        'total_saldo' => 0,
+        'jumlah_bersaldo' => 0,
+        'pin_sudah' => 0,
+        'pin_belum' => 0,
+    ];
+    if (!table_exists($pdo, 'santri')) {
+        return ['rows' => [], 'summary' => $emptySummary, 'daily_limit' => $dailyLimit];
+    }
+
+    $namaSql = santri_list_select_nama_sql($pdo, 's', 'nama_santri');
+    $tingkatanExpr = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''";
+    $joinKelas = '';
+    if (!column_exists($pdo, 'santri', 'tingkatan') && column_exists($pdo, 'santri', 'kelas_id') && table_exists($pdo, 'kelas')) {
+        $joinKelas = ' LEFT JOIN kelas k ON k.id = s.kelas_id ';
+        $tingkatanExpr = 'k.nama_kelas';
+    }
+    $whereAktif = column_exists($pdo, 'santri', 'is_aktif') ? ' WHERE s.is_aktif = 1 ' : '';
+    $orderBy = santri_list_order_sql('s', $pdo);
+
+    $txJoin = '';
+    $topupExpr = '0';
+    $debitExpr = '0';
+    $debitHariExpr = '0';
+    if (table_exists($pdo, 'cashless_transactions')) {
+        $txJoin = '
+            LEFT JOIN (
+                SELECT santri_id,
+                    COALESCE(SUM(CASE WHEN UPPER(jenis) = \'TOPUP\' THEN nominal ELSE 0 END), 0) AS total_topup,
+                    COALESCE(SUM(CASE WHEN UPPER(jenis) = \'DEBIT\' THEN nominal ELSE 0 END), 0) AS total_debit,
+                    COALESCE(SUM(CASE WHEN UPPER(jenis) = \'DEBIT\' AND DATE(tanggal) = CURDATE() THEN nominal ELSE 0 END), 0) AS debit_hari_ini
+                FROM cashless_transactions
+                GROUP BY santri_id
+            ) tx ON tx.santri_id = s.id
+        ';
+        $topupExpr = 'COALESCE(tx.total_topup, 0)';
+        $debitExpr = 'COALESCE(tx.total_debit, 0)';
+        $debitHariExpr = 'COALESCE(tx.debit_hari_ini, 0)';
+    }
+
+    $saldoExpr = table_exists($pdo, 'cashless_transactions')
+        ? 'GREATEST(0, ROUND(' . $topupExpr . ' - ' . $debitExpr . '))'
+        : 'COALESCE(ca.balance, 0)';
+
+    $sql = '
+        SELECT s.id, s.nis, ' . $namaSql . ', ' . $tingkatanExpr . ' AS tingkatan,
+               ' . $saldoExpr . ' AS saldo,
+               ' . $topupExpr . ' AS total_topup,
+               ' . $debitExpr . ' AS total_debit,
+               ' . $debitHariExpr . ' AS debit_hari_ini,
+               (ca.pin_hash IS NOT NULL AND ca.pin_hash <> \'\') AS pin_terpasang
+        FROM santri s
+        ' . $joinKelas . '
+        LEFT JOIN cashless_accounts ca ON ca.santri_id = s.id
+        ' . $txJoin . '
+        ' . $whereAktif . '
+        ORDER BY ' . $orderBy;
+
+    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $totalSaldo = 0;
+    $jumlahBersaldo = 0;
+    $pinSudah = 0;
+    foreach ($rows as &$row) {
+        $saldo = max(0, (int) round((float) ($row['saldo'] ?? 0)));
+        $debitHari = (int) round((float) ($row['debit_hari_ini'] ?? 0));
+        $row['saldo'] = $saldo;
+        $row['total_topup'] = (int) round((float) ($row['total_topup'] ?? 0));
+        $row['total_debit'] = (int) round((float) ($row['total_debit'] ?? 0));
+        $row['debit_hari_ini'] = $debitHari;
+        $row['pin_terpasang'] = (int) ($row['pin_terpasang'] ?? 0);
+        $row['sisa_jatah_hari'] = max(0, $dailyLimit - $debitHari);
+        $totalSaldo += $saldo;
+        if ($saldo > 0) {
+            $jumlahBersaldo++;
+        }
+        if ((int) $row['pin_terpasang'] === 1) {
+            $pinSudah++;
+        }
+    }
+    unset($row);
+
+    return [
+        'rows' => $rows,
+        'summary' => [
+            'total_santri' => count($rows),
+            'total_saldo' => $totalSaldo,
+            'jumlah_bersaldo' => $jumlahBersaldo,
+            'pin_sudah' => $pinSudah,
+            'pin_belum' => max(0, count($rows) - $pinSudah),
+        ],
+        'daily_limit' => $dailyLimit,
+    ];
+}
+
 /** Total saldo uang saku seluruh santri aktif — dihitung dari transaksi (top-up − belanja). */
 function cashless_saku_total_real(PDO $pdo): array
 {

@@ -7,19 +7,22 @@ require_once __DIR__ . '/../../helpers/app.php';
 require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../helpers/pkpps.php';
 
-ikhtibar_require_pembimbing_access();
+pkpps_tugas_require_access();
 ensure_akademik_ikhtibar_tables($pdo);
+pkpps_ensure_schema($pdo);
 
 $tugasId = (int) ($_GET['tugas_id'] ?? 0);
 $tugas = ikhtibar_tugas_by_id($pdo, $tugasId);
+$base = pkpps_tugas_base_path();
 if (!$tugas) {
     set_flash('error', 'Tugas tidak ditemukan.');
-    header('Location: ' . app_href('/pembimbing/tugas/index.php'));
+    header('Location: ' . app_href($base . '/index.php'));
     exit;
 }
-if (pkpps_tugas_is_row($tugas)) {
-    header('Location: ' . app_href(pkpps_tugas_base_path() . '/nilai.php?tugas_id=' . $tugasId));
+if (ikhtibar_tugas_is_row($tugas)) {
+    header('Location: ' . app_href('/pembimbing/tugas/nilai.php?tugas_id=' . $tugasId));
     exit;
 }
 
@@ -49,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'nilai
         ]);
     }
 
-    header('Location: ' . app_href('/pembimbing/tugas/nilai.php?tugas_id=' . $tugasId . '&sesi_id=' . $sesiId));
+    header('Location: ' . app_href($base . '/nilai.php?tugas_id=' . $tugasId . '&sesi_id=' . $sesiId));
     exit;
 }
 
@@ -86,8 +89,8 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>">Tugas Ikhtibar</a>
-        · <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>">Rekap</a>
+        <a href="<?= htmlspecialchars(app_href($base . '/index.php')) ?>">Tugas PKPPS</a>
+        · <a href="<?= htmlspecialchars(app_href('/pkpps/index.php')) ?>">PKPPS</a>
     </p>
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
@@ -100,7 +103,7 @@ require_once __DIR__ . '/../../includes/header.php';
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a href="?tugas_id=<?= $tugasId ?>&export=csv" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-file-csv me-1"></i> Export CSV</a>
-            <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php?id=' . $tugasId)) ?>" class="btn btn-sm btn-outline-primary">Edit tugas</a>
+            <a href="<?= htmlspecialchars(app_href($base . '/buat.php?id=' . $tugasId)) ?>" class="btn btn-sm btn-outline-primary">Edit tugas</a>
         </div>
     </div>
 </div>

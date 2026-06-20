@@ -10,19 +10,23 @@ ensure_akademik_ikhtibar_tables($pdo);
 
 $santriId = (int) ($santriPortalRow['id'] ?? 0);
 $tingkatan = (string) ($santriPortalRow['tingkatan'] ?? '');
-$tugasList = ikhtibar_tugas_tersedia_santri($pdo, $santriId, $tingkatan);
+$tugasList = ikhtibar_tugas_tersedia_santri($pdo, $santriId, $tingkatan, IKHTIBAR_TUGAS_SUMBER);
 
 require_once __DIR__ . '/../includes/layout.php';
 santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
 ?>
-<h1 class="h5 fw-bold mb-1">Tugas &amp; ujian</h1>
+<h1 class="h5 fw-bold mb-1">Tugas kajian (Ikhtibar)</h1>
 <p class="small text-muted mb-3"><?= htmlspecialchars((string) ($santriPortalRow['nama_santri'] ?? '')) ?></p>
 
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
-<nav class="ikhtibar-portal-tabs" aria-label="Menu tugas">
+<nav class="ikhtibar-portal-tabs" aria-label="Menu tugas kajian">
     <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="active">Kerjakan</a>
     <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>">Hasil saya</a>
 </nav>
+
+<?php if (!empty($santriPortalPkppsAktif)): ?>
+    <p class="small mb-3"><a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/index.php')) ?>"><i class="fa-solid fa-book-open me-1"></i> Tugas PKPPS (program PKPPS)</a></p>
+<?php endif; ?>
 
 <?php if ($tugasList === []): ?>
     <div class="text-muted small">

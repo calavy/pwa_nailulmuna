@@ -2,23 +2,26 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../inc_portal.php';
-require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
-require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../inc_portal.php';
+require_once __DIR__ . '/../../../helpers/akademik_ikhtibar.php';
+require_once __DIR__ . '/../../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../../helpers/app_path.php';
 
+santri_portal_pkpps_tugas_guard($pdo);
 ensure_akademik_ikhtibar_tables($pdo);
 
 $tugasId = (int) ($_GET['id'] ?? 0);
 $santriId = (int) ($santriPortalRow['id'] ?? 0);
+$base = pkpps_tugas_santri_base_path();
 $tugas = ikhtibar_tugas_by_id($pdo, $tugasId);
 
 if (!$tugas || (string) ($tugas['status'] ?? '') !== 'published') {
     set_flash('error', 'Tugas tidak ditemukan atau belum dipublikasikan.');
-    header('Location: ' . app_href('/santri_portal/tugas/index.php'));
+    header('Location: ' . app_href($base . '/index.php'));
     exit;
 }
-if (pkpps_tugas_is_row($tugas)) {
-    header('Location: ' . app_href(pkpps_tugas_santri_base_path() . '/kerjakan.php?id=' . $tugasId));
+if (!pkpps_tugas_is_row($tugas)) {
+    header('Location: ' . app_href('/santri_portal/pkpps/tugas/kerjakan.php?id=' . $tugasId));
     exit;
 }
 
@@ -36,20 +39,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash('error', 'Token tidak valid.');
         }
-        header('Location: ' . app_href('/santri_portal/tugas/kerjakan.php?id=' . $tugasId));
+        header('Location: ' . app_href('/santri_portal/pkpps/tugas/kerjakan.php?id=' . $tugasId));
         exit;
     }
     if ($action === 'mulai' && $tokenOk) {
         $res = ikhtibar_mulai_sesi($pdo, $tugasId, $santriId);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/santri_portal/tugas/kerjakan.php?id=' . $tugasId));
+        header('Location: ' . app_href('/santri_portal/pkpps/tugas/kerjakan.php?id=' . $tugasId));
         exit;
     }
     if ($action === 'simpan' || $action === 'selesai') {
         $sesi = ikhtibar_sesi_get($pdo, $tugasId, $santriId);
         if (!$sesi || (string) ($sesi['status'] ?? '') !== 'berjalan') {
             set_flash('error', 'Sesi tidak aktif.');
-            header('Location: ' . app_href('/santri_portal/tugas/kerjakan.php?id=' . $tugasId));
+            header('Location: ' . app_href('/santri_portal/pkpps/tugas/kerjakan.php?id=' . $tugasId));
             exit;
         }
         $sesiId = (int) $sesi['id'];
@@ -65,15 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fin = ikhtibar_selesai_sesi($pdo, $sesiId);
             if ($fin['ok'] && !empty($fin['sesi_id'])) {
                 set_flash('success', 'Tugas selesai. Lihat ringkasan nilai di bawah.');
-                header('Location: ' . app_href('/santri_portal/tugas/hasil_detail.php?sesi_id=' . (int) $fin['sesi_id']));
+                header('Location: ' . app_href('/santri_portal/pkpps/tugas/hasil_detail.php?sesi_id=' . (int) $fin['sesi_id']));
             } else {
                 set_flash($fin['ok'] ? 'success' : 'error', (string) ($fin['message'] ?? ''));
-                header('Location: ' . app_href('/santri_portal/tugas/index.php'));
+                header('Location: ' . app_href('/santri_portal/pkpps/tugas/index.php'));
             }
             exit;
         }
         set_flash('success', 'Jawaban tersimpan.');
-        header('Location: ' . app_href('/santri_portal/tugas/kerjakan.php?id=' . $tugasId));
+        header('Location: ' . app_href('/santri_portal/pkpps/tugas/kerjakan.php?id=' . $tugasId));
         exit;
     }
 }
@@ -83,8 +86,8 @@ $statusSesi = (string) ($sesi['status'] ?? 'menunggu');
 $berjalan = $statusSesi === 'berjalan';
 $selesai = $statusSesi === 'selesai';
 
-$navActive = $berjalan ? null : 'tugas';
-require_once __DIR__ . '/../includes/layout.php';
+$navActive = $berjalan ? null : 'tugas_pkpps';
+require_once __DIR__ . '/../../includes/layout.php';
 santri_portal_layout_head((string) ($tugas['judul'] ?? 'Tugas'), $navActive);
 ?>
 <h1 class="h5 fw-bold mb-1"><?= htmlspecialchars((string) ($tugas['judul'] ?? 'Tugas')) ?></h1>
@@ -97,10 +100,10 @@ if ($selesai):
     <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
     <p class="text-center mb-3">Anda sudah menyelesaikan tugas ini.</p>
     <?php if ($sesiSelesaiId > 0): ?>
-        <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil_detail.php?sesi_id=' . $sesiSelesaiId)) ?>" class="btn btn-auth-primary w-100 mb-2"><i class="fa-solid fa-chart-simple me-1"></i> Lihat hasil &amp; nilai</a>
+        <a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/hasil_detail.php?sesi_id=' . $sesiSelesaiId)) ?>" class="btn btn-auth-primary w-100 mb-2"><i class="fa-solid fa-chart-simple me-1"></i> Lihat hasil &amp; nilai</a>
     <?php endif; ?>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100 mb-2">Semua hasil tugas</a>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="btn btn-link w-100 small">Daftar tugas</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100 mb-2">Semua hasil tugas</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/index.php')) ?>" class="btn btn-link w-100 small">Daftar tugas</a>
 <?php elseif (!$tokenOk): ?>
     <p class="small text-muted">Masukkan <strong>Token Kunci</strong> dari pembimbing untuk membuka soal.</p>
     <form method="post" class="d-grid gap-2">
@@ -188,7 +191,7 @@ if ($selesai):
 <?php endif; ?>
 
 <?php if (!$berjalan): ?>
-<p class="text-center mt-3 mb-0"><a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>" class="small">← Daftar tugas</a></p>
+<p class="text-center mt-3 mb-0"><a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/index.php')) ?>" class="small">← Daftar tugas</a></p>
 <?php endif; ?>
 <?php
-santri_portal_layout_foot($navActive);
+santri_portal_layout_foot($berjalan ? null : 'tugas_pkpps');

@@ -203,10 +203,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $kegiatanKhusus = null;
             if (!$kegiatan) {
-                $kegiatanKhusus = kegiatan_khusus_find_active_for_tingkatan(
+                $kegiatanKhusus = kegiatan_khusus_find_active_for_santri(
                     $pdo,
                     $tanggal,
                     $jam,
+                    (int) ($santri['id'] ?? 0),
                     (string) ($santri['tingkatan'] ?? '')
                 );
             }

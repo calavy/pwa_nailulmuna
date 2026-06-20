@@ -33,7 +33,8 @@ function app_hub_registry(): array
             'tabs' => [
                 ['path' => '/keuangan/cashless_scan.php', 'label' => 'Top up / scan'],
                 ['path' => '/keuangan/cashless_setor.php', 'label' => 'Setor'],
-                ['path' => '/keuangan/cashless_laporan.php', 'label' => 'Laporan'],
+                ['path' => '/keuangan/cashless_laporan.php', 'label' => 'Laporan koperasi'],
+                ['path' => '/keuangan/cashless_pin.php', 'label' => 'Saldo & PIN'],
             ],
         ],
         'setoran_hafalan' => [
@@ -57,6 +58,18 @@ function app_hub_registry(): array
                 ['path' => '/pembimbing/tugas/rekap.php', 'label' => 'Rekap'],
                 ['path' => '/akademik/ikhtibar_rekap.php', 'label' => 'Rekap admin'],
                 ['path' => '/pembimbing/nilai_manual.php', 'label' => 'Nilai manual'],
+                ['path' => '/settings/ikhtibar_kriteria.php', 'label' => 'Kriteria nilai'],
+            ],
+        ],
+        'pkpps_hub' => [
+            'title' => 'PKPPS',
+            'landing' => '/pkpps/index.php',
+            'tabs' => [
+                ['path' => '/pkpps/index.php', 'label' => 'Dashboard'],
+                ['path' => '/pkpps/santri.php', 'label' => 'Santri'],
+                ['path' => '/pkpps/jadwal.php', 'label' => 'Jadwal'],
+                ['path' => '/pkpps/tugas/index.php', 'label' => 'Tugas & soal'],
+                ['path' => '/settings/ikhtibar_kriteria.php', 'label' => 'Kriteria nilai'],
             ],
         ],
         'rekap_presensi' => [

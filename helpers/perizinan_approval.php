@@ -1779,6 +1779,54 @@ function perizinan_setujui_izin_satu(
     return ['ok' => true, 'message' => $flashMsg, 'wa' => $waRingkasan];
 }
 
+/** @return array<string, mixed>|null */
+function perizinan_fetch_izin_dengan_santri(PDO $pdo, int $izinId): ?array
+{
+    perizinan_approval_ensure_schema($pdo);
+    if ($izinId <= 0 || !table_exists($pdo, 'perizinan') || !table_exists($pdo, 'santri')) {
+        return null;
+    }
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $st = $pdo->prepare('
+        SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai,
+               i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, i.tujuan, i.qr_token,
+               i.approval_status, i.pengasuh_approved_at,
+               s.' . $nameCol . ' AS nama_santri, s.nis, s.tingkatan, s.no_wa_wali
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE i.id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? $row : null;
+}
+
+/**
+ * Finalisasi otomatis setelah input: sakit/keluar/tugas langsung DISETUJUI + notifikasi.
+ * Izin syar'i (wali) mengembalikan null — tetap menunggu pengasuh.
+ *
+ * @return array{ok:bool,message:string,wa?:array<string,int>}|null
+ */
+function perizinan_finalisasi_setelah_input(PDO $pdo, int $izinId, int $userId): ?array
+{
+    require_once __DIR__ . '/perizinan_jenis.php';
+
+    $row = perizinan_fetch_izin_dengan_santri($pdo, $izinId);
+    if ($row === null) {
+        return ['ok' => false, 'message' => 'Data izin tidak ditemukan.', 'wa' => ['pembimbing' => 0, 'grup' => 0, 'pengurus' => 0, 'total' => 0]];
+    }
+    if (!perizinan_langsung_disetujui_tanpa_persetujuan((string) ($row['jenis_izin'] ?? ''))) {
+        return null;
+    }
+    if (strtoupper((string) ($row['approval_status'] ?? '')) === 'DISETUJUI') {
+        return ['ok' => true, 'message' => 'Izin sudah aktif.', 'wa' => ['pembimbing' => 0, 'grup' => 0, 'pengurus' => 0, 'total' => 0]];
+    }
+
+    return perizinan_setujui_izin_satu($pdo, $row, $userId, false, [], false);
+}
+
 /** Finalisasi data lama: izin syar'i sudah distempel pengasuh tetapi masih PENDING. */
 function perizinan_syari_backfill_finalize(PDO $pdo, int $izinId): bool
 {

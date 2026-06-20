@@ -41,10 +41,16 @@ function perizinan_jenis_izin_valid(string $jenis): bool
     return in_array(perizinan_jenis_izin_normalize($jenis), perizinan_jenis_izin_kodes(), true);
 }
 
-/** Hanya izin syar'i yang wajib persetujuan pengasuh; setelah itu pengurus hanya cetak surat. */
+/** Hanya izin syar'i (pengajuan wali) yang wajib persetujuan pengasuh; setelah itu pengurus hanya cetak surat. */
 function perizinan_memerlukan_persetujuan_pengasuh(string $jenis): bool
 {
     return perizinan_jenis_izin_normalize($jenis) === perizinan_jenis_syari_kode();
+}
+
+/** Sakit, keluar, tugas: langsung disetujui + notifikasi WA; tanpa antrean persetujuan pengurus. */
+function perizinan_langsung_disetujui_tanpa_persetujuan(string $jenis): bool
+{
+    return !perizinan_memerlukan_persetujuan_pengasuh($jenis);
 }
 
 /**

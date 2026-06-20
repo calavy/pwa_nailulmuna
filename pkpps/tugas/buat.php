@@ -8,36 +8,38 @@ require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
 
-ikhtibar_require_pembimbing_access();
+require_once __DIR__ . '/../../helpers/pkpps.php';
+
+pkpps_tugas_require_access();
 ensure_akademik_ikhtibar_tables($pdo);
+pkpps_ensure_schema($pdo);
 ensure_santri_identity_columns($pdo);
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
-$jadwalOptions = ikhtibar_jadwal_options($pdo, $userId);
+$pkppsJadwalOptions = ikhtibar_pkpps_jadwal_options($pdo, $userId);
 require_once __DIR__ . '/../../helpers/ikhtibar_kriteria.php';
 $kriteriaList = ikhtibar_kriteria_list($pdo, true);
 $roleUser = strtolower((string) ($_SESSION['user']['role'] ?? ''));
-$wajibPilihMapel = !is_super_admin() && !in_array($roleUser, ['admin', 'pengurus'], true);
+$wajibPilihJadwal = !is_super_admin() && !in_array($roleUser, ['admin', 'pengurus'], true);
 $id = (int) ($_GET['id'] ?? 0);
 $tugas = $id > 0 ? ikhtibar_tugas_by_id($pdo, $id) : null;
 if (is_array($tugas)) {
-    ikhtibar_tugas_redirect_jika_pkpps($tugas);
+    pkpps_tugas_redirect_jika_bukan($tugas);
 }
 $soalExisting = $tugas ? ikhtibar_soal_by_tugas($pdo, $id) : [];
+$base = pkpps_tugas_base_path();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? 'simpan'));
     if ($action === 'token_baru' && $id > 0) {
         $plain = ikhtibar_set_token($pdo, $id);
         set_flash('success', 'Token baru: ' . $plain);
-        header('Location: ' . app_href('/pembimbing/tugas/buat.php?id=' . $id));
+        header('Location: ' . app_href($base . '/buat.php?id=' . $id));
         exit;
     }
-    $_POST['sumber'] = IKHTIBAR_TUGAS_SUMBER;
-    unset($_POST['pkpps_jadwal_id']);
-    $result = ikhtibar_simpan_tugas_dari_post($pdo, $_POST, $_FILES, $userId);
+    $result = pkpps_tugas_simpan_dari_post($pdo, $_POST, $_FILES, $userId);
     set_flash($result['ok'] ? 'success' : 'error', $result['message']);
-    header('Location: ' . app_href('/pembimbing/tugas/buat.php?id=' . (int) ($result['id'] ?? $id)));
+    header('Location: ' . app_href($base . '/buat.php?id=' . (int) ($result['id'] ?? $id)));
     exit;
 }
 
@@ -67,15 +69,14 @@ if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) 
     $tingkatanList = $pdo->query('SELECT DISTINCT tingkatan FROM santri WHERE tingkatan IS NOT NULL AND tingkatan <> "" ORDER BY tingkatan')->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }
 
-$selSumber = IKHTIBAR_TUGAS_SUMBER;
-$pageTitle = $tugas ? 'Edit Tugas Ikhtibar' : 'Buat Tugas Ikhtibar';
+$pageTitle = $tugas ? 'Edit Tugas PKPPS' : 'Buat Tugas PKPPS';
 require_once __DIR__ . '/../../includes/header.php';
 $err = get_flash('error');
 $ok = get_flash('success');
 ?>
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>">Tugas Ikhtibar</a></p>
-    <h1 class="h4 mb-0"><?= $tugas ? 'Edit' : 'Buat' ?> Tugas (Ikhtibar)</h1>
+    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($base . '/index.php')) ?>">Tugas PKPPS</a> · <a href="<?= htmlspecialchars(app_href('/pkpps/index.php')) ?>">PKPPS</a></p>
+    <h1 class="h4 mb-0"><?= $tugas ? 'Edit' : 'Buat' ?> Tugas PKPPS</h1>
 </div>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
@@ -84,24 +85,24 @@ $ok = get_flash('success');
     <?php if ($tugas): ?><input type="hidden" name="id" value="<?= (int) $tugas['id'] ?>"><?php endif; ?>
 
     <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold small">1. Jadwal &amp; periode</div>
+        <div class="card-header fw-semibold small">1. Jadwal PKPPS &amp; periode</div>
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-6">
-                    <label class="form-label">Kelas / mapel (jadwal Anda)</label>
-                    <select name="jadwal_kegiatan_id" class="form-select"<?= $wajibPilihMapel ? ' required' : '' ?>>
-                        <option value="">— Pilih jadwal kajian —</option>
+                    <label class="form-label">Jadwal PKPPS (pembimbing Anda)</label>
+                    <select name="pkpps_jadwal_id" class="form-select"<?= $wajibPilihJadwal ? ' required' : '' ?>>
+                        <option value="">— Pilih jadwal PKPPS —</option>
                         <?php
-                        $selJadwal = (int) ($tugas['jadwal_kegiatan_id'] ?? 0);
-                        foreach ($jadwalOptions as $jo):
+                        $selPkpps = (int) ($tugas['pkpps_jadwal_id'] ?? 0);
+                        foreach ($pkppsJadwalOptions as $pj):
                             ?>
-                            <option value="<?= (int) $jo['id'] ?>" <?= $selJadwal === (int) $jo['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $jo['label']) ?></option>
+                            <option value="<?= (int) $pj['id'] ?>" <?= $selPkpps === (int) $pj['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $pj['label']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <?php if ($jadwalOptions === []): ?>
-                        <div class="form-text text-warning">Belum ada jadwal dengan NIP Anda. Pastikan akun login username = NIP pembimbing di menu Jadwal.</div>
+                    <?php if ($pkppsJadwalOptions === []): ?>
+                        <div class="form-text text-warning">Belum ada jadwal PKPPS dengan NIP Anda. Atur di menu PKPPS → Jadwal.</div>
                     <?php else: ?>
-                        <div class="form-text">Sesuai kegiatan &amp; tingkatan yang Anda ampu di jadwal kajian pondok.</div>
+                        <div class="form-text">Tugas hanya untuk santri aktif di tingkatan PKPPS jadwal ini.</div>
                     <?php endif; ?>
                 </div>
                 <div class="col-md-6">
@@ -218,7 +219,7 @@ $ok = get_flash('success');
     <div class="d-flex flex-wrap gap-2">
         <button type="submit" name="action" value="simpan" class="btn btn-outline-secondary">Simpan draf</button>
         <button type="submit" name="publish" value="1" class="btn btn-primary">Publikasikan tugas</button>
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="btn btn-link">Batal</a>
+        <a href="<?= htmlspecialchars(app_href($base . '/index.php')) ?>" class="btn btn-link">Batal</a>
     </div>
 </form>
 

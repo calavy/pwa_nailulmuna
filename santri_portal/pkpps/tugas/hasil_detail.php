@@ -2,26 +2,22 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../inc_portal.php';
-require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
-require_once __DIR__ . '/../../helpers/app_path.php';
+require_once __DIR__ . '/../../inc_portal.php';
+require_once __DIR__ . '/../../../helpers/akademik_ikhtibar.php';
+require_once __DIR__ . '/../../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../../helpers/app_path.php';
 
-require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
-
+santri_portal_pkpps_tugas_guard($pdo);
 ensure_akademik_ikhtibar_tables($pdo);
 
 $santriId = (int) ($santriPortalRow['id'] ?? 0);
+$base = pkpps_tugas_santri_base_path();
 $sesiId = (int) ($_GET['sesi_id'] ?? 0);
 $detail = $sesiId > 0 ? ikhtibar_hasil_detail_santri($pdo, $sesiId, $santriId) : null;
 
 if ($detail === null) {
     set_flash('error', 'Data hasil tidak ditemukan.');
-    header('Location: ' . app_href('/santri_portal/tugas/hasil.php'));
-    exit;
-}
-$tugasRow = ikhtibar_tugas_by_id($pdo, (int) ($detail['sesi']['tugas_id'] ?? 0));
-if (is_array($tugasRow) && pkpps_tugas_is_row($tugasRow)) {
-    header('Location: ' . app_href(pkpps_tugas_santri_base_path() . '/hasil_detail.php?sesi_id=' . $sesiId));
+    header('Location: ' . app_href($base . '/hasil.php'));
     exit;
 }
 
@@ -33,8 +29,8 @@ $nilai = $sesi['nilai_total'] !== null ? (float) $sesi['nilai_total'] : null;
 $bobot = $detail['bobot'];
 
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
-require_once __DIR__ . '/../includes/layout.php';
-santri_portal_layout_head('Detail Hasil — ' . (string) ($sesi['judul'] ?? ''), 'tugas');
+require_once __DIR__ . '/../../includes/layout.php';
+santri_portal_layout_head('Detail Hasil PKPPS — ' . (string) ($sesi['judul'] ?? ''), 'tugas_pkpps');
 ?>
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
 
@@ -42,8 +38,8 @@ santri_portal_layout_head('Detail Hasil — ' . (string) ($sesi['judul'] ?? ''),
 <p class="small text-muted mb-3"><?= htmlspecialchars(ikhtibar_hari_label((int) ($sesi['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) ($sesi['tanggal'] ?? '')) ?></p>
 
 <nav class="ikhtibar-portal-tabs mb-3">
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/index.php')) ?>">Kerjakan</a>
-    <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="active">Hasil saya</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/index.php')) ?>">Kerjakan</a>
+    <a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/hasil.php')) ?>" class="active">Hasil saya</a>
 </nav>
 
 <div class="ikhtibar-hero-score <?= ($pending || $nilai === null) ? 'ikhtibar-hero-score--pending' : '' ?> mb-3">
@@ -145,7 +141,7 @@ santri_portal_layout_head('Detail Hasil — ' . (string) ($sesi['judul'] ?? ''),
     </div>
 </div>
 
-<a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100">← Kembali ke daftar hasil</a>
+<a href="<?= htmlspecialchars(app_href('/santri_portal/pkpps/tugas/hasil.php')) ?>" class="btn btn-outline-secondary w-100">← Kembali ke daftar hasil</a>
 
 <?php
-santri_portal_layout_foot('tugas');
+santri_portal_layout_foot('tugas_pkpps');

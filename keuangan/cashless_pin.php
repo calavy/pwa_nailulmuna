@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limit = max(0, (int) $limitRaw);
         save_setting($pdo, 'cashless_daily_limit', (string) $limit);
         set_flash('success', 'Batas harian cashless berhasil disimpan.');
-        header('Location: ' . app_href('/keuangan/cashless_pin.php'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_scan_uang_setting') {
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'cashless_scan_uang_voice', $isVoice);
         save_setting($pdo, 'cashless_scan_uang_max_nominal', (string) $maxNominal);
         set_flash('success', 'Pengaturan scan uang cashless berhasil disimpan.');
-        header('Location: ' . app_href('/keuangan/cashless_pin.php'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'create_qr_nominal_map') {
@@ -40,12 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ket = trim((string) ($_POST['map_keterangan'] ?? ''));
         if ($kode === '' || strlen($kode) > 120) {
             set_flash('error', 'Kode QR wajib diisi (alfanumerik, maks. 120 karakter setelah normalisasi).');
-            header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
+            header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
             exit;
         }
         if ($nominal <= 0) {
             set_flash('error', 'Nominal harus lebih dari 0.');
-            header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
+            header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
             exit;
         }
         try {
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Throwable $e) {
             set_flash('error', 'Gagal menyimpan: kode mungkin sudah dipakai.');
         }
-        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'update_qr_nominal_map') {
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             set_flash('success', 'Peta QR nominal diperbarui.');
         }
-        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'delete_qr_nominal_map') {
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM cashless_nominal_qr_map WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Peta QR nominal dihapus.');
         }
-        header('Location: ' . app_href('/keuangan/cashless_pin.php#peta-qr-nominal'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#peta-qr-nominal'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_cashless_pin') {
@@ -99,17 +99,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pinKonf = trim((string) ($_POST['pin_konfirmasi'] ?? ''));
         if ($santriId <= 0) {
             set_flash('error', 'Pilih santri.');
-            header('Location: ' . app_href('/keuangan/cashless_pin.php#form-pin-cashless'));
+            header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pin#form-pin-cashless'));
             exit;
         }
         if (strlen($pinBaru) < 4) {
             set_flash('error', 'PIN minimal 4 digit.');
-            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless'));
+            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?tab=pin&ubah_pin=' . $santriId . '#form-pin-cashless'));
             exit;
         }
         if ($pinBaru !== $pinKonf) {
             set_flash('error', 'PIN dan konfirmasi PIN tidak sama.');
-            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?ubah_pin=' . $santriId . '#form-pin-cashless'));
+            header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?tab=pin&ubah_pin=' . $santriId . '#form-pin-cashless'));
             exit;
         }
         $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'santri_id' => $santriId,
         ]);
         set_flash('success', 'PIN cashless berhasil disimpan.');
-        header('Location: ' . app_href('/keuangan/cashless_pin.php#form-pin-cashless'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pin#form-pin-cashless'));
         exit;
     }
     if (($_POST['action'] ?? '') === 'save_koperasi_cashless') {
@@ -134,21 +134,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         set_flash('success', 'Pengaturan koperasi cashless berhasil disimpan.');
-        header('Location: ' . app_href('/keuangan/cashless_pin.php#koperasi-cashless'));
+        header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan#koperasi-cashless'));
         exit;
     }
 }
 
-$dailyLimit = (int) app_setting($pdo, 'cashless_daily_limit', '10000');
+$rekapSaldo = cashless_rekap_saldo_santri($pdo);
+$santriPinStatusRows = $rekapSaldo['rows'];
+$rekapSummary = $rekapSaldo['summary'];
+$dailyLimit = (int) ($rekapSaldo['daily_limit'] ?? 10000);
+
 $scanUangEnabled = app_setting($pdo, 'cashless_scan_uang_enabled', '1') === '1';
 $scanUangVoice = app_setting($pdo, 'cashless_scan_uang_voice', '1') === '1';
-$scanUangMaxNominal = (int) app_setting($pdo, 'cashless_scan_uang_max_nominal', '200000');
-$scanUangMaxNominal = max(1000, $scanUangMaxNominal);
+$scanUangMaxNominal = max(1000, (int) app_setting($pdo, 'cashless_scan_uang_max_nominal', '200000'));
 $qrNominalMapRows = $pdo->query('
     SELECT id, kode_qr, nominal, keterangan, is_aktif
     FROM cashless_nominal_qr_map
     ORDER BY is_aktif DESC, nominal ASC, kode_qr ASC
 ')->fetchAll();
+
+$ubahPinSantriId = (int) ($_GET['ubah_pin'] ?? 0);
+$allowedTabs = ['rekap', 'pin', 'pengaturan'];
+$activeTab = (string) ($_GET['tab'] ?? 'rekap');
+if (!in_array($activeTab, $allowedTabs, true)) {
+    $activeTab = 'rekap';
+}
+if ($ubahPinSantriId > 0) {
+    $activeTab = 'pin';
+}
 
 $santriNameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
 $santriLevelExpr = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''";
@@ -167,45 +180,206 @@ $santriRows = $pdo->query("
     ORDER BY {$orderBySantri}
 ")->fetchAll();
 
-$pinRows = $pdo->query("
-    SELECT ca.santri_id, ca.balance, {$santriNameExpr} AS nama_santri, s.nis, s.tingkatan
-    FROM cashless_accounts ca
-    INNER JOIN santri s ON s.id = ca.santri_id
-    ORDER BY {$orderBySantri}
-")->fetchAll();
-
-$santriPinStatusRows = $pdo->query("
-    SELECT s.id, s.nis, {$santriNameExpr} AS nama_santri, s.tingkatan,
-           ca.balance,
-           (ca.pin_hash IS NOT NULL AND ca.pin_hash <> '') AS pin_terpasang
-    FROM santri s
-    LEFT JOIN cashless_accounts ca ON ca.santri_id = s.id
-    {$whereAktif}
-    ORDER BY {$orderBySantri}
-")->fetchAll();
-
-$ubahPinSantriId = (int) ($_GET['ubah_pin'] ?? 0);
 $koperasiList = cashless_koperasi_list($pdo, false);
 
-$pageTitle = 'Pengaturan Cashless & Uang Saku';
+$pageTitle = 'Rekap Saldo & PIN Cashless';
 require_once __DIR__ . '/../includes/header.php';
+$flashOk = get_flash('success');
+$flashErr = get_flash('error');
+$tabBaseUrl = app_href('/keuangan/cashless_pin.php');
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div>
-        <p class="page-intro-kicker mb-1 small"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a></p>
-        <h1 class="h4 mb-0">Pengaturan Cashless &amp; Uang Saku</h1>
-        <p class="small text-muted mb-0">PIN santri, batas belanja harian, scan uang, dan alur top-up dari pembayaran Saku.</p>
+        <p class="page-intro-kicker mb-1 small"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-pengaturan')) ?>">Pengaturan</a> · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless.php')) ?>">Cashless</a></p>
+        <h1 class="h4 mb-0">Rekap Saldo &amp; PIN Cashless</h1>
+        <p class="small text-muted mb-0">Laporan saldo uang saku per santri, status PIN, dan pengaturan cashless dalam satu halaman.</p>
     </div>
-    <a href="/keuangan/cashless_scan.php" class="btn btn-outline-danger btn-sm">Ke Scan Cashless</a>
-    <a href="/keuangan/cashless_laporan.php" class="btn btn-outline-secondary btn-sm">Laporan Koperasi</a>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_scan.php')) ?>" class="btn btn-outline-danger btn-sm">Scan cashless</a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php')) ?>" class="btn btn-outline-secondary btn-sm">Laporan koperasi</a>
+    </div>
 </div>
-<div class="alert alert-info small mb-3">
-    <strong>Uang saku (opsional):</strong> jika wali membayar pos <em>Saku</em> (mis. Rp 100.000), nominal itu masuk saldo <strong>cashless</strong> santri.
-    Santri memakai saldo untuk belanja di pondok; pengeluaran per hari dibatasi di bawah (standar Rp <?= number_format($dailyLimit, 0, ',', '.') ?>).
-    Tagihan wajib bulanan: <strong>Syahriyah</strong>. <strong>Makan</strong> dan <strong>Saku</strong> opsional.
+<?php if ($flashOk): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
+<?php if ($flashErr): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><a class="nav-link<?= $activeTab === 'rekap' ? ' active' : '' ?>" href="<?= htmlspecialchars($tabBaseUrl . '?tab=rekap') ?>">Rekap saldo</a></li>
+    <li class="nav-item"><a class="nav-link<?= $activeTab === 'pin' ? ' active' : '' ?>" href="<?= htmlspecialchars($tabBaseUrl . '?tab=pin#form-pin-cashless') ?>">Pengaturan PIN</a></li>
+    <li class="nav-item"><a class="nav-link<?= $activeTab === 'pengaturan' ? ' active' : '' ?>" href="<?= htmlspecialchars($tabBaseUrl . '?tab=pengaturan') ?>">Pengaturan cashless</a></li>
+</ul>
+
+<?php if ($activeTab === 'rekap'): ?>
+<div id="rekap-saldo-cashless">
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="app-mini-stat h-100">
+                <div class="app-mini-stat-label">Total saldo</div>
+                <div class="app-mini-stat-value text-success">Rp <?= number_format((int) $rekapSummary['total_saldo'], 0, ',', '.') ?></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="app-mini-stat h-100">
+                <div class="app-mini-stat-label">Santri bersaldo</div>
+                <div class="app-mini-stat-value"><?= (int) $rekapSummary['jumlah_bersaldo'] ?> <span class="fs-6 text-muted fw-normal">/ <?= (int) $rekapSummary['total_santri'] ?></span></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="app-mini-stat h-100">
+                <div class="app-mini-stat-label">PIN sudah diatur</div>
+                <div class="app-mini-stat-value text-primary"><?= (int) $rekapSummary['pin_sudah'] ?></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="app-mini-stat h-100">
+                <div class="app-mini-stat-label">Belum PIN · batas/hari</div>
+                <div class="app-mini-stat-value"><span class="text-warning"><?= (int) $rekapSummary['pin_belum'] ?></span> <span class="fs-6 text-muted fw-normal">· Rp <?= number_format($dailyLimit, 0, ',', '.') ?></span></div>
+            </div>
+        </div>
+    </div>
+    <div class="alert alert-info small">
+        Saldo = top-up pos <em>Saku</em> − belanja cashless. Batas belanja harian per santri: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong>.
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+            <strong class="small">Rekap saldo per santri</strong>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <select id="rekap-filter-pin" class="form-select form-select-sm" style="max-width:11rem">
+                    <option value="">Semua PIN</option>
+                    <option value="sudah">PIN sudah</option>
+                    <option value="belum">Belum PIN</option>
+                </select>
+                <select id="rekap-filter-saldo" class="form-select form-select-sm" style="max-width:11rem">
+                    <option value="">Semua saldo</option>
+                    <option value="ada">Ada saldo</option>
+                    <option value="kosong">Saldo nol</option>
+                </select>
+                <input type="search" id="rekap-search" class="form-control form-control-sm" placeholder="Cari NIS / nama…" style="max-width:14rem">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fa-solid fa-print me-1"></i>Cetak</button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="rekap-saldo-table">
+                <thead class="table-light">
+                    <tr class="small text-muted text-uppercase">
+                        <th>NIS</th>
+                        <th>Nama</th>
+                        <th>Tingkatan</th>
+                        <th class="text-end">Saldo</th>
+                        <th class="text-end d-none d-md-table-cell">Top-up</th>
+                        <th class="text-end d-none d-md-table-cell">Belanja</th>
+                        <th class="text-end d-none d-lg-table-cell">Pakai hari ini</th>
+                        <th class="text-end d-none d-lg-table-cell">Sisa jatah</th>
+                        <th>PIN</th>
+                        <th class="text-end d-print-none">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if ($santriPinStatusRows): foreach ($santriPinStatusRows as $sr):
+                    $saldo = (int) ($sr['saldo'] ?? 0);
+                    $pinOk = (int) ($sr['pin_terpasang'] ?? 0) === 1;
+                    ?>
+                    <tr data-pin="<?= $pinOk ? 'sudah' : 'belum' ?>" data-saldo="<?= $saldo > 0 ? 'ada' : 'kosong' ?>">
+                        <td class="font-monospace small"><?= htmlspecialchars((string) $sr['nis']) ?></td>
+                        <td class="fw-semibold"><?= htmlspecialchars((string) $sr['nama_santri']) ?></td>
+                        <td class="small text-muted"><?= htmlspecialchars((string) (($sr['tingkatan'] ?? '') !== '' ? $sr['tingkatan'] : '—')) ?></td>
+                        <td class="text-end font-monospace fw-semibold <?= $saldo > 0 ? 'text-success' : 'text-muted' ?>">Rp <?= number_format($saldo, 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace small d-none d-md-table-cell">Rp <?= number_format((int) ($sr['total_topup'] ?? 0), 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace small d-none d-md-table-cell">Rp <?= number_format((int) ($sr['total_debit'] ?? 0), 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace small d-none d-lg-table-cell">Rp <?= number_format((int) ($sr['debit_hari_ini'] ?? 0), 0, ',', '.') ?></td>
+                        <td class="text-end font-monospace small d-none d-lg-table-cell">Rp <?= number_format((int) ($sr['sisa_jatah_hari'] ?? 0), 0, ',', '.') ?></td>
+                        <td>
+                            <?php if ($pinOk): ?>
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle">Sudah</span>
+                            <?php else: ?>
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Belum</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end text-nowrap d-print-none">
+                            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/cashless_pin.php?tab=pin&ubah_pin=' . (int) $sr['id'] . '#form-pin-cashless')) ?>">Ubah PIN</a>
+                        </td>
+                    </tr>
+                <?php endforeach; else: ?>
+                    <tr><td colspan="10" class="text-center text-muted py-4">Tidak ada data santri aktif.</td></tr>
+                <?php endif; ?>
+                </tbody>
+                <?php if ($santriPinStatusRows !== []): ?>
+                <tfoot class="table-light">
+                    <tr class="fw-semibold small">
+                        <td colspan="3">Total (<?= (int) $rekapSummary['total_santri'] ?> santri)</td>
+                        <td class="text-end font-monospace text-success">Rp <?= number_format((int) $rekapSummary['total_saldo'], 0, ',', '.') ?></td>
+                        <td colspan="6"></td>
+                    </tr>
+                </tfoot>
+                <?php endif; ?>
+            </table>
+        </div>
+    </div>
 </div>
+<script>
+(function () {
+    var search = document.getElementById('rekap-search');
+    var filterPin = document.getElementById('rekap-filter-pin');
+    var filterSaldo = document.getElementById('rekap-filter-saldo');
+    var table = document.getElementById('rekap-saldo-table');
+    if (!table) { return; }
+    function applyFilter() {
+        var q = search ? (search.value || '').toLowerCase().trim() : '';
+        var pin = filterPin ? filterPin.value : '';
+        var saldo = filterSaldo ? filterSaldo.value : '';
+        table.querySelectorAll('tbody tr[data-pin]').forEach(function (tr) {
+            var hay = (tr.innerText || '').toLowerCase();
+            var ok = (q === '' || hay.indexOf(q) !== -1)
+                && (pin === '' || tr.getAttribute('data-pin') === pin)
+                && (saldo === '' || tr.getAttribute('data-saldo') === saldo);
+            tr.style.display = ok ? '' : 'none';
+        });
+    }
+    if (search) { search.addEventListener('input', applyFilter); }
+    if (filterPin) { filterPin.addEventListener('change', applyFilter); }
+    if (filterSaldo) { filterSaldo.addEventListener('change', applyFilter); }
+})();
+</script>
+<style>@media print { .nav-tabs, .btn, .form-select, .form-control, .d-print-none, .app-sidebar, .app-topbar { display: none !important; } }</style>
+
+<?php elseif ($activeTab === 'pin'): ?>
+<div class="row g-3 justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm" id="form-pin-cashless">
+            <div class="card-header fw-semibold small">Atur / ganti PIN cashless</div>
+            <div class="card-body">
+                <p class="small text-muted">PIN dipakai saat scan belanja dan bisa dipakai login <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" target="_blank" rel="noopener">portal santri</a> jika PIN portal belum diatur.</p>
+                <form method="post">
+                    <input type="hidden" name="action" value="save_cashless_pin">
+                    <div class="mb-2">
+                        <label class="form-label">Santri</label>
+                        <select class="form-select" name="santri_id" id="select-santri-pin" required>
+                            <option value="">Pilih santri</option>
+                            <?php foreach ($santriRows as $s): ?>
+                                <option value="<?= (int) $s['id'] ?>" <?= $ubahPinSantriId === (int) $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $s['nis']) ?> — <?= htmlspecialchars((string) $s['nama_santri']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">PIN baru (min. 4 digit)</label>
+                        <input type="password" name="pin_baru" class="form-control" minlength="4" autocomplete="new-password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Konfirmasi PIN</label>
+                        <input type="password" name="pin_konfirmasi" class="form-control" minlength="4" autocomplete="new-password" required>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary">Simpan PIN</button>
+                        <a class="btn btn-outline-secondary" href="<?= htmlspecialchars($tabBaseUrl . '?tab=rekap') ?>">Lihat rekap saldo</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php else: ?>
 <div class="row g-3">
-    <div class="col-lg-5">
+    <div class="col-lg-12">
         <div class="card shadow-sm mb-3" id="koperasi-cashless">
             <div class="card-header fw-semibold small">Portal Koperasi (login petugas)</div>
             <div class="card-body">
@@ -345,85 +519,6 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-    <div class="col-lg-7">
-        <div class="card shadow-sm mb-3" id="form-pin-cashless">
-            <div class="card-header fw-semibold small">PIN cashless santri</div>
-            <div class="card-body">
-                <p class="small text-muted">PIN dipakai saat scan belanja <strong>dan</strong> bisa dipakai santri login di <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" target="_blank" rel="noopener">portal santri</a> (jika PIN portal santri belum diatur). Saldo diisi dari pembayaran pos Saku (opsional).</p>
-                <form method="post">
-                    <input type="hidden" name="action" value="save_cashless_pin">
-                    <div class="mb-2">
-                        <label class="form-label">Santri</label>
-                        <select class="form-select" name="santri_id" id="select-santri-pin" required>
-                            <option value="">Pilih santri</option>
-                            <?php foreach ($santriRows as $s): ?>
-                                <option value="<?= (int) $s['id'] ?>" <?= $ubahPinSantriId === (int) $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $s['nis']) ?> — <?= htmlspecialchars((string) $s['nama_santri']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text">Pilih santri lalu isi PIN baru untuk membuat atau mengganti PIN.</div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">PIN baru</label>
-                        <input type="password" name="pin_baru" class="form-control" minlength="4" autocomplete="new-password" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Konfirmasi PIN</label>
-                        <input type="password" name="pin_konfirmasi" class="form-control" minlength="4" autocomplete="new-password" required>
-                    </div>
-                    <button class="btn btn-primary">Simpan PIN</button>
-                </form>
-            </div>
-        </div>
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h6">Santri &amp; status PIN</h2>
-                <p class="small text-muted mb-2">Klik <strong>Ubah PIN</strong> untuk mengisi form di atas dengan santri terpilih.</p>
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-0 align-middle">
-                        <thead><tr><th>NIS</th><th>Nama</th><th>Status PIN</th><th class="text-end">Saldo</th><th class="text-end">Aksi</th></tr></thead>
-                        <tbody>
-                        <?php if ($santriPinStatusRows): foreach ($santriPinStatusRows as $sr): ?>
-                            <tr>
-                                <td><?= htmlspecialchars((string) $sr['nis']) ?></td>
-                                <td><?= htmlspecialchars((string) $sr['nama_santri']) ?></td>
-                                <td>
-                                    <?php if ((int) ($sr['pin_terpasang'] ?? 0) === 1): ?>
-                                        <span class="badge text-bg-success">Sudah diatur</span>
-                                    <?php else: ?>
-                                        <span class="badge text-bg-warning">Belum ada</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-end"><?= $sr['balance'] !== null ? 'Rp ' . number_format((int) ((float) $sr['balance']), 0, ',', '.') : '—' ?></td>
-                                <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-primary" href="/keuangan/cashless_pin.php?ubah_pin=<?= (int) $sr['id'] ?>#form-pin-cashless">Ubah PIN</a>
-                                </td>
-                            </tr>
-                        <?php endforeach; else: ?>
-                            <tr><td colspan="5" class="text-center text-muted">Tidak ada data santri aktif.</td></tr>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if ($pinRows !== []): ?>
-                <hr>
-                <h2 class="h6">Ringkasan akun (ada saldo / transaksi)</h2>
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered mb-0">
-                        <thead><tr><th>NIS</th><th>Nama</th><th class="text-end">Saldo</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($pinRows as $r): ?>
-                            <tr>
-                                <td><?= htmlspecialchars((string) $r['nis']) ?></td>
-                                <td><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
-                                <td class="text-end">Rp <?= number_format((int) ((float) $r['balance']), 0, ',', '.') ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
 </div>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

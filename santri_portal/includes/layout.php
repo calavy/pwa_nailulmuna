@@ -8,12 +8,18 @@ require_once __DIR__ . '/../../helpers/app.php';
 /** @return list<array{href:string,icon:string,label:string,key:string}> */
 function santri_portal_bottom_nav_items(): array
 {
-    return [
+    global $santriPortalPkppsAktif;
+    $items = [
         ['href' => app_href('/santri_portal/index.php'), 'icon' => 'fa-house', 'label' => 'Beranda', 'key' => 'beranda'],
-        ['href' => app_href('/santri_portal/tugas/index.php'), 'icon' => 'fa-list-check', 'label' => 'Tugas', 'key' => 'tugas'],
-        ['href' => app_href('/santri_portal/keaktifan.php'), 'icon' => 'fa-star-half-stroke', 'label' => 'Aktif', 'key' => 'keaktifan'],
-        ['href' => app_href('/santri_portal/riwayat.php'), 'icon' => 'fa-clock-rotate-left', 'label' => 'Riwayat', 'key' => 'riwayat'],
+        ['href' => app_href('/santri_portal/tugas/index.php'), 'icon' => 'fa-list-check', 'label' => 'Ikhtibar', 'key' => 'tugas'],
     ];
+    if (!empty($santriPortalPkppsAktif)) {
+        $items[] = ['href' => app_href('/santri_portal/pkpps/tugas/index.php'), 'icon' => 'fa-book-open', 'label' => 'PKPPS', 'key' => 'tugas_pkpps'];
+    }
+    $items[] = ['href' => app_href('/santri_portal/keaktifan.php'), 'icon' => 'fa-star-half-stroke', 'label' => 'Aktif', 'key' => 'keaktifan'];
+    $items[] = ['href' => app_href('/santri_portal/riwayat.php'), 'icon' => 'fa-clock-rotate-left', 'label' => 'Riwayat', 'key' => 'riwayat'];
+
+    return $items;
 }
 
 function santri_portal_layout_head(string $title, ?string $navActive = null): void

@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../helpers/app.php';
 require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
+require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
 
 ikhtibar_require_pembimbing_access();
 ensure_akademik_ikhtibar_tables($pdo);
@@ -15,6 +16,12 @@ $userId = (int) ($_SESSION['user']['id'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus') {
     $id = (int) ($_POST['id'] ?? 0);
     if ($id > 0) {
+        $chk = ikhtibar_tugas_by_id($pdo, $id);
+        if (is_array($chk) && pkpps_tugas_is_row($chk)) {
+            set_flash('error', 'Tugas PKPPS dihapus dari menu PKPPS → Tugas.');
+            header('Location: ' . app_href('/pembimbing/tugas/index.php'));
+            exit;
+        }
         $pdo->prepare('DELETE FROM ikhtibar_jawaban WHERE sesi_id IN (SELECT id FROM ikhtibar_sesi WHERE tugas_id = :id)')->execute(['id' => $id]);
         $pdo->prepare('DELETE FROM ikhtibar_sesi WHERE tugas_id = :id')->execute(['id' => $id]);
         $pdo->prepare('DELETE FROM ikhtibar_soal WHERE tugas_id = :id')->execute(['id' => $id]);
@@ -25,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus
     exit;
 }
 
-$rows = ikhtibar_tugas_list_pembimbing($pdo, $userId);
+$rows = ikhtibar_tugas_list_pembimbing($pdo, $userId, IKHTIBAR_TUGAS_SUMBER);
 $pageTitle = 'Tugas Santri (Ikhtibar)';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
@@ -52,7 +59,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <ol class="mb-0 ps-3">
         <li>Buat tugas → isi soal PG/esai → tekan <strong>Publikasikan tugas</strong> (status <em>published</em>).</li>
         <li>Santri login di <a href="<?= htmlspecialchars(app_href('/santri_portal/login.php')) ?>" target="_blank" rel="noopener">portal santri</a> (NIS + PIN portal atau PIN cashless).</li>
-        <li>Tugas muncul di <strong>Tugas Ikhtibar</strong> pada hari tugas (tanggal ≤ hari ini) dan tingkatan yang sesuai.</li>
+        <li>Tugas muncul di <strong>Tugas Ikhtibar</strong> portal santri (menu kajian) pada hari tugas dan tingkatan yang sesuai.</li>
         <li>Santri memasukkan token (jika diaktifkan), mengerjakan, lalu menyelesaikan — nilai bisa dilihat pembimbing di menu Nilai.</li>
     </ol>
 </div>

@@ -7,18 +7,21 @@ require_once __DIR__ . '/../../helpers/app.php';
 require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../helpers/pkpps.php';
 
-ikhtibar_require_pembimbing_access();
+pkpps_tugas_require_access();
 ensure_akademik_ikhtibar_tables($pdo);
+pkpps_ensure_schema($pdo);
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
-$rows = ikhtibar_rekap_tugas_pembimbing($pdo, $userId, IKHTIBAR_TUGAS_SUMBER);
+$rows = pkpps_tugas_rekap($pdo, $userId);
+$base = pkpps_tugas_base_path();
 
 $totalTugas = count($rows);
 $totalSelesai = array_sum(array_map(static fn ($r) => (int) ($r['jumlah_selesai'] ?? 0), $rows));
 $totalPending = array_sum(array_map(static fn ($r) => (int) ($r['esai_belum_koreksi'] ?? 0), $rows));
 
-$pageTitle = 'Rekap Tugas Ikhtibar';
+$pageTitle = 'Rekap Tugas PKPPS';
 $bodyClass = 'ikhtibar-rekap-page';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
@@ -26,14 +29,14 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>">Tugas Ikhtibar</a> · Rekap
+        <a href="<?= htmlspecialchars(app_href($base . '/index.php')) ?>">Tugas PKPPS</a> · Rekap
     </p>
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
             <h1 class="h4 mb-1"><i class="fa-solid fa-chart-pie text-primary me-1"></i> Rekap Semua Tugas</h1>
             <p class="text-muted mb-0">Ringkasan pengerjaan santri, nilai rata-rata, dan esai yang belum dikoreksi.</p>
         </div>
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas</a>
+        <a href="<?= htmlspecialchars(app_href($base . '/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas PKPPS</a>
     </div>
 </div>
 
@@ -103,8 +106,8 @@ require_once __DIR__ . '/../../includes/header.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end text-nowrap">
-                            <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php?tugas_id=' . $id)) ?>"><i class="fa-solid fa-star me-1"></i> Nilai</a>
-                            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php?id=' . $id)) ?>">Edit</a>
+                            <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href($base . '/nilai.php?tugas_id=' . $id)) ?>"><i class="fa-solid fa-star me-1"></i> Nilai</a>
+                            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href($base . '/buat.php?id=' . $id)) ?>">Edit</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

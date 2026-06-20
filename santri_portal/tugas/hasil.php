@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../helpers/app_path.php';
 ensure_akademik_ikhtibar_tables($pdo);
 
 $santriId = (int) ($santriPortalRow['id'] ?? 0);
-$riwayat = ikhtibar_riwayat_hasil_santri($pdo, $santriId);
+$riwayat = ikhtibar_riwayat_hasil_santri($pdo, $santriId, IKHTIBAR_TUGAS_SUMBER);
 
 require_once __DIR__ . '/../includes/layout.php';
 santri_portal_layout_head('Hasil Tugas — Portal Santri', 'tugas');

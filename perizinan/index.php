@@ -41,17 +41,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $santriIds = array_map('intval', (array) ($_POST['santri_ids_rombongan'] ?? []));
         $res = perizinan_rombongan_create($pdo, $_POST, $santriIds, (int) ($_SESSION['user']['id'] ?? 0));
         if ($res['ok']) {
-            $jenisRombongan = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
-            perizinan_push_setelah_pengajuan(
-                $pdo,
-                'Izin rombongan (' . count($santriIds) . ' santri)',
-                '',
-                $jenisRombongan,
-                trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
-                trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d')))
-            );
+            if (empty($res['auto_approved'])) {
+                $jenisRombongan = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
+                perizinan_push_setelah_pengajuan(
+                    $pdo,
+                    'Izin rombongan (' . count($santriIds) . ' santri)',
+                    '',
+                    $jenisRombongan,
+                    trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
+                    trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d')))
+                );
+            }
+            set_flash('success', $res['message']);
+            if (!empty($res['auto_approved']) && !empty($res['rombongan_id'])) {
+                header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . (int) $res['rombongan_id']));
+                exit;
+            }
+            header('Location: ' . app_href('/perizinan/index.php'));
+            exit;
         }
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        set_flash('error', $res['message']);
         header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
@@ -306,6 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
             ]);
         }
+        $izinId = (int) $pdo->lastInsertId();
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -314,9 +324,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $userId = (int) ($_SESSION['user']['id'] ?? 1);
     $sInfoStmt = $pdo->prepare('SELECT nama_santri, nis, tingkatan FROM santri WHERE id = :id LIMIT 1');
     $sInfoStmt->execute(['id' => $data['santri_id']]);
     $sInfoRow = $sInfoStmt->fetch() ?: ['nama_santri' => '-', 'nis' => '', 'tingkatan' => ''];
+    if ($data['jenis_izin'] === 'SAKIT' && isset($_POST['notifikasi_wali'])) {
+        push_event_laporan_sakit_wali(
+            $pdo,
+            (int) $data['santri_id'],
+            (string) ($sInfoRow['nama_santri'] ?? '-'),
+            trim((string) ($_POST['gejala'] ?? '')),
+            (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
+        );
+    }
+
+    $fin = perizinan_finalisasi_setelah_input($pdo, $izinId, $userId);
+    if ($fin !== null) {
+        set_flash($fin['ok'] ? 'success' : 'error', $fin['ok']
+            ? ($fin['message'] ?? 'Izin aktif. Notifikasi terkirim.')
+            : ($fin['message'] ?? 'Gagal mengaktifkan izin.'));
+        header('Location: ' . app_rewrite_internal_url($fin['ok'] ? '/perizinan/surat.php?id=' . $izinId : '/perizinan/index.php'));
+        exit;
+    }
+
     $notifMsg = wa_format_pengajuan_izin_baru(
         $pdo,
         (string) ($sInfoRow['nama_santri'] ?? '-'),
@@ -338,15 +368,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (string) $data['tanggal_mulai'],
         (string) $data['tanggal_selesai']
     );
-    if ($data['jenis_izin'] === 'SAKIT' && isset($_POST['notifikasi_wali'])) {
-        push_event_laporan_sakit_wali(
-            $pdo,
-            (int) $data['santri_id'],
-            (string) ($sInfoRow['nama_santri'] ?? '-'),
-            trim((string) ($_POST['gejala'] ?? '')),
-            (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
-        );
-    }
     if (push_should_send_wa($pdo) && wa_permohonan_izin_should_notify($pdo, (string) $data['jenis_izin'])) {
         $waIzinTarget = wa_permohonan_izin_target($pdo);
         if ($waIzinTarget !== '') {
@@ -354,11 +375,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($data['jenis_izin'] === 'SAKIT') {
-        $okMsg = 'Pengajuan izin kesehatan dan laporan E-Health tersimpan (status: PENDING). Menunggu persetujuan pengurus.';
+        $okMsg = 'Permohonan izin kesehatan dan laporan E-Health tersimpan.';
     } elseif (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
-        $okMsg = 'Pengajuan izin tersimpan. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
+        $okMsg = 'Pengajuan izin syar\'i tersimpan. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
     } else {
-        $okMsg = 'Pengajuan izin tersimpan. Menunggu persetujuan pengurus (pengasuh mendapat pemberitahuan).';
+        $okMsg = 'Pengajuan izin tersimpan.';
     }
     set_flash('success', $okMsg);
     header('Location: ' . app_href('/perizinan/index.php'));

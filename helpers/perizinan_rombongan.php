@@ -136,6 +136,21 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
         }
         $pdo->commit();
 
+        if (perizinan_langsung_disetujui_tanpa_persetujuan($jenisIzin)) {
+            require_once __DIR__ . '/perizinan_approval.php';
+            $approveRes = perizinan_rombongan_approve($pdo, $rombonganId, $post, $userId, false, false);
+            if (!$approveRes['ok']) {
+                return ['ok' => false, 'message' => 'Izin rombongan tersimpan tetapi gagal diaktifkan: ' . $approveRes['message']];
+            }
+
+            return [
+                'ok' => true,
+                'message' => $approveRes['message'],
+                'rombongan_id' => $rombonganId,
+                'auto_approved' => true,
+            ];
+        }
+
         return ['ok' => true, 'message' => 'Izin rombongan (' . count($santriIds) . ' santri) menunggu persetujuan.', 'rombongan_id' => $rombonganId];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
