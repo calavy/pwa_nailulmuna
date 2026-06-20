@@ -13,7 +13,7 @@ require_once __DIR__ . '/../helpers/yayasan_portal.php';
 require_roles(['admin', 'pengurus']);
 
 yayasan_ensure_tables($pdo);
-$snap = yayasan_dashboard_snapshot($pdo);
+$snap = yayasan_dashboard_snapshot_cached($pdo);
 $ketertiban = yayasan_ketertiban_ringkasan($pdo);
 $months = $snap['months'] ?? [];
 $masuk = $snap['keuangan_masuk'] ?? [];

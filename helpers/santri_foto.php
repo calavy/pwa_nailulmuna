@@ -60,6 +60,8 @@ function santri_foto_handle_upload(array $file, ?string $oldRelativePath = null,
         return ['ok' => false, 'error' => 'Gagal menyimpan foto ke server.'];
     }
 
+    user_profil_optimize_uploaded_image($targetPath);
+
     santri_foto_delete_file($oldRelativePath);
 
     return ['ok' => true, 'path' => 'uploads/santri/' . $safeName];

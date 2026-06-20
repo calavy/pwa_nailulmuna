@@ -99,6 +99,53 @@ function user_profil_allowed_extensions(): array
     return ['jpg', 'jpeg', 'png', 'webp'];
 }
 
+/** Kompres & resize foto upload agar lebih ringan di HP (max lebar 800px). */
+function user_profil_optimize_uploaded_image(string $targetPath, int $maxWidth = 800, int $jpegQuality = 82): void
+{
+    if (!is_file($targetPath) || !function_exists('imagecreatetruecolor')) {
+        return;
+    }
+    $info = @getimagesize($targetPath);
+    if (!$info || empty($info[0]) || empty($info[1])) {
+        return;
+    }
+    [$width, $height, $type] = $info;
+    $src = match ($type) {
+        IMAGETYPE_JPEG => @imagecreatefromjpeg($targetPath),
+        IMAGETYPE_PNG => @imagecreatefrompng($targetPath),
+        IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($targetPath) : false,
+        default => false,
+    };
+    if ($src === false) {
+        return;
+    }
+    $newWidth = $width;
+    $newHeight = $height;
+    if ($width > $maxWidth) {
+        $newWidth = $maxWidth;
+        $newHeight = (int) max(1, round($height * ($maxWidth / $width)));
+    }
+    $dst = imagecreatetruecolor($newWidth, $newHeight);
+    if ($dst === false) {
+        imagedestroy($src);
+
+        return;
+    }
+    if ($type === IMAGETYPE_PNG || $type === IMAGETYPE_WEBP) {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+    }
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+    imagedestroy($src);
+    $saved = match ($type) {
+        IMAGETYPE_JPEG => imagejpeg($dst, $targetPath, $jpegQuality),
+        IMAGETYPE_PNG => imagepng($dst, $targetPath, 6),
+        IMAGETYPE_WEBP => function_exists('imagewebp') ? imagewebp($dst, $targetPath, $jpegQuality) : false,
+        default => false,
+    };
+    imagedestroy($dst);
+}
+
 /**
  * @param array{name?:string,tmp_name?:string,error?:int} $file
  * @return array{ok:bool,path?:string,error?:string}
@@ -141,6 +188,8 @@ function user_profil_handle_upload(array $file, ?string $oldRelativePath = null)
     if (!move_uploaded_file($tmpFile, $targetPath)) {
         return ['ok' => false, 'error' => 'Gagal menyimpan foto ke server.'];
     }
+
+    user_profil_optimize_uploaded_image($targetPath);
 
     user_profil_delete_file($oldRelativePath);
 

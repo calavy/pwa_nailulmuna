@@ -3,29 +3,27 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/inc_portal.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 $tagihanKumulatif = wali_portal_tagihan_sampai_bulan_berjalan($pdo, $waliSantriId, $waliKelasKategori);
 $berjalan = (array) ($tagihanKumulatif['berjalan'] ?? []);
 $bulanIni = (int) ($berjalan['bulan'] ?? 1);
 
-$presensiRingkas = ['HADIR' => 0, 'IZIN' => 0, 'SAKIT' => 0, 'ALPA' => 0];
-if (table_exists($pdo, 'presensi')) {
-    $d1 = date('Y-m-01');
-    $d2 = date('Y-m-t');
-    $ps = $pdo->prepare('
-        SELECT status_presensi, COUNT(*) AS c
-        FROM presensi
-        WHERE santri_id = :sid AND tanggal_presensi BETWEEN :d1 AND :d2
-        GROUP BY status_presensi
-    ');
-    $ps->execute(['sid' => $waliSantriId, 'd1' => $d1, 'd2' => $d2]);
-    foreach ($ps->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $k = strtoupper((string) ($r['status_presensi'] ?? ''));
-        if (isset($presensiRingkas[$k])) {
-            $presensiRingkas[$k] = (int) $r['c'];
-        }
-    }
-}
+$bulanFilterHijri = wali_portal_keaktifan_bulan_parse($pdo, []);
+$rekapBulanIni = wali_portal_keaktifan_per_kegiatan(
+    $pdo,
+    $waliSantriId,
+    (string) $bulanFilterHijri['start'],
+    (string) $bulanFilterHijri['end'],
+    trim((string) ($waliSantriRow['tingkatan'] ?? ''))
+);
+$totalsBulanIni = $rekapBulanIni['totals'];
+$presensiRingkas = [
+    'HADIR' => (int) ($totalsBulanIni['hadir'] ?? 0),
+    'IZIN' => (int) ($totalsBulanIni['izin'] ?? 0),
+    'SAKIT' => (int) ($totalsBulanIni['sakit'] ?? 0),
+    'ALPA' => (int) ($totalsBulanIni['alpa'] ?? 0),
+];
 
 $cashlessSaldo = null;
 if (table_exists($pdo, 'cashless_accounts') || table_exists($pdo, 'cashless_transactions')) {
@@ -33,7 +31,6 @@ if (table_exists($pdo, 'cashless_accounts') || table_exists($pdo, 'cashless_tran
 }
 
 $keaktifanPenilaianTahun = wali_portal_keaktifan_penilaian($pdo, $waliSantriId);
-$bulanFilterHijri = wali_portal_keaktifan_bulan_parse($pdo, []);
 $keaktifanPenilaianBulan = wali_portal_keaktifan_penilaian_bulan(
     $pdo,
     $waliSantriId,
@@ -99,8 +96,11 @@ wali_layout_head('Beranda Wali', true, 'beranda');
         <div class="card shadow-sm wali-card mb-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="wali-kicker mb-0">Presensi bulan ini</div>
-                    <a class="small fw-semibold" href="/wali/keaktifan.php">Keaktivan bulanan</a>
+                    <div>
+                        <div class="wali-kicker mb-0">Keaktivan · <?= htmlspecialchars((string) $bulanFilterHijri['label']) ?></div>
+                        <div class="small text-muted"><?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?></div>
+                    </div>
+                    <a class="small fw-semibold" href="/wali/keaktifan.php">Detail</a>
                 </div>
                 <div class="row g-2 text-center small">
                     <div class="col-3">

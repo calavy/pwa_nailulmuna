@@ -33,40 +33,66 @@ $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama'
 
 $finalizeEnd = $sampai;
 $today = date('Y-m-d');
+$auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
 if ($finalizeEnd > $today) {
     $finalizeEnd = $today;
 }
 if ($dari <= $finalizeEnd) {
-    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
     presensi_finalize_date_range($pdo, $dari, $finalizeEnd, $auditUserId > 0 ? $auditUserId : 1);
 }
 
 $santriRows = [];
 if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'presensi')) {
+    $santriDari = sprintf('%04d-01-01', $tahun);
+    $santriSampai = sprintf('%04d-12-31', $tahun);
+    if ($santriSampai > $today) {
+        $santriSampai = $today;
+    }
+    if ($santriDari <= $santriSampai) {
+        presensi_finalize_date_range($pdo, $santriDari, $santriSampai, $auditUserId > 0 ? $auditUserId : 1);
+    }
+
     $st = $pdo->prepare('
         SELECT
             s.id AS santri_id,
             s.nis,
             s.' . $nameCol . ' AS nama_santri,
-            t.nama_tingkatan AS pkpps_tingkatan,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
-            COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
-            COALESCE(COUNT(p.id), 0) AS total
+            t.nama_tingkatan AS pkpps_tingkatan
         FROM pkpps_santri ps
         INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
         INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
-        LEFT JOIN presensi p ON p.santri_id = s.id AND YEAR(p.tanggal_presensi) = :th
         WHERE ps.is_aktif = 1 AND t.is_aktif = 1
-        GROUP BY s.id, s.nis, s.' . $nameCol . ', t.nama_tingkatan, t.urutan
         ORDER BY t.urutan ASC, s.' . $nameCol . ' ASC
     ');
-    $st->execute(['th' => $tahun]);
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-        $alpa = (int) ($r['alpa'] ?? 0);
-        $total = (int) ($r['total'] ?? 0);
-        $hadir = (int) ($r['hadir'] ?? 0);
+    $st->execute();
+    $baseRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
+    $santriIds = array_values(array_filter(array_map(static fn (array $r): int => (int) ($r['santri_id'] ?? 0), $baseRows)));
+    $eligibleAll = $santriDari <= $santriSampai
+        ? rekap_keaktifan_fetch_eligible_rows($pdo, $santriDari, $santriSampai, $santriIds, 0, false)
+        : [];
+    $eligibleBySid = [];
+    foreach ($eligibleAll as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $eligibleBySid[$sid][] = $row;
+    }
+    foreach ($baseRows as $r) {
+        $sid = (int) ($r['santri_id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $totals = rekap_keaktifan_totals_from_rows($eligibleBySid[$sid] ?? []);
+        $alpa = (int) ($totals['alpa'] ?? 0);
+        $total = (int) ($totals['total'] ?? 0);
+        $hadir = (int) ($totals['hadir'] ?? 0);
+        $r['hadir'] = $hadir;
+        $r['izin'] = (int) ($totals['izin'] ?? 0);
+        $r['sakit'] = (int) ($totals['sakit'] ?? 0);
+        $r['alpa'] = $alpa;
+        $r['total'] = $total;
         $r['kategori'] = $total > 0 ? santri_category($alpa, $goodMax, $mediumMax) : '—';
         $r['persen'] = $total > 0 ? round($hadir / $total * 100, 1) : 0;
         $santriRows[] = $r;

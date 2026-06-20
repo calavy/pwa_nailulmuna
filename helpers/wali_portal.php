@@ -455,14 +455,41 @@ function wali_portal_cashless_debit_hari_ini(PDO $pdo, int $santriId): int
  */
 function wali_portal_tagihan_sampai_bulan_berjalan(PDO $pdo, int $santriId, string $kelasKategori): array
 {
+    if ($santriId <= 0) {
+        return [
+            'berjalan' => [],
+            'wajib' => [],
+            'rows' => [],
+            'expected_total' => 0,
+            'paid_total' => 0,
+            'sisa_total' => 0,
+            'sy_expected' => 0,
+            'sy_paid' => 0,
+            'sy_sisa' => 0,
+            'mk_expected' => 0,
+            'mk_paid' => 0,
+            'mk_sisa' => 0,
+            'per_bulan_tunggakan' => [],
+            'status' => '—',
+            'statusClass' => 'secondary',
+        ];
+    }
     if (!function_exists('keuangan_periode_berjalan')) {
         require_once __DIR__ . '/keuangan_transaksi.php';
     }
+    $berjalanPreview = keuangan_periode_berjalan($pdo);
+    $cacheKey = 'wali_tagihan_kum_' . $santriId . '_' . (int) ($berjalanPreview['bulan'] ?? 0)
+        . '_' . (int) ($berjalanPreview['mulai'] ?? 0) . '_' . md5($kelasKategori);
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (is_array($cached) && (int) ($cached['expires'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
+        return $cached['data'];
+    }
+
     if (!function_exists('tagihan_wajib_status_kumulatif_ta')) {
         require_once __DIR__ . '/tagihan_bulanan.php';
     }
 
-    $berjalan = keuangan_periode_berjalan($pdo);
+    $berjalan = $berjalanPreview;
     $bulanAkhir = max(1, min(12, (int) ($berjalan['bulan'] ?? 1)));
     $tm = (int) ($berjalan['mulai'] ?? 0);
     $ts = (int) ($berjalan['selesai'] ?? 0);
@@ -532,7 +559,7 @@ function wali_portal_tagihan_sampai_bulan_berjalan(PDO $pdo, int $santriId, stri
         $statusClass = 'warning';
     }
 
-    return [
+    $result = [
         'berjalan' => $berjalan,
         'wajib' => $wajib,
         'rows' => $rows,
@@ -549,6 +576,12 @@ function wali_portal_tagihan_sampai_bulan_berjalan(PDO $pdo, int $santriId, stri
         'status' => $status,
         'statusClass' => $statusClass,
     ];
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + 300,
+        'data' => $result,
+    ];
+
+    return $result;
 }
 
 /**
@@ -606,6 +639,8 @@ function wali_portal_keaktifan_bulan_parse(PDO $pdo, array $get = []): array
  */
 function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $startDate, string $endDate, string $tingkatan = ''): array
 {
+    static $memo = [];
+
     $empty = [
         'tingkatan' => '',
         'totals' => ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0],
@@ -625,77 +660,21 @@ function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $sta
         return array_merge($empty, ['tingkatan' => '']);
     }
 
-    require_once __DIR__ . '/presensi_jadwal.php';
-
-    $st = $pdo->prepare('
-        SELECT
-            p.kegiatan_id,
-            p.tanggal_presensi,
-            p.status_presensi,
-            COALESCE(NULLIF(TRIM(k.nama_kegiatan), ""), "Tanpa kegiatan") AS nama_kegiatan
-        FROM presensi p
-        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-        WHERE p.santri_id = :sid
-          AND p.tanggal_presensi BETWEEN :start_date AND :end_date
-        ORDER BY p.tanggal_presensi ASC, p.id ASC
-    ');
-    $st->execute([
-        'sid' => $santriId,
-        'start_date' => $startDate,
-        'end_date' => $endDate,
-    ]);
-    $rawRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($rawRows as &$rawRow) {
-        $rawRow['tingkatan'] = $tingkatan;
-    }
-    unset($rawRow);
-
-    $rows = presensi_filter_rows_eligible($pdo, $rawRows, $startDate, $endDate);
-
-    $byKeg = [];
-    $totals = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
-    foreach ($rows as $row) {
-        $kid = (int) ($row['kegiatan_id'] ?? 0);
-        if ($kid <= 0) {
-            continue;
-        }
-        $label = (string) ($row['nama_kegiatan'] ?? 'Tanpa kegiatan');
-        $key = $kid . '|' . $label;
-        if (!isset($byKeg[$key])) {
-            $byKeg[$key] = [
-                'kegiatan_id' => $kid,
-                'nama_kegiatan' => $label,
-                'hadir' => 0,
-                'izin' => 0,
-                'sakit' => 0,
-                'alpa' => 0,
-                'total' => 0,
-            ];
-        }
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
-        $byKeg[$key]['total']++;
-        $totals['total']++;
-        if ($status === 'HADIR') {
-            $byKeg[$key]['hadir']++;
-            $totals['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $byKeg[$key]['izin']++;
-            $totals['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $byKeg[$key]['sakit']++;
-            $totals['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $byKeg[$key]['alpa']++;
-            $totals['alpa']++;
-        }
+    $memoKey = $santriId . '|' . $startDate . '|' . $endDate . '|' . strtolower($tingkatan);
+    if (isset($memo[$memoKey])) {
+        return $memo[$memoKey];
     }
 
-    $kegiatan = array_values($byKeg);
-    usort($kegiatan, static fn(array $a, array $b): int => strcasecmp((string) $a['nama_kegiatan'], (string) $b['nama_kegiatan']));
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [$santriId], 0, false);
+    $kegiatan = array_values(array_filter(
+        rekap_keaktifan_kegiatan_list_from_rows($rows),
+        static fn (array $k): bool => (int) ($k['kegiatan_id'] ?? 0) > 0
+    ));
 
-    return [
+    return $memo[$memoKey] = [
         'tingkatan' => $tingkatan,
-        'totals' => $totals,
+        'totals' => rekap_keaktifan_totals_from_rows($rows),
         'kegiatan' => $kegiatan,
     ];
 }

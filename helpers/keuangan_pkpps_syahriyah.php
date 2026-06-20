@@ -206,6 +206,12 @@ function pkpps_kelas_keuangan_kode_for_santri(
         return '';
     }
 
+    keuangan_pkpps_syahriyah_warm_kelas_cache($pdo);
+    $cached = $GLOBALS['keuangan_pkpps_kelas_cache'] ?? [];
+    if (isset($cached[$santriId]) && (string) $cached[$santriId] !== '') {
+        return (string) $cached[$santriId];
+    }
+
     // Santri PKPPS aktif — prioritaskan kelas dari tingkatan PKPPS (bukan kelas TA umum).
     if (table_exists($pdo, 'pkpps_santri')) {
         pkpps_ensure_schema($pdo);
@@ -388,17 +394,68 @@ function keuangan_pkpps_syahriyah_nominal(
     return $globalDefault;
 }
 
+/** @return array<int, true> */
+function keuangan_pkpps_syahriyah_aktif_set(PDO $pdo): array
+{
+    static $aktifSet = null;
+    if ($aktifSet !== null) {
+        return $aktifSet;
+    }
+    $aktifSet = [];
+    if (table_exists($pdo, 'pkpps_santri')) {
+        pkpps_ensure_schema($pdo);
+        foreach ($pdo->query('SELECT santri_id FROM pkpps_santri WHERE is_aktif = 1')->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sidRaw) {
+            $aktifSet[(int) $sidRaw] = true;
+        }
+    }
+
+    return $aktifSet;
+}
+
 /** Apakah santri terdaftar PKPPS aktif. */
 function keuangan_pkpps_syahriyah_berlaku_untuk_santri(PDO $pdo, int $santriId): bool
 {
     if ($santriId <= 0 || !table_exists($pdo, 'pkpps_santri')) {
         return false;
     }
-    pkpps_ensure_schema($pdo);
-    $st = $pdo->prepare('SELECT 1 FROM pkpps_santri WHERE santri_id = :sid AND is_aktif = 1 LIMIT 1');
-    $st->execute(['sid' => $santriId]);
 
-    return (bool) $st->fetchColumn();
+    return isset(keuangan_pkpps_syahriyah_aktif_set($pdo)[$santriId]);
+}
+
+/** Muat set santri PKPPS aktif ke memori (sekali per request). */
+function keuangan_pkpps_syahriyah_warm_aktif_cache(PDO $pdo): void
+{
+    keuangan_pkpps_syahriyah_aktif_set($pdo);
+}
+
+/** Preload kode kelas keuangan PKPPS per santri (hindari N+1). */
+function keuangan_pkpps_syahriyah_warm_kelas_cache(PDO $pdo): void
+{
+    static $warmed = false;
+    if ($warmed || !table_exists($pdo, 'pkpps_santri')) {
+        $warmed = true;
+
+        return;
+    }
+    $warmed = true;
+    static $kelasMap = [];
+    pkpps_ensure_schema($pdo);
+    ensure_kelas_keuangan_table($pdo);
+    $st = $pdo->query('
+        SELECT ps.santri_id, kk.kode
+        FROM pkpps_santri ps
+        INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
+        LEFT JOIN kelas_keuangan kk ON kk.id = t.kelas_keuangan_id
+        WHERE ps.is_aktif = 1
+    ');
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        $kode = keuangan_pkpps_syahriyah_normalize_kode((string) ($row['kode'] ?? ''));
+        if ($sid > 0 && $kode !== '') {
+            $kelasMap[$sid] = keuangan_pkpps_syahriyah_resolve_kelas_kode($pdo, $kode);
+        }
+    }
+    $GLOBALS['keuangan_pkpps_kelas_cache'] = $kelasMap;
 }
 
 /**

@@ -466,6 +466,43 @@ function keuangan_fetch_santri_aktif(PDO $pdo): array
 }
 
 /**
+ * Cari santri aktif untuk typeahead (limit kecil).
+ *
+ * @return list<array{id:int,nis:string,nama_santri:string,kategori_kelas?:string,tingkatan?:string}>
+ */
+function keuangan_search_santri_aktif(PDO $pdo, string $q, int $limit = 20): array
+{
+    if (!table_exists($pdo, 'santri')) {
+        return [];
+    }
+    $limit = max(1, min(50, $limit));
+    ensure_santri_identity_columns($pdo);
+    $aktif = function_exists('santri_sql_aktif_only') ? santri_sql_aktif_only('s') : '1=1';
+    $cols = ['id', 'nis', 'nama_santri'];
+    if (column_exists($pdo, 'santri', 'kategori_kelas')) {
+        $cols[] = 'kategori_kelas';
+    }
+    if (column_exists($pdo, 'santri', 'tingkatan')) {
+        $cols[] = 'tingkatan';
+    }
+    $q = trim($q);
+    if ($q === '') {
+        return [];
+    }
+    $like = '%' . mb_strtolower($q) . '%';
+    $st = $pdo->prepare('
+        SELECT ' . implode(', ', $cols) . '
+        FROM santri s
+        WHERE ' . $aktif . '
+          AND (LOWER(s.nama_santri) LIKE :q OR LOWER(COALESCE(s.nis, \'\')) LIKE :q2)
+        ORDER BY ' . santri_list_order_sql('s') . '
+        LIMIT ' . (int) $limit);
+    $st->execute(['q' => $like, 'q2' => $like]);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
  * @param list<array<string, mixed>>|null $santriRows baris dari keuangan_fetch_santri_aktif (hindari query ganda)
  * @return array<string, array{kelas_label:string,tier_key:string,tier_label:string,fees:array<string,int>}>
  */
@@ -780,10 +817,15 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
     keuangan_dashboard_cache_invalidate();
 
+    require_once __DIR__ . '/keuangan_wa.php';
+    $waPembayaran = keuangan_kirim_wa_pembayaran_wali($pdo, $pembayaranId);
+
     return [
         'ok' => true,
-        'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.',
+        'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.'
+            . keuangan_wa_pembayaran_flash_teks($waPembayaran),
         'id' => $pembayaranId,
+        'wa_pembayaran' => $waPembayaran,
     ];
 }
 

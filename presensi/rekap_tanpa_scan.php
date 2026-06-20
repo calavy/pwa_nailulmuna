@@ -73,7 +73,8 @@ try {
     $queryError = 'Gagal memuat data rekap. Coba bulan lain atau hubungi admin.';
 }
 
-$jumlahTanpaScan = count($kegiatanTanpaScan);
+$jumlahTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kegiatanTanpaScan);
+$jumlahKegiatanTanpaScan = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kegiatanTanpaScan));
 $tglAwal = date('d/m/Y', strtotime($startDate) ?: time());
 $tglAkhir = date('d/m/Y', strtotime($endDate) ?: time());
 $hijriLabelPeriode = (string) ($periode['hijri_label'] ?? '');
@@ -216,7 +217,10 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-triangle-exclamation me-1"></i> Perlu ditindaklanjuti
                     </div>
                     <p class="small text-muted mb-0">
-                        Ada <strong><?= $jumlahTanpaScan ?></strong> jadwal kegiatan tanpa scan hadir
+                        Ada <strong><?= $jumlahTanpaScan ?></strong> jadwal tanpa scan hadir
+                        <?php if ($jumlahKegiatanTanpaScan > 0): ?>
+                            pada <strong><?= $jumlahKegiatanTanpaScan ?></strong> kegiatan
+                        <?php endif; ?>
                         <?= $tingkatan !== '' ? ' (tingkatan ' . htmlspecialchars($tingkatan) . ')' : '' ?>.
                     </p>
                 <?php endif; ?>
@@ -227,39 +231,14 @@ require_once __DIR__ . '/../includes/header.php';
     <?php if ($jumlahTanpaScan > 0): ?>
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white fw-semibold py-2">
-            Daftar jadwal tanpa scan (<?= $jumlahTanpaScan ?>)
+            Daftar kegiatan (<?= $jumlahKegiatanTanpaScan ?> kegiatan · <?= $jumlahTanpaScan ?> jadwal)
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="table-light">
-                    <tr>
-                        <th class="text-center" style="width:3rem">No</th>
-                        <th>Tanggal</th>
-                        <th>Kegiatan</th>
-                        <th>Waktu</th>
-                        <th>Tingkatan</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($kegiatanTanpaScan as $idx => $kgRow): ?>
-                        <tr>
-                            <td class="text-center text-muted"><?= $idx + 1 ?></td>
-                            <td class="text-nowrap">
-                                <span class="fw-semibold"><?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?></span>
-                                <span class="text-muted small d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
-                                <?php if (!empty($kgRow['tanggal_hijri'])): ?>
-                                    <span class="text-muted small d-block"><?= htmlspecialchars((string) $kgRow['tanggal_hijri']) ?> H</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="fw-semibold"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
-                            <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
-                            <td class="small"><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+        <div class="card-body pt-2 pb-3">
+            <?php
+            $ktsSlotRows = $kegiatanTanpaScan;
+            $ktsListPrefix = 'rts';
+            require __DIR__ . '/../includes/partials/kegiatan_tanpa_scan_grouped.php';
+            ?>
         </div>
     </div>
     <?php endif; ?>

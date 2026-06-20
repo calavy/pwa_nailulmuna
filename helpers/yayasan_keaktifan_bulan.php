@@ -129,7 +129,7 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
 function yayasan_keaktifan_bulan_saran(array $kb): array
 {
     $saran = [];
-    $kgKosong = count((array) ($kb['kegiatan_tanpa_scan'] ?? []));
+    $kgKosong = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal((array) ($kb['kegiatan_tanpa_scan'] ?? []));
     $snKosong = count((array) ($kb['santri_tanpa_scan'] ?? []));
     $rataHadir = (float) ($kb['rata_hadir'] ?? 0);
 
@@ -157,4 +157,60 @@ function yayasan_keaktifan_bulan_saran(array $kb): array
     $saran[] = 'Pastikan presensi bulan ini sudah difinalisasi (ALPA otomatis) sebelum rapat yayasan — gunakan Segarkan ALPA di Rekap Presensi jika ada data baru.';
 
     return array_values(array_unique($saran));
+}
+
+/** Cek ketersediaan data tanpa query presensi bulan penuh. */
+function yayasan_keaktifan_bulan_pack_light(PDO $pdo): array
+{
+    return [
+        'ready' => table_exists($pdo, 'presensi'),
+        'mode' => 'hijriyah',
+        'month' => 1,
+        'year' => 1400,
+        'start_date' => '',
+        'end_date' => '',
+        'periode_label' => '',
+        'tingkatan' => '',
+        'hijri_months' => hijri_nama_bulan_list(),
+        'good_max' => 1,
+        'medium_max' => 3,
+        'total_santri' => 0,
+        'total_hadir' => 0,
+        'total_alpa' => 0,
+        'rata_hadir' => 0.0,
+        'tingkatan_persen' => [],
+        'tingkatan_chart' => ['labels' => [], 'datasets' => [], 'stacked_datasets' => []],
+        'kegiatan_tanpa_scan' => [],
+        'santri_tanpa_scan' => [],
+        'tingkatan_list' => [],
+        'show_chart' => false,
+    ];
+}
+
+/**
+ * Cache session rekap keaktifan bulanan yayasan.
+ *
+ * @param array<string, mixed> $get
+ */
+function yayasan_keaktifan_bulan_pack_cached(PDO $pdo, array $get, int $ttlSec = 600): array
+{
+    $periodeGet = [
+        'mode' => (string) ($get['mode'] ?? 'hijriyah'),
+        'month' => $get['month'] ?? null,
+        'year' => $get['year'] ?? null,
+    ];
+    $tingkatan = trim((string) ($get['tingkatan'] ?? ''));
+    $cacheKey = 'yayasan_kb_pack_' . md5(json_encode([$periodeGet, $tingkatan], JSON_UNESCAPED_UNICODE));
+    $skipCache = trim((string) ($get['kb_refresh'] ?? '')) === '1';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (!$skipCache && is_array($cached) && (int) ($cached['expires'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
+        return $cached['data'];
+    }
+    $data = yayasan_keaktifan_bulan_pack($pdo, $get);
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(60, $ttlSec),
+        'data' => $data,
+    ];
+
+    return $data;
 }

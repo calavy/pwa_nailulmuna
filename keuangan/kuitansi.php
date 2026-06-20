@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/pondok_stampel.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
@@ -63,6 +64,7 @@ $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $logo = app_pondok_logo_href($pdo, false);
+$stampelKuitansi = pondok_stampel_href($pdo, 'kuitansi');
 $noKuitansi = 'KW-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
 $tanggalBayarFmt = app_format_tanggal_id((string) ($row['tanggal_bayar'] ?? ''));
 $verifySecret = (string) app_setting($pdo, 'kuitansi_verify_secret', 'pwa_nailulmuna_secret');
@@ -140,8 +142,8 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="text-center kuitansi-stempel" style="max-width:240px;width:100%">
                     <div class="small mb-1" style="color:#4a3a5e;">Stempel Resmi</div>
-                    <img src="<?= htmlspecialchars(app_href('/assets/img/stempel-pondok.png')) ?>"
-                         alt="Stempel pondok"
+                    <img src="<?= htmlspecialchars($stampelKuitansi) ?>"
+                         alt="Stempel kuitansi"
                          style="width:140px; height:140px; object-fit:contain;">
                     <div class="mt-1" style="color:#4a3a5e; font-weight:700; letter-spacing:0.5px;">
                         SAH &middot; <?= htmlspecialchars($tanggalBayarFmt) ?>
@@ -171,6 +173,13 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="d-flex justify-content-between fw-bold">
                 <span>TOTAL</span>
                 <span><?= htmlspecialchars($formatRupiah($nominalTotal)) ?></span>
+            </div>
+            <div class="text-center kuitansi-stempel-thermal mt-2 pt-2 border-top">
+                <img src="<?= htmlspecialchars($stampelKuitansi) ?>"
+                     alt="Stempel"
+                     style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto 4px;">
+                <div style="font-size:10px;font-weight:700;">SAH · <?= htmlspecialchars($tanggalBayarFmt) ?></div>
+                <div style="font-size:10px;">Petugas: <?= htmlspecialchars($namaPetugas) ?></div>
             </div>
             <div class="text-center mt-2">Terima kasih</div>
         </div>
@@ -205,7 +214,8 @@ require_once __DIR__ . '/../includes/header.php';
     })();
 </script>
 <style>
-.kuitansi-stempel img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.kuitansi-stempel img,
+.kuitansi-stempel-thermal img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 @media print {
     body * { visibility: hidden !important; }
     body[data-print-mode="official"] #receipt-official,
@@ -214,7 +224,8 @@ require_once __DIR__ . '/../includes/header.php';
     body[data-print-mode="thermal"] #receipt-thermal * { visibility: visible !important; }
     #receipt-official, #receipt-thermal { position: absolute; left: 0; top: 0; width: 100%; margin: 0 !important; }
     body[data-print-mode="thermal"] #receipt-thermal .card-body { max-width: 302px !important; }
-    .kuitansi-stempel img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .kuitansi-stempel img,
+    .kuitansi-stempel-thermal img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 

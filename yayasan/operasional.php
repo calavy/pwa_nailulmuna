@@ -13,24 +13,30 @@ require_once __DIR__ . '/../helpers/yayasan_keaktifan_bulan.php';
 require_roles(['admin', 'pengurus']);
 
 yayasan_ensure_tables($pdo);
+$kbGet = [
+    'mode' => $_GET['kb_mode'] ?? 'hijriyah',
+    'month' => $_GET['kb_month'] ?? null,
+    'year' => $_GET['kb_year'] ?? null,
+    'tingkatan' => $_GET['kb_tingkatan'] ?? '',
+    'kb_refresh' => $_GET['kb_refresh'] ?? '',
+];
+$kbPanelOpen = isset($_GET['kb_month']) || isset($_GET['kb_year']) || array_key_exists('kb_tingkatan', $_GET)
+    || (string) ($_GET['kb_open'] ?? '') === '1';
 $kas = yayasan_kas_status($pdo);
 $tagihan = $kas['tagihan_bulan'] ?? [];
 $hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 
-$kb = yayasan_keaktifan_bulan_pack($pdo, [
-    'mode' => $_GET['kb_mode'] ?? 'hijriyah',
-    'month' => $_GET['kb_month'] ?? null,
-    'year' => $_GET['kb_year'] ?? null,
-    'tingkatan' => $_GET['kb_tingkatan'] ?? '',
-]);
+if ($kbPanelOpen) {
+    $kb = yayasan_keaktifan_bulan_pack_cached($pdo, $kbGet);
+} else {
+    $kb = yayasan_keaktifan_bulan_pack_light($pdo);
+}
 $kbFormAction = '/yayasan/operasional.php';
-$kbKegiatanKosongCount = count((array) ($kb['kegiatan_tanpa_scan'] ?? []));
+$kbKegiatanKosongCount = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal((array) ($kb['kegiatan_tanpa_scan'] ?? []));
 $kbSantriKosongCount = count((array) ($kb['santri_tanpa_scan'] ?? []));
-$kbPerhatianCount = $kbKegiatanKosongCount + $kbSantriKosongCount;
-$kbPanelOpen = isset($_GET['kb_month']) || isset($_GET['kb_year']) || array_key_exists('kb_tingkatan', $_GET)
-    || (string) ($_GET['kb_open'] ?? '') === '1';
-$kbSaran = yayasan_keaktifan_bulan_saran($kb);
+$kbPerhatianCount = $kbPanelOpen ? ($kbKegiatanKosongCount + $kbSantriKosongCount) : 0;
+$kbSaran = $kbPanelOpen ? yayasan_keaktifan_bulan_saran($kb) : [];
 
 $pageTitle = 'Dashboard Operasional Yayasan';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
@@ -128,13 +134,30 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="row g-3">
         <?php if (!empty($kb['ready'])): ?>
         <div class="col-md-4">
+            <?php if (!$kbPanelOpen): ?>
+            <a
+                class="card border-0 shadow-sm text-decoration-none text-start w-100 h-100 yp-nav-card yp-nav-card--toggle collapsed"
+                href="<?= htmlspecialchars(app_href('/yayasan/operasional.php?kb_open=1')) ?>"
+            >
+                <div class="card-body">
+                    <i class="fa-solid fa-calendar-days text-info mb-2"></i>
+                    <div class="fw-semibold text-dark">Rekap Keaktifan Bulanan</div>
+                    <div class="small text-muted">Bulan Hijriyah · grafik &amp; tanpa scan</div>
+                    <span class="badge text-bg-secondary mt-2">Ketuk untuk muat rekap</span>
+                    <div class="small text-primary mt-2 yp-nav-card__hint">
+                        <i class="fa-solid fa-chevron-down me-1 yp-nav-card__chev" aria-hidden="true"></i>
+                        <span class="yp-nav-card__hint-text">Ketuk untuk buka</span>
+                    </div>
+                </div>
+            </a>
+            <?php else: ?>
             <button
                 type="button"
-                class="card border-0 shadow-sm text-start w-100 h-100 yp-nav-card yp-nav-card--toggle<?= $kbPanelOpen ? '' : ' collapsed' ?>"
+                class="card border-0 shadow-sm text-start w-100 h-100 yp-nav-card yp-nav-card--toggle"
                 id="ypKeaktifanBulanToggle"
                 data-bs-toggle="collapse"
                 data-bs-target="#ypKeaktifanBulanPanel"
-                aria-expanded="<?= $kbPanelOpen ? 'true' : 'false' ?>"
+                aria-expanded="true"
                 aria-controls="ypKeaktifanBulanPanel"
             >
                 <div class="card-body">
@@ -148,10 +171,11 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
                     <div class="small text-primary mt-2 yp-nav-card__hint">
                         <i class="fa-solid fa-chevron-down me-1 yp-nav-card__chev" aria-hidden="true"></i>
-                        <span class="yp-nav-card__hint-text"><?= $kbPanelOpen ? 'Ketuk untuk tutup' : 'Ketuk untuk buka' ?></span>
+                        <span class="yp-nav-card__hint-text">Ketuk untuk tutup</span>
                     </div>
                 </div>
             </button>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <div class="col-md-4">

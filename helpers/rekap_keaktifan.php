@@ -4,6 +4,90 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 
+/** Tanggal mulai scan resmi untuk rekap keaktivan (Y-m-d) atau kosong = semua riwayat. */
+function rekap_keaktifan_tanggal_mulai_scan(PDO $pdo): string
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $raw = trim((string) app_setting($pdo, 'keaktifan_tanggal_mulai_scan', ''));
+    if ($raw === '') {
+        return $cached = '';
+    }
+    $ts = strtotime($raw);
+
+    return $cached = ($ts !== false) ? date('Y-m-d', $ts) : '';
+}
+
+/**
+ * Potong rentang rekap agar tidak memuat presensi sebelum tanggal mulai scan.
+ *
+ * @return array{0:string,1:string}|null null = periode seluruhnya sebelum mulai scan
+ */
+function rekap_keaktifan_clamp_periode(PDO $pdo, string $startDate, string $endDate): ?array
+{
+    $mulaiScan = rekap_keaktifan_tanggal_mulai_scan($pdo);
+    if ($mulaiScan === '') {
+        return [$startDate, $endDate];
+    }
+    if ($endDate < $mulaiScan) {
+        return null;
+    }
+    if ($startDate < $mulaiScan) {
+        $startDate = $mulaiScan;
+    }
+    if ($startDate > $endDate) {
+        return null;
+    }
+
+    return [$startDate, $endDate];
+}
+
+/** Saran tanggal mulai scan dari presensi pertama di database. */
+function rekap_keaktifan_suggest_tanggal_mulai_scan(PDO $pdo): string
+{
+    if (!table_exists($pdo, 'presensi')) {
+        return '';
+    }
+    try {
+        $min = $pdo->query('SELECT MIN(tanggal_presensi) FROM presensi')->fetchColumn();
+    } catch (Throwable $e) {
+        return '';
+    }
+    if (!is_string($min) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $min)) {
+        return '';
+    }
+
+    return $min;
+}
+
+/**
+ * @return array{aktif:bool,tanggal:string,label:string}
+ */
+function rekap_keaktifan_scan_start_meta(PDO $pdo): array
+{
+    $tanggal = rekap_keaktifan_tanggal_mulai_scan($pdo);
+
+    return [
+        'aktif' => $tanggal !== '',
+        'tanggal' => $tanggal,
+        'label' => $tanggal !== '' ? app_format_tanggal_id($tanggal) : '',
+    ];
+}
+
+/** Catatan singkat sumber hitungan rekap keaktivan untuk UI portal/rekap. */
+function rekap_keaktifan_rekap_footnote(PDO $pdo): string
+{
+    $meta = rekap_keaktifan_scan_start_meta($pdo);
+    $parts = ['hanya jadwal kegiatan tingkatan yang terhitung'];
+    if ($meta['aktif']) {
+        $parts[] = 'presensi dihitung sejak ' . $meta['label'] . ' (tanggal mulai scan)';
+    }
+
+    return implode(' · ', $parts);
+}
+
 /**
  * @param list<array<string, mixed>> $rows presensi terfilter (eligible)
  * @return list<array<string, mixed>>
@@ -119,6 +203,148 @@ function rekap_keaktifan_build_per_kegiatan(array $rows): array
         unset($out[$label]['santri_ids']);
     }
     ksort($out);
+
+    return $out;
+}
+
+/**
+ * Ambil baris presensi yang eligible (hanya jadwal tingkatan valid) — sumber resmi rekap keaktifan.
+ *
+ * @param list<int> $santriIds kosong = semua santri aktif dalam rentang
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_fetch_eligible_rows(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    array $santriIds = [],
+    int $kegiatanId = 0,
+    bool $runFinalize = true
+): array {
+    require_once __DIR__ . '/presensi_jadwal.php';
+    require_once __DIR__ . '/santri_operasional.php';
+
+    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        return [];
+    }
+
+    $clamped = rekap_keaktifan_clamp_periode($pdo, $startDate, $endDate);
+    if ($clamped === null) {
+        return [];
+    }
+    [$startDate, $endDate] = $clamped;
+
+    if ($runFinalize) {
+        $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+        presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
+    }
+
+    $sqlAktif = santri_sql_aktif_only('s');
+    $params = [$startDate, $endDate];
+    $where = 'p.tanggal_presensi BETWEEN ? AND ?';
+    if ($kegiatanId > 0) {
+        $where .= ' AND p.kegiatan_id = ?';
+        $params[] = $kegiatanId;
+    }
+
+    $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn (int $id): bool => $id > 0)));
+    if ($santriIds !== []) {
+        $ph = implode(',', array_fill(0, count($santriIds), '?'));
+        $where .= ' AND s.id IN (' . $ph . ')';
+        $params = array_merge($params, $santriIds);
+    }
+
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $stmt = $pdo->prepare('
+        SELECT
+            p.id,
+            p.tanggal_presensi,
+            p.status_presensi,
+            p.kegiatan_id,
+            s.id AS santri_id,
+            s.' . $nameCol . ' AS nama_santri,
+            s.nis,
+            s.tingkatan,
+            COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
+        FROM presensi p
+        INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
+        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        WHERE ' . $where . '
+        ORDER BY s.' . $nameCol . ' ASC, p.tanggal_presensi ASC
+    ');
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    return presensi_filter_rows_eligible($pdo, $rows, $startDate, $endDate);
+}
+
+/**
+ * @param list<array<string, mixed>> $rows baris eligible
+ * @return array{hadir:int,izin:int,sakit:int,alpa:int,total:int}
+ */
+function rekap_keaktifan_totals_from_rows(array $rows): array
+{
+    $totals = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+    foreach ($rows as $row) {
+        $totals['total']++;
+        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
+        if ($status === 'HADIR') {
+            $totals['hadir']++;
+        } elseif ($status === 'IZIN') {
+            $totals['izin']++;
+        } elseif ($status === 'SAKIT') {
+            $totals['sakit']++;
+        } elseif ($status === 'ALPA') {
+            $totals['alpa']++;
+        }
+    }
+
+    return $totals;
+}
+
+/**
+ * Rekap per kegiatan dari baris eligible (format daftar untuk portal).
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
+ */
+function rekap_keaktifan_kegiatan_list_from_rows(array $rows): array
+{
+    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}> $byKey */
+    $byKey = [];
+    foreach ($rows as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        $label = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Lainnya / tanpa kegiatan';
+        $key = $kid . '|' . $label;
+        if (!isset($byKey[$key])) {
+            $byKey[$key] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => $label,
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'total' => 0,
+            ];
+        }
+        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
+        $byKey[$key]['total']++;
+        if ($status === 'HADIR') {
+            $byKey[$key]['hadir']++;
+        } elseif ($status === 'IZIN') {
+            $byKey[$key]['izin']++;
+        } elseif ($status === 'SAKIT') {
+            $byKey[$key]['sakit']++;
+        } elseif ($status === 'ALPA') {
+            $byKey[$key]['alpa']++;
+        }
+    }
+
+    $out = array_values($byKey);
+    usort($out, static fn (array $a, array $b): int => strcmp((string) $a['nama_kegiatan'], (string) $b['nama_kegiatan']));
 
     return $out;
 }
@@ -576,6 +802,91 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
     });
 
     return $out;
+}
+
+/**
+ * Gabung baris per slot jadwal menjadi satu baris per kegiatan.
+ * jumlah_tidak_scan = banyak waktu/jadwal tanpa scan (bukan jumlah santri).
+ *
+ * @param list<array<string, mixed>> $slotRows dari rekap_keaktifan_kegiatan_tanpa_scan_bulan()
+ * @return list<array{
+ *   kegiatan_id:int,
+ *   nama_kegiatan:string,
+ *   jumlah_tidak_scan:int,
+ *   detail:list<array{tanggal:string,tanggal_tampil:string,tanggal_hijri:string,hari:string,jam:string,tingkatan:string}>
+ * }>
+ */
+function rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan(array $slotRows): array
+{
+    /** @var array<int, array{kegiatan_id:int,nama_kegiatan:string,jumlah_tidak_scan:int,detail:list<array<string,mixed>>}> $byKid */
+    $byKid = [];
+    foreach ($slotRows as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        if ($kid <= 0) {
+            continue;
+        }
+        if (!isset($byKid[$kid])) {
+            $byKid[$kid] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ('Kegiatan #' . $kid)),
+                'jumlah_tidak_scan' => 0,
+                'detail' => [],
+            ];
+        }
+        $byKid[$kid]['jumlah_tidak_scan'] += (int) ($row['jumlah_tidak_scan'] ?? 1);
+        $detail = (array) ($row['detail'] ?? []);
+        if ($detail === [] && !empty($row['tanggal'])) {
+            $detail = [[
+                'tanggal' => (string) ($row['tanggal'] ?? ''),
+                'tanggal_tampil' => (string) ($row['tanggal_tampil'] ?? ''),
+                'tanggal_hijri' => (string) ($row['tanggal_hijri'] ?? ''),
+                'hari' => (string) ($row['hari'] ?? ''),
+                'jam' => (string) ($row['jam'] ?? ''),
+                'tingkatan' => (string) ($row['tingkatan_label'] ?? ''),
+            ]];
+        }
+        foreach ($detail as $d) {
+            if (!is_array($d)) {
+                continue;
+            }
+            $byKid[$kid]['detail'][] = $d;
+        }
+    }
+
+    $out = array_values($byKid);
+    usort($out, static function (array $a, array $b): int {
+        $cmp = ($b['jumlah_tidak_scan'] ?? 0) <=> ($a['jumlah_tidak_scan'] ?? 0);
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+
+        return strcmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+
+    foreach ($out as &$row) {
+        usort($row['detail'], static function (array $a, array $b): int {
+            $cmp = strcmp((string) ($a['tanggal'] ?? ''), (string) ($b['tanggal'] ?? ''));
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            return strcmp((string) ($a['jam'] ?? ''), (string) ($b['jam'] ?? ''));
+        });
+    }
+    unset($row);
+
+    return $out;
+}
+
+/** Total slot jadwal tanpa scan (bukan jumlah kegiatan atau santri). */
+function rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal(array $slotRows): int
+{
+    $total = 0;
+    foreach ($slotRows as $row) {
+        $total += (int) ($row['jumlah_tidak_scan'] ?? 1);
+    }
+
+    return $total > 0 ? $total : count($slotRows);
 }
 
 /**

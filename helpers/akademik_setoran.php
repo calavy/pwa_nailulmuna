@@ -1338,9 +1338,9 @@ function akademik_setoran_keaktivan_tahun(PDO $pdo, array $ctx, int $tahun): arr
         $alpa = (int) ($stats['alpa'] ?? 0);
         $kategori = santri_category($alpa, $goodMax, $mediumMax);
         $label = match ($kategori) {
-            'bagus' => 'Bagus',
-            'sedang' => 'Sedang',
-            'buruk' => 'Buruk',
+            'Bagus', 'Baik' => 'Bagus',
+            'Sedang' => 'Sedang',
+            'Buruk' => 'Buruk',
             default => $stats['wajib'] > 0 ? 'Belum dinilai' : 'Belum ada data',
         };
         $out[] = [

@@ -536,6 +536,7 @@ if ($koperasiPortal) {
         let moneyScanBusy = false;
         let pinDebounce = null;
         let pinEntryActive = false;
+        let flashClearTimer = null;
 
         const nominalScanInput = document.getElementById('nominal_scan');
         const moneyForm = document.getElementById('scan_uang_form');
@@ -631,6 +632,8 @@ if ($koperasiPortal) {
             flashEl.classList.remove('is-empty');
             if (type === 'error') {
                 flashEl.classList.add('is-error');
+            } else if (type === 'warning') {
+                flashEl.classList.add('is-warning');
             } else if (type === 'success') {
                 flashEl.classList.add('is-success');
             } else {
@@ -638,14 +641,59 @@ if ($koperasiPortal) {
             }
         }
 
-        function notifyResult(type, message) {
-            var msg = message || '';
-            var flashType = (type === 'danger' || type === 'warning') ? 'error' : type;
+        function scheduleFlashClear(ms) {
+            if (flashClearTimer) {
+                clearTimeout(flashClearTimer);
+            }
+            flashClearTimer = setTimeout(function () {
+                setFlash('', '');
+                flashClearTimer = null;
+            }, ms || 9000);
+        }
+
+        function formatNotifyLabel(type, message) {
+            var msg = (message || '').trim();
+            if (!msg) {
+                return '';
+            }
+            if (type === 'success') {
+                return 'Berhasil\n' + msg;
+            }
+            if (type === 'warning') {
+                return 'Ditolak\n' + msg;
+            }
+            if (type === 'danger' || type === 'error') {
+                return 'Gagal\n' + msg;
+            }
+            return msg;
+        }
+
+        function mapAjaxResultType(data) {
+            if (data && data.ok && data.debit_success) {
+                return 'success';
+            }
+            var t = (data && data.type) ? String(data.type) : 'danger';
+            if (t === 'error') {
+                t = 'danger';
+            }
+            if (t === 'success' && !(data && data.debit_success)) {
+                t = 'warning';
+            }
+            return t;
+        }
+
+        function notifyResult(type, message, options) {
+            options = options || {};
+            var labeled = formatNotifyLabel(type, message);
+            var flashType = (type === 'danger' || type === 'error') ? 'error' : type;
             if (type === 'info') {
                 flashType = 'info';
             }
-            setFlash(msg, flashType);
-            if (!msg || !window.PresensiScanFeedback) {
+            setFlash(labeled, flashType);
+            if (options.autoClear !== false && labeled) {
+                scheduleFlashClear(type === 'success' ? 9000 : 11000);
+            }
+            if (!labeled || !window.PresensiScanFeedback) {
                 return;
             }
             var fbType = type;
@@ -653,7 +701,7 @@ if ($koperasiPortal) {
                 fbType = 'danger';
             }
             if (typeof PresensiScanFeedback.show === 'function') {
-                PresensiScanFeedback.show(fbType, msg);
+                PresensiScanFeedback.show(fbType, labeled);
             }
         }
 
@@ -884,7 +932,8 @@ if ($koperasiPortal) {
             setFlash('', '');
         }
 
-        function resetToSantriPhase() {
+        function resetToSantriPhase(opts) {
+            opts = opts || {};
             moneyPhase = false;
             pinEntryActive = false;
             if (wrap) wrap.classList.remove('is-money-phase');
@@ -894,8 +943,32 @@ if ($koperasiPortal) {
                 pinInput.disabled = false;
             }
             if (nominalScanInput) nominalScanInput.value = '';
-            setSantriStats(null, null);
-            setFlash('', '');
+            if (opts.clearStats !== false) {
+                setSantriStats(null, null);
+            }
+            if (opts.clearSantriChip !== false && santriChipName) {
+                santriChipName.textContent = 'Santri';
+            }
+            if (opts.clearFlash !== false) {
+                if (flashClearTimer) {
+                    clearTimeout(flashClearTimer);
+                    flashClearTimer = null;
+                }
+                setFlash('', '');
+            }
+        }
+
+        async function returnToSantriQrScan(noticeType, noticeMessage) {
+            await stopMoneyScanner();
+            resetToSantriPhase({ clearFlash: true, clearSantriChip: true, clearStats: true });
+            await nextPaint();
+            await waitReaderVisible(readerId);
+            await startSantriScanner(activeCameraId);
+            if (noticeMessage) {
+                notifyResult(noticeType || 'info', noticeMessage);
+            } else {
+                notifyResult('info', 'Kamera siap scan QR santri.');
+            }
         }
 
         async function beginMoneyQrScan(santriName, skipSwitch) {
@@ -952,8 +1025,7 @@ if ($koperasiPortal) {
 
             if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {
                 moneyScanBusy = false;
-                resetToSantriPhase();
-                await startSantriScanner(activeCameraId);
+                await returnToSantriQrScan('info', 'Transaksi masuk antrian offline.\nScan QR santri untuk transaksi berikutnya.');
                 return;
             }
 
@@ -967,22 +1039,24 @@ if ($koperasiPortal) {
                     if (data.saldo_saku !== undefined && msg.indexOf('Saldo Saku') < 0) {
                         msg += ' Saldo Saku ' + formatRp(data.saldo_saku) + '.';
                     }
-                    notifyResult('success', msg);
-                    resetToSantriPhase();
-                    await startSantriScanner(activeCameraId);
+                    msg += '\nScan QR santri untuk transaksi berikutnya.';
+                    await returnToSantriQrScan('success', msg);
                 } else {
-                    notifyResult('danger', data.message || 'Transaksi gagal.');
+                    var failType = mapAjaxResultType(data);
+                    var failMsg = data.message || 'Transaksi gagal.';
                     if (data.verified) {
+                        notifyResult(failType, failMsg);
                         await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
                     } else {
-                        resetToSantriPhase();
-                        await startSantriScanner(activeCameraId);
+                        await returnToSantriQrScan(failType, failMsg + '\nScan QR santri untuk mulai lagi.');
                     }
                 }
             } catch (e) {
-                notifyResult('danger', 'Gagal kirim transaksi. Periksa koneksi lalu coba lagi.');
                 if (moneyPhase) {
-                    await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
+                    notifyResult('danger', 'Gagal kirim transaksi. Periksa koneksi lalu coba lagi.');
+                    await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
+                } else {
+                    await returnToSantriQrScan('danger', 'Gagal kirim transaksi.\nScan QR santri untuk mulai lagi.');
                 }
             } finally {
                 moneyScanBusy = false;
@@ -1035,9 +1109,9 @@ if ($koperasiPortal) {
                     pinEntryActive = false;
                     notifyResult('success', data.message || 'PIN benar. Scan uang nonaktif.');
                     if (pinInput) pinInput.value = '';
-                    await startSantriScanner(activeCameraId);
+                    await returnToSantriQrScan('success', (data.message || 'PIN benar.') + '\nScan QR santri untuk transaksi berikutnya.');
                 } else {
-                    notifyResult('danger', data.message || 'PIN salah atau belum diatur.');
+                    notifyResult(mapAjaxResultType(data), data.message || 'PIN salah atau belum diatur.');
                     if (pinInput) {
                         pinInput.value = '';
                         pinInput.disabled = false;

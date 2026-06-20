@@ -39,6 +39,12 @@ function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan): string
 
 function yayasan_ensure_tables(PDO $pdo): void
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS yayasan_pengurus (
             id INT AUTO_INCREMENT PRIMARY KEY,

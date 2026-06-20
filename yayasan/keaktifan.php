@@ -351,7 +351,7 @@ require_once __DIR__ . '/../includes/header.php';
     </section>
 
     <section class="mb-4">
-        <h2 class="yp-section-title"><i class="fa-solid fa-qrcode me-2"></i>Jadwal tanpa scan hadir (<?= count($kegiatanTanpaScan) ?>)</h2>
+        <h2 class="yp-section-title"><i class="fa-solid fa-qrcode me-2"></i>Jadwal tanpa scan hadir (<?= (int) rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kegiatanTanpaScan) ?> jadwal)</h2>
         <button type="button" class="btn yp-mobile-toggle mb-2" data-target="yp-detail-tanpa-scan" aria-expanded="false">
             <i class="fa-solid fa-list me-1"></i>Lihat detail
         </button>
@@ -359,21 +359,12 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($kegiatanTanpaScan === []): ?>
             <div class="yp-empty-inline">Semua jadwal kegiatan hari ini yang sudah lewat waktunya sudah memiliki scan hadir.</div>
         <?php else: ?>
-            <div class="yp-kosong-grid">
-                <?php foreach ($kegiatanTanpaScan as $kts): ?>
-                    <article class="yp-kosong-card">
-                        <div class="yp-kosong-card__title"><?= htmlspecialchars((string) ($kts['nama_kegiatan'] ?? 'Kegiatan')) ?></div>
-                        <div class="yp-kosong-card__meta">
-                            <?= htmlspecialchars((string) ($kts['tanggal_tampil'] ?? '')) ?>
-                            · <?= htmlspecialchars((string) ($kts['jam'] ?? '')) ?>
-                            · Tingkatan: <?= htmlspecialchars((string) ($kts['tingkatan_label'] ?? '-')) ?>
-                        </div>
-                        <div class="yp-kosong-card__stats text-warning">
-                            Belum ada satupun santri yang scan <strong>hadir</strong> pada jadwal ini.
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            </div>
+            <?php
+            $ktsSlotRows = $kegiatanTanpaScan;
+            $ktsListPrefix = 'ypkh';
+            $ktsShowHint = false;
+            require __DIR__ . '/../includes/partials/kegiatan_tanpa_scan_grouped.php';
+            ?>
         <?php endif; ?>
         </div>
     </section>

@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../helpers/pembimbing_nilai_manual.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
+header('Cache-Control: private, max-age=60');
 
 if (empty($_SESSION['user'])) {
     http_response_code(401);

@@ -39,6 +39,13 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || !table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'jadwal_kegiatan')) {
         return [];
     }
+
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    $mulaiScan = rekap_keaktifan_tanggal_mulai_scan($pdo);
+    if ($mulaiScan !== '' && $tanggal < $mulaiScan) {
+        return [];
+    }
+
     $aktifSql = santri_sql_aktif_only('s');
     $hariKe = (int) date('N', strtotime($tanggal) ?: time());
     $params = ['tgl' => $tanggal, 'hari' => $hariKe];

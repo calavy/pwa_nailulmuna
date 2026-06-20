@@ -36,6 +36,24 @@
                 <?php endif; ?>
             </div>
             <div class="col-md-6">
+                <label class="form-label">Stempel surat resmi</label>
+                <input type="file" class="form-control" name="stampel_surat_file" accept=".jpg,.jpeg,.png,.webp">
+                <div class="form-text">Dipakai di blok tanda tangan surat izin dan surat cetak lain. PNG transparan disarankan. Kosongkan file = pakai stempel bawaan.</div>
+                <div class="mt-2 p-2 border rounded bg-light text-center">
+                    <img src="<?= htmlspecialchars(pondok_stampel_href($pdo, 'surat')) ?>" alt="Pratinjau stempel surat" style="max-width:140px;max-height:140px;object-fit:contain;">
+                    <div class="small text-muted mt-1"><?= $stampelSuratConfigured ? 'Stempel custom aktif' : 'Pratinjau stempel default' ?></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Stempel bukti pembayaran / kuitansi</label>
+                <input type="file" class="form-control" name="stampel_kuitansi_file" accept=".jpg,.jpeg,.png,.webp">
+                <div class="form-text">Dipakai di kuitansi keuangan (print resmi &amp; download PNG). Terpisah dari stempel surat.</div>
+                <div class="mt-2 p-2 border rounded bg-light text-center">
+                    <img src="<?= htmlspecialchars(pondok_stampel_href($pdo, 'kuitansi')) ?>" alt="Pratinjau stempel kuitansi" style="max-width:140px;max-height:140px;object-fit:contain;">
+                    <div class="small text-muted mt-1"><?= $stampelKuitansiConfigured ? 'Stempel custom aktif' : 'Pratinjau stempel default' ?></div>
+                </div>
+            </div>
+            <div class="col-md-6">
                 <label class="form-label">Warna tema PWA (status bar)</label>
                 <input type="color" class="form-control form-control-color w-100" name="pwa_theme_color"
                     value="<?= htmlspecialchars(($values['pwa_theme_color'] ?? '') !== '' ? (string) $values['pwa_theme_color'] : '#0f766e') ?>">
@@ -71,6 +89,17 @@
             <div class="col-md-4">
                 <label class="form-label">Kategori sedang (max alpa)</label>
                 <input type="number" min="0" class="form-control" name="kategori_sedang_max" value="<?= htmlspecialchars($values['kategori_sedang_max']) ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Tanggal mulai scan keaktivan</label>
+                <input type="date" class="form-control" name="keaktifan_tanggal_mulai_scan" value="<?= htmlspecialchars((string) ($values['keaktifan_tanggal_mulai_scan'] ?? '')) ?>">
+                <div class="form-text">
+                    Rekap keaktivan (portal wali/santri, pembimbing, yayasan, rekap resmi) hanya menghitung presensi dari tanggal ini.
+                    Kosongkan jika semua riwayat dihitung.
+                    <?php if ($keaktifanScanSuggest !== ''): ?>
+                        Presensi pertama di database: <strong><?= htmlspecialchars(app_format_tanggal_id($keaktifanScanSuggest)) ?></strong>.
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Maks. perpanjangan izin (hari)</label>

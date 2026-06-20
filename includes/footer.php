@@ -1,4 +1,9 @@
-<?php if (isset($_SESSION['user'])): ?>
+<?php
+$footerRequestPath = $requestPath ?? app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+$loadOfflineSyncJs = ($loadOfflineSyncJs ?? true) && app_should_load_offline_sync_js($footerRequestPath);
+$loadSdmModalsJs = ($loadSdmModalsJs ?? true) && app_should_load_sdm_modals($footerRequestPath);
+?>
+<?php if (isset($_SESSION['user']) && $loadSdmModalsJs): ?>
 <?php require_once __DIR__ . '/partials/sdm_modals.php'; ?>
 <?php endif; ?>
     </main>
@@ -32,16 +37,17 @@
     <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" defer crossorigin="anonymous"></script>
     <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
-    <?php if (isset($_SESSION['user'])): ?>
-    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
+    <?php if (isset($_SESSION['user']) && $loadOfflineSyncJs): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
     <?php endif; ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-datetime-24h.js')) ?>" defer></script>
-    <?php if (isset($_SESSION['user'])): ?>
+    <?php if (isset($_SESSION['user']) && $loadSdmModalsJs): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/sdm-modals.js')) ?>" defer></script>
+    <?php endif; ?>
+    <?php if (isset($_SESSION['user'])): ?>
     <?php if (!empty($loadSantriSelectJs)): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/santri-select.js')) ?>" defer></script>
     <?php endif; ?>

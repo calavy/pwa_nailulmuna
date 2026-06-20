@@ -92,6 +92,35 @@ function app_request_path_is_lightweight(string $requestPath): bool
     return false;
 }
 
+/** Muat CSS dashboard hanya di halaman beranda/dashboard. */
+function app_should_load_dashboard_css(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+
+    return str_contains($p, 'dashboard.php')
+        || str_contains($p, '/pembimbing/dashboard')
+        || str_contains($p, '/pengasuh/dashboard');
+}
+
+/** Modal SDM hanya di modul data santri/pembimbing/pengguna. */
+function app_should_load_sdm_modals(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+
+    return (bool) preg_match('#^/(santri|pembimbing|data|users|wali/data)/#', $p);
+}
+
+/** Offline sync JS — skip halaman pengaturan murni. */
+function app_should_load_offline_sync_js(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+    if (preg_match('#^/settings/(?!presensi)#', $p)) {
+        return false;
+    }
+
+    return true;
+}
+
 /** Hapus cache branding header (mis. setelah ubah logo/nama pondok). */
 function app_header_brand_invalidate(): void
 {
@@ -499,6 +528,7 @@ function pondok_settings_defaults(): array
         'wa_pengurus' => '',
         'wa_permohonan_izin' => '',
         'wa_permohonan_izin_enabled' => '1',
+        'wa_permohonan_izin_jenis' => 'SYARI',
         'wa_petugas_pendidikan' => '',
         'wa_notif_mudabir_enabled' => '1',
         'mudabir_batas_menit' => '30',
@@ -518,6 +548,7 @@ function pondok_settings_defaults(): array
         'batas_telat_menit' => '15',
         'kategori_baik_max' => '1',
         'kategori_sedang_max' => '3',
+        'keaktifan_tanggal_mulai_scan' => '',
         'izin_perpanjangan_max_hari' => '7',
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
         'izin_alpa_batas_enabled' => '1',
@@ -535,6 +566,9 @@ function pondok_settings_defaults(): array
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
         'wa_izin_wali_enabled' => '1',
+        'wa_pembayaran_wali_enabled' => '1',
+        'stampel_surat_path' => '',
+        'stampel_kuitansi_path' => '',
         'cashless_saldo_rendah_wa_enabled' => '1',
         'cashless_saldo_rendah_wa_ambang' => '30000',
         'cashless_transaksi_wa_enabled' => '1',
@@ -639,6 +673,44 @@ function wa_permohonan_izin_target(PDO $pdo): string
 function wa_permohonan_izin_enabled(PDO $pdo): bool
 {
     return trim((string) app_setting($pdo, 'wa_permohonan_izin_enabled', '1')) === '1';
+}
+
+/**
+ * Jenis izin yang memicu WA permohonan baru (kode: SAKIT, KELUAR, TUGAS, SYARI).
+ *
+ * @return list<string>
+ */
+function wa_permohonan_izin_jenis_allowed_list(PDO $pdo): array
+{
+    require_once __DIR__ . '/perizinan_jenis.php';
+    $raw = trim((string) app_setting($pdo, 'wa_permohonan_izin_jenis', 'SYARI'));
+    if ($raw === '') {
+        return [];
+    }
+    $allowed = [];
+    foreach (preg_split('/[\s,;]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
+        $kode = perizinan_jenis_izin_normalize((string) $part);
+        if (in_array($kode, perizinan_jenis_izin_kodes(), true)) {
+            $allowed[$kode] = $kode;
+        }
+    }
+
+    return array_values($allowed);
+}
+
+function wa_permohonan_izin_jenis_allowed(PDO $pdo, string $jenisIzin): bool
+{
+    require_once __DIR__ . '/perizinan_jenis.php';
+    $kode = perizinan_jenis_izin_normalize($jenisIzin);
+    $allowed = wa_permohonan_izin_jenis_allowed_list($pdo);
+
+    return $allowed !== [] && in_array($kode, $allowed, true);
+}
+
+/** Apakah WA permohonan izin baru harus dikirim untuk jenis ini. */
+function wa_permohonan_izin_should_notify(PDO $pdo, string $jenisIzin): bool
+{
+    return wa_permohonan_izin_enabled($pdo) && wa_permohonan_izin_jenis_allowed($pdo, $jenisIzin);
 }
 
 /** Nomor penerima laporan izin disetujui & izin selesai untuk pengurus/petugas surat. */
@@ -3360,7 +3432,7 @@ function wa_format_izin_disetujui_untuk_wali(
     $vars['alasan'] = $alasan;
     $vars['nama_ponpes'] = $namaPonpes;
 
-    return wa_template_render($pdo, 'izin_disetujui_wali', $vars);
+    return wa_template_render_izin_disetujui($pdo, 'izin_disetujui_wali', $jenisRaw, $vars);
 }
 
 function user_has_acl_permission_matrix(PDO $pdo): bool

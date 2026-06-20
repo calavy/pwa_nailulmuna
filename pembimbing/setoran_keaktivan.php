@@ -29,12 +29,12 @@ if ($filterTk !== '' && ($tingkatanFilter === [] || in_array($filterTk, $tingkat
 $rows = akademik_setoran_keaktivan_tahun($pdo, array_merge($ctx, ['tingkatan_allowed' => $tingkatanFilter]), $tahun);
 $ringkas = ['bagus' => 0, 'sedang' => 0, 'buruk' => 0, 'belum' => 0];
 foreach ($rows as $r) {
-    $kat = (string) ($r['kategori'] ?? '');
-    if ($kat === 'bagus') {
+    $kat = strtoupper((string) ($r['kategori'] ?? ''));
+    if (in_array($kat, ['BAIK', 'BAGUS'], true)) {
         $ringkas['bagus']++;
-    } elseif ($kat === 'sedang') {
+    } elseif ($kat === 'SEDANG') {
         $ringkas['sedang']++;
-    } elseif ($kat === 'buruk') {
+    } elseif (in_array($kat, ['BURUK', 'JELEK'], true)) {
         $ringkas['buruk']++;
     } else {
         $ringkas['belum']++;

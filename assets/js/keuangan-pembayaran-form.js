@@ -390,7 +390,7 @@
             }
         });
         const val = stillCicilan ? 'CICILAN' : 'LUNAS';
-        const label = stillCicilan ? 'Cicilan' : 'Lunas';
+        const label = stillCicilan ? 'BELUM DITERIMA · DI CICIL' : 'DITERIMA';
         if (statusHidden) {
             statusHidden.value = val;
         }
@@ -497,7 +497,7 @@
             syBreakdownLines.innerHTML = lines.join('<br>');
             const sisaLine = (bd.sisa || 0) > 0
                 ? ' · Sisa bayar: <strong>' + fmtRp(bd.sisa) + '</strong>'
-                : ' · <span class="text-success">Lunas</span>';
+                : ' · <span class="text-success">DITERIMA</span>';
             syBreakdownTotal.innerHTML =
                 'Total tagihan: <strong>' + fmtRp(bd.total) + '</strong>' + sisaLine;
             syBreakdownBox.classList.remove('d-none');
@@ -567,7 +567,7 @@
                     potonganLine;
             } else {
                 cell.innerHTML =
-                    '<span class="text-success">Lunas</span><br><span class="text-muted">' +
+                    '<span class="text-success">DITERIMA</span><br><span class="text-muted">' +
                     fmtRp(info.expected) +
                     '</span>' +
                     rincianLine +

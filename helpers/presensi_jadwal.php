@@ -73,9 +73,15 @@ function presensi_santri_wajib_hadir(PDO $pdo, int $santriId, ?int $kegiatanId, 
  */
 function presensi_jadwal_eligibility_set(PDO $pdo, string $startDate, string $endDate): array
 {
+    static $cache = [];
+    $cacheKey = $startDate . '|' . $endDate;
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+
     $set = [];
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
-        return $set;
+        return $cache[$cacheKey] = $set;
     }
 
     $stmt = $pdo->query('
@@ -85,7 +91,14 @@ function presensi_jadwal_eligibility_set(PDO $pdo, string $startDate, string $en
     ');
     $jadwalRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     if ($jadwalRows === []) {
-        return $set;
+        return $cache[$cacheKey] = $set;
+    }
+
+    /** @var array<int, list<array<string, mixed>>> $jadwalByHari */
+    $jadwalByHari = [];
+    foreach ($jadwalRows as $jr) {
+        $hariJadwal = (int) ($jr['hari_ke'] ?? 0);
+        $jadwalByHari[$hariJadwal][] = $jr;
     }
 
     $startTs = strtotime($startDate) ?: time();
@@ -93,11 +106,8 @@ function presensi_jadwal_eligibility_set(PDO $pdo, string $startDate, string $en
     for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
         $tanggal = date('Y-m-d', $ts);
         $hariKe = (int) date('N', $ts);
-        foreach ($jadwalRows as $jr) {
-            $hariJadwal = (int) ($jr['hari_ke'] ?? 0);
-            if ($hariJadwal !== 0 && $hariJadwal !== $hariKe) {
-                continue;
-            }
+        $slots = array_merge($jadwalByHari[0] ?? [], $jadwalByHari[$hariKe] ?? []);
+        foreach ($slots as $jr) {
             $kid = (int) ($jr['kegiatan_id'] ?? 0);
             if ($kid <= 0) {
                 continue;
@@ -111,7 +121,7 @@ function presensi_jadwal_eligibility_set(PDO $pdo, string $startDate, string $en
         }
     }
 
-    return $set;
+    return $cache[$cacheKey] = $set;
 }
 
 /**
@@ -149,7 +159,26 @@ function presensi_filter_rows_eligible(PDO $pdo, array $rows, string $startDate,
     if ($rows === []) {
         return [];
     }
-    $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $startDate, $endDate);
+
+    $effStart = $endDate;
+    $effEnd = $startDate;
+    foreach ($rows as $row) {
+        $d = (string) ($row['tanggal_presensi'] ?? '');
+        if ($d === '' || $d < $startDate || $d > $endDate) {
+            continue;
+        }
+        if ($d < $effStart) {
+            $effStart = $d;
+        }
+        if ($d > $effEnd) {
+            $effEnd = $d;
+        }
+    }
+    if ($effStart > $effEnd) {
+        return [];
+    }
+
+    $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $effStart, $effEnd);
     $out = [];
     foreach ($rows as $row) {
         if (presensi_row_eligible_for_hitung($pdo, $row, $eligibilitySet)) {
@@ -415,6 +444,13 @@ function presensi_fetch_rows_rekap(PDO $pdo, string $startDate, string $endDate,
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
         return [];
     }
+
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    $clamped = rekap_keaktifan_clamp_periode($pdo, $startDate, $endDate);
+    if ($clamped === null) {
+        return [];
+    }
+    [$startDate, $endDate] = $clamped;
 
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
     presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);

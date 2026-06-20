@@ -17,7 +17,7 @@ declare(strict_types=1);
     <div class="pb-keaktivan-page__top">
         <h1 class="pb-keaktivan-page__title">Keaktivan Santri</h1>
         <p class="pb-keaktivan-page__sub text-muted mb-0">
-            Rekap keaktifan berdasarkan presensi tahun <?= (int) $tahun ?>
+            Rekap keaktifan tahun Masehi <?= (int) $tahun ?> (s/d hari ini) — <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>.
             <?php if ($tingkatanFilter !== ''): ?>
                 · tingkatan <?= htmlspecialchars($tingkatanFilter) ?>
             <?php elseif ($semuaTingkatanList !== []): ?>
@@ -35,6 +35,9 @@ declare(strict_types=1);
             </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-sm btn-outline-secondary">Terapkan</button>
+            </div>
+            <div class="col-auto">
+                <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php?view=keaktivan&tahun=' . (int) $tahun . ($tingkatanFilter !== '' ? '&tingkatan=' . rawurlencode($tingkatanFilter) : '') . '&refresh=1')) ?>" class="btn btn-sm btn-link">Segarkan data</a>
             </div>
         </form>
     </div>

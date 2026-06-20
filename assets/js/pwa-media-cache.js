@@ -22,6 +22,10 @@
     }
 
     function cacheName() {
+        var meta = document.querySelector('meta[name="pondok-pwa-cache-ver"]');
+        if (meta && meta.content) {
+            return 'pondok-pwa-media-' + String(meta.content);
+        }
         return 'pondok-pwa-media-runtime';
     }
 

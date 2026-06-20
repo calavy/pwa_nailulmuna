@@ -87,6 +87,7 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/../../includes/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/pwa-ui.css')) ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
@@ -187,7 +188,7 @@ function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActiv
     <?php endif; ?>
     </div>
     <?php require_once __DIR__ . '/../../helpers/app_vendor.php'; ?>
-    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
+    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" defer crossorigin="anonymous"></script>
     <script>
         window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;
         window.PONDOK_PWA_SCOPE = <?= json_encode(rtrim(app_base_path(), '/') . '/wali/') ?>;

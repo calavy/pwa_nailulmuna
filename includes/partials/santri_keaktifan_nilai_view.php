@@ -17,6 +17,7 @@ if ($santriId <= 0) {
 }
 
 require_once __DIR__ . '/../../helpers/santri_keaktifan_nilai.php';
+require_once __DIR__ . '/../../helpers/rekap_keaktifan.php';
 $rows = santri_keaktifan_tampilan_per_tahun($pdo, $santriId);
 ?>
 <div class="card border-0 shadow-sm">
@@ -69,4 +70,4 @@ $rows = santri_keaktifan_tampilan_per_tahun($pdo, $santriId);
         <?php endif; ?>
     </div>
 </div>
-<p class="small text-muted mt-2 mb-0">Nilai <strong>Baik</strong>, <strong>Sedang</strong>, atau <strong>Buruk</strong> ditetapkan pengasuh pondok. Tanpa penilaian pengasuh, nilai dapat mengikuti rekap presensi.</p>
+        <p class="small text-muted mt-2 mb-0">Nilai <strong>Baik</strong>, <strong>Sedang</strong>, atau <strong>Buruk</strong> ditetapkan pengasuh pondok. Tanpa penilaian pengasuh, nilai mengikuti rekap presensi jadwal (<?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>).</p>

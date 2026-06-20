@@ -75,8 +75,8 @@ function pwa_ui_static_precache_relative_paths(): array
 {
     $paths = [
         '/assets/css/app.css',
+        '/assets/css/pwa-ui.css',
         '/assets/css/offline-sync.css',
-        '/assets/css/presensi-scan.css',
         '/assets/css/auth-portal.css',
         '/assets/css/wali-portal.css',
         '/assets/js/app-shell.js',
@@ -85,13 +85,34 @@ function pwa_ui_static_precache_relative_paths(): array
         '/assets/js/pwa-media-cache.js',
         '/assets/js/pwa-register.js',
         '/assets/js/app-datetime-24h.js',
-        '/assets/js/presensi-scan-feedback.js',
-        '/assets/js/presensi-scan-timer.js',
-        '/assets/js/presensi-scan-camera.js',
         '/assets/images/avatar-default.svg',
         '/assets/images/avatar-default-laki.svg',
         '/assets/images/avatar-default-perempuan.svg',
     ];
+    $root = dirname(__DIR__);
+    $out = [];
+    foreach ($paths as $rel) {
+        if (is_file($root . $rel)) {
+            $out[] = $rel;
+        }
+    }
+
+    return $out;
+}
+
+/** Aset scan QR — precache on-demand saat halaman scan dibuka. */
+function pwa_scan_precache_relative_paths(): array
+{
+    require_once __DIR__ . '/app_vendor.php';
+    $paths = [
+        '/assets/css/presensi-scan.css',
+        '/assets/js/presensi-scan-feedback.js',
+        '/assets/js/presensi-scan-timer.js',
+        '/assets/js/presensi-scan-camera.js',
+    ];
+    foreach (app_vendor_scan_precache_relative_paths() as $rel) {
+        $paths[] = $rel;
+    }
     $root = dirname(__DIR__);
     $out = [];
     foreach ($paths as $rel) {
@@ -127,6 +148,7 @@ function pwa_render_service_worker_js(PDO $pdo, string $basePath, bool $includeF
     $basePath = rtrim($basePath, '/');
     $baseJs = addslashes($basePath === '' ? '' : $basePath);
     $cacheVer = addslashes(pwa_cache_version());
+    $mediaCacheVer = addslashes(substr(md5(pwa_cache_version()), 0, 12));
     $precacheJson = json_encode(pwa_precache_paths($basePath, $pdo), JSON_UNESCAPED_SLASHES);
 
     $fcmBlock = '';
@@ -187,6 +209,7 @@ JS;
 /* PWA Pondok — cache offline + push (FCM) */
 var PWA_BASE = '{$baseJs}';
 var PWA_CACHE = '{$cacheVer}';
+var PWA_MEDIA_CACHE = 'pondok-pwa-media-{$mediaCacheVer}';
 var PWA_PRECACHE = {$precacheJson};
 
 function pwaUrl(path) {
@@ -214,6 +237,16 @@ function pwaIsBrandMedia(url) {
     || p.indexOf('/assets/images/') >= 0
     || p.indexOf('/assets/img/') >= 0
     || p.indexOf('/assets/vendor/') >= 0;
+}
+
+function pwaIsOfflineNavAllowlist(url) {
+  var p = url.pathname;
+  if (p.endsWith('/offline.php')) {
+    return true;
+  }
+  return p.indexOf('/presensi/scan') >= 0
+    || p.indexOf('/cashless/scan') >= 0
+    || p.indexOf('/presensi/kiosk') >= 0;
 }
 
 function pwaNormalizeCacheUrl(request) {
@@ -292,7 +325,9 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
-        keys.filter(function (k) { return k !== PWA_CACHE; }).map(function (k) {
+        keys.filter(function (k) {
+          return k !== PWA_CACHE && k !== PWA_MEDIA_CACHE;
+        }).map(function (k) {
           return caches.delete(k);
         })
       );
@@ -318,7 +353,7 @@ self.addEventListener('fetch', function (event) {
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).then(function (res) {
-        if (res && res.ok && res.type === 'basic') {
+        if (res && res.ok && res.type === 'basic' && pwaIsOfflineNavAllowlist(url)) {
           pwaPutCache(req, res);
         }
         return res;
@@ -353,6 +388,21 @@ self.addEventListener('fetch', function (event) {
 self.addEventListener('message', function (event) {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'PRECACHE_SCAN' && Array.isArray(event.data.paths)) {
+    event.waitUntil(
+      caches.open(PWA_CACHE).then(function (cache) {
+        return Promise.all(
+          event.data.paths.map(function (rel) {
+            var path = String(rel || '');
+            if (path.charAt(0) !== '/') {
+              path = '/' + path;
+            }
+            return cache.add(new Request(pwaUrl(path), { credentials: 'same-origin' })).catch(function () {});
+          })
+        );
+      })
+    );
   }
 });
 {$fcmBlock}

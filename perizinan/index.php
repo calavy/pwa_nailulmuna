@@ -21,34 +21,19 @@ if (!table_exists($pdo, 'perizinan')) {
     exit;
 }
 
-$pdo->exec("ALTER TABLE perizinan
-    ADD COLUMN IF NOT EXISTS jenis_izin ENUM('SAKIT','KELUAR','TUGAS','PULANG') NOT NULL DEFAULT 'KELUAR',
-    ADD COLUMN IF NOT EXISTS jam_mulai TIME NULL,
-    ADD COLUMN IF NOT EXISTS jam_selesai TIME NULL,
-    ADD COLUMN IF NOT EXISTS durasi_jam DECIMAL(5,2) NULL,
-    ADD COLUMN IF NOT EXISTS approval_status ENUM('PENDING','DISETUJUI','DITOLAK') NOT NULL DEFAULT 'PENDING',
-    ADD COLUMN IF NOT EXISTS approved_by INT NULL,
-    ADD COLUMN IF NOT EXISTS approved_at DATETIME NULL,
-    ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(255) NULL,
-    ADD COLUMN IF NOT EXISTS qr_token VARCHAR(120) NULL,
-    ADD COLUMN IF NOT EXISTS waktu_keluar DATETIME NULL,
-    ADD COLUMN IF NOT EXISTS grace_menit INT NOT NULL DEFAULT 15,
-    ADD COLUMN IF NOT EXISTS poin_pelanggaran INT NOT NULL DEFAULT 0");
-
-$pdo->exec('
-    CREATE TABLE IF NOT EXISTS ehealth_records (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        santri_id INT NOT NULL,
-        gejala TEXT NOT NULL,
-        suhu_tubuh DECIMAL(4,1) NULL,
-        tindakan TEXT NULL,
-        status_kesehatan ENUM("RAWAT_PONDOK","DIRUJUK_RS","ISOLASI","SELESAI") NOT NULL DEFAULT "RAWAT_PONDOK",
-        notifikasi_wali TINYINT(1) NOT NULL DEFAULT 0,
-        created_by INT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (santri_id) REFERENCES santri(id) ON DELETE CASCADE
-    )
-');
+if (isset($_GET['ajax']) && (string) $_GET['ajax'] === 'pembimbing_wa_targets') {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once __DIR__ . '/../helpers/wa_otomatis.php';
+    $santriId = (int) ($_GET['santri_id'] ?? 0);
+    $enabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1'
+        && wa_otomatis_should_run($pdo, 'izin');
+    echo json_encode([
+        'ok' => true,
+        'enabled' => $enabled,
+        'targets' => $santriId > 0 ? perizinan_pembimbing_wa_target_rows($pdo, $santriId) : [],
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'create_izin';
@@ -149,7 +134,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'jam_mulai' => $jamMulai,
                     'jam_selesai' => $jamSelesai,
                     'durasi_jam' => $durasi,
-                ]
+                ],
+                false,
+                perizinan_parse_wa_pembimbing_post($_POST)
             );
             if (!$res['ok']) {
                 set_flash('error', $res['message']);
@@ -360,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
         );
     }
-    if (push_should_send_wa($pdo) && wa_permohonan_izin_enabled($pdo)) {
+    if (push_should_send_wa($pdo) && wa_permohonan_izin_should_notify($pdo, (string) $data['jenis_izin'])) {
         $waIzinTarget = wa_permohonan_izin_target($pdo);
         if ($waIzinTarget !== '') {
             send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
@@ -384,27 +371,63 @@ santri_list_sort_mode($_GET['santri_sort'] ?? null);
 $santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
 $rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
-$izinList = $pdo->query('
-    SELECT i.id, i.santri_id, i.rombongan_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.pengasuh_approved_at, i.alasan, i.tujuan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis, s.tingkatan
+
+$filterStatus = strtoupper(trim((string) ($_GET['status'] ?? '')));
+if (!in_array($filterStatus, ['PENDING', 'DISETUJUI', 'DITOLAK'], true)) {
+    $filterStatus = '';
+}
+$filterBulan = trim((string) ($_GET['bulan'] ?? ''));
+if (!preg_match('/^\d{4}-\d{2}$/', $filterBulan)) {
+    $filterBulan = '';
+}
+$izinPage = max(1, (int) ($_GET['page'] ?? 1));
+$izinPerPage = min(100, max(20, (int) ($_GET['per_page'] ?? 50)));
+
+$izinWhere = ['1=1'];
+$izinParams = [];
+if ($filterStatus !== '') {
+    $izinWhere[] = 'i.approval_status = :filter_status';
+    $izinParams['filter_status'] = $filterStatus;
+}
+if ($filterBulan !== '') {
+    $izinWhere[] = 'i.tanggal_mulai >= :bulan_awal AND i.tanggal_mulai < DATE_ADD(:bulan_awal_end, INTERVAL 1 MONTH)';
+    $izinParams['bulan_awal'] = $filterBulan . '-01';
+    $izinParams['bulan_awal_end'] = $filterBulan . '-01';
+}
+$izinWhereSql = implode(' AND ', $izinWhere);
+$izinJoinSql = '
     FROM perizinan i
     INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifS . '
-    ORDER BY COALESCE(i.rombongan_id, i.id) DESC, i.rombongan_id DESC, i.id DESC
-')->fetchAll();
-$izinAlpaMap = [];
-foreach ($izinList as $rowAlpa) {
-    if ((string) ($rowAlpa['approval_status'] ?? 'PENDING') !== 'PENDING') {
-        continue;
-    }
-    $sidAlpa = (int) ($rowAlpa['santri_id'] ?? 0);
-    $syariKatAlpa = trim((string) ($rowAlpa['syari_kategori'] ?? ''));
-    $izinAlpaMap[(int) $rowAlpa['id']] = perizinan_alpa_cek_approval(
-        $pdo,
-        $sidAlpa,
-        (string) ($rowAlpa['jenis_izin'] ?? 'KELUAR'),
-        null,
-        $syariKatAlpa !== '' ? $syariKatAlpa : null
-    );
+    WHERE ' . $izinWhereSql;
+
+$statsRow = $pdo->query('
+    SELECT COUNT(*) AS total,
+           SUM(CASE WHEN i.approval_status = "PENDING" THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN i.approval_status = "DISETUJUI" THEN 1 ELSE 0 END) AS disetujui
+    FROM perizinan i
+    INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifS . '
+')->fetch(PDO::FETCH_ASSOC) ?: [];
+$izinTotalAll = (int) ($statsRow['total'] ?? 0);
+$izinPending = (int) ($statsRow['pending'] ?? 0);
+$izinDisetujui = (int) ($statsRow['disetujui'] ?? 0);
+
+$countStmt = $pdo->prepare('SELECT COUNT(*) ' . $izinJoinSql);
+$countStmt->execute($izinParams);
+$izinTotalFiltered = (int) ($countStmt->fetchColumn() ?: 0);
+$izinTotalPages = max(1, (int) ceil($izinTotalFiltered / $izinPerPage));
+if ($izinPage > $izinTotalPages) {
+    $izinPage = $izinTotalPages;
 }
+$izinOffset = ($izinPage - 1) * $izinPerPage;
+
+$listStmt = $pdo->prepare('
+    SELECT i.id, i.santri_id, i.rombongan_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.pengasuh_approved_at, i.alasan, i.tujuan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis, s.tingkatan
+    ' . $izinJoinSql . '
+    ORDER BY COALESCE(i.rombongan_id, i.id) DESC, i.rombongan_id DESC, i.id DESC
+    LIMIT ' . (int) $izinPerPage . ' OFFSET ' . (int) $izinOffset);
+$listStmt->execute($izinParams);
+$izinList = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$izinAlpaMap = perizinan_alpa_map_for_rows($pdo, $izinList);
 $izinAlpaCfg = perizinan_alpa_settings($pdo);
 $bolehBypassAlpa = perizinan_user_boleh_bypass_alpa($pdo);
 $rombonganPending = [];
@@ -423,10 +446,13 @@ $healthList = $pdo->query('
     ORDER BY h.id DESC
     LIMIT 20
 ')->fetchAll();
-$izinPending = count(array_filter($izinList, static fn(array $r): bool => (string) ($r['approval_status'] ?? 'PENDING') === 'PENDING'));
-$izinDisetujui = count(array_filter($izinList, static fn(array $r): bool => (string) ($r['approval_status'] ?? '') === 'DISETUJUI'));
 $izinPerpanjanganMaxHari = max(1, (int) app_setting($pdo, 'izin_perpanjangan_max_hari', '7'));
 $izinPerpanjanganJenisArr = array_values(array_filter(array_map('trim', explode(',', strtoupper((string) app_setting($pdo, 'izin_perpanjangan_jenis', 'SAKIT,KELUAR'))))));
+$izinListQuery = array_filter([
+    'status' => $filterStatus !== '' ? $filterStatus : null,
+    'bulan' => $filterBulan !== '' ? $filterBulan : null,
+    'per_page' => $izinPerPage !== 50 ? (string) $izinPerPage : null,
+]);
 
 $pageTitle = 'Perizinan Santri';
 $loadSantriSelectJs = true;
@@ -445,7 +471,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
             <div class="app-mini-stat-label">Total izin</div>
-            <div class="app-mini-stat-value"><?= count($izinList) ?></div>
+            <div class="app-mini-stat-value"><?= $izinTotalAll ?></div>
         </div>
     </div>
     <div class="col-6 col-md-3">
@@ -696,6 +722,39 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <?php endif; ?>
                 <h2 class="h5">Daftar Izin</h2>
+                <form method="get" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-0">Status</label>
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">Semua</option>
+                            <option value="PENDING" <?= $filterStatus === 'PENDING' ? 'selected' : '' ?>>Pending</option>
+                            <option value="DISETUJUI" <?= $filterStatus === 'DISETUJUI' ? 'selected' : '' ?>>Disetujui</option>
+                            <option value="DITOLAK" <?= $filterStatus === 'DITOLAK' ? 'selected' : '' ?>>Ditolak</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-0">Bulan mulai</label>
+                        <input type="month" name="bulan" class="form-control form-control-sm" value="<?= htmlspecialchars($filterBulan) ?>">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted mb-0">Per halaman</label>
+                        <select name="per_page" class="form-select form-select-sm">
+                            <?php foreach ([20, 50, 100] as $pp): ?>
+                                <option value="<?= $pp ?>" <?= $izinPerPage === $pp ? 'selected' : '' ?>><?= $pp ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-sm btn-primary">Terapkan</button>
+                        <a href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>" class="btn btn-sm btn-outline-secondary">Reset</a>
+                    </div>
+                </form>
+                <?php if ($izinTotalFiltered > 0): ?>
+                <p class="small text-muted mb-2">
+                    Menampilkan <?= (int) min($izinTotalFiltered, $izinOffset + 1) ?>–<?= (int) min($izinTotalFiltered, $izinOffset + count($izinList)) ?>
+                    dari <?= $izinTotalFiltered ?> izin<?= $filterStatus !== '' || $filterBulan !== '' ? ' (difilter)' : '' ?>.
+                </p>
+                <?php endif; ?>
                 <?php if (!empty($izinAlpaCfg['enabled'])): ?>
                 <p class="small text-muted mb-2">
                     <strong>ALPA</strong> = tidak hadir ke kegiatan wajib tanpa izin/sakit resmi.
@@ -788,6 +847,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             data-bs-toggle="modal"
                                             data-bs-target="#approveIzinModal"
                                             data-izin-id="<?= (int) $i['id'] ?>"
+                                            data-santri-id="<?= (int) ($i['santri_id'] ?? 0) ?>"
                                             data-nama="<?= htmlspecialchars((string) $i['nama_santri']) ?> (<?= htmlspecialchars((string) $i['nis']) ?>)"
                                             data-jenis="<?= htmlspecialchars(jenis_izin_label((string) ($i['jenis_izin'] ?? 'KELUAR'))) ?>"
                                             data-jenis-kode="<?= htmlspecialchars(strtoupper((string) ($i['jenis_izin'] ?? 'KELUAR'))) ?>"
@@ -864,6 +924,31 @@ require_once __DIR__ . '/../includes/header.php';
                     </tbody>
                 </table>
                 </div>
+                <?php if ($izinTotalPages > 1): ?>
+                <?php
+                $pageBase = app_href('/perizinan/index.php') . '?' . http_build_query(array_filter($izinListQuery));
+                $pageSep = $pageBase === app_href('/perizinan/index.php') ? '?' : '&';
+                ?>
+                <nav class="mt-3" aria-label="Halaman daftar izin">
+                    <ul class="pagination pagination-sm mb-0 flex-wrap">
+                        <li class="page-item<?= $izinPage <= 1 ? ' disabled' : '' ?>">
+                            <a class="page-link" href="<?= htmlspecialchars($pageBase . ($izinPage > 1 ? $pageSep . 'page=' . ($izinPage - 1) : '')) ?>">Sebelumnya</a>
+                        </li>
+                        <?php
+                        $pageStart = max(1, $izinPage - 2);
+                        $pageEnd = min($izinTotalPages, $izinPage + 2);
+                        for ($p = $pageStart; $p <= $pageEnd; $p++):
+                        ?>
+                        <li class="page-item<?= $p === $izinPage ? ' active' : '' ?>">
+                            <a class="page-link" href="<?= htmlspecialchars($pageBase . $pageSep . 'page=' . $p) ?>"><?= $p ?></a>
+                        </li>
+                        <?php endfor; ?>
+                        <li class="page-item<?= $izinPage >= $izinTotalPages ? ' disabled' : '' ?>">
+                            <a class="page-link" href="<?= htmlspecialchars($pageBase . $pageSep . 'page=' . ($izinPage + 1)) ?>">Berikutnya</a>
+                        </li>
+                    </ul>
+                </nav>
+                <?php endif; ?>
             </div>
         </div>
         <div class="card shadow-sm mt-4">
@@ -890,7 +975,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <div class="modal fade" id="approveIzinModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <form method="post" class="modal-content">
             <input type="hidden" name="action" value="approve_izin">
             <input type="hidden" name="izin_id" id="approve-izin-id" value="">
@@ -936,6 +1021,19 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Durasi (jam)</label>
                         <input type="number" step="0.25" min="0" name="durasi_jam" id="approve-durasi" class="form-control" placeholder="3.5">
                     </div>
+                </div>
+                <div id="approve-wa-pembimbing-panel" class="border rounded-3 p-3 mt-3 d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="fw-semibold small"><i class="fa-brands fa-whatsapp text-success me-1"></i> WA ke pembimbing</div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="approve-wa-pb-master" checked>
+                            <label class="form-check-label small" for="approve-wa-pb-master">Kirim</label>
+                        </div>
+                    </div>
+                    <p class="small text-muted mb-2">Sesuaikan nama dan nomor WA sebelum menyetujui. Kosongkan centang baris jika tidak ingin mengirim ke penerima tersebut.</p>
+                    <div id="approve-wa-pembimbing-loading" class="small text-muted d-none">Memuat daftar pembimbing…</div>
+                    <div id="approve-wa-pembimbing-empty" class="small text-muted d-none">Tidak ada pembimbing terkait atau notif izin nonaktif.</div>
+                    <div id="approve-wa-pembimbing-rows" class="vstack gap-2"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1083,6 +1181,65 @@ require_once __DIR__ . '/../includes/header.php';
         setText('approve-santri-info', btn.getAttribute('data-nama'));
         setText('approve-jenis-info', btn.getAttribute('data-jenis'));
         setText('approve-alasan-info', btn.getAttribute('data-alasan'));
+
+        var waPanel = document.getElementById('approve-wa-pembimbing-panel');
+        var waRows = document.getElementById('approve-wa-pembimbing-rows');
+        var waLoading = document.getElementById('approve-wa-pembimbing-loading');
+        var waEmpty = document.getElementById('approve-wa-pembimbing-empty');
+        var waMaster = document.getElementById('approve-wa-pb-master');
+        var santriId = btn.getAttribute('data-santri-id') || '0';
+        if (waPanel && waRows) {
+            waRows.innerHTML = '';
+            waPanel.classList.remove('d-none');
+            if (waLoading) waLoading.classList.remove('d-none');
+            if (waEmpty) waEmpty.classList.add('d-none');
+            fetch('<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>?ajax=pembimbing_wa_targets&santri_id=' + encodeURIComponent(santriId), {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (waLoading) waLoading.classList.add('d-none');
+                    var targets = (data && data.targets) ? data.targets : [];
+                    var enabled = !!(data && data.enabled);
+                    if (!enabled || targets.length === 0) {
+                        if (waEmpty) waEmpty.classList.remove('d-none');
+                        if (waMaster) waMaster.checked = false;
+                        return;
+                    }
+                    if (waMaster) waMaster.checked = true;
+                    targets.forEach(function (t, idx) {
+                        var row = document.createElement('div');
+                        row.className = 'border rounded p-2 bg-light-subtle';
+                        var hasPhone = (t.phone || '').trim() !== '';
+                        row.innerHTML =
+                            '<div class="form-check mb-2">' +
+                            '<input class="form-check-input approve-wa-pb-send" type="checkbox" name="wa_pb[' + idx + '][send]" value="1" id="approve-wa-pb-send-' + idx + '" ' + (hasPhone ? 'checked' : '') + '>' +
+                            '<label class="form-check-label small fw-semibold" for="approve-wa-pb-send-' + idx + '">Kirim ke penerima ini</label>' +
+                            '</div>' +
+                            '<div class="row g-2">' +
+                            '<div class="col-md-6"><label class="form-label small mb-0">Nama pembimbing</label>' +
+                            '<input type="text" class="form-control form-control-sm" name="wa_pb[' + idx + '][nama]" value="' + (t.nama || '').replace(/"/g, '&quot;') + '"></div>' +
+                            '<div class="col-md-6"><label class="form-label small mb-0">No. WA</label>' +
+                            '<input type="text" class="form-control form-control-sm" name="wa_pb[' + idx + '][phone]" value="' + (t.phone || '').replace(/"/g, '&quot;') + '" inputmode="tel" placeholder="628xxxxxxxxxx"></div>' +
+                            '</div>';
+                        waRows.appendChild(row);
+                    });
+                })
+                .catch(function () {
+                    if (waLoading) waLoading.classList.add('d-none');
+                    if (waEmpty) {
+                        waEmpty.textContent = 'Gagal memuat daftar pembimbing.';
+                        waEmpty.classList.remove('d-none');
+                    }
+                });
+        }
+        if (waMaster) {
+            waMaster.onchange = function () {
+                waPanel.querySelectorAll('.approve-wa-pb-send').forEach(function (cb) {
+                    cb.checked = waMaster.checked && cb.closest('.border').querySelector('input[name*="[phone]"]').value.trim() !== '';
+                });
+            };
+        }
         var tujuanVal = (btn.getAttribute('data-tujuan') || '').trim();
         var tujuanRow = document.getElementById('approve-tujuan-row');
         if (tujuanRow) {

@@ -877,6 +877,49 @@ function santri_riwayat_keaktifan_badge_class(string $label): string
 }
 
 /**
+ * @param array{hadir:int,izin:int,sakit:int,alpa:int,total:int} $totals
+ * @return array{th:int,hadir:int,izin:int,sakit:int,alpa:int,total:int,persen_hadir:float,kategori:string,label:string,keterangan:string}|null
+ */
+function santri_riwayat_keaktifan_row_from_totals(PDO $pdo, int $th, array $totals): ?array
+{
+    $hadir = (int) ($totals['hadir'] ?? 0);
+    $izin = (int) ($totals['izin'] ?? 0);
+    $sakit = (int) ($totals['sakit'] ?? 0);
+    $alpa = (int) ($totals['alpa'] ?? 0);
+    $total = (int) ($totals['total'] ?? 0);
+    if ($total <= 0) {
+        return null;
+    }
+
+    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
+    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
+    $persen = round($hadir / $total * 100, 1);
+    $kat = santri_category($alpa, $goodMax, $mediumMax);
+    $label = santri_riwayat_keaktifan_label_ringkas($kat);
+
+    return [
+        'th' => $th,
+        'hadir' => $hadir,
+        'izin' => $izin,
+        'sakit' => $sakit,
+        'alpa' => $alpa,
+        'total' => $total,
+        'persen_hadir' => $persen,
+        'kategori' => $kat,
+        'label' => $label,
+        'keterangan' => sprintf(
+            'Kehadiran %s%% · Hadir %d · Izin %d · Sakit %d · ALPA %d (dari %d jadwal terhitung)',
+            number_format($persen, 1, ',', '.'),
+            $hadir,
+            $izin,
+            $sakit,
+            $alpa,
+            $total
+        ),
+    ];
+}
+
+/**
  * Rekap keaktifan per tahun kalender dari data presensi (bukan poin).
  *
  * @return list<array{th:int,hadir:int,izin:int,sakit:int,alpa:int,total:int,persen_hadir:float,kategori:string,label:string,keterangan:string}>
@@ -886,57 +929,53 @@ function santri_riwayat_keaktifan_per_tahun(PDO $pdo, int $santriId): array
     if (!table_exists($pdo, 'presensi') || $santriId <= 0) {
         return [];
     }
-    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
+    require_once __DIR__ . '/rekap_keaktifan.php';
+
     $st = $pdo->prepare('
-        SELECT
-            YEAR(p.tanggal_presensi) AS th,
-            SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END) AS hadir,
-            SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END) AS izin,
-            SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END) AS sakit,
-            SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END) AS alpa,
-            COUNT(p.id) AS total
+        SELECT DISTINCT YEAR(p.tanggal_presensi) AS th
         FROM presensi p
         WHERE p.santri_id = :sid
-        GROUP BY YEAR(p.tanggal_presensi)
         ORDER BY th DESC
     ');
     $st->execute(['sid' => $santriId]);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $out = [];
-    foreach ($rows as $row) {
-        $th = (int) ($row['th'] ?? 0);
+    $years = array_values(array_filter(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []), static fn (int $y): bool => $y > 0));
+    if ($years === []) {
+        return [];
+    }
+
+    $today = date('Y-m-d');
+    $minYear = min($years);
+    $maxYear = max($years);
+    $globalStart = sprintf('%04d-01-01', $minYear);
+    $globalEnd = sprintf('%04d-12-31', $maxYear);
+    if ($globalEnd > $today) {
+        $globalEnd = $today;
+    }
+    if ($globalStart > $globalEnd) {
+        return [];
+    }
+
+    $allRows = rekap_keaktifan_fetch_eligible_rows($pdo, $globalStart, $globalEnd, [$santriId], 0, false);
+    /** @var array<int, list<array<string, mixed>>> $rowsByYear */
+    $rowsByYear = [];
+    foreach ($allRows as $row) {
+        $tanggal = (string) ($row['tanggal_presensi'] ?? '');
+        if ($tanggal === '') {
+            continue;
+        }
+        $th = (int) date('Y', strtotime($tanggal) ?: 0);
         if ($th <= 0) {
             continue;
         }
-        $hadir = (int) ($row['hadir'] ?? 0);
-        $izin = (int) ($row['izin'] ?? 0);
-        $sakit = (int) ($row['sakit'] ?? 0);
-        $alpa = (int) ($row['alpa'] ?? 0);
-        $total = (int) ($row['total'] ?? 0);
-        $persen = $total > 0 ? round($hadir / $total * 100, 1) : 0.0;
-        $kat = santri_category($alpa, $goodMax, $mediumMax);
-        $label = santri_riwayat_keaktifan_label_ringkas($kat);
-        $out[] = [
-            'th' => $th,
-            'hadir' => $hadir,
-            'izin' => $izin,
-            'sakit' => $sakit,
-            'alpa' => $alpa,
-            'total' => $total,
-            'persen_hadir' => $persen,
-            'kategori' => $kat,
-            'label' => $label,
-            'keterangan' => sprintf(
-                'Kehadiran %s%% · Hadir %d · Izin %d · Sakit %d · ALPA %d (dari %d presensi)',
-                number_format($persen, 1, ',', '.'),
-                $hadir,
-                $izin,
-                $sakit,
-                $alpa,
-                $total
-            ),
-        ];
+        $rowsByYear[$th][] = $row;
+    }
+
+    $out = [];
+    foreach ($years as $th) {
+        $row = santri_riwayat_keaktifan_row_from_totals($pdo, $th, rekap_keaktifan_totals_from_rows($rowsByYear[$th] ?? []));
+        if ($row !== null) {
+            $out[] = $row;
+        }
     }
 
     return $out;
@@ -945,13 +984,24 @@ function santri_riwayat_keaktifan_per_tahun(PDO $pdo, int $santriId): array
 /** Keaktifan satu tahun; null jika tidak ada presensi. */
 function santri_riwayat_keaktifan_tahun(PDO $pdo, int $santriId, int $tahun): ?array
 {
-    foreach (santri_riwayat_keaktifan_per_tahun($pdo, $santriId) as $row) {
-        if ((int) $row['th'] === $tahun) {
-            return $row;
-        }
+    if ($tahun <= 0 || !table_exists($pdo, 'presensi') || $santriId <= 0) {
+        return null;
+    }
+    require_once __DIR__ . '/rekap_keaktifan.php';
+
+    $today = date('Y-m-d');
+    $start = sprintf('%04d-01-01', $tahun);
+    $end = sprintf('%04d-12-31', $tahun);
+    if ($end > $today) {
+        $end = $today;
+    }
+    if ($start > $end) {
+        return null;
     }
 
-    return null;
+    $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $start, $end, [$santriId], 0, false);
+
+    return santri_riwayat_keaktifan_row_from_totals($pdo, $tahun, rekap_keaktifan_totals_from_rows($rows));
 }
 
 /** @param array<string, mixed> $santri Row santri */

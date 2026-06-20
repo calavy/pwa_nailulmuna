@@ -13,8 +13,13 @@ declare(strict_types=1);
 /** @var string $waIzinGrup */
 /** @var bool $waIzinGrupAktifOtomatis */
 /** @var array<string, string> $values */
+/** @var list<string> $waPermohonanIzinJenisAllowed */
+
+require_once __DIR__ . '/../../helpers/perizinan_jenis.php';
 
 $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1';
+$waPermohonanIzinJenisAllowed = $waPermohonanIzinJenisAllowed ?? wa_permohonan_izin_jenis_allowed_list($pdo);
+$waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
 
 ?>
 <div class="row g-3">
@@ -23,7 +28,9 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
             <div class="card-body">
                 <h2 class="h6 mb-2">Permohonan izin baru (PENDING)</h2>
                 <p class="small text-muted mb-3">
-                    WA dikirim saat wali/petugas mengajukan izin. Terpisah dari notifikasi alpa (tab Alpa).
+                    WA dikirim saat wali/petugas mengajukan izin <strong>menurut jenis yang dicentang</strong>.
+                    Default: hanya <strong>Izin</strong> (syar'i) — bukan sakit, keluar, atau tugas.
+                    Terpisah dari notifikasi alpa (tab Alpa).
                 </p>
                 <form method="post">
                     <input type="hidden" name="action" value="save_permohonan_izin_wa">
@@ -31,6 +38,28 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
                         <input class="form-check-input" type="checkbox" id="wa_permohonan_izin_enabled" name="wa_permohonan_izin_enabled" value="1" <?= $waPermohonanIzinEnabled ? 'checked' : '' ?>>
                         <label class="form-check-label" for="wa_permohonan_izin_enabled">Kirim WA saat ada permohonan izin baru</label>
                     </div>
+                    <fieldset class="mb-3">
+                        <legend class="form-label mb-2">Jenis permohonan yang kirim WA</legend>
+                        <div class="d-flex flex-wrap gap-3">
+                            <?php foreach ($waPermohonanIzinJenisOptions as $kode => $label): ?>
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="wa_permohonan_jenis_<?= htmlspecialchars(strtolower($kode)) ?>"
+                                        name="wa_permohonan_izin_jenis[]"
+                                        value="<?= htmlspecialchars($kode) ?>"
+                                        <?= in_array($kode, $waPermohonanIzinJenisAllowed, true) ? 'checked' : '' ?>
+                                    >
+                                    <label class="form-check-label" for="wa_permohonan_jenis_<?= htmlspecialchars(strtolower($kode)) ?>">
+                                        <?= htmlspecialchars($label) ?>
+                                        <?php if ($kode === 'SYARI'): ?><span class="text-muted">(izin syar'i)</span><?php endif; ?>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="form-text">Kosongkan semua = tidak ada WA permohonan meski toggle aktif.</div>
+                    </fieldset>
                     <label class="form-label" for="wa_permohonan_izin">No. penerima permohonan izin</label>
                     <input type="text" class="form-control mb-1" id="wa_permohonan_izin" name="wa_permohonan_izin" value="<?= htmlspecialchars((string) ($values['wa_permohonan_izin'] ?? '')) ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="off">
                     <div class="form-text mb-3">Beberapa nomor: pisah koma. Kosong = fallback nomor alpa (tab Alpa).</div>
@@ -84,8 +113,7 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
                         <label class="form-check-label fw-semibold" for="wa_izin_wali_enabled">Kirim WA ke wali saat izin disetujui</label>
                     </div>
                     <p class="small text-muted mb-3">
-                        Template pesan dapat disesuaikan di tab <strong>Template</strong> (izin disetujui → wali santri).
-                        Teks otomatis membedakan <strong>izin sakit</strong>, <strong>izin keluar</strong>, <strong>izin</strong>, dan <strong>izin tugas</strong>.
+                        Template pesan dapat disesuaikan di tab <strong>Template</strong> — ada template terpisah untuk <strong>izin sakit</strong> dan <strong>izin lainnya</strong> (keluar, izin, tugas).
                     </p>
                     <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan notifikasi wali</button>
                 </form>
@@ -123,7 +151,7 @@ $waPermohonanIzinEnabled = ($values['wa_permohonan_izin_enabled'] ?? '1') === '1
         <div class="card shadow-sm border-0">
             <div class="card-body">
                 <h2 class="h6 mb-2">Izin disetujui → pembimbing</h2>
-                <p class="small text-muted mb-3">Kirim ke nomor pembimbing terkait santri. Template pesan di tab Template.</p>
+                <p class="small text-muted mb-3">Kirim ke nomor pembimbing terkait santri. Saat menyetujui izin, pengurus dapat menyesuaikan nama &amp; nomor WA sebelum kirim. Template terpisah sakit / lainnya di tab Template.</p>
                 <form method="post">
                     <input type="hidden" name="action" value="save_izin_wa">
                     <div class="form-check form-switch mb-3">

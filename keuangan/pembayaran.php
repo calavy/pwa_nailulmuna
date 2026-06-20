@@ -44,7 +44,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
-$santriRows = keuangan_fetch_santri_aktif($pdo);
+$santriRows = [];
+if ($prefillSantriId > 0) {
+    $aktifSql = santri_sql_aktif_only('s');
+    $prefillStmt = $pdo->prepare('
+        SELECT id, nis, nama_santri, kategori_kelas, tingkatan
+        FROM santri s
+        WHERE s.id = :id AND ' . $aktifSql . '
+        LIMIT 1
+    ');
+    $prefillStmt->execute(['id' => $prefillSantriId]);
+    $prefillRow = $prefillStmt->fetch(PDO::FETCH_ASSOC);
+    if (is_array($prefillRow)) {
+        $santriRows = [$prefillRow];
+    }
+}
 $santriTierById = keuangan_build_santri_tier_label_map($pdo, $santriRows);
 $keuanganFeeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefinitions);
 $akunRows = keuangan_fetch_akun_aktif($pdo);
@@ -95,7 +109,10 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="row g-4 pembayaran-layout">
     <div class="col-xl-8">
-        <?php if ($santriRows === []): ?>
+        <?php
+        $santriAktifCount = (int) ($pdo->query('SELECT COUNT(*) FROM santri s WHERE ' . santri_sql_aktif_only('s'))->fetchColumn() ?: 0);
+        if ($santriAktifCount <= 0):
+        ?>
             <div class="card shadow-sm">
                 <div class="card-body">
                     <div class="alert alert-warning mb-0">Belum ada santri aktif. Tambahkan data santri terlebih dahulu.</div>
@@ -162,7 +179,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-semibold small text-muted mb-1">Santri <span class="text-danger">*</span></label>
-                            <select name="santri_id" id="santri_id" class="form-select form-select-lg santri-select-searchable" required data-search-placeholder="Ketik nama atau NIS santri…">
+                            <select name="santri_id" id="santri_id" class="form-select form-select-lg santri-select-searchable" required data-search-placeholder="Ketik nama atau NIS santri…" data-santri-ajax="1" data-santri-search-url="<?= htmlspecialchars(app_href('/api/keuangan/santri_search.php')) ?>">
                                 <option value="">— Pilih santri —</option>
                                 <?php foreach ($santriRows as $s): ?>
                                     <?php $sid = (int) $s['id']; ?>
@@ -389,9 +406,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-semibold small text-muted mb-1">Status transaksi</label>
-                            <input type="text" class="form-control" id="status_lunas_label" value="Lunas" readonly>
+                            <input type="text" class="form-control" id="status_lunas_label" value="DITERIMA" readonly>
                             <input type="hidden" name="status_lunas" id="status_lunas" value="LUNAS">
-                            <div class="form-text">Otomatis: Cicilan jika masih ada sisa.</div>
+                            <div class="form-text">Otomatis: <strong>BELUM DITERIMA · DI CICIL</strong> jika masih ada sisa tagihan wajib.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold small text-muted mb-1">Akun penerimaan <span class="text-danger">*</span></label>

@@ -73,7 +73,7 @@ function santri_portal_layout_foot(?string $navActive = null): void
     <?php endif; ?>
     </div>
     <?php require_once __DIR__ . '/../../helpers/app_vendor.php'; ?>
-    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
+    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" defer crossorigin="anonymous"></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
 </body>

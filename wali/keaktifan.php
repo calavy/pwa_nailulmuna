@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/inc_portal.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 $bulanFilter = wali_portal_keaktifan_bulan_parse($pdo, $_GET);
 $hijriBulanList = hijri_nama_bulan_list();
@@ -209,7 +210,7 @@ require __DIR__ . '/partials/anak_switcher.php';
                         </div>
                     </div>
                 </div>
-                <p class="small text-muted mt-2 mb-0">H = Hadir, I = Izin, S = Sakit, A = Alpa. Hanya kegiatan yang masuk jadwal tingkatan santri yang dihitung. Periode mengikuti bulan Hijriyah pondok.</p>
+                <p class="small text-muted mt-2 mb-0">H = Hadir, I = Izin, S = Sakit, A = Alpa. <?= htmlspecialchars(ucfirst(rekap_keaktifan_rekap_footnote($pdo))) ?>. Periode mengikuti bulan Hijriyah pondok.</p>
             <?php endif; ?>
         <?php endif; ?>
 

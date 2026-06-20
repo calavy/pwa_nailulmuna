@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -122,69 +123,73 @@ if ($show) {
         set_flash('success', 'Status ALPA/izin bulan ini disegarkan ulang.');
     }
 
-    if ($mode === 'hijriyah') {
-        $statement = $pdo->prepare('
-            SELECT
-                p.tanggal_presensi,
-                p.status_presensi,
-                p.catatan,
-                s.id AS santri_id,
-                s.nama_santri,
-                s.tingkatan,
-                p.kegiatan_id,
-                COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
-            FROM presensi p
-            INNER JOIN santri s ON s.id = p.santri_id
-            LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-            WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
-              AND p.kalender_hijriyah = :kalender_hijriyah
-              AND ' . $sqlAktifSantriRekap . '
-        ');
-        $statement->execute([
-            'start_date' => $hijriToGregorianStart,
-            'end_date' => $hijriToGregorianEnd,
-            'kalender_hijriyah' => sprintf('%04d-%02d', $year, $month),
-        ]);
-        $rows = $statement->fetchAll();
-        if ($tingkatan !== '') {
-            $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
-                return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
-            }));
-        }
-    } else {
-        $startDate = sprintf('%04d-%02d-01', $year, $month);
-        $endDate = date('Y-m-t', strtotime($startDate));
-        $statement = $pdo->prepare('
-            SELECT
-                p.tanggal_presensi,
-                p.status_presensi,
-                p.catatan,
-                s.id AS santri_id,
-                s.nama_santri,
-                s.tingkatan,
-                p.kegiatan_id,
-                COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
-            FROM presensi p
-            INNER JOIN santri s ON s.id = p.santri_id
-            LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-            WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
-              AND ' . $sqlAktifSantriRekap . '
-        ');
-        $statement->execute([
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-        ]);
-        $rows = $statement->fetchAll();
-        if ($tingkatan !== '') {
-            $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
-                return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
-            }));
-        }
-    }
-
     $filterStart = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
     $filterEnd = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStart));
-    $rows = presensi_filter_rows_eligible($pdo, $rows, $filterStart, $filterEnd);
+    $clampedRekap = rekap_keaktifan_clamp_periode($pdo, $filterStart, $filterEnd);
+    if ($clampedRekap === null) {
+        $rows = [];
+    } else {
+        [$filterStart, $filterEnd] = $clampedRekap;
+        if ($mode === 'hijriyah') {
+            $statement = $pdo->prepare('
+                SELECT
+                    p.tanggal_presensi,
+                    p.status_presensi,
+                    p.catatan,
+                    s.id AS santri_id,
+                    s.nama_santri,
+                    s.tingkatan,
+                    p.kegiatan_id,
+                    COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
+                FROM presensi p
+                INNER JOIN santri s ON s.id = p.santri_id
+                LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+                WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
+                  AND p.kalender_hijriyah = :kalender_hijriyah
+                  AND ' . $sqlAktifSantriRekap . '
+            ');
+            $statement->execute([
+                'start_date' => $filterStart,
+                'end_date' => $filterEnd,
+                'kalender_hijriyah' => sprintf('%04d-%02d', $year, $month),
+            ]);
+            $rows = $statement->fetchAll();
+            if ($tingkatan !== '') {
+                $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
+                    return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
+                }));
+            }
+        } else {
+            $statement = $pdo->prepare('
+                SELECT
+                    p.tanggal_presensi,
+                    p.status_presensi,
+                    p.catatan,
+                    s.id AS santri_id,
+                    s.nama_santri,
+                    s.tingkatan,
+                    p.kegiatan_id,
+                    COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
+                FROM presensi p
+                INNER JOIN santri s ON s.id = p.santri_id
+                LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+                WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
+                  AND ' . $sqlAktifSantriRekap . '
+            ');
+            $statement->execute([
+                'start_date' => $filterStart,
+                'end_date' => $filterEnd,
+            ]);
+            $rows = $statement->fetchAll();
+            if ($tingkatan !== '') {
+                $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
+                    return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
+                }));
+            }
+        }
+
+        $rows = presensi_filter_rows_eligible($pdo, $rows, $filterStart, $filterEnd);
+    }
 }
 
 $byTingkatan = [];

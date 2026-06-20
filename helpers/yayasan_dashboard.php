@@ -744,3 +744,34 @@ function yayasan_dashboard_snapshot(PDO $pdo): array
         'periode_keuangan_label' => (string) ($periodeKeu['bulan_label'] ?? ''),
     ];
 }
+
+/** Snapshot dashboard yayasan dengan cache session (600 detik). */
+function yayasan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 600): array
+{
+    $today = date('Y-m-d');
+    $cacheKey = 'yayasan_dash_snap_v1';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && (string) ($cached['day'] ?? '') === $today
+    ) {
+        return is_array($cached['data'] ?? null) ? $cached['data'] : yayasan_dashboard_snapshot($pdo);
+    }
+    $data = yayasan_dashboard_snapshot($pdo);
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(60, $ttlSec),
+        'day' => $today,
+        'data' => $data,
+    ];
+
+    return $data;
+}
+
+/** Prewarm cache keuangan untuk halaman operasional yayasan (tanpa snapshot penuh). */
+function yayasan_preload_session_caches(PDO $pdo, int $ttlSec = 600): void
+{
+    if (function_exists('keuangan_dashboard_snapshot_cached')) {
+        keuangan_dashboard_snapshot_cached($pdo, $ttlSec);
+    }
+}

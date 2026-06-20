@@ -26,6 +26,8 @@ $kbTingkatanPersen = (array) ($kb['tingkatan_persen'] ?? []);
 $kbTingkatanChart = (array) ($kb['tingkatan_chart'] ?? []);
 $kbKegiatanKosong = (array) ($kb['kegiatan_tanpa_scan'] ?? []);
 $kbSantriKosong = (array) ($kb['santri_tanpa_scan'] ?? []);
+$kbJadwalTanpaScanCount = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kbKegiatanKosong);
+$kbKegiatanTanpaScanCount = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kbKegiatanKosong));
 $kbTingkatanList = (array) ($kb['tingkatan_list'] ?? []);
 $kbShowChart = !empty($kb['show_chart']);
 $kbChartUid = 'ypKb' . substr(md5($kbFormAction . $kbMonth . $kbYear), 0, 8);
@@ -84,7 +86,13 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 <div class="col-6 col-md-2">
                     <button type="submit" class="btn btn-primary btn-sm w-100">Tampilkan</button>
                 </div>
+                <div class="col-6 col-md-2">
+                    <button type="submit" name="kb_refresh" value="1" class="btn btn-outline-secondary btn-sm w-100" title="Muat ulang dari database">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Segarkan
+                    </button>
+                </div>
             </form>
+            <p class="small text-muted mb-3"><?= htmlspecialchars(ucfirst(rekap_keaktifan_rekap_footnote($pdo))) ?>.</p>
 
             <div class="row g-2 mb-3">
                 <div class="col-6 col-md-3">
@@ -102,7 +110,7 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 <div class="col-6 col-md-3">
                     <div class="yp-mini-stat">
                         <div class="yp-mini-stat__label">Jadwal tanpa scan</div>
-                        <div class="yp-mini-stat__value text-danger"><?= count($kbKegiatanKosong) ?></div>
+                        <div class="yp-mini-stat__value text-danger"><?= (int) $kbJadwalTanpaScanCount ?></div>
                     </div>
                 </div>
                 <div class="col-6 col-md-3">
@@ -175,40 +183,15 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
 
             <div class="row g-3">
                 <div class="col-12 col-lg-6">
-                    <h3 class="h6 mb-2">Jadwal tanpa scan hadir (<?= count($kbKegiatanKosong) ?>)</h3>
+                    <h3 class="h6 mb-2">Jadwal tanpa scan hadir (<?= (int) $kbJadwalTanpaScanCount ?> jadwal · <?= (int) $kbKegiatanTanpaScanCount ?> kegiatan)</h3>
                     <?php if ($kbKegiatanKosong === []): ?>
                         <div class="alert alert-success py-2 small mb-0">Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah discan hadir.</div>
                     <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped mb-0">
-                                <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Tanggal</th>
-                                    <th>Kegiatan</th>
-                                    <th>Waktu</th>
-                                    <th>Tingkatan</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($kbKegiatanKosong as $idx => $kgRow): ?>
-                                    <tr>
-                                        <td><?= $idx + 1 ?></td>
-                                        <td class="small text-nowrap">
-                                            <?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?>
-                                            <span class="text-muted d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
-                                            <?php if (!empty($kgRow['tanggal_hijri'])): ?>
-                                                <span class="text-muted d-block"><?= htmlspecialchars((string) $kgRow['tanggal_hijri']) ?> H</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
-                                        <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
-                                        <td class="small"><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                        <?php
+                        $ktsSlotRows = $kbKegiatanKosong;
+                        $ktsListPrefix = 'ypkb';
+                        require __DIR__ . '/../../includes/partials/kegiatan_tanpa_scan_grouped.php';
+                        ?>
                     <?php endif; ?>
                 </div>
                 <div class="col-12 col-lg-6">

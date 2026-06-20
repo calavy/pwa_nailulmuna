@@ -308,7 +308,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <p class="text-muted small mb-3 rekap-keaktifan-meta">
     <?= htmlspecialchars($cakupanLabel) ?> · <?= htmlspecialchars(date('d-m-Y', strtotime($startDate))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($endDate))) ?>
-    · Hanya sesi jadwal yang relevan
+    · <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>
 </p>
 
 <div class="card shadow-sm mb-4 keaktifan-kriteria-legend print-controls">
@@ -391,7 +391,7 @@ require_once __DIR__ . '/../includes/header.php';
             Periode <strong><?= htmlspecialchars($periodeLabel) ?></strong>
             (<?= $mode === 'hijriyah' ? 'bulan Hijriyah' : 'bulan Masehi' ?>:
             <?= htmlspecialchars(date('d-m-Y', strtotime($startDate))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($endDate))) ?>).
-            Setiap baris = satu jadwal kegiatan (tanggal + tingkatan) tanpa satupun scan <strong>hadir</strong>.
+            Setiap angka = satu waktu/jadwal kegiatan tanpa scan <strong>hadir</strong> (bukan jumlah santri).
             <?= $tingkatan !== '' ? 'Filter tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>.' : '' ?>
             <?= $kegiatanId > 0 ? 'Filter kegiatan aktif.' : '' ?>
         </p>
@@ -400,38 +400,21 @@ require_once __DIR__ . '/../includes/header.php';
                 Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah discan hadir oleh santri.
             </div>
         <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped rekap-official-table mb-3">
-                    <thead>
-                    <tr>
-                        <th style="width:3rem">No</th>
-                        <th>Tanggal</th>
-                        <th>Nama kegiatan</th>
-                        <th>Waktu</th>
-                        <th>Tingkatan</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($kegiatanTanpaScan as $idx => $kgRow): ?>
-                        <tr>
-                            <td><?= $idx + 1 ?></td>
-                            <td class="text-nowrap small">
-                                <?= htmlspecialchars((string) ($kgRow['tanggal_tampil'] ?? '')) ?>
-                                <span class="text-muted d-block"><?= htmlspecialchars((string) ($kgRow['hari'] ?? '')) ?></span>
-                                <?php if (!empty($kgRow['tanggal_hijri'])): ?>
-                                    <span class="text-muted d-block"><?= htmlspecialchars((string) $kgRow['tanggal_hijri']) ?> H</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="fw-semibold text-danger"><?= htmlspecialchars((string) $kgRow['nama_kegiatan']) ?></td>
-                            <td class="small text-nowrap"><?= htmlspecialchars((string) ($kgRow['jam'] ?? '')) ?></td>
-                            <td><?= htmlspecialchars((string) $kgRow['tingkatan_label']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <p class="small text-muted mb-0">
-                Total: <strong><?= count($kegiatanTanpaScan) ?></strong> jadwal tanpa scan hadir pada periode ini.
+            <?php
+            $ktsJadwalTotal = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kegiatanTanpaScan);
+            $ktsKegiatanTotal = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kegiatanTanpaScan));
+            ?>
+            <p class="small text-muted mb-2">
+                Total <strong><?= (int) $ktsJadwalTotal ?></strong> jadwal tanpa scan
+                pada <strong><?= (int) $ktsKegiatanTotal ?></strong> kegiatan.
+            </p>
+            <?php
+            $ktsSlotRows = $kegiatanTanpaScan;
+            $ktsListPrefix = 'santri-bagus';
+            require __DIR__ . '/../includes/partials/kegiatan_tanpa_scan_grouped.php';
+            ?>
+            <p class="small text-muted mb-0 mt-2">
+                Total: <strong><?= (int) $ktsJadwalTotal ?></strong> jadwal tanpa scan hadir pada periode ini.
             </p>
         <?php endif; ?>
     </div>

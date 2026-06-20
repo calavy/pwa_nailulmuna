@@ -1,9 +1,34 @@
 /**
  * Pencarian santri manual: ketik nama/NIS pada <select name="santri_id">.
+ * Mode AJAX (data-santri-ajax): muat opsi dari server, tidak perlu dropdown penuh.
  */
 (function () {
     function norm(s) {
         return (s || '').toLowerCase().trim();
+    }
+
+    function appUrl(path) {
+        var p = String(path || '');
+        if (/^https?:\/\//i.test(p)) {
+            return p;
+        }
+        if (p.charAt(0) !== '/') {
+            p = '/' + p;
+        }
+        var base = (typeof window !== 'undefined' && window.PONDOK_APP_BASE != null)
+            ? String(window.PONDOK_APP_BASE).replace(/\/$/, '')
+            : '';
+        return base === '' ? p : base + p;
+    }
+
+    function mergeTier(item) {
+        if (!item || !item.id || !item.tier) {
+            return;
+        }
+        if (!window.keuanganSantriTier) {
+            window.keuanganSantriTier = {};
+        }
+        window.keuanganSantriTier[String(item.id)] = item.tier;
     }
 
     function enhanceSelect(sel) {
@@ -11,6 +36,8 @@
             return;
         }
         sel.dataset.santriSelectEnhanced = '1';
+        var ajaxMode = sel.getAttribute('data-santri-ajax') === '1';
+        var searchUrl = sel.getAttribute('data-santri-search-url') || appUrl('/api/keuangan/santri_search.php');
 
         const box = document.createElement('div');
         box.className = 'santri-select-wrap position-relative';
@@ -28,7 +55,7 @@
         box.appendChild(search);
         box.appendChild(sel);
 
-        const options = Array.from(sel.options).map(function (opt) {
+        let options = Array.from(sel.options).map(function (opt) {
             return {
                 el: opt,
                 value: opt.value,
@@ -36,6 +63,17 @@
                 hay: norm(opt.textContent) + ' ' + norm(opt.value),
             };
         });
+
+        function rebuildOptionsFromSelect() {
+            options = Array.from(sel.options).map(function (opt) {
+                return {
+                    el: opt,
+                    value: opt.value,
+                    text: opt.textContent || '',
+                    hay: norm(opt.textContent) + ' ' + norm(opt.value),
+                };
+            });
+        }
 
         function visibleMatches() {
             return options.filter(function (o) {
@@ -71,7 +109,65 @@
             }
         }
 
-        search.addEventListener('input', filterOptions);
+        var ajaxTimer = null;
+        var ajaxSeq = 0;
+
+        function renderAjaxItems(items) {
+            var keep = sel.value;
+            while (sel.options.length > 1) {
+                sel.remove(1);
+            }
+            (items || []).forEach(function (item) {
+                var opt = document.createElement('option');
+                opt.value = String(item.id);
+                opt.textContent = item.label || ((item.nis || '-') + ' — ' + (item.nama || ''));
+                sel.appendChild(opt);
+                mergeTier(item);
+            });
+            rebuildOptionsFromSelect();
+            if (keep && sel.querySelector('option[value="' + keep + '"]')) {
+                sel.value = keep;
+            }
+            filterOptions();
+        }
+
+        function fetchAjax(q) {
+            var seq = ++ajaxSeq;
+            fetch(searchUrl + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (seq !== ajaxSeq) {
+                        return;
+                    }
+                    if (data && data.ok) {
+                        renderAjaxItems(data.items || []);
+                    }
+                })
+                .catch(function () {});
+        }
+
+        search.addEventListener('input', function () {
+            if (ajaxMode) {
+                var q = norm(search.value);
+                if (q.length < 2) {
+                    while (sel.options.length > 1) {
+                        sel.remove(1);
+                    }
+                    rebuildOptionsFromSelect();
+                    if (sel.value !== '') {
+                        sel.value = '';
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    return;
+                }
+                clearTimeout(ajaxTimer);
+                ajaxTimer = setTimeout(function () {
+                    fetchAjax(q);
+                }, 280);
+                return;
+            }
+            filterOptions();
+        });
         search.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -87,7 +183,9 @@
                 if (q === '') {
                     return;
                 }
-                filterOptions();
+                if (!ajaxMode) {
+                    filterOptions();
+                }
                 const matches = visibleMatches();
                 if (matches.length === 1) {
                     pickOption(matches[0]);
@@ -103,6 +201,20 @@
                 search.value = picked.text.trim();
             }
         });
+
+        if (ajaxMode && sel.value) {
+            fetch(searchUrl + '?id=' + encodeURIComponent(sel.value), { credentials: 'same-origin' })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (data && data.ok && data.items && data.items[0]) {
+                        renderAjaxItems(data.items);
+                        sel.value = String(data.items[0].id);
+                        search.value = data.items[0].label || search.value;
+                        mergeTier(data.items[0]);
+                    }
+                })
+                .catch(function () {});
+        }
     }
 
     function init() {

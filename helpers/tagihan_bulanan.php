@@ -10,6 +10,7 @@ require_once __DIR__ . '/santri_ta.php';
 require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/santri_wa.php';
 require_once __DIR__ . '/tagihan_santri_masuk.php';
+require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
 
 /**
  * Tarif pos bulanan per tier — sekali per request.
@@ -948,6 +949,8 @@ function tagihan_santri_aktif_rows_cached(PDO $pdo, bool $withWa = false): array
 
 function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunAjaranMulai, int $tahunAjaranSelesai, string $sortMode): array
 {
+    keuangan_pkpps_syahriyah_warm_kelas_cache($pdo);
+    keuangan_pkpps_syahriyah_warm_aktif_cache($pdo);
     $tablesOk = table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail');
     $tagihanCtx = $tablesOk
         ? tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)

@@ -1,0 +1,64 @@
+﻿/* PWA — indikator offline */
+#pondok-offline-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1090;
+    padding: 0.45rem 0.75rem;
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #b45309 0%, #d97706 100%);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.2);
+}
+
+html.pondok-offline body.app-body-shell #pondok-offline-banner,
+html.pondok-offline .auth-portal-page #pondok-offline-banner,
+html.pondok-offline body.wali-portal #pondok-offline-banner {
+    display: block;
+}
+
+/* PWA — banner pembaruan aplikasi */
+#pondok-pwa-update-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 1100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding: 0.55rem 0.85rem;
+    padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(90deg, #0d9488 0%, #0891b2 100%);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.22);
+}
+
+html.pondok-pwa-update #pondok-pwa-update-banner {
+    display: flex;
+}
+
+.pondok-pwa-update-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0f766e;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pondok-pwa-update-btn:disabled {
+    opacity: 0.75;
+    cursor: wait;
+}

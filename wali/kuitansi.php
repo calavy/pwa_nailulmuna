@@ -32,6 +32,8 @@ $periodeLabel = wali_portal_label_periode($pdo, $row);
 $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 $alamatPonpes = trim((string) app_setting($pdo, 'alamat_ponpes', ''));
 $logo = app_pondok_logo_href($pdo, false);
+require_once __DIR__ . '/../helpers/pondok_stampel.php';
+$stampelKuitansi = pondok_stampel_href($pdo, 'kuitansi');
 
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'keuangan');
@@ -101,6 +103,11 @@ wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'keuangan');
                     <p class="small text-muted mb-0">Catatan: <?= htmlspecialchars((string) $row['keterangan']) ?></p>
                 <?php endif; ?>
 
+                <div class="text-center mt-3 pt-2 border-top">
+                    <div class="small text-muted mb-1">Stempel resmi</div>
+                    <img src="<?= htmlspecialchars($stampelKuitansi) ?>" alt="Stempel kuitansi" style="width:120px;height:120px;object-fit:contain;">
+                </div>
+
                 <p class="small text-muted text-center mt-3 mb-0">Dokumen ini dicetak dari portal wali santri.</p>
             </div>
         </div>
@@ -110,6 +117,7 @@ wali_layout_head('Bukti pembayaran ' . $noKuitansi, true, 'keuangan');
     body.wali-portal { background: #fff !important; padding: 0 !important; }
     .wali-bottom-nav, .btn, .wali-nav-scroll { display: none !important; }
     .wali-kuitansi-print { box-shadow: none !important; border: 1px solid #ccc !important; }
+    .wali-kuitansi-print img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 

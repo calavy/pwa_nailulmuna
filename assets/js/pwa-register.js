@@ -128,7 +128,7 @@
     }
 
     function warmUiCacheWhenOnline() {
-        if (!navigator.onLine) {
+        if (!navigator.onLine || navigator.serviceWorker.controller) {
             return;
         }
         var base = appBase();
@@ -138,12 +138,9 @@
             '/api/vendor/fontawesome.css.php',
             '/assets/vendor/fontawesome/6.5.2/all.min.css',
             '/assets/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2',
-            '/assets/vendor/html5-qrcode/2.3.8/html5-qrcode.min.js',
             '/assets/css/app.css',
             '/assets/css/offline-sync.css',
-            '/assets/css/presensi-scan.css',
             '/assets/js/app-shell.js',
-            '/assets/js/offline-sync.js',
             '/assets/js/pwa-register.js',
         ].forEach(function (rel) {
             var url = (base === '' ? '' : base) + rel;

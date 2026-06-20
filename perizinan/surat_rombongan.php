@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/pondok_stampel.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -212,6 +213,7 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         }
         .surat-ttd__jabatan { margin: 0 0 6px; font-size: 9pt; color: #0f172a; }
         .surat-ttd__ruang { height: 20mm; min-height: 56px; }
+        <?= pondok_stampel_surat_css() ?>
         .surat-ttd__nama {
             margin: 0;
             padding-top: 8px;

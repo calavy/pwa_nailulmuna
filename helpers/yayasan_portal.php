@@ -31,7 +31,7 @@ function yayasan_kas_status(PDO $pdo): array
 {
     $today = date('Y-m-d');
     $saldoKas = function_exists('keuangan_aruskas_total_kas') ? keuangan_aruskas_total_kas($pdo, $today) : 0;
-    $dash = keuangan_dashboard_snapshot($pdo);
+    $dash = keuangan_dashboard_snapshot_cached($pdo) ?? keuangan_dashboard_snapshot($pdo);
     $tagihan = is_array($dash) ? ($dash['tagihan_bulan'] ?? []) : [];
     $piutang = (int) ($tagihan['total_piutang'] ?? 0);
     $penunggak = (int) ($tagihan['jumlah_penunggak'] ?? 0);
@@ -103,7 +103,7 @@ function yayasan_kas_status(PDO $pdo): array
  */
 function yayasan_todo_mendesak(PDO $pdo, int $limit = 12): array
 {
-    $snap = yayasan_dashboard_snapshot($pdo);
+    $snap = yayasan_dashboard_snapshot_cached($pdo);
     $items = [];
     $seen = [];
 

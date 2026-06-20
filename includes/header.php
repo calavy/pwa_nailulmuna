@@ -287,6 +287,12 @@ if (!function_exists('render_app_sidebar_nav')) {
     <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
+    <?php if (isset($_SESSION['user'])): ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/pwa-ui.css')) ?>" rel="stylesheet">
+    <?php endif; ?>
+    <?php if (app_should_load_dashboard_css($requestPath)): ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/dashboard.css')) ?>" rel="stylesheet">
+    <?php endif; ?>
     <script>
         (function () {
             try {
@@ -305,12 +311,21 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
+    <?php if (isset($_SESSION['user'])): ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
+    <?php endif; ?>
     <?php
     $pwaLogoFallbackHref = app_href(app_pwa_default_icon_src());
     $pwaAvatarFallbackHref = user_profil_default_avatar_href($currentUserRow['jenis_kelamin'] ?? null);
     ?>
     <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars($pwaLogoFallbackHref) ?>">
     <meta name="pondok-pwa-avatar-fallback" content="<?= htmlspecialchars($pwaAvatarFallbackHref) ?>">
+    <?php
+    if (!function_exists('pwa_cache_version')) {
+        require_once __DIR__ . '/../helpers/pwa_offline.php';
+    }
+    ?>
+    <meta name="pondok-pwa-cache-ver" content="<?= htmlspecialchars(substr(md5(pwa_cache_version()), 0, 12)) ?>">
     <?php if ($appLogoHref !== ''): ?>
     <meta name="pondok-pwa-logo" content="<?= htmlspecialchars($appLogoHref) ?>">
     <?php endif; ?>
@@ -327,59 +342,6 @@ if (!function_exists('render_app_sidebar_nav')) {
                 d.style.backgroundColor = m === 'dark' ? '#0f172a' : '#eef5ff';
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
-            }
-        })();
-    </script>
-    <script>
-        (function () {
-            function pad2(n) {
-                return String(n).padStart(2, '0');
-            }
-
-            function normalizeTime24(raw) {
-                const value = String(raw || '').trim();
-                if (value === '') return '';
-
-                // Already 24-hour with optional seconds.
-                const m24 = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-                if (m24) {
-                    const h = Math.max(0, Math.min(23, parseInt(m24[1], 10) || 0));
-                    const m = Math.max(0, Math.min(59, parseInt(m24[2], 10) || 0));
-                    return pad2(h) + ':' + pad2(m);
-                }
-
-                // Convert "7:05 PM" / "07:05am" -> "19:05".
-                const m12 = value.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
-                if (!m12) return value;
-                let h = parseInt(m12[1], 10) || 0;
-                const m = Math.max(0, Math.min(59, parseInt(m12[2], 10) || 0));
-                const ap = m12[3].toLowerCase();
-                if (ap === 'pm' && h < 12) h += 12;
-                if (ap === 'am' && h === 12) h = 0;
-                h = Math.max(0, Math.min(23, h));
-                return pad2(h) + ':' + pad2(m);
-            }
-
-            function force24HourInputs() {
-                const inputs = document.querySelectorAll('input[type="time"]');
-                inputs.forEach(function (input) {
-                    if (!input.getAttribute('step')) {
-                        input.setAttribute('step', '60');
-                    }
-                    input.placeholder = 'HH:MM';
-                    input.addEventListener('change', function () {
-                        input.value = normalizeTime24(input.value);
-                    });
-                    input.addEventListener('blur', function () {
-                        input.value = normalizeTime24(input.value);
-                    });
-                });
-            }
-
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', force24HourInputs);
-            } else {
-                force24HourInputs();
             }
         })();
     </script>

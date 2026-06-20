@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (string) $data['tanggal_mulai'],
         (string) $data['tanggal_selesai']
     );
-    if (push_should_send_wa($pdo) && wa_permohonan_izin_enabled($pdo)) {
+    if (push_should_send_wa($pdo) && wa_permohonan_izin_should_notify($pdo, (string) $data['jenis_izin'])) {
         $waIzinTarget = wa_permohonan_izin_target($pdo);
         if ($waIzinTarget !== '') {
             send_wa_bulk($pdo, $waIzinTarget, $notifMsg);

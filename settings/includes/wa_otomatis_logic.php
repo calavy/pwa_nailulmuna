@@ -35,6 +35,12 @@ $values['wa_fonnte_queue_offline'] = ($values['wa_fonnte_queue_offline'] ?? '') 
 $pengurusWaCount = trim((string) ($values['wa_pengurus'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
+$values['wa_permohonan_izin_jenis'] = app_setting(
+    $pdo,
+    'wa_permohonan_izin_jenis',
+    $pondokDefaults['wa_permohonan_izin_jenis'] ?? 'SYARI'
+);
+$waPermohonanIzinJenisAllowed = wa_permohonan_izin_jenis_allowed_list($pdo);
 $permohonanIzinWaCount = trim((string) ($values['wa_permohonan_izin'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_permohonan_izin'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
@@ -127,6 +133,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
         header('Location: ' . $redirectUrl);
         exit;
+    } elseif ($action === 'save_pembayaran_wali_wa') {
+        save_setting($pdo, 'wa_pembayaran_wali_enabled', isset($_POST['wa_pembayaran_wali_enabled']) ? '1' : '0');
+        set_flash('success', 'Pengaturan WA pembayaran ke wali disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
+        exit;
     } elseif ($action === 'jalankan_wa_tagihan') {
         $bulanPaksa = max(0, (int) ($_POST['bulan_tagihan'] ?? 0));
         $res = wa_tagihan_jalankan_kirim($pdo, true, $bulanPaksa > 0 ? $bulanPaksa : null);
@@ -142,6 +153,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'wa_permohonan_izin_enabled', isset($_POST['wa_permohonan_izin_enabled']) ? '1' : '0');
         if (array_key_exists('wa_permohonan_izin', $_POST)) {
             save_setting($pdo, 'wa_permohonan_izin', trim((string) $_POST['wa_permohonan_izin']));
+        }
+        require_once __DIR__ . '/../../helpers/perizinan_jenis.php';
+        $jenisSelected = [];
+        foreach ((array) ($_POST['wa_permohonan_izin_jenis'] ?? []) as $jenisRaw) {
+            $kode = perizinan_jenis_izin_normalize((string) $jenisRaw);
+            if (in_array($kode, perizinan_jenis_izin_kodes(), true)) {
+                $jenisSelected[$kode] = $kode;
+            }
+        }
+        save_setting($pdo, 'wa_permohonan_izin_jenis', implode(',', array_values($jenisSelected)));
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
         }
         set_flash('success', 'Pengaturan WA permohonan izin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
@@ -319,6 +342,7 @@ $waIzinPengurusEnabled = trim((string) app_setting($pdo, 'wa_izin_pengurus_enabl
 $waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
 $waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
+$waPembayaranWaliEnabled = trim((string) app_setting($pdo, 'wa_pembayaran_wali_enabled', '1')) === '1';
 $cashlessSaldoRendahWaEnabled = trim((string) app_setting($pdo, 'cashless_saldo_rendah_wa_enabled', '1')) === '1';
 $cashlessSaldoRendahWaAmbang = max(0, (int) app_setting($pdo, 'cashless_saldo_rendah_wa_ambang', '30000'));
 require_once __DIR__ . '/../../helpers/cashless_wa.php';

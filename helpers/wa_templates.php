@@ -47,10 +47,45 @@ function wa_template_definitions(): array
             'placeholders' => '{nama_santri}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}',
             'default' => 'Assalamu\'alaikum. Ada pengajuan izin baru: *{nama_santri}* — {jenis_izin} ({tanggal_mulai} s/d {tanggal_selesai}). Mohon ditinjau di aplikasi.',
         ],
-        'izin_disetujui_pembimbing' => [
-            'label' => 'Izin disetujui → pembimbing',
-            'hint' => 'Dikirim otomatis ke pembimbing terkait saat izin disetujui. Teks judul & jenis menyesuaikan sakit/keluar/izin/tugas. Placeholder {judul_disetujui}, {jenis_izin}, {doa} (sakit). Izin rombongan: {daftar_santri}.',
+        'pembayaran_masuk_wali' => [
+            'label' => 'Pembayaran tercatat → wali santri',
+            'hint' => 'Dikirim otomatis ke wali saat admin input pembayaran. Status: DITERIMA atau BELUM DITERIMA · DI CICIL. Placeholder {sisa_tagihan_baris} otomatis terisi jika masih ada sisa tagihan.',
+            'placeholders' => '{nama_santri}, {nominal_total}, {tanggal_bayar}, {metode_bayar}, {periode_tagihan}, {rincian_pembayaran}, {status_lunas}, {sisa_tagihan}, {sisa_tagihan_baris}, {no_kuitansi}, {keterangan}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . 'Kami informasikan bahwa pembayaran putra/putri Anda telah *tercatat* di *{nama_ponpes}*:\n\n'
+                . 'Tanggal: *{tanggal_bayar}*\n'
+                . 'Periode: *{periode_tagihan}*\n'
+                . 'Metode: *{metode_bayar}*\n'
+                . 'Total dibayar: *{nominal_total}*\n'
+                . 'Status: *{status_lunas}*\n'
+                . '{sisa_tagihan_baris}'
+                . '{rincian_pembayaran}'
+                . '{keterangan}'
+                . 'No. kuitansi: *{no_kuitansi}*\n\n'
+                . 'Terima kasih atas kepercayaan dan kerja samanya.\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
+        'izin_disetujui_pembimbing_sakit' => [
+            'label' => 'Izin sakit disetujui → pembimbing',
+            'hint' => 'Template khusus izin sakit ke pembimbing. Placeholder {doa} ditambahkan otomatis jika kosong di template.',
             'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {doa}',
+            'default' => "Assalamu'alaikum.\n\n"
+                . '🤒 {judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+                . '{daftar_santri}'
+                . 'Pembimbing: *{nama_pembimbing}*\n'
+                . 'Jenis: *{jenis_izin}*\n'
+                . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Waktu: {jam_mulai} – {jam_selesai}\n'
+                . '{label_alasan}: {alasan}\n'
+                . 'Mohon pantau kondisi kesehatan santri binaan.'
+                . '{doa}',
+        ],
+        'izin_disetujui_pembimbing_lainnya' => [
+            'label' => 'Izin (bukan sakit) disetujui → pembimbing',
+            'hint' => 'Template keluar, izin, tugas, dll. ke pembimbing. Izin rombongan: {daftar_santri}.',
+            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}',
             'default' => "Assalamu'alaikum.\n\n"
                 . '{judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
                 . '{daftar_santri}'
@@ -58,12 +93,11 @@ function wa_template_definitions(): array
                 . 'Jenis: *{jenis_izin}*\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
-                . '{label_alasan}: {alasan}'
-                . '{doa}',
+                . '{label_alasan}: {alasan}',
         ],
-        'izin_grup_fonte' => [
-            'label' => 'Izin disetujui → grup WA (Fonte)',
-            'hint' => 'Dikirim ke ID grup Fonte saat izin disetujui. Judul & jenis menyesuaikan sakit/keluar/izin/tugas. Izin rombongan: {daftar_santri}.',
+        'izin_grup_fonte_sakit' => [
+            'label' => 'Izin sakit disetujui → grup WA (Fonte)',
+            'hint' => 'Template khusus izin sakit ke grup Fonte. {doa} opsional.',
             'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {doa}',
             'default' => "{judul_grup}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
@@ -74,9 +108,36 @@ function wa_template_definitions(): array
                 . '— {nama_ponpes}'
                 . '{doa}',
         ],
-        'izin_disetujui_wali' => [
-            'label' => 'Izin disetujui → wali santri',
-            'hint' => 'Dikirim otomatis ke nomor WA wali saat permohonan izin disetujui. Teks menyesuaikan jenis: sakit, keluar, izin, atau tugas ({instruksi_wali}).',
+        'izin_grup_fonte_lainnya' => [
+            'label' => 'Izin (bukan sakit) disetujui → grup WA (Fonte)',
+            'hint' => 'Template keluar, izin, tugas, dll. ke grup Fonte.',
+            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'default' => "{judul_grup}\n\n"
+                . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . '{daftar_santri}'
+                . 'Jenis: *{jenis_izin}* · {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Jam: {jam_mulai} – {jam_selesai}\n'
+                . '{label_alasan}: {alasan}\n'
+                . '— {nama_ponpes}',
+        ],
+        'izin_disetujui_wali_sakit' => [
+            'label' => 'Izin sakit disetujui → wali santri',
+            'hint' => 'Template khusus izin sakit ke wali. Field alasan ditampilkan sebagai {label_alasan}.',
+            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {instruksi_wali}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . '*PEMBERITAHUAN IZIN SAKIT (digital)*\n\n'
+                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_ponpes}*.\n\n'
+                . 'Periode: *{periode}*\n'
+                . 'Waktu: *{waktu}*\n'
+                . '{label_alasan}: _{alasan}_\n\n'
+                . '{instruksi_wali}\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
+        'izin_disetujui_wali_lainnya' => [
+            'label' => 'Izin (bukan sakit) disetujui → wali santri',
+            'hint' => 'Template keluar, izin, tugas, dll. ke wali. Field keperluan ditampilkan sebagai {label_alasan}.',
             'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {instruksi_wali}',
             'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
                 . '*Yth. Wali santri {nama_santri}*\n\n'
@@ -125,9 +186,23 @@ function wa_template_definitions(): array
                 . "*Rincian per koperasi:*\n{rincian_koperasi}\n\n"
                 . '— {nama_ponpes}',
         ],
-        'izin_disetujui_pengurus' => [
-            'label' => 'Izin disetujui → pengurus (petugas surat)',
-            'hint' => 'Dikirim ke nomor pengurus saat izin disetujui — surat siap dicetak. Judul & jenis menyesuaikan sakit/keluar/izin/tugas. Izin rombongan: {daftar_santri}.',
+        'izin_disetujui_pengurus_sakit' => [
+            'label' => 'Izin sakit disetujui → pengurus (petugas surat)',
+            'hint' => 'Template khusus izin sakit ke pengurus — surat siap dicetak.',
+            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
+            'default' => "{judul_pengurus}\n\n"
+                . '*{nama_santri}* ({nis}) · {tingkatan}\n'
+                . '{daftar_santri}'
+                . 'Jenis: *{jenis_izin}*\n'
+                . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
+                . 'Jam: {jam_mulai} – {jam_selesai}\n'
+                . '{label_alasan}: {alasan}\n'
+                . 'Disetujui oleh: *{nama_pengurus}*\n'
+                . '— {nama_ponpes}',
+        ],
+        'izin_disetujui_pengurus_lainnya' => [
+            'label' => 'Izin (bukan sakit) disetujui → pengurus (petugas surat)',
+            'hint' => 'Template keluar, izin, tugas, dll. ke pengurus. Izin rombongan: {daftar_santri}.',
             'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
             'default' => "{judul_pengurus}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
@@ -165,6 +240,47 @@ function wa_template_definitions(): array
 function wa_template_setting_key(string $slug): string
 {
     return 'wa_tpl_' . preg_replace('/[^a-z0-9_]/', '', strtolower($slug));
+}
+
+/** Slug template izin disetujui: sakit vs izin lainnya. */
+function wa_template_slug_izin_disetujui(string $baseSlug, string $jenisRaw): string
+{
+    if (!function_exists('perizinan_jenis_izin_normalize')) {
+        require_once __DIR__ . '/perizinan_jenis.php';
+    }
+    $suffix = perizinan_jenis_izin_normalize($jenisRaw) === 'SAKIT' ? '_sakit' : '_lainnya';
+
+    return $baseSlug . $suffix;
+}
+
+function wa_template_get_izin_disetujui(PDO $pdo, string $baseSlug, string $jenisRaw): string
+{
+    $slug = wa_template_slug_izin_disetujui($baseSlug, $jenisRaw);
+    $customNew = trim((string) app_setting($pdo, wa_template_setting_key($slug), ''));
+    if ($customNew !== '') {
+        return $customNew;
+    }
+    $customLegacy = trim((string) app_setting($pdo, wa_template_setting_key($baseSlug), ''));
+    if ($customLegacy !== '') {
+        return $customLegacy;
+    }
+    $defs = wa_template_definitions();
+
+    return (string) ($defs[$slug]['default'] ?? '');
+}
+
+/**
+ * @param array<string, string> $vars
+ */
+function wa_template_render_izin_disetujui(PDO $pdo, string $baseSlug, string $jenisRaw, array $vars): string
+{
+    $slug = wa_template_slug_izin_disetujui($baseSlug, $jenisRaw);
+    $tpl = wa_template_get_izin_disetujui($pdo, $baseSlug, $jenisRaw);
+    foreach ($vars as $key => $value) {
+        $tpl = str_replace('{' . $key . '}', (string) $value, $tpl);
+    }
+
+    return $tpl;
 }
 
 function wa_template_get(PDO $pdo, string $slug): string

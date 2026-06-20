@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../helpers/app.php';
 require_once __DIR__ . '/../../helpers/kartu_brand_colors.php';
 require_once __DIR__ . '/../../helpers/pwa_brand.php';
 require_once __DIR__ . '/../../helpers/logo_image.php';
+require_once __DIR__ . '/../../helpers/pondok_stampel.php';
 
 require_roles(['admin', 'pengurus']);
 $waTestResult = null;
@@ -27,6 +28,7 @@ $pondokIdentityFields = [
     'nama_pengasuh',
     'kategori_baik_max',
     'kategori_sedang_max',
+    'keaktifan_tanggal_mulai_scan',
     'izin_perpanjangan_max_hari',
     'izin_perpanjangan_jenis',
 ];
@@ -72,6 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('error', 'Nama pesantren wajib diisi.');
             header('Location: ' . app_href('/settings/pesantren.php'));
             exit;
+        }
+
+        if (array_key_exists('keaktifan_tanggal_mulai_scan', $_POST)) {
+            $scanMulai = trim((string) $_POST['keaktifan_tanggal_mulai_scan']);
+            if ($scanMulai !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $scanMulai)) {
+                set_flash('error', 'Format tanggal mulai scan keaktivan tidak valid (gunakan YYYY-MM-DD).');
+                header('Location: ' . app_href('/settings/pesantren.php'));
+                exit;
+            }
         }
 
         foreach ($pondokIdentityFields as $field) {
@@ -121,6 +132,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        foreach (['surat' => 'stampel_surat_file', 'kuitansi' => 'stampel_kuitansi_file'] as $kind => $field) {
+            if (!isset($_FILES[$field]) || !is_array($_FILES[$field])) {
+                continue;
+            }
+            if ((int) ($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $stampErr = pondok_stampel_handle_upload($pdo, $_FILES[$field], $kind);
+            if ($stampErr !== null) {
+                set_flash('error', $stampErr);
+                header('Location: ' . app_href('/settings/pesantren.php'));
+                exit;
+            }
+        }
+
         if (trim((string) app_setting($pdo, 'logo_path', '')) !== '') {
             pwa_brand_sync_from_logo($pdo);
         } else {
@@ -128,6 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Profil pesantren berhasil disimpan.');
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
+        }
         if (function_exists('app_header_brand_invalidate')) {
             app_header_brand_invalidate();
         }
@@ -159,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $values = [];
-foreach (array_merge($pondokIdentityFields, ['logo_path'], $pondokWaFields, [
+foreach (array_merge($pondokIdentityFields, ['logo_path', 'stampel_surat_path', 'stampel_kuitansi_path'], $pondokWaFields, [
     'wa_kelas_kosong_last_sent_at',
     'wa_kelas_kosong_last_level',
 ]) as $key) {
@@ -168,6 +197,8 @@ foreach (array_merge($pondokIdentityFields, ['logo_path'], $pondokWaFields, [
 
 $waConfigured = trim((string) ($values['wa_gateway_token'] ?? '')) !== '';
 $logoConfigured = trim((string) ($values['logo_path'] ?? '')) !== '';
+$stampelSuratConfigured = pondok_stampel_configured($pdo, 'surat');
+$stampelKuitansiConfigured = pondok_stampel_configured($pdo, 'kuitansi');
 $pengurusWaCount = 0;
 if (trim((string) ($values['wa_pengurus'] ?? '')) !== '') {
     $pengurusWaCount = count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);

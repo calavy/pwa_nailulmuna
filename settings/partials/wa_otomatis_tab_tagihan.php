@@ -3,8 +3,43 @@
 declare(strict_types=1);
 
 /** @var array<string, string> $kalenderV */
+/** @var bool $waPembayaranWaliEnabled */
+/** @var bool $waMasterOn */
+/** @var string|null $waGatewayErr */
+
+$waPembayaranSiap = $waMasterOn
+    && $waGatewayErr === null
+    && $waPembayaranWaliEnabled;
 
 ?>
+<div class="card shadow-sm border-0 mb-3 border-success-subtle">
+    <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> Pembayaran tercatat → wali santri</h2>
+        <p class="small text-muted mb-3">
+            WA otomatis ke wali saat admin <strong>menyimpan pembayaran baru</strong> di menu Keuangan → Input Pembayaran.
+            Terpisah dari pengingat tagihan (jadwal di bawah). Template pesan disesuaikan di tab
+            <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Template</a>
+            (<em>Pembayaran tercatat → wali santri</em>).
+        </p>
+        <ul class="small mb-3 ps-3">
+            <li>Master WA: <?= $waMasterOn ? '<span class="text-success">Aktif</span>' : '<span class="text-warning">Nonaktif</span>' ?></li>
+            <li>Gateway: <?= $waGatewayErr === null ? '<span class="text-success">Siap</span>' : '<span class="text-warning">' . htmlspecialchars($waGatewayErr) . '</span>' ?></li>
+            <li>Notifikasi pembayaran: <?= $waPembayaranWaliEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
+        </ul>
+        <?php if (!$waPembayaranSiap && $waPembayaranWaliEnabled): ?>
+            <div class="alert alert-warning py-2 small mb-3">Toggle aktif, tetapi WA belum siap kirim — periksa master WA &amp; gateway di tab Gateway.</div>
+        <?php endif; ?>
+        <form method="post" class="mb-0">
+            <input type="hidden" name="action" value="save_pembayaran_wali_wa">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="wa_pembayaran_wali_enabled" name="wa_pembayaran_wali_enabled" value="1" <?= !empty($waPembayaranWaliEnabled) ? 'checked' : '' ?>>
+                <label class="form-check-label fw-semibold" for="wa_pembayaran_wali_enabled">Kirim WA ke wali saat pembayaran disimpan</label>
+            </div>
+            <button type="submit" class="btn btn-success btn-sm">Simpan toggle</button>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Jadwal kirim otomatis</h2>

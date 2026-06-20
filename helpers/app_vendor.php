@@ -77,8 +77,20 @@ function app_vendor_precache_relative_paths(): array
         'fontawesome/6.5.2/webfonts/fa-solid-900.woff2',
         'fontawesome/6.5.2/webfonts/fa-regular-400.woff2',
         'fontawesome/6.5.2/webfonts/fa-brands-400.woff2',
-        'html5-qrcode/2.3.8/html5-qrcode.min.js',
     ] as $rel) {
+        if (app_vendor_file_exists($rel)) {
+            $list[] = '/assets/vendor/' . $rel;
+        }
+    }
+
+    return $list;
+}
+
+/** @return list<string> path relatif scan QR — precache on-demand */
+function app_vendor_scan_precache_relative_paths(): array
+{
+    $list = [];
+    foreach (['html5-qrcode/2.3.8/html5-qrcode.min.js'] as $rel) {
         if (app_vendor_file_exists($rel)) {
             $list[] = '/assets/vendor/' . $rel;
         }

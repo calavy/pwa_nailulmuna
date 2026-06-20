@@ -422,7 +422,7 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
     </div>
     </div>
     <?php require_once __DIR__ . '/../helpers/app_vendor.php'; ?>
-    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" crossorigin="anonymous"></script>
+    <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" defer crossorigin="anonymous"></script>
     <?php if (function_exists('app_asset_href')): ?>
     <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
