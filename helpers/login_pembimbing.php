@@ -25,6 +25,119 @@ declare(strict_types=1);
  * Dipakai sebagai default ketika admin tidak mengisi password manual —
  * lebih aman daripada memakai NIP (karena NIP sudah jadi USER login).
  */
+/** Pastikan ENUM role users memuat pembimbing (supaya akun login bisa dibuat). */
+function pembimbing_users_role_enum_ready(PDO $pdo): bool
+{
+    if (!function_exists('table_exists') || !table_exists($pdo, 'users')) {
+        return false;
+    }
+    try {
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+
+        return true;
+    } catch (PDOException $e) {
+        try {
+            $col = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'")->fetch(PDO::FETCH_ASSOC);
+            $type = strtolower((string) ($col['Type'] ?? ''));
+
+            return str_contains($type, 'pembimbing');
+        } catch (PDOException $e2) {
+            return false;
+        }
+    }
+}
+
+/**
+ * Tambah pembimbing baru + opsional akun login (transaksi atomik).
+ *
+ * @param array{qr?:string,nip?:string,nama?:string,wa?:string} $data
+ * @return array{ok:bool,message:string}
+ */
+function pembimbing_create_with_account(
+    PDO $pdo,
+    array $data,
+    string $passwordRaw = '',
+    bool $createAccount = true
+): array {
+    $qr = trim((string) ($data['qr'] ?? ''));
+    $nip = trim((string) ($data['nip'] ?? ''));
+    $nama = trim((string) ($data['nama'] ?? ''));
+    $wa = trim((string) ($data['wa'] ?? ''));
+    if ($nip === '' || $nama === '') {
+        return ['ok' => false, 'message' => 'NIP dan nama pengurus wajib diisi.'];
+    }
+    if ($qr === '') {
+        $qr = $nip;
+    }
+    $waDb = $wa !== '' ? $wa : null;
+    $userNama = function_exists('mb_substr') ? mb_substr($nama, 0, 100) : substr($nama, 0, 100);
+
+    if ($createAccount && table_exists($pdo, 'users')) {
+        if (!pembimbing_users_role_enum_ready($pdo)) {
+            return [
+                'ok' => false,
+                'message' => 'Role login "pembimbing" belum tersedia di tabel users. Hubungi admin untuk memperbarui skema database.',
+            ];
+        }
+        login_pembimbing_ensure_password_plain_column($pdo);
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $stmt = $pdo->prepare('INSERT INTO pembimbing (qr, nip, nama_pembimbing, no_wa) VALUES (:qr, :nip, :nama, :wa)');
+        $stmt->execute(['qr' => $qr, 'nip' => $nip, 'nama' => $nama, 'wa' => $waDb]);
+
+        $flashMsg = 'Data pengurus ditambahkan. Kelas yang dikaji akan otomatis terisi setelah pembimbing dimasukkan ke jadwal.';
+
+        if ($createAccount && table_exists($pdo, 'users')) {
+            $checkUser = $pdo->prepare('SELECT id FROM users WHERE TRIM(username) = :u LIMIT 1');
+            $checkUser->execute(['u' => $nip]);
+            if (!$checkUser->fetch()) {
+                $pwd = $passwordRaw !== '' ? $passwordRaw : login_pembimbing_buat_password_acak();
+                $insertU = $pdo->prepare(
+                    "INSERT INTO users (nama, username, password, role) VALUES (:nama, :username, :pwd, 'pembimbing')"
+                );
+                $insertU->execute([
+                    'nama' => $userNama,
+                    'username' => $nip,
+                    'pwd' => password_hash($pwd, PASSWORD_DEFAULT),
+                ]);
+                $newUid = (int) $pdo->lastInsertId();
+                if ($newUid > 0) {
+                    login_pembimbing_set_password_by_admin($pdo, $newUid, $pwd);
+                    login_pembimbing_ensure_acl($pdo, $newUid);
+                }
+                $flashMsg .= ' Akun login dibuat — USER: ' . $nip . ' · PASS: ' . $pwd;
+            } else {
+                $flashMsg .= ' (Akun login dengan username "' . $nip . '" sudah ada — tidak ditimpa.)';
+            }
+        }
+
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
+
+        return ['ok' => true, 'message' => $flashMsg];
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $msg = $e->getMessage();
+        if (stripos($msg, 'Duplicate') !== false) {
+            return ['ok' => false, 'message' => 'NIP "' . $nip . '" sudah terdaftar.'];
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menyimpan: ' . $msg];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menyimpan: ' . $e->getMessage()];
+    }
+}
+
 function login_pembimbing_buat_password_acak(int $panjang = 6): string
 {
     $alfabet = 'abcdefghjkmnpqrstuvwxyz23456789';

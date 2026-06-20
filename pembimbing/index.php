@@ -29,11 +29,7 @@ pembimbing_kelas_ensure_schema($pdo);
 
 // Pastikan ENUM role di tabel users sudah memuat 'pembimbing' supaya akun
 // login pembimbing bisa dibuat lewat halaman ini.
-if (table_exists($pdo, 'users')) {
-    try {
-        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-    } catch (PDOException $e) { /* abaikan MySQL lama */ }
-}
+pembimbing_users_role_enum_ready($pdo);
 
 if (($_GET['template'] ?? '') === 'xlsx') {
     send_xlsx_download('template_sdm_pembimbing.xlsx', [
@@ -134,57 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'wa' => trim((string) ($_POST['no_wa'] ?? '')),
     ];
     $passwordRaw = (string) ($_POST['password'] ?? '');
-    // Default: selalu buatkan akun login agar kolom USER/PASS terisi.
     $createAccount = !isset($_POST['create_account']) || $_POST['create_account'] === '1';
 
-    if ($data['nip'] === '' || $data['nama'] === '') {
-        set_flash('error', 'NIP dan nama pengurus wajib diisi.');
-        header('Location: ' . app_href('/pembimbing/index.php'));
-        exit;
-    }
-    if ($data['qr'] === '') {
-        $data['qr'] = $data['nip'] !== '' ? $data['nip'] : ('PB-' . date('ymdHis'));
-    }
-
-    try {
-        $stmt = $pdo->prepare('INSERT INTO pembimbing (qr, nip, nama_pembimbing, no_wa) VALUES (:qr, :nip, :nama, :wa)');
-        $stmt->execute($data);
-
-        $flashMsg = 'Data pengurus ditambahkan. Kelas yang dikaji akan otomatis terisi setelah pembimbing dimasukkan ke jadwal.';
-
-        if ($createAccount && table_exists($pdo, 'users')) {
-            $checkUser = $pdo->prepare('SELECT id FROM users WHERE TRIM(username) = :u LIMIT 1');
-            $checkUser->execute(['u' => $data['nip']]);
-            if (!$checkUser->fetch()) {
-                // Default: password acak (BUKAN NIP — NIP sudah dipakai sebagai USER).
-                $pwd = $passwordRaw !== '' ? $passwordRaw : login_pembimbing_buat_password_acak();
-                $insertU = $pdo->prepare(
-                    "INSERT INTO users (nama, username, password, role) VALUES (:nama, :username, :pwd, 'pembimbing')"
-                );
-                $insertU->execute([
-                    'nama' => $data['nama'],
-                    'username' => $data['nip'],
-                    'pwd' => password_hash($pwd, PASSWORD_DEFAULT),
-                ]);
-                $newUid = (int) $pdo->lastInsertId();
-                if ($newUid > 0) {
-                    login_pembimbing_set_password_by_admin($pdo, $newUid, $pwd);
-                    login_pembimbing_ensure_acl($pdo, $newUid);
-                }
-                $flashMsg .= ' Akun login dibuat — USER: ' . $data['nip'] . ' · PASS: ' . $pwd;
-            } else {
-                $flashMsg .= ' (Akun login dengan username "' . $data['nip'] . '" sudah ada — tidak ditimpa.)';
-            }
-        }
-        set_flash('success', $flashMsg);
-    } catch (PDOException $e) {
-        $msg = $e->getMessage();
-        if (stripos($msg, 'Duplicate') !== false) {
-            set_flash('error', 'NIP "' . $data['nip'] . '" sudah terdaftar.');
-        } else {
-            set_flash('error', 'Gagal menyimpan: ' . $msg);
-        }
-    }
+    $result = pembimbing_create_with_account($pdo, $data, $passwordRaw, $createAccount);
+    set_flash($result['ok'] ? 'success' : 'error', $result['message']);
 
     header('Location: ' . app_href('/pembimbing/index.php'));
     exit;

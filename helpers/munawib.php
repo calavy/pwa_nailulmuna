@@ -52,6 +52,12 @@ function munawib_ensure_schema(PDO $pdo): void
     } catch (PDOException $e) {
         // abaikan database lama yang menolak alter
     }
+    try {
+        $pdo->exec("UPDATE munawib SET nip = NULL WHERE nip = ''");
+        $pdo->exec("UPDATE munawib SET qr = NULL WHERE qr = ''");
+    } catch (PDOException $e) {
+        // abaikan
+    }
 
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS presensi_munawib (
@@ -67,6 +73,94 @@ function munawib_ensure_schema(PDO $pdo): void
             FOREIGN KEY (munawib_id) REFERENCES munawib(id) ON DELETE CASCADE
         )
     ');
+}
+
+/**
+ * @return array{nama:string,nip:?string,qr:?string,wa:?string}
+ */
+function munawib_normalize_fields(string $nama, string $nip, string $qr, string $wa): array
+{
+    $nama = trim($nama);
+    $nip = trim($nip);
+    $qr = trim($qr);
+    $wa = trim($wa);
+    if ($qr === '' && $nip !== '') {
+        $qr = $nip;
+    }
+
+    return [
+        'nama' => $nama,
+        'nip' => $nip !== '' ? $nip : null,
+        'qr' => $qr !== '' ? $qr : null,
+        'wa' => $wa !== '' ? $wa : null,
+    ];
+}
+
+function munawib_duplikat_message(PDOException $e): ?string
+{
+    $msg = $e->getMessage();
+    if (stripos($msg, 'Duplicate') === false) {
+        return null;
+    }
+    if (stripos($msg, 'uk_munawib_nip') !== false) {
+        return 'NIP munawib sudah terdaftar.';
+    }
+    if (stripos($msg, 'uk_munawib_qr') !== false) {
+        return 'Kode QR munawib sudah terdaftar.';
+    }
+
+    return 'Data munawib sudah ada (NIP atau QR duplikat).';
+}
+
+/**
+ * @param array{nama?:string,nip?:string,qr?:string,no_wa?:string} $fields
+ * @return array{ok:bool,message:string,id?:int}
+ */
+function munawib_save(PDO $pdo, array $fields, int $id = 0): array
+{
+    munawib_ensure_schema($pdo);
+    $row = munawib_normalize_fields(
+        (string) ($fields['nama'] ?? ''),
+        (string) ($fields['nip'] ?? ''),
+        (string) ($fields['qr'] ?? ''),
+        (string) ($fields['no_wa'] ?? '')
+    );
+    if ($row['nama'] === '') {
+        return ['ok' => false, 'message' => 'Nama munawib wajib diisi.'];
+    }
+
+    try {
+        if ($id > 0) {
+            $st = $pdo->prepare('UPDATE munawib SET nama = :n, nip = :nip, qr = :qr, no_wa = :wa WHERE id = :id');
+            $st->execute([
+                'n' => $row['nama'],
+                'nip' => $row['nip'],
+                'qr' => $row['qr'],
+                'wa' => $row['wa'],
+                'id' => $id,
+            ]);
+
+            return ['ok' => true, 'message' => 'Data munawib diperbarui.', 'id' => $id];
+        }
+
+        $st = $pdo->prepare('INSERT INTO munawib (nama, nip, qr, no_wa) VALUES (:n, :nip, :qr, :wa)');
+        $st->execute([
+            'n' => $row['nama'],
+            'nip' => $row['nip'],
+            'qr' => $row['qr'],
+            'wa' => $row['wa'],
+        ]);
+
+        return [
+            'ok' => true,
+            'message' => 'Munawib "' . $row['nama'] . '" ditambahkan.',
+            'id' => (int) $pdo->lastInsertId(),
+        ];
+    } catch (PDOException $e) {
+        $dup = munawib_duplikat_message($e);
+
+        return ['ok' => false, 'message' => $dup ?? ('Gagal menyimpan munawib: ' . $e->getMessage())];
+    }
 }
 
 /**

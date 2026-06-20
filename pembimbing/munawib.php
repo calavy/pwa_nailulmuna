@@ -70,19 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $qr = $nip;
             }
             try {
-                if ($nip !== '') {
+                $row = munawib_normalize_fields($nama, $nip, $qr, $wa);
+                if ($nip !== '' && $row['nip'] !== null) {
                     $stC = $pdo->prepare('SELECT id FROM munawib WHERE nip = :nip LIMIT 1');
-                    $stC->execute(['nip' => $nip]);
+                    $stC->execute(['nip' => $row['nip']]);
                     $existingId = (int) ($stC->fetchColumn() ?: 0);
                     if ($existingId > 0) {
                         $stU = $pdo->prepare('UPDATE munawib SET nama = :n, no_wa = :wa, qr = :qr WHERE id = :id');
-                        $stU->execute(['n' => $nama, 'wa' => $wa !== '' ? $wa : null, 'qr' => $qr !== '' ? $qr : null, 'id' => $existingId]);
+                        $stU->execute(['n' => $row['nama'], 'wa' => $row['wa'], 'qr' => $row['qr'], 'id' => $existingId]);
                         $ok++;
                         continue;
                     }
                 }
                 $st = $pdo->prepare('INSERT INTO munawib (nama, nip, qr, no_wa) VALUES (:n, :nip, :qr, :wa)');
-                $st->execute(['n' => $nama, 'nip' => $nip !== '' ? $nip : null, 'qr' => $qr !== '' ? $qr : null, 'wa' => $wa !== '' ? $wa : null]);
+                $st->execute(['n' => $row['nama'], 'nip' => $row['nip'], 'qr' => $row['qr'], 'wa' => $row['wa']]);
                 $ok++;
             } catch (Throwable $e) {
                 $skip++;
@@ -93,26 +94,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if ($action === 'tambah_munawib') {
-        $nama = trim((string) ($_POST['nama'] ?? ''));
-        $nip = trim((string) ($_POST['nip'] ?? ''));
-        $qr = trim((string) ($_POST['qr'] ?? ''));
-        $wa = trim((string) ($_POST['no_wa'] ?? ''));
-        if ($nama !== '') {
-            $st = $pdo->prepare('INSERT INTO munawib (nama, nip, qr, no_wa) VALUES (:n, :nip, :qr, :wa)');
-            $st->execute(['n' => $nama, 'nip' => $nip !== '' ? $nip : null, 'qr' => $qr !== '' ? $qr : null, 'wa' => $wa !== '' ? $wa : null]);
-            set_flash('success', 'Munawib "' . $nama . '" ditambahkan.');
-        }
+        $result = munawib_save($pdo, [
+            'nama' => (string) ($_POST['nama'] ?? ''),
+            'nip' => (string) ($_POST['nip'] ?? ''),
+            'qr' => (string) ($_POST['qr'] ?? ''),
+            'no_wa' => (string) ($_POST['no_wa'] ?? ''),
+        ]);
+        set_flash($result['ok'] ? 'success' : 'error', $result['message']);
     }
     if ($action === 'update_munawib') {
         $id = (int) ($_POST['id'] ?? 0);
-        $nama = trim((string) ($_POST['nama'] ?? ''));
-        $nip = trim((string) ($_POST['nip'] ?? ''));
-        $qr = trim((string) ($_POST['qr'] ?? ''));
-        $wa = trim((string) ($_POST['no_wa'] ?? ''));
-        if ($id > 0 && $nama !== '') {
-            $st = $pdo->prepare('UPDATE munawib SET nama = :n, nip = :nip, qr = :qr, no_wa = :wa WHERE id = :id');
-            $st->execute(['n' => $nama, 'nip' => $nip !== '' ? $nip : null, 'qr' => $qr !== '' ? $qr : null, 'wa' => $wa !== '' ? $wa : null, 'id' => $id]);
-            set_flash('success', 'Data munawib diperbarui.');
+        if ($id <= 0) {
+            set_flash('error', 'Data munawib tidak valid.');
+        } else {
+            $result = munawib_save($pdo, [
+                'nama' => (string) ($_POST['nama'] ?? ''),
+                'nip' => (string) ($_POST['nip'] ?? ''),
+                'qr' => (string) ($_POST['qr'] ?? ''),
+                'no_wa' => (string) ($_POST['no_wa'] ?? ''),
+            ], $id);
+            set_flash($result['ok'] ? 'success' : 'error', $result['message']);
         }
     }
     if ($action === 'hapus_munawib') {
@@ -192,6 +193,7 @@ $penugasan = $pdo->query('
 $pageTitle = 'Data Munawib';
 require_once __DIR__ . '/../includes/header.php';
 $flashOk = get_flash('success');
+$flashErr = get_flash('error');
 ?>
 
 <div class="page-intro mb-3">
@@ -199,6 +201,7 @@ $flashOk = get_flash('success');
     <p class="text-muted mb-0 small">Munawib dapat scan hadir untuk kegiatan aktif, termasuk saat belum ada pembimbing pengganti yang ditentukan atau belum ada data izin pembimbing.</p>
 </div>
 <?php if ($flashOk): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
+<?php if ($flashErr): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body d-flex flex-wrap align-items-center gap-2">
