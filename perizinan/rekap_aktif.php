@@ -43,9 +43,8 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Santri sedang izin (belum kembali)</h1>
     <p class="text-muted small mb-0">
         Daftar izin yang sudah disetujui tetapi belum tercatat kembali.
-        Gunakan tombol <strong>Izin selesai</strong> bila santri sudah tiba tanpa scan QR di surat izin.
-        <span class="text-nowrap">·</span>
-        <a href="<?= htmlspecialchars(app_href('/perizinan/kembali.php')) ?>">Scan QR keluar/kembali</a>
+        Izin selesai otomatis saat santri discan di menu <strong>Scan Presensi</strong>.
+        Gunakan tombol <strong>Izin selesai</strong> bila santri sudah tiba tanpa scan kartu.
     </p>
 </div>
 
@@ -81,7 +80,6 @@ require_once __DIR__ . '/../includes/header.php';
                     <th>Santri</th>
                     <th>Jenis</th>
                     <th>Periode</th>
-                    <th>Keluar</th>
                     <th>Batas kembali</th>
                     <th class="text-end" style="width:11rem">Aksi</th>
                 </tr>
@@ -89,32 +87,33 @@ require_once __DIR__ . '/../includes/header.php';
             <tbody>
             <?php if ($rows === []): ?>
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">Tidak ada santri izin yang menunggu pencatatan kembali.</td>
+                    <td colspan="5" class="text-center text-muted py-4">Tidak ada santri izin yang menunggu pencatatan kembali.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($rows as $r): ?>
                     <?php
                     $iid = (int) ($r['id'] ?? 0);
-                    $keluar = !empty($r['waktu_keluar']);
+                    $rombonganId = (int) ($r['rombongan_id'] ?? 0);
                     $batas = trim((string) ($r['tanggal_selesai'] ?? '') . ' ' . substr((string) ($r['jam_selesai'] ?? ''), 0, 5));
                     $lewatBatas = strtotime($batas) !== false && time() > strtotime($batas);
                     ?>
                     <tr class="<?= $lewatBatas ? 'table-warning' : '' ?>">
                         <td>
                             <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></div>
-                            <div class="small text-muted"><?= htmlspecialchars((string) ($r['nis'] ?: '-')) ?> · <?= htmlspecialchars((string) ($r['tingkatan'] ?: '-')) ?></div>
+                            <div class="small text-muted">
+                                <?= htmlspecialchars((string) ($r['nis'] ?: '-')) ?> · <?= htmlspecialchars((string) ($r['tingkatan'] ?: '-')) ?>
+                                <?php if ($rombonganId > 0): ?>
+                                    <span class="badge text-bg-secondary ms-1">Rombongan #<?= $rombonganId ?></span>
+                                <?php endif; ?>
+                            </div>
                         </td>
                         <td class="small"><?= htmlspecialchars(jenis_izin_label((string) ($r['jenis_izin'] ?? 'KELUAR'))) ?></td>
                         <td class="small text-nowrap">
                             <?= htmlspecialchars((string) $r['tanggal_mulai']) ?>
                             <span class="text-muted">s/d</span>
                             <?= htmlspecialchars((string) $r['tanggal_selesai']) ?>
-                        </td>
-                        <td class="small">
-                            <?php if ($keluar): ?>
-                                <span class="text-success"><?= htmlspecialchars(date('d/m H:i', strtotime((string) $r['waktu_keluar']))) ?></span>
-                            <?php else: ?>
-                                <span class="text-muted">Belum scan keluar</span>
+                            <?php if (trim((string) ($r['jam_mulai'] ?? '')) !== ''): ?>
+                                <span class="d-block text-muted"><?= htmlspecialchars(substr((string) ($r['jam_mulai'] ?? ''), 0, 5)) ?>–<?= htmlspecialchars(substr((string) ($r['jam_selesai'] ?? ''), 0, 5)) ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="small">

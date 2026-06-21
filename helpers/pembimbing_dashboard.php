@@ -98,6 +98,27 @@ function pembimbing_dashboard_ampu_semua_tingkatan(PDO $pdo, int $pembimbingId):
  */
 function pembimbing_dashboard_tingkatan_list(PDO $pdo, ?int $pembimbingId, bool $bolehSemua): array
 {
+    $out = pembimbing_dashboard_kajian_tingkatan_list($pdo, $pembimbingId, $bolehSemua);
+    if ($bolehSemua || $pembimbingId === null || $pembimbingId <= 0) {
+        return $out;
+    }
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    foreach (pembimbing_pkpps_tingkatan_labels($pdo, $pembimbingId) as $lbl) {
+        if (!in_array($lbl, $out, true)) {
+            $out[] = $lbl;
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Tingkatan kajian (ta'lim/jama'ah) dari jadwal_kegiatan — tanpa label PKPPS.
+ *
+ * @return list<string>
+ */
+function pembimbing_dashboard_kajian_tingkatan_list(PDO $pdo, ?int $pembimbingId, bool $bolehSemua): array
+{
     $munawibTk = $_SESSION['munawib_tingkatan'] ?? null;
     if (is_array($munawibTk) && $munawibTk !== []) {
         return array_values(array_filter(array_map(static fn ($t): string => trim((string) $t), $munawibTk)));
@@ -137,14 +158,102 @@ function pembimbing_dashboard_tingkatan_list(PDO $pdo, ?int $pembimbingId, bool 
             $out[] = $t;
         }
     }
-    require_once __DIR__ . '/pembimbing_pkpps.php';
-    foreach (pembimbing_pkpps_tingkatan_labels($pdo, $pembimbingId) as $lbl) {
-        if (!in_array($lbl, $out, true)) {
-            $out[] = $lbl;
-        }
-    }
 
     return $out;
+}
+
+function pembimbing_dashboard_has_kajian_jadwal(PDO $pdo, int $pembimbingId): bool
+{
+    if ($pembimbingId <= 0 || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return false;
+    }
+    try {
+        $pdo->exec('ALTER TABLE jadwal_kegiatan ADD COLUMN IF NOT EXISTS pembimbing_id INT NULL');
+    } catch (PDOException $e) {
+        // ignore
+    }
+    if (!column_exists($pdo, 'jadwal_kegiatan', 'pembimbing_id')) {
+        return false;
+    }
+    $st = $pdo->prepare('SELECT 1 FROM jadwal_kegiatan WHERE pembimbing_id = :pid LIMIT 1');
+    $st->execute(['pid' => $pembimbingId]);
+
+    return (bool) $st->fetchColumn();
+}
+
+/**
+ * Kegiatan yang boleh muncul di rekap portal pembimbing.
+ * Kosong = admin (semua kegiatan). [-1] = tidak ada akses.
+ *
+ * @return list<int>
+ */
+function pembimbing_dashboard_allowed_kegiatan_ids(PDO $pdo, int $pembimbingId, bool $bolehSemua, string $scope): array
+{
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $scope = strtolower(trim($scope));
+    if ($bolehSemua) {
+        return [];
+    }
+    if ($pembimbingId <= 0) {
+        return [-1];
+    }
+    if ($scope === 'pkpps') {
+        if (!pembimbing_pkpps_has_jadwal($pdo, $pembimbingId)) {
+            return [-1];
+        }
+        $ids = array_column(pembimbing_pkpps_kegiatan_dari_jadwal($pdo, $pembimbingId), 'id');
+
+        return $ids !== [] ? $ids : [-1];
+    }
+    if (!pembimbing_dashboard_has_kajian_jadwal($pdo, $pembimbingId)) {
+        return [-1];
+    }
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [-1];
+    }
+    $st = $pdo->prepare('
+        SELECT DISTINCT j.kegiatan_id
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE j.pembimbing_id = :pid
+          AND COALESCE(k.is_active, 1) = 1
+          AND UPPER(COALESCE(k.kategori_kegiatan, "TAALIM")) <> "PKPPS"
+    ');
+    $st->execute(['pid' => $pembimbingId]);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []))));
+    if ($ids === [] && table_exists($pdo, 'pkpps_jadwal')) {
+        $stFallback = $pdo->prepare('
+            SELECT DISTINCT j.kegiatan_id
+            FROM jadwal_kegiatan j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            WHERE j.pembimbing_id = :pid AND COALESCE(k.is_active, 1) = 1
+        ');
+        $stFallback->execute(['pid' => $pembimbingId]);
+        $allIds = array_values(array_unique(array_filter(array_map('intval', $stFallback->fetchAll(PDO::FETCH_COLUMN) ?: []))));
+        $pkppsIds = array_column(pembimbing_pkpps_kegiatan_dari_jadwal($pdo, $pembimbingId), 'id');
+        $pkppsFlip = array_fill_keys($pkppsIds, true);
+        $ids = array_values(array_filter($allIds, static fn (int $id): bool => !isset($pkppsFlip[$id])));
+    }
+
+    return $ids !== [] ? $ids : [-1];
+}
+
+/**
+ * @param list<array<string,mixed>> $rows
+ * @param list<int> $kegiatanIds kosong = tidak difilter
+ * @return list<array<string,mixed>>
+ */
+function pembimbing_dashboard_filter_eligible_by_kegiatan(array $rows, array $kegiatanIds): array
+{
+    if ($kegiatanIds === []) {
+        return $rows;
+    }
+    $allowed = array_fill_keys($kegiatanIds, true);
+
+    return array_values(array_filter(
+        $rows,
+        static fn (array $r): bool => isset($allowed[(int) ($r['kegiatan_id'] ?? 0)])
+    ));
 }
 
 /**
@@ -496,10 +605,17 @@ function pembimbing_dashboard_keaktivan_bundle(
     int $tahun,
     int $userId,
     int $limit = 300,
-    bool $useCache = true
+    bool $useCache = true,
+    string $scope = 'kajian',
+    int $pembimbingId = 0,
+    bool $bolehSemua = false
 ): array {
+    $scope = strtolower(trim($scope));
+    if (!in_array($scope, ['kajian', 'pkpps'], true)) {
+        $scope = 'kajian';
+    }
     $scopeKey = implode("\0", array_map(static fn (string $t): string => trim($t), $tingkatanScope));
-    $cacheKey = 'pb_keaktivan_v2_' . $userId . '_' . $tahun . '_' . md5($scopeKey);
+    $cacheKey = 'pb_keaktivan_v3_' . $scope . '_' . $userId . '_' . $pembimbingId . '_' . $tahun . '_' . md5($scopeKey);
     if ($useCache && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
         $cached = $_SESSION[$cacheKey];
         if (($cached['exp'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
@@ -507,12 +623,14 @@ function pembimbing_dashboard_keaktivan_bundle(
         }
     }
 
-    $rows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanScope, $tahun, $limit);
-    $rekap = pembimbing_dashboard_presensi_rekap_per_kegiatan($pdo, $tingkatanScope, $tahun);
+    $kegiatanIds = pembimbing_dashboard_allowed_kegiatan_ids($pdo, $pembimbingId, $bolehSemua, $scope);
+    $rows = pembimbing_dashboard_keaktivan_santri($pdo, $tingkatanScope, $tahun, $limit, false, $kegiatanIds);
+    $rekap = pembimbing_dashboard_presensi_rekap_per_kegiatan($pdo, $tingkatanScope, $tahun, false, $kegiatanIds);
     $data = [
         'rows' => $rows,
         'rekap' => $rekap,
         'kategori' => pembimbing_dashboard_ringkasan_kategori($rows),
+        'scope' => $scope,
     ];
     if ($useCache) {
         $_SESSION[$cacheKey] = ['exp' => time() + 90, 'data' => $data];
@@ -608,9 +726,12 @@ function pembimbing_dashboard_scope_santri_meta(PDO $pdo, array $kajianList, arr
     return $out;
 }
 
-function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, int $tahun, int $limit = 200, bool $runFinalize = false): array
+function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, int $tahun, int $limit = 200, bool $runFinalize = false, array $kegiatanIdsFilter = []): array
 {
     if (!table_exists($pdo, 'santri') || $tingkatanList === []) {
+        return [];
+    }
+    if ($kegiatanIdsFilter === [-1]) {
         return [];
     }
     [$presStart, $presEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
@@ -641,6 +762,7 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
     }
     $santriIds = array_keys($scopeMeta);
     $eligibleRows = rekap_keaktifan_fetch_eligible_rows($pdo, $presStart, $presEnd, $santriIds, 0, $runFinalize);
+    $eligibleRows = pembimbing_dashboard_filter_eligible_by_kegiatan($eligibleRows, $kegiatanIdsFilter);
 
     $ranked = rekap_keaktifan_build_per_santri($eligibleRows, $goodMax, $mediumMax);
     $rankedById = [];
@@ -1846,9 +1968,12 @@ function pembimbing_dashboard_santri_dalam_scope(
  *
  * @return list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
  */
-function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingkatanList, int $tahun, bool $runFinalize = false): array
+function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingkatanList, int $tahun, bool $runFinalize = false, array $kegiatanIdsFilter = []): array
 {
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri') || $tingkatanList === []) {
+        return [];
+    }
+    if ($kegiatanIdsFilter === [-1]) {
         return [];
     }
     [$presStart, $presEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
@@ -1873,6 +1998,7 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
         return [];
     }
     $eligibleRows = rekap_keaktifan_fetch_eligible_rows($pdo, $presStart, $presEnd, array_keys($scopeMeta), 0, $runFinalize);
+    $eligibleRows = pembimbing_dashboard_filter_eligible_by_kegiatan($eligibleRows, $kegiatanIdsFilter);
 
     return rekap_keaktifan_kegiatan_list_from_rows($eligibleRows);
 }

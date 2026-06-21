@@ -339,8 +339,11 @@ require_once __DIR__ . '/../includes/header.php';
                                         ?>
                                         <span class="badge text-bg-secondary" style="font-size:.65rem"><?= htmlspecialchars(izin_tetap_hidmah_kategori_label($pdo, $katKode)) ?></span>
                                     <?php endif; ?>
-                                    <?php if (trim((string) ($r['kegiatan_ditinggalkan'] ?? '')) !== ''): ?>
-                                        <span class="text-muted">Tinggalkan: <?= htmlspecialchars((string) $r['kegiatan_ditinggalkan']) ?></span><br>
+                                    <?php
+                                    $kegTampil = santri_izin_tetap_kegiatan_ditinggalkan_efektif($pdo, $r);
+                                    if ($kegTampil !== ''):
+                                        ?>
+                                        <span class="text-muted">Tinggalkan: <?= htmlspecialchars($kegTampil) ?></span><br>
                                     <?php endif; ?>
                                     <span class="badge text-bg-info" style="font-size:.65rem"><?= htmlspecialchars(santri_izin_tetap_jenis_label((string) ($r['jenis'] ?? 'HIDMAH'))) ?></span>
                                 </td>

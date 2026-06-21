@@ -40,11 +40,34 @@ if (!$isPbHomeRingkasEarly && !$isPbKeaktivanOnly) {
 $pembimbingInfo = $bolehSemua ? null : pembimbing_dashboard_current_pembimbing($pdo, $userId);
 $pembimbingId = $pembimbingInfo !== null ? (int) ($pembimbingInfo['id'] ?? 0) : 0;
 $hasPkppsJadwal = $pembimbingId > 0 && pembimbing_pkpps_has_jadwal($pdo, $pembimbingId);
+$hasKajianJadwal = $pembimbingId > 0 && pembimbing_dashboard_has_kajian_jadwal($pdo, $pembimbingId);
 $pembimbingNama = $pembimbingInfo !== null
     ? (string) ($pembimbingInfo['nama'] ?? '')
     : trim((string) ($_SESSION['user']['nama'] ?? ''));
 
 $tingkatanMilik = pembimbing_dashboard_tingkatan_list($pdo, $pembimbingId > 0 ? $pembimbingId : null, $bolehSemua);
+$tingkatanKajian = $bolehSemua
+    ? pembimbing_dashboard_semua_tingkatan($pdo)
+    : pembimbing_dashboard_kajian_tingkatan_list($pdo, $pembimbingId > 0 ? $pembimbingId : null, false);
+$tingkatanPkpps = $bolehSemua ? [] : pembimbing_pkpps_tingkatan_labels($pdo, $pembimbingId);
+
+$rekapJenis = strtolower(trim((string) ($_GET['rekap_jenis'] ?? '')));
+if (!in_array($rekapJenis, ['kajian', 'pkpps'], true)) {
+    if ($hasPkppsJadwal && !$hasKajianJadwal) {
+        $rekapJenis = 'pkpps';
+    } else {
+        $rekapJenis = 'kajian';
+    }
+}
+if (!$bolehSemua) {
+    if ($rekapJenis === 'pkpps' && !$hasPkppsJadwal) {
+        $rekapJenis = 'kajian';
+    }
+    if ($rekapJenis === 'kajian' && !$hasKajianJadwal && $hasPkppsJadwal) {
+        $rekapJenis = 'pkpps';
+    }
+}
+
 if ($tingkatanMilik === [] && $bolehSemua) {
     $tingkatanMilik = pembimbing_dashboard_semua_tingkatan($pdo);
 }
@@ -53,6 +76,10 @@ if ($tingkatanMilik === [] && $bolehSemua) {
 $tingkatanAsuhan = $tingkatanMilik;
 $semuaTingkatanList = $tingkatanAsuhan;
 $tingkatanFilter = trim((string) ($_GET['tingkatan'] ?? ''));
+if ($isPbKeaktivanOnly && !$bolehSemua) {
+    $semuaTingkatanList = $rekapJenis === 'pkpps' ? $tingkatanPkpps : $tingkatanKajian;
+    $tingkatanAsuhan = $semuaTingkatanList;
+}
 if ($tingkatanFilter !== '' && !in_array($tingkatanFilter, $semuaTingkatanList, true)) {
     $tingkatanFilter = '';
 }
@@ -141,7 +168,10 @@ if ($isPbKeaktivanOnly) {
         $tahun,
         $userId,
         300,
-        $useKeaktivanCache
+        $useKeaktivanCache,
+        $rekapJenis,
+        $pembimbingId,
+        $bolehSemua
     );
     $keaktivanRows = $keaktivanBundle['rows'];
     $kategoriRingkas = $keaktivanBundle['kategori'];
@@ -299,6 +329,9 @@ $loadPushFcm = !$isPbHomeRingkas && !$isPbKeaktivanOnly;
 $pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
 require_once __DIR__ . '/../includes/header.php';
 $baseDashQuery = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($keaktifanView);
+if (!$bolehSemua && ($hasKajianJadwal || $hasPkppsJadwal)) {
+    $baseDashQuery .= '&rekap_jenis=' . rawurlencode($rekapJenis);
+}
 if ($tingkatanFilter !== '') {
     $baseDashQuery .= '&tingkatan=' . rawurlencode($tingkatanFilter);
 }
@@ -312,6 +345,18 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         <?php require __DIR__ . '/partials/keaktivan_page.php'; ?>
     <?php elseif (!$bolehSemua && $pbDashView === 'home'): ?>
         <?php
+        require_once __DIR__ . '/../helpers/pembimbing_portal_banner.php';
+        $pbBannerVariant = pembimbing_portal_banner_resolve_variant(
+            (bool) ($isMunawibPortal ?? false),
+            $hasPkppsJadwal,
+            $hasKajianJadwal,
+            $rekapJenis
+        );
+        $pbBannerCfg = pembimbing_portal_banner_get($pdo, $pbBannerVariant);
+        if (($pbBannerCfg['enabled'] ?? '1') !== '1') {
+            $pbBannerCfg = pembimbing_portal_banner_defaults('default');
+            $pbBannerVariant = 'default';
+        }
         $pbDashShowSetoranBottom = true;
         $jumlahTingkatan = $jumlahTingkatanHome;
         $tingkatanBaris = $tingkatanBarisHome;

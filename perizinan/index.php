@@ -234,162 +234,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $defaultPengasuh = app_setting($pdo, 'nama_pengasuh', '');
-    $graceMenit = (int) app_setting($pdo, 'grace_period_menit', '15');
-    $jenisIzinPost = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
-    $santriIdPost = (int) ($_POST['santri_id'] ?? 0);
-
-    if ($santriIdPost > 0) {
-        $chkAktif = $pdo->prepare('SELECT 1 FROM santri s WHERE s.id = :id AND ' . santri_sql_aktif_only('s') . ' LIMIT 1');
-        $chkAktif->execute(['id' => $santriIdPost]);
-        if (!$chkAktif->fetchColumn()) {
-            set_flash('error', 'Santri tidak aktif atau sudah keluar — tidak dapat diberi izin baru.');
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
-        }
-    }
-
-    if ($jenisIzinPost === 'SAKIT') {
-        $gejalaCheck = trim((string) ($_POST['gejala'] ?? ''));
-        $suhuRaw = $_POST['suhu_tubuh'] ?? '';
-        if ($santriIdPost <= 0) {
-            set_flash('error', 'Pilih santri untuk izin kesehatan.');
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
-        }
-        if ($gejalaCheck === '') {
-            set_flash('error', 'Izin kesehatan wajib melengkapi E-Health: isi gejala.');
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
-        }
-        if ($suhuRaw === '' || !is_numeric($suhuRaw)) {
-            set_flash('error', 'Izin kesehatan wajib melengkapi E-Health: isi suhu tubuh.');
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
-        }
-    }
-
-    $tujuanPost = perizinan_tujuan_normalize((string) ($_POST['tujuan'] ?? ''));
-    $tujuanErr = perizinan_validasi_tujuan($jenisIzinPost, $tujuanPost);
-    if ($tujuanErr !== null) {
-        set_flash('error', $tujuanErr);
-        header('Location: ' . app_href('/perizinan/index.php'));
-        exit;
-    }
-
-    $data = [
-        'santri_id' => $santriIdPost,
-        'tanggal_mulai' => $_POST['tanggal_mulai'] ?? date('Y-m-d'),
-        'tanggal_selesai' => $_POST['tanggal_selesai'] ?? date('Y-m-d'),
-        'jam_mulai' => $_POST['jam_mulai'] ?? date('H:i'),
-        'jam_selesai' => $_POST['jam_selesai'] ?? date('H:i'),
-        'durasi_jam' => (float) ($_POST['durasi_jam'] ?? 0),
-        'jenis_izin' => $jenisIzinPost,
-        'alasan' => trim($_POST['alasan'] ?? ''),
-        'tujuan' => $tujuanPost !== '' ? $tujuanPost : null,
-        'pemberi_izin' => trim($_POST['pemberi_izin'] ?? ''),
-        'penandatangan_pengasuh' => $defaultPengasuh !== '' ? $defaultPengasuh : trim($_POST['penandatangan_pengasuh'] ?? ''),
-        'grace_menit' => $graceMenit,
-    ];
-
-    $insert = $pdo->prepare('
-        INSERT INTO perizinan (santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
-        VALUES (:santri_id, :jenis_izin, :tanggal_mulai, :tanggal_selesai, :jam_mulai, :jam_selesai, :durasi_jam, :alasan, :tujuan, :pemberi_izin, :penandatangan_pengasuh, "IZIN", "PENDING", :grace_menit)
-    ');
-    $insHealth = $pdo->prepare('
-        INSERT INTO ehealth_records (santri_id, gejala, suhu_tubuh, tindakan, status_kesehatan, notifikasi_wali, created_by)
-        VALUES (:santri_id, :gejala, :suhu_tubuh, :tindakan, :status_kesehatan, :notifikasi_wali, :created_by)
-    ');
-
-    $pdo->beginTransaction();
-    try {
-        $insert->execute($data);
-        if ($data['jenis_izin'] === 'SAKIT') {
-            $insHealth->execute([
-                'santri_id' => $data['santri_id'],
-                'gejala' => trim((string) ($_POST['gejala'] ?? '')),
-                'suhu_tubuh' => (float) $_POST['suhu_tubuh'],
-                'tindakan' => trim((string) ($_POST['tindakan'] ?? '')),
-                'status_kesehatan' => in_array(($_POST['status_kesehatan'] ?? ''), ['RAWAT_PONDOK', 'DIRUJUK_RS', 'ISOLASI', 'SELESAI'], true) ? $_POST['status_kesehatan'] : 'RAWAT_PONDOK',
-                'notifikasi_wali' => isset($_POST['notifikasi_wali']) ? 1 : 0,
-                'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
-            ]);
-        }
-        $izinId = (int) $pdo->lastInsertId();
-        $pdo->commit();
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        set_flash('error', 'Gagal menyimpan: data tidak konsisten. Coba lagi.');
-        header('Location: ' . app_href('/perizinan/index.php'));
-        exit;
-    }
-
-    $userId = (int) ($_SESSION['user']['id'] ?? 1);
-    $sInfoStmt = $pdo->prepare('SELECT nama_santri, nis, tingkatan FROM santri WHERE id = :id LIMIT 1');
-    $sInfoStmt->execute(['id' => $data['santri_id']]);
-    $sInfoRow = $sInfoStmt->fetch() ?: ['nama_santri' => '-', 'nis' => '', 'tingkatan' => ''];
-    if ($data['jenis_izin'] === 'SAKIT' && isset($_POST['notifikasi_wali'])) {
-        push_event_laporan_sakit_wali(
-            $pdo,
-            (int) $data['santri_id'],
-            (string) ($sInfoRow['nama_santri'] ?? '-'),
-            trim((string) ($_POST['gejala'] ?? '')),
-            (string) ($_POST['status_kesehatan'] ?? 'RAWAT_PONDOK')
-        );
-    }
-
-    $fin = perizinan_finalisasi_setelah_input($pdo, $izinId, $userId);
-    if ($fin !== null) {
-        set_flash($fin['ok'] ? 'success' : 'error', $fin['ok']
-            ? ($fin['message'] ?? 'Izin aktif. Notifikasi terkirim.')
-            : ($fin['message'] ?? 'Gagal mengaktifkan izin.'));
-        header('Location: ' . app_rewrite_internal_url($fin['ok'] ? '/perizinan/surat.php?id=' . $izinId : '/perizinan/index.php'));
-        exit;
-    }
-
-    $notifMsg = wa_format_pengajuan_izin_baru(
-        $pdo,
-        (string) ($sInfoRow['nama_santri'] ?? '-'),
-        (string) ($sInfoRow['nis'] ?? ''),
-        (string) ($sInfoRow['tingkatan'] ?? ''),
-        (string) $data['jenis_izin'],
-        (string) $data['tanggal_mulai'],
-        (string) $data['tanggal_selesai'],
-        substr((string) $data['jam_mulai'], 0, 5),
-        substr((string) $data['jam_selesai'], 0, 5),
-        (string) $data['alasan'],
-        (string) ($data['tujuan'] ?? '')
-    );
-    perizinan_push_setelah_pengajuan(
-        $pdo,
-        (string) ($sInfoRow['nama_santri'] ?? '-'),
-        (string) ($sInfoRow['nis'] ?? ''),
-        (string) $data['jenis_izin'],
-        (string) $data['tanggal_mulai'],
-        (string) $data['tanggal_selesai']
-    );
-    if (push_should_send_wa($pdo) && wa_permohonan_izin_should_notify($pdo, (string) $data['jenis_izin'])) {
-        $waIzinTarget = wa_permohonan_izin_target($pdo);
-        if ($waIzinTarget !== '') {
-            send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
-        }
-    }
-    if ($data['jenis_izin'] === 'SAKIT') {
-        $okMsg = 'Permohonan izin kesehatan dan laporan E-Health tersimpan.';
-    } elseif (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
-        $okMsg = 'Pengajuan izin syar\'i tersimpan. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
-    } else {
-        $okMsg = 'Pengajuan izin tersimpan.';
-    }
-    set_flash('success', $okMsg);
-    header('Location: ' . app_href('/perizinan/index.php'));
+    set_flash('info', 'Pengajuan izin perorangan ada di menu Pengajuan.');
+    header('Location: ' . app_href('/perizinan/permohonan.php'));
     exit;
 }
 
 $sqlAktifS = santri_sql_aktif_only('s');
-require_once __DIR__ . '/../helpers/santri_list_sort.php';
-santri_list_sort_mode($_GET['santri_sort'] ?? null);
-$santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
 $rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 $namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 
@@ -444,7 +294,11 @@ $izinOffset = ($izinPage - 1) * $izinPerPage;
 $listStmt = $pdo->prepare('
     SELECT i.id, i.santri_id, i.rombongan_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam, i.status_izin, i.approval_status, i.pengasuh_approved_at, i.alasan, i.tujuan, i.rejected_reason, i.qr_token, i.waktu_keluar, i.waktu_kembali, i.poin_pelanggaran, s.nama_santri, s.nis, s.tingkatan
     ' . $izinJoinSql . '
-    ORDER BY COALESCE(i.rombongan_id, i.id) DESC, i.rombongan_id DESC, i.id DESC
+    ORDER BY
+        CASE i.approval_status WHEN "PENDING" THEN 0 WHEN "DISETUJUI" THEN 1 ELSE 2 END ASC,
+        COALESCE(i.rombongan_id, i.id) DESC,
+        i.rombongan_id DESC,
+        i.id DESC
     LIMIT ' . (int) $izinPerPage . ' OFFSET ' . (int) $izinOffset);
 $listStmt->execute($izinParams);
 $izinList = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -475,14 +329,13 @@ $izinListQuery = array_filter([
     'per_page' => $izinPerPage !== 50 ? (string) $izinPerPage : null,
 ]);
 
-$pageTitle = 'Perizinan Santri';
-$loadSantriSelectJs = true;
+$pageTitle = 'Persetujuan Perizinan';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Perizinan</p>
-    <h1 class="h4 mb-1">Perizinan &amp; E-Health santri</h1>
-    <p class="text-muted mb-0">Tinjau permohonan izin yang masuk, setujui/tolak, kelola data izin dan E-Health di satu tempat.
+    <h1 class="h4 mb-1">Persetujuan izin santri</h1>
+    <p class="text-muted mb-0">Tinjau permohonan yang masuk, setujui atau tolak, cetak surat. Pengajuan perorangan lewat menu <strong>Pengajuan</strong>; izin rombongan dapat diajukan di panel kiri.
         <?php if (user_can_access_permission_key('pengaturan') || is_super_admin()): ?>
             <a href="<?= htmlspecialchars(app_href('/settings/perizinan.php')) ?>" class="ms-1">Pengaturan syarat ALPA &amp; WA pembimbing</a>
         <?php endif; ?>
@@ -515,16 +368,18 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <div class="row g-4">
-    <div class="col-lg-5">
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h2 class="h6 mb-2">Pengajuan perorangan</h2>
+                <p class="small text-muted mb-2">Izin santri tunggal (termasuk sakit &amp; E-Health) lewat menu Pengajuan — bukan di halaman persetujuan ini.</p>
+                <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/permohonan.php')) ?>">Ke form pengajuan</a>
+            </div>
+        </div>
         <div class="card shadow-sm">
             <div class="card-body">
-                <h1 class="h5">Input Izin Santri</h1>
-                <div class="mb-2">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-toggle-rombongan">
-                        <i class="fa-solid fa-users me-1"></i> Izin rombongan
-                    </button>
-                </div>
-                <form method="post" class="row g-2 d-none" id="form-izin-rombongan" data-rombongan-min="2" data-rombongan-target="rombongan-input">
+                <h2 class="h5 mb-3">Pengajuan izin rombongan</h2>
+                <form method="post" class="row g-2" id="form-izin-rombongan" data-rombongan-min="2" data-rombongan-target="rombongan-input">
                     <input type="hidden" name="action" value="create_rombongan">
                     <div class="col-12">
                         <label class="form-label">Pilih santri rombongan <span class="text-muted fw-normal">(min. 2)</span></label>
@@ -534,7 +389,7 @@ require_once __DIR__ . '/../includes/header.php';
                         $rombonganPickerShowToolbar = true;
                         require __DIR__ . '/partials/rombongan_santri_picker.php';
                         ?>
-                        <div class="form-text">Urutan tingkatan → NIS. Satu surat A4 &amp; satu QR saat kembali.</div>
+                        <div class="form-text">Satu surat A4. Saat kembali, scan kartu masing-masing santri di Scan Presensi.</div>
                     </div>
                     <div class="col-6">
                         <label class="form-label">Jenis Izin</label>
@@ -580,123 +435,18 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Pengasuh</label>
                         <input type="text" class="form-control" name="penandatangan_pengasuh" value="<?= htmlspecialchars($namaPengasuh) ?>" <?= $namaPengasuh !== '' ? 'readonly' : '' ?> required>
                     </div>
-                    <div class="col-12 d-flex gap-2">
+                    <div class="col-12">
                         <button type="submit" class="btn btn-primary">Simpan izin rombongan</button>
-                        <button type="button" class="btn btn-outline-secondary" id="btn-batal-rombongan">Batal</button>
                     </div>
                 </form>
-                <form method="post" class="row g-2" id="form-izin-santri">
-                    <input type="hidden" name="action" value="create_izin">
-                    <div class="col-12">
-                        <label class="form-label">Santri</label>
-                        <select class="form-select santri-select-searchable" name="santri_id" id="santri-izin-select" required>
-                            <option value="">Pilih santri</option>
-                            <?php foreach ($santriList as $s): ?>
-                                <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['nama_santri']) ?> (<?= htmlspecialchars($s['tingkatan']) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Jenis Izin</label>
-                        <select class="form-select" name="jenis_izin" id="jenis-izin-input" required>
-                            <?php $selectedJenis = 'KELUAR'; $includeSakit = true; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Mulai</label>
-                        <input type="date" name="tanggal_mulai" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Selesai</label>
-                        <input type="date" name="tanggal_selesai" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Alasan</label>
-                        <textarea class="form-control" name="alasan" rows="2" required></textarea>
-                    </div>
-                    <?php
-                    $tujuanWrapId = 'wrap-tujuan-santri';
-                    $tujuanJenisSelectId = 'jenis-izin-input';
-                    $tujuanValue = '';
-                    require __DIR__ . '/partials/tujuan_izin_field.php';
-                    ?>
-                    <div class="col-4">
-                        <label class="form-label">Jam Mulai</label>
-                        <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">Jam Selesai</label>
-                        <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">Durasi (jam)</label>
-                        <input type="number" step="0.25" min="0" name="durasi_jam" class="form-control" placeholder="contoh 3.5">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Pemberi Izin</label>
-                        <input type="text" class="form-control" name="pemberi_izin" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Pengasuh</label>
-                        <input type="text" class="form-control" name="penandatangan_pengasuh" value="<?= htmlspecialchars($namaPengasuh) ?>" <?= $namaPengasuh !== '' ? 'readonly' : '' ?> required>
-                    </div>
-
-                    <div id="ehealth-input-card" class="col-12 mt-2 pt-3 border-top ehealth-block">
-                        <h2 class="h6">Data kesehatan (E-Health)</h2>
-                        <p class="small text-muted mb-2">
-                            <strong>Wajib</strong> bila jenis izin <strong>Izin Kesehatan</strong>. Santri mengikuti pilihan di atas (satu santri yang sama).
-                        </p>
-                        <div class="row g-2">
-                            <div class="col-12">
-                                <label class="form-label">Gejala <span class="text-danger ehealth-req-mark d-none">*</span></label>
-                                <textarea class="form-control ehealth-field" name="gejala" id="ehealth-gejala" rows="2" placeholder="Gejala" autocomplete="off"></textarea>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label">Suhu tubuh (°C) <span class="text-danger ehealth-req-mark d-none">*</span></label>
-                                <input type="number" step="0.1" class="form-control ehealth-field" name="suhu_tubuh" id="ehealth-suhu" placeholder="contoh 36.5" autocomplete="off">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label">Status kesehatan</label>
-                                <select class="form-select ehealth-field" name="status_kesehatan" id="ehealth-status">
-                                    <option value="RAWAT_PONDOK">Rawat Pondok</option>
-                                    <option value="DIRUJUK_RS">Dirujuk RS</option>
-                                    <option value="ISOLASI">Isolasi</option>
-                                    <option value="SELESAI">Selesai</option>
-                                </select>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Obat / tindakan</label>
-                                <textarea class="form-control ehealth-field" name="tindakan" rows="2" placeholder="Obat/Tindakan (opsional)"></textarea>
-                            </div>
-                            <div class="col-12 form-check ms-1">
-                                <input class="form-check-input ehealth-field" type="checkbox" name="notifikasi_wali" id="notifikasi_wali" value="1">
-                                <label class="form-check-label" for="notifikasi_wali">Kirim notifikasi ke wali (flag)</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-success">Simpan Izin</button>
-                    </div>
-                </form>
-                <?php
-                $currentRole = (string) ($_SESSION['user']['role'] ?? '');
-                $canScanIzin = is_super_admin()
-                    || in_array($currentRole, ['admin', 'pengurus'], true)
-                    || user_can_access_permission_key('perizinan_scan');
-                ?>
                 <div class="mt-3 d-flex flex-wrap gap-2">
-                    <?php if ($canScanIzin): ?>
-                        <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/kembali.php')) ?>">Scan Izin Keluar/Kembali</a>
-                    <?php endif; ?>
-                    <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/rekap_aktif.php')) ?>">Rekap Izin Aktif</a>
-                    <a class="btn btn-outline-secondary btn-sm" href="/perizinan/permohonan.php">Form Permohonan (Wali/Petugas)</a>
-                    <a class="btn btn-outline-primary btn-sm" href="/perizinan/izin_tetap.php">Izin Tetap Hidmah</a>
+                    <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/rekap_aktif.php')) ?>">Rekap izin aktif</a>
+                    <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/izin_tetap.php')) ?>">Izin tetap hidmah</a>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-lg-7">
+    <div class="col-lg-8">
         <div class="card shadow-sm">
             <div class="card-body">
                 <?php if ($rombonganPending !== []): ?>
@@ -906,7 +656,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     </form>
                                 <?php endif; ?>
                                 <?php if (($i['approval_status'] ?? '') === 'DISETUJUI' && trim((string) ($i['qr_token'] ?? '')) !== ''): ?>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#qrIzinModal<?= (int) $i['id'] ?>">QR Digital</button>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#qrIzinModal<?= (int) $i['id'] ?>">Kode surat</button>
                                 <?php endif; ?>
                                 <?php
                                 $canPerpanjang = ($i['approval_status'] ?? '') === 'DISETUJUI'
@@ -1006,7 +756,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="modal-body">
                 <div class="alert alert-info py-2 mb-3 small">
-                    Atur ulang <strong>tanggal</strong>, <strong>jam</strong>, dan <strong>durasi</strong> bila perlu sebelum menyetujui. Setelah disetujui, QR digital aktif dan surat izin siap dicetak.
+                    Atur ulang <strong>tanggal</strong>, <strong>jam</strong>, dan <strong>durasi</strong> bila perlu sebelum menyetujui. Setelah disetujui, surat izin siap dicetak. Izin selesai saat santri scan kartu di Scan Presensi.
                 </div>
                 <div class="mb-3 small">
                     <div><strong>Santri:</strong> <span id="approve-santri-info">-</span></div>
@@ -1059,7 +809,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
-                <button type="submit" class="btn btn-success" id="approve-submit-btn">Setujui &amp; terbitkan QR</button>
+                <button type="submit" class="btn btn-success" id="approve-submit-btn">Setujui &amp; cetak surat</button>
             </div>
         </form>
     </div>
@@ -1094,7 +844,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">QR izin digital</h5>
+                    <h5 class="modal-title">Kode surat izin</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
                 </div>
                 <div class="modal-body text-center">
@@ -1106,7 +856,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="d-inline-flex p-3 bg-white border rounded-4 shadow-sm mb-3">
                         <div class="izin-qr-box" data-token="<?= htmlspecialchars((string) $i['qr_token']) ?>" id="izin-qr-<?= (int) $i['id'] ?>"></div>
                     </div>
-                    <div class="small text-muted">Petugas gerbang scan QR ini saat santri keluar dan saat kembali.</div>
+                    <div class="small text-muted">Kode referensi surat (bukan untuk scan gerbang). Saat kembali, scan <strong>QR kartu santri</strong> di Scan Presensi — izin otomatis selesai.</div>
                     <div class="font-monospace small mt-2 text-break"><?= htmlspecialchars((string) $i['qr_token']) ?></div>
                 </div>
                 <div class="modal-footer">
@@ -1123,60 +873,6 @@ require_once __DIR__ . '/../includes/header.php';
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-tujuan-field.js')) ?>" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
-(function () {
-    var btnR = document.getElementById('btn-toggle-rombongan');
-    var btnBatal = document.getElementById('btn-batal-rombongan');
-    var formR = document.getElementById('form-izin-rombongan');
-    var formS = document.getElementById('form-izin-santri');
-    function showRombongan(show) {
-        if (!formR || !formS) return;
-        formR.classList.toggle('d-none', !show);
-        formS.classList.toggle('d-none', show);
-    }
-    if (btnR) btnR.addEventListener('click', function () { showRombongan(true); });
-    if (btnBatal) btnBatal.addEventListener('click', function () { showRombongan(false); });
-})();
-(function () {
-    var jenis = document.getElementById('jenis-izin-input');
-    var panelInput = document.getElementById('ehealth-input-card');
-    if (!jenis || !panelInput) {
-        return;
-    }
-    function syncEhealthVisibility() {
-        var sakit = jenis.value === 'SAKIT';
-        panelInput.classList.toggle('d-none', !sakit);
-        panelInput.querySelectorAll('.ehealth-req-mark').forEach(function (m) {
-            m.classList.toggle('d-none', !sakit);
-        });
-        panelInput.querySelectorAll('.ehealth-field').forEach(function (el) {
-            el.disabled = !sakit;
-            if (el.name === 'gejala' || el.name === 'suhu_tubuh') {
-                el.required = sakit;
-            }
-        });
-        if (!sakit) {
-            var g = document.getElementById('ehealth-gejala');
-            var su = document.getElementById('ehealth-suhu');
-            var ti = panelInput.querySelector('textarea[name="tindakan"]');
-            if (g) {
-                g.value = '';
-            }
-            if (su) {
-                su.value = '';
-            }
-            if (ti) {
-                ti.value = '';
-            }
-            var cb = document.getElementById('notifikasi_wali');
-            if (cb) {
-                cb.checked = false;
-            }
-        }
-    }
-    jenis.addEventListener('change', syncEhealthVisibility);
-    syncEhealthVisibility();
-})();
-
 (function () {
     var approveModal = document.getElementById('approveIzinModal');
     if (!approveModal) {

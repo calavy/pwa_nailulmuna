@@ -4148,8 +4148,19 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
             return true;
         }
     }
-    if ($hubId === 'menu-grp-kajian' && (preg_match('#^/rekap/#', $requestPath) || str_contains($requestPath, '/pkpps/'))) {
+    if ($hubId === 'menu-grp-pkpps' && (
+        str_contains($requestPath, '/pkpps/')
+        || str_contains($requestPath, '/rekap/pkpps_')
+        || str_contains($requestPath, '/pembimbing/pkpps_')
+        || str_contains($requestPath, '/pembayaran/laporan_pkpps_syahriyah.php')
+    )) {
         return true;
+    }
+    if ($hubId === 'menu-grp-kajian' && preg_match('#^/rekap/#', $requestPath) && !str_contains($requestPath, '/rekap/pkpps_')) {
+        return true;
+    }
+    if ($hubId === 'menu-grp-kajian' && str_contains($requestPath, '/pkpps/')) {
+        return false;
     }
     return false;
 }

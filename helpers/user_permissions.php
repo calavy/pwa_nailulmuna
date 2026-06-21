@@ -28,6 +28,24 @@ function user_permission_is_keuangan_key(string $key): bool
     return in_array($key, user_permission_keuangan_keys(), true);
 }
 
+/** @return list<string> */
+function user_permission_pkpps_keys(): array
+{
+    return [
+        'pkpps_dashboard',
+        'pkpps_santri',
+        'pkpps_jadwal',
+        'pkpps_tugas',
+        'pkpps_rekap',
+        'pembimbing_pkpps',
+    ];
+}
+
+function user_permission_is_pkpps_key(string $key): bool
+{
+    return in_array($key, user_permission_pkpps_keys(), true);
+}
+
 /**
  * Grup untuk form admin (urutan tampilan).
  *
@@ -65,27 +83,49 @@ function user_permission_groups(): array
                 'santri_import' => 'Import Santri',
             ],
         ],
+        'kajian' => [
+            'label' => 'Kajian (Ta\'lim) — centang per submenu',
+            'permissions' => [
+                'jadwal' => 'Jadwal & kegiatan Ta\'lim',
+                'jadwal_import' => 'Import jadwal Excel/CSV',
+                'akademik_hafalan' => 'Setoran hafalan, bait, kalender, rapor',
+                'akademik_setoran' => 'Input setoran scan (pembimbing/munawib)',
+                'akademik_ikhtibar' => 'Tugas Ikhtibar (buat, nilai, rekap)',
+                'pembimbing_dashboard' => 'Portal pembimbing — beranda & keaktivan kajian',
+                'pembimbing_jadwal' => 'Jadwal kegiatan pembimbing',
+            ],
+        ],
+        'jamaah' => [
+            'label' => 'Jama\'ah — centang per submenu',
+            'permissions' => [
+                'jadwal_jamaah' => 'Kegiatan & presensi Jama\'ah',
+            ],
+        ],
+        'pkpps_modul' => [
+            'label' => 'PKPPS — centang per submenu',
+            'permissions' => [
+                'pkpps_dashboard' => 'Dashboard PKPPS (ringkasan)',
+                'pkpps_santri' => 'Santri PKPPS — data & import',
+                'pkpps_jadwal' => 'Jadwal PKPPS — kelola & import',
+                'pkpps_tugas' => 'Tugas & soal PKPPS (admin)',
+                'pkpps_rekap' => 'Rekap keaktivan PKPPS',
+                'pembimbing_pkpps' => 'Portal pembimbing — santri & tugas PKPPS',
+            ],
+        ],
         'operasional' => [
             'label' => 'Operasional Harian (submenu)',
             'permissions' => [
                 'presensi_scan' => 'Scan Presensi (santri & pembimbing)',
-                'jadwal' => 'Jadwal — lihat & kelola',
-                'jadwal_import' => 'Jadwal — import Excel/CSV',
                 'perizinan' => 'Perizinan — review & setujui',
                 'perizinan_permohonan' => 'Perizinan — ajukan permohonan',
-                'perizinan_scan' => 'Perizinan — scan keluar/kembali',
                 'munawib' => 'Munawib — data pengganti pembimbing',
-                'pkpps_dashboard' => 'Dashboard PKPPS (ringkasan & keaktivan minggu)',
             ],
         ],
         'pembimbing' => [
             'label' => 'Pembimbing',
             'permissions' => [
                 'pembimbing' => 'Data Pembimbing',
-                'pembimbing_dashboard' => 'Dashboard Pembimbing (santri & keaktifan per tingkatan)',
                 'pembimbing_perizinan' => 'Izin Pembimbing',
-                'pembimbing_jadwal' => 'Jadwal Kegiatan Pembimbing',
-                'pembimbing_pkpps' => 'PKPPS Santri (pembimbing)',
                 'rekap_pembimbing' => 'Payroll / Gaji Pembimbing',
             ],
         ],
@@ -104,14 +144,6 @@ function user_permission_groups(): array
                 'poin_rekap' => 'Rekap Poin',
             ],
         ],
-        'akademik' => [
-            'label' => 'Akademik',
-            'permissions' => [
-                'akademik_hafalan' => 'Setoran hafalan, bait, kalender, rapor',
-                'akademik_setoran' => 'Input setoran scan (pembimbing/munawib)',
-                'akademik_ikhtibar' => 'Tugas Ikhtibar (buat, nilai, rekap)',
-            ],
-        ],
         'pengaturan' => [
             'label' => 'Pengaturan Pondok',
             'permissions' => [
@@ -119,6 +151,7 @@ function user_permission_groups(): array
                 'poin_settings' => 'Peraturan Poin (legacy)',
                 'settings_umum' => 'Settings Umum (legacy)',
                 'settings_admin' => 'Kelola Akses User',
+                'settings_portal_pembimbing' => 'Banner Portal Pembimbing (Kajian, PKPPS, Jama\'ah)',
             ],
         ],
         'yayasan' => [
@@ -188,16 +221,19 @@ function user_permission_path_map_base(): array
         '/jadwal/tambah_kegiatan.php' => 'jadwal',
         '/jadwal/import.php' => 'jadwal_import',
         '/pkpps/index.php' => 'pkpps_dashboard',
-        '/pkpps/santri.php' => 'jadwal',
-        '/pkpps/import_santri.php' => 'jadwal_import',
-        '/pkpps/jadwal.php' => 'jadwal',
-        '/pkpps/import.php' => 'jadwal_import',
-        '/pkpps/tugas/index.php' => 'pkpps_dashboard',
-        '/pkpps/tugas/buat.php' => 'pkpps_dashboard',
-        '/pkpps/tugas/nilai.php' => 'pkpps_dashboard',
-        '/pkpps/tugas/rekap.php' => 'pkpps_dashboard',
-        '/rekap/pkpps_keaktivan.php' => 'jadwal',
-        '/rekap/pkpps_keaktifan_hari.php' => 'jadwal',
+        '/pkpps/hub.php' => 'pkpps_dashboard',
+        '/pkpps/santri.php' => 'pkpps_santri',
+        '/pkpps/import_santri.php' => 'pkpps_santri',
+        '/pkpps/jadwal.php' => 'pkpps_jadwal',
+        '/pkpps/import.php' => 'pkpps_jadwal',
+        '/pkpps/tugas/index.php' => 'pkpps_tugas',
+        '/pkpps/tugas/buat.php' => 'pkpps_tugas',
+        '/pkpps/tugas/nilai.php' => 'pkpps_tugas',
+        '/pkpps/tugas/rekap.php' => 'pkpps_tugas',
+        '/rekap/pkpps_keaktivan.php' => 'pkpps_rekap',
+        '/rekap/pkpps_keaktifan_hari.php' => 'pkpps_rekap',
+        '/jadwal/kegiatan.php' => 'jadwal_jamaah',
+        '/jadwal/tambah_kegiatan.php' => 'jadwal_jamaah',
         '/settings/tingkatan.php' => 'pengaturan',
         '/settings/tingkatan.php#pkpps' => 'pengaturan',
         '/pembimbing/munawib.php' => 'munawib',
@@ -259,8 +295,6 @@ function user_permission_path_map_base(): array
         '/perizinan/izin_tetap.php' => 'perizinan',
         '/perizinan/izin_tetap_kegiatan.php' => 'perizinan',
         '/perizinan/surat_izin_tetap.php' => 'perizinan',
-        '/perizinan/kembali.php' => 'perizinan_scan',
-        '/perizinan/kembali_rombongan.php' => 'perizinan_scan',
         '/perizinan/permohonan.php' => 'perizinan_permohonan',
         '/admin/surat_nomor.php' => 'perizinan',
         '/admin/rekap_surat_izin.php' => 'perizinan',
@@ -296,6 +330,7 @@ function user_permission_path_map_base(): array
         '/settings/admin.php' => 'settings_admin',
         '/settings/presensi_data.php' => 'settings_admin',
         '/settings/push.php' => 'settings_admin',
+        '/settings/portal_pembimbing.php' => 'settings_portal_pembimbing',
         '/admin/cek_update.php' => 'settings_admin',
         '/settings/profil.php' => 'dashboard',
         '/settings/akses_saya.php' => 'dashboard',
@@ -496,18 +531,70 @@ function user_permission_expand_allowed_map(array $map): array
         }
     }
     if (isset($map['perizinan'])) {
-        foreach (['perizinan_scan', 'perizinan_permohonan'] as $k) {
+        foreach (['perizinan_permohonan'] as $k) {
             $map[$k] = 1;
         }
     }
     if (isset($map['jadwal'])) {
-        $map['pkpps_dashboard'] = 1;
+        $map['jadwal_import'] = 1;
+        $map['jadwal_jamaah'] = 1;
+        foreach (user_permission_pkpps_keys() as $k) {
+            $map[$k] = 1;
+        }
+    }
+    if (isset($map['jadwal_jamaah'])) {
+        $map['jadwal'] = 1;
+    }
+    if (isset($map['pkpps_dashboard'])) {
+        foreach (user_permission_pkpps_keys() as $k) {
+            $map[$k] = 1;
+        }
+    }
+    foreach (user_permission_pkpps_keys() as $pkKey) {
+        if (isset($map[$pkKey])) {
+            $map['pkpps_dashboard'] = 1;
+            break;
+        }
     }
     if (isset($map['akademik_hafalan'])) {
         $map['akademik_setoran'] = 1;
     }
+    if (isset($map['settings_admin'])) {
+        $map['settings_portal_pembimbing'] = 1;
+    }
 
     return $map;
+}
+
+/**
+ * Submenu (path) yang dilindungi tiap permission_key — untuk form admin.
+ *
+ * @return list<array{path:string,label:string}>
+ */
+function user_permission_submenus_for_key(string $permissionKey): array
+{
+    static $index = null;
+    if (!is_array($index)) {
+        $index = [];
+        $pack = require __DIR__ . '/../includes/menu_data.php';
+        $menuItems = is_array($pack['menuItems'] ?? null) ? $pack['menuItems'] : [];
+        foreach (user_permission_path_map() as $path => $key) {
+            if ($key === '') {
+                continue;
+            }
+            $label = trim((string) ($menuItems[$path] ?? ''));
+            if ($label === '') {
+                $label = ltrim(str_replace(['.php', '_'], ['', ' '], basename(parse_url($path, PHP_URL_PATH) ?: $path)), '/');
+            }
+            $index[$key][] = ['path' => $path, 'label' => $label];
+        }
+        foreach ($index as $key => $rows) {
+            usort($rows, static fn(array $a, array $b): int => strcmp($a['label'], $b['label']));
+            $index[$key] = $rows;
+        }
+    }
+
+    return $index[$permissionKey] ?? [];
 }
 
 /** Migrasi sekali: pecah izin `keuangan` menjadi submenu. */
@@ -557,8 +644,58 @@ function user_permission_preset_keys(string $presetId): array
             'keuangan_cashless_setor',
         ],
         'keuangan_laporan_saja' => ['keuangan_laporan'],
+        'pkpps_semua' => user_permission_pkpps_keys(),
+        'kajian_semua' => [
+            'jadwal',
+            'jadwal_import',
+            'akademik_hafalan',
+            'akademik_setoran',
+            'akademik_ikhtibar',
+            'pembimbing_dashboard',
+            'pembimbing_jadwal',
+        ],
+        'jamaah_semua' => ['jadwal_jamaah'],
         default => [],
     };
+}
+
+/** Migrasi: pecah izin PKPPS dari `jadwal` / `pkpps_dashboard` granular. */
+function migrate_pkpps_permissions_split(PDO $pdo): void
+{
+    if (!function_exists('table_exists')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'user_access_permissions') || !table_exists($pdo, 'app_settings')) {
+        return;
+    }
+    if (app_setting($pdo, 'acl_pkpps_split_v1', '') === '1') {
+        return;
+    }
+
+    $legacyKeys = ['jadwal', 'pkpps_dashboard'];
+    $st = $pdo->prepare('SELECT DISTINCT user_id FROM user_access_permissions WHERE permission_key = :k');
+    $userIds = [];
+    foreach ($legacyKeys as $legacyKey) {
+        $st->execute(['k' => $legacyKey]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $uid) {
+            $userIds[(int) $uid] = (int) $uid;
+        }
+    }
+
+    $ins = $pdo->prepare('INSERT IGNORE INTO user_access_permissions (user_id, permission_key) VALUES (:uid, :key)');
+    foreach ($userIds as $uid) {
+        if ($uid <= 0) {
+            continue;
+        }
+        foreach (user_permission_pkpps_keys() as $key) {
+            $ins->execute(['uid' => $uid, 'key' => $key]);
+        }
+    }
+
+    save_setting($pdo, 'acl_pkpps_split_v1', '1');
+    if (function_exists('app_acl_session_cache_clear')) {
+        app_acl_session_cache_clear(0);
+    }
 }
 
 function user_acl_configured_setting_key(int $userId): string
@@ -645,7 +782,6 @@ function user_permission_default_keys_for_role(string $role): array
         return [
             'dashboard',
             'presensi_scan',
-            'perizinan_scan',
             'perizinan_permohonan',
         ];
     }

@@ -109,9 +109,14 @@
 }
 
 .cashless-scan-wrap {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+
+.cashless-scan-wrap > .presensi-scan-start-wrap {
+    z-index: 20;
 }
 
 .cashless-phase-santri,
@@ -160,6 +165,17 @@
     width: 100% !important;
     height: 100% !important;
     border-radius: 0 !important;
+    display: block !important;
+    min-height: 240px;
+}
+
+.cashless-viewport #reader__scan_region,
+.cashless-viewport #reader__scan_region > div,
+.cashless-viewport #money_reader__scan_region,
+.cashless-viewport #money_reader__scan_region > div {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: inherit;
 }
 
 .cashless-viewport::after {

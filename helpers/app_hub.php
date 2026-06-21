@@ -63,13 +63,18 @@ function app_hub_registry(): array
         ],
         'pkpps_hub' => [
             'title' => 'PKPPS',
-            'landing' => '/pkpps/index.php',
+            'landing' => '/pkpps/hub.php',
+            'match_prefixes' => ['/pkpps/', '/rekap/pkpps_', '/pembimbing/pkpps_'],
+            'match_paths' => ['/pembayaran/laporan_pkpps_syahriyah.php'],
             'tabs' => [
                 ['path' => '/pkpps/index.php', 'label' => 'Dashboard'],
                 ['path' => '/pkpps/santri.php', 'label' => 'Santri'],
                 ['path' => '/pkpps/jadwal.php', 'label' => 'Jadwal'],
                 ['path' => '/pkpps/tugas/index.php', 'label' => 'Tugas & soal'],
-                ['path' => '/settings/ikhtibar_kriteria.php', 'label' => 'Kriteria nilai'],
+                ['path' => '/rekap/pkpps_keaktifan_hari.php', 'label' => 'Keaktifan hari ini'],
+                ['path' => '/rekap/pkpps_keaktivan.php', 'label' => 'Rekap keaktivan'],
+                ['path' => '/pembimbing/pkpps_santri.php', 'label' => 'Portal pembimbing'],
+                ['path' => '/pembayaran/laporan_pkpps_syahriyah.php', 'label' => 'Syahriyah'],
             ],
         ],
         'rekap_presensi' => [
@@ -91,8 +96,8 @@ function app_hub_registry(): array
             'title' => 'Perizinan Santri',
             'landing' => '/perizinan/hub.php',
             'tabs' => [
-                ['path' => '/perizinan/index.php', 'label' => 'Persetujuan'],
                 ['path' => '/perizinan/permohonan.php', 'label' => 'Pengajuan'],
+                ['path' => '/perizinan/index.php', 'label' => 'Persetujuan'],
                 ['path' => '/pengasuh/perizinan.php', 'label' => 'Pengasuh'],
                 ['path' => '/perizinan/rekap_aktif.php', 'label' => 'Rekap aktif'],
                 ['path' => '/perizinan/izin_tetap.php', 'label' => 'Izin tetap'],
@@ -125,6 +130,26 @@ function app_hub_match_path(string $requestPath): ?array
 {
     $requestPath = app_hub_normalize_path($requestPath);
     foreach (app_hub_registry() as $hub) {
+        foreach ((array) ($hub['match_paths'] ?? []) as $extraPath) {
+            $extraPath = app_hub_normalize_path((string) $extraPath);
+            if ($requestPath === $extraPath) {
+                return ['hub' => $hub, 'active' => ['path' => $extraPath, 'label' => '']];
+            }
+        }
+        foreach ((array) ($hub['match_prefixes'] ?? []) as $prefix) {
+            $prefix = app_hub_normalize_path((string) $prefix);
+            if ($prefix !== '' && str_starts_with($requestPath, $prefix)) {
+                $active = ['path' => $requestPath, 'label' => ''];
+                foreach ($hub['tabs'] as $tab) {
+                    $tabPath = app_hub_normalize_path((string) $tab['path']);
+                    if ($requestPath === $tabPath || str_starts_with($requestPath, $tabPath . '/')) {
+                        $active = $tab;
+                        break;
+                    }
+                }
+                return ['hub' => $hub, 'active' => $active];
+            }
+        }
         foreach ($hub['tabs'] as $tab) {
             $tabPath = app_hub_normalize_path((string) $tab['path']);
             if ($requestPath === $tabPath || str_starts_with($requestPath, $tabPath . '/')) {

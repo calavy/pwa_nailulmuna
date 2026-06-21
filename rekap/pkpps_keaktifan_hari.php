@@ -11,20 +11,21 @@ require_once __DIR__ . '/../helpers/rekap_pkpps_keaktifan_hari.php';
 
 require_roles(['admin', 'pengurus', 'kiai', 'pembimbing']);
 
-pkpps_ensure_schema($pdo);
-
 $tanggal = trim((string) ($_GET['tanggal'] ?? date('Y-m-d')));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
     $tanggal = date('Y-m-d');
 }
 $filterTingkatan = (int) ($_GET['tingkatan'] ?? 0);
+$forceRefresh = isset($_GET['sync']) && (string) $_GET['sync'] === '1';
 
-$detailKeg = rekap_pkpps_keaktifan_hari_santri_cards(
+$bundle = rekap_pkpps_keaktifan_hari_bundle(
     $pdo,
     $tanggal,
-    $filterTingkatan > 0 ? $filterTingkatan : null
+    $filterTingkatan > 0 ? $filterTingkatan : null,
+    $forceRefresh
 );
-$pembimbingCards = rekap_pkpps_keaktifan_hari_pembimbing_cards($pdo, $tanggal);
+$detailKeg = $bundle['santri'];
+$pembimbingCards = $bundle['pembimbing'];
 $ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
 $totals = rekap_keaktifan_hari_totals($ringkasan);
 
@@ -94,8 +95,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-auto">
+        <div class="col-auto d-flex flex-wrap gap-1">
             <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i>Terapkan</button>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktifan_hari.php?' . http_build_query(array_filter([
+                'tanggal' => $tanggal,
+                'tingkatan' => $filterTingkatan > 0 ? (string) $filterTingkatan : null,
+                'sync' => '1',
+            ])))) ?>">Sinkron</a>
         </div>
     </form>
 

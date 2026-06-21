@@ -404,6 +404,19 @@ function presensi_finalize_date_range(PDO $pdo, string $startDate, string $endDa
     }
 }
 
+/** Finalisasi hari ini saja, dibatasi agar rekap PKPPS tidak sync berulang tiap klik. */
+function presensi_finalize_today_throttled(PDO $pdo, int $createdBy = 1, int $ttlSeconds = 180): void
+{
+    $today = date('Y-m-d');
+    $sessionKey = 'presensi_finalize_today_ts_' . $today;
+    $last = (int) ($_SESSION[$sessionKey] ?? 0);
+    if ($last > 0 && (time() - $last) < $ttlSeconds) {
+        return;
+    }
+    presensi_finalize_date_range($pdo, $today, $today, $createdBy > 0 ? $createdBy : 1);
+    $_SESSION[$sessionKey] = time();
+}
+
 /**
  * Terapkan status efektif (BELUM→ALPA setelah jam selesai) pada baris rekap harian.
  *

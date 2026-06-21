@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
@@ -54,10 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'tambah_kegiatan') {
         ensure_kegiatan_kategori_column($pdo);
         $namaKegiatan = mb_substr(trim((string) ($_POST['nama_kegiatan'] ?? '')), 0, 120);
-        $kategoriKegiatan = strtoupper(trim((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM')));
-        if (!in_array($kategoriKegiatan, ['JAMAAH', 'TAALIM'], true)) {
-            $kategoriKegiatan = 'TAALIM';
-        }
+        $kategoriKegiatan = pkpps_normalize_kegiatan_kategori((string) ($_POST['kategori_kegiatan'] ?? ''), true);
         if ($namaKegiatan === '') {
             set_flash('error', 'Nama kegiatan wajib diisi.');
         } else {
@@ -174,6 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    if (in_array($action, ['tambah', 'hapus', 'toggle', 'update', 'tambah_kegiatan'], true)) {
+        pkpps_sync_kegiatan_kategori($pdo);
+    }
     $qs = $filterTingkatan > 0 ? '?tingkatan=' . $filterTingkatan : '';
     if ($kartuPembimbingRedirect > 0) {
         $qs .= ($qs === '' ? '?' : '&') . 'kartu=' . $kartuPembimbingRedirect;
@@ -248,6 +249,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="mb-2">
                             <label class="form-label small mb-0">Kategori</label>
                             <select name="kategori_kegiatan" class="form-select form-select-sm">
+                                <option value="PKPPS" selected>PKPPS</option>
                                 <option value="TAALIM">Ta'lim</option>
                                 <option value="JAMAAH">Jama'ah</option>
                             </select>

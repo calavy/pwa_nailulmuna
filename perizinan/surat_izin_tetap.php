@@ -64,9 +64,8 @@ $tglSelesai = trim((string) ($izin['tanggal_selesai'] ?? ''));
 $periodeTampil = $tglSelesai !== '' ? ($tglMulai . ' s.d. ' . $tglSelesai) : ($tglMulai . ' (berlaku tanpa batas waktu)');
 $judulKegiatan = santri_izin_tetap_surat_teks_bersih(trim((string) ($izin['judul'] ?? '')));
 $suratKonteks = santri_izin_tetap_surat_konteks($jenisRaw, $judulKegiatan);
-$kegiatanRaw = trim((string) ($izin['kegiatan_ditinggalkan'] ?? ''));
-$kegiatanItems = santri_izin_tetap_kegiatan_items_dari_raw($kegiatanRaw);
-$kegiatanDitinggalkan = santri_izin_tetap_kegiatan_nama_tampil($kegiatanRaw);
+$kegiatanItems = santri_izin_tetap_kegiatan_items_for_print($pdo, $izin);
+$kegiatanDitinggalkan = $kegiatanItems !== [] ? implode(', ', $kegiatanItems) : '';
 $kategoriHidmahKode = trim((string) ($izin['kategori_hidmah'] ?? ''));
 $kategoriHidmahLabel = $kategoriHidmahKode !== '' ? izin_tetap_hidmah_kategori_label($pdo, $kategoriHidmahKode) : '';
 $keterangan = trim((string) ($izin['keterangan'] ?? ''));
@@ -297,17 +296,10 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 <tr><td><?= htmlspecialchars((string) $suratKonteks['label_uraian']) ?></td><td>: <?= htmlspecialchars((string) ($suratKonteks['detail_teks'] ?? '') !== '' ? (string) $suratKonteks['detail_teks'] : '—') ?></td></tr>
                 <tr><td>Masa Berlaku</td><td>: <?= htmlspecialchars($periodeTampil) ?></td></tr>
                 <tr><td><?= htmlspecialchars((string) $suratKonteks['label_jadwal']) ?></td><td>: <?= $slotHtml ?></td></tr>
+                <?php if ($kegiatanItems !== []): ?>
+                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></td><td>: <?= htmlspecialchars($kegiatanDitinggalkan) ?></td></tr>
+                <?php endif; ?>
             </table>
-            <?php if (!$suratKonteks['is_tugas'] && $kegiatanItems !== []): ?>
-            <div class="box-kegiatan">
-                <strong><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></strong>
-                <ul>
-                    <?php foreach ($kegiatanItems as $kg): ?>
-                        <li><?= htmlspecialchars($kg) ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-            <?php endif; ?>
             <?php if ($keterangan !== ''): ?>
             <div class="box-note">
                 <strong>Keterangan:</strong><br>
@@ -320,7 +312,7 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 <?php if ($kegiatanDitinggalkan !== '' && !$suratKonteks['is_tugas']): ?>
                 Ketidakhadiran pada kegiatan Jama'ah yang disebutkan dicatat <strong>izin</strong>, bukan alpa.
                 <?php elseif ($kegiatanDitinggalkan !== '' && $suratKonteks['is_tugas']): ?>
-                Ketidakhadiran pada kegiatan terkait dicatat <strong>izin</strong> sesuai ketentuan pondok.
+                Ketidakhadiran pada kegiatan terkait yang disebutkan dicatat <strong>izin</strong> sesuai ketentuan pondok.
                 <?php endif; ?>
                 Izin tetap berlaku selama status aktif dan dapat ditinjau ulang oleh pengurus bila diperlukan.
             </div>

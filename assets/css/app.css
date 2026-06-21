@@ -2791,6 +2791,28 @@ html[data-theme-transitioning] .app-theme-switch {
     }
 }
 
+.perm-check-block {
+    padding: 0.35rem 0.45rem;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    height: 100%;
+}
+
+.perm-submenu-list {
+    list-style: none;
+    max-height: 7.5rem;
+    overflow: auto;
+}
+
+.perm-submenu-list li {
+    line-height: 1.35;
+    padding: 0.05rem 0;
+}
+
+.perm-submenu-list .font-monospace {
+    font-size: 0.68rem;
+}
+
 .dropdown-menu {
     border-radius: var(--radius-md);
     border: 1px solid var(--card-border);

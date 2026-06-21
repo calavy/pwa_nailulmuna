@@ -5,13 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
-pkpps_ensure_schema($pdo);
 
 $tahun = (int) ($_GET['tahun'] ?? date('Y'));
 if ($tahun < 2000 || $tahun > 2100) {
@@ -26,81 +24,22 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
     $sampai = date('Y-m-d');
 }
 
-$goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-$mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-$aktifSql = santri_sql_aktif_only('s');
-$nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-
-$finalizeEnd = $sampai;
-$today = date('Y-m-d');
-$auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-if ($finalizeEnd > $today) {
-    $finalizeEnd = $today;
-}
-if ($dari <= $finalizeEnd) {
-    presensi_finalize_date_range($pdo, $dari, $finalizeEnd, $auditUserId > 0 ? $auditUserId : 1);
+$syncPresensi = isset($_GET['sync']) && (string) $_GET['sync'] === '1';
+if ($syncPresensi) {
+    $today = date('Y-m-d');
+    $finalizeEnd = $sampai > $today ? $today : $sampai;
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    if ($dari <= $finalizeEnd) {
+        presensi_finalize_date_range($pdo, $dari, $finalizeEnd, $auditUserId > 0 ? $auditUserId : 1);
+    }
+    unset($_SESSION['pkpps_keaktivan_tahun_' . $tahun]);
 }
 
-$santriRows = [];
-if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'presensi')) {
-    $santriDari = sprintf('%04d-01-01', $tahun);
-    $santriSampai = sprintf('%04d-12-31', $tahun);
-    if ($santriSampai > $today) {
-        $santriSampai = $today;
-    }
-    if ($santriDari <= $santriSampai) {
-        presensi_finalize_date_range($pdo, $santriDari, $santriSampai, $auditUserId > 0 ? $auditUserId : 1);
-    }
-
-    $st = $pdo->prepare('
-        SELECT
-            s.id AS santri_id,
-            s.nis,
-            s.' . $nameCol . ' AS nama_santri,
-            t.nama_tingkatan AS pkpps_tingkatan
-        FROM pkpps_santri ps
-        INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
-        INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
-        WHERE ps.is_aktif = 1 AND t.is_aktif = 1
-        ORDER BY t.urutan ASC, s.' . $nameCol . ' ASC
-    ');
-    $st->execute();
-    $baseRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
-    $santriIds = array_values(array_filter(array_map(static fn (array $r): int => (int) ($r['santri_id'] ?? 0), $baseRows)));
-    $eligibleAll = $santriDari <= $santriSampai
-        ? rekap_keaktifan_fetch_eligible_rows($pdo, $santriDari, $santriSampai, $santriIds, 0, false)
-        : [];
-    $eligibleBySid = [];
-    foreach ($eligibleAll as $row) {
-        $sid = (int) ($row['santri_id'] ?? 0);
-        if ($sid <= 0) {
-            continue;
-        }
-        $eligibleBySid[$sid][] = $row;
-    }
-    foreach ($baseRows as $r) {
-        $sid = (int) ($r['santri_id'] ?? 0);
-        if ($sid <= 0) {
-            continue;
-        }
-        $totals = rekap_keaktifan_totals_from_rows($eligibleBySid[$sid] ?? []);
-        $alpa = (int) ($totals['alpa'] ?? 0);
-        $total = (int) ($totals['total'] ?? 0);
-        $hadir = (int) ($totals['hadir'] ?? 0);
-        $r['hadir'] = $hadir;
-        $r['izin'] = (int) ($totals['izin'] ?? 0);
-        $r['sakit'] = (int) ($totals['sakit'] ?? 0);
-        $r['alpa'] = $alpa;
-        $r['total'] = $total;
-        $r['kategori'] = $total > 0 ? santri_category($alpa, $goodMax, $mediumMax) : '—';
-        $r['persen'] = $total > 0 ? round($hadir / $total * 100, 1) : 0;
-        $santriRows[] = $r;
-    }
-}
+$santriRows = pkpps_rekap_keaktivan_santri_tahun($pdo, $tahun, !$syncPresensi);
 
 $pembimbingRows = [];
 if (table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'presensi_pembimbing')) {
+    pkpps_ensure_schema($pdo);
     $st = $pdo->prepare('
         SELECT
             b.id,
@@ -145,7 +84,15 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="form-label small mb-0">Sampai</label>
         <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>">
     </div>
-    <div class="col-auto"><button class="btn btn-primary btn-sm">Terapkan</button></div>
+    <div class="col-auto d-flex flex-wrap gap-1">
+        <button class="btn btn-primary btn-sm">Terapkan</button>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php?' . http_build_query(array_filter([
+            'tahun' => (string) $tahun,
+            'dari' => $dari,
+            'sampai' => $sampai,
+            'sync' => '1',
+        ])))) ?>">Sinkron presensi</a>
+    </div>
 </form>
 
 <div class="card shadow-sm mb-3">
@@ -219,5 +166,7 @@ require_once __DIR__ . '/../includes/header.php';
         </table>
     </div>
 </div>
+
+<p class="small text-muted">Data dibaca langsung dari presensi. Jika angka ALPA belum lengkap, klik <strong>Sinkron presensi</strong> (sekali) untuk memperbarui hari yang belum difinalisasi.</p>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

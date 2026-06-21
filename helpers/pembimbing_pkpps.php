@@ -6,6 +6,34 @@ require_once __DIR__ . '/pkpps.php';
 require_once __DIR__ . '/santri_operasional.php';
 
 const PEMBIMBING_PKPPS_LABEL_PREFIX = 'PKPPS · ';
+const PKPPS_KEGIATAN_KATEGORI = 'PKPPS';
+
+/** @return list<string> */
+function pkpps_kegiatan_kategori_allowed(): array
+{
+    return ['PKPPS', 'TAALIM', 'JAMAAH'];
+}
+
+function pkpps_normalize_kegiatan_kategori(string $raw, bool $defaultPkpps = false): string
+{
+    $k = strtoupper(trim($raw));
+    if ($k === 'PKPPS') {
+        return PKPPS_KEGIATAN_KATEGORI;
+    }
+    if ($k === 'JAMAAH') {
+        return 'JAMAAH';
+    }
+    if ($defaultPkpps) {
+        return PKPPS_KEGIATAN_KATEGORI;
+    }
+
+    return 'TAALIM';
+}
+
+function pkpps_is_kegiatan_kategori(string $kategori): bool
+{
+    return strtoupper(trim($kategori)) === PKPPS_KEGIATAN_KATEGORI;
+}
 
 function pembimbing_pkpps_label(string $namaTingkatan): string
 {

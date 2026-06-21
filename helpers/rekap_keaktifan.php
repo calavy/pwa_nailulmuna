@@ -268,7 +268,8 @@ function rekap_keaktifan_fetch_eligible_rows(
             s.' . $nameCol . ' AS nama_santri,
             s.nis,
             s.tingkatan,
-            COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
+            COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan,
+            COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
         LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
@@ -309,20 +310,22 @@ function rekap_keaktifan_totals_from_rows(array $rows): array
  * Rekap per kegiatan dari baris eligible (format daftar untuk portal).
  *
  * @param list<array<string, mixed>> $rows
- * @return list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
  */
 function rekap_keaktifan_kegiatan_list_from_rows(array $rows): array
 {
-    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}> $byKey */
+    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}> $byKey */
     $byKey = [];
     foreach ($rows as $row) {
         $kid = (int) ($row['kegiatan_id'] ?? 0);
         $label = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Lainnya / tanpa kegiatan';
+        $kat = strtoupper(trim((string) ($row['kategori_kegiatan'] ?? 'TAALIM')));
         $key = $kid . '|' . $label;
         if (!isset($byKey[$key])) {
             $byKey[$key] = [
                 'kegiatan_id' => $kid,
                 'nama_kegiatan' => $label,
+                'kategori_kegiatan' => $kat !== '' ? $kat : 'TAALIM',
                 'hadir' => 0,
                 'izin' => 0,
                 'sakit' => 0,

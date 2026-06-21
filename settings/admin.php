@@ -36,6 +36,7 @@ $pdo->exec('
 ');
 
 migrate_keuangan_permissions_split($pdo);
+migrate_pkpps_permissions_split($pdo);
 $permissionGroups = user_permission_groups();
 $permissionOptions = user_permission_flat_options();
 
@@ -593,13 +594,19 @@ require_once __DIR__ . '/../includes/header.php';
                                 <div class="perm-access-scroll" tabindex="0" aria-label="Daftar hak akses, geser atas bawah">
                             <?php foreach ($permissionGroups as $groupId => $group):
                                 $isKeuanganGroup = $groupId === 'keuangan';
+                                $isPkppsGroup = $groupId === 'pkpps_modul';
+                                $isKajianGroup = $groupId === 'kajian';
+                                $isJamaahGroup = $groupId === 'jamaah';
                             ?>
-                                <div class="perm-group border rounded mb-3 p-2<?= $isKeuanganGroup ? ' border-primary border-2 bg-primary bg-opacity-10' : '' ?>"
+                                <div class="perm-group border rounded mb-3 p-2<?= $isKeuanganGroup ? ' border-primary border-2 bg-primary bg-opacity-10' : '' ?><?= $isPkppsGroup ? ' border-warning border-2 bg-warning bg-opacity-10' : '' ?><?= $isKajianGroup ? ' border-info border-2 bg-info bg-opacity-10' : '' ?><?= $isJamaahGroup ? ' border-success border-2 bg-success bg-opacity-10' : '' ?>"
                                      id="perm-group-<?= htmlspecialchars($groupId) ?>-<?= $uid ?>"
                                      data-group="<?= htmlspecialchars($groupId) ?>">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                                        <h6 class="mb-0 fw-semibold<?= $isKeuanganGroup ? ' text-primary' : '' ?>">
+                                        <h6 class="mb-0 fw-semibold<?= $isKeuanganGroup ? ' text-primary' : '' ?><?= $isPkppsGroup ? ' text-warning-emphasis' : '' ?><?= $isKajianGroup ? ' text-info-emphasis' : '' ?><?= $isJamaahGroup ? ' text-success-emphasis' : '' ?>">
                                             <?php if ($isKeuanganGroup): ?><i class="fa-solid fa-wallet me-1"></i><?php endif; ?>
+                                            <?php if ($isPkppsGroup): ?><i class="fa-solid fa-graduation-cap me-1"></i><?php endif; ?>
+                                            <?php if ($isKajianGroup): ?><i class="fa-solid fa-book-open me-1"></i><?php endif; ?>
+                                            <?php if ($isJamaahGroup): ?><i class="fa-solid fa-people-group me-1"></i><?php endif; ?>
                                             <?= htmlspecialchars((string) $group['label']) ?>
                                         </h6>
                                         <div class="d-flex flex-wrap gap-1">
@@ -608,16 +615,38 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <button type="button" class="btn btn-outline-primary btn-sm perm-preset" data-preset="keuangan_operasional">Operasional keuangan</button>
                                                 <button type="button" class="btn btn-outline-primary btn-sm perm-preset" data-preset="keuangan_laporan_saja">Laporan saja</button>
                                             <?php endif; ?>
+                                            <?php if ($isPkppsGroup): ?>
+                                                <button type="button" class="btn btn-warning btn-sm perm-preset" data-preset="pkpps_semua">Semua PKPPS</button>
+                                            <?php endif; ?>
+                                            <?php if ($isKajianGroup): ?>
+                                                <button type="button" class="btn btn-info btn-sm perm-preset" data-preset="kajian_semua">Semua kajian</button>
+                                            <?php endif; ?>
+                                            <?php if ($isJamaahGroup): ?>
+                                                <button type="button" class="btn btn-success btn-sm perm-preset" data-preset="jamaah_semua">Semua jama'ah</button>
+                                            <?php endif; ?>
                                             <button type="button" class="btn btn-outline-secondary btn-sm perm-group-check" data-group="<?= htmlspecialchars($groupId) ?>">Semua</button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm perm-group-uncheck" data-group="<?= htmlspecialchars($groupId) ?>">Kosong</button>
                                         </div>
                                     </div>
                                     <div class="row g-2">
-                                        <?php foreach ($group['permissions'] as $key => $label): ?>
+                                        <?php foreach ($group['permissions'] as $key => $label):
+                                            $submenus = user_permission_submenus_for_key((string) $key);
+                                        ?>
                                             <div class="col-md-6">
-                                                <div class="form-check">
+                                                <div class="form-check perm-check-block">
                                                     <input class="form-check-input perm-checkbox" type="checkbox" name="permissions[]" value="<?= htmlspecialchars($key) ?>" id="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>" data-group="<?= htmlspecialchars($groupId) ?>" <?= in_array($key, $selected, true) ? 'checked' : '' ?>>
-                                                    <label class="form-check-label small" for="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>"><?= htmlspecialchars((string) $label) ?></label>
+                                                    <label class="form-check-label small fw-semibold" for="perm_<?= $uid ?>_<?= htmlspecialchars($key) ?>"><?= htmlspecialchars((string) $label) ?></label>
+                                                    <?php if ($submenus !== []): ?>
+                                                        <ul class="perm-submenu-list mb-0 mt-1 ps-3">
+                                                            <?php foreach ($submenus as $sm): ?>
+                                                                <li class="small text-muted">
+                                                                    <i class="fa-solid fa-angle-right me-1 opacity-50"></i>
+                                                                    <?= htmlspecialchars((string) ($sm['label'] ?? '')) ?>
+                                                                    <span class="font-monospace opacity-75"><?= htmlspecialchars((string) ($sm['path'] ?? '')) ?></span>
+                                                                </li>
+                                                            <?php endforeach; ?>
+                                                        </ul>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                         <?php endforeach; ?>

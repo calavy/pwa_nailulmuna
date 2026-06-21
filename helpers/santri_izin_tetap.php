@@ -368,9 +368,8 @@ function santri_izin_tetap_kegiatan_ditinggalkan_efektif(PDO $pdo, array $izinRo
     if ($stored !== '') {
         return $stored;
     }
-    if (strtoupper((string) ($izinRow['jenis'] ?? 'HIDMAH')) !== 'HIDMAH') {
-        return '';
-    }
+
+    $jenis = strtoupper((string) ($izinRow['jenis'] ?? 'HIDMAH'));
     $izinId = (int) ($izinRow['id'] ?? 0);
     if ($slots === null && $izinId > 0) {
         $slots = santri_izin_tetap_slots($pdo, $izinId);
@@ -378,14 +377,32 @@ function santri_izin_tetap_kegiatan_ditinggalkan_efektif(PDO $pdo, array $izinRo
     if ($slots === [] || $slots === null) {
         return '';
     }
+
     $tingkatan = trim((string) ($izinRow['tingkatan'] ?? ''));
     $tingList = $tingkatan !== '' ? [$tingkatan] : [];
-    $auto = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $slots, $tingList);
+    if ($tingList === [] && $izinId > 0) {
+        $tingList = santri_izin_tetap_tingkatan_for_santri_ids($pdo, [(int) ($izinRow['santri_id'] ?? 0)]);
+    }
+
+    $hanyaJamaah = $jenis !== 'TUGAS';
+    $auto = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $slots, $tingList, $hanyaJamaah);
     if ($auto === []) {
         return '';
     }
 
     return implode(', ', array_map(static fn (array $r): string => (string) $r['nama'], $auto));
+}
+
+/**
+ * Daftar nama kegiatan untuk surat cetak (dari data tersimpan atau jadwal).
+ *
+ * @return list<string>
+ */
+function santri_izin_tetap_kegiatan_items_for_print(PDO $pdo, array $izinRow): array
+{
+    $raw = santri_izin_tetap_kegiatan_ditinggalkan_efektif($pdo, $izinRow);
+
+    return santri_izin_tetap_kegiatan_items_dari_raw($raw);
 }
 
 /**
@@ -864,9 +881,10 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         return ['ok' => false, 'message' => 'Centang minimal satu hari dan isi jam yang valid pada blok waktu.'];
     }
 
-    if (($kegDb === null || $kegDb === '') && $jenis === 'HIDMAH') {
+    if (($kegDb === null || $kegDb === '') && in_array($jenis, ['HIDMAH', 'TUGAS'], true)) {
         $tingList = santri_izin_tetap_tingkatan_for_santri_ids($pdo, $santriIds);
-        $autoKeg = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $normalizedSlots, $tingList);
+        $hanyaJamaah = $jenis !== 'TUGAS';
+        $autoKeg = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $normalizedSlots, $tingList, $hanyaJamaah);
         if ($autoKeg !== []) {
             $kegDb = implode(', ', array_map(static fn (array $r): string => (string) $r['nama'], $autoKeg));
         }

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/excel.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
+require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 
 require_roles(['admin', 'pengurus']);
 pkpps_ensure_schema($pdo);
@@ -15,8 +16,8 @@ ensure_kegiatan_kategori_column($pdo);
 if (($_GET['template'] ?? '') === 'xlsx') {
     send_xlsx_download('template_import_jadwal_pkpps.xlsx', [
         ['tingkatan_pkpps', 'nama_kegiatan', 'kategori_kegiatan', 'hari_ke', 'jam_mulai', 'jam_selesai', 'tempat', 'nip_pembimbing'],
-        ['PKPPS Tingkat 1', 'Ngaji PKPPS', 'TAALIM', 1, '07:00', '08:00', 'Ruang PKPPS', ''],
-        ['PKPPS Tingkat 2', 'Sholat Dhuha', 'JAMAAH', 0, '06:30', '07:00', 'Masjid', '12345'],
+        ['PKPPS Tingkat 1', 'Ngaji PKPPS', 'PKPPS', 1, '07:00', '08:00', 'Ruang PKPPS', ''],
+        ['PKPPS Tingkat 2', 'Sholat Dhuha', 'PKPPS', 0, '06:30', '07:00', 'Masjid', '12345'],
     ], 'Template Jadwal PKPPS');
     exit;
 }
@@ -70,10 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($rows as $raw) {
         $namaTingkat = trim((string) ($raw['tingkatan_pkpps'] ?? $raw['nama_tingkatan'] ?? ''));
         $namaKeg = trim((string) ($raw['nama_kegiatan'] ?? ''));
-        $kategoriKeg = strtoupper(trim((string) ($raw['kategori_kegiatan'] ?? 'TAALIM')));
-        if (!in_array($kategoriKeg, ['JAMAAH', 'TAALIM'], true)) {
-            $kategoriKeg = 'TAALIM';
-        }
+        $kategoriKeg = pkpps_normalize_kegiatan_kategori((string) ($raw['kategori_kegiatan'] ?? ''), true);
         $hariKe = (int) ($raw['hari_ke'] ?? 0);
         $jamMulai = trim((string) ($raw['jam_mulai'] ?? ''));
         $jamSelesai = trim((string) ($raw['jam_selesai'] ?? ''));
@@ -127,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $ok++;
     }
+    pkpps_sync_kegiatan_kategori($pdo);
     set_flash('success', "Import PKPPS selesai: {$ok} baris jadwal, {$skip} dilewati.");
     header('Location: ' . app_href('/pkpps/jadwal.php'));
     exit;
@@ -140,7 +139,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/pkpps/jadwal.php')) ?>">Jadwal PKPPS</a></p>
     <h1 class="h4 mb-1">Import jadwal PKPPS Excel / CSV</h1>
     <p class="text-muted mb-0 small">
-        Kolom: tingkatan_pkpps, nama_kegiatan, kategori_kegiatan (JAMAAH/TAALIM), hari_ke (0=setiap hari, 1–7),
+        Kolom: tingkatan_pkpps, nama_kegiatan, kategori_kegiatan (PKPPS/TAALIM/JAMAAH — default PKPPS), hari_ke (0=setiap hari, 1–7),
         jam_mulai, jam_selesai, tempat, nip_pembimbing
     </p>
 </div>

@@ -1905,3 +1905,231 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
         grid-column: 1 / -1;
     }
 }
+
+/* Portal banner dinamis (tema default / kajian / pkpps / jamaah) */
+.pb-portal-banner {
+    position: relative;
+    margin-bottom: 0.75rem;
+    border-radius: 16px;
+    overflow: hidden;
+    color: #ecfdf5;
+    background: linear-gradient(145deg, var(--pb-banner-from) 0%, var(--pb-banner-via) 48%, var(--pb-banner-to) 100%);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--pb-banner-from) 35%, transparent);
+}
+
+.pb-portal-banner__decor {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.22;
+    background-image: radial-gradient(circle at 20% 20%, var(--pb-banner-glow) 0, transparent 42%);
+}
+
+.pb-portal-banner--pattern-dots .pb-portal-banner__decor {
+    background-image:
+        radial-gradient(circle at 20% 30%, var(--pb-banner-glow) 0, transparent 35%),
+        radial-gradient(circle, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+    background-size: auto, 14px 14px;
+}
+
+.pb-portal-banner--pattern-grid .pb-portal-banner__decor {
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+
+.pb-portal-banner--pattern-rays .pb-portal-banner__decor {
+    background: conic-gradient(from 210deg at 80% 0%, var(--pb-banner-glow), transparent 35%, transparent);
+}
+
+.pb-portal-banner--pattern-waves .pb-portal-banner__decor {
+    background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 12px);
+}
+
+.pb-portal-banner--live {
+    box-shadow: 0 12px 36px color-mix(in srgb, var(--pb-banner-glow) 45%, transparent);
+}
+
+.pb-portal-banner__inner {
+    position: relative;
+    z-index: 1;
+    padding: 0.85rem 0.95rem 0.9rem;
+}
+
+.pb-portal-banner__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.pb-portal-banner__logo-wrap,
+.pb-portal-banner__icon-wrap {
+    flex-shrink: 0;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.pb-portal-banner__logo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.pb-portal-banner__icon-wrap {
+    color: var(--pb-banner-from);
+    font-size: 1.25rem;
+}
+
+.pb-portal-banner__identity {
+    flex: 1;
+    min-width: 0;
+}
+
+.pb-portal-banner__kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--pb-banner-accent) 85%, white);
+    font-weight: 600;
+}
+
+.pb-portal-banner__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+}
+
+.pb-portal-banner__title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #fff;
+}
+
+.pb-portal-banner__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pb-portal-banner__badge.is-hadir {
+    background: rgba(16, 185, 129, 0.25);
+    color: #d1fae5;
+}
+
+.pb-portal-banner__badge.is-wait {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.pb-portal-banner__subtitle {
+    margin-top: 0.35rem;
+    font-size: 0.82rem;
+    color: rgba(236, 253, 245, 0.88);
+    line-height: 1.35;
+}
+
+.pb-portal-banner__tagline {
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: var(--pb-banner-accent);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+.pb-portal-banner__clock {
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 5.5rem;
+}
+
+.pb-portal-banner__clock-time {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+}
+
+.pb-portal-banner__clock-date,
+.pb-portal-banner__clock-hijri {
+    font-size: 0.68rem;
+    color: rgba(236, 253, 245, 0.82);
+}
+
+.pb-portal-banner__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.65rem;
+}
+
+.pb-portal-banner__chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.pb-portal-banner__chip--pkpps {
+    background: color-mix(in srgb, var(--pb-banner-accent) 25%, transparent);
+    border-color: color-mix(in srgb, var(--pb-banner-accent) 40%, transparent);
+}
+
+.pb-portal-banner__chip--live {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(252, 165, 165, 0.35);
+}
+
+.pb-portal-banner__chip--live .fa-circle {
+    font-size: 0.45rem;
+    color: #fca5a5;
+    animation: pb-banner-live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pb-banner-live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.pb-keaktivan-page .pb-portal-banner {
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 575px) {
+    .pb-portal-banner__head {
+        flex-wrap: wrap;
+    }
+
+    .pb-portal-banner__clock {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.25rem 0.75rem;
+        text-align: left;
+        margin-top: 0.35rem;
+        padding-top: 0.35rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+}

@@ -10,11 +10,37 @@ require_once __DIR__ . '/presensi_jadwal.php';
 require_once __DIR__ . '/rekap_keaktifan_hari.php';
 
 /**
+ * Terapkan status efektif memakai jam_selesai jadwal PKPPS (tanpa peta jadwal kajian global).
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function rekap_pkpps_keaktifan_apply_status_efektif(array $rows, string $tanggal, ?string $asOfDatetime = null): array
+{
+    if ($rows === []) {
+        return [];
+    }
+    foreach ($rows as &$row) {
+        $jamSelesai = trim((string) ($row['jam_selesai'] ?? ''));
+        $raw = (string) ($row['status_hari_ini'] ?? '');
+        $row['status_hari_ini'] = presensi_status_efektif(
+            $raw,
+            $tanggal,
+            $jamSelesai !== '' ? $jamSelesai : null,
+            $asOfDatetime
+        );
+    }
+    unset($row);
+
+    return $rows;
+}
+
+/**
  * Baris presensi santri PKPPS per jadwal pada tanggal.
  *
  * @return list<array<string, mixed>>
  */
-function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int $tingkatanFilter = null): array
+function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int $tingkatanFilter = null, bool $runFinalize = true): array
 {
     if (
         !table_exists($pdo, 'pkpps_jadwal')
@@ -26,14 +52,23 @@ function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int 
     }
 
     pkpps_ensure_schema($pdo);
-    ensure_presensi_pkpps_column($pdo);
+    if ($runFinalize) {
+        ensure_presensi_pkpps_column($pdo);
+    }
 
     $hariKe = (int) date('N', strtotime($tanggal) ?: time());
     $aktifSql = santri_sql_aktif_only('s');
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 
+    $today = date('Y-m-d');
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+    if ($runFinalize) {
+        if ($tanggal === $today) {
+            presensi_finalize_today_throttled($pdo, $auditUserId > 0 ? $auditUserId : 1, 180);
+        } elseif (!presensi_finalized_date_is_set($pdo, $tanggal)) {
+            presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+        }
+    }
 
     $params = ['tgl' => $tanggal, 'hari' => $hariKe];
     $tkWhere = '';
@@ -41,6 +76,18 @@ function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int 
         $tkWhere = ' AND j.pkpps_tingkatan_id = :tid';
         $params['tid'] = $tingkatanFilter;
     }
+
+    static $hasPkppsJadwalCol = null;
+    if ($hasPkppsJadwalCol === null) {
+        $hasPkppsJadwalCol = column_exists($pdo, 'presensi', 'pkpps_jadwal_id');
+    }
+    $presensiJoin = $hasPkppsJadwalCol
+        ? 'LEFT JOIN presensi p ON p.santri_id = s.id
+            AND p.tanggal_presensi = :tgl
+            AND (p.pkpps_jadwal_id = j.id OR (p.pkpps_jadwal_id IS NULL AND p.kegiatan_id = j.kegiatan_id))'
+        : 'LEFT JOIN presensi p ON p.santri_id = s.id
+            AND p.kegiatan_id = j.kegiatan_id
+            AND p.tanggal_presensi = :tgl';
 
     $sql = "
         SELECT
@@ -66,9 +113,7 @@ function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int 
         INNER JOIN pkpps_santri ps ON ps.pkpps_tingkatan_id = t.id AND ps.is_aktif = 1
         INNER JOIN santri s ON s.id = ps.santri_id AND {$aktifSql}
         LEFT JOIN pembimbing b ON b.id = j.pembimbing_id
-        LEFT JOIN presensi p ON p.santri_id = s.id
-            AND p.kegiatan_id = j.kegiatan_id
-            AND p.tanggal_presensi = :tgl
+        {$presensiJoin}
         WHERE j.is_aktif = 1
           AND (j.hari_ke = 0 OR j.hari_ke = :hari)
           {$tkWhere}
@@ -79,7 +124,7 @@ function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int 
     $st->execute($params);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    return presensi_apply_status_efektif_rows($pdo, $rows, $tanggal);
+    return rekap_pkpps_keaktifan_apply_status_efektif($rows, $tanggal);
 }
 
 /**
@@ -87,9 +132,9 @@ function rekap_pkpps_keaktifan_hari_santri_rows(PDO $pdo, string $tanggal, ?int 
  *
  * @return list<array<string, mixed>>
  */
-function rekap_pkpps_keaktifan_hari_santri_cards(PDO $pdo, string $tanggal, ?int $tingkatanFilter = null): array
+function rekap_pkpps_keaktifan_hari_santri_cards(PDO $pdo, string $tanggal, ?int $tingkatanFilter = null, bool $runFinalize = true): array
 {
-    $rows = rekap_pkpps_keaktifan_hari_santri_rows($pdo, $tanggal, $tingkatanFilter);
+    $rows = rekap_pkpps_keaktifan_hari_santri_rows($pdo, $tanggal, $tingkatanFilter, $runFinalize);
     $byJadwal = [];
 
     foreach ($rows as $r) {
@@ -258,6 +303,39 @@ function rekap_pkpps_keaktifan_hari_pembimbing_cards(PDO $pdo, string $tanggal):
     }
 
     return array_values($byPb);
+}
+
+/**
+ * Bundle keaktifan hari (cache singkat agar navigasi tab PKPPS cepat).
+ *
+ * @return array{santri:list<array<string,mixed>>,pembimbing:list<array<string,mixed>>}
+ */
+function rekap_pkpps_keaktifan_hari_bundle(PDO $pdo, string $tanggal, ?int $tingkatanFilter = null, bool $forceRefresh = false): array
+{
+    $tid = (int) ($tingkatanFilter ?? 0);
+    $cacheKey = 'pkpps_hari_bundle_' . $tanggal . '_' . $tid;
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        !$forceRefresh
+        && is_array($cached)
+        && isset($cached['ts'], $cached['data'])
+        && is_array($cached['data'])
+        && (time() - (int) $cached['ts']) < 90
+    ) {
+        return $cached['data'];
+    }
+
+    if ($forceRefresh) {
+        unset($_SESSION[$cacheKey]);
+    }
+    $runFinalize = $forceRefresh;
+    $data = [
+        'santri' => rekap_pkpps_keaktifan_hari_santri_cards($pdo, $tanggal, $tingkatanFilter > 0 ? $tingkatanFilter : null, $runFinalize),
+        'pembimbing' => rekap_pkpps_keaktifan_hari_pembimbing_cards($pdo, $tanggal),
+    ];
+    $_SESSION[$cacheKey] = ['ts' => time(), 'data' => $data];
+
+    return $data;
 }
 
 function ensure_presensi_pkpps_column(PDO $pdo): void

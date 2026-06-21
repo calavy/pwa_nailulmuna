@@ -159,11 +159,13 @@ return [
         '/pkpps/jadwal.php' => 'Jadwal PKPPS',
         '/pkpps/import.php' => 'Import Jadwal PKPPS',
         '/pkpps/index.php' => 'Dashboard PKPPS',
+        '/pkpps/hub.php' => 'PKPPS (Hub)',
         '/pkpps/tugas/index.php' => 'Tugas & Soal PKPPS',
         '/pkpps/tugas/buat.php' => 'Buat Tugas PKPPS',
         '/pkpps/tugas/nilai.php' => 'Nilai Tugas PKPPS',
         '/pkpps/tugas/rekap.php' => 'Rekap Tugas PKPPS',
         '/rekap/pkpps_keaktivan.php' => 'Keaktivan PKPPS',
+        '/rekap/pkpps_keaktifan_hari.php' => 'Keaktifan PKPPS Hari Ini',
         '/settings/kelas_syahriyah.php' => 'Jenis Syahriyah (master)',
         '/pembayaran/rekap_pos.php' => 'Rekap per POS',
         '/rekap/pembimbing.php' => 'Payroll Pembimbing',
@@ -173,6 +175,7 @@ return [
         '/rekap/izin_telat.php' => 'Rekap Telat',
         '/settings/push.php' => 'Notifikasi & Lonceng',
         '/settings/admin.php' => 'Kelola Akses User',
+        '/settings/portal_pembimbing.php' => 'Banner Portal Pembimbing',
         '/settings/presensi_data.php' => 'Kelola Data Presensi',
         '/yayasan/sdm.php' => 'SDM Musyawarah',
         '/yayasan/scan_musyawarah.php' => 'Scan Musyawarah',
@@ -231,7 +234,6 @@ return [
                 '/pembayaran/laporan.php',
                 '/pembayaran/kartu_syahriyah_santri.php',
                 '/pembayaran/laporan_kopsa_per_santri.php',
-                '/pembayaran/laporan_pkpps_syahriyah.php',
                 '/rekap/pembimbing.php',
             ]],
             ['title' => 'Pengaturan', 'paths' => [
@@ -241,14 +243,28 @@ return [
                 '/keuangan/inventaris.php',
             ]],
         ]],
-        ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [
-            ['title' => 'PKPPS', 'paths' => [
+        ['type' => 'group', 'id' => 'menu-grp-pkpps', 'label' => 'PKPPS', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
+            ['title' => 'Program PKPPS', 'paths' => [
+                '/pkpps/hub.php',
                 '/pkpps/index.php',
                 '/pkpps/santri.php',
+                '/pkpps/import_santri.php',
                 '/pkpps/jadwal.php',
+                '/pkpps/import.php',
                 '/pkpps/tugas/index.php',
-                '/rekap/pkpps_keaktivan.php',
+                '/pkpps/tugas/buat.php',
+                '/pkpps/tugas/nilai.php',
+                '/pkpps/tugas/rekap.php',
             ]],
+            ['title' => 'Keaktivan & Laporan', 'paths' => [
+                '/rekap/pkpps_keaktifan_hari.php',
+                '/rekap/pkpps_keaktivan.php',
+                '/pembayaran/laporan_pkpps_syahriyah.php',
+                '/pembimbing/pkpps_santri.php',
+                '/settings/tingkatan.php',
+            ]],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [
             ['title' => 'Jadwal & Scan', 'paths' => [
                 '/jadwal/index.php',
                 '/jadwal/kegiatan.php',
@@ -281,8 +297,9 @@ return [
         ]],
         ['type' => 'group', 'id' => 'menu-grp-perizinan', 'label' => 'Perizinan', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'sections' => [
             ['title' => 'Alur izin', 'paths' => [
-                '/perizinan/index.php',
+                '/perizinan/hub.php',
                 '/perizinan/permohonan.php',
+                '/perizinan/index.php',
                 '/pengasuh/perizinan.php',
                 '/perizinan/rekap_aktif.php',
                 '/perizinan/izin_tetap.php',
@@ -327,6 +344,7 @@ return [
             ]],
             ['title' => 'Akses & Sistem', 'paths' => [
                 '/settings/admin.php',
+                '/settings/portal_pembimbing.php',
                 '/settings/akses_mukimin.php',
                 '/settings/presensi_data.php',
                 '/settings/push.php',
@@ -348,6 +366,7 @@ return [
         ['path' => '/settings/tarif_payroll.php', 'label' => 'Tarif Payroll', 'icon' => 'fa-solid fa-sack-dollar', 'group' => 'Master Data'],
         ['path' => '/settings/opsional_santri.php', 'label' => 'Opsional Makan & Saku', 'icon' => 'fa-solid fa-utensils', 'group' => 'Master Data'],
         ['path' => '/settings/admin.php', 'label' => 'Kelola Akses User', 'icon' => 'fa-solid fa-user-shield', 'group' => 'Sistem'],
+        ['path' => '/settings/portal_pembimbing.php', 'label' => 'Banner Portal Pembimbing', 'icon' => 'fa-solid fa-panorama', 'group' => 'Sistem'],
         ['path' => '/settings/akses_mukimin.php', 'label' => 'Akses Portal Mukimin', 'icon' => 'fa-solid fa-key', 'group' => 'Sistem'],
         ['path' => '/settings/presensi_data.php', 'label' => 'Kelola Data Presensi', 'icon' => 'fa-solid fa-database', 'group' => 'Sistem'],
         ['path' => '/settings/push.php', 'label' => 'Notifikasi & Lonceng', 'icon' => 'fa-solid fa-bell', 'group' => 'Sistem'],

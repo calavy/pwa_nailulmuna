@@ -48,67 +48,10 @@ $setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo :
 
 <section class="pb-dash-home-top" aria-label="Dashboard pembimbing">
 
-    <div class="pb-dash-hero-banner<?= $kegiatanAktifPresensi !== [] ? ' pb-dash-hero-banner--has-live' : '' ?>">
-
-        <div class="pb-dash-hero-banner__head">
-
-            <?php if (($appLogoHref ?? '') !== ''): ?>
-            <div class="pb-dash-hero-banner__logo-wrap" aria-hidden="true">
-                <img src="<?= htmlspecialchars((string) $appLogoHref) ?>" alt="" class="pb-dash-hero-banner__logo" decoding="async" data-pondok-cache="1">
-            </div>
-            <?php endif; ?>
-
-            <div class="pb-dash-hero-banner__identity">
-
-                <p class="pb-dash-hero-banner__kicker mb-0">
-
-                    <?php if ($isMunawibPortal): ?>
-                    Portal Munawib · Pengganti pembimbing
-                    <?php else: ?>
-                    Portal Pembimbing<?= !empty($pbDashHasPkpps) ? ' · PKPPS' : '' ?>
-                    <?php endif; ?>
-
-                </p>
-
-                <div class="pb-dash-hero-banner__name-row">
-
-                    <h1 class="pb-dash-hero-banner__name mb-0"><?= htmlspecialchars($labelUser) ?></h1>
-                    <?php if (!$isMunawibPortal): ?>
-                    <span class="badge <?= $pbSudahHadir ? 'text-bg-success' : 'text-bg-secondary' ?>">
-                        <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?> me-1" aria-hidden="true"></i>
-                        <?= $pbSudahHadir ? 'Hadir' : 'Belum scan' ?>
-                    </span>
-                    <?php endif; ?>
-
-                    <div class="pb-dash-hero-banner__clock" aria-live="polite">
-
-                        <div class="pb-dash-hero-banner__clock-time" id="dashboard-live-clock">--:--:--</div>
-
-                    </div>
-
-                </div>
-
-                <div class="pb-dash-hero-banner__meta-row pb-dash-hero-banner__meta-row--clock-only">
-
-                    <div class="pb-dash-hero-banner__clock-meta">
-
-                        <div class="pb-dash-hero-banner__clock-date" id="dashboard-live-date"<?= $pbDashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($pbDashPasaran) . '"' : '' ?>>—</div>
-
-                        <?php if ($pbDashHijriLabel !== ''): ?>
-                        <div class="pb-dash-hero-banner__clock-hijri d-none d-md-block">
-                            <i class="fa-solid fa-moon me-1" aria-hidden="true"></i><?= htmlspecialchars($pbDashHijriLabel) ?>
-                        </div>
-                        <?php endif; ?>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
+    <?php
+    $jumlahTingkatanHome = $jumlahTingkatanPick;
+    require __DIR__ . '/portal_banner.php';
+    ?>
 
 
 

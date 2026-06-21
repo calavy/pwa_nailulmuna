@@ -16,44 +16,11 @@ require_once __DIR__ . '/../helpers/pkpps.php';
 
 pkpps_ensure_schema($pdo);
 
-$mingguKeaktivan = pkpps_dashboard_keaktivan_minggu($pdo);
-$mingguTotals = $mingguKeaktivan['totals'];
-$mingguPersen = $mingguTotals['total'] > 0
-    ? round(($mingguTotals['hadir'] / $mingguTotals['total']) * 100, 1)
-    : 0;
-$pbMinggu = $mingguKeaktivan['pembimbing'];
-
-$stats = [
-
-    'santri_aktif' => 0,
-
-    'tingkatan_aktif' => 0,
-
-    'jadwal_aktif' => 0,
-
-    'pembimbing_jadwal' => 0,
-
-];
-
-if (table_exists($pdo, 'pkpps_santri')) {
-
-    $stats['santri_aktif'] = (int) $pdo->query('SELECT COUNT(*) FROM pkpps_santri WHERE is_aktif = 1')->fetchColumn();
-
-}
-
-if (table_exists($pdo, 'pkpps_tingkatan')) {
-
-    $stats['tingkatan_aktif'] = (int) $pdo->query('SELECT COUNT(*) FROM pkpps_tingkatan WHERE is_aktif = 1')->fetchColumn();
-
-}
-
-if (table_exists($pdo, 'pkpps_jadwal')) {
-
-    $stats['jadwal_aktif'] = (int) $pdo->query('SELECT COUNT(*) FROM pkpps_jadwal WHERE is_aktif = 1')->fetchColumn();
-
-    $stats['pembimbing_jadwal'] = (int) $pdo->query('SELECT COUNT(DISTINCT pembimbing_id) FROM pkpps_jadwal WHERE is_aktif = 1 AND pembimbing_id IS NOT NULL AND pembimbing_id > 0')->fetchColumn();
-
-}
+$stats = pkpps_dashboard_stats($pdo);
+$loadMingguDetail = isset($_GET['minggu']) && (string) $_GET['minggu'] === '1';
+$mingguKeaktivan = $loadMingguDetail
+    ? pkpps_dashboard_keaktivan_minggu_cached($pdo)
+    : null;
 
 
 
@@ -89,7 +56,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="page-intro mb-3">
 
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-kajian')) ?>">Kajian</a> · PKPPS</p>
+    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-pkpps')) ?>">PKPPS</a></p>
 
     <h1 class="h4 mb-1">Dashboard PKPPS</h1>
 
@@ -157,14 +124,33 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
         <div>
             <h2 class="h6 mb-0">Keaktivan 1 minggu</h2>
-            <div class="small text-muted"><?= htmlspecialchars((string) $mingguKeaktivan['label']) ?></div>
+            <?php if ($loadMingguDetail && is_array($mingguKeaktivan)): ?>
+                <div class="small text-muted"><?= htmlspecialchars((string) $mingguKeaktivan['label']) ?></div>
+            <?php else: ?>
+                <div class="small text-muted">Ringkasan presensi 7 hari — dimuat on demand agar halaman cepat.</div>
+            <?php endif; ?>
         </div>
-        <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php')) ?>">Rekap lengkap</a>
+        <div class="d-flex flex-wrap gap-1">
+            <?php if (!$loadMingguDetail): ?>
+                <a class="btn btn-sm btn-primary" href="<?= htmlspecialchars(app_href('/pkpps/index.php?minggu=1')) ?>">Muat ringkasan minggu</a>
+            <?php else: ?>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/pkpps/index.php')) ?>">Sembunyikan</a>
+            <?php endif; ?>
+            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php')) ?>">Rekap lengkap</a>
+        </div>
     </div>
     <div class="card-body">
-        <?php if (!table_exists($pdo, 'presensi')): ?>
+        <?php if (!$loadMingguDetail || !is_array($mingguKeaktivan)): ?>
+            <p class="small text-muted mb-0">Klik <strong>Muat ringkasan minggu</strong> untuk melihat hadir/izin/alpa per hari dan tingkatan. Statistik di atas tetap tampil instan.</p>
+        <?php elseif (!table_exists($pdo, 'presensi')): ?>
             <p class="small text-muted mb-0">Modul presensi belum diaktifkan.</p>
-        <?php else: ?>
+        <?php else:
+            $mingguTotals = $mingguKeaktivan['totals'];
+            $mingguPersen = $mingguTotals['total'] > 0
+                ? round(($mingguTotals['hadir'] / $mingguTotals['total']) * 100, 1)
+                : 0;
+            $pbMinggu = $mingguKeaktivan['pembimbing'];
+        ?>
             <div class="row g-2 mb-3 text-center">
                 <div class="col-6 col-md">
                     <div class="app-mini-stat h-100">
@@ -277,8 +263,6 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </div>
 </div>
-
-
 
 <div class="alert alert-info py-2 small mb-3">
     <strong>Tarif syahriyah PKPPS</strong> di

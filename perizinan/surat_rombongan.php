@@ -299,7 +299,7 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         <?php endif; ?>
 
         <div class="box-nb">
-            <strong>Catatan:</strong> Surat ini berlaku untuk seluruh rombongan dengan satu kode verifikasi (QR). Saat rombongan tiba kembali di pesantren, petugas memindai QR ini lalu mencatat kehadiran tiap santri yang telah masuk asrama melalui sistem perizinan.
+            <strong>Catatan:</strong> Surat ini berlaku untuk seluruh rombongan. Saat tiba di pesantren, scan <strong>QR kartu masing-masing santri</strong> di halaman Scan Presensi — izin otomatis selesai per santri.
         </div>
 
         <?php require __DIR__ . '/partials/surat_pengasuh_paraf.php'; ?>
@@ -313,10 +313,8 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         require __DIR__ . '/partials/surat_ttd_pemberi.php';
         ?>
         <div class="return-box">
-            <img src="<?= htmlspecialchars($returnQr) ?>" alt="QR verifikasi kembali">
-            <p>
-                <strong>Verifikasi kedatangan rombongan:</strong> pindai QR ini kepada petugas keamanan atau petugas perizinan saat rombongan tiba di lingkungan pesantren.<br>
-                <span style="font-family:monospace;font-size:8pt">Kode: <?= htmlspecialchars($returnCode) ?></span>
+            <p class="mb-0">
+                Kode surat rombongan: <strong><?= htmlspecialchars($returnCode) ?></strong>
             </p>
         </div>
         <div class="print-time">Dicetak: <?= htmlspecialchars($jamTerbit) ?></div>

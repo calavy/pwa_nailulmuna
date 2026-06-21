@@ -5,6 +5,7 @@
     'use strict';
 
     var STORAGE_KEY = 'presensi_scan_camera_id';
+    var LIB_WAIT_MS = 12000;
 
     function labelKamera(device, index, total) {
         var raw = (device && device.label) ? device.label.trim() : '';
@@ -74,6 +75,188 @@
         }
     }
 
+    function sleep(ms) {
+        return new Promise(function (resolve) {
+            global.setTimeout(resolve, ms);
+        });
+    }
+
+    function isMobileScanDevice() {
+        try {
+            return /iPhone|iPad|iPod|Android/i.test(global.navigator.userAgent || '');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function nextPaint() {
+        return new Promise(function (resolve) {
+            global.requestAnimationFrame(function () {
+                global.requestAnimationFrame(resolve);
+            });
+        });
+    }
+
+    async function waitForHtml5Qrcode(timeoutMs) {
+        var deadline = Date.now() + timeoutMs;
+        while (typeof global.Html5Qrcode === 'undefined') {
+            if (Date.now() >= deadline) {
+                return false;
+            }
+            await sleep(40);
+        }
+        return true;
+    }
+
+    async function primeCameraPermission() {
+        if (!global.navigator.mediaDevices || !global.navigator.mediaDevices.getUserMedia) {
+            return false;
+        }
+        var constraints = [
+            { video: { facingMode: { ideal: 'environment' } }, audio: false },
+            { video: true, audio: false },
+        ];
+        for (var i = 0; i < constraints.length; i++) {
+            try {
+                var stream = await global.navigator.mediaDevices.getUserMedia(constraints[i]);
+                stream.getTracks().forEach(function (track) {
+                    track.stop();
+                });
+                return true;
+            } catch (e) {
+                /* coba constraint berikutnya */
+            }
+        }
+        return false;
+    }
+
+    function secureContextMessage() {
+        var host = (global.location && global.location.hostname) ? global.location.hostname : '';
+        var msg = 'Kamera hanya bisa dipakai lewat HTTPS atau localhost.';
+        if (host && host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') {
+            msg += ' Alamat saat ini (' + host + ') memakai HTTP — buka lewat https:// atau http://localhost.';
+        }
+        return msg;
+    }
+
+    function formatCameraError(err) {
+        var name = err && err.name ? String(err.name) : '';
+        var message = err && err.message ? String(err.message) : '';
+        if (/NotAllowedError|PermissionDeniedError/i.test(name + message)) {
+            return 'Akses kamera ditolak. Izinkan kamera di pengaturan browser/situs, lalu ketuk Ulangi.';
+        }
+        if (/NotFoundError|DevicesNotFoundError/i.test(name + message)) {
+            return 'Kamera tidak ditemukan di perangkat ini.';
+        }
+        if (/NotReadableError|TrackStartError|AbortError/i.test(name + message)) {
+            return 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi lain, lalu ketuk Ulangi.';
+        }
+        if (/OverconstrainedError/i.test(name + message)) {
+            return 'Pengaturan kamera tidak didukung. Coba ganti kamera atau matikan Super Fokus.';
+        }
+        return 'Gagal membuka kamera. Izinkan akses kamera di browser, lalu ketuk Ulangi.';
+    }
+
+    function buildScanConfig(options) {
+        options = options || {};
+        var qrbox = options.qrbox;
+        if (!qrbox) {
+            qrbox = function (vw, vh) {
+                var s = Math.min(vw, vh) * 0.78;
+                return { width: Math.floor(s), height: Math.floor(s) };
+            };
+        }
+        return {
+            fps: options.fps || 12,
+            qrbox: qrbox,
+            aspectRatio: options.aspectRatio || 1.333334,
+            disableFlip: false,
+            videoConstraints: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+            },
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: false,
+            },
+        };
+    }
+
+    async function waitReaderVisibleById(elementId) {
+        for (var i = 0; i < 16; i++) {
+            var el = document.getElementById(elementId);
+            if (el && el.offsetParent !== null && el.offsetHeight > 40) {
+                return;
+            }
+            await nextPaint();
+        }
+        await sleep(120);
+    }
+
+    async function loadCameraList() {
+        var list = [];
+        try {
+            list = await global.Html5Qrcode.getCameras();
+        } catch (e) {
+            list = [];
+        }
+        if (!list || list.length === 0) {
+            await primeCameraPermission();
+            try {
+                list = await global.Html5Qrcode.getCameras();
+            } catch (e) {
+                list = [];
+            }
+        }
+        return list || [];
+    }
+
+    async function startScannerOnDevice(qrInstance, config, onSuccess, onError, cameras, preferredCameraId) {
+        onError = onError || function () {};
+        cameras = cameras || [];
+
+        if (preferredCameraId && preferredCameraId !== 'environment' && preferredCameraId !== 'user') {
+            try {
+                await qrInstance.start(preferredCameraId, config, onSuccess, onError);
+                return preferredCameraId;
+            } catch (e) {
+                /* lanjut fallback */
+            }
+        }
+
+        try {
+            await qrInstance.start({ facingMode: 'environment' }, config, onSuccess, onError);
+            return 'environment';
+        } catch (e) {
+            /* lanjut fallback */
+        }
+
+        try {
+            await qrInstance.start({ facingMode: 'user' }, config, onSuccess, onError);
+            return 'user';
+        } catch (e) {
+            /* lanjut fallback */
+        }
+
+        for (var i = 0; i < cameras.length; i++) {
+            var cam = cameras[i];
+            if (!cam || !cam.id) {
+                continue;
+            }
+            if (preferredCameraId && cam.id === preferredCameraId) {
+                continue;
+            }
+            try {
+                await qrInstance.start(cam.id, config, onSuccess, onError);
+                return cam.id;
+            } catch (e) {
+                /* coba kamera berikutnya */
+            }
+        }
+
+        throw new Error('Semua kamera gagal dibuka');
+    }
+
     function PresensiScanCamera(options) {
         this.readerId = options.readerId || 'qr-reader';
         this.onSubmit = options.onSubmit || function () {};
@@ -88,6 +271,9 @@
         this.btnRetry = options.btnRetry || null;
         this.btnTorch = options.btnTorch || null;
         this.btnSuperFocus = options.btnSuperFocus || null;
+        this.startWrap = options.startWrap || null;
+        this.startBtn = options.startBtn || null;
+        this.deferStartOnMobile = options.deferStartOnMobile !== false;
 
         this.qr = null;
         this.scanning = false;
@@ -98,7 +284,7 @@
         this.lastTime = 0;
         this.hitCount = 0;
         this.torchOn = false;
-        this.superFocusOn = true;
+        this.superFocusOn = false;
         this.focusInterval = null;
     }
 
@@ -126,19 +312,32 @@
         }
     };
 
+    PresensiScanCamera.prototype.hideStartWrap = function () {
+        if (this.startWrap) {
+            this.startWrap.classList.add('is-hidden');
+        }
+    };
+
+    PresensiScanCamera.prototype.showStartWrap = function () {
+        if (this.startWrap) {
+            this.startWrap.classList.remove('is-hidden');
+        }
+    };
+
+    PresensiScanCamera.prototype.runStart = async function (cameraId) {
+        this.hideStartWrap();
+        try {
+            await this.start(cameraId);
+        } catch (e) {
+            if (this.startBtn && this.deferStartOnMobile) {
+                this.showStartWrap();
+            }
+            throw e;
+        }
+    };
+
     PresensiScanCamera.prototype.scanConfig = function () {
-        return {
-            fps: 15,
-            qrbox: function (vw, vh) {
-                var s = Math.min(vw, vh) * 0.78;
-                return { width: Math.floor(s), height: Math.floor(s) };
-            },
-            aspectRatio: 1.0,
-            disableFlip: false,
-            experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true,
-            },
-        };
+        return buildScanConfig({});
     };
 
     PresensiScanCamera.prototype.onScanSuccess = function (decodedText) {
@@ -165,21 +364,44 @@
         this.onSubmit(decodedText);
     };
 
+    PresensiScanCamera.prototype.waitReaderVisible = async function () {
+        return waitReaderVisibleById(this.readerId);
+    };
+
+    PresensiScanCamera.prototype.ensureQrInstance = function () {
+        if (!this.qr) {
+            this.qr = new global.Html5Qrcode(this.readerId);
+        }
+    };
+
     PresensiScanCamera.prototype.stop = async function () {
-        if (!this.scanning || !this.qr) {
-            return;
-        }
-        try {
-            await this.qr.stop();
-        } catch (e) {
-            /* abaikan */
-        }
-        this.scanning = false;
-        this.setTorch(false);
         if (this.focusInterval) {
             global.clearInterval(this.focusInterval);
             this.focusInterval = null;
         }
+        this.setTorch(false);
+        if (!this.qr) {
+            this.scanning = false;
+            return;
+        }
+        if (this.scanning) {
+            try {
+                await this.qr.stop();
+            } catch (e) {
+                /* abaikan */
+            }
+        }
+        try {
+            await this.qr.clear();
+        } catch (e) {
+            /* abaikan */
+        }
+        this.scanning = false;
+    };
+
+    PresensiScanCamera.prototype.resetQrInstance = async function () {
+        await this.stop();
+        this.qr = null;
     };
 
     PresensiScanCamera.prototype.applyFocusConstraints = async function () {
@@ -192,16 +414,6 @@
             var adv = {};
             if (Array.isArray(caps.focusMode) && caps.focusMode.indexOf('continuous') !== -1) {
                 adv.focusMode = 'continuous';
-            }
-            if (typeof caps.sharpness === 'object' && typeof caps.sharpness.max === 'number') {
-                adv.sharpness = caps.sharpness.max;
-            }
-            if (typeof caps.contrast === 'object' && typeof caps.contrast.max === 'number') {
-                adv.contrast = caps.contrast.max;
-            }
-            if (typeof caps.zoom === 'object' && typeof caps.zoom.max === 'number') {
-                var targetZoom = Math.min(caps.zoom.max, Math.max(caps.zoom.min || 1, 1.15));
-                adv.zoom = targetZoom;
             }
             if (Object.keys(adv).length > 0) {
                 await track.applyConstraints({ advanced: [adv] });
@@ -221,28 +433,59 @@
         }
     };
 
-    PresensiScanCamera.prototype.start = async function (cameraId) {
-        var self = this;
-        if (self.scanning) {
-            await self.stop();
-        }
-        if (!global.isSecureContext) {
-            self.showError('Kamera butuh HTTPS atau localhost.');
+    PresensiScanCamera.prototype.rememberCameraId = function (cameraId) {
+        if (typeof cameraId !== 'string' || cameraId === '' || cameraId === 'environment' || cameraId === 'user') {
             return;
         }
-        if (!self.qr) {
-            self.qr = new global.Html5Qrcode(self.readerId);
-        }
-        var deviceId = cameraId || self.selectedId || { facingMode: 'environment' };
         try {
-            await self.qr.start(
-                deviceId,
-                self.scanConfig(),
-                function (text) { self.onScanSuccess(text); }
-            );
+            global.localStorage.setItem(STORAGE_KEY, cameraId);
+        } catch (e) {
+            /* abaikan */
+        }
+    };
+
+    PresensiScanCamera.prototype.startScannerDevice = async function (preferredCameraId) {
+        var self = this;
+        return startScannerOnDevice(
+            self.qr,
+            self.scanConfig(),
+            function (text) { self.onScanSuccess(text); },
+            function () {},
+            self.cameras,
+            preferredCameraId
+        );
+    };
+
+    PresensiScanCamera.prototype.start = async function (cameraId) {
+        var self = this;
+        if (!global.isSecureContext) {
+            self.showError(secureContextMessage());
+            return;
+        }
+        if (typeof global.Html5Qrcode === 'undefined') {
+            self.showError('Pustaka scanner belum siap. Muat ulang halaman.');
+            return;
+        }
+
+        await self.stop();
+        await self.waitReaderVisible();
+        self.ensureQrInstance();
+        self.setStatus('is-waiting', 'Menyiapkan kamera…');
+
+        var preferredId = cameraId || self.selectedId || null;
+        try {
+            var usedId = await self.startScannerDevice(preferredId);
             self.scanning = true;
             self.hideError();
             self.setStatus('', 'Memindai QR…');
+            if (typeof usedId === 'string' && usedId !== 'environment' && usedId !== 'user') {
+                self.selectedId = usedId;
+                self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === usedId; }));
+                self.rememberCameraId(usedId);
+                if (self.cameraSelect) {
+                    self.cameraSelect.value = usedId;
+                }
+            }
             if (self.btnSuperFocus) {
                 self.btnSuperFocus.classList.toggle('is-active', self.superFocusOn);
             }
@@ -250,28 +493,35 @@
             if (self.focusInterval) {
                 global.clearInterval(self.focusInterval);
             }
-            self.focusInterval = global.setInterval(function () {
-                self.applyFocusConstraints();
-            }, 4500);
-            if (typeof deviceId === 'string' && deviceId.indexOf('facingMode') === -1) {
-                try {
-                    global.localStorage.setItem(STORAGE_KEY, deviceId);
-                } catch (e) {
-                    /* abaikan */
-                }
+            if (self.superFocusOn) {
+                self.focusInterval = global.setInterval(function () {
+                    self.applyFocusConstraints();
+                }, 4500);
             }
         } catch (err) {
-            if (!cameraId && self.cameras.length > 0) {
-                var cam = pickPreferredCamera(self.cameras, null);
-                if (cam) {
-                    self.selectedId = cam.id;
-                    return self.start(cam.id);
+            try {
+                await self.resetQrInstance();
+                await self.waitReaderVisible();
+                self.ensureQrInstance();
+                var usedIdRetry = await self.startScannerDevice(null);
+                self.scanning = true;
+                self.hideError();
+                self.setStatus('', 'Memindai QR…');
+                if (typeof usedIdRetry === 'string' && usedIdRetry !== 'environment' && usedIdRetry !== 'user') {
+                    self.selectedId = usedIdRetry;
+                    self.rememberCameraId(usedIdRetry);
                 }
+            } catch (err2) {
+                self.showError(formatCameraError(err2 || err));
+                self.setStatus('is-error', 'Gagal');
+                throw err2 || err;
             }
-            self.showError('Gagal membuka kamera. Izinkan akses kamera di browser, lalu ketuk Ulangi.');
-            self.setStatus('is-error', 'Gagal');
-            throw err;
         }
+    };
+
+    PresensiScanCamera.prototype.restart = async function () {
+        this.hideError();
+        await this.runStart(this.selectedId);
     };
 
     PresensiScanCamera.prototype.fillCameraSelect = function () {
@@ -331,6 +581,7 @@
                 this.btnTorch.style.display = 'none';
                 return;
             }
+            this.btnTorch.style.display = '';
             await track.applyConstraints({ advanced: [{ torch: this.torchOn }] });
         } catch (e) {
             this.btnTorch.style.display = 'none';
@@ -351,14 +602,12 @@
         }
     };
 
+    PresensiScanCamera.prototype.loadCameras = async function () {
+        this.cameras = await loadCameraList();
+    };
+
     PresensiScanCamera.prototype.init = async function () {
         var self = this;
-        if (typeof global.Html5Qrcode === 'undefined') {
-            self.showError('Pustaka scanner gagal dimuat. Periksa koneksi internet.');
-            return;
-        }
-
-        self.setStatus('is-waiting', 'Menyiapkan kamera…');
 
         if (self.btnFlip) {
             self.btnFlip.addEventListener('click', function () {
@@ -367,14 +616,12 @@
         }
         if (self.btnRestart) {
             self.btnRestart.addEventListener('click', function () {
-                self.hideError();
-                self.start(self.selectedId);
+                self.restart();
             });
         }
         if (self.btnRetry) {
             self.btnRetry.addEventListener('click', function () {
-                self.hideError();
-                self.start(self.selectedId);
+                self.restart();
             });
         }
         if (self.btnSettings) {
@@ -400,18 +647,28 @@
             self.btnSuperFocus.addEventListener('click', function () {
                 self.toggleSuperFocus();
             });
-            self.btnSuperFocus.classList.add('is-active');
+            self.btnSuperFocus.classList.toggle('is-active', self.superFocusOn);
         }
 
-        try {
-            self.cameras = await global.Html5Qrcode.getCameras();
-        } catch (e) {
-            self.showError('Tidak bisa mengakses daftar kamera. Izinkan kamera di pengaturan browser.');
+        self.setStatus('is-waiting', 'Menyiapkan kamera…');
+
+        var libReady = await waitForHtml5Qrcode(LIB_WAIT_MS);
+        if (!libReady || typeof global.Html5Qrcode === 'undefined') {
+            self.showError('Pustaka scanner gagal dimuat. Periksa koneksi atau muat ulang halaman.');
             return;
         }
 
+        if (!global.isSecureContext) {
+            self.showError(secureContextMessage());
+            return;
+        }
+
+        await self.waitReaderVisible();
+        await primeCameraPermission();
+        await self.loadCameras();
+
         if (!self.cameras || self.cameras.length === 0) {
-            self.showError('Tidak ada kamera di perangkat ini.');
+            self.showError('Tidak ada kamera terdeteksi. Pastikan perangkat punya kamera dan izin sudah diizinkan.');
             return;
         }
 
@@ -421,9 +678,17 @@
         } catch (e) {
             /* abaikan */
         }
+        if (savedId && !self.cameras.some(function (c) { return c.id === savedId; })) {
+            savedId = null;
+            try {
+                global.localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {
+                /* abaikan */
+            }
+        }
 
         var preferred = pickPreferredCamera(self.cameras, savedId);
-        self.selectedId = preferred.id;
+        self.selectedId = preferred ? preferred.id : self.cameras[0].id;
         self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === self.selectedId; }));
 
         self.fillCameraSelect();
@@ -433,16 +698,85 @@
             self.btnFlip.style.opacity = self.cameras.length < 2 ? '0.45' : '1';
         }
 
-        await self.start(self.selectedId);
-
         global.addEventListener('beforeunload', function () {
-            if (self.scanning && self.qr) {
+            if (self.qr) {
                 self.qr.stop().catch(function () {});
             }
         });
+
+        if (self.deferStartOnMobile && isMobileScanDevice() && self.startBtn) {
+            self.showStartWrap();
+            self.setStatus('is-waiting', 'Ketuk Mulai scan');
+            if (!self._startBtnBound) {
+                self._startBtnBound = true;
+                self.startBtn.addEventListener('click', function () {
+                    self.runStart(null).catch(function () {});
+                });
+            }
+            return;
+        }
+
+        try {
+            await self.runStart(null);
+        } catch (e) {
+            /* error sudah ditampilkan */
+        }
     };
 
+    /**
+     * Jalankan boot scanner; di HP menunggu tap tombol mulai (izin kamera lebih lancar).
+     *
+     * @param {{startWrap?:HTMLElement,startBtn?:HTMLElement,run:Function}} options
+     */
+    function runWithMobileStartGate(options) {
+        options = options || {};
+        var wrap = options.startWrap || null;
+        var btn = options.startBtn || null;
+        var run = options.run;
+        if (typeof run !== 'function') {
+            return Promise.resolve();
+        }
+        function hideWrap() {
+            if (wrap) {
+                wrap.classList.add('is-hidden');
+            }
+        }
+        function showWrap() {
+            if (wrap) {
+                wrap.classList.remove('is-hidden');
+            }
+        }
+        if (isMobileScanDevice() && btn) {
+            showWrap();
+            return new Promise(function (resolve, reject) {
+                function onClick() {
+                    btn.removeEventListener('click', onClick);
+                    hideWrap();
+                    Promise.resolve(run()).then(resolve).catch(function (err) {
+                        showWrap();
+                        reject(err);
+                    });
+                }
+                btn.addEventListener('click', onClick);
+            });
+        }
+        hideWrap();
+        return Promise.resolve(run());
+    }
+
     global.PresensiScanCamera = PresensiScanCamera;
+    global.PresensiScanCamera.isMobileDevice = isMobileScanDevice;
+    global.PresensiScanCamera.runWithMobileStartGate = runWithMobileStartGate;
     global.PresensiScanCamera.pickPreferredCamera = pickPreferredCamera;
     global.PresensiScanCamera.labelKamera = labelKamera;
+    global.PresensiScanCamera.waitForLibrary = function () {
+        return waitForHtml5Qrcode(LIB_WAIT_MS);
+    };
+    global.PresensiScanCamera.primePermission = primeCameraPermission;
+    global.PresensiScanCamera.secureContextMsg = secureContextMessage;
+    global.PresensiScanCamera.formatError = formatCameraError;
+    global.PresensiScanCamera.buildScanConfig = buildScanConfig;
+    global.PresensiScanCamera.waitReaderVisible = waitReaderVisibleById;
+    global.PresensiScanCamera.loadCameraList = loadCameraList;
+    global.PresensiScanCamera.startDevice = startScannerOnDevice;
 })(window);

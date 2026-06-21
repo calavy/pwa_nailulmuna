@@ -19,10 +19,27 @@ function pkpps_default_tingkatan_names(): array
     ];
 }
 
-function pkpps_ensure_schema(PDO $pdo): void
+function pkpps_ensure_schema(PDO $pdo, bool $force = false): void
 {
     static $done = false;
     if ($done) {
+        return;
+    }
+    $done = true;
+
+    if (!$force && !empty($_SESSION['pkpps_schema_ready_v1'])) {
+        return;
+    }
+
+    $tablesReady = table_exists($pdo, 'pkpps_tingkatan')
+        && table_exists($pdo, 'pkpps_santri')
+        && table_exists($pdo, 'pkpps_jadwal');
+    if (!$force && $tablesReady) {
+        if (app_setting($pdo, 'pkpps_schema_ready_v1', '') !== '1') {
+            save_setting($pdo, 'pkpps_schema_ready_v1', '1');
+        }
+        $_SESSION['pkpps_schema_ready_v1'] = 1;
+
         return;
     }
 
@@ -97,7 +114,28 @@ function pkpps_ensure_schema(PDO $pdo): void
         }
     }
 
-    $done = true;
+    pkpps_sync_kegiatan_kategori($pdo);
+    save_setting($pdo, 'pkpps_schema_ready_v1', '1');
+    $_SESSION['pkpps_schema_ready_v1'] = 1;
+}
+
+/** Set kategori PKPPS pada kegiatan yang dipakai jadwal PKPPS. */
+function pkpps_sync_kegiatan_kategori(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'pkpps_jadwal') || !table_exists($pdo, 'kegiatan')) {
+        return;
+    }
+    ensure_kegiatan_kategori_column($pdo);
+    try {
+        $pdo->exec('
+            UPDATE kegiatan k
+            INNER JOIN pkpps_jadwal j ON j.kegiatan_id = k.id
+            SET k.kategori_kegiatan = "PKPPS"
+            WHERE UPPER(COALESCE(k.kategori_kegiatan, "TAALIM")) <> "PKPPS"
+        ');
+    } catch (PDOException $e) {
+        // abaikan
+    }
 }
 
 /** @return list<array<string, mixed>> */
@@ -579,8 +617,118 @@ function pkpps_jadwal_slots_for_presensi_scan(PDO $pdo, string $tanggal, int $ha
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+function pkpps_dashboard_stats(PDO $pdo): array
+{
+    pkpps_ensure_schema($pdo);
+    $stats = [
+        'santri_aktif' => 0,
+        'tingkatan_aktif' => 0,
+        'jadwal_aktif' => 0,
+        'pembimbing_jadwal' => 0,
+    ];
+    if (!table_exists($pdo, 'pkpps_santri')) {
+        return $stats;
+    }
+    $row = $pdo->query('
+        SELECT
+            (SELECT COUNT(*) FROM pkpps_santri WHERE is_aktif = 1) AS santri_aktif,
+            (SELECT COUNT(*) FROM pkpps_tingkatan WHERE is_aktif = 1) AS tingkatan_aktif,
+            (SELECT COUNT(*) FROM pkpps_jadwal WHERE is_aktif = 1) AS jadwal_aktif,
+            (SELECT COUNT(DISTINCT pembimbing_id) FROM pkpps_jadwal WHERE is_aktif = 1 AND pembimbing_id IS NOT NULL AND pembimbing_id > 0) AS pembimbing_jadwal
+    ')->fetch(PDO::FETCH_ASSOC);
+    if (is_array($row)) {
+        foreach ($stats as $k => $_) {
+            $stats[$k] = (int) ($row[$k] ?? 0);
+        }
+    }
+
+    return $stats;
+}
+
 /**
- * Ringkasan keaktivan PKPPS 7 hari terakhir (santri & pembimbing).
+ * Rekap keaktivan santri PKPPS per tahun (agregat SQL — tanpa finalisasi massal).
+ *
+ * @return list<array<string, mixed>>
+ */
+function pkpps_rekap_keaktivan_santri_tahun(PDO $pdo, int $tahun, bool $useCache = true): array
+{
+    require_once __DIR__ . '/santri_operasional.php';
+    require_once __DIR__ . '/rekap_keaktifan.php';
+
+    $cacheKey = 'pkpps_keaktivan_tahun_' . $tahun;
+    if ($useCache && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        $cached = $_SESSION[$cacheKey];
+        if (isset($cached['ts'], $cached['data']) && is_array($cached['data']) && (time() - (int) $cached['ts']) < 120) {
+            return $cached['data'];
+        }
+    }
+
+    pkpps_ensure_schema($pdo);
+    if (!table_exists($pdo, 'pkpps_santri') || !table_exists($pdo, 'presensi')) {
+        return [];
+    }
+
+    $today = date('Y-m-d');
+    $dari = sprintf('%04d-01-01', $tahun);
+    $sampai = sprintf('%04d-12-31', $tahun);
+    if ($sampai > $today) {
+        $sampai = $today;
+    }
+    $clamped = rekap_keaktifan_clamp_periode($pdo, $dari, $sampai);
+    if ($clamped === null) {
+        return [];
+    }
+    [$dari, $sampai] = $clamped;
+
+    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
+    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
+    $aktifSql = santri_sql_aktif_only('s');
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $pkppsPresensiSql = table_exists($pdo, 'pkpps_jadwal')
+        ? '(p.pkpps_jadwal_id IS NOT NULL OR p.kegiatan_id IN (SELECT DISTINCT kegiatan_id FROM pkpps_jadwal WHERE is_aktif = 1))'
+        : '1=0';
+
+    $st = $pdo->prepare('
+        SELECT
+            s.id AS santri_id,
+            s.nis,
+            s.' . $nameCol . ' AS nama_santri,
+            t.nama_tingkatan AS pkpps_tingkatan,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "HADIR" THEN 1 ELSE 0 END), 0) AS hadir,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "IZIN" THEN 1 ELSE 0 END), 0) AS izin,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "SAKIT" THEN 1 ELSE 0 END), 0) AS sakit,
+            COALESCE(SUM(CASE WHEN p.status_presensi = "ALPA" THEN 1 ELSE 0 END), 0) AS alpa,
+            COALESCE(COUNT(p.id), 0) AS total
+        FROM pkpps_santri ps
+        INNER JOIN santri s ON s.id = ps.santri_id AND ' . $aktifSql . '
+        INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id AND t.is_aktif = 1
+        LEFT JOIN presensi p ON p.santri_id = s.id
+            AND p.tanggal_presensi BETWEEN :dari AND :sampai
+            AND ' . $pkppsPresensiSql . '
+        WHERE ps.is_aktif = 1
+        GROUP BY s.id, s.nis, s.' . $nameCol . ', t.nama_tingkatan, t.urutan
+        ORDER BY t.urutan ASC, s.' . $nameCol . ' ASC
+    ');
+    $st->execute(['dari' => $dari, 'sampai' => $sampai]);
+    $rows = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $total = (int) ($r['total'] ?? 0);
+        $hadir = (int) ($r['hadir'] ?? 0);
+        $alpa = (int) ($r['alpa'] ?? 0);
+        $r['kategori'] = $total > 0 ? santri_category($alpa, $goodMax, $mediumMax) : '—';
+        $r['persen'] = $total > 0 ? round($hadir / $total * 100, 1) : 0;
+        $rows[] = $r;
+    }
+
+    if ($useCache) {
+        $_SESSION[$cacheKey] = ['ts' => time(), 'data' => $rows];
+    }
+
+    return $rows;
+}
+
+/**
+ * Rekap keaktivan PKPPS 7 hari terakhir (santri & pembimbing).
  *
  * @return array{
  *   dari:string,
@@ -592,7 +740,7 @@ function pkpps_jadwal_slots_for_presensi_scan(PDO $pdo, string $tanggal, int $ha
  *   pembimbing: array{total_hadir:int,pembimbing_hadir:int,rows:list<array<string,mixed>>}
  * }
  */
-function pkpps_dashboard_keaktivan_minggu(PDO $pdo, ?string $sampai = null): array
+function pkpps_dashboard_keaktivan_minggu(PDO $pdo, ?string $sampai = null, bool $finalizePresensi = false): array
 {
     require_once __DIR__ . '/santri_operasional.php';
     require_once __DIR__ . '/presensi_jadwal.php';
@@ -626,7 +774,9 @@ function pkpps_dashboard_keaktivan_minggu(PDO $pdo, ?string $sampai = null): arr
     }
 
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $dari, $sampai, $auditUserId > 0 ? $auditUserId : 1);
+    if ($finalizePresensi) {
+        presensi_finalize_date_range($pdo, $dari, $sampai, $auditUserId > 0 ? $auditUserId : 1);
+    }
     ensure_presensi_pkpps_column($pdo);
 
     if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'presensi') && table_exists($pdo, 'pkpps_tingkatan')) {
@@ -743,4 +893,19 @@ function pkpps_dashboard_keaktivan_minggu(PDO $pdo, ?string $sampai = null): arr
     }
 
     return $out;
+}
+
+/** Cache ringkas keaktivan minggu agar dashboard PKPPS cepat dibuka. */
+function pkpps_dashboard_keaktivan_minggu_cached(PDO $pdo, int $ttlSeconds = 180): array
+{
+    $today = date('Y-m-d');
+    $cacheKey = 'pkpps_dash_minggu_' . $today;
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (is_array($cached) && isset($cached['ts'], $cached['data']) && (time() - (int) $cached['ts']) < $ttlSeconds) {
+        return $cached['data'];
+    }
+    $data = pkpps_dashboard_keaktivan_minggu($pdo, $today, false);
+    $_SESSION[$cacheKey] = ['ts' => time(), 'data' => $data];
+
+    return $data;
 }

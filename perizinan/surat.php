@@ -390,10 +390,9 @@ $nbText = $jenisIzin === 'TUGAS'
             require __DIR__ . '/partials/surat_ttd_pemberi.php';
             ?>
             <div class="return-box">
-                <img src="<?= htmlspecialchars($returnQr) ?>" alt="QR Kembali">
-                <p>
-                    <strong>VERIFIKASI IZIN SELESAI:</strong> Scan QR ini kepada petugas saat santri kembali ke pesantren.<br>
-                    ID: <strong><?= htmlspecialchars($returnCode) ?></strong>
+                <p class="mb-0">
+                    Kode surat: <strong><?= htmlspecialchars($returnCode) ?></strong><br>
+                    <span class="small text-muted">Saat kembali, scan QR kartu santri di Scan Presensi.</span>
                 </p>
             </div>
             <div class="print-time">Waktu Cetak: <?= htmlspecialchars($jamTerbit) ?></div>

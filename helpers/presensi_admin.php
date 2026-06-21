@@ -6,7 +6,12 @@ require_once __DIR__ . '/app.php';
 
 function ensure_presensi_jadwal_column(PDO $pdo): void
 {
+    if (!empty($_SESSION['presensi_jadwal_col_ready_v2'])) {
+        return;
+    }
     if (!table_exists($pdo, 'presensi')) {
+        $_SESSION['presensi_jadwal_col_ready_v2'] = 1;
+
         return;
     }
     try {
@@ -25,6 +30,7 @@ function ensure_presensi_jadwal_column(PDO $pdo): void
         }
     }
     ensure_presensi_indexes($pdo);
+    $_SESSION['presensi_jadwal_col_ready_v2'] = 1;
 }
 
 /** Index lookup sync/rekap: (santri, tanggal, kegiatan). */

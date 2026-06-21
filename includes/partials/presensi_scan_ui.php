@@ -135,9 +135,20 @@ $activeSlotCount = count($activeSlotsTimer);
         <div id="camera-error-panel" class="presensi-scan-error d-none" role="alert">
             <div>
                 <p class="fw-semibold mb-2" id="camera-error-text">Gagal membuka kamera</p>
-                <p class="small opacity-75 mb-3">Izinkan akses kamera saat browser meminta, atau buka pengaturan situs → Kamera → Izinkan.</p>
+                <p class="small opacity-75 mb-2">Izinkan akses kamera saat browser meminta. Jika tidak muncul:</p>
+                <ul class="small text-start opacity-90 mb-3 ps-3">
+                    <li>Ketuk ikon gembok / info di bilah alamat</li>
+                    <li>Pilih <strong>Kamera → Izinkan</strong></li>
+                    <li>Ketuk <strong>Ulangi</strong> di bawah</li>
+                </ul>
                 <button type="button" class="btn btn-light btn-sm" id="btn-retry-camera">Coba lagi</button>
             </div>
+        </div>
+        <div id="presensi-scan-start-wrap" class="presensi-scan-start-wrap is-hidden">
+            <button type="button" class="btn btn-success btn-lg px-4" id="btn-start-presensi-scan">
+                <i class="fa-solid fa-camera me-2" aria-hidden="true"></i>Mulai scan kamera
+            </button>
+            <p class="small text-muted mt-2 mb-0">Ketuk untuk mengizinkan kamera, lalu arahkan QR ke kotak.</p>
         </div>
     </div>
 
@@ -249,6 +260,8 @@ $activeSlotCount = count($activeSlotsTimer);
         btnRetry: document.getElementById('btn-retry-camera'),
         btnTorch: document.getElementById('btn-torch'),
         btnSuperFocus: document.getElementById('btn-super-focus'),
+        startWrap: document.getElementById('presensi-scan-start-wrap'),
+        startBtn: document.getElementById('btn-start-presensi-scan'),
         onSubmit: submitScan,
     });
 

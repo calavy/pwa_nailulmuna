@@ -108,6 +108,21 @@
     height: 100% !important;
 }
 
+.presensi-scan-viewport #qr-reader__scan_region,
+.presensi-scan-viewport #qr-reader__scan_region > div,
+.presensi-scan-viewport #reader__scan_region,
+.presensi-scan-viewport #reader__scan_region > div {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: inherit;
+}
+
+.presensi-scan-viewport #qr-reader video,
+.presensi-scan-viewport #reader video {
+    display: block !important;
+    min-height: 240px;
+}
+
 /* Jangan tampilkan teks hasil decode QR dari library html5-qrcode */
 #qr-reader__dashboard_section_csr,
 #qr-reader__dashboard_section_swaplink,
@@ -170,6 +185,34 @@
     color: #94a3b8;
     padding: 0.35rem 0.75rem 0.25rem;
     background: #0f172a;
+}
+
+.presensi-scan-start-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(4px);
+}
+
+.presensi-scan-start-wrap.is-hidden {
+    display: none !important;
+}
+
+.presensi-scan-start-wrap .btn-lg {
+    border-radius: 999px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
+}
+
+.scan-izin-gerbang .presensi-scan-app {
+    min-height: min(88dvh, 720px);
 }
 
 /* Panel hitung mundur jadwal scan */

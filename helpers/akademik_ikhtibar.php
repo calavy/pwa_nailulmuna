@@ -24,6 +24,23 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
     }
     $done = true;
 
+    if (!empty($_SESSION['ikhtibar_schema_ready_v1'])) {
+        return;
+    }
+
+    $tablesReady = table_exists($pdo, 'ikhtibar_tugas')
+        && table_exists($pdo, 'ikhtibar_soal')
+        && table_exists($pdo, 'ikhtibar_sesi')
+        && table_exists($pdo, 'ikhtibar_jawaban');
+    if ($tablesReady) {
+        if (app_setting($pdo, 'ikhtibar_schema_ready_v1', '') !== '1') {
+            save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
+        }
+        $_SESSION['ikhtibar_schema_ready_v1'] = 1;
+
+        return;
+    }
+
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS ikhtibar_tugas (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -109,6 +126,8 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
     }
     require_once __DIR__ . '/ikhtibar_kriteria.php';
     ikhtibar_kriteria_ensure_schema($pdo);
+    save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
+    $_SESSION['ikhtibar_schema_ready_v1'] = 1;
 }
 
 /** ID baris pembimbing (SDM) dari akun login users (cocokkan NIP = username). */

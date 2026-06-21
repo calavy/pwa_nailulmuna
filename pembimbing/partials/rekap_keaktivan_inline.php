@@ -11,10 +11,12 @@ declare(strict_types=1);
 /** @var string $rekapPanelClass Extra class on wrapper */
 /** @var string $rekapFormMode Hidden mode value for filter form */
 /** @var string $rekapDashView Optional view query (e.g. keaktivan) */
+/** @var string $rekapJenis kajian|pkpps */
 
 $rekapPanelClass = trim((string) ($rekapPanelClass ?? ''));
 $rekapFormMode = trim((string) ($rekapFormMode ?? 'ringkas'));
 $rekapDashView = trim((string) ($rekapDashView ?? ''));
+$rekapJenis = trim((string) ($rekapJenis ?? ''));
 ?>
 <div class="pb-dash-rekap-keaktivan <?= htmlspecialchars($rekapPanelClass) ?>">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -29,6 +31,7 @@ $rekapDashView = trim((string) ($rekapDashView ?? ''));
             <input type="hidden" name="tahun" value="<?= (int) $tahun ?>">
             <input type="hidden" name="mode" value="<?= htmlspecialchars($rekapFormMode) ?>">
             <?php if ($rekapDashView !== ''): ?><input type="hidden" name="view" value="<?= htmlspecialchars($rekapDashView) ?>"><?php endif; ?>
+            <?php if ($rekapJenis !== ''): ?><input type="hidden" name="rekap_jenis" value="<?= htmlspecialchars($rekapJenis) ?>"><?php endif; ?>
             <label class="small mb-0 pb-dash-rekap-keaktivan__sub" for="pb-keaktifan-view-<?= htmlspecialchars(md5($rekapPanelClass)) ?>">Tampilan</label>
             <select id="pb-keaktifan-view-<?= htmlspecialchars(md5($rekapPanelClass)) ?>" name="keaktifan_view" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
                 <option value="kegiatan"<?= $keaktifanView === 'kegiatan' ? ' selected' : '' ?>>Per kegiatan</option>
@@ -46,6 +49,7 @@ $rekapDashView = trim((string) ($rekapDashView ?? ''));
                     <thead>
                         <tr>
                             <th class="ps-2">Kegiatan</th>
+                            <th class="text-center">Jenis</th>
                             <th class="text-center">Hadir</th>
                             <th class="text-center">Izin</th>
                             <th class="text-center">Sakit</th>
@@ -54,9 +58,23 @@ $rekapDashView = trim((string) ($rekapDashView ?? ''));
                         </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($rekapPerKegiatan as $rk): ?>
+                    <?php foreach ($rekapPerKegiatan as $rk):
+                        $katKeg = strtoupper((string) ($rk['kategori_kegiatan'] ?? 'TAALIM'));
+                        $katBadge = match ($katKeg) {
+                            'PKPPS' => 'text-bg-primary',
+                            'JAMAAH' => 'text-bg-info',
+                            default => 'text-bg-secondary',
+                        };
+                        $katLabel = match ($katKeg) {
+                            'PKPPS' => 'PKPPS',
+                            'JAMAAH' => "Jama'ah",
+                            'TAALIM' => "Ta'lim",
+                            default => $katKeg,
+                        };
+                    ?>
                         <tr>
                             <td class="ps-2 small fw-semibold"><?= htmlspecialchars((string) ($rk['nama_kegiatan'] ?? '—')) ?></td>
+                            <td class="text-center"><span class="badge <?= $katBadge ?>"><?= htmlspecialchars($katLabel) ?></span></td>
                             <td class="text-center small text-success"><?= (int) ($rk['hadir'] ?? 0) ?></td>
                             <td class="text-center small"><?= (int) ($rk['izin'] ?? 0) ?></td>
                             <td class="text-center small"><?= (int) ($rk['sakit'] ?? 0) ?></td>
