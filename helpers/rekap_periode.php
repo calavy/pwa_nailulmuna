@@ -98,7 +98,7 @@ function rekap_resolve_periode(PDO $pdo, array $get): array
  * @param array<string,mixed> $periode hasil rekap_resolve_periode()
  * @return list<array<string,mixed>>
  */
-function presensi_fetch_rows_rekap_periode(PDO $pdo, array $periode, int $kegiatanId = 0): array
+function presensi_fetch_rows_rekap_periode(PDO $pdo, array $periode, int $kegiatanId = 0, bool $runFinalize = false): array
 {
     require_once __DIR__ . '/presensi_jadwal.php';
     $kalKey = ($periode['mode'] ?? '') === 'hijriyah'
@@ -110,7 +110,8 @@ function presensi_fetch_rows_rekap_periode(PDO $pdo, array $periode, int $kegiat
         (string) ($periode['start_date'] ?? ''),
         (string) ($periode['end_date'] ?? ''),
         $kegiatanId,
-        is_string($kalKey) && $kalKey !== '' ? $kalKey : null
+        is_string($kalKey) && $kalKey !== '' ? $kalKey : null,
+        $runFinalize
     );
 }
 

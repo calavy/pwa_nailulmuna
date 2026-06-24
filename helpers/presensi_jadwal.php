@@ -457,7 +457,8 @@ function presensi_fetch_rows_rekap(
     string $startDate,
     string $endDate,
     int $kegiatanId = 0,
-    ?string $kalenderHijriyahKey = null
+    ?string $kalenderHijriyahKey = null,
+    bool $runFinalize = false
 ): array {
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
         return [];
@@ -471,7 +472,11 @@ function presensi_fetch_rows_rekap(
     [$startDate, $endDate] = $clamped;
 
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
+    if ($runFinalize) {
+        presensi_finalize_date_range($pdo, $startDate, $endDate, $auditUserId > 0 ? $auditUserId : 1);
+    } else {
+        rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+    }
 
     require_once __DIR__ . '/santri_operasional.php';
     $sqlAktif = santri_sql_aktif_only('s');

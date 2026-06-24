@@ -128,7 +128,7 @@ $list = $rows->fetchAll(PDO::FETCH_ASSOC);
 $total = count($list);
 $aktif = count(array_filter($list, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
 
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
+
 $pageTitle = 'SDM Kepengurusan';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
 require_once __DIR__ . '/../includes/header.php';
@@ -136,7 +136,7 @@ $tabLower = strtolower($tab);
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a> · SDM Musyawarah</p>
+    <?php $yayasanCrumbTail = 'SDM Musyawarah'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
     <h1 class="h4 mb-1">SDM Kepengurusan &amp; Lembaga</h1>
     <p class="text-muted mb-0">Data pengurus yayasan dan lembaga untuk presensi musyawarah — scan QR di halaman Scan Musyawarah (menu Yayasan).</p>
 </div>

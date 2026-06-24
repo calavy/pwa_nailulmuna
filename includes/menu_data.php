@@ -18,6 +18,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
             '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
             '/presensi/scan.php' => 'Scan Presensi',
             '/pembimbing/tugas/index.php' => 'Daftar Tugas Ikhtibar',
+            '/pembimbing/tugas_yayasan.php' => 'Tugas Yayasan (Timeline)',
             '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
             '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas',
             '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
@@ -34,6 +35,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
             ['type' => 'group', 'id' => 'menu-grp-pb', 'label' => 'Pembimbing', 'expand' => true, 'icon' => 'fa-solid fa-chalkboard-user', 'sections' => [
                 ['title' => 'Tugas & Jadwal', 'paths' => [
                     '/pembimbing/tugas/index.php',
+                    '/pembimbing/tugas_yayasan.php',
                     '/pembimbing/tugas/rekap.php',
                     '/pembimbing/nilai_manual.php',
                     '/pembimbing/perizinan.php',
@@ -180,7 +182,7 @@ return [
         '/yayasan/rapat.php' => 'Rapat & Musyawarah',
         '/yayasan/notulen.php' => 'Notulen',
         '/yayasan/timeline.php' => 'Timeline & Tugas',
-        '/yayasan/operasional.php' => 'Dashboard Operasional',
+        '/yayasan/operasional.php' => 'Yayasan',
         '/yayasan/pengawasan.php' => 'Dashboard Pengawasan',
         '/yayasan/ringkasan.php' => 'Yayasan — To-Do & Agenda',
         '/yayasan/ketertiban.php' => 'Menu Ketertiban',
@@ -284,20 +286,7 @@ return [
                 '/admin/rekap_surat_sp.php',
             ]],
         ]],
-        ['type' => 'group', 'id' => 'menu-grp-yayasan', 'label' => 'Yayasan', 'icon' => 'fa-solid fa-building-columns', 'sections' => [
-            ['title' => 'Pintu masuk', 'paths' => [
-                '/yayasan/operasional.php',
-                '/yayasan/keaktifan.php',
-                '/yayasan/keaktifan_ranking.php',
-                '/yayasan/sdm_hari.php',
-                '/yayasan/kesehatan.php',
-            ]],
-            ['title' => 'Musyawarah', 'paths' => [
-                '/yayasan/sdm.php',
-                '/yayasan/rapat.php',
-                '/yayasan/scan_musyawarah.php',
-            ]],
-        ]],
+        ['type' => 'item', 'path' => '/yayasan/operasional.php', 'icon' => 'fa-solid fa-building-columns', 'match_prefix' => '/yayasan/'],
         ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [
             ['title' => 'Umum', 'paths' => [
                 '/settings/pesantren.php',

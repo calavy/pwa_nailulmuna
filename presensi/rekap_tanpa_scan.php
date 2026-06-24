@@ -127,14 +127,14 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
     <h1 class="h4 mb-1">Jadwal belum ada scan hadir</h1>
     <p class="text-muted mb-0 small">
-        Hitung <strong>per jadwal kegiatan</strong> (tanggal + tingkatan): 1 kali jadwal tanpa scan hadir = <strong>1</strong>.
+        Hitung <strong>per waktu kegiatan</strong> (tanggal + jam): 1 slot waktu tanpa scan hadir = <strong>1</strong>, tidak dikalikan tingkatan atau jumlah santri.
         Periode mengikuti bulan <?= $mode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?> yang dipilih.
     </p>
 </div>
 
 <div class="rts-info mb-3">
-    <strong>Artinya:</strong> setiap baris = satu jadwal kegiatan yang sudah lewat waktunya tetapi belum ada scan hadir santri.
-    Jika Subuh tanpa scan 5 hari dalam bulan ini, angka rekap = <strong>5</strong> (bukan 1).
+    <strong>Artinya:</strong> setiap hitungan = satu waktu kegiatan (tanggal + jam) yang sudah lewat tetapi belum ada scan hadir sama sekali.
+    Jika Subuh tanpa scan 5 hari dalam bulan ini, angka rekap = <strong>5</strong> (bukan dikali jumlah tingkatan/santri).
 </div>
 
 <form method="get" action="<?= htmlspecialchars(app_href('/presensi/rekap_tanpa_scan.php')) ?>" class="rts-filter mb-3">
@@ -217,7 +217,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-triangle-exclamation me-1"></i> Perlu ditindaklanjuti
                     </div>
                     <p class="small text-muted mb-0">
-                        Ada <strong><?= $jumlahTanpaScan ?></strong> jadwal tanpa scan hadir
+                        Ada <strong><?= $jumlahTanpaScan ?></strong> waktu tanpa scan hadir
                         <?php if ($jumlahKegiatanTanpaScan > 0): ?>
                             pada <strong><?= $jumlahKegiatanTanpaScan ?></strong> kegiatan
                         <?php endif; ?>

@@ -31,12 +31,18 @@ function yayasan_kas_status(PDO $pdo): array
 {
     $today = date('Y-m-d');
     $saldoKas = function_exists('keuangan_aruskas_total_kas') ? keuangan_aruskas_total_kas($pdo, $today) : 0;
-    $dash = keuangan_dashboard_snapshot_cached($pdo) ?? keuangan_dashboard_snapshot($pdo);
-    $tagihan = is_array($dash) ? ($dash['tagihan_bulan'] ?? []) : [];
+    $tagihan = yayasan_portal_tagihan_ringkas($pdo);
     $piutang = (int) ($tagihan['total_piutang'] ?? 0);
     $penunggak = (int) ($tagihan['jumlah_penunggak'] ?? 0);
     $persenTertagih = (float) ($tagihan['persen_tertagih'] ?? 0);
-    $neracaSeimbang = is_array($dash) ? (bool) ($dash['neraca']['seimbang'] ?? true) : true;
+    $neracaSeimbang = true;
+    if (!function_exists('keuangan_build_neraca_cached')) {
+        require_once __DIR__ . '/keuangan_neraca.php';
+    }
+    if (function_exists('keuangan_build_neraca_cached')) {
+        $neraca = keuangan_build_neraca_cached($pdo, $today);
+        $neracaSeimbang = abs((int) ($neraca['selisih'] ?? 0)) < 1;
+    }
 
     $bulanAwal = date('Y-m-01');
     $masuk = 0;
@@ -92,7 +98,119 @@ function yayasan_kas_status(PDO $pdo): array
         'persen_tertagih' => $persenTertagih,
         'ringkasan' => $ringkasan,
         'tagihan_bulan' => $tagihan,
-        'keuangan_ringkas' => $dash,
+    ];
+}
+
+/**
+ * Ringkasan tagihan bulan berjalan tanpa snapshot dashboard penuh.
+ *
+ * @return array<string, mixed>
+ */
+function yayasan_portal_tagihan_ringkas(PDO $pdo): array
+{
+    $empty = [
+        'bulan_label' => '',
+        'ta_label' => '',
+        'total_piutang' => 0,
+        'jumlah_penunggak' => 0,
+        'persen_tertagih' => 0.0,
+    ];
+    if (!table_exists($pdo, 'santri') || !table_exists($pdo, 'keuangan_pembayaran')) {
+        return $empty;
+    }
+    require_once __DIR__ . '/tagihan_bulanan.php';
+    $today = date('Y-m-d');
+    $periode = keuangan_periode_berjalan($pdo, $today);
+    $bulan = (int) ($periode['bulan'] ?? 0);
+    $tm = (int) ($periode['mulai'] ?? 0);
+    $ts = (int) ($periode['selesai'] ?? 0);
+    if ($bulan <= 0 || $tm <= 0 || $ts <= 0) {
+        return $empty;
+    }
+    $listPack = tagihan_syahriyah_list_cached($pdo, $bulan, $tm, $ts, 'nama');
+    $totalTagihan = (int) ($listPack['sum_tagihan'] ?? 0);
+    $totalTerbayar = (int) ($listPack['sum_bayar'] ?? 0);
+    $jumlahPenunggak = (int) ($listPack['count_belum'] ?? 0) + (int) ($listPack['count_sebagian'] ?? 0);
+    $totalPiutang = max(0, $totalTagihan - $totalTerbayar);
+    $persenTertagih = $totalTagihan > 0
+        ? round(($totalTerbayar / $totalTagihan) * 100, 1)
+        : 0.0;
+
+    return [
+        'bulan_label' => (string) ($periode['periode_tampilan'] ?? $periode['bulan_label'] ?? ''),
+        'ta_label' => (string) ($periode['ta_label'] ?? ''),
+        'total_piutang' => $totalPiutang,
+        'jumlah_penunggak' => $jumlahPenunggak,
+        'persen_tertagih' => $persenTertagih,
+    ];
+}
+
+/** Status kas yayasan dengan cache sesi singkat (dashboard operasional). */
+function yayasan_kas_status_cached(PDO $pdo, int $ttlSec = 180): array
+{
+    $cacheKey = 'yayasan_kas_status_v1';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && is_array($cached['data'] ?? null)
+    ) {
+        return $cached['data'];
+    }
+    $data = yayasan_kas_status($pdo);
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(30, $ttlSec),
+        'data' => $data,
+    ];
+
+    return $data;
+}
+
+/** Invalidasi cache portal yayasan setelah transaksi keuangan berubah. */
+function yayasan_portal_cache_invalidate(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    unset(
+        $_SESSION['yayasan_kas_status_v1'],
+        $_SESSION['yayasan_ketertiban_v1'],
+        $_SESSION['yayasan_pengawasan_keu_v1']
+    );
+    if (function_exists('yayasan_dashboard_cache_invalidate')) {
+        yayasan_dashboard_cache_invalidate();
+    }
+}
+
+/**
+ * Ringkasan kas untuk API / kartu dashboard (format JSON-friendly).
+ *
+ * @return array<string, mixed>
+ */
+function yayasan_kas_status_payload(array $kas): array
+{
+    $tagihan = is_array($kas['tagihan_bulan'] ?? null) ? $kas['tagihan_bulan'] : [];
+
+    return [
+        'level' => (string) ($kas['level'] ?? 'aman'),
+        'label' => (string) ($kas['label'] ?? 'Aman'),
+        'badge' => (string) ($kas['badge'] ?? 'success'),
+        'ringkasan' => (string) ($kas['ringkasan'] ?? ''),
+        'saldo_kas' => (int) ($kas['saldo_kas'] ?? 0),
+        'saldo_kas_fmt' => keuangan_format_rupiah((int) ($kas['saldo_kas'] ?? 0)),
+        'net_bulan_ini' => (int) ($kas['net_bulan_ini'] ?? 0),
+        'net_bulan_ini_fmt' => keuangan_format_rupiah((int) ($kas['net_bulan_ini'] ?? 0)),
+        'net_negatif' => (int) ($kas['net_bulan_ini'] ?? 0) < 0,
+        'persen_tertagih' => (float) ($kas['persen_tertagih'] ?? 0),
+        'neraca_seimbang' => !empty($kas['neraca_seimbang']),
+        'tagihan' => [
+            'total_piutang' => (int) ($tagihan['total_piutang'] ?? 0),
+            'total_piutang_fmt' => keuangan_format_rupiah((int) ($tagihan['total_piutang'] ?? 0)),
+            'jumlah_penunggak' => (int) ($tagihan['jumlah_penunggak'] ?? 0),
+            'bulan_label' => (string) ($tagihan['bulan_label'] ?? ''),
+            'ta_label' => (string) ($tagihan['ta_label'] ?? ''),
+            'persen_tertagih' => (float) ($tagihan['persen_tertagih'] ?? 0),
+        ],
     ];
 }
 
@@ -103,7 +221,6 @@ function yayasan_kas_status(PDO $pdo): array
  */
 function yayasan_todo_mendesak(PDO $pdo, int $limit = 12): array
 {
-    $snap = yayasan_dashboard_snapshot_cached($pdo);
     $items = [];
     $seen = [];
 
@@ -121,36 +238,69 @@ function yayasan_todo_mendesak(PDO $pdo, int $limit = 12): array
         ];
     };
 
-    foreach ($snap['perhatian'] ?? [] as $p) {
-        $sev = (string) ($p['severity'] ?? 'warning');
-        $level = $sev === 'danger' ? 'danger' : ($sev === 'warning' ? 'warning' : 'info');
+    $kas = yayasan_kas_status_cached($pdo);
+    $kasLevel = (string) ($kas['level'] ?? 'aman');
+    if ($kasLevel === 'krisis' || $kasLevel === 'peringatan') {
         $push(
             $items,
             $seen,
-            'p:' . ($p['title'] ?? ''),
-            (string) ($p['title'] ?? ''),
-            (string) ($p['detail'] ?? ''),
-            (string) ($p['link'] ?? '/yayasan/operasional.php'),
-            $level,
-            (string) ($p['icon'] ?? 'fa-circle-exclamation')
+            'kas:' . $kasLevel,
+            (string) ($kas['label'] ?? 'Keuangan'),
+            (string) ($kas['ringkasan'] ?? ''),
+            '/yayasan/operasional.php',
+            $kasLevel === 'krisis' ? 'danger' : 'warning',
+            'fa-wallet'
+        );
+    }
+    if ((int) ($kas['jumlah_penunggak'] ?? 0) >= 8) {
+        $push(
+            $items,
+            $seen,
+            'kas:penunggak',
+            'Tagihan penunggak',
+            (int) ($kas['jumlah_penunggak'] ?? 0) . ' santri · piutang ' . keuangan_format_rupiah((int) ($kas['total_piutang'] ?? 0)),
+            '/pembayaran/tagihan_syahriyah.php',
+            'warning',
+            'fa-receipt'
         );
     }
 
-    $dash = $snap['keuangan_ringkas'] ?? null;
-    if (is_array($dash)) {
-        foreach ($dash['tindakan'] ?? [] as $t) {
-            $lvl = (string) ($t['level'] ?? 'info');
-            $push(
-                $items,
-                $seen,
-                't:' . ($t['judul'] ?? ''),
-                (string) ($t['judul'] ?? ''),
-                (string) ($t['deskripsi'] ?? ''),
-                (string) ($t['href'] ?? '/pembayaran/tagihan_syahriyah.php'),
-                $lvl === 'danger' ? 'danger' : ($lvl === 'warning' ? 'warning' : 'info'),
-                (string) ($t['icon'] ?? 'fa-wallet')
-            );
-        }
+    $ket = yayasan_ketertiban_ringkasan_cached($pdo);
+    if ((int) ($ket['izin_lewat'] ?? 0) > 0) {
+        $push(
+            $items,
+            $seen,
+            'ket:izin',
+            'Izin lewat toleransi',
+            (int) $ket['izin_lewat'] . ' santri belum kembali sesuai batas izin.',
+            '/yayasan/ketertiban.php?tab=izin',
+            'danger',
+            'fa-clock'
+        );
+    }
+    if ((int) ($ket['sakit'] ?? 0) > 0) {
+        $push(
+            $items,
+            $seen,
+            'ket:sakit',
+            'Sakit perlu penanganan',
+            (int) $ket['sakit'] . ' santri membutuhkan tindak lanjut kesehatan.',
+            '/yayasan/kesehatan.php',
+            'warning',
+            'fa-heart-pulse'
+        );
+    }
+    if ((int) ($ket['alpa_beruntun'] ?? 0) > 0) {
+        $push(
+            $items,
+            $seen,
+            'ket:alpa',
+            'Alpa beruntun',
+            (int) $ket['alpa_beruntun'] . ' santri alpa berturut-turut tanpa keterangan.',
+            '/yayasan/ketertiban.php?tab=alpa',
+            'warning',
+            'fa-user-xmark'
+        );
     }
 
     if (function_exists('poin_santri_perlu_tindakan')) {
@@ -451,4 +601,28 @@ function yayasan_ketertiban_ringkasan(PDO $pdo): array
         'sakit_rows' => $sakit,
         'alpa_rows' => $alpa,
     ];
+}
+
+/** Ringkasan ketertiban dengan cache sesi singkat (dashboard pengawasan). */
+function yayasan_ketertiban_ringkasan_cached(PDO $pdo, int $ttlSec = 300): array
+{
+    $today = date('Y-m-d');
+    $cacheKey = 'yayasan_ketertiban_v1';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && (string) ($cached['day'] ?? '') === $today
+        && is_array($cached['data'] ?? null)
+    ) {
+        return $cached['data'];
+    }
+    $data = yayasan_ketertiban_ringkasan($pdo);
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(60, $ttlSec),
+        'day' => $today,
+        'data' => $data,
+    ];
+
+    return $data;
 }

@@ -13,6 +13,10 @@ if (empty($kb['ready'])) {
     return;
 }
 
+if (!function_exists('yayasan_home_href')) {
+    require_once __DIR__ . '/../../helpers/yayasan.php';
+}
+
 $kbMonth = (int) ($kb['month'] ?? 1);
 $kbYear = (int) ($kb['year'] ?? 1400);
 $kbTingkatan = (string) ($kb['tingkatan'] ?? '');
@@ -23,15 +27,12 @@ $kbMediumMax = (int) ($kb['medium_max'] ?? 3);
 $kbPeriodeLabel = (string) ($kb['periode_label'] ?? '');
 $kbStart = (string) ($kb['start_date'] ?? '');
 $kbEnd = (string) ($kb['end_date'] ?? '');
-$kbTingkatanPersen = (array) ($kb['tingkatan_persen'] ?? []);
-$kbTingkatanChart = (array) ($kb['tingkatan_chart'] ?? []);
 $kbKegiatanKosong = (array) ($kb['kegiatan_tanpa_scan'] ?? []);
 $kbSantriKosong = (array) ($kb['santri_tanpa_scan'] ?? []);
 $kbJadwalTanpaScanCount = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kbKegiatanKosong);
 $kbKegiatanTanpaScanCount = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kbKegiatanKosong));
 $kbTingkatanList = (array) ($kb['tingkatan_list'] ?? []);
-$kbShowChart = !empty($kb['show_chart']);
-$kbChartUid = 'ypKb' . substr(md5($kbFormAction . $kbMonth . $kbYear), 0, 8);
+$kbIncludeTanpaScan = !empty($kb['include_tanpa_scan']);
 $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
 ?>
 
@@ -51,6 +52,9 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                     </p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(yayasan_home_href()) ?>">
+                        <i class="fa-solid fa-house me-1"></i>Dashboard
+                    </a>
                     <a class="btn btn-sm btn-outline-info" href="<?= htmlspecialchars(app_href('/yayasan/keaktifan.php')) ?>">
                         <i class="fa-solid fa-signal me-1"></i>Hari ini
                     </a>
@@ -60,49 +64,18 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 </div>
             </div>
 
-            <form method="get" action="<?= htmlspecialchars(app_href($kbFormAction)) ?>#yp-keaktifan-bulan" class="row g-2 align-items-end mb-3 yp-filter-bar">
-                <input type="hidden" name="kb_open" value="1">
-                <div class="col-6 col-md-2">
-                    <label class="form-label small mb-0">Kalender</label>
-                    <select name="kb_mode" class="form-select form-select-sm">
-                        <option value="hijriyah"<?= ($kb['mode'] ?? 'hijriyah') === 'hijriyah' ? ' selected' : '' ?>>Hijriyah</option>
-                        <option value="masehi"<?= ($kb['mode'] ?? '') === 'masehi' ? ' selected' : '' ?>>Masehi</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label small mb-0">Bulan</label>
-                    <select name="kb_month" class="form-select form-select-sm">
-                        <?php for ($m = 1; $m <= 12; $m++): ?>
-                            <option value="<?= $m ?>"<?= $kbMonth === $m ? ' selected' : '' ?>><?= htmlspecialchars((string) ($kbHijriMonths[$m] ?? $m)) ?></option>
-                        <?php endfor; ?>
-                    </select>
-                </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label small mb-0">Tahun</label>
-                    <input type="number" class="form-control form-control-sm" name="kb_year" min="1300" max="2100" value="<?= htmlspecialchars((string) $kbYear) ?>">
-                </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label small mb-0">Tingkatan</label>
-                    <?php if ($kbTingkatanList !== []): ?>
-                        <select name="kb_tingkatan" class="form-select form-select-sm">
-                            <option value="">Semua tingkatan</option>
-                            <?php foreach ($kbTingkatanList as $tk): ?>
-                                <option value="<?= htmlspecialchars((string) $tk) ?>"<?= strcasecmp($kbTingkatan, (string) $tk) === 0 ? ' selected' : '' ?>><?= htmlspecialchars((string) $tk) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    <?php else: ?>
-                        <input type="text" class="form-control form-control-sm" name="kb_tingkatan" value="<?= htmlspecialchars($kbTingkatan) ?>" placeholder="Opsional">
-                    <?php endif; ?>
-                </div>
-                <div class="col-6 col-md-2">
-                    <button type="submit" class="btn btn-primary btn-sm w-100">Tampilkan</button>
-                </div>
-                <div class="col-6 col-md-2">
-                    <button type="submit" name="kb_refresh" value="1" class="btn btn-outline-secondary btn-sm w-100" title="Muat ulang dari database">
-                        <i class="fa-solid fa-rotate-right me-1"></i>Segarkan
-                    </button>
-                </div>
-            </form>
+            <?php
+            $periodeLabel = $kbPeriodeLabel;
+            require __DIR__ . '/../../includes/partials/yayasan_periode_rekap_link.php';
+            ?>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-yp-kb-refresh="1" title="Muat ulang ringkasan bulan ini">
+                    <i class="fa-solid fa-rotate-right me-1"></i>Segarkan
+                </button>
+                <a class="btn btn-outline-info btn-sm" href="<?= htmlspecialchars(app_href('/yayasan/keaktifan_ranking.php')) ?>">
+                    <i class="fa-solid fa-ranking-star me-1"></i>Ranking tingkatan
+                </a>
+            </div>
             <p class="small text-muted mb-3"><?= htmlspecialchars(ucfirst(rekap_keaktifan_rekap_footnote($pdo))) ?>.</p>
 
             <div class="row g-2 mb-3">
@@ -120,7 +93,7 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 </div>
                 <div class="col-6 col-md-3">
                     <div class="yp-mini-stat">
-                        <div class="yp-mini-stat__label">Jadwal tanpa scan</div>
+                        <div class="yp-mini-stat__label">Waktu tanpa scan</div>
                         <div class="yp-mini-stat__value text-danger"><?= (int) $kbJadwalTanpaScanCount ?></div>
                     </div>
                 </div>
@@ -150,51 +123,29 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 <span class="badge text-bg-danger">Buruk: Alpa &gt; <?= $kbMediumMax ?></span>
             </div>
 
-            <?php if ($kbShowChart): ?>
-            <div class="mb-4">
-                <h3 class="h6 text-secondary mb-2">Perbandingan kategori per tingkatan</h3>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm table-striped mb-0">
-                        <thead>
-                        <tr>
-                            <th>Tingkatan</th>
-                            <th class="text-center">Santri</th>
-                            <th class="text-center text-info">% Baik</th>
-                            <th class="text-center text-warning">% Sedang</th>
-                            <th class="text-center text-danger">% Buruk</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($kbTingkatanPersen as $tg => $tkRow): ?>
-                            <tr>
-                                <td class="fw-semibold"><?= htmlspecialchars((string) $tg) ?></td>
-                                <td class="text-center"><?= (int) ($tkRow['santri_count'] ?? 0) ?></td>
-                                <?php foreach (rekap_keaktifan_kategori_perbandingan() as $katKey): ?>
-                                    <td class="text-center fw-semibold"><?= htmlspecialchars((string) ($tkRow['persen'][$katKey] ?? 0)) ?>%</td>
-                                <?php endforeach; ?>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="row g-3">
-                    <div class="col-12 col-xl-7">
-                        <div class="position-relative" style="min-height:260px">
-                            <canvas id="chart<?= htmlspecialchars($kbChartUid) ?>Grouped" aria-label="Grafik Baik Sedang Buruk per tingkatan"></canvas>
-                        </div>
+            <div class="alert alert-light border mb-3 py-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <div class="fw-semibold small mb-1">Perbandingan per tingkatan</div>
+                        <p class="small text-muted mb-0">Detail grafik &amp; ranking tingkatan ada di halaman khusus — tidak ditampilkan di sini agar dashboard tetap ringan.</p>
                     </div>
-                    <div class="col-12 col-xl-5">
-                        <div class="position-relative" style="min-height:260px">
-                            <canvas id="chart<?= htmlspecialchars($kbChartUid) ?>Stacked" aria-label="Komposisi kategori per tingkatan"></canvas>
-                        </div>
-                    </div>
+                    <a class="btn btn-sm btn-outline-info" href="<?= htmlspecialchars(app_href('/yayasan/keaktifan_ranking.php')) ?>">
+                        <i class="fa-solid fa-ranking-star me-1"></i>Ranking tingkatan
+                    </a>
                 </div>
             </div>
-            <?php endif; ?>
 
-            <div class="row g-3">
+            <div class="row g-3" id="yp-kb-tanpa-scan">
+                <?php if (!$kbIncludeTanpaScan): ?>
+                <div class="col-12">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-yp-kb-load-tanpa-scan="1">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i>Muat jadwal &amp; santri tanpa scan
+                    </button>
+                    <p class="small text-muted mb-0 mt-2">Bagian ini membutuhkan query tambahan — muat bila perlu audit ketertiban scan.</p>
+                </div>
+                <?php else: ?>
                 <div class="col-12 col-lg-6">
-                    <h3 class="h6 mb-2">Jadwal tanpa scan hadir (<?= (int) $kbJadwalTanpaScanCount ?> jadwal · <?= (int) $kbKegiatanTanpaScanCount ?> kegiatan)</h3>
+                    <h3 class="h6 mb-2">Waktu tanpa scan hadir (<?= (int) $kbJadwalTanpaScanCount ?> waktu · <?= (int) $kbKegiatanTanpaScanCount ?> kegiatan)</h3>
                     <?php if ($kbKegiatanKosong === []): ?>
                         <div class="alert alert-success py-2 small mb-0">Semua jadwal kegiatan yang sudah lewat waktu pada periode ini sudah pernah discan hadir.</div>
                     <?php else: ?>
@@ -229,73 +180,11 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                         </div>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </section>
-
-<?php if ($kbShowChart): ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script>
-(function () {
-    const labels = <?= json_encode($kbTingkatanChart['labels'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-    const grouped = <?= json_encode($kbTingkatanChart['datasets'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-    const stacked = <?= json_encode($kbTingkatanChart['stacked_datasets'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-    const uid = <?= json_encode($kbChartUid, JSON_UNESCAPED_UNICODE) ?>;
-    let chartsReady = false;
-
-    function initKbCharts() {
-        if (chartsReady || typeof Chart === 'undefined' || !labels.length) {
-            return;
-        }
-        const groupedEl = document.getElementById('chart' + uid + 'Grouped');
-        const stackedEl = document.getElementById('chart' + uid + 'Stacked');
-        if (!groupedEl && !stackedEl) {
-            return;
-        }
-        chartsReady = true;
-
-        if (groupedEl) {
-            new Chart(groupedEl, {
-                type: 'bar',
-                data: { labels: labels, datasets: grouped },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true, max: 100, ticks: { callback: function (v) { return v + '%'; } } }
-                    },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
-                }
-            });
-        }
-        if (stackedEl) {
-            new Chart(stackedEl, {
-                type: 'bar',
-                data: { labels: labels, datasets: stacked },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { stacked: true },
-                        y: { stacked: true, beginAtZero: true, max: 100, ticks: { callback: function (v) { return v + '%'; } } }
-                    },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 9 } } } }
-                }
-            });
-        }
-    }
-
-    const panel = document.getElementById('ypKeaktifanBulanPanel');
-    if (panel) {
-        panel.addEventListener('shown.bs.collapse', initKbCharts);
-        if (panel.classList.contains('show')) {
-            initKbCharts();
-        }
-    }
-})();
-</script>
-<?php endif; ?>
 
 <script>
 (function () {

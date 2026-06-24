@@ -31,6 +31,12 @@ function keuangan_dashboard_cache_invalidate(): void
         require_once __DIR__ . '/pondok_kalender.php';
     }
     pondok_bulan_slots_cache_invalidate();
+    if (!function_exists('yayasan_portal_cache_invalidate')) {
+        require_once __DIR__ . '/yayasan_portal.php';
+    }
+    if (function_exists('yayasan_portal_cache_invalidate')) {
+        yayasan_portal_cache_invalidate();
+    }
 }
 
 /**

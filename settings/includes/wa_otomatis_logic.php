@@ -125,6 +125,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'wa_pembimbing_scan_menit_sebelum', (string) max(5, min(30, (int) ($_POST['wa_pembimbing_scan_menit_sebelum'] ?? 10))));
         save_setting($pdo, 'wa_musyawarah_enabled', isset($_POST['wa_musyawarah_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_musyawarah_auto_selesai', isset($_POST['wa_musyawarah_auto_selesai']) ? '1' : '0');
+        save_setting($pdo, 'wa_yayasan_tugas_enabled', isset($_POST['wa_yayasan_tugas_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_yayasan_tugas_noprogress_enabled', isset($_POST['wa_yayasan_tugas_noprogress_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_yayasan_tugas_noprogress_jam', (string) max(1, min(72, (int) ($_POST['wa_yayasan_tugas_noprogress_jam'] ?? 6))));
         set_flash('success', 'Pengaturan presensi & kelas kosong disimpan.');
         header('Location: ' . $redirectUrl);
         exit;
@@ -355,6 +358,9 @@ $cashlessLaporanStatus = cashless_wa_laporan_status_hari_ini($pdo);
 // Presensi
 $scanEnabled = trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) === '1';
 $scanMenit = max(5, min(30, (int) app_setting($pdo, 'wa_pembimbing_scan_menit_sebelum', '10')));
+$ytTugasWaEnabled = trim((string) app_setting($pdo, 'wa_yayasan_tugas_enabled', '1')) === '1';
+$ytTugasNoProgressEnabled = trim((string) app_setting($pdo, 'wa_yayasan_tugas_noprogress_enabled', '1')) === '1';
+$ytTugasNoProgressJam = max(1, min(72, (int) app_setting($pdo, 'wa_yayasan_tugas_noprogress_jam', '6')));
 
 // Log terbaru
 $waLogRecent = [];

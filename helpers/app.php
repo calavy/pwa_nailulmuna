@@ -531,6 +531,7 @@ function pondok_settings_defaults(): array
         'jenis_pendidikan' => 'Pondok Pesantren / Pesantren Putra Putri',
         'alamat_ponpes' => '',
         'nama_pengasuh' => '',
+        'nama_ketua_yayasan' => '',
         'logo_path' => '',
         'pwa_theme_color' => '',
         'pwa_background_color' => '',

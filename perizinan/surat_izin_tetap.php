@@ -9,7 +9,7 @@ require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
 require_once __DIR__ . '/../helpers/izin_tetap_hidmah_kategori.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
-require_once __DIR__ . '/../helpers/yayasan.php';
+require_once __DIR__ . '/../helpers/pondok_cetak.php';
 
 require_login();
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
@@ -76,11 +76,9 @@ $kategoriHidmahKode = trim((string) ($izin['kategori_hidmah'] ?? ''));
 $kategoriHidmahLabel = $kategoriHidmahKode !== '' ? izin_tetap_hidmah_kategori_label($pdo, $kategoriHidmahKode) : '';
 $keterangan = trim((string) ($izin['keterangan'] ?? ''));
 
-$namaKetua = yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan');
-if ($namaKetua === '') {
-    $namaKetua = trim((string) app_setting($pdo, 'nama_ketua_yayasan', ''));
-}
-$namaPengasuh = trim((string) app_setting($pdo, 'nama_pengasuh', ''));
+$namaKetua = pondok_ketua_yayasan_nama($pdo);
+$kopIzinTetap = pondok_kop_data($pdo);
+$namaPengasuh = (string) ($kopIzinTetap['nama_pengasuh'] ?? '');
 $namaPenanggungJawab = trim((string) ($izin['penanggung_jawab'] ?? ''));
 if ($namaPenanggungJawab === '') {
     $namaPenanggungJawab = trim((string) app_setting($pdo, 'nama_penanggung_jawab', ''));

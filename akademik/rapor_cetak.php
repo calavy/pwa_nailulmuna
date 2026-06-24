@@ -39,7 +39,8 @@ $raporSetoran = rapor_setoran_bulan($pdo, $santriId, $periode);
 $raporTugas = rapor_tugas_bulan($pdo, $santriId, $periode);
 $raporCompact = false;
 
-$namaPengasuh = $kop['nama_pengasuh'];
+$namaPengasuh = (string) $kop['nama_pengasuh'];
+$namaKetuaYayasan = (string) $kop['nama_ketua_yayasan'];
 $namaWaliKelas = rapor_wali_kelas_santri($pdo, $santriId, $tingkatan);
 $kotip = $kop['kota_ponpes'];
 $tglTerbit = (string) ($rapor['tanggal_terbit'] ?? date('Y-m-d'));
@@ -463,6 +464,11 @@ $autoPrint = !isset($_GET['preview']);
     <div class="ttd-wrap">
         <div class="ttd-meta"><?= htmlspecialchars($kotip) ?>, <?= htmlspecialchars($tglTerbitTampil) ?></div>
         <div class="ttd">
+            <div class="box">
+                <div class="jab">Ketua Yayasan,</div>
+                <div class="sign-space"></div>
+                <div class="line"><?= htmlspecialchars($namaKetuaYayasan !== '' ? $namaKetuaYayasan : '(_______________________)') ?></div>
+            </div>
             <div class="box">
                 <div class="jab">Pengasuh,</div>
                 <div class="sign-space"></div>

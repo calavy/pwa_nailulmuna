@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_keluar.php';
+require_once __DIR__ . '/../helpers/pondok_cetak.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_keluar_columns($pdo);
@@ -18,13 +19,15 @@ if (!$s || trim((string) ($s['keluar_settled_at'] ?? '')) === '') {
     exit('Surat belum tersedia. Selesaikan administrasi keluar terlebih dahulu.');
 }
 
-$namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
-$jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$logo = app_pondok_logo_href($pdo, false);
-$namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
-$telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
-$websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');
+$kop = pondok_kop_data($pdo);
+$namaPonpes = (string) $kop['nama_ponpes'];
+$jenisPendidikan = (string) $kop['jenis_pendidikan'];
+$alamatPonpes = (string) ($kop['alamat_ponpes'] !== '' ? $kop['alamat_ponpes'] : '-');
+$logo = (string) ($kop['logo_href'] ?? '');
+$namaPengasuhDefault = (string) $kop['nama_pengasuh'];
+$namaKetuaYayasan = (string) $kop['nama_ketua_yayasan'];
+$telpPonpes = (string) ($kop['telp_ponpes'] !== '' ? $kop['telp_ponpes'] : '(021) 1234567');
+$websitePonpes = (string) ($kop['website_ponpes'] !== '' ? $kop['website_ponpes'] : 'www.pondokpesantren.com');
 $nomorSurat = trim((string) ($s['nomor_surat_keluar'] ?? '-'));
 $wali = santri_wali_display_row($pdo, $s);
 $katLabel = keluar_kategori_label((string) ($s['keluar_kategori'] ?? ''));
@@ -102,7 +105,10 @@ $jamTerbit = date('d-m-Y H:i');
         </div>
         <div class="ttd-wrap">
             <div><?= htmlspecialchars(date('d-m-Y')) ?></div>
-            <div>Pengasuh / Kepala Madrasah,</div>
+            <div>Ketua Yayasan,</div>
+            <div class="sign-space"></div>
+            <div><strong><?= htmlspecialchars($namaKetuaYayasan !== '' ? $namaKetuaYayasan : '(_______________________)') ?></strong></div>
+            <div class="mt-3">Pengasuh / Kepala Madrasah,</div>
             <div class="sign-space"></div>
             <div><strong><?= htmlspecialchars($namaPengasuhDefault !== '' ? $namaPengasuhDefault : '(_______________________)') ?></strong></div>
             <div class="mt-2 small text-muted">Waktu cetak: <?= htmlspecialchars($jamTerbit) ?></div>

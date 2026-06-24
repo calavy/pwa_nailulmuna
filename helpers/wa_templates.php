@@ -234,6 +234,47 @@ function wa_template_definitions(): array
                 . '_Allahumma Rabban-nas, adzhibil ba\'sa, wa syfihi, Antasy-Syafi, la syifaa\'a illa syifaa\'uka, syifaa\'an la yughadiru saqama._\n\n'
                 . 'Semoga Allah Yang Maha Penyembuh memberikan kesembuhan kepada *{nama_santri}*. Aamiin.',
         ],
+        'yayasan_tugas_baru' => [
+            'label' => 'Penugasan baru → PJ / pembantu',
+            'hint' => 'Dikirim ke setiap PJ dan pembantu saat tugas timeline dibuat.',
+            'placeholders' => '{nama_pembimbing}, {peran}, {tim_penugasan}, {judul_tugas}, {kategori}, {tanggal_mulai}, {tanggal_tenggat}, {deskripsi}, {link_tugas}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
+                . '*{nama_pembimbing}*, Anda ditunjuk sebagai *{peran}* tugas:\n\n'
+                . '*{judul_tugas}* ({kategori})\n'
+                . '{tim_penugasan}'
+                . 'Mulai: {tanggal_mulai}\n'
+                . 'Tenggat: *{tanggal_tenggat}*\n'
+                . '{deskripsi}'
+                . 'Lapor progres di aplikasi:\n{link_tugas}\n\n'
+                . '— {nama_ponpes}',
+        ],
+        'yayasan_tugas_diubah' => [
+            'label' => 'Tugas diubah → PJ / pembantu',
+            'hint' => 'Dikirim ke setiap PJ dan pembantu saat data tugas diperbarui.',
+            'placeholders' => '{nama_pembimbing}, {peran}, {tim_penugasan}, {judul_tugas}, {kategori}, {tanggal_mulai}, {tanggal_tenggat}, {deskripsi}, {link_tugas}, {progres}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
+                . '*{nama_pembimbing}*, tugas Anda sebagai *{peran}* telah *diperbarui*:\n\n'
+                . '*{judul_tugas}* ({kategori})\n'
+                . '{tim_penugasan}'
+                . 'Mulai: {tanggal_mulai}\n'
+                . 'Tenggat: *{tanggal_tenggat}*\n'
+                . 'Progres saat ini: {progres}\n'
+                . '{deskripsi}'
+                . 'Detail & laporan:\n{link_tugas}\n\n'
+                . '— {nama_ponpes}',
+        ],
+        'yayasan_tugas_belum_progres' => [
+            'label' => 'Pengingat belum ada progres → PJ / pembantu',
+            'hint' => 'Dikirim otomatis (maks. 1×/hari per orang per tugas) jika progres masih 0%.',
+            'placeholders' => '{nama_pembimbing}, {peran}, {tim_penugasan}, {judul_tugas}, {kategori}, {tanggal_mulai}, {tanggal_tenggat}, {link_tugas}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
+                . '*{nama_pembimbing}* ({peran}), pengingat tugas *belum ada progres*:\n\n'
+                . '*{judul_tugas}* ({kategori})\n'
+                . '{tim_penugasan}'
+                . 'Tenggat: *{tanggal_tenggat}*\n\n'
+                . 'Mohon segera update status & unggah bukti di:\n{link_tugas}\n\n'
+                . '— {nama_ponpes}',
+        ],
     ];
 }
 

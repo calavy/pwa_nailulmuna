@@ -140,13 +140,13 @@ foreach ($editUndanganLembaga as $j) {
     }
 }
 
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
+
 $pageTitle = 'Rapat Yayasan';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a> · Rapat</p>
+    <?php $yayasanCrumbTail = 'Rapat & Musyawarah'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
     <h1 class="h4 mb-1">Rapat yayasan</h1>
     <p class="text-muted mb-0">Jadwalkan rapat &amp; musyawarah — centang jabatan wajib scan presensi.</p>
     <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/yayasan/sdm.php')) ?>">Kelola data SDM yayasan &amp; lembaga</a></p>

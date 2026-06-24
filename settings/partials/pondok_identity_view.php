@@ -24,6 +24,12 @@
             <div class="col-md-6">
                 <label class="form-label">Nama pengasuh</label>
                 <input type="text" class="form-control" name="nama_pengasuh" value="<?= htmlspecialchars($values['nama_pengasuh']) ?>">
+                <div class="form-text">Tampil di blok tanda tangan surat cetak (pengasuh).</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Nama ketua yayasan</label>
+                <input type="text" class="form-control" name="nama_ketua_yayasan" value="<?= htmlspecialchars((string) ($values['nama_ketua_yayasan'] ?? '')) ?>">
+                <div class="form-text">Cadangan jika belum diisi di data pengurus yayasan. Dipakai di surat cetak.</div>
             </div>
             <div class="col-md-12">
                 <label class="form-label">Logo pesantren</label>

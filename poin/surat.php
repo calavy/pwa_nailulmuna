@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
+require_once __DIR__ . '/../helpers/pondok_cetak.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_point_tables($pdo);
@@ -58,13 +59,15 @@ $bulanNama = [
 ];
 $periodeLabel = ($bulanNama[$month] ?? (string) $month) . ' ' . $year;
 
-$namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
-$jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$namaPengasuhDefault = app_setting($pdo, 'nama_pengasuh', '');
-$telpPonpes = app_setting($pdo, 'telp_ponpes', '(021) 1234567');
-$websitePonpes = app_setting($pdo, 'website_ponpes', 'www.pondokpesantren.com');
-$logo = app_pondok_logo_href($pdo, false);
+$kop = pondok_kop_data($pdo);
+$namaPonpes = (string) $kop['nama_ponpes'];
+$jenisPendidikan = (string) $kop['jenis_pendidikan'];
+$alamatPonpes = (string) ($kop['alamat_ponpes'] !== '' ? $kop['alamat_ponpes'] : '-');
+$namaPengasuhDefault = (string) $kop['nama_pengasuh'];
+$namaKetuaYayasan = (string) $kop['nama_ketua_yayasan'];
+$telpPonpes = (string) ($kop['telp_ponpes'] !== '' ? $kop['telp_ponpes'] : '(021) 1234567');
+$websitePonpes = (string) ($kop['website_ponpes'] !== '' ? $kop['website_ponpes'] : 'www.pondokpesantren.com');
+$logo = (string) ($kop['logo_href'] ?? '');
 $jamTerbit = date('d-m-Y H:i');
 
 $judul = $spLevel === 'SP2' ? 'Surat Peringatan 2 (SP2)' : 'Surat Peringatan 1 (SP1)';
@@ -231,6 +234,11 @@ $headerColor = $spLevel === 'SP2' ? '#b91c1c' : '#b45309';
         <div class="ttd-wrap">
             <div class="ttd-meta">Muntilan, <?= htmlspecialchars(date('d-m-Y')) ?></div>
             <div class="ttd">
+                <div class="box">
+                    <div>Ketua Yayasan,</div>
+                    <div class="sign-space"></div>
+                    <div class="line"><?= htmlspecialchars($namaKetuaYayasan !== '' ? $namaKetuaYayasan : '____________________') ?></div>
+                </div>
                 <div class="box">
                     <div>Pengasuh,</div>
                     <div class="sign-space"></div>

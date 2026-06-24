@@ -28,7 +28,8 @@ $santriId = (int) ($_GET['santri_id'] ?? 0);
 $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
 $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 
-$rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
+rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+$rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0, false);
 if ($tingkatan !== '') {
     $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
         return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);

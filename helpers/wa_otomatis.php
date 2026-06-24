@@ -677,6 +677,10 @@ function wa_auto_run_tick(PDO $pdo): array
         if ($runLight) {
             trigger_wa_pembimbing_belum_scan($pdo);
             trigger_wa_mudabir_belum_hadir($pdo);
+            if (!function_exists('trigger_wa_yayasan_tugas_belum_progres')) {
+                require_once __DIR__ . '/wa_yayasan_tugas.php';
+            }
+            trigger_wa_yayasan_tugas_belum_progres($pdo);
             save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
         }
 

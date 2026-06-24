@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Daftar kegiatan tanpa scan — per baris: nama kegiatan + jml jadwal (bukan jml santri).
+ * Daftar kegiatan tanpa scan — per baris: nama kegiatan + jml waktu (bukan jml tingkatan/santri).
  *
  * @var list<array<string, mixed>> $ktsSlotRows baris per slot dari rekap_keaktifan_kegiatan_tanpa_scan_bulan()
  * @var string $ktsListPrefix id unik untuk panel detail
@@ -19,7 +19,7 @@ if ($ktsGrouped === []) {
 }
 ?>
 <?php if ($ktsShowHint): ?>
-<p class="small text-muted mb-2">Ketuk baris kegiatan untuk lihat tanggal &amp; waktu jadwal tanpa scan.</p>
+<p class="small text-muted mb-2">Ketuk baris kegiatan untuk lihat tanggal &amp; waktu tanpa scan.</p>
 <?php endif; ?>
 <ol class="kts-grouped-list list-unstyled mb-0">
     <?php foreach ($ktsGrouped as $idx => $kgRow):
@@ -32,9 +32,9 @@ if ($ktsGrouped === []) {
                 <span class="kts-grouped-item__chev"><i class="fa-solid fa-chevron-right"></i></span>
                 <span class="kts-grouped-item__no"><?= $idx + 1 ?></span>
                 <span class="kts-grouped-item__nama flex-grow-1 text-start"><?= htmlspecialchars((string) ($kgRow['nama_kegiatan'] ?? '')) ?></span>
-                <span class="kts-grouped-item__count" title="Jumlah jadwal tanpa scan">
+                <span class="kts-grouped-item__count" title="Jumlah waktu tanpa scan">
                     <?= $jmlTidak ?>
-                    <small>jadwal</small>
+                    <small>waktu</small>
                 </span>
             </button>
             <div class="kts-grouped-item__detail" id="<?= htmlspecialchars($itemId) ?>" hidden>

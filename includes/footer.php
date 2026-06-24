@@ -1,4 +1,7 @@
 <?php
+if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY'])) {
+    return;
+}
 $footerRequestPath = $requestPath ?? app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
 $isScanKioskPage = app_request_path_is_scan_kiosk($footerRequestPath);
 $loadOfflineSyncJs = ($loadOfflineSyncJs ?? true) && app_should_load_offline_sync_js($footerRequestPath);

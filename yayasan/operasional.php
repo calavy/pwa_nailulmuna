@@ -5,114 +5,65 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
-require_once __DIR__ . '/../helpers/yayasan_portal.php';
 require_once __DIR__ . '/../helpers/yayasan_keaktifan_bulan.php';
 
 require_roles(['admin', 'pengurus']);
 
 yayasan_ensure_tables($pdo);
-$kbGet = [
-    'mode' => $_GET['kb_mode'] ?? 'hijriyah',
-    'month' => $_GET['kb_month'] ?? null,
-    'year' => $_GET['kb_year'] ?? null,
-    'tingkatan' => $_GET['kb_tingkatan'] ?? '',
-    'kb_refresh' => $_GET['kb_refresh'] ?? '',
-];
-$kbPanelOpen = isset($_GET['kb_month']) || isset($_GET['kb_year']) || array_key_exists('kb_tingkatan', $_GET)
-    || (string) ($_GET['kb_open'] ?? '') === '1';
-$kas = yayasan_kas_status($pdo);
-$tagihan = $kas['tagihan_bulan'] ?? [];
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
-$fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 
-if ($kbPanelOpen) {
-    $kb = yayasan_keaktifan_bulan_pack_cached($pdo, $kbGet);
-} else {
-    $kb = yayasan_keaktifan_bulan_pack_light($pdo);
-}
-$kbFormAction = '/yayasan/operasional.php';
-$kbKegiatanKosongCount = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal((array) ($kb['kegiatan_tanpa_scan'] ?? []));
-$kbSantriKosongCount = count((array) ($kb['santri_tanpa_scan'] ?? []));
-$kbPerhatianCount = $kbPanelOpen ? ($kbKegiatanKosongCount + $kbSantriKosongCount) : 0;
-$kbSaran = $kbPanelOpen ? yayasan_keaktifan_bulan_saran($kb) : [];
-
-$pageTitle = 'Dashboard Operasional Yayasan';
+$kbPanelOpen = (string) ($_GET['kb_open'] ?? '') === '1'
+    || (isset($_SERVER['REQUEST_URI']) && str_contains((string) $_SERVER['REQUEST_URI'], '#yp-keaktifan-bulan'));
+$kb = yayasan_keaktifan_bulan_pack_light($pdo);
+$pageTitle = 'Yayasan';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
+$pageScripts = [app_asset_href('/assets/js/yayasan-period.js')];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="yp-wrap">
+<div class="yp-wrap" id="yp-operasional-root">
     <header class="yp-hero yp-hero--operasional mb-4">
-        <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a></p>
+        <p class="page-intro-kicker mb-1">Yayasan</p>
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
             <div>
-                <h1 class="h3 mb-1">Dashboard Utama</h1>
+                <h1 class="h3 mb-1">Dashboard Yayasan</h1>
                 <p class="text-muted mb-0">Fokus keuangan & operasional cepat — <?= htmlspecialchars(date('l, d F Y')) ?></p>
             </div>
-            <span class="yp-kas-badge yp-kas-badge--<?= htmlspecialchars((string) $kas['badge']) ?>">
-                <i class="fa-solid fa-shield-halved me-1"></i><?= htmlspecialchars((string) $kas['label']) ?>
+            <span class="yp-kas-badge yp-kas-badge--secondary" id="yp-kas-badge">
+                <i class="fa-solid fa-spinner fa-spin me-1"></i>Memuat status…
             </span>
         </div>
     </header>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4" id="yp-kas-row">
         <div class="col-lg-4">
-            <div class="card border-0 shadow-sm h-100 yp-card-kas yp-card-kas--<?= htmlspecialchars((string) $kas['level']) ?>">
+            <div class="card border-0 shadow-sm h-100 yp-card-kas yp-card-kas--secondary" id="yp-card-kas-status">
                 <div class="card-body">
-                    <div class="small text-uppercase fw-bold opacity-75 mb-1">Status Keuangan</div>
-                    <div class="display-6 fw-bold mb-2"><?= htmlspecialchars((string) $kas['label']) ?></div>
-                    <p class="small mb-3"><?= htmlspecialchars((string) $kas['ringkasan']) ?></p>
-                    <div class="row g-2 small">
-                        <div class="col-6">
-                            <div class="text-muted">Saldo kas</div>
-                            <div class="fw-semibold"><?= $fmt((int) $kas['saldo_kas']) ?></div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-muted">Net bulan ini</div>
-                            <div class="fw-semibold <?= (int) $kas['net_bulan_ini'] < 0 ? 'text-danger' : 'text-success' ?>">
-                                <?= $fmt((int) $kas['net_bulan_ini']) ?>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-muted">Tertagih</div>
-                            <div class="fw-semibold"><?= number_format((float) $kas['persen_tertagih'], 1, ',', '.') ?>%</div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-muted">Neraca</div>
-                            <div class="fw-semibold"><?= $kas['neraca_seimbang'] ? 'Seimbang' : 'Selisih' ?></div>
+                    <div class="placeholder-glow">
+                        <span class="placeholder col-6 mb-2"></span>
+                        <span class="placeholder col-8 mb-3" style="height:2rem"></span>
+                        <span class="placeholder col-12 mb-2"></span>
+                        <div class="row g-2">
+                            <div class="col-6"><span class="placeholder col-12"></span></div>
+                            <div class="col-6"><span class="placeholder col-12"></span></div>
+                            <div class="col-6"><span class="placeholder col-12"></span></div>
+                            <div class="col-6"><span class="placeholder col-12"></span></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <div class="small text-uppercase fw-bold text-muted">Tagihan Aktif</div>
-                            <div class="fs-2 fw-bold text-danger"><?= $fmt((int) ($tagihan['total_piutang'] ?? 0)) ?></div>
-                        </div>
-                        <i class="fa-solid fa-file-invoice-dollar fs-3 text-danger opacity-50"></i>
-                    </div>
-                    <p class="small text-muted mb-2">
-                        <?= (int) ($tagihan['jumlah_penunggak'] ?? 0) ?> santri penunggak
-                        · <?= htmlspecialchars((string) ($tagihan['bulan_label'] ?? '')) ?>
-                        <?= !empty($tagihan['ta_label']) ? 'TA ' . htmlspecialchars((string) $tagihan['ta_label']) : '' ?>
-                    </p>
-                    <div class="progress mb-2" style="height:8px">
-                        <div class="progress-bar bg-success" style="width:<?= min(100, (float) ($tagihan['persen_tertagih'] ?? 0)) ?>%"></div>
-                    </div>
-                    <a class="btn btn-outline-danger btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">
-                        <i class="fa-solid fa-list me-1"></i>Lihat tagihan
-                    </a>
+            <div class="card border-0 shadow-sm h-100" id="yp-card-tagihan">
+                <div class="card-body placeholder-glow">
+                    <span class="placeholder col-5 mb-2"></span>
+                    <span class="placeholder col-7 mb-3" style="height:2rem"></span>
+                    <span class="placeholder col-12 mb-2"></span>
+                    <span class="placeholder col-12 mb-3" style="height:8px"></span>
+                    <span class="placeholder col-4"></span>
                 </div>
             </div>
         </div>
-
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm h-100 bg-primary text-white">
                 <div class="card-body d-flex flex-column">
@@ -134,48 +85,26 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="row g-3">
         <?php if (!empty($kb['ready'])): ?>
         <div class="col-md-4">
-            <?php if (!$kbPanelOpen): ?>
-            <a
-                class="card border-0 shadow-sm text-decoration-none text-start w-100 h-100 yp-nav-card yp-nav-card--toggle collapsed"
-                href="<?= htmlspecialchars(app_href('/yayasan/operasional.php?kb_open=1')) ?>"
-            >
-                <div class="card-body">
-                    <i class="fa-solid fa-calendar-days text-info mb-2"></i>
-                    <div class="fw-semibold text-dark">Rekap Keaktifan Bulanan</div>
-                    <div class="small text-muted">Bulan Hijriyah · grafik &amp; tanpa scan</div>
-                    <span class="badge text-bg-secondary mt-2">Ketuk untuk muat rekap</span>
-                    <div class="small text-primary mt-2 yp-nav-card__hint">
-                        <i class="fa-solid fa-chevron-down me-1 yp-nav-card__chev" aria-hidden="true"></i>
-                        <span class="yp-nav-card__hint-text">Ketuk untuk buka</span>
-                    </div>
-                </div>
-            </a>
-            <?php else: ?>
             <button
                 type="button"
-                class="card border-0 shadow-sm text-start w-100 h-100 yp-nav-card yp-nav-card--toggle"
+                class="card border-0 shadow-sm text-start w-100 h-100 yp-nav-card yp-nav-card--toggle<?= $kbPanelOpen ? '' : ' collapsed' ?>"
                 id="ypKeaktifanBulanToggle"
                 data-bs-toggle="collapse"
                 data-bs-target="#ypKeaktifanBulanPanel"
-                aria-expanded="true"
+                aria-expanded="<?= $kbPanelOpen ? 'true' : 'false' ?>"
                 aria-controls="ypKeaktifanBulanPanel"
             >
                 <div class="card-body">
                     <i class="fa-solid fa-calendar-days text-info mb-2"></i>
                     <div class="fw-semibold text-dark">Rekap Keaktifan Bulanan</div>
-                    <div class="small text-muted">Bulan Hijriyah · grafik &amp; tanpa scan</div>
-                    <?php if ($kbPerhatianCount > 0): ?>
-                        <span class="badge text-bg-danger mt-2"><?= (int) $kbPerhatianCount ?> perlu perhatian</span>
-                    <?php else: ?>
-                        <span class="badge text-bg-success mt-2">Kondisi baik</span>
-                    <?php endif; ?>
+                    <div class="small text-muted">Bulan Hijriyah · ringkasan &amp; peringatan scan</div>
+                    <span class="badge text-bg-secondary mt-2" id="yp-kb-badge">Ketuk untuk muat rekap</span>
                     <div class="small text-primary mt-2 yp-nav-card__hint">
                         <i class="fa-solid fa-chevron-down me-1 yp-nav-card__chev" aria-hidden="true"></i>
-                        <span class="yp-nav-card__hint-text">Ketuk untuk tutup</span>
+                        <span class="yp-nav-card__hint-text"><?= $kbPanelOpen ? 'Ketuk untuk tutup' : 'Ketuk untuk buka' ?></span>
                     </div>
                 </div>
             </button>
-            <?php endif; ?>
         </div>
         <?php endif; ?>
         <div class="col-md-4">
@@ -202,6 +131,15 @@ require_once __DIR__ . '/../includes/header.php';
                     <i class="fa-solid fa-signal text-info mb-2"></i>
                     <div class="fw-semibold text-dark">Keaktifan Hari Ini</div>
                     <div class="small text-muted">Rekap scan real-time & drill-down</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/keaktifan_ranking.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-ranking-star text-warning mb-2"></i>
+                    <div class="fw-semibold text-dark">Ranking per Tingkatan</div>
+                    <div class="small text-muted">Perbandingan keaktifan antar tingkatan</div>
                 </div>
             </a>
         </div>
@@ -233,42 +171,6 @@ require_once __DIR__ . '/../includes/header.php';
             </a>
         </div>
         <div class="col-md-4">
-            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/pengurus.php')) ?>">
-                <div class="card-body">
-                    <i class="fa-solid fa-users text-secondary mb-2"></i>
-                    <div class="fw-semibold text-dark">Pengurus</div>
-                    <div class="small text-muted">Struktur pengurus yayasan</div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/rapat.php')) ?>">
-                <div class="card-body">
-                    <i class="fa-solid fa-handshake text-primary mb-2"></i>
-                    <div class="fw-semibold text-dark">Rapat</div>
-                    <div class="small text-muted">Jadwal & agenda rapat</div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/notulen.php')) ?>">
-                <div class="card-body">
-                    <i class="fa-solid fa-file-lines text-muted mb-2"></i>
-                    <div class="fw-semibold text-dark">Notulen</div>
-                    <div class="small text-muted">Arsip notulen rapat</div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/executive.php')) ?>">
-                <div class="card-body">
-                    <i class="fa-solid fa-chart-pie text-success mb-2"></i>
-                    <div class="fw-semibold text-dark">Executive Summary</div>
-                    <div class="small text-muted">Ringkasan eksekutif yayasan</div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
             <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/sdm_hari.php')) ?>">
                 <div class="card-body">
                     <i class="fa-solid fa-user-check text-info mb-2"></i>
@@ -277,13 +179,214 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </a>
         </div>
+        <div class="col-md-4">
+            <a class="card border-0 shadow-sm text-decoration-none h-100 yp-nav-card" href="<?= htmlspecialchars(app_href('/yayasan/rapat.php')) ?>">
+                <div class="card-body">
+                    <i class="fa-solid fa-handshake text-secondary mb-2"></i>
+                    <div class="fw-semibold text-dark">Rapat &amp; Musyawarah</div>
+                    <div class="small text-muted">Jadwal rapat, presensi &amp; notulen</div>
+                </div>
+            </a>
+        </div>
     </div>
 
     <?php if (!empty($kb['ready'])): ?>
     <div class="collapse<?= $kbPanelOpen ? ' show' : '' ?>" id="ypKeaktifanBulanPanel">
-        <?php require __DIR__ . '/partials/keaktifan_bulan_panel.php'; ?>
+        <div id="ypKeaktifanBulanMount" class="mt-3" data-loaded="0">
+            <?php if ($kbPanelOpen): ?>
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center text-muted py-4">
+                    <i class="fa-solid fa-spinner fa-spin me-1"></i> Memuat rekap keaktifan bulanan…
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
     </div>
     <?php endif; ?>
 </div>
+
+<script>
+window.__ypOperasional = <?= json_encode([
+    'kasApi' => app_href('/api/yayasan/kas_status.php'),
+    'kbApi' => app_href('/api/yayasan/keaktifan_bulan_panel.php'),
+    'kbQuery' => array_filter([
+        'kb_refresh' => ($_GET['kb_refresh'] ?? '') === '1' ? '1' : null,
+        'tanpa_scan' => ($_GET['tanpa_scan'] ?? '') === '1' ? '1' : null,
+    ], static fn ($v) => $v !== null && $v !== ''),
+    'kbOpen' => $kbPanelOpen,
+], JSON_UNESCAPED_UNICODE) ?>;
+
+(function () {
+    var cfg = window.__ypOperasional || {};
+    var kasBadge = document.getElementById('yp-kas-badge');
+    var kasCard = document.getElementById('yp-card-kas-status');
+    var tagihanCard = document.getElementById('yp-card-tagihan');
+    var kbMount = document.getElementById('ypKeaktifanBulanMount');
+    var kbPanel = document.getElementById('ypKeaktifanBulanPanel');
+    var kbBadge = document.getElementById('yp-kb-badge');
+    var kbLoaded = false;
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function renderKas(k) {
+        if (!k) return;
+        if (kasBadge) {
+            kasBadge.className = 'yp-kas-badge yp-kas-badge--' + esc(k.badge);
+            kasBadge.innerHTML = '<i class="fa-solid fa-shield-halved me-1"></i>' + esc(k.label);
+        }
+        if (kasCard) {
+            kasCard.className = 'card border-0 shadow-sm h-100 yp-card-kas yp-card-kas--' + esc(k.level);
+            kasCard.innerHTML = '<div class="card-body">'
+                + '<div class="small text-uppercase fw-bold opacity-75 mb-1">Status Keuangan</div>'
+                + '<div class="display-6 fw-bold mb-2">' + esc(k.label) + '</div>'
+                + '<p class="small mb-3">' + esc(k.ringkasan) + '</p>'
+                + '<div class="row g-2 small">'
+                + '<div class="col-6"><div class="text-muted">Saldo kas</div><div class="fw-semibold">' + esc(k.saldo_kas_fmt) + '</div></div>'
+                + '<div class="col-6"><div class="text-muted">Net bulan ini</div><div class="fw-semibold ' + (k.net_negatif ? 'text-danger' : 'text-success') + '">' + esc(k.net_bulan_ini_fmt) + '</div></div>'
+                + '<div class="col-6"><div class="text-muted">Tertagih</div><div class="fw-semibold">' + Number(k.persen_tertagih || 0).toLocaleString('id-ID', {maximumFractionDigits: 1}) + '%</div></div>'
+                + '<div class="col-6"><div class="text-muted">Neraca</div><div class="fw-semibold">' + (k.neraca_seimbang ? 'Seimbang' : 'Selisih') + '</div></div>'
+                + '</div></div>';
+        }
+        if (tagihanCard && k.tagihan) {
+            var t = k.tagihan;
+            tagihanCard.innerHTML = '<div class="card-body">'
+                + '<div class="d-flex justify-content-between align-items-start mb-2">'
+                + '<div><div class="small text-uppercase fw-bold text-muted">Tagihan Aktif</div>'
+                + '<div class="fs-2 fw-bold text-danger">' + esc(t.total_piutang_fmt) + '</div></div>'
+                + '<i class="fa-solid fa-file-invoice-dollar fs-3 text-danger opacity-50"></i></div>'
+                + '<p class="small text-muted mb-2">' + esc(t.jumlah_penunggak) + ' santri penunggak · ' + esc(t.bulan_label)
+                + (t.ta_label ? ' TA ' + esc(t.ta_label) : '') + '</p>'
+                + '<div class="progress mb-2" style="height:8px"><div class="progress-bar bg-success" style="width:' + Math.min(100, Number(t.persen_tertagih || 0)) + '%"></div></div>'
+                + '<a class="btn btn-outline-danger btn-sm" href="' + <?= json_encode(app_href('/pembayaran/tagihan_syahriyah.php')) ?> + '"><i class="fa-solid fa-list me-1"></i>Lihat tagihan</a>'
+                + '</div>';
+        }
+    }
+
+    function loadKas() {
+        if (!cfg.kasApi) return;
+        fetch(cfg.kasApi, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) { if (data && data.ok) renderKas(data.kas); })
+            .catch(function () {
+                if (kasBadge) kasBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>Gagal memuat';
+                if (kasCard) kasCard.querySelector('.card-body')?.insertAdjacentHTML('beforeend', '<p class="small text-danger mt-2 mb-0">Status keuangan gagal dimuat. <a href="#" onclick="location.reload();return false;">Muat ulang</a></p>');
+            });
+    }
+
+    function runScriptsIn(root) {
+        var scripts = Array.prototype.slice.call(root.querySelectorAll('script'));
+        function runNext(i) {
+            if (i >= scripts.length) return;
+            var oldScript = scripts[i];
+            var s = document.createElement('script');
+            Array.prototype.forEach.call(oldScript.attributes, function (attr) {
+                s.setAttribute(attr.name, attr.value);
+            });
+            if (oldScript.src) {
+                s.onload = function () { runNext(i + 1); };
+                s.onerror = function () { runNext(i + 1); };
+                oldScript.parentNode.replaceChild(s, oldScript);
+            } else {
+                s.textContent = oldScript.textContent;
+                oldScript.parentNode.replaceChild(s, oldScript);
+                runNext(i + 1);
+            }
+        }
+        runNext(0);
+    }
+
+    function loadKbPanel(force) {
+        if (!kbMount || !cfg.kbApi) return;
+        if (kbLoaded && !force) return;
+        kbLoaded = true;
+        kbMount.dataset.loaded = 'loading';
+        kbMount.innerHTML = '<div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i> Memuat rekap…</div></div>';
+        var params = new URLSearchParams(cfg.kbQuery || {});
+        fetch(cfg.kbApi + '?' + params.toString(), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.ok && typeof data.html === 'string') {
+                    kbMount.innerHTML = data.html;
+                    runScriptsIn(kbMount);
+                    kbMount.dataset.loaded = '1';
+                    if (kbBadge) {
+                        var n = Number(data.perhatian_count || 0);
+                        kbBadge.className = 'badge mt-2 ' + (n > 0 ? 'text-bg-danger' : 'text-bg-success');
+                        kbBadge.textContent = n > 0 ? (n + ' perlu perhatian') : 'Kondisi baik';
+                    }
+                } else {
+                    kbLoaded = false;
+                    kbMount.innerHTML = '<div class="alert alert-warning small mb-0">Gagal memuat rekap bulanan.</div>';
+                }
+            })
+            .catch(function () {
+                kbLoaded = false;
+                kbMount.innerHTML = '<div class="alert alert-warning small mb-0">Gagal memuat rekap bulanan.</div>';
+            });
+    }
+
+    window.__ypReloadKbPanel = function (form, extra) {
+        if (!kbMount) return;
+        var q = {};
+        if (form instanceof HTMLFormElement) {
+            new FormData(form).forEach(function (v, k) {
+                if (v !== '') q[k] = v;
+            });
+        } else {
+            q = Object.assign({}, cfg.kbQuery || {});
+        }
+        if (extra && typeof extra === 'object') {
+            Object.keys(extra).forEach(function (k) {
+                if (extra[k] === null || extra[k] === undefined || extra[k] === '') {
+                    delete q[k];
+                } else {
+                    q[k] = extra[k];
+                }
+            });
+        }
+        cfg.kbQuery = q;
+        kbLoaded = false;
+        loadKbPanel(true);
+        try {
+            var url = new URL(window.location.href);
+            ['kb_mode', 'kb_month', 'kb_year', 'kb_tingkatan', 'kb_refresh', 'tanpa_scan'].forEach(function (k) {
+                url.searchParams.delete(k);
+            });
+            if (q.kb_refresh) url.searchParams.set('kb_refresh', q.kb_refresh);
+            if (q.tanpa_scan) url.searchParams.set('tanpa_scan', q.tanpa_scan);
+            url.hash = 'yp-keaktifan-bulan';
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        } catch (e) { /* ignore */ }
+    };
+
+    document.addEventListener('click', function (e) {
+        var refreshBtn = e.target.closest('[data-yp-kb-refresh]');
+        if (refreshBtn && kbMount && kbMount.contains(refreshBtn)) {
+            window.__ypReloadKbPanel(null, { kb_refresh: '1' });
+            return;
+        }
+        var tanpaBtn = e.target.closest('[data-yp-kb-load-tanpa-scan]');
+        if (tanpaBtn && kbMount && kbMount.contains(tanpaBtn)) {
+            window.__ypReloadKbPanel(null, { tanpa_scan: '1' });
+        }
+    });
+
+    if (kbPanel) {
+        kbPanel.addEventListener('show.bs.collapse', loadKbPanel);
+    }
+    if (cfg.kbOpen) {
+        loadKbPanel();
+    }
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(loadKas, { timeout: 1200 });
+    } else {
+        setTimeout(loadKas, 50);
+    }
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

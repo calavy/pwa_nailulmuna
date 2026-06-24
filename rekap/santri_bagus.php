@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/rekap_periode.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
+require_once __DIR__ . '/../helpers/pondok_cetak.php';
 
 $rekapKeaktifanPagePath = (string) ($rekapKeaktifanBasePath ?? '/rekap/santri_bagus.php');
 $rekapKeaktifanModulKicker = (string) ($rekapKeaktifanModulLabel ?? 'Modul Kajian · Poin & Keaktifan');
@@ -56,7 +57,9 @@ foreach ($santriList as $santriOption) {
     }
 }
 
-$rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, $kegiatanId);
+$kalKey = $periode['kalender_hijriyah_key'] ?? null;
+rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+$rawRows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], $kegiatanId, false, $kalKey);
 if ($tingkatan !== '') {
     $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
         return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -74,26 +77,28 @@ $ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
 $byKegiatan = rekap_keaktifan_build_per_kegiatan($rawRows);
 $byTingkatan = rekap_keaktifan_build_per_tingkatan($ranked);
 
-$chartRows = presensi_fetch_rows_rekap_periode($pdo, $periode, $kegiatanId);
-$chartRanked = rekap_keaktifan_build_per_santri($chartRows, $goodMax, $mediumMax);
-$byTingkatanChart = rekap_keaktifan_build_per_tingkatan($chartRanked);
+$byTingkatanChart = $byTingkatan;
 $tingkatanKategoriPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
 $tingkatanKategoriChart = rekap_keaktifan_chart_tingkatan_kategori($tingkatanKategoriPersen);
 $showTingkatanKategoriChart = $santriId <= 0 && $tingkatanKategoriPersen !== [];
 
-$kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
-    $pdo,
-    $startDate,
-    $endDate,
-    $tingkatan !== '' ? $tingkatan : null,
-    $kegiatanId
-);
-$santriTanpaScan = rekap_keaktifan_santri_tanpa_scan_bulan(
-    $pdo,
-    $startDate,
-    $endDate,
-    $tingkatan !== '' ? $tingkatan : null
-);
+$kegiatanTanpaScan = [];
+$santriTanpaScan = [];
+if ($tampilan === 'semua') {
+    $kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
+        $pdo,
+        $startDate,
+        $endDate,
+        $tingkatan !== '' ? $tingkatan : null,
+        $kegiatanId
+    );
+    $santriTanpaScan = rekap_keaktifan_santri_tanpa_scan_bulan(
+        $pdo,
+        $startDate,
+        $endDate,
+        $tingkatan !== '' ? $tingkatan : null
+    );
+}
 $showKegiatanTanpaScan = $santriId <= 0;
 $showSantriTanpaScan = $santriId <= 0;
 
@@ -119,13 +124,15 @@ if ($selectedSantri) {
     }
 }
 
-$namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
-$jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
-$alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
-$logo = app_pondok_logo_href($pdo, false);
-$telpPonpes = app_setting($pdo, 'telp_ponpes', '');
-$websitePonpes = app_setting($pdo, 'website_ponpes', '');
-$namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
+$kopRekap = pondok_kop_data($pdo);
+$namaPonpes = (string) $kopRekap['nama_ponpes'];
+$jenisPendidikan = (string) $kopRekap['jenis_pendidikan'];
+$alamatPonpes = (string) ($kopRekap['alamat_ponpes'] !== '' ? $kopRekap['alamat_ponpes'] : '-');
+$logo = (string) ($kopRekap['logo_href'] ?? '');
+$telpPonpes = (string) $kopRekap['telp_ponpes'];
+$websitePonpes = (string) $kopRekap['website_ponpes'];
+$namaPengasuh = (string) $kopRekap['nama_pengasuh'];
+$namaKetuaYayasan = (string) $kopRekap['nama_ketua_yayasan'];
 $pageTitle = 'Rekap Keaktifan Santri';
 
 $buildQuery = static function (array $overrides = []) use ($mode, $month, $year, $tingkatan, $santriId, $kegiatanId, $tampilan, $paper, $rekapKeaktifanPagePath): string {
@@ -395,7 +402,7 @@ require_once __DIR__ . '/../includes/header.php';
             $ktsKegiatanTotal = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kegiatanTanpaScan));
             ?>
             <p class="small text-muted mb-2">
-                Total <strong><?= (int) $ktsJadwalTotal ?></strong> jadwal tanpa scan
+                Total <strong><?= (int) $ktsJadwalTotal ?></strong> waktu tanpa scan
                 pada <strong><?= (int) $ktsKegiatanTotal ?></strong> kegiatan.
             </p>
             <?php
@@ -404,7 +411,7 @@ require_once __DIR__ . '/../includes/header.php';
             require __DIR__ . '/../includes/partials/kegiatan_tanpa_scan_grouped.php';
             ?>
             <p class="small text-muted mb-0 mt-2">
-                Total: <strong><?= (int) $ktsJadwalTotal ?></strong> jadwal tanpa scan hadir pada periode ini.
+                Total: <strong><?= (int) $ktsJadwalTotal ?></strong> waktu tanpa scan hadir pada periode ini.
             </p>
         <?php endif; ?>
     </div>
@@ -665,69 +672,46 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
-        <?php foreach ($byTingkatan as $tg => $data): ?>
-            <div class="card shadow-sm mb-4 keaktifan-tingkatan-card">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                        <h2 class="h5 mb-0">Tingkatan <?= htmlspecialchars($tg) ?></h2>
-                        <div class="d-flex flex-wrap gap-2">
-                            <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
-                                <?php $katBadge = rekap_keaktifan_kategori_badge_class($katKey); ?>
-                                <?php $katCount = (int) ($data['kategori'][$katKey] ?? 0); ?>
-                                <?php if ($katCount > 0): ?>
-                                    <span class="badge text-bg-<?= htmlspecialchars($katBadge) ?>"><?= htmlspecialchars($katKey) ?>: <?= $katCount ?></span>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
+        <?php
+        $openTingkatanLazy = trim((string) ($_GET['open_tingkatan'] ?? ''));
+        $tgIdx = 0;
+        foreach ($byTingkatan as $tg => $data):
+            $tgOpen = $openTingkatanLazy !== '' && strcasecmp($openTingkatanLazy, (string) $tg) === 0;
+            ?>
+            <div class="card shadow-sm mb-3 keaktifan-tingkatan-card">
+                <button
+                    type="button"
+                    class="card-header bg-white border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 py-3 w-100 text-start keaktifan-tingkatan-toggle"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#tg-detail-<?= (int) $tgIdx ?>"
+                    aria-expanded="<?= $tgOpen ? 'true' : 'false' ?>"
+                    data-tingkatan-lazy="<?= htmlspecialchars((string) $tg) ?>"
+                >
+                    <h2 class="h5 mb-0">Tingkatan <?= htmlspecialchars((string) $tg) ?></h2>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                            <?php $katBadge = rekap_keaktifan_kategori_badge_class($katKey); ?>
+                            <?php $katCount = (int) ($data['kategori'][$katKey] ?? 0); ?>
+                            <?php if ($katCount > 0): ?>
+                                <span class="badge text-bg-<?= htmlspecialchars($katBadge) ?>"><?= htmlspecialchars($katKey) ?>: <?= $katCount ?></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <i class="fa-solid fa-chevron-down small text-muted"></i>
                     </div>
-                    <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
-                        <?php $santriKat = $data['santri_by_kategori'][$katKey] ?? []; ?>
-                        <?php if ($santriKat === []) { continue; } ?>
-                        <?php $katBadge = rekap_keaktifan_kategori_badge_class($katKey); ?>
-                        <div class="keaktifan-kategori-group mb-3">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <span class="badge text-bg-<?= htmlspecialchars($katBadge) ?>"><?= htmlspecialchars($katKey) ?></span>
-                                <span class="small text-muted"><?= count($santriKat) ?> santri</span>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered mb-0">
-                                    <thead>
-                                    <tr>
-                                        <th>NIS</th>
-                                        <th>Nama</th>
-                                        <th class="text-center">Hadir</th>
-                                        <th class="text-center">Alpa</th>
-                                        <th class="text-center">Izin</th>
-                                        <th class="text-center">Sakit</th>
-                                        <th class="text-center">Total</th>
-                                        <th class="text-center">%</th>
-                                        <th class="print-controls"></th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <?php foreach ($santriKat as $sRow): ?>
-                                        <tr>
-                                            <td><?= htmlspecialchars((string) $sRow['nis']) ?></td>
-                                            <td class="fw-semibold"><?= htmlspecialchars((string) $sRow['nama_santri']) ?></td>
-                                            <td class="text-center text-success"><?= (int) $sRow['hadir'] ?></td>
-                                            <td class="text-center text-danger"><?= (int) $sRow['alpa'] ?></td>
-                                            <td class="text-center"><?= (int) $sRow['izin'] ?></td>
-                                            <td class="text-center"><?= (int) $sRow['sakit'] ?></td>
-                                            <td class="text-center"><?= (int) $sRow['total'] ?></td>
-                                            <td class="text-center"><?= htmlspecialchars((string) $sRow['persen_hadir']) ?>%</td>
-                                            <td class="print-controls">
-                                                <a href="<?= htmlspecialchars($buildQuery(['santri_id' => (int) $sRow['santri_id'], 'tampilan' => 'santri', 'tingkatan' => $tg])) ?>" class="btn btn-sm btn-outline-primary">Kartu</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+                </button>
+                <div id="tg-detail-<?= (int) $tgIdx ?>" class="collapse<?= $tgOpen ? ' show' : '' ?>">
+                    <div class="card-body pt-0" data-lazy-tingkatan-body data-loaded="<?= $tgOpen ? '1' : '0' ?>" data-tingkatan="<?= htmlspecialchars((string) $tg) ?>">
+                        <?php if ($tgOpen): ?>
+                            <?php require __DIR__ . '/../includes/partials/rekap_tingkatan_santri_tables.php'; ?>
+                        <?php else: ?>
+                            <p class="small text-muted mb-0 py-2"><i class="fa-solid fa-spinner fa-spin me-1 d-none keaktifan-tg-spinner"></i><span class="keaktifan-tg-hint">Buka untuk memuat daftar santri…</span></p>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
-        <?php endforeach; ?>
+        <?php
+            $tgIdx++;
+        endforeach; ?>
     <?php endif; ?>
 
 <?php else: ?>
@@ -797,6 +781,12 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div class="rekap-signature">
+    <div class="rekap-signature-box">
+        <p>Mengetahui,</p>
+        <p class="rekap-signature-role">Ketua Yayasan</p>
+        <div class="rekap-signature-space"></div>
+        <p class="rekap-signature-name"><?= htmlspecialchars($namaKetuaYayasan !== '' ? $namaKetuaYayasan : '................................') ?></p>
+    </div>
     <div class="rekap-signature-box">
         <p>Mengetahui,</p>
         <p class="rekap-signature-role">Pengasuh</p>
@@ -1035,6 +1025,64 @@ require_once __DIR__ . '/../includes/header.php';
             }
         });
     }
+})();
+</script>
+<?php endif; ?>
+<?php if ($tampilan === 'tingkatan' && $byTingkatan !== []): ?>
+<script>
+window.__rekapTingkatanLazy = <?= json_encode([
+    'apiUrl' => app_href('/api/rekap/santri_bagus_tingkatan.php'),
+    'params' => array_filter([
+        'mode' => $mode,
+        'month' => $month,
+        'year' => $year,
+        'kegiatan_id' => $kegiatanId > 0 ? $kegiatanId : null,
+    ], static fn ($v) => $v !== null && $v !== ''),
+], JSON_UNESCAPED_UNICODE) ?>;
+
+(function () {
+    function loadTingkatanBody(body) {
+        if (!body || body.dataset.loaded === '1' || body.dataset.loaded === 'loading') {
+            return;
+        }
+        var cfg = window.__rekapTingkatanLazy;
+        var tingkatan = body.getAttribute('data-tingkatan') || '';
+        if (!cfg || !cfg.apiUrl || !tingkatan) {
+            return;
+        }
+        body.dataset.loaded = 'loading';
+        var spinner = body.querySelector('.keaktifan-tg-spinner');
+        var hint = body.querySelector('.keaktifan-tg-hint');
+        if (spinner) spinner.classList.remove('d-none');
+        if (hint) hint.textContent = 'Memuat daftar santri…';
+        var params = new URLSearchParams(cfg.params || {});
+        params.set('tingkatan', tingkatan);
+        fetch(cfg.apiUrl + '?' + params.toString(), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data && data.ok && typeof data.html === 'string') {
+                    body.innerHTML = data.html;
+                    body.dataset.loaded = '1';
+                } else {
+                    body.dataset.loaded = '0';
+                    if (hint) hint.textContent = (data && data.message) ? data.message : 'Gagal memuat.';
+                }
+            })
+            .catch(function () {
+                body.dataset.loaded = '0';
+                if (hint) hint.textContent = 'Gagal memuat. Coba lagi.';
+            })
+            .finally(function () {
+                if (spinner) spinner.classList.add('d-none');
+            });
+    }
+
+    document.querySelectorAll('.keaktifan-tingkatan-card .collapse').forEach(function (panel) {
+        panel.addEventListener('show.bs.collapse', function () {
+            var body = panel.querySelector('[data-lazy-tingkatan-body]');
+            loadTingkatanBody(body);
+        });
+    });
 })();
 </script>
 <?php endif; ?>

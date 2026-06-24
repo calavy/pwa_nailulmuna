@@ -44,6 +44,7 @@ $hijriTglLabel = is_array($hijriCetak)
     : app_format_tanggal_id($tglCetak);
 
 $namaPengasuh = trim((string) ($kop['nama_pengasuh'] ?? ''));
+$namaKetuaYayasan = trim((string) ($kop['nama_ketua_yayasan'] ?? ''));
 $waliKelas = trim((string) ($santri['wali_kelas'] ?? ''));
 $waliKamar = trim((string) ($santri['nama_kamar'] ?? ''));
 
@@ -333,8 +334,8 @@ if ($ekstra !== []):
                 <div class="name"><?= htmlspecialchars($namaPengasuh !== '' ? $namaPengasuh : '…………………') ?></div>
             </div>
             <div class="skbt-ttd-box">
-                <div class="role">Kepala Pondok</div>
-                <div class="name"><?= htmlspecialchars($namaPengasuh !== '' ? $namaPengasuh : '…………………') ?></div>
+                <div class="role">Ketua Yayasan</div>
+                <div class="name"><?= htmlspecialchars($namaKetuaYayasan !== '' ? $namaKetuaYayasan : '…………………') ?></div>
             </div>
         </div>
 

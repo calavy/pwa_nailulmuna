@@ -471,7 +471,7 @@ function rekap_keaktifan_prepare_periode_presensi(PDO $pdo, string $startDate, s
  * @param list<array<string, mixed>> $rows
  * @return list<array<string, mixed>>
  */
-function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int $mediumMax): array
+function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int $mediumMax, bool $includeSantriList = true): array
 {
     $kategoriKeys = ['Bagus', 'Baik', 'Sedang', 'Buruk'];
     $bySantri = [];
@@ -533,23 +533,26 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
         $byTingkatan[$tg]['total'] += $totalSantri;
         $byTingkatan[$tg]['santri_count']++;
         $byTingkatan[$tg]['kategori'][$kat]++;
-        $byTingkatan[$tg]['santri_list'][] = [
-            'santri_id' => (int) ($item['santri_id'] ?? 0),
-            'nis' => (string) ($item['nis'] ?? ''),
-            'nama_santri' => (string) ($item['nama_santri'] ?? ''),
-            'hadir' => (int) $item['hadir'],
-            'izin' => (int) $item['izin'],
-            'sakit' => (int) $item['sakit'],
-            'alpa' => (int) $item['alpa'],
-            'total' => $totalSantri,
-            'persen_hadir' => $totalSantri > 0 ? round(((int) $item['hadir'] / $totalSantri) * 100, 2) : 0.0,
-            'kategori' => $kat,
-        ];
+        if ($includeSantriList) {
+            $byTingkatan[$tg]['santri_list'][] = [
+                'santri_id' => (int) ($item['santri_id'] ?? 0),
+                'nis' => (string) ($item['nis'] ?? ''),
+                'nama_santri' => (string) ($item['nama_santri'] ?? ''),
+                'hadir' => (int) $item['hadir'],
+                'izin' => (int) $item['izin'],
+                'sakit' => (int) $item['sakit'],
+                'alpa' => (int) $item['alpa'],
+                'total' => $totalSantri,
+                'persen_hadir' => $totalSantri > 0 ? round(((int) $item['hadir'] / $totalSantri) * 100, 2) : 0.0,
+                'kategori' => $kat,
+            ];
+        }
     }
     foreach ($byTingkatan as $tg => $data) {
         $total = (int) $data['total'];
         $byTingkatan[$tg]['persen_hadir'] = $total > 0 ? round(((int) $data['hadir'] / $total) * 100, 2) : 0.0;
-        usort($byTingkatan[$tg]['santri_list'], static function (array $a, array $b): int {
+        if ($includeSantriList && !empty($byTingkatan[$tg]['santri_list'])) {
+            usort($byTingkatan[$tg]['santri_list'], static function (array $a, array $b): int {
             $cmp = ($b['persen_hadir'] ?? 0) <=> ($a['persen_hadir'] ?? 0);
             if ($cmp !== 0) {
                 return $cmp;
@@ -561,10 +564,13 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
 
             return strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
         });
-        foreach ($byTingkatan[$tg]['santri_list'] as $i => &$santriRow) {
-            $santriRow['rank'] = $i + 1;
+            foreach ($byTingkatan[$tg]['santri_list'] as $i => &$santriRow) {
+                $santriRow['rank'] = $i + 1;
+            }
+            unset($santriRow);
+        } elseif (!$includeSantriList) {
+            unset($byTingkatan[$tg]['santri_list']);
         }
-        unset($santriRow);
     }
 
     return rekap_keaktifan_rank_tingkatan_list($byTingkatan);
@@ -646,11 +652,88 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
     int $mediumMax,
     bool $forceRefresh = false,
     ?string $kategoriKegiatan = null,
-    ?string $kalenderHijriyahKey = null
+    ?string $kalenderHijriyahKey = null,
+    bool $summaryOnly = false
+): array {
+    require_once __DIR__ . '/rekap_keaktifan_hari.php';
+    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey)
+        . ($summaryOnly ? '_sum' : '_full');
+    $cacheTsKey = $cacheKey . '_ts';
+    $ttl = 600;
+    if (
+        !$forceRefresh
+        && isset($_SESSION[$cacheKey], $_SESSION[$cacheTsKey])
+        && is_array($_SESSION[$cacheKey])
+        && (time() - (int) $_SESSION[$cacheTsKey]) < $ttl
+    ) {
+        return $_SESSION[$cacheKey];
+    }
+
+    rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+    $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], 0, false, $kalenderHijriyahKey);
+    $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
+    $rows = rekap_keaktifan_filter_rows_by_kategori($rows, $katNorm);
+    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, !$summaryOnly);
+
+    $_SESSION[$cacheKey] = $ranking;
+    $_SESSION[$cacheTsKey] = time();
+
+    return $ranking;
+}
+
+/** Kunci cache ranking tingkatan (selaras dengan rekap_keaktifan_rank_tingkatan_for_periode). */
+function rekap_keaktifan_rank_tingkatan_cache_key(
+    string $startDate,
+    string $endDate,
+    int $goodMax,
+    int $mediumMax,
+    ?string $kategoriKegiatan,
+    ?string $kalenderHijriyahKey
+): string {
+    require_once __DIR__ . '/rekap_keaktifan_hari.php';
+    $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
+
+    return 'rekap_rank_tingkatan_v4_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? ''));
+}
+
+/**
+ * Ringkasan tingkatan tanpa daftar santri (untuk render awal halaman cepat).
+ *
+ * @param list<array<string, mixed>> $ranking
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_rank_tingkatan_summaries(array $ranking): array
+{
+    $out = [];
+    foreach ($ranking as $row) {
+        $summary = $row;
+        unset($summary['santri_list']);
+        $out[] = $summary;
+    }
+
+    return $out;
+}
+
+/**
+ * Daftar santri satu tingkatan dari cache ranking (tanpa render ulang seluruh halaman).
+ *
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_rank_tingkatan_santri_list(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    string $tingkatan,
+    int $goodMax,
+    int $mediumMax,
+    ?string $kategoriKegiatan = null,
+    ?string $kalenderHijriyahKey = null,
+    bool $forceRefresh = false
 ): array {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
-    $cacheKey = 'rekap_rank_tingkatan_v4_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? ''));
+    $needle = trim($tingkatan);
+    $cacheKey = 'rekap_rank_tg_santri_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . strtolower($needle));
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 120;
     if (
@@ -665,12 +748,60 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
     rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
     $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], 0, false, $kalenderHijriyahKey);
     $rows = rekap_keaktifan_filter_rows_by_kategori($rows, $katNorm);
-    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax);
+    $rows = array_values(array_filter($rows, static function (array $row) use ($needle): bool {
+        return strcasecmp((string) ($row['tingkatan'] ?? ''), $needle) === 0;
+    }));
+    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, true);
+    $santriList = [];
+    foreach ($ranking as $row) {
+        if (strcasecmp((string) ($row['tingkatan'] ?? ''), $needle) === 0) {
+            $santriList = is_array($row['santri_list'] ?? null) ? $row['santri_list'] : [];
+            break;
+        }
+    }
 
-    $_SESSION[$cacheKey] = $ranking;
+    $_SESSION[$cacheKey] = $santriList;
     $_SESSION[$cacheTsKey] = time();
 
-    return $ranking;
+    return $santriList;
+}
+
+/**
+ * Data per tingkatan (termasuk santri per kategori) — cache sesi, tanpa finalisasi bulan penuh.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function rekap_keaktifan_by_tingkatan_for_periode(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $goodMax,
+    int $mediumMax,
+    int $kegiatanId = 0,
+    ?string $kalenderHijriyahKey = null,
+    bool $forceRefresh = false
+): array {
+    $cacheKey = 'rekap_by_tingkatan_v1_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . $kegiatanId . '|' . ($kalenderHijriyahKey ?? ''));
+    $cacheTsKey = $cacheKey . '_ts';
+    $ttl = 120;
+    if (
+        !$forceRefresh
+        && isset($_SESSION[$cacheKey], $_SESSION[$cacheTsKey])
+        && is_array($_SESSION[$cacheKey])
+        && (time() - (int) $_SESSION[$cacheTsKey]) < $ttl
+    ) {
+        return $_SESSION[$cacheKey];
+    }
+
+    rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+    $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], $kegiatanId, false, $kalenderHijriyahKey);
+    $ranked = rekap_keaktifan_build_per_santri($rows, $goodMax, $mediumMax);
+    $byTingkatan = rekap_keaktifan_build_per_tingkatan($ranked);
+
+    $_SESSION[$cacheKey] = $byTingkatan;
+    $_SESSION[$cacheTsKey] = time();
+
+    return $byTingkatan;
 }
 
 function rekap_keaktifan_kategori_badge_class(string $kategori): string
@@ -882,6 +1013,7 @@ function rekap_keaktifan_kegiatan_tanpa_scan_slot_meta(
         'tanggal_tampil' => date('d/m/Y', strtotime($tanggal) ?: time()),
         'tanggal_hijri' => $hijriLabel,
         'hari' => $hariLabel,
+        'jam_mulai' => $jamMulai,
         'jam' => $jamMulai !== '' ? ($jamMulai . ' – ' . substr($jamSelesai, 0, 5)) : substr($jamSelesai, 0, 5),
         'jam_selesai' => $jamSelesai,
         'tingkatan' => $tgLabel,
@@ -889,7 +1021,8 @@ function rekap_keaktifan_kegiatan_tanpa_scan_slot_meta(
 }
 
 /**
- * Setiap jadwal kegiatan (tanggal + tingkatan) tanpa satupun scan HADIR = 1 hitungan.
+ * Setiap slot waktu kegiatan (tanggal + jam) tanpa satupun scan HADIR = 1 hitungan.
+ * Tidak dikalikan jumlah tingkatan atau santri — 1 waktu tanpa scan = 1.
  * Periode mengikuti rentang masehi/hijriyah dari rekap_resolve_periode().
  *
  * @return list<array{
@@ -983,6 +1116,9 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
     }
 
     $out = [];
+    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,tanggal:string,tanggal_tampil:string,tanggal_hijri:string,hari:string,jam:string,jam_mulai:string,jam_selesai:string,tingkatan_labels:list<string>,detail:list<array<string,mixed>>}> $byWaktu */
+    $byWaktu = [];
+
     foreach (array_keys($eligibilitySet) as $key) {
         $parts = explode('|', (string) $key, 3);
         if (count($parts) < 3) {
@@ -1009,42 +1145,92 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
             continue;
         }
 
+        $jamMulaiKey = substr((string) ($slotMeta['jam_mulai'] ?? ''), 0, 5);
+        $jamSelesaiKey = substr((string) ($slotMeta['jam_selesai'] ?? ''), 0, 8);
+        $waktuKey = $kid . '|' . $tanggal . '|' . $jamMulaiKey . '|' . $jamSelesaiKey;
+
+        if (!isset($byWaktu[$waktuKey])) {
+            $byWaktu[$waktuKey] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => trim((string) ($namaMap[$kid] ?? '')) !== '' ? (string) $namaMap[$kid] : ('Kegiatan #' . $kid),
+                'tanggal' => $tanggal,
+                'tanggal_tampil' => (string) $slotMeta['tanggal_tampil'],
+                'tanggal_hijri' => (string) ($slotMeta['tanggal_hijri'] ?? ''),
+                'hari' => (string) $slotMeta['hari'],
+                'jam' => (string) $slotMeta['jam'],
+                'jam_mulai' => $jamMulaiKey,
+                'jam_selesai' => $jamSelesaiKey,
+                'tingkatan_labels' => [],
+                'tingkatan_keys' => [],
+            ];
+        }
+
+        $tingkatanLabel = (string) ($slotMeta['tingkatan'] ?? ($tk === '*' ? 'Semua tingkatan' : $tk));
+        $tkNorm = strtolower($tk);
+        if ($tkNorm !== '' && !in_array($tkNorm, $byWaktu[$waktuKey]['tingkatan_keys'], true)) {
+            $byWaktu[$waktuKey]['tingkatan_keys'][] = $tkNorm;
+            $byWaktu[$waktuKey]['tingkatan_labels'][] = $tingkatanLabel;
+        }
+    }
+
+    foreach ($byWaktu as $slot) {
+        $kid = (int) ($slot['kegiatan_id'] ?? 0);
+        $tanggal = (string) ($slot['tanggal'] ?? '');
+        if ($kid <= 0 || $tanggal === '') {
+            continue;
+        }
+
         $sudahScan = false;
-        if ($tk === '*') {
-            if ($tkFilter !== '') {
-                $sudahScan = isset($hadirPerSlot[$kid . '|' . $tanggal . '|' . $tkLower]);
-            } else {
-                $sudahScan = isset($hadirKegiatanTanggal[$kid . '|' . $tanggal]);
+        if ($tkFilter !== '') {
+            foreach ((array) ($slot['tingkatan_keys'] ?? []) as $tkNorm) {
+                if ($tkNorm === '*' || $tkNorm === $tkLower) {
+                    if (isset($hadirPerSlot[$kid . '|' . $tanggal . '|' . $tkLower])) {
+                        $sudahScan = true;
+                        break;
+                    }
+                }
+                if ($tkNorm !== '*' && isset($hadirPerSlot[$kid . '|' . $tanggal . '|' . $tkNorm])) {
+                    $sudahScan = true;
+                    break;
+                }
+            }
+            if (!$sudahScan && in_array('*', (array) ($slot['tingkatan_keys'] ?? []), true)) {
+                $sudahScan = isset($hadirPerSlot[$kid . '|' . $tanggal . '|' . $tkLower])
+                    || isset($hadirKegiatanTanggal[$kid . '|' . $tanggal]);
             }
         } else {
-            $sudahScan = isset($hadirPerSlot[$kid . '|' . $tanggal . '|' . strtolower($tk)]);
+            $sudahScan = isset($hadirKegiatanTanggal[$kid . '|' . $tanggal]);
         }
         if ($sudahScan) {
             continue;
         }
 
-        $tingkatanLabel = (string) ($slotMeta['tingkatan'] ?? ($tk === '*' ? 'Semua tingkatan' : $tk));
+        $labels = array_values(array_unique((array) ($slot['tingkatan_labels'] ?? [])));
+        if ($labels === []) {
+            $labels = ['Semua tingkatan'];
+        }
+        $tingkatanLabel = count($labels) === 1 ? $labels[0] : implode(', ', $labels);
         $detailRow = [
-            'tanggal' => (string) $slotMeta['tanggal'],
-            'tanggal_tampil' => (string) $slotMeta['tanggal_tampil'],
-            'tanggal_hijri' => (string) ($slotMeta['tanggal_hijri'] ?? ''),
-            'hari' => (string) $slotMeta['hari'],
-            'jam' => (string) $slotMeta['jam'],
+            'tanggal' => $tanggal,
+            'tanggal_tampil' => (string) ($slot['tanggal_tampil'] ?? ''),
+            'tanggal_hijri' => (string) ($slot['tanggal_hijri'] ?? ''),
+            'hari' => (string) ($slot['hari'] ?? ''),
+            'jam' => (string) ($slot['jam'] ?? ''),
             'tingkatan' => $tingkatanLabel,
         ];
 
         $out[] = [
             'kegiatan_id' => $kid,
-            'nama_kegiatan' => trim((string) ($namaMap[$kid] ?? '')) !== '' ? (string) $namaMap[$kid] : ('Kegiatan #' . $kid),
+            'nama_kegiatan' => (string) ($slot['nama_kegiatan'] ?? ('Kegiatan #' . $kid)),
             'tanggal' => $tanggal,
-            'tanggal_tampil' => (string) $slotMeta['tanggal_tampil'],
-            'tanggal_hijri' => (string) ($slotMeta['tanggal_hijri'] ?? ''),
-            'hari' => (string) $slotMeta['hari'],
-            'jam' => (string) $slotMeta['jam'],
+            'tanggal_tampil' => (string) ($slot['tanggal_tampil'] ?? ''),
+            'tanggal_hijri' => (string) ($slot['tanggal_hijri'] ?? ''),
+            'hari' => (string) ($slot['hari'] ?? ''),
+            'jam' => (string) ($slot['jam'] ?? ''),
             'hari_terjadwal' => 1,
             'slot_jadwal' => 1,
             'jumlah_tidak_scan' => 1,
-            'tingkatan' => [$tingkatanLabel],
+            'tingkatan' => $labels,
             'tingkatan_label' => $tingkatanLabel,
             'detail' => [$detailRow],
         ];
@@ -1140,7 +1326,7 @@ function rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan(array $slotRows):
     return $out;
 }
 
-/** Total slot jadwal tanpa scan (bukan jumlah kegiatan atau santri). */
+/** Total slot waktu tanpa scan (bukan jumlah kegiatan, tingkatan, atau santri). */
 function rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal(array $slotRows): int
 {
     $total = 0;

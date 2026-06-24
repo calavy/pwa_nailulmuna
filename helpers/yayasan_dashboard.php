@@ -278,7 +278,7 @@ function yayasan_dashboard_presensi_hari(PDO $pdo, string $today): array
         return $out;
     }
     require_once __DIR__ . '/presensi_jadwal.php';
-    presensi_finalize_date_range($pdo, $today, $today, 1);
+    presensi_finalize_today_throttled($pdo, 1, 300);
     try {
         $row = $pdo->prepare('
             SELECT
@@ -745,6 +745,15 @@ function yayasan_dashboard_snapshot(PDO $pdo): array
     ];
 }
 
+/** Hapus cache snapshot dashboard yayasan. */
+function yayasan_dashboard_cache_invalidate(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    unset($_SESSION['yayasan_dash_snap_v1']);
+}
+
 /** Snapshot dashboard yayasan dengan cache session (600 detik). */
 function yayasan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 600): array
 {
@@ -768,10 +777,122 @@ function yayasan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 600): array
     return $data;
 }
 
-/** Prewarm cache keuangan untuk halaman operasional yayasan (tanpa snapshot penuh). */
+/**
+ * Grafik arus kas 6 bulan terakhir untuk dashboard pengawasan (tanpa snapshot penuh).
+ *
+ * @return array<string, mixed>
+ */
+function yayasan_pengawasan_keuangan_pack(PDO $pdo): array
+{
+    require_once __DIR__ . '/pondok_kalender.php';
+    $today = date('Y-m-d');
+    $aktif = pondok_tahun_ajaran_aktif($pdo);
+    $taMulai = (int) $aktif['mulai'];
+    $taSelesai = (int) $aktif['selesai'];
+    $months = [];
+    $keuanganMasuk = [];
+    $keuanganKeluar = [];
+
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $taMulai, $taSelesai);
+    $periode = pondok_periode_berjalan($pdo, $today);
+    $bulanIni = max(1, min(12, (int) ($periode['bulan'] ?? 1)));
+    $idxSlot = null;
+    foreach ($slots as $i => $slot) {
+        if ((int) ($slot['bulan_tagihan'] ?? 0) === $bulanIni) {
+            $idxSlot = $i;
+            break;
+        }
+    }
+    if ($idxSlot === null) {
+        $slotHari = pondok_slot_untuk_tanggal($pdo, $taMulai, $taSelesai, $today);
+        if ($slotHari !== null) {
+            foreach ($slots as $i => $slot) {
+                if ((int) ($slot['bulan_tagihan'] ?? 0) === (int) ($slotHari['bulan_tagihan'] ?? 0)) {
+                    $idxSlot = $i;
+                    break;
+                }
+            }
+        }
+    }
+    $startIdx = $idxSlot !== null ? max(0, $idxSlot - 5) : max(0, count($slots) - 6);
+    $slotSlice = $idxSlot !== null
+        ? array_slice($slots, $startIdx, $idxSlot - $startIdx + 1)
+        : array_slice($slots, -6);
+
+    foreach ($slotSlice as $slot) {
+        $months[] = (string) ($slot['label_ringkas'] ?? $slot['label'] ?? ('Bulan ' . (int) ($slot['bulan_tagihan'] ?? 0)));
+        $dari = (string) ($slot['masehi_awal'] ?? '');
+        $sampai = (string) ($slot['masehi_akhir'] ?? '');
+        if ($dari === '' || $sampai === '') {
+            $keuanganMasuk[] = 0;
+            $keuanganKeluar[] = 0;
+            continue;
+        }
+        $masuk = 0;
+        if (table_exists($pdo, 'keuangan_pembayaran')) {
+            $st = $pdo->prepare('SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran WHERE tanggal_bayar BETWEEN :d AND :s');
+            $st->execute(['d' => $dari, 's' => $sampai]);
+            $masuk += (int) round((float) $st->fetchColumn());
+        }
+        if (table_exists($pdo, 'keuangan_pemasukan')) {
+            $st = $pdo->prepare('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pemasukan WHERE tanggal BETWEEN :d AND :s');
+            $st->execute(['d' => $dari, 's' => $sampai]);
+            $masuk += (int) round((float) $st->fetchColumn());
+        }
+        $keuanganMasuk[] = $masuk;
+        $keluar = 0;
+        if (table_exists($pdo, 'keuangan_pengeluaran')) {
+            $st = $pdo->prepare('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran WHERE tanggal BETWEEN :d AND :s');
+            $st->execute(['d' => $dari, 's' => $sampai]);
+            $keluar = (int) round((float) $st->fetchColumn());
+        }
+        $keuanganKeluar[] = $keluar;
+    }
+
+    $masukBulanIni = (int) ($keuanganMasuk[count($keuanganMasuk) - 1] ?? 0);
+    $keluarBulanIni = (int) ($keuanganKeluar[count($keuanganKeluar) - 1] ?? 0);
+
+    return [
+        'months' => $months,
+        'keuangan_masuk' => $keuanganMasuk,
+        'keuangan_keluar' => $keuanganKeluar,
+        'max_keuangan' => max(1, max(array_merge($keuanganMasuk, $keuanganKeluar) ?: [1])),
+        'masuk_bulan_ini' => $masukBulanIni,
+        'keluar_bulan_ini' => $keluarBulanIni,
+        'net_bulan_ini' => $masukBulanIni - $keluarBulanIni,
+    ];
+}
+
+/** Cache grafik pengawasan (ringan). */
+function yayasan_pengawasan_keuangan_pack_cached(PDO $pdo, int $ttlSec = 300): array
+{
+    $today = date('Y-m-d');
+    $cacheKey = 'yayasan_pengawasan_keu_v1';
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (
+        is_array($cached)
+        && (int) ($cached['expires'] ?? 0) > time()
+        && (string) ($cached['day'] ?? '') === $today
+        && is_array($cached['data'] ?? null)
+    ) {
+        return $cached['data'];
+    }
+    $data = yayasan_pengawasan_keuangan_pack($pdo);
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(60, $ttlSec),
+        'day' => $today,
+        'data' => $data,
+    ];
+
+    return $data;
+}
+
+/** Prewarm cache ringan — tidak memblokir request (no-op, data dimuat via AJAX). */
 function yayasan_preload_session_caches(PDO $pdo, int $ttlSec = 600): void
 {
-    if (function_exists('keuangan_dashboard_snapshot_cached')) {
-        keuangan_dashboard_snapshot_cached($pdo, $ttlSec);
-    }
+}
+
+/** Prewarm tertunda — dinonaktifkan agar tidak memicu timeout request. */
+function yayasan_preload_deferred_caches(PDO $pdo, int $ttlSec = 600): void
+{
 }

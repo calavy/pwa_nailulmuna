@@ -85,17 +85,15 @@ if (!is_array($rapat)) {
     exit;
 }
 
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
+
 $pageTitle = 'Presensi Musyawarah';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1">
-        <a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a> ·
-        <a href="<?= htmlspecialchars(app_href('/yayasan/rapat.php')) ?>">Rapat</a> · Presensi
-    </p>
+    <?php $yayasanCrumbTail = 'Presensi musyawarah'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
+    <p class="small mb-2"><a href="<?= htmlspecialchars(app_href('/yayasan/rapat.php')) ?>">← Rapat &amp; musyawarah</a></p>
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
             <h1 class="h4 mb-1"><?= htmlspecialchars((string) ($rapat['judul'] ?? 'Musyawarah')) ?></h1>

@@ -2,6 +2,36 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/rekap_periode.php';
+
+/** Satu pintu masuk modul Yayasan. */
+function yayasan_home_path(): string
+{
+    return '/yayasan/operasional.php';
+}
+
+function yayasan_home_href(): string
+{
+    return app_href(yayasan_home_path());
+}
+
+/** Periode hijriyah aktif (ringkasan yayasan — tanpa ganti bulan di portal). */
+function yayasan_periode_berjalan(PDO $pdo, string $mode = 'hijriyah'): array
+{
+    return rekap_resolve_periode($pdo, ['mode' => $mode]);
+}
+
+/** Rekap keaktifan lengkap (ganti periode, drill-down) — di luar portal yayasan. */
+function yayasan_rekap_keaktifan_href(array $query = []): string
+{
+    $q = array_merge(['mode' => 'hijriyah'], $query);
+
+    return app_href('/rekap/santri_bagus.php?' . http_build_query(array_filter(
+        $q,
+        static fn ($v) => $v !== null && $v !== ''
+    )));
+}
+
 /** @return list<string> */
 function yayasan_jabatan_opsi(): array
 {

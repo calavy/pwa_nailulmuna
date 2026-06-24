@@ -3,7 +3,6 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
@@ -32,7 +31,6 @@ $hijriToGregorianStart = $filterStart;
 $hijriToGregorianEnd = $filterEnd;
 
 $tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
-$reportType = trim((string) ($_GET['report_type'] ?? 'all'));
 $show = ($_GET['show'] ?? '1') === '1';
 $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
@@ -43,8 +41,6 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
     ? $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN)
     : [];
 
-$goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-$mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
@@ -73,7 +69,7 @@ if ($show) {
         set_flash('success', 'Status ALPA/izin bulan ini disegarkan ulang.');
     }
 
-    $rows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
+    $rows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0, false);
     if ($tingkatan !== '') {
         $rows = array_values(array_filter($rows, static function (array $item) use ($tingkatan): bool {
             return strtolower((string) ($item['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -81,92 +77,12 @@ if ($show) {
     }
 }
 
-$byTingkatan = [];
-$bySantri = [];
-$byTingkatanKegiatan = [];
-$bySantriKegiatan = [];
-$byKegiatan = [];
-foreach ($rows as $row) {
-    $tg = $row['tingkatan'] ?: '-';
-    $kegiatanLabel = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Tanpa Kegiatan';
-    if (!isset($byTingkatan[$tg])) {
-        $byTingkatan[$tg] = ['HADIR' => 0, 'ALPA' => 0, 'IZIN' => 0, 'SAKIT' => 0, 'TELAT' => 0];
-    }
-    if (!isset($byTingkatan[$tg][$row['status_presensi']])) {
-        $byTingkatan[$tg][$row['status_presensi']] = 0;
-    }
-    $byTingkatan[$tg][$row['status_presensi']]++;
-    $isLate = stripos((string) ($row['catatan'] ?? ''), 'terlambat') !== false;
-    if ($isLate) {
-        $byTingkatan[$tg]['TELAT']++;
-    }
-    if (!isset($byTingkatanKegiatan[$tg])) {
-        $byTingkatanKegiatan[$tg] = [];
-    }
-    if (!isset($byTingkatanKegiatan[$tg][$kegiatanLabel])) {
-        $byTingkatanKegiatan[$tg][$kegiatanLabel] = ['HADIR' => 0, 'ALPA' => 0, 'IZIN' => 0, 'SAKIT' => 0, 'TELAT' => 0];
-    }
-    if (!isset($byTingkatanKegiatan[$tg][$kegiatanLabel][$row['status_presensi']])) {
-        $byTingkatanKegiatan[$tg][$kegiatanLabel][$row['status_presensi']] = 0;
-    }
-    $byTingkatanKegiatan[$tg][$kegiatanLabel][$row['status_presensi']]++;
-    if ($isLate) {
-        $byTingkatanKegiatan[$tg][$kegiatanLabel]['TELAT']++;
-    }
-
-    $sid = (int) $row['santri_id'];
-    if (!isset($bySantri[$sid])) {
-        $bySantri[$sid] = [
-            'nama' => $row['nama_santri'],
-            'tingkatan' => $tg,
-            'HADIR' => 0,
-            'ALPA' => 0,
-            'IZIN' => 0,
-            'SAKIT' => 0,
-            'TELAT' => 0,
-        ];
-    }
-    if (!isset($bySantriKegiatan[$sid])) {
-        $bySantriKegiatan[$sid] = [];
-    }
-    if (!isset($bySantriKegiatan[$sid][$kegiatanLabel])) {
-        $bySantriKegiatan[$sid][$kegiatanLabel] = ['HADIR' => 0, 'ALPA' => 0, 'IZIN' => 0, 'SAKIT' => 0, 'TELAT' => 0];
-    }
-    if (!isset($bySantri[$sid][$row['status_presensi']])) {
-        $bySantri[$sid][$row['status_presensi']] = 0;
-    }
-    if (!isset($bySantriKegiatan[$sid][$kegiatanLabel][$row['status_presensi']])) {
-        $bySantriKegiatan[$sid][$kegiatanLabel][$row['status_presensi']] = 0;
-    }
-    $bySantri[$sid][$row['status_presensi']]++;
-    $bySantriKegiatan[$sid][$kegiatanLabel][$row['status_presensi']]++;
-    if ($isLate) {
-        $bySantri[$sid]['TELAT']++;
-        $bySantriKegiatan[$sid][$kegiatanLabel]['TELAT']++;
-    }
-
-    if (!isset($byKegiatan[$kegiatanLabel])) {
-        $byKegiatan[$kegiatanLabel] = [
-            'HADIR' => 0,
-            'ALPA' => 0,
-            'IZIN' => 0,
-            'SAKIT' => 0,
-            'TELAT' => 0,
-            'santri' => [],
-        ];
-    }
-    if (!isset($byKegiatan[$kegiatanLabel][$row['status_presensi']])) {
-        $byKegiatan[$kegiatanLabel][$row['status_presensi']] = 0;
-    }
-    $byKegiatan[$kegiatanLabel][$row['status_presensi']]++;
-    if ($isLate) {
-        $byKegiatan[$kegiatanLabel]['TELAT']++;
-    }
-    $byKegiatan[$kegiatanLabel]['santri'][$sid] = [
-        'nama' => $row['nama_santri'],
-        'tingkatan' => $tg,
-    ];
-}
+$totalRecordPresensi = count($rows);
+$totalTingkatanTampil = count(array_unique(array_map(
+    static fn (array $r): string => trim((string) ($r['tingkatan'] ?? '')) !== '' ? (string) $r['tingkatan'] : '-',
+    $rows
+)));
+$totalSantriTampil = count(array_unique(array_column($rows, 'santri_id')));
 
 /** Grafik perbandingan 12 bulan (berdasarkan tanggal presensi Masehi). */
 $chartLabelsYm = [];
@@ -247,10 +163,6 @@ if ($show) {
         }
     }
 }
-$totalRecordPresensi = count($rows);
-$totalTingkatanTampil = count($byTingkatan);
-$totalSantriTampil = count($bySantri);
-
 $pageTitle = 'Rekap Presensi';
 require_once __DIR__ . '/../includes/header.php';
 $flashOk = get_flash('success');
@@ -259,7 +171,7 @@ $flashErr = get_flash('error');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Rekap</p>
     <h1 class="h4 mb-1">Rekap presensi bulanan</h1>
-    <p class="text-muted mb-0">Analisis presensi per tingkatan, per santri, dan per kegiatan dengan mode Masehi/Hijriyah. Hanya sesi yang tingkatan santri masuk jadwal kegiatan.</p>
+    <p class="text-muted mb-0">Grafik tren presensi 12 bulan terakhir. Mode Masehi/Hijriyah untuk filter periode.</p>
     <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/panduan.php')) ?>"><i class="fa-solid fa-circle-info me-1"></i> Panduan alur presensi → rekap</a>
         <?php if ($show): ?>
@@ -321,15 +233,6 @@ $flashErr = get_flash('error');
             $wrapCard = false;
             $submitLabel = 'Tampilkan Rekap';
             $rekapPeriodeExtraSlot = '
-            <div class="col-md-3">
-                <label class="form-label small mb-0">Jenis Rekap</label>
-                <select class="form-select form-select-sm" name="report_type">
-                    <option value="all"' . ($reportType === 'all' ? ' selected' : '') . '>Semua</option>
-                    <option value="per_tingkatan"' . ($reportType === 'per_tingkatan' ? ' selected' : '') . '>Per Tingkatan</option>
-                    <option value="per_santri"' . ($reportType === 'per_santri' ? ' selected' : '') . '>Per Santri</option>
-                    <option value="per_kegiatan"' . ($reportType === 'per_kegiatan' ? ' selected' : '') . '>Per Kegiatan</option>
-                </select>
-            </div>
             <div class="col-md-3">
                 <label class="form-label small mb-0">Tingkatan</label>';
             if ($tingkatanList) {
@@ -404,7 +307,7 @@ $flashErr = get_flash('error');
                 12 bulan berakhir pada <?= htmlspecialchars((string) ($chartLabelsHuman[count($chartLabelsHuman) - 1] ?? '')) ?>
                 (sumbu waktu <strong>Masehi</strong> menurut tanggal presensi).
                 <?= $tingkatan !== '' ? 'Filter tingkatan: <strong>' . htmlspecialchars($tingkatan) . '</strong>.' : 'Semua tingkatan.' ?>
-                Mode kalender rekap (Masehi/Hijriyah) hanya memengaruhi tabel di bawah; grafik memakai pembagian bulan gregorian yang sama agar bulan bisa dibandingkan.
+                Mode kalender rekap (Masehi/Hijriyah) memengaruhi ringkasan angka di atas; grafik memakai pembagian bulan gregorian agar bulan bisa dibandingkan.
             </p>
             <div class="row g-3">
                 <div class="col-12 col-xl-8">
@@ -424,113 +327,6 @@ $flashErr = get_flash('error');
     </div>
 </div>
 <?php endif; ?>
-
-<div class="row g-4">
-    <?php if ($show && ($reportType === 'all' || $reportType === 'per_tingkatan')): ?>
-    <div class="col-lg-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Rekap per Tingkatan (berdasarkan Kegiatan)</h2>
-                <div class="table-responsive">
-                <table class="table table-sm table-striped table-hover">
-                    <thead><tr><th>Tingkatan</th><th>Kegiatan</th><th>Hadir</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Telat</th></tr></thead>
-                    <tbody>
-                    <?php if ($byTingkatanKegiatan): ?>
-                        <?php foreach ($byTingkatanKegiatan as $label => $kegiatanRows): ?>
-                            <?php foreach ($kegiatanRows as $kegiatanNama => $stat): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($label) ?></td>
-                                    <td><?= htmlspecialchars((string) $kegiatanNama) ?></td>
-                                    <td><?= (int) ($stat['HADIR'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['IZIN'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['SAKIT'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['ALPA'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['TELAT'] ?? 0) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="7" class="text-center text-muted">Tidak ada data untuk tingkatan.</td></tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-    <?php if ($show && ($reportType === 'all' || $reportType === 'per_santri')): ?>
-    <div class="col-lg-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Rekap per Santri (AIST per Kegiatan)</h2>
-                <div class="table-responsive">
-                <table class="table table-sm table-striped table-hover">
-                    <thead><tr><th>Santri</th><th>Tingkatan</th><th>Kegiatan</th><th>A</th><th>I</th><th>S</th><th>T</th><th>Kriteria</th></tr></thead>
-                    <tbody>
-                    <?php if ($bySantri): ?>
-                        <?php foreach ($bySantri as $sid => $santri): ?>
-                            <?php $kategori = santri_category((int) ($santri['ALPA'] ?? 0), $goodMax, $mediumMax); ?>
-                            <?php foreach (($bySantriKegiatan[$sid] ?? []) as $kegiatanNama => $stat): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($santri['nama']) ?></td>
-                                    <td><?= htmlspecialchars($santri['tingkatan']) ?></td>
-                                    <td><?= htmlspecialchars((string) $kegiatanNama) ?></td>
-                                    <td><?= (int) ($stat['ALPA'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['IZIN'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['SAKIT'] ?? 0) ?></td>
-                                    <td><?= (int) ($stat['TELAT'] ?? 0) ?></td>
-                                    <td><?= htmlspecialchars($kategori) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="8" class="text-center text-muted">Tidak ada data untuk santri.</td></tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-    <?php if ($show && ($reportType === 'all' || $reportType === 'per_kegiatan')): ?>
-    <div class="col-lg-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Rekap per Kegiatan (Daftar Santri Mengikuti Kegiatan)</h2>
-                <div class="table-responsive">
-                <table class="table table-sm table-striped table-hover">
-                    <thead><tr><th>Kegiatan</th><th>Hadir</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>Telat</th><th>Santri Mengikuti</th></tr></thead>
-                    <tbody>
-                    <?php if ($byKegiatan): ?>
-                        <?php foreach ($byKegiatan as $kegiatanNama => $stat): ?>
-                            <?php
-                            $peserta = array_map(static function (array $item): string {
-                                return $item['nama'] . ' (' . $item['tingkatan'] . ')';
-                            }, array_values($stat['santri']));
-                            ?>
-                            <tr>
-                                <td><?= htmlspecialchars((string) $kegiatanNama) ?></td>
-                                <td><?= (int) ($stat['HADIR'] ?? 0) ?></td>
-                                <td><?= (int) ($stat['IZIN'] ?? 0) ?></td>
-                                <td><?= (int) ($stat['SAKIT'] ?? 0) ?></td>
-                                <td><?= (int) ($stat['ALPA'] ?? 0) ?></td>
-                                <td><?= (int) ($stat['TELAT'] ?? 0) ?></td>
-                                <td><?= htmlspecialchars(implode(', ', $peserta)) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr><td colspan="7" class="text-center text-muted">Tidak ada data untuk kegiatan.</td></tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-</div>
 <?php endif; ?>
 <style>
     @media print {

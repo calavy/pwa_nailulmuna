@@ -62,7 +62,9 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
     $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
     $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 
-    $rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
+    rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+    $kalKey = $periode['kalender_hijriyah_key'] ?? null;
+    $rawRows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], 0, false, $kalKey);
     if ($tingkatan !== '') {
         $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
             return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -70,24 +72,33 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
     }
 
     $ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
-    $chartRanked = $ranked;
-    $byTingkatanChart = rekap_keaktifan_build_per_tingkatan($chartRanked);
-    $tingkatanPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
-    $tingkatanChart = rekap_keaktifan_chart_tingkatan_kategori($tingkatanPersen);
+    $includeTingkatanDetail = !empty($get['include_tingkatan_detail']);
+    $tingkatanPersen = [];
+    $tingkatanChart = ['labels' => [], 'datasets' => [], 'stacked_datasets' => []];
+    if ($includeTingkatanDetail) {
+        $byTingkatanChart = rekap_keaktifan_build_per_tingkatan($ranked);
+        $tingkatanPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
+        $tingkatanChart = rekap_keaktifan_chart_tingkatan_kategori($tingkatanPersen);
+    }
 
-    $kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
-        $pdo,
-        $startDate,
-        $endDate,
-        $tingkatan !== '' ? $tingkatan : null,
-        0
-    );
-    $santriTanpaScan = rekap_keaktifan_santri_tanpa_scan_bulan(
-        $pdo,
-        $startDate,
-        $endDate,
-        $tingkatan !== '' ? $tingkatan : null
-    );
+    $includeTanpaScan = !empty($get['include_tanpa_scan']);
+    $kegiatanTanpaScan = [];
+    $santriTanpaScan = [];
+    if ($includeTanpaScan) {
+        $kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan(
+            $pdo,
+            $startDate,
+            $endDate,
+            $tingkatan !== '' ? $tingkatan : null,
+            0
+        );
+        $santriTanpaScan = rekap_keaktifan_santri_tanpa_scan_bulan(
+            $pdo,
+            $startDate,
+            $endDate,
+            $tingkatan !== '' ? $tingkatan : null
+        );
+    }
 
     $totalHadir = array_sum(array_column($ranked, 'hadir'));
     $totalAlpa = array_sum(array_column($ranked, 'alpa'));
@@ -128,7 +139,9 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
         'kegiatan_tanpa_scan' => $kegiatanTanpaScan,
         'santri_tanpa_scan' => $santriTanpaScan,
         'tingkatan_list' => $tingkatanList,
-        'show_chart' => $tingkatanPersen !== [],
+        'show_chart' => $includeTingkatanDetail && $tingkatanPersen !== [],
+        'include_tanpa_scan' => $includeTanpaScan,
+        'include_tingkatan_detail' => $includeTingkatanDetail,
     ];
 }
 
@@ -144,7 +157,7 @@ function yayasan_keaktifan_bulan_saran(array $kb): array
     $rataHadir = (float) ($kb['rata_hadir'] ?? 0);
 
     if ($kgKosong > 0) {
-        $saran[] = 'Koordinasikan dengan pembimbing/munawib untuk ' . $kgKosong . ' jadwal kegiatan tanpa scan hadir — cek apakah jadwal aktif dan perangkat scan berfungsi.';
+        $saran[] = 'Koordinasikan dengan pembimbing/munawib untuk ' . $kgKosong . ' waktu kegiatan tanpa scan hadir — cek apakah jadwal aktif dan perangkat scan berfungsi.';
     }
     if ($snKosong > 0) {
         $saran[] = 'Follow-up ' . $snKosong . ' santri tanpa scan hadir (wali/pembimbing) agar kebiasaan scan tertanam sebelum akhir bulan.';
@@ -210,13 +223,16 @@ function yayasan_keaktifan_bulan_pack_cached(PDO $pdo, array $get, int $ttlSec =
         'year' => $get['year'] ?? null,
     ];
     $tingkatan = trim((string) ($get['tingkatan'] ?? ''));
-    $cacheKey = 'yayasan_kb_pack_' . md5(json_encode([$periodeGet, $tingkatan], JSON_UNESCAPED_UNICODE));
+    $withTanpaScan = !empty($get['include_tanpa_scan']) || !empty($get['tanpa_scan']);
+    $cacheKey = 'yayasan_kb_pack_' . md5(json_encode([$periodeGet, $tingkatan, $withTanpaScan], JSON_UNESCAPED_UNICODE));
     $skipCache = trim((string) ($get['kb_refresh'] ?? '')) === '1';
     $cached = $_SESSION[$cacheKey] ?? null;
     if (!$skipCache && is_array($cached) && (int) ($cached['expires'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
         return $cached['data'];
     }
-    $data = yayasan_keaktifan_bulan_pack($pdo, $get);
+    $data = yayasan_keaktifan_bulan_pack($pdo, array_merge($get, [
+        'include_tanpa_scan' => $withTanpaScan,
+    ]));
     $_SESSION[$cacheKey] = [
         'expires' => time() + max(60, $ttlSec),
         'data' => $data,

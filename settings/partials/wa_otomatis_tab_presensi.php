@@ -25,6 +25,27 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                 <input type="number" class="form-control form-control-sm" name="wa_pembimbing_scan_menit_sebelum" min="5" max="30" value="<?= (int) $scanMenit ?>">
             </div>
             <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12"><h3 class="h6 text-primary mb-2">Timeline & Tugas Yayasan</h3></div>
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wa_yayasan_tugas_enabled" name="wa_yayasan_tugas_enabled" value="1" <?= $ytTugasWaEnabled ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_yayasan_tugas_enabled">WA penugasan & perubahan tugas</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wa_yayasan_tugas_noprogress_enabled" name="wa_yayasan_tugas_noprogress_enabled" value="1" <?= $ytTugasNoProgressEnabled ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_yayasan_tugas_noprogress_enabled">Pengingat belum ada progres</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small">Jam setelah mulai (baru ingatkan)</label>
+                <input type="number" class="form-control form-control-sm" name="wa_yayasan_tugas_noprogress_jam" min="1" max="72" value="<?= (int) $ytTugasNoProgressJam ?>">
+            </div>
+            <div class="col-12">
+                <div class="form-text small mb-0">Template pesan di tab <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Template</a> (yayasan_tugas_*). PIC harus punya nomor WA di profil atau data pembimbing.</div>
+            </div>
+            <div class="col-12"><hr class="my-1"></div>
             <div class="col-12"><h3 class="h6 text-primary mb-2">Munawib belum hadir (pembimbing izin)</h3></div>
             <div class="col-md-4">
                 <label class="form-label">Notifikasi munawib</label>

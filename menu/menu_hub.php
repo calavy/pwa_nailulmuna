@@ -32,6 +32,11 @@ if ($visiblePaths === []) {
     exit;
 }
 
+if ($hubId === 'menu-grp-yayasan') {
+    header('Location: ' . app_href('/yayasan/operasional.php'));
+    exit;
+}
+
 if ($hubId === 'menu-grp-keuangan') {
     require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
     require_once __DIR__ . '/../helpers/keuangan_dashboard.php';

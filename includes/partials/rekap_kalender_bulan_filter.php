@@ -36,7 +36,11 @@ $openCard = $wrapCard ? '<div class="' . htmlspecialchars($cardClass) . ' rekap-
 $closeCard = $wrapCard ? '</div></div>' : '';
 echo $openCard;
 ?>
-<form method="get" action="<?= htmlspecialchars($formAction) ?>" class="rekap-periode-form">
+<form method="get" action="<?= htmlspecialchars($formAction) ?>" class="rekap-periode-form"<?php
+if (!empty($periodAjaxMount) && !empty($periodAjaxApi)) {
+    echo ' data-yp-period-ajax="1" data-yp-period-mount="' . htmlspecialchars((string) $periodAjaxMount) . '" data-yp-period-api="' . htmlspecialchars((string) $periodAjaxApi) . '"';
+}
+?>>
     <div class="row g-2 align-items-end">
         <div class="col-md-2 col-6">
             <label class="form-label small mb-0">Kalender</label>

@@ -128,6 +128,7 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
     $startDate = (string) $periode['start_date'];
     $endDate = (string) $periode['end_date'];
     $tingkatan = trim((string) ($get['tingkatan'] ?? ''));
+    $portalLight = !empty($get['portal_light']);
 
     $bundle = yayasan_kesehatan_izin_sakit_sql($pdo, $startDate, $endDate, $tingkatan);
     $st = $pdo->prepare($bundle['sql']);
@@ -135,6 +136,17 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
     $izinRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $ehealthBySantriDate = [];
+    $ehealthRows = [];
+    $statusCounts = [
+        'RAWAT_PONDOK' => 0,
+        'DIRUJUK_RS' => 0,
+        'ISOLASI' => 0,
+        'SELESAI' => 0,
+    ];
+    $suhuBuckets = ['<37' => 0, '37-37.9' => 0, '38-38.9' => 0, '≥39' => 0, 'Tidak diisi' => 0];
+    $gejalaFreq = [];
+    $suhuTinggi = 0;
+
     if (table_exists($pdo, 'ehealth_records')) {
         $ehSt = $pdo->prepare('
             SELECT e.*, s.nama_santri, s.nis, s.tingkatan
@@ -144,12 +156,39 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
             ORDER BY e.created_at DESC
         ');
         $ehSt->execute(['start_date' => $startDate, 'end_date' => $endDate]);
-        foreach ($ehSt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $eh) {
+        $ehealthRows = $ehSt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($ehealthRows as $eh) {
             $sid = (int) ($eh['santri_id'] ?? 0);
             $tgl = substr((string) ($eh['created_at'] ?? ''), 0, 10);
             $ehealthBySantriDate[$sid . '|' . $tgl] = $eh;
             if (!isset($ehealthBySantriDate[(string) $sid])) {
                 $ehealthBySantriDate[(string) $sid] = $eh;
+            }
+            $stRaw = strtoupper((string) ($eh['status_kesehatan'] ?? 'RAWAT_PONDOK'));
+            if (isset($statusCounts[$stRaw])) {
+                $statusCounts[$stRaw]++;
+            }
+            $suhu = $eh['suhu_tubuh'] ?? null;
+            if ($suhu === null || $suhu === '') {
+                $suhuBuckets['Tidak diisi']++;
+            } else {
+                $sv = (float) $suhu;
+                if ($sv >= 39) {
+                    $suhuBuckets['≥39']++;
+                    $suhuTinggi++;
+                } elseif ($sv >= 38) {
+                    $suhuBuckets['38-38.9']++;
+                    $suhuTinggi++;
+                } elseif ($sv >= 37) {
+                    $suhuBuckets['37-37.9']++;
+                } else {
+                    $suhuBuckets['<37']++;
+                }
+            }
+            $gejala = trim((string) ($eh['gejala'] ?? ''));
+            if ($gejala !== '') {
+                $key = mb_strtolower($gejala);
+                $gejalaFreq[$key] = ($gejalaFreq[$key] ?? 0) + 1;
             }
         }
     }
@@ -228,71 +267,22 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
     $chartBulanLabels = [];
     $chartBulanKasus = [];
     $chartBulanSantri = [];
-    $anchorTs = strtotime($endDate) ?: time();
-    for ($i = 5; $i >= 0; $i--) {
-        $monthStart = date('Y-m-01', strtotime('-' . $i . ' months', $anchorTs));
-        $monthEnd = date('Y-m-t', strtotime($monthStart));
-        $chartBulanLabels[] = date('M y', strtotime($monthStart));
-        $monthBundle = yayasan_kesehatan_izin_sakit_sql($pdo, $monthStart, $monthEnd, $tingkatan);
-        $mSt = $pdo->prepare($monthBundle['sql']);
-        $mSt->execute($monthBundle['params']);
-        $monthRows = $mSt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $monthSantri = [];
-        foreach ($monthRows as $mr) {
-            $monthSantri[(int) ($mr['santri_id'] ?? 0)] = true;
-        }
-        $chartBulanKasus[] = count($monthRows);
-        $chartBulanSantri[] = count($monthSantri);
-    }
-
-    $statusCounts = [
-        'RAWAT_PONDOK' => 0,
-        'DIRUJUK_RS' => 0,
-        'ISOLASI' => 0,
-        'SELESAI' => 0,
-    ];
-    $suhuBuckets = ['<37' => 0, '37-37.9' => 0, '38-38.9' => 0, '≥39' => 0, 'Tidak diisi' => 0];
-    $gejalaFreq = [];
-    $ehealthRows = [];
-    $suhuTinggi = 0;
-
-    if (table_exists($pdo, 'ehealth_records')) {
-        $ehAll = $pdo->prepare('
-            SELECT e.*, s.nama_santri, s.nis, s.tingkatan
-            FROM ehealth_records e
-            INNER JOIN santri s ON s.id = e.santri_id AND ' . santri_sql_aktif_only('s') . '
-            WHERE DATE(e.created_at) BETWEEN :start_date AND :end_date
-            ORDER BY e.created_at DESC
-        ');
-        $ehAll->execute(['start_date' => $startDate, 'end_date' => $endDate]);
-        $ehealthRows = $ehAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($ehealthRows as $eh) {
-            $stRaw = strtoupper((string) ($eh['status_kesehatan'] ?? 'RAWAT_PONDOK'));
-            if (isset($statusCounts[$stRaw])) {
-                $statusCounts[$stRaw]++;
+    if (!$portalLight) {
+        $anchorTs = strtotime($endDate) ?: time();
+        for ($i = 5; $i >= 0; $i--) {
+            $monthStart = date('Y-m-01', strtotime('-' . $i . ' months', $anchorTs));
+            $monthEnd = date('Y-m-t', strtotime($monthStart));
+            $chartBulanLabels[] = date('M y', strtotime($monthStart));
+            $monthBundle = yayasan_kesehatan_izin_sakit_sql($pdo, $monthStart, $monthEnd, $tingkatan);
+            $mSt = $pdo->prepare($monthBundle['sql']);
+            $mSt->execute($monthBundle['params']);
+            $monthRows = $mSt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $monthSantri = [];
+            foreach ($monthRows as $mr) {
+                $monthSantri[(int) ($mr['santri_id'] ?? 0)] = true;
             }
-            $suhu = $eh['suhu_tubuh'] ?? null;
-            if ($suhu === null || $suhu === '') {
-                $suhuBuckets['Tidak diisi']++;
-            } else {
-                $sv = (float) $suhu;
-                if ($sv >= 39) {
-                    $suhuBuckets['≥39']++;
-                    $suhuTinggi++;
-                } elseif ($sv >= 38) {
-                    $suhuBuckets['38-38.9']++;
-                    $suhuTinggi++;
-                } elseif ($sv >= 37) {
-                    $suhuBuckets['37-37.9']++;
-                } else {
-                    $suhuBuckets['<37']++;
-                }
-            }
-            $gejala = trim((string) ($eh['gejala'] ?? ''));
-            if ($gejala !== '') {
-                $key = mb_strtolower($gejala);
-                $gejalaFreq[$key] = ($gejalaFreq[$key] ?? 0) + 1;
-            }
+            $chartBulanKasus[] = count($monthRows);
+            $chartBulanSantri[] = count($monthSantri);
         }
     }
 
@@ -372,5 +362,35 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
         'aktif_hari_ini' => $aktifHariIni,
         'ehealth_rows' => $ehealthRows,
         'gejala_top' => $gejalaTop,
+        'portal_light' => $portalLight,
     ];
+}
+
+/**
+ * Cache sesi laporan kesehatan yayasan.
+ *
+ * @param array<string, mixed> $get
+ */
+function yayasan_kesehatan_pack_cached(PDO $pdo, array $get, int $ttlSec = 300): array
+{
+    $periodeGet = [
+        'mode' => (string) ($get['mode'] ?? 'hijriyah'),
+        'month' => $get['month'] ?? null,
+        'year' => $get['year'] ?? null,
+    ];
+    $tingkatan = trim((string) ($get['tingkatan'] ?? ''));
+    $portalLight = !empty($get['portal_light']);
+    $skipCache = trim((string) ($get['refresh'] ?? '')) === '1';
+    $cacheKey = 'yayasan_kes_pack_' . md5(json_encode([$periodeGet, $tingkatan, $portalLight], JSON_UNESCAPED_UNICODE));
+    $cached = $_SESSION[$cacheKey] ?? null;
+    if (!$skipCache && is_array($cached) && (int) ($cached['expires'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
+        return $cached['data'];
+    }
+    $data = yayasan_kesehatan_pack($pdo, array_merge($get, $periodeGet));
+    $_SESSION[$cacheKey] = [
+        'expires' => time() + max(60, $ttlSec),
+        'data' => $data,
+    ];
+
+    return $data;
 }

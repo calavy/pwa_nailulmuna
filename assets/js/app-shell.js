@@ -208,6 +208,61 @@
         });
     }
 
+    function loadRekapRankDetail(detail, tingkatan, onDone) {
+        if (!detail || detail.dataset.loaded === '1' || detail.dataset.loaded === 'loading') {
+            if (typeof onDone === 'function') {
+                onDone();
+            }
+            return;
+        }
+        var cfg = window.__rekapRankLazy;
+        if (!cfg || !cfg.apiUrl || !tingkatan) {
+            if (typeof onDone === 'function') {
+                onDone();
+            }
+            return;
+        }
+        detail.dataset.loaded = 'loading';
+        var spinner = detail.querySelector('.rekap-rank-detail-spinner');
+        var hint = detail.querySelector('.rekap-rank-detail-hint');
+        if (spinner) {
+            spinner.classList.remove('d-none');
+        }
+        if (hint) {
+            hint.textContent = 'Memuat ranking santri…';
+        }
+        var params = new URLSearchParams(cfg.params || {});
+        params.set('tingkatan', tingkatan);
+        fetch(cfg.apiUrl + '?' + params.toString(), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        }).then(function (res) {
+            return res.json();
+        }).then(function (data) {
+            if (data && data.ok && typeof data.html === 'string') {
+                detail.innerHTML = data.html;
+                detail.dataset.loaded = '1';
+            } else {
+                detail.dataset.loaded = '0';
+                if (hint) {
+                    hint.textContent = (data && data.message) ? data.message : 'Gagal memuat data.';
+                }
+            }
+        }).catch(function () {
+            detail.dataset.loaded = '0';
+            if (hint) {
+                hint.textContent = 'Gagal memuat data. Coba lagi.';
+            }
+        }).finally(function () {
+            if (spinner) {
+                spinner.classList.add('d-none');
+            }
+            if (typeof onDone === 'function') {
+                onDone();
+            }
+        });
+    }
+
     function toggleRekapRankDetail(summaryRow) {
         var id = summaryRow.getAttribute('data-rank-detail');
         if (!id) {
@@ -226,20 +281,27 @@
             row.setAttribute('aria-expanded', 'false');
         });
         if (willOpen) {
-            detail.classList.add('is-open');
-            summaryRow.classList.add('is-expanded');
-            summaryRow.setAttribute('aria-expanded', 'true');
             var tingkatan = summaryRow.getAttribute('data-tingkatan') || '';
-            if (tingkatan && window.history && window.history.replaceState) {
-                try {
-                    var url = new URL(window.location.href);
-                    url.searchParams.set('tingkatan', tingkatan);
-                    window.history.replaceState({}, '', url.toString());
-                } catch (err) { /* ignore */ }
+            var openPanel = function () {
+                detail.classList.add('is-open');
+                summaryRow.classList.add('is-expanded');
+                summaryRow.setAttribute('aria-expanded', 'true');
+                if (tingkatan && window.history && window.history.replaceState) {
+                    try {
+                        var url = new URL(window.location.href);
+                        url.searchParams.set('tingkatan', tingkatan);
+                        window.history.replaceState({}, '', url.toString());
+                    } catch (err) { /* ignore */ }
+                }
+                window.setTimeout(function () {
+                    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 80);
+            };
+            if (detail.dataset.lazyRankDetail === '1' && detail.dataset.loaded !== '1') {
+                loadRekapRankDetail(detail, tingkatan, openPanel);
+            } else {
+                openPanel();
             }
-            window.setTimeout(function () {
-                detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 80);
         } else if (window.history && window.history.replaceState) {
             try {
                 var closeUrl = new URL(window.location.href);
@@ -287,6 +349,14 @@
         });
         var preOpen = document.querySelector('.rekap-rank-detail.is-open');
         if (preOpen) {
+            if (preOpen.dataset.lazyRankDetail === '1' && preOpen.dataset.loaded !== '1') {
+                var wrap = preOpen.closest('.yp-rank-tingkatan-wrap');
+                var summaryRow = wrap ? wrap.querySelector('.rekap-rank-summary') : null;
+                var tingkatan = summaryRow ? (summaryRow.getAttribute('data-tingkatan') || '') : '';
+                if (summaryRow && tingkatan) {
+                    loadRekapRankDetail(preOpen, tingkatan);
+                }
+            }
             window.setTimeout(function () {
                 preOpen.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }, 200);

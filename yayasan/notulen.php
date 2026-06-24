@@ -134,13 +134,13 @@ if ($filterRapatId > 0) {
     }
 }
 
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
+
 $pageTitle = 'Notulen Rapat';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a> · Notulen</p>
+    <?php $yayasanCrumbTail = 'Notulen'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
     <h1 class="h4 mb-1">Notulen rapat</h1>
     <p class="text-muted mb-0">Catatan, keputusan, dan tindak lanjut rapat yayasan.</p>
 </div>

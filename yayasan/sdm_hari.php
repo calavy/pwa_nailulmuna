@@ -24,7 +24,6 @@ if (!in_array($role, ['pembimbing', 'munawib'], true)) {
 $sdm = rekap_keaktifan_hari_sdm($pdo, $tanggal);
 $data = $sdm[$role] ?? ['masuk' => 0, 'total' => 0, 'tidak_hadir' => []];
 $label = $role === 'munawib' ? 'Munawib' : 'Pembimbing';
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
 
 $pageTitle = 'Keaktifan ' . $label . ' — ' . $tanggal;
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
@@ -33,10 +32,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="yp-wrap">
     <header class="mb-4">
-        <p class="page-intro-kicker mb-1">
-            <a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a>
-            · <a href="<?= htmlspecialchars(app_href('/yayasan/keaktifan.php?tanggal=' . urlencode($tanggal))) ?>">Keaktifan</a>
-        </p>
+        <?php $yayasanCrumbTail = 'Keaktifan SDM'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
+        <p class="small mb-2"><a href="<?= htmlspecialchars(app_href('/yayasan/keaktifan.php?tanggal=' . urlencode($tanggal))) ?>">← Keaktifan hari ini</a></p>
         <h1 class="h4 mb-1"><?= htmlspecialchars($label) ?> — <?= htmlspecialchars(date('d F Y', strtotime($tanggal))) ?></h1>
         <p class="text-muted mb-0">Hadir <?= (int) $data['masuk'] ?> dari <?= (int) $data['total'] ?> · data scan hari ini</p>
     </header>

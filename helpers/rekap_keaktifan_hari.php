@@ -93,7 +93,11 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
     static $finalizedDates = [];
     if (!isset($finalizedDates[$tanggal])) {
         $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-        presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+        if ($tanggal === date('Y-m-d')) {
+            presensi_finalize_today_throttled($pdo, $auditUserId > 0 ? $auditUserId : 1, 180);
+        } elseif (!presensi_finalized_date_is_set($pdo, $tanggal)) {
+            presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
+        }
         $finalizedDates[$tanggal] = true;
     }
 
@@ -722,4 +726,70 @@ function rekap_keaktifan_hari_kegiatan_kosong(PDO $pdo, string $tanggal, ?string
     }
 
     return $out;
+}
+
+/**
+ * Paket data halaman keaktifan hari (tanpa query tanpa-scan / kegiatan kosong).
+ *
+ * @return array<string, mixed>
+ */
+function rekap_keaktifan_hari_page_pack(
+    PDO $pdo,
+    string $tanggal,
+    ?string $tingkatanFilter = null,
+    ?string $kategoriKegiatan = null,
+    bool $forceRefresh = false
+): array {
+    $tkKey = $tingkatanFilter ?? '';
+    $katKey = $kategoriKegiatan ?? '';
+    $cacheKey = 'rekap_kh_pack_' . md5($tanggal . '|' . $tkKey . '|' . $katKey);
+    $cacheTsKey = $cacheKey . '_ts';
+    $ttl = 90;
+    if (
+        !$forceRefresh
+        && isset($_SESSION[$cacheKey], $_SESSION[$cacheTsKey])
+        && is_array($_SESSION[$cacheKey])
+        && (time() - (int) $_SESSION[$cacheTsKey]) < $ttl
+    ) {
+        return $_SESSION[$cacheKey];
+    }
+
+    $rows = rekap_keaktifan_hari_data($pdo, $tanggal, $tingkatanFilter, $kategoriKegiatan);
+    $detailKeg = rekap_keaktifan_hari_detail_by_kegiatan($rows);
+    $ringkasan = rekap_keaktifan_hari_ringkasan_from_detail($detailKeg);
+    $pack = [
+        'rows' => $rows,
+        'detail_keg' => $detailKeg,
+        'ringkasan' => $ringkasan,
+        'totals' => rekap_keaktifan_hari_totals($ringkasan),
+        'by_tingkatan' => rekap_keaktifan_hari_by_tingkatan($rows),
+        'sdm' => rekap_keaktifan_hari_sdm($pdo, $tanggal),
+        'riwayat_pembimbing' => rekap_keaktifan_hari_riwayat_pembimbing_masuk($pdo, $tanggal),
+    ];
+    $_SESSION[$cacheKey] = $pack;
+    $_SESSION[$cacheTsKey] = time();
+
+    return $pack;
+}
+
+/**
+ * Kegiatan kosong + tanpa scan untuk satu hari (lazy-load dashboard).
+ *
+ * @return array{kegiatan_kosong:list<array<string,mixed>>,kegiatan_tanpa_scan:list<array<string,mixed>>,jadwal_tanpa_scan_count:int}
+ */
+function rekap_keaktifan_hari_extra_pack(
+    PDO $pdo,
+    string $tanggal,
+    ?string $tingkatanFilter = null,
+    ?string $kategoriKegiatan = null
+): array {
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    $kegiatanKosong = rekap_keaktifan_hari_kegiatan_kosong($pdo, $tanggal, $tingkatanFilter, $kategoriKegiatan);
+    $kegiatanTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_bulan($pdo, $tanggal, $tanggal, $tingkatanFilter);
+
+    return [
+        'kegiatan_kosong' => $kegiatanKosong,
+        'kegiatan_tanpa_scan' => $kegiatanTanpaScan,
+        'jadwal_tanpa_scan_count' => rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kegiatanTanpaScan),
+    ];
 }

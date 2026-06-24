@@ -5,6 +5,20 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/app_path.php';
 
+/** Nama ketua yayasan untuk kop surat (modul yayasan, lalu pengaturan pondok). */
+function pondok_ketua_yayasan_nama(PDO $pdo): string
+{
+    if (!function_exists('yayasan_nama_by_jabatan')) {
+        require_once __DIR__ . '/yayasan.php';
+    }
+    $nama = yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan');
+    if ($nama !== '') {
+        return $nama;
+    }
+
+    return trim((string) app_setting($pdo, 'nama_ketua_yayasan', ''));
+}
+
 /** Data kop surat pondok (logo, nama, alamat, kontak). */
 function pondok_kop_data(PDO $pdo): array
 {
@@ -20,6 +34,7 @@ function pondok_kop_data(PDO $pdo): array
         'logo' => app_pondok_logo_src($pdo),
         'logo_href' => $logoHref,
         'nama_pengasuh' => trim((string) app_setting($pdo, 'nama_pengasuh', '')),
+        'nama_ketua_yayasan' => pondok_ketua_yayasan_nama($pdo),
     ];
 }
 

@@ -6,41 +6,28 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
-require_once __DIR__ . '/../helpers/yayasan_kesehatan.php';
 require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 
 yayasan_ensure_tables($pdo);
 
-$periode = rekap_resolve_periode($pdo, $_GET);
-$pack = yayasan_kesehatan_pack($pdo, [
-    'mode' => $periode['mode'],
-    'month' => $periode['month'],
-    'year' => $periode['year'],
-    'tingkatan' => $_GET['tingkatan'] ?? '',
-]);
-
-$hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
-$summary = (array) ($pack['summary'] ?? []);
-$tingkatan = (string) ($pack['tingkatan'] ?? '');
-$tingkatanList = (array) ($pack['tingkatan_list'] ?? []);
+$periode = yayasan_periode_berjalan($pdo);
+$modulReady = table_exists($pdo, 'perizinan');
 
 $pageTitle = 'Laporan Kesehatan Yayasan';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-portal.css')];
+$pageScripts = [app_asset_href('/assets/js/yayasan-period.js')];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="yp-wrap">
     <header class="mb-4">
-        <p class="page-intro-kicker mb-1">
-            <a href="<?= htmlspecialchars(app_href($hubYayasan)) ?>">Yayasan</a>
-            · <a href="<?= htmlspecialchars(app_href('/yayasan/operasional.php')) ?>">Operasional</a>
-        </p>
+        <?php $yayasanCrumbTail = 'Kesehatan'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
             <div>
                 <h1 class="h3 mb-1">Laporan Kesehatan</h1>
-                <p class="text-muted mb-0">Rekap izin sakit disetujui &amp; catatan E-Health — <?= htmlspecialchars((string) ($pack['periode_label'] ?? '')) ?></p>
+                <p class="text-muted mb-0" id="yp-kes-subtitle">Rekap izin sakit disetujui &amp; catatan E-Health — <?= htmlspecialchars($periode['label']) ?></p>
             </div>
             <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>">
                 <i class="fa-solid fa-notes-medical me-1"></i>Input izin sakit
@@ -48,364 +35,32 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </header>
 
-    <?php if (empty($pack['ready'])): ?>
+    <?php if (!$modulReady): ?>
         <div class="alert alert-warning">Modul perizinan belum tersedia.</div>
     <?php else: ?>
 
     <?php
-    $rekapPeriodeExtraSlot = '
-        <div class="col-md-3 col-6">
-            <label class="form-label small mb-0">Tingkatan</label>
-            <select name="tingkatan" class="form-select form-select-sm">
-                <option value="">Semua tingkatan</option>';
-    foreach ($tingkatanList as $tk) {
-        $tkStr = (string) $tk;
-        $sel = strcasecmp($tingkatan, $tkStr) === 0 ? ' selected' : '';
-        $rekapPeriodeExtraSlot .= '<option value="' . htmlspecialchars($tkStr, ENT_QUOTES) . '"' . $sel . '>'
-            . htmlspecialchars($tkStr) . '</option>';
-    }
-    $rekapPeriodeExtraSlot .= '
-            </select>
-        </div>';
-    require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
-    unset($rekapPeriodeExtraSlot);
+    $periodeLabel = $periode['label'];
+    $ypRekapLabel = 'Rekap izin per periode';
+    $ypRekapHref = app_href('/perizinan/rekap_aktif.php');
+    $ypRekapNote = 'Portal Yayasan menampilkan ringkasan bulan berjalan saja. Untuk arsip periode lain, buka modul Perizinan.';
+    require __DIR__ . '/../includes/partials/yayasan_periode_rekap_link.php';
     ?>
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-info">
-                <div class="card-body">
-                    <div class="small text-muted text-uppercase fw-bold">Kasus izin sakit</div>
-                    <div class="fs-2 fw-bold text-info"><?= (int) ($summary['total_kasus'] ?? 0) ?></div>
-                    <div class="small text-muted"><?= (int) ($summary['total_santri'] ?? 0) ?> santri unik</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
-                <div class="card-body">
-                    <div class="small text-muted text-uppercase fw-bold">Total hari sakit</div>
-                    <div class="fs-2 fw-bold text-primary"><?= (int) ($summary['total_hari_sakit'] ?? 0) ?></div>
-                    <div class="small text-muted">Rata <?= htmlspecialchars((string) ($summary['rata_hari_per_santri'] ?? 0)) ?> hari/santri</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
-                <div class="card-body">
-                    <div class="small text-muted text-uppercase fw-bold">Sakit aktif hari ini</div>
-                    <div class="fs-2 fw-bold text-warning"><?= (int) ($summary['sakit_aktif_hari_ini'] ?? 0) ?></div>
-                    <div class="small text-muted">Izin sakit / presensi sakit</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
-                <div class="card-body">
-                    <div class="small text-muted text-uppercase fw-bold">E-Health &amp; suhu tinggi</div>
-                    <div class="fs-2 fw-bold text-danger"><?= (int) ($summary['ehealth_records'] ?? 0) ?></div>
-                    <div class="small text-muted"><?= (int) ($summary['suhu_tinggi'] ?? 0) ?> catatan ≥38°C</div>
-                </div>
-            </div>
+    <div id="yp-kes-mount">
+        <div class="text-center py-5 text-muted">
+            <i class="fa-solid fa-spinner fa-spin me-1"></i> Memuat laporan…
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Tren 6 Bulan — Kasus &amp; Santri</div>
-                <div class="card-body">
-                    <div style="height:260px"><canvas id="chartKesehatanBulan"></canvas></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Per Tingkatan — Hari Sakit</div>
-                <div class="card-body">
-                    <div style="height:260px"><canvas id="chartKesehatanTingkatan"></canvas></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Status Penanganan (E-Health)</div>
-                <div class="card-body d-flex justify-content-center">
-                    <div style="height:220px;width:100%;max-width:320px"><canvas id="chartKesehatanStatus"></canvas></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Distribusi Suhu Tubuh</div>
-                <div class="card-body">
-                    <div style="height:220px"><canvas id="chartKesehatanSuhu"></canvas></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <?php if (!empty($pack['gejala_top'])): ?>
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold">Gejala Terbanyak (E-Health)</div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Gejala</th><th class="text-end">Frekuensi</th></tr></thead>
-                    <tbody>
-                    <?php foreach ((array) $pack['gejala_top'] as $g): ?>
-                        <tr>
-                            <td><?= htmlspecialchars(ucfirst((string) ($g['gejala'] ?? ''))) ?></td>
-                            <td class="text-end font-monospace"><?= (int) ($g['jumlah'] ?? 0) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <div class="row g-3 mb-4">
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
-                    <span>Ranking Santri</span>
-                    <span class="badge text-bg-secondary"><?= count((array) ($pack['per_santri'] ?? [])) ?></span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height:360px;overflow-y:auto">
-                        <table class="table table-sm table-hover mb-0 align-middle">
-                            <thead class="table-light sticky-top"><tr><th>Santri</th><th class="text-end">Kasus</th><th class="text-end">Hari</th></tr></thead>
-                            <tbody>
-                            <?php foreach ((array) ($pack['per_santri'] ?? []) as $ps): ?>
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold small"><?= htmlspecialchars((string) ($ps['nama_santri'] ?? '')) ?></div>
-                                        <div class="text-muted" style="font-size:.75rem"><?= htmlspecialchars((string) ($ps['nis'] ?? '')) ?> · <?= htmlspecialchars((string) ($ps['tingkatan'] ?? '')) ?></div>
-                                    </td>
-                                    <td class="text-end small"><?= (int) ($ps['kasus'] ?? 0) ?></td>
-                                    <td class="text-end small fw-semibold text-primary"><?= (int) ($ps['hari_sakit'] ?? 0) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (($pack['per_santri'] ?? []) === []): ?>
-                                <tr><td colspan="3" class="text-center text-muted py-4">Tidak ada data.</td></tr>
-                            <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Sakit Aktif Hari Ini</div>
-                <div class="card-body p-0">
-                    <?php $aktif = (array) ($pack['aktif_hari_ini'] ?? []); ?>
-                    <?php if ($aktif === []): ?>
-                        <div class="p-4 text-center text-muted">Tidak ada santri sakit yang perlu perhatian hari ini.</div>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0 align-middle">
-                                <thead class="table-light"><tr><th>Santri</th><th>Periode</th><th>Sumber</th><th>Alasan</th></tr></thead>
-                                <tbody>
-                                <?php foreach ($aktif as $a): ?>
-                                    <tr>
-                                        <td>
-                                            <div class="fw-semibold small"><?= htmlspecialchars((string) ($a['nama_santri'] ?? '')) ?></div>
-                                            <div class="text-muted" style="font-size:.75rem"><?= htmlspecialchars((string) ($a['tingkatan'] ?? '')) ?></div>
-                                        </td>
-                                        <td class="small text-nowrap"><?= htmlspecialchars((string) ($a['tanggal_mulai'] ?? '')) ?> – <?= htmlspecialchars((string) ($a['tanggal_selesai'] ?? '')) ?></td>
-                                        <td class="small"><span class="badge text-bg-info"><?= htmlspecialchars(str_replace('_', ' ', (string) ($a['sumber'] ?? ''))) ?></span></td>
-                                        <td class="small"><?= htmlspecialchars((string) ($a['alasan'] ?? '—')) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
-            <span>Detail Izin Sakit — <?= htmlspecialchars((string) ($pack['periode_label'] ?? '')) ?></span>
-            <span class="badge text-bg-info"><?= count((array) ($pack['detail_rows'] ?? [])) ?> kasus</span>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Santri</th>
-                            <th>Periode izin</th>
-                            <th class="text-end">Hari</th>
-                            <th>Gejala / alasan</th>
-                            <th>Suhu</th>
-                            <th>Status</th>
-                            <th>Tindakan</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ((array) ($pack['detail_rows'] ?? []) as $dr): ?>
-                        <tr>
-                            <td>
-                                <div class="fw-semibold small"><?= htmlspecialchars((string) ($dr['nama_santri'] ?? '')) ?></div>
-                                <div class="text-muted" style="font-size:.75rem"><?= htmlspecialchars((string) ($dr['nis'] ?? '')) ?> · <?= htmlspecialchars((string) ($dr['tingkatan'] ?? '')) ?></div>
-                            </td>
-                            <td class="small text-nowrap">
-                                <?= htmlspecialchars((string) ($dr['tanggal_mulai'] ?? '')) ?>
-                                – <?= htmlspecialchars((string) ($dr['tanggal_selesai'] ?? '')) ?>
-                            </td>
-                            <td class="text-end small fw-semibold"><?= (int) ($dr['hari_efektif'] ?? 0) ?></td>
-                            <td class="small" style="max-width:14rem">
-                                <?= htmlspecialchars((string) (($dr['gejala'] ?? '') !== '' ? $dr['gejala'] : ($dr['alasan'] ?? '—'))) ?>
-                            </td>
-                            <td class="small font-monospace">
-                                <?= $dr['suhu_tubuh'] !== null && $dr['suhu_tubuh'] !== '' ? htmlspecialchars((string) $dr['suhu_tubuh']) . '°C' : '—' ?>
-                            </td>
-                            <td class="small"><?= htmlspecialchars(yayasan_kesehatan_status_label((string) ($dr['status_kesehatan'] ?? ''))) ?></td>
-                            <td class="small text-muted"><?= htmlspecialchars((string) ($dr['tindakan'] ?? '—')) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php if (($pack['detail_rows'] ?? []) === []): ?>
-                        <tr><td colspan="7" class="text-center text-muted py-4">Belum ada izin sakit pada periode ini.</td></tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <?php if (!empty($pack['per_tingkatan'])): ?>
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white fw-semibold">Ringkasan per Tingkatan</div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light"><tr><th>Tingkatan</th><th class="text-end">Santri</th><th class="text-end">Kasus</th><th class="text-end">Hari sakit</th></tr></thead>
-                    <tbody>
-                    <?php foreach ((array) $pack['per_tingkatan'] as $pt): ?>
-                        <tr>
-                            <td class="fw-semibold"><?= htmlspecialchars((string) ($pt['tingkatan'] ?? '')) ?></td>
-                            <td class="text-end"><?= (int) ($pt['jumlah_santri'] ?? 0) ?></td>
-                            <td class="text-end"><?= (int) ($pt['kasus'] ?? 0) ?></td>
-                            <td class="text-end fw-semibold text-primary"><?= (int) ($pt['hari_sakit'] ?? 0) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script>
-    (function () {
-        const bulan = <?= json_encode($pack['chart_bulan'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-        const tingkatan = <?= json_encode($pack['chart_tingkatan'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-        const status = <?= json_encode($pack['chart_status'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-        const suhu = <?= json_encode($pack['chart_suhu'] ?? [], JSON_UNESCAPED_UNICODE) ?>;
-
-        const elBulan = document.getElementById('chartKesehatanBulan');
-        if (elBulan && bulan.labels && bulan.labels.length) {
-            new Chart(elBulan, {
-                type: 'line',
-                data: {
-                    labels: bulan.labels,
-                    datasets: [
-                        {
-                            label: 'Kasus izin sakit',
-                            data: bulan.kasus,
-                            borderColor: '#0d6efd',
-                            backgroundColor: 'rgba(13, 110, 253, 0.12)',
-                            fill: true,
-                            tension: 0.25,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Santri unik',
-                            data: bulan.santri,
-                            borderColor: '#198754',
-                            backgroundColor: 'rgba(25, 135, 84, 0.08)',
-                            fill: false,
-                            tension: 0.25,
-                            yAxisID: 'y'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
-                }
-            });
-        }
-
-        const elTingkatan = document.getElementById('chartKesehatanTingkatan');
-        if (elTingkatan && tingkatan.labels && tingkatan.labels.length) {
-            new Chart(elTingkatan, {
-                type: 'bar',
-                data: {
-                    labels: tingkatan.labels,
-                    datasets: [
-                        { label: 'Hari sakit', data: tingkatan.hari, backgroundColor: '#3b82f6' },
-                        { label: 'Kasus', data: tingkatan.kasus, backgroundColor: '#93c5fd' }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
-                }
-            });
-        }
-
-        const elStatus = document.getElementById('chartKesehatanStatus');
-        if (elStatus && status.labels && status.labels.length) {
-            new Chart(elStatus, {
-                type: 'doughnut',
-                data: {
-                    labels: status.labels,
-                    datasets: [{
-                        data: status.values,
-                        backgroundColor: ['#0d6efd', '#dc3545', '#fd7e14', '#198754']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
-                }
-            });
-        }
-
-        const elSuhu = document.getElementById('chartKesehatanSuhu');
-        if (elSuhu && suhu.labels && suhu.labels.length) {
-            new Chart(elSuhu, {
-                type: 'bar',
-                data: {
-                    labels: suhu.labels,
-                    datasets: [{
-                        label: 'Catatan',
-                        data: suhu.values,
-                        backgroundColor: ['#22c55e', '#facc15', '#fb923c', '#ef4444', '#94a3b8']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-    })();
+    window.__ypPeriodBoot = <?= json_encode([
+        'type' => 'kesehatan',
+        'mount' => 'yp-kes-mount',
+        'api' => app_href('/api/yayasan/kesehatan_content.php'),
+        'params' => [],
+        'lockPeriode' => true,
+    ], JSON_UNESCAPED_UNICODE) ?>;
     </script>
 
     <?php endif; ?>

@@ -26,6 +26,7 @@ $pondokIdentityFields = [
     'jenis_pendidikan',
     'alamat_ponpes',
     'nama_pengasuh',
+    'nama_ketua_yayasan',
     'kategori_baik_max',
     'kategori_sedang_max',
     'keaktifan_tanggal_mulai_scan',

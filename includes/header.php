@@ -1,5 +1,9 @@
 <?php
 
+if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY'])) {
+    return;
+}
+
 require_once __DIR__ . '/../config/session.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
@@ -196,7 +200,12 @@ if (!function_exists('render_app_sidebar_nav')) {
                 $pathBase = function_exists('app_menu_acl_normalize_path_base')
                     ? app_menu_acl_normalize_path_base($path)
                     : $path;
-                $active = str_contains($requestPath, $pathBase);
+                $matchPrefix = trim((string) ($node['match_prefix'] ?? ''));
+                if ($matchPrefix !== '') {
+                    $active = str_contains($requestPath, $matchPrefix);
+                } else {
+                    $active = str_contains($requestPath, $pathBase);
+                }
                 echo '<a class="app-side-nav-item' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($path)) . '">'
                     . '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>'
                     . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$path]) . '</span>'
@@ -314,6 +323,21 @@ if (!function_exists('render_app_sidebar_nav')) {
         <?php foreach ($pageStylesheets as $pageStylesheetHref): ?>
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">
         <?php endforeach; ?>
+    <?php endif; ?>
+    <?php if (isset($_SESSION['user']) && preg_match('#^/yayasan(/|$)#', $requestPath)): ?>
+        <?php
+        $ypNavJs = app_asset_href('/assets/js/yayasan-nav.js');
+        if (!isset($pageScripts) || !is_array($pageScripts)) {
+            $pageScripts = [];
+        }
+        if (!in_array($ypNavJs, $pageScripts, true)) {
+            array_unshift($pageScripts, $ypNavJs);
+        }
+        if (!function_exists('yayasan_fragment_api_href')) {
+            require_once __DIR__ . '/../helpers/yayasan_fragment.php';
+        }
+        ?>
+    <meta name="yp-fragment-api" content="<?= htmlspecialchars(yayasan_fragment_api_href()) ?>">
     <?php endif; ?>
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
