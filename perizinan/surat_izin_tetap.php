@@ -66,6 +66,12 @@ $judulKegiatan = santri_izin_tetap_surat_teks_bersih(trim((string) ($izin['judul
 $suratKonteks = santri_izin_tetap_surat_konteks($jenisRaw, $judulKegiatan);
 $kegiatanItems = santri_izin_tetap_kegiatan_items_for_print($pdo, $izin);
 $kegiatanDitinggalkan = $kegiatanItems !== [] ? implode(', ', $kegiatanItems) : '';
+$kegiatanKolomKiri = $kegiatanItems;
+$kegiatanKolomKanan = [];
+if (count($kegiatanItems) > 4) {
+    $kegiatanKolomKiri = array_slice($kegiatanItems, 0, 4);
+    $kegiatanKolomKanan = array_slice($kegiatanItems, 4);
+}
 $kategoriHidmahKode = trim((string) ($izin['kategori_hidmah'] ?? ''));
 $kategoriHidmahLabel = $kategoriHidmahKode !== '' ? izin_tetap_hidmah_kategori_label($pdo, $kategoriHidmahKode) : '';
 $keterangan = trim((string) ($izin['keterangan'] ?? ''));
@@ -209,6 +215,15 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
             font-size: 9.5pt;
             line-height: 1.45;
         }
+        .box-kegiatan__cols {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .box-kegiatan__cols ul {
+            flex: 1 1 0;
+            min-width: 0;
+        }
         .box-kegiatan li { margin: 1px 0; }
         .box-nb {
             margin-top: 6px;
@@ -255,6 +270,10 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+            .box-kegiatan {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
         }
     </style>
 </head>
@@ -296,10 +315,32 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 <tr><td><?= htmlspecialchars((string) $suratKonteks['label_uraian']) ?></td><td>: <?= htmlspecialchars((string) ($suratKonteks['detail_teks'] ?? '') !== '' ? (string) $suratKonteks['detail_teks'] : '—') ?></td></tr>
                 <tr><td>Masa Berlaku</td><td>: <?= htmlspecialchars($periodeTampil) ?></td></tr>
                 <tr><td><?= htmlspecialchars((string) $suratKonteks['label_jadwal']) ?></td><td>: <?= $slotHtml ?></td></tr>
-                <?php if ($kegiatanItems !== []): ?>
-                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></td><td>: <?= htmlspecialchars($kegiatanDitinggalkan) ?></td></tr>
-                <?php endif; ?>
             </table>
+            <?php if ($kegiatanItems !== []): ?>
+            <div class="box-kegiatan">
+                <strong><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></strong>
+                <?php if ($kegiatanKolomKanan !== []): ?>
+                <div class="box-kegiatan__cols">
+                    <ul>
+                        <?php foreach ($kegiatanKolomKiri as $kgNama): ?>
+                            <li><?= htmlspecialchars($kgNama) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <ul>
+                        <?php foreach ($kegiatanKolomKanan as $kgNama): ?>
+                            <li><?= htmlspecialchars($kgNama) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+                <?php else: ?>
+                <ul>
+                    <?php foreach ($kegiatanKolomKiri as $kgNama): ?>
+                        <li><?= htmlspecialchars($kgNama) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php if ($keterangan !== ''): ?>
             <div class="box-note">
                 <strong>Keterangan:</strong><br>

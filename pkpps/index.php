@@ -26,19 +26,9 @@ $mingguKeaktivan = $loadMingguDetail
 
 $hubLinks = [
 
-    ['path' => '/pkpps/santri.php', 'icon' => 'fa-solid fa-user-graduate', 'label' => 'Santri PKPPS', 'desc' => 'Kelola keanggotaan santri per tingkatan'],
+    ['path' => '/pkpps/import_santri.php', 'icon' => 'fa-solid fa-file-import', 'label' => 'Import santri', 'desc' => 'Unggah data santri PKPPS dari spreadsheet'],
 
-    ['path' => '/pkpps/jadwal.php', 'icon' => 'fa-solid fa-calendar-days', 'label' => 'Jadwal PKPPS', 'desc' => 'Jadwal kegiatan dan pembimbing'],
-
-    ['path' => '/pkpps/tugas/index.php', 'icon' => 'fa-solid fa-list-check', 'label' => 'Tugas & soal PKPPS', 'desc' => 'Buat soal untuk santri PKPPS berdasarkan jadwal pembimbing'],
-
-    ['path' => '/rekap/pkpps_keaktifan_hari.php', 'icon' => 'fa-solid fa-id-card', 'label' => 'Keaktifan hari ini', 'desc' => 'Kartu presensi santri & pembimbing PKPPS hari ini'],
-
-    ['path' => '/rekap/pkpps_keaktivan.php', 'icon' => 'fa-solid fa-chart-line', 'label' => 'Rekap keaktivan', 'desc' => 'Kehadiran santri & pembimbing PKPPS per periode'],
-
-    ['path' => '/pembayaran/laporan_pkpps_syahriyah.php', 'icon' => 'fa-solid fa-coins', 'label' => 'Syahriyah PKPPS', 'desc' => 'Laporan pembayaran syahriyah PKPPS'],
-
-    ['path' => '/pembimbing/pkpps_santri.php', 'icon' => 'fa-solid fa-chalkboard-user', 'label' => 'Portal pembimbing', 'desc' => 'Akses santri untuk pembimbing'],
+    ['path' => '/pkpps/import.php', 'icon' => 'fa-solid fa-file-import', 'label' => 'Import jadwal', 'desc' => 'Unggah jadwal kegiatan PKPPS'],
 
     ['path' => '/settings/tingkatan.php#pkpps', 'icon' => 'fa-solid fa-layer-group', 'label' => 'Tingkatan PKPPS', 'desc' => 'Master tingkatan program'],
 
@@ -60,7 +50,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <h1 class="h4 mb-1">Dashboard PKPPS</h1>
 
-    <p class="text-muted mb-0 small">Ringkasan data santri, jadwal, dan keaktivan — kelola detail lewat kartu di bawah.</p>
+    <p class="text-muted mb-0 small">Ringkasan data santri, jadwal, dan keaktivan — navigasi modul lewat tab di atas.</p>
 
 </div>
 

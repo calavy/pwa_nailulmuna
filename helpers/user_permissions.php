@@ -132,14 +132,12 @@ function user_permission_groups(): array
         'rekap' => [
             'label' => 'Rekap & Poin (submenu)',
             'permissions' => [
-                'rekap_hub' => 'Pusat Rekap (semua laporan)',
-                'rekap' => 'Rekap Presensi',
+                'rekap' => 'Rekap Presensi (pusat laporan)',
                 'rekap_keaktifan_hari' => 'Keaktifan Santri Hari Ini',
                 'rekap_keaktifan' => 'Rekap Keaktifan Santri (tahunan)',
                 'rekap_telat' => 'Rekap Keterlambatan',
                 'rekap_perizinan' => 'Rekap Perizinan Bulanan',
                 'rekap_munawib' => 'Laporan Munawib',
-                'rekap_pembimbing' => 'Payroll / Gaji Pembimbing',
                 'poin_input' => 'Input Poin',
                 'poin_rekap' => 'Rekap Poin',
             ],
@@ -237,11 +235,11 @@ function user_permission_path_map_base(): array
         '/settings/tingkatan.php' => 'pengaturan',
         '/settings/tingkatan.php#pkpps' => 'pengaturan',
         '/pembimbing/munawib.php' => 'munawib',
-        '/rekap/hub.php' => 'rekap_hub',
-        '/rekap/keaktivan_sdm.php' => 'rekap_hub',
+        '/rekap/hub.php' => 'rekap',
+        '/rekap/keaktivan_sdm.php' => 'rekap',
         '/rekap/keaktifan_hari.php' => 'rekap_keaktifan_hari',
         '/rekap/munawib.php' => 'rekap_munawib',
-        '/rekap/kegiatan_khusus.php' => 'rekap_hub',
+        '/rekap/kegiatan_khusus.php' => 'rekap',
         '/rekap/perizinan.php' => 'rekap_perizinan',
         '/akademik/hafalan.php' => 'akademik_hafalan',
         '/akademik/setoran.php' => 'akademik_hafalan',
@@ -341,6 +339,7 @@ function user_permission_path_map_base(): array
         '/yayasan/ketertiban.php' => 'yayasan',
         '/yayasan/kesehatan.php' => 'yayasan',
         '/yayasan/keaktifan.php' => 'yayasan',
+        '/yayasan/keaktifan_ranking.php' => 'yayasan',
         '/yayasan/keaktifan_kelas.php' => 'rekap_keaktifan_hari',
         '/yayasan/sdm_hari.php' => 'yayasan',
         '/yayasan/dashboard.php' => 'yayasan',
@@ -443,7 +442,6 @@ function user_permission_alt_keys_for_path(string $requestPath): array
         '/presensi/rekap_tanpa_scan.php' => [
             'presensi_scan',
             'rekap',
-            'rekap_hub',
             'rekap_keaktifan',
             'rekap_keaktifan_hari',
             'pkpps_dashboard',
@@ -452,11 +450,10 @@ function user_permission_alt_keys_for_path(string $requestPath): array
         '/yayasan/keaktifan_kelas.php' => [
             'yayasan',
             'rekap_keaktifan_hari',
-            'rekap_hub',
             'rekap',
         ],
         '/yayasan/operasional.php' => [
-            'rekap_hub',
+            'rekap',
             'rekap_keaktifan',
             'rekap_keaktifan_hari',
         ],
@@ -464,16 +461,14 @@ function user_permission_alt_keys_for_path(string $requestPath): array
             'perizinan',
             'perizinan_permohonan',
             'rekap_keaktifan',
-            'rekap_hub',
+            'rekap',
         ],
         '/pengasuh/dashboard.php' => [
             'rekap_keaktifan',
-            'rekap_hub',
             'rekap',
         ],
         '/pengasuh/laporan_hari.php' => [
             'rekap_keaktifan',
-            'rekap_hub',
             'rekap',
         ],
         default => [],
@@ -501,7 +496,6 @@ function user_permission_allowed_for_path(string $requestPath, string $primaryKe
 function user_permission_rekap_bundle_keys(): array
 {
     return [
-        'rekap_hub',
         'rekap',
         'rekap_keaktifan_hari',
         'rekap_keaktifan',
@@ -526,6 +520,10 @@ function user_permission_expand_allowed_map(array $map): array
         }
     }
     if (isset($map['rekap_hub'])) {
+        $map['rekap'] = 1;
+        unset($map['rekap_hub']);
+    }
+    if (isset($map['rekap'])) {
         foreach (user_permission_rekap_bundle_keys() as $k) {
             $map[$k] = 1;
         }

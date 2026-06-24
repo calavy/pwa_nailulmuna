@@ -7,25 +7,23 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 require_once __DIR__ . '/../helpers/yayasan_kesehatan.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 
 yayasan_ensure_tables($pdo);
 
+$periode = rekap_resolve_periode($pdo, $_GET);
 $pack = yayasan_kesehatan_pack($pdo, [
-    'mode' => $_GET['mode'] ?? 'hijriyah',
-    'month' => $_GET['month'] ?? null,
-    'year' => $_GET['year'] ?? null,
+    'mode' => $periode['mode'],
+    'month' => $periode['month'],
+    'year' => $periode['year'],
     'tingkatan' => $_GET['tingkatan'] ?? '',
 ]);
 
 $hubYayasan = '/menu/menu_hub.php?id=menu-grp-yayasan';
 $summary = (array) ($pack['summary'] ?? []);
-$mode = (string) ($pack['mode'] ?? 'hijriyah');
-$month = (int) ($pack['month'] ?? 1);
-$year = (int) ($pack['year'] ?? 1400);
 $tingkatan = (string) ($pack['tingkatan'] ?? '');
-$hijriMonths = (array) ($pack['hijri_months'] ?? []);
 $tingkatanList = (array) ($pack['tingkatan_list'] ?? []);
 
 $pageTitle = 'Laporan Kesehatan Yayasan';
@@ -54,53 +52,24 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="alert alert-warning">Modul perizinan belum tersedia.</div>
     <?php else: ?>
 
-    <form method="get" class="card border-0 shadow-sm mb-4">
-        <div class="card-body row g-2 align-items-end">
-            <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Kalender</label>
-                <select name="mode" class="form-select form-select-sm">
-                    <option value="hijriyah"<?= $mode === 'hijriyah' ? ' selected' : '' ?>>Hijriyah</option>
-                    <option value="masehi"<?= $mode === 'masehi' ? ' selected' : '' ?>>Masehi</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Bulan</label>
-                <select name="month" class="form-select form-select-sm">
-                    <?php for ($m = 1; $m <= 12; $m++): ?>
-                        <?php
-                        $mLabel = $mode === 'hijriyah'
-                            ? (string) ($hijriMonths[$m] ?? $m)
-                            : date('F', mktime(0, 0, 0, $m, 1));
-                        ?>
-                        <option value="<?= $m ?>"<?= $month === $m ? ' selected' : '' ?>><?= htmlspecialchars($mLabel) ?></option>
-                    <?php endfor; ?>
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Tahun</label>
-                <input type="number" class="form-control form-control-sm" name="year" min="1300" max="2100" value="<?= htmlspecialchars((string) $year) ?>">
-            </div>
-            <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Tingkatan</label>
-                <select name="tingkatan" class="form-select form-select-sm">
-                    <option value="">Semua tingkatan</option>
-                    <?php foreach ($tingkatanList as $tk): ?>
-                        <option value="<?= htmlspecialchars((string) $tk) ?>"<?= strcasecmp($tingkatan, (string) $tk) === 0 ? ' selected' : '' ?>><?= htmlspecialchars((string) $tk) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
-                <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-filter me-1"></i>Tampilkan</button>
-            </div>
-        </div>
-        <div class="card-footer small text-muted py-2">
-            Periode masehi: <?= htmlspecialchars(date('d-m-Y', strtotime((string) $pack['start_date']))) ?>
-            s.d. <?= htmlspecialchars(date('d-m-Y', strtotime((string) $pack['end_date']))) ?>
-            <?php if ($mode === 'masehi' && !empty($pack['hijri_label'])): ?>
-                · setara <?= htmlspecialchars((string) $pack['hijri_label']) ?>
-            <?php endif; ?>
-        </div>
-    </form>
+    <?php
+    $rekapPeriodeExtraSlot = '
+        <div class="col-md-3 col-6">
+            <label class="form-label small mb-0">Tingkatan</label>
+            <select name="tingkatan" class="form-select form-select-sm">
+                <option value="">Semua tingkatan</option>';
+    foreach ($tingkatanList as $tk) {
+        $tkStr = (string) $tk;
+        $sel = strcasecmp($tingkatan, $tkStr) === 0 ? ' selected' : '';
+        $rekapPeriodeExtraSlot .= '<option value="' . htmlspecialchars($tkStr, ENT_QUOTES) . '"' . $sel . '>'
+            . htmlspecialchars($tkStr) . '</option>';
+    }
+    $rekapPeriodeExtraSlot .= '
+            </select>
+        </div>';
+    require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+    unset($rekapPeriodeExtraSlot);
+    ?>
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">

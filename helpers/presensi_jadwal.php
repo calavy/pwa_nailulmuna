@@ -452,8 +452,13 @@ function presensi_apply_status_efektif_rows(PDO $pdo, array $rows, string $tangg
  *
  * @return list<array<string, mixed>>
  */
-function presensi_fetch_rows_rekap(PDO $pdo, string $startDate, string $endDate, int $kegiatanId = 0): array
-{
+function presensi_fetch_rows_rekap(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $kegiatanId = 0,
+    ?string $kalenderHijriyahKey = null
+): array {
     if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
         return [];
     }
@@ -471,10 +476,15 @@ function presensi_fetch_rows_rekap(PDO $pdo, string $startDate, string $endDate,
     require_once __DIR__ . '/santri_operasional.php';
     $sqlAktif = santri_sql_aktif_only('s');
     $kegiatanSql = '';
+    $kalenderSql = '';
     $params = ['start_date' => $startDate, 'end_date' => $endDate];
     if ($kegiatanId > 0) {
         $kegiatanSql = ' AND p.kegiatan_id = :kegiatan_id';
         $params['kegiatan_id'] = $kegiatanId;
+    }
+    if ($kalenderHijriyahKey !== null && $kalenderHijriyahKey !== '' && column_exists($pdo, 'presensi', 'kalender_hijriyah')) {
+        $kalenderSql = ' AND p.kalender_hijriyah = :kalender_hijriyah';
+        $params['kalender_hijriyah'] = $kalenderHijriyahKey;
     }
 
     $stmt = $pdo->prepare('
@@ -482,16 +492,18 @@ function presensi_fetch_rows_rekap(PDO $pdo, string $startDate, string $endDate,
             p.id,
             p.tanggal_presensi,
             p.status_presensi,
+            p.catatan,
             p.kegiatan_id,
             s.id AS santri_id,
             s.nama_santri,
             s.nis,
             s.tingkatan,
-            COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
+            COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan,
+            COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
         LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-        WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date' . $kegiatanSql . '
+        WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date' . $kegiatanSql . $kalenderSql . '
         ORDER BY s.nama_santri ASC, p.tanggal_presensi ASC
     ');
     $stmt->execute($params);

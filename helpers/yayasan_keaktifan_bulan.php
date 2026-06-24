@@ -23,8 +23,10 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
         'start_date' => '',
         'end_date' => '',
         'periode_label' => '',
+        'rentang_tampilan' => '',
         'tingkatan' => '',
         'hijri_months' => hijri_nama_bulan_list(),
+        'bulan_names' => hijri_nama_bulan_list(),
         'good_max' => 1,
         'medium_max' => 3,
         'total_santri' => 0,
@@ -44,9 +46,9 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
     }
 
     $periodeGet = [
-        'mode' => (string) ($get['mode'] ?? 'hijriyah'),
-        'month' => $get['month'] ?? null,
-        'year' => $get['year'] ?? null,
+        'mode' => (string) ($get['kb_mode'] ?? $get['mode'] ?? ''),
+        'month' => $get['kb_month'] ?? $get['month'] ?? null,
+        'year' => $get['kb_year'] ?? $get['year'] ?? null,
     ];
     $periode = rekap_resolve_periode($pdo, $periodeGet);
     $mode = (string) $periode['mode'];
@@ -60,7 +62,7 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
     $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
     $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 
-    $rawRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, 0);
+    $rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
     if ($tingkatan !== '') {
         $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
             return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -97,6 +99,12 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
         $tingkatanList = $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
     }
 
+    $masehiMonths = [
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+        7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+    ];
+    $bulanNames = $mode === 'masehi' ? $masehiMonths : hijri_nama_bulan_list();
+
     return [
         'ready' => true,
         'mode' => $mode,
@@ -105,8 +113,10 @@ function yayasan_keaktifan_bulan_pack(PDO $pdo, array $get): array
         'start_date' => $startDate,
         'end_date' => $endDate,
         'periode_label' => $periodeLabel,
+        'rentang_tampilan' => (string) ($periode['rentang_tampilan'] ?? ''),
         'tingkatan' => $tingkatan,
         'hijri_months' => hijri_nama_bulan_list(),
+        'bulan_names' => $bulanNames,
         'good_max' => $goodMax,
         'medium_max' => $mediumMax,
         'total_santri' => count($ranked),

@@ -8,7 +8,7 @@ require_once __DIR__ . '/santri_operasional.php';
 require_once __DIR__ . '/presensi_jadwal.php';
 
 /**
- * Filter kategori kegiatan untuk rekap keaktifan: null|'' = semua, JAMAAH, TAALIM.
+ * Filter kategori kegiatan untuk rekap keaktifan: null|'' = semua, JAMAAH, TAALIM, PKPPS.
  */
 function rekap_keaktifan_hari_normalize_kategori(?string $kategori): ?string
 {
@@ -16,7 +16,7 @@ function rekap_keaktifan_hari_normalize_kategori(?string $kategori): ?string
     if ($k === '' || $k === 'ALL' || $k === 'SEMUA') {
         return null;
     }
-    if (in_array($k, ['JAMAAH', 'TAALIM', 'TA\'LIM'], true)) {
+    if (in_array($k, ['JAMAAH', 'TAALIM', 'TA\'LIM', 'PKPPS'], true)) {
         return $k === 'TA\'LIM' ? 'TAALIM' : $k;
     }
 

@@ -407,6 +407,16 @@
     margin: 0.12rem 0 0;
 }
 
+.presensi-scan-timer-wall {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: rgba(248, 250, 252, 0.72);
+    margin-top: 0.08rem;
+}
+
 .presensi-scan-timer.is-active .presensi-scan-timer-clock {
     color: #86efac;
 }

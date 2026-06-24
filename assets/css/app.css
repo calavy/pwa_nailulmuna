@@ -2419,6 +2419,117 @@ html[data-theme-transitioning] .app-theme-switch {
     }
 }
 
+body.app-page-leaving .app-main {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.rekap-rank-summary {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.rekap-rank-summary:hover {
+    background: rgba(8, 145, 178, 0.06);
+}
+
+.rekap-rank-summary.is-expanded {
+    background: rgba(8, 145, 178, 0.1);
+}
+
+.rekap-rank-summary.is-expanded .rekap-rank-chevron {
+    transform: rotate(180deg);
+}
+
+.rekap-rank-chevron {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.rekap-rank-detail {
+    display: none;
+}
+
+.rekap-rank-detail.is-open {
+    display: table-row;
+}
+
+.rekap-rank-detail.is-open .rekap-rank-detail-inner {
+    animation: rekap-detail-in 0.28s ease-out;
+}
+
+.rekap-rank-detail-inner {
+    background: var(--bs-light, #f8fafc);
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.rekap-rank-chart-wrap {
+    min-height: 280px;
+}
+
+.rekap-rank-pos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.rekap-rank-pos--1 {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+}
+
+.rekap-rank-pos--2 {
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    color: #fff;
+}
+
+.rekap-rank-pos--3 {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #1f2937;
+}
+
+.rekap-rank-summary--worst {
+    background: rgba(220, 53, 69, 0.04);
+}
+
+.rekap-rank-summary--worst:hover {
+    background: rgba(220, 53, 69, 0.08);
+}
+
+@keyframes rekap-detail-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+[data-theme="dark"] .rekap-rank-detail-inner {
+    background: rgba(15, 23, 42, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.app-page-leaving .app-main,
+    .rekap-rank-detail.is-open .rekap-rank-detail-inner,
+    .rekap-rank-chevron {
+        transition: none;
+        animation: none;
+        transform: none;
+    }
+}
+
 /* Flash & global UI */
 .app-flash--hide {
     opacity: 0;

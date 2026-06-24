@@ -335,6 +335,7 @@ function yayasan_kesehatan_pack(PDO $pdo, array $get): array
         'end_date' => $endDate,
         'periode_label' => (string) $periode['label'],
         'hijri_label' => (string) ($periode['hijri_label'] ?? $periode['label']),
+        'rentang_tampilan' => (string) ($periode['rentang_tampilan'] ?? ''),
         'tingkatan' => $tingkatan,
         'hijri_months' => hijri_nama_bulan_list(),
         'tingkatan_list' => $tingkatanList,

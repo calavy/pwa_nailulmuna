@@ -33,6 +33,21 @@ if ($pembimbingId <= 0 && !$bolehSemua && $role === 'pembimbing' && table_exists
 }
 $isSelfService = ($role === 'pembimbing' || (int) ($_SESSION['munawib_id'] ?? 0) > 0) && !$bolehSemua;
 $today = date('Y-m-d');
+$tanggalMax = date('Y-m-d', strtotime('+14 days'));
+$tanggalPilih = trim((string) ($_REQUEST['tanggal'] ?? $today));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalPilih)) {
+    $tanggalPilih = $today;
+}
+if ($tanggalPilih < $today) {
+    $tanggalPilih = $today;
+}
+if ($tanggalPilih > $tanggalMax) {
+    $tanggalPilih = $tanggalMax;
+}
+$pbPerizinanUrl = static function (array $q = []) use ($tanggalPilih): string {
+    $q['tanggal'] = $tanggalPilih;
+    return app_href('/pembimbing/perizinan.php?' . http_build_query($q));
+};
 $act = strtolower(trim((string) ($_GET['act'] ?? '')));
 
 pb_jadwal_override_ensure_schema($pdo);
@@ -41,7 +56,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'cek_bentrok' && $isSelfService &&
     header('Content-Type: application/json; charset=utf-8');
     $jadwalId = (int) ($_GET['jadwal_id'] ?? 0);
     $jamBaru = trim((string) ($_GET['jam_mulai'] ?? ''));
-    $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $today);
+    $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tanggalPilih);
     if (!$slotRes['ok']) {
         echo json_encode(['bentrok' => false, 'items' => [], 'error' => $slotRes['pesan']], JSON_UNESCAPED_UNICODE);
         exit;
@@ -50,7 +65,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'cek_bentrok' && $isSelfService &&
     $slotAjax = $slotRes['slot'];
     $durasi = (int) ($slotAjax['durasi_menit'] ?? 60);
     $jamSelesai = pb_jadwal_jam_selesai_dari_mulai($jamBaru, $durasi);
-    $res = pb_jadwal_cek_bentrok_pindah_waktu($pdo, $pembimbingId, $slotAjax, $today, $jamBaru, $jamSelesai);
+    $res = pb_jadwal_cek_bentrok_pindah_waktu($pdo, $pembimbingId, $slotAjax, $tanggalPilih, $jamBaru, $jamSelesai);
     echo json_encode($res, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -59,19 +74,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
     $postAction = (string) ($_POST['action'] ?? '');
     if ($pembimbingId <= 0) {
         set_flash('error', 'Akun login belum terhubung ke data pembimbing.');
-        header('Location: ' . app_href('/pembimbing/perizinan.php'));
+        header('Location: ' . $pbPerizinanUrl());
         exit;
     }
 
     if ($postAction === 'batal_override') {
         $res = pb_jadwal_hapus_override($pdo, $pembimbingId, (int) ($_POST['override_id'] ?? 0));
         set_flash($res['ok'] ? 'success' : 'error', $res['pesan']);
-        header('Location: ' . app_href('/pembimbing/perizinan.php'));
+        header('Location: ' . $pbPerizinanUrl());
         exit;
     }
 
+    $postTanggal = trim((string) ($_POST['tanggal'] ?? $tanggalPilih));
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $postTanggal)) {
+        if ($postTanggal < $today) {
+            $postTanggal = $today;
+        }
+        if ($postTanggal > $tanggalMax) {
+            $postTanggal = $tanggalMax;
+        }
+        $tanggalPilih = $postTanggal;
+    }
+
     $jadwalId = (int) ($_POST['jadwal_id'] ?? 0);
-    $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $today);
+    $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tanggalPilih);
     if (!$slotRes['ok']) {
         $actBack = match ($postAction) {
             'simpan_pindah' => 'pindah',
@@ -79,7 +105,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
             default => '',
         };
         set_flash('error', $slotRes['pesan']);
-        header('Location: ' . app_href('/pembimbing/perizinan.php' . ($actBack !== '' ? '?act=' . rawurlencode($actBack) : '')));
+        header('Location: ' . app_href('/pembimbing/perizinan.php?' . http_build_query(array_filter([
+            'act' => $actBack !== '' ? $actBack : null,
+            'tanggal' => $tanggalPilih,
+        ]))));
         exit;
     }
     /** @var array<string,mixed> $slot */
@@ -87,9 +116,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
     $alasan = trim((string) ($_POST['alasan'] ?? ''));
 
     if ($postAction === 'simpan_pindah') {
-        $res = pb_jadwal_simpan_pindah_waktu($pdo, $pembimbingId, $slot, $today, (string) ($_POST['jam_mulai_baru'] ?? ''), $alasan, $userId);
+        $res = pb_jadwal_simpan_pindah_waktu($pdo, $pembimbingId, $slot, $tanggalPilih, (string) ($_POST['jam_mulai_baru'] ?? ''), $alasan, $userId);
         set_flash($res['ok'] ? 'success' : 'error', $res['pesan']);
-        header('Location: ' . app_href('/pembimbing/perizinan.php?act=pindah'));
+        header('Location: ' . app_href('/pembimbing/perizinan.php?' . http_build_query(['act' => 'pindah', 'tanggal' => $tanggalPilih])));
         exit;
     }
     if ($postAction === 'simpan_munawib') {
@@ -99,26 +128,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
         );
         if (!$materiParsed['ok']) {
             set_flash('error', $materiParsed['pesan']);
-            header('Location: ' . app_href('/pembimbing/perizinan.php?act=munawib'));
+            header('Location: ' . app_href('/pembimbing/perizinan.php?' . http_build_query(['act' => 'munawib', 'tanggal' => $tanggalPilih])));
             exit;
         }
         $res = pb_jadwal_simpan_cari_munawib(
             $pdo,
             $pembimbingId,
             $slot,
-            $today,
+            $tanggalPilih,
             (int) ($_POST['munawib_id'] ?? 0),
             $alasan,
             $userId,
             $materiParsed['rows'] ?? []
         );
         set_flash($res['ok'] ? 'success' : 'error', $res['pesan']);
-        header('Location: ' . app_href('/pembimbing/perizinan.php?act=munawib'));
+        header('Location: ' . app_href('/pembimbing/perizinan.php?' . http_build_query(['act' => 'munawib', 'tanggal' => $tanggalPilih])));
         exit;
     }
 }
 
-$slotsHariIni = $isSelfService && $pembimbingId > 0 ? pb_jadwal_slots_hari_ini($pdo, $pembimbingId, $today) : [];
+$slotsHariIni = $isSelfService && $pembimbingId > 0 ? pb_jadwal_slots_hari_ini($pdo, $pembimbingId, $tanggalPilih) : [];
 $munawibList = $isSelfService ? munawib_list_aktif($pdo) : [];
 $munawibTugasMap = [];
 if ($isSelfService && $munawibList !== []) {
@@ -127,11 +156,21 @@ if ($isSelfService && $munawibList !== []) {
         if ($mwId <= 0) {
             continue;
         }
-        $penugasan = munawib_penugasan_aktif($pdo, $mwId, $today);
+        $penugasan = munawib_penugasan_aktif($pdo, $mwId, $tanggalPilih);
         $munawibTugasMap[$mwId] = $penugasan;
     }
 }
 $riwayatOverride = $isSelfService && $pembimbingId > 0 ? pb_jadwal_riwayat_override($pdo, $pembimbingId) : [];
+
+$bulanId = [
+    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+    7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+];
+$tanggalTs = strtotime($tanggalPilih);
+$tanggalLabel = $tanggalTs !== false
+    ? (int) date('j', $tanggalTs) . ' ' . ($bulanId[(int) date('n', $tanggalTs)] ?? '') . ' ' . date('Y', $tanggalTs)
+    : $tanggalPilih;
+$isHariIni = $tanggalPilih === $today;
 
 $izinSql = '
     SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.status_izin, b.nama_pembimbing, b.nip, k.nama_kegiatan
@@ -158,10 +197,10 @@ $ok = get_flash('success');
 ?>
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Perizinan</p>
-    <h1 class="h4 mb-1">Pengaturan kegiatan hari ini</h1>
+    <h1 class="h4 mb-1">Pengaturan kegiatan<?= $isHariIni ? ' hari ini' : '' ?></h1>
     <p class="text-muted mb-0">
         <?php if ($isSelfService): ?>
-            Ubah waktu atau cari munawib (dengan tugas per halaman). Bukan pengajuan izin keluar. Perubahan dapat diubah hingga <?= PB_JADWAL_BATAS_JAM_SEBELUM ?> jam sebelum jadwal asli.
+            Ubah waktu atau cari munawib (dengan tugas per halaman)<?= $isHariIni ? '' : ' untuk tanggal ' . htmlspecialchars($tanggalLabel) ?>. Bukan pengajuan izin keluar. Perubahan dapat diubah hingga <?= PB_JADWAL_BATAS_JAM_SEBELUM ?> jam sebelum jadwal asli.
         <?php else: ?>
             Pantau perubahan jadwal dan izin pembimbing.
         <?php endif; ?>
@@ -195,22 +234,43 @@ $ok = get_flash('success');
     </div>
 </div>
 <?php else: ?>
-<p class="mb-3"><a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke pilihan</a></p>
+<p class="mb-3"><a href="<?= htmlspecialchars($pbPerizinanUrl()) ?>" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-arrow-left me-1"></i> Kembali ke pilihan</a></p>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="act" value="<?= htmlspecialchars($act) ?>">
+            <div class="col-sm-auto">
+                <label class="form-label small mb-1" for="pb-tanggal-pilih">Pilih tanggal</label>
+                <input type="date" class="form-control form-control-sm" name="tanggal" id="pb-tanggal-pilih"
+                    min="<?= htmlspecialchars($today) ?>" max="<?= htmlspecialchars($tanggalMax) ?>"
+                    value="<?= htmlspecialchars($tanggalPilih) ?>" required>
+            </div>
+            <div class="col-sm-auto">
+                <button type="submit" class="btn btn-sm btn-primary"><i class="fa-solid fa-calendar-day me-1"></i> Tampilkan</button>
+            </div>
+            <div class="col-sm">
+                <p class="small text-muted mb-0">Jadwal: <strong><?= htmlspecialchars($tanggalLabel) ?></strong><?= $isHariIni ? ' (hari ini)' : '' ?> · maks. 14 hari ke depan</p>
+            </div>
+        </form>
+    </div>
+</div>
 
 <?php if ($slotsHariIni === []): ?>
     <div class="alert alert-warning small">
-        Tidak ada kegiatan jadwal Anda hari ini (<?= htmlspecialchars(date('d M Y')) ?>).
+        Tidak ada kegiatan jadwal Anda pada <?= htmlspecialchars($tanggalLabel) ?>.
         <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Kelola jadwal</a>
     </div>
 <?php elseif ($act === 'pindah'): ?>
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <h2 class="h6 mb-2">Pindah waktu kegiatan hari ini</h2>
+            <h2 class="h6 mb-2">Pindah waktu kegiatan<?= $isHariIni ? ' hari ini' : '' ?></h2>
             <p class="small text-muted">Pilih jam mulai baru — jam selesai mengikuti durasi jadwal asli. Hanya kegiatan ta'lim & ta'alum.</p>
             <form method="post" id="form-pindah-waktu" class="row g-3">
                 <input type="hidden" name="action" value="simpan_pindah">
+                <input type="hidden" name="tanggal" value="<?= htmlspecialchars($tanggalPilih) ?>">
                 <div class="col-md-6">
-                    <label class="form-label">Kegiatan hari ini</label>
+                    <label class="form-label">Kegiatan <?= $isHariIni ? 'hari ini' : 'tanggal ' . htmlspecialchars($tanggalLabel) ?></label>
                     <select class="form-select" name="jadwal_id" id="pb-slot-pindah" required>
                         <option value="">— Pilih —</option>
                         <?php foreach ($slotsHariIni as $sl):
@@ -257,8 +317,9 @@ $ok = get_flash('success');
             <p class="small text-muted">Isi tugas/materi per halaman agar munawib tahu apa yang diajarkan.</p>
             <form method="post" class="row g-3" id="form-munawib">
                 <input type="hidden" name="action" value="simpan_munawib">
+                <input type="hidden" name="tanggal" value="<?= htmlspecialchars($tanggalPilih) ?>">
                 <div class="col-md-6">
-                    <label class="form-label">Kegiatan hari ini</label>
+                    <label class="form-label">Kegiatan <?= $isHariIni ? 'hari ini' : 'tanggal ' . htmlspecialchars($tanggalLabel) ?></label>
                     <select class="form-select" name="jadwal_id" required>
                         <option value="">— Pilih —</option>
                         <?php foreach ($slotsHariIni as $sl): ?>
@@ -399,7 +460,7 @@ $ok = get_flash('success');
     var btn = document.getElementById('pb-btn-pindah');
     if (!sel || !jamBaru) return;
 
-    var cekUrl = <?= json_encode(app_href('/pembimbing/perizinan.php?ajax=cek_bentrok'), JSON_UNESCAPED_UNICODE) ?>;
+    var cekUrl = <?= json_encode(app_href('/pembimbing/perizinan.php?ajax=cek_bentrok&tanggal=' . rawurlencode($tanggalPilih)), JSON_UNESCAPED_UNICODE) ?>;
     var cekTimer = null;
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }

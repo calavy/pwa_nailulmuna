@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -12,8 +13,13 @@ if (!table_exists($pdo, 'perizinan')) {
     exit;
 }
 
-$month = (int) ($_GET['month'] ?? date('m'));
-$year = (int) ($_GET['year'] ?? app_tahun_masehi_default($pdo));
+$periode = rekap_resolve_periode($pdo, $_GET);
+$month = (int) $periode['month'];
+$year = (int) $periode['year'];
+$startDate = $periode['start_date'];
+$endDate = $periode['end_date'];
+$periodeLabel = $periode['label'];
+$rentangTampilan = $periode['rentang_tampilan'];
 $tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
 $santriId = (int) ($_GET['santri_id'] ?? 0);
 $reportType = trim((string) ($_GET['report_type'] ?? 'all'));
@@ -37,8 +43,6 @@ $santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri OR
 
 $records = [];
 if ($show) {
-    $startDate = sprintf('%04d-%02d-01', $year, $month);
-    $endDate = date('Y-m-t', strtotime($startDate));
     $stmt = $pdo->prepare('
         SELECT i.id, i.jenis_izin, i.status_izin, i.approval_status, i.alasan, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai,
                i.waktu_keluar, i.waktu_kembali, i.grace_menit, s.id AS santri_id, s.nama_santri, s.nis, s.tingkatan
@@ -217,10 +221,7 @@ usort($riwayatSantri, static function (array $a, array $b): int {
 $chartLabelsYm = [];
 $chartLabelsHuman = [];
 if ($show) {
-    $chartAnchor = strtotime(sprintf('%04d-%02d-01', $year, $month));
-    if ($chartAnchor === false) {
-        $chartAnchor = time();
-    }
+    $chartAnchor = strtotime($startDate) ?: time();
     $namaBulanSingkat = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
     for ($i = 11; $i >= 0; $i--) {
         $ts = strtotime('-' . $i . ' months', $chartAnchor);
@@ -350,57 +351,51 @@ require_once __DIR__ . '/../includes/header.php';
             <strong class="small text-secondary me-1">Filter</strong>
             <span class="small text-muted">Bulan berjalan ditampilkan otomatis; ubah lalu klik terapkan.</span>
         </div>
-        <form method="get" class="row g-2 align-items-end small">
+        <form method="get" class="mb-0">
             <input type="hidden" name="show" value="1">
-            <div class="col-6 col-sm-4 col-md-1">
-                <label class="form-label small mb-0">Bln</label>
-                <input class="form-control form-control-sm" type="number" min="1" max="12" name="month" value="<?= htmlspecialchars((string) $month) ?>">
-            </div>
-            <div class="col-6 col-sm-4 col-md-1">
-                <label class="form-label small mb-0">Thn</label>
-                <input class="form-control form-control-sm" type="number" min="2000" max="2100" name="year" value="<?= htmlspecialchars((string) $year) ?>">
-            </div>
+            <?php
+            $wrapCard = false;
+            $submitLabel = 'Terapkan';
+            $rekapPeriodeExtraSlot = '
             <div class="col-12 col-sm-6 col-md-2">
                 <label class="form-label small mb-0">Jenis rekap</label>
                 <select class="form-select form-select-sm" name="report_type">
-                    <option value="all" <?= $reportType === 'all' ? 'selected' : '' ?>>Semua</option>
-                    <option value="per_tingkatan" <?= $reportType === 'per_tingkatan' ? 'selected' : '' ?>>Per tingkatan</option>
-                    <option value="per_santri" <?= $reportType === 'per_santri' ? 'selected' : '' ?>>Per santri</option>
+                    <option value="all"' . ($reportType === 'all' ? ' selected' : '') . '>Semua</option>
+                    <option value="per_tingkatan"' . ($reportType === 'per_tingkatan' ? ' selected' : '') . '>Per tingkatan</option>
+                    <option value="per_santri"' . ($reportType === 'per_santri' ? ' selected' : '') . '>Per santri</option>
                 </select>
             </div>
             <div class="col-12 col-sm-6 col-md-2">
                 <label class="form-label small mb-0">Tingkatan</label>
                 <select class="form-select form-select-sm" name="tingkatan">
-                    <option value="">Semua</option>
-                    <?php foreach ($tingkatanList as $tg): ?>
-                        <option value="<?= htmlspecialchars((string) $tg) ?>" <?= strtolower($tingkatan) === strtolower((string) $tg) ? 'selected' : '' ?>><?= htmlspecialchars((string) $tg) ?></option>
-                    <?php endforeach; ?>
+                    <option value="">Semua</option>';
+            foreach ($tingkatanList as $tg) {
+                $rekapPeriodeExtraSlot .= '<option value="' . htmlspecialchars((string) $tg) . '"' . (strtolower($tingkatan) === strtolower((string) $tg) ? ' selected' : '') . '>' . htmlspecialchars((string) $tg) . '</option>';
+            }
+            $rekapPeriodeExtraSlot .= '
                 </select>
             </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-sm-6 col-md-2">
                 <label class="form-label small mb-0">Santri</label>
                 <select class="form-select form-select-sm" name="santri_id">
-                    <option value="0">Semua</option>
-                    <?php foreach ($santriList as $s): ?>
-                        <option value="<?= (int) $s['id'] ?>" <?= $santriId === (int) $s['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars((string) $s['nama_santri']) ?> (<?= htmlspecialchars((string) $s['tingkatan']) ?>)
-                        </option>
-                    <?php endforeach; ?>
+                    <option value="0">Semua</option>';
+            foreach ($santriList as $s) {
+                $rekapPeriodeExtraSlot .= '<option value="' . (int) $s['id'] . '"' . ((int) $s['id'] === $santriId ? ' selected' : '') . '>'
+                    . htmlspecialchars((string) $s['nama_santri']) . ' (' . htmlspecialchars((string) $s['nis']) . ')</option>';
+            }
+            $rekapPeriodeExtraSlot .= '
                 </select>
             </div>
-            <div class="col-6 col-md-1">
+            <div class="col-6 col-sm-4 col-md-1">
                 <label class="form-label small mb-0">Kertas</label>
                 <select class="form-select form-select-sm" name="paper">
-                    <option value="A4" <?= $paper === 'A4' ? 'selected' : '' ?>>A4</option>
-                    <option value="F4" <?= $paper === 'F4' ? 'selected' : '' ?>>F4</option>
+                    <option value="A4"' . ($paper === 'A4' ? ' selected' : '') . '>A4</option>
+                    <option value="F4"' . ($paper === 'F4' ? ' selected' : '') . '>F4</option>
                 </select>
-            </div>
-            <div class="col-6 col-md-1">
-                <button type="submit" class="btn btn-success btn-sm w-100">Terapkan</button>
-            </div>
-            <div class="col-12 col-md-1">
-                <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="window.print()">Cetak</button>
-            </div>
+            </div>';
+            require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+            unset($rekapPeriodeExtraSlot);
+            ?>
         </form>
     </div>
 </div>
@@ -409,7 +404,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-3 print-header">
     <div class="card-body py-3">
         <h1 class="h5 mb-1">Rekap Perizinan Santri</h1>
-        <div class="text-muted small">Periode <?= htmlspecialchars(sprintf('%02d/%04d', $month, $year)) ?><?= $tingkatan !== '' ? ' | Tingkatan: ' . htmlspecialchars($tingkatan) : '' ?><?= $santriId > 0 ? ' | Satu santri (filter)' : '' ?></div>
+        <div class="text-muted small">Periode <?= htmlspecialchars($periodeLabel) ?> (<?= htmlspecialchars($rentangTampilan) ?>)<?= $tingkatan !== '' ? ' | Tingkatan: ' . htmlspecialchars($tingkatan) : '' ?><?= $santriId > 0 ? ' | Satu santri (filter)' : '' ?></div>
     </div>
 </div>
 

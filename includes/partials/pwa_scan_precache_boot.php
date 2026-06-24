@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../helpers/pwa_offline.php';
+require_once __DIR__ . '/../../helpers/app_path.php';
 
-$scanPrecachePaths = pwa_scan_precache_relative_paths();
+$scanPrecachePaths = [];
+foreach (pwa_scan_precache_relative_paths() as $rel) {
+    $scanPrecachePaths[] = $rel . '?v=' . app_asset_version($rel);
+}
 if ($scanPrecachePaths === []) {
     return;
 }
@@ -21,10 +25,17 @@ if ($scanPrecachePaths === []) {
         }
         navigator.serviceWorker.controller.postMessage({ type: 'PRECACHE_SCAN', paths: paths });
     }
+    function scheduleSend() {
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(send, { timeout: 15000 });
+        } else {
+            setTimeout(send, 12000);
+        }
+    }
     if (navigator.serviceWorker.controller) {
-        send();
+        scheduleSend();
     } else {
-        navigator.serviceWorker.ready.then(send).catch(function () {});
+        navigator.serviceWorker.ready.then(scheduleSend).catch(function () {});
     }
 })();
 </script>

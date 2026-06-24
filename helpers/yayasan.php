@@ -39,6 +39,9 @@ function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan): string
 
 function yayasan_ensure_tables(PDO $pdo): void
 {
+    if (!empty($_SESSION['yayasan_tables_ready_v1'])) {
+        return;
+    }
     static $done = false;
     if ($done) {
         return;
@@ -95,6 +98,7 @@ function yayasan_ensure_tables(PDO $pdo): void
             CONSTRAINT fk_yayasan_notulen_rapat FOREIGN KEY (rapat_id) REFERENCES yayasan_rapat(id) ON DELETE CASCADE
         )
     ');
+    $_SESSION['yayasan_tables_ready_v1'] = 1;
 }
 
 function yayasan_label_jenis_rapat(string $jenis): string

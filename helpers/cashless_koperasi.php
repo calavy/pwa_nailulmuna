@@ -82,10 +82,19 @@ function cashless_koperasi_ensure_schema(PDO $pdo): void
     }
 }
 
+function cashless_koperasi_ensure_schema_deferred(PDO $pdo): void
+{
+    if (!empty($_SESSION['cashless_koperasi_schema_ready_v1'])) {
+        return;
+    }
+    cashless_koperasi_ensure_schema($pdo);
+    $_SESSION['cashless_koperasi_schema_ready_v1'] = 1;
+}
+
 /** @return list<array{id:int,kode:string,nama:string,is_aktif:int,label:string}> */
 function cashless_koperasi_list(PDO $pdo, bool $aktifOnly = true): array
 {
-    cashless_koperasi_ensure_schema($pdo);
+    cashless_koperasi_ensure_schema_deferred($pdo);
     $out = [];
     foreach (cashless_koperasi_definitions() as $def) {
         $id = (int) $def['id'];

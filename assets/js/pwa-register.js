@@ -4,7 +4,7 @@
 (function (global) {
     'use strict';
 
-    var updateCheckIntervalMs = 30 * 60 * 1000;
+    var updateCheckIntervalMs = 5 * 60 * 1000;
     var activeRegistration = null;
     var refreshing = false;
 
@@ -181,6 +181,11 @@
         }, updateCheckIntervalMs);
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible' && navigator.onLine && activeRegistration) {
+                activeRegistration.update().catch(function () {});
+            }
+        });
+        window.addEventListener('pageshow', function (ev) {
+            if (ev.persisted && navigator.onLine && activeRegistration) {
                 activeRegistration.update().catch(function () {});
             }
         });

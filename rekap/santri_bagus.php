@@ -56,7 +56,7 @@ foreach ($santriList as $santriOption) {
     }
 }
 
-$rawRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, $kegiatanId);
+$rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, $kegiatanId);
 if ($tingkatan !== '') {
     $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
         return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -74,7 +74,7 @@ $ranked = rekap_keaktifan_build_per_santri($rawRows, $goodMax, $mediumMax);
 $byKegiatan = rekap_keaktifan_build_per_kegiatan($rawRows);
 $byTingkatan = rekap_keaktifan_build_per_tingkatan($ranked);
 
-$chartRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, $kegiatanId);
+$chartRows = presensi_fetch_rows_rekap_periode($pdo, $periode, $kegiatanId);
 $chartRanked = rekap_keaktifan_build_per_santri($chartRows, $goodMax, $mediumMax);
 $byTingkatanChart = rekap_keaktifan_build_per_tingkatan($chartRanked);
 $tingkatanKategoriPersen = rekap_keaktifan_kategori_persen_per_tingkatan($byTingkatanChart);
@@ -160,72 +160,62 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card shadow-sm mb-4 print-controls">
     <div class="card-body">
-        <form method="get" class="row g-2">
+        <form method="get" class="mb-0">
+            <?php
+            $wrapCard = false;
+            $formAction = app_href($rekapKeaktifanPagePath);
+            $rekapPeriodeExtraSlot = '
             <div class="col-md-2">
-                <label class="form-label">Kalender</label>
-                <select class="form-select" name="mode">
-                    <option value="masehi" <?= $mode === 'masehi' ? 'selected' : '' ?>>Masehi</option>
-                    <option value="hijriyah" <?= $mode === 'hijriyah' ? 'selected' : '' ?>>Hijriyah</option>
+                <label class="form-label small mb-0">Kegiatan</label>
+                <select class="form-select form-select-sm" name="kegiatan_id">
+                    <option value="0">Semua kegiatan</option>';
+            foreach ($kegiatanList as $kg) {
+                $rekapPeriodeExtraSlot .= '<option value="' . (int) $kg['id'] . '"' . ($kegiatanId === (int) $kg['id'] ? ' selected' : '') . '>' . htmlspecialchars((string) $kg['nama_kegiatan']) . '</option>';
+            }
+            $rekapPeriodeExtraSlot .= '
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Bulan</label>
-                <select class="form-select" name="month">
-                    <?php for ($m = 1; $m <= 12; $m++): ?>
-                        <option value="<?= $m ?>"<?= $month === $m ? ' selected' : '' ?>><?= htmlspecialchars($mode === 'hijriyah' ? ($hijriMonths[$m] ?? (string) $m) : sprintf('%02d', $m)) ?></option>
-                    <?php endfor; ?>
+                <label class="form-label small mb-0">Tingkatan</label>
+                <input class="form-control form-control-sm" type="text" name="tingkatan" value="' . htmlspecialchars($tingkatan) . '" placeholder="Opsional">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Santri</label>
+                <select class="form-select form-select-sm" name="santri_id">
+                    <option value="0">Semua santri</option>';
+            foreach ($santriList as $santriOption) {
+                $rekapPeriodeExtraSlot .= '<option value="' . (int) $santriOption['id'] . '"' . ((int) $santriOption['id'] === $santriId ? ' selected' : '') . '>'
+                    . htmlspecialchars((string) $santriOption['nama_santri']) . ' (' . htmlspecialchars((string) $santriOption['nis']) . ')</option>';
+            }
+            $rekapPeriodeExtraSlot .= '
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Tahun</label>
-                <input class="form-control" type="number" min="1300" max="2100" name="year" value="<?= htmlspecialchars((string) $year) ?>">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Kegiatan</label>
-                <select class="form-select" name="kegiatan_id">
-                    <option value="0">Semua kegiatan</option>
-                    <?php foreach ($kegiatanList as $kg): ?>
-                        <option value="<?= (int) $kg['id'] ?>"<?= $kegiatanId === (int) $kg['id'] ? ' selected' : '' ?>><?= htmlspecialchars((string) $kg['nama_kegiatan']) ?></option>
-                    <?php endforeach; ?>
+                <label class="form-label small mb-0">Tampilan</label>
+                <select class="form-select form-select-sm" name="tampilan">
+                    <option value="semua"' . ($tampilan === 'semua' ? ' selected' : '') . '>Semua (tabel)</option>
+                    <option value="santri"' . ($tampilan === 'santri' ? ' selected' : '') . '>Per santri</option>
+                    <option value="kegiatan"' . ($tampilan === 'kegiatan' ? ' selected' : '') . '>Per kegiatan</option>
+                    <option value="tingkatan"' . ($tampilan === 'tingkatan' ? ' selected' : '') . '>Per tingkatan</option>
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Tingkatan</label>
-                <input class="form-control" type="text" name="tingkatan" value="<?= htmlspecialchars($tingkatan) ?>" placeholder="Opsional">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Santri</label>
-                <select class="form-select" name="santri_id">
-                    <option value="0">Semua santri</option>
-                    <?php foreach ($santriList as $santriOption): ?>
-                        <option value="<?= (int) $santriOption['id'] ?>" <?= (int) $santriOption['id'] === $santriId ? 'selected' : '' ?>>
-                            <?= htmlspecialchars((string) $santriOption['nama_santri']) ?> (<?= htmlspecialchars((string) $santriOption['nis']) ?>)
-                        </option>
-                    <?php endforeach; ?>
+                <label class="form-label small mb-0">Kertas</label>
+                <select class="form-select form-select-sm" name="paper">
+                    <option value="A4"' . ($paper === 'A4' ? ' selected' : '') . '>A4</option>
+                    <option value="F4"' . ($paper === 'F4' ? ' selected' : '') . '>F4</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Tampilan</label>
-                <select class="form-select" name="tampilan">
-                    <option value="semua" <?= $tampilan === 'semua' ? 'selected' : '' ?>>Semua (tabel)</option>
-                    <option value="santri" <?= $tampilan === 'santri' ? 'selected' : '' ?>>Per santri (kartu)</option>
-                    <option value="kegiatan" <?= $tampilan === 'kegiatan' ? 'selected' : '' ?>>Per kegiatan</option>
-                    <option value="tingkatan" <?= $tampilan === 'tingkatan' ? 'selected' : '' ?>>Per tingkatan</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Kertas</label>
-                <select class="form-select" name="paper">
-                    <option value="A4" <?= $paper === 'A4' ? 'selected' : '' ?>>A4</option>
-                    <option value="F4" <?= $paper === 'F4' ? 'selected' : '' ?>>F4</option>
-                </select>
-            </div>
-            <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-                <button class="btn btn-success">Tampilkan</button>
-                <button type="button" class="btn btn-outline-dark" onclick="window.print()">Cetak</button>
+            <div class="col-md-auto d-flex flex-wrap gap-1 align-items-end">
+                <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">Cetak</button>
+            </div>';
+            require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+            unset($rekapPeriodeExtraSlot, $formAction);
+            ?>
+            <div class="mt-2 d-flex flex-wrap gap-2">
                 <a href="<?= htmlspecialchars(app_href('/rekap/index.php')) ?>" class="btn btn-outline-secondary btn-sm">Rekap presensi</a>
                 <?php if ($rekapKeaktifanPagePath !== '/yayasan/operasional.php'): ?>
-                <a href="<?= htmlspecialchars(app_href('/yayasan/operasional.php#yp-keaktifan-bulan')) ?>" class="btn btn-outline-secondary btn-sm">Buka di Dashboard Yayasan</a>
+                <a href="<?= htmlspecialchars(app_href('/yayasan/operasional.php#yp-keaktifan-bulan')) ?>" class="btn btn-outline-secondary btn-sm">Dashboard Yayasan</a>
                 <?php endif; ?>
             </div>
         </form>

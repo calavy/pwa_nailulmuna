@@ -9,9 +9,39 @@ require_once __DIR__ . '/akademik.php';
 require_once __DIR__ . '/hijri_kalender.php';
 
 /**
+ * Format rentang tanggal masehi untuk subtitle rekap.
+ */
+function rekap_format_rentang_tampilan(string $startDate, string $endDate): string
+{
+    $startTs = strtotime($startDate);
+    $endTs = strtotime($endDate);
+    if ($startTs === false || $endTs === false) {
+        return $startDate . ' – ' . $endDate;
+    }
+    $bulanSingkat = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    $fmt = static function (int $ts) use ($bulanSingkat): string {
+        $m = (int) date('n', $ts);
+
+        return (int) date('j', $ts) . ' ' . ($bulanSingkat[$m] ?? date('M', $ts)) . ' ' . date('Y', $ts);
+    };
+
+    return $fmt($startTs) . ' – ' . $fmt($endTs);
+}
+
+/**
  * Resolves one calendar month (hijriyah or masehi) to gregorian date range — used by rapor & rekap.
  *
- * @return array{mode:string,month:int,year:int,start_date:string,end_date:string,label:string,hijri_label:string}
+ * @return array{
+ *   mode:string,
+ *   month:int,
+ *   year:int,
+ *   start_date:string,
+ *   end_date:string,
+ *   label:string,
+ *   hijri_label:string,
+ *   kalender_hijriyah_key:?string,
+ *   rentang_tampilan:string
+ * }
  */
 function rekap_resolve_periode(PDO $pdo, array $get): array
 {
@@ -57,7 +87,31 @@ function rekap_resolve_periode(PDO $pdo, array $get): array
         'end_date' => $end,
         'label' => $label,
         'hijri_label' => $hijriLabel,
+        'kalender_hijriyah_key' => $mode === 'hijriyah' ? sprintf('%04d-%02d', $year, $month) : null,
+        'rentang_tampilan' => rekap_format_rentang_tampilan($start, $end),
     ];
+}
+
+/**
+ * Ambil baris presensi rekap sesuai periode ter-resolve (termasuk filter hijriyah).
+ *
+ * @param array<string,mixed> $periode hasil rekap_resolve_periode()
+ * @return list<array<string,mixed>>
+ */
+function presensi_fetch_rows_rekap_periode(PDO $pdo, array $periode, int $kegiatanId = 0): array
+{
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $kalKey = ($periode['mode'] ?? '') === 'hijriyah'
+        ? ($periode['kalender_hijriyah_key'] ?? null)
+        : null;
+
+    return presensi_fetch_rows_rekap(
+        $pdo,
+        (string) ($periode['start_date'] ?? ''),
+        (string) ($periode['end_date'] ?? ''),
+        $kegiatanId,
+        is_string($kalKey) && $kalKey !== '' ? $kalKey : null
+    );
 }
 
 /**
@@ -98,15 +152,41 @@ function rekap_periode_resolve(PDO $pdo, array $get, string $defaultMode = 'hari
     $bulanTagihan = max(1, min(12, (int) ($get['rekap_bulan'] ?? $bulanBerjalan)));
 
     if ($mode === 'bulan') {
+        $slotMatch = null;
         foreach ($slots as $slot) {
             if ((int) ($slot['bulan_tagihan'] ?? 0) === $bulanTagihan) {
-                $dari = (string) ($slot['tanggal_mulai'] ?? $dari);
-                $sampai = (string) ($slot['tanggal_selesai'] ?? $sampai);
+                $slotMatch = $slot;
                 break;
             }
         }
+        if ($slotMatch === null && $slots !== []) {
+            foreach ($slots as $slot) {
+                if ((int) ($slot['bulan_tagihan'] ?? 0) === $bulanBerjalan) {
+                    $slotMatch = $slot;
+                    $bulanTagihan = $bulanBerjalan;
+                    break;
+                }
+            }
+        }
+        if ($slotMatch === null && $slots !== []) {
+            $slotMatch = $slots[0];
+            $bulanTagihan = (int) ($slotMatch['bulan_tagihan'] ?? $bulanTagihan);
+        }
+        if ($slotMatch !== null) {
+            $dari = (string) ($slotMatch['masehi_awal'] ?? $dari);
+            $sampai = (string) ($slotMatch['masehi_akhir'] ?? $sampai);
+        }
         if ($dari === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
-            $dari = sprintf('%04d-%02d-01', (int) date('Y'), $bulanTagihan);
+            [$dariFallback, $sampaiFallback] = pondok_rentang_masehi_bulan_tagihan($pdo, $taMulai, $taSelesai, $bulanTagihan);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dariFallback)) {
+                $dari = $dariFallback;
+            }
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampaiFallback)) {
+                $sampai = $sampaiFallback;
+            }
+        }
+        if ($dari === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
+            $dari = date('Y-m-01');
         }
         if ($sampai === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
             $sampai = date('Y-m-t', strtotime($dari) ?: time());

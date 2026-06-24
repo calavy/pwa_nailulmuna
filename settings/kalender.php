@@ -11,6 +11,7 @@ require_once __DIR__ . '/../helpers/pondok_ta.php';
 require_once __DIR__ . '/../helpers/kalender_pengaturan.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 require_once __DIR__ . '/../includes/auth_portal_layout.php';
 require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
 
@@ -59,10 +60,21 @@ $taOtomatisHari = pondok_tahun_ajaran_from_date($pdo);
 $taMismatch = (int) ($taAktifKeu['mulai'] ?? 0) !== (int) ($taOtomatisHari['mulai'] ?? 0)
     || (int) ($taAktifKeu['selesai'] ?? 0) !== (int) ($taOtomatisHari['selesai'] ?? 0);
 
-$pageTitle = 'Pengaturan Kalender';
+$pageTitle = 'Kalender Pondok';
 $bodyClass = 'settings-module-page pondok-kalender-page';
 $settingsNavActive = '/settings/kalender.php';
 $brandNama = auth_portal_brand_nama($pdo);
+$taRingkas = keuangan_ta_resolve($pdo);
+$periodeBerjalan = keuangan_periode_berjalan($pdo);
+$bulanTagihanLabel = (string) ($periodeBerjalan['periode_tampilan'] ?? $periodeBerjalan['bulan_label'] ?? '');
+$rentangBulanBerjalan = '';
+$mAwal = trim((string) ($periodeBerjalan['masehi_awal'] ?? ''));
+$mAkhir = trim((string) ($periodeBerjalan['masehi_akhir'] ?? ''));
+if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $mAwal) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $mAkhir)) {
+    require_once __DIR__ . '/../helpers/rekap_periode.php';
+    $rentangBulanBerjalan = rekap_format_rentang_tampilan($mAwal, $mAkhir);
+}
+$modeKalenderLabel = $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'Hijriyah' : 'Masehi';
 require_once __DIR__ . '/../includes/header.php';
 
 $err = get_flash('error');
@@ -74,8 +86,8 @@ $ok = get_flash('success');
 render_kalender_page_hero([
     'kicker' => 'Pengaturan',
     'brand' => $brandNama,
-    'title' => 'Pengaturan Kalender',
-    'description' => 'Kalender Hijriyah/Masehi, tagihan bulanan, rekap tahun, dan aturan hari libur pondok.',
+    'title' => 'Kalender Pondok',
+    'description' => 'Kalender operasional Hijriyah/Masehi, jadwal tagihan, rekap, dan aturan hari libur.',
     'today_masehi' => (string) ($hari['masehi_label'] ?? ''),
     'today_hijri' => (string) ($hari['hijri_label'] ?? ''),
     'status_label' => (string) ($hari['status']['label'] ?? ''),
@@ -85,6 +97,30 @@ render_kalender_page_hero([
 
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+
+<div class="card shadow-sm mb-3 border-primary-subtle">
+    <div class="card-body py-3">
+        <h2 class="h6 mb-2">Ringkasan operasional</h2>
+        <div class="row g-2 small">
+            <div class="col-md-3"><span class="text-muted d-block">Mode kalender</span><strong><?= htmlspecialchars($modeKalenderLabel) ?></strong></div>
+            <div class="col-md-3"><span class="text-muted d-block">TA aktif</span><strong><?= (int) $taRingkas['mulai'] ?>/<?= (int) $taRingkas['selesai'] ?></strong></div>
+            <div class="col-md-3">
+                <span class="text-muted d-block">Bulan tagihan berjalan</span>
+                <strong><?= htmlspecialchars($bulanTagihanLabel !== '' ? $bulanTagihanLabel : '—') ?></strong>
+                <?php if ($rentangBulanBerjalan !== ''): ?>
+                    <span class="d-block text-muted"><?= htmlspecialchars($rentangBulanBerjalan) ?></span>
+                <?php endif; ?>
+            </div>
+            <div class="col-md-3"><span class="text-muted d-block">Kirim tagihan</span><strong>Hari ke-<?= htmlspecialchars($v['wa_tagihan_day']) ?> · <?= htmlspecialchars($v['wa_tagihan_send_time']) ?></strong></div>
+            <div class="col-md-3"><span class="text-muted d-block">Pemetaan Hijriyah</span><a href="<?= htmlspecialchars(app_href('/akademik/kalender.php?view=atur')) ?>">Kalender Akademik</a></div>
+        </div>
+        <ol class="small text-muted mb-0 mt-3 ps-3">
+            <li>Pilih kalender operasional pondok (Hijriyah/Masehi).</li>
+            <li>Atur bulan awal tahun ajaran &amp; selaraskan TA di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=umum')) ?>">Keuangan → Umum</a>.</li>
+            <li>Lengkapi pemetaan bulan di <a href="<?= htmlspecialchars(app_href('/akademik/kalender.php?view=atur')) ?>">Kalender Akademik</a> agar rekap tanggal akurat.</li>
+        </ol>
+    </div>
+</div>
 <?php if ($taMismatch): ?>
 <div class="alert alert-warning py-2 small">
     <strong>Tahun ajaran aktif keuangan</strong> (<?= (int) $taAktifKeu['mulai'] ?>/<?= (int) $taAktifKeu['selesai'] ?>)
@@ -100,10 +136,10 @@ render_kalender_page_hero([
     <div class="card-body">
         <div class="row g-4">
             <div class="col-lg-6">
-                <h2 class="h6 akad-cal-section-title mb-2">Kalender pondok</h2>
+                <h2 class="h6 akad-cal-section-title mb-2">Kalender operasional pondok</h2>
                 <p class="small text-muted">Mempengaruhi tagihan syahriyah, laporan keuangan, rekap presensi, dan tampilan bulan di aplikasi.</p>
                 <div class="mb-3">
-                    <label class="form-label">Jenis kalender</label>
+                    <label class="form-label">Kalender operasional</label>
                     <select name="wa_tagihan_calendar" class="form-select" id="sel-kalender-mode">
                         <option value="HIJRIYAH" <?= $v['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah (Muharram – Dzulhijjah)</option>
                         <option value="MASEHI" <?= $v['wa_tagihan_calendar'] === 'MASEHI' ? 'selected' : '' ?>>Masehi (Januari – Desember)</option>

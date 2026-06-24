@@ -17,9 +17,8 @@ $waPembayaranSiap = $waMasterOn
         <h2 class="h6 mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> Pembayaran tercatat → wali santri</h2>
         <p class="small text-muted mb-3">
             WA otomatis ke wali saat admin <strong>menyimpan pembayaran baru</strong> di menu Keuangan → Input Pembayaran.
-            Terpisah dari pengingat tagihan (jadwal di bawah). Template pesan disesuaikan di tab
-            <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Template</a>
-            (<em>Pembayaran tercatat → wali santri</em>).
+            Terpisah dari pengingat tagihan. Template pesan di tab
+            <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Template</a>.
         </p>
         <ul class="small mb-3 ps-3">
             <li>Master WA: <?= $waMasterOn ? '<span class="text-success">Aktif</span>' : '<span class="text-warning">Nonaktif</span>' ?></li>
@@ -42,33 +41,31 @@ $waPembayaranSiap = $waMasterOn
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
-        <h2 class="h6 mb-2">Jadwal kirim otomatis</h2>
-        <p class="small text-muted mb-3">Pengingat tagihan ke wali santri yang masih punya kekurangan — dapat dikirim harian sejak awal bulan dan menghitung tunggakan dari awal tahun ajaran s.d. bulan berjalan.</p>
+        <h2 class="h6 mb-2">Pengingat tagihan otomatis</h2>
+        <p class="small text-muted mb-3">
+            Jadwal kalender, hari kirim, dan jam kirim diatur di
+            <a href="<?= htmlspecialchars(app_href('/settings/kalender.php')) ?>"><strong>Kalender Pondok</strong></a>
+            (berlaku untuk tagihan, rekap, dan presensi).
+        </p>
+        <div class="alert alert-light border small mb-3 py-2">
+            <div class="row g-2">
+                <div class="col-md-4"><span class="text-muted">Kalender</span><br><strong><?= $kalenderV['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'Hijriyah' : 'Masehi' ?></strong></div>
+                <div class="col-md-4"><span class="text-muted">Hari kirim</span><br><strong>Ke-<?= htmlspecialchars($kalenderV['wa_tagihan_day']) ?></strong></div>
+                <div class="col-md-4"><span class="text-muted">Jam kirim</span><br><strong><?= htmlspecialchars($kalenderV['wa_tagihan_send_time']) ?></strong></div>
+            </div>
+            <?php if (trim((string) ($kalenderV['wa_tagihan_custom_masehi_dates'] ?? '')) !== ''): ?>
+                <div class="mt-2 text-muted">Tanggal Masehi khusus: <?= htmlspecialchars((string) $kalenderV['wa_tagihan_custom_masehi_dates']) ?></div>
+            <?php endif; ?>
+        </div>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_tagihan_jadwal">
             <input type="hidden" name="redirect_tab" value="tagihan">
             <div class="col-md-4">
-                <label class="form-label">Status</label>
+                <label class="form-label">Status pengingat</label>
                 <select class="form-select" name="wa_tagihan_auto_enabled">
                     <option value="1" <?= ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? 'selected' : '' ?>>Aktif</option>
                     <option value="0" <?= ($values['wa_tagihan_auto_enabled'] ?? '') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
                 </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Kalender jadwal</label>
-                <select name="wa_tagihan_calendar" class="form-select" id="wa-sel-kalender">
-                    <option value="HIJRIYAH" <?= $kalenderV['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'selected' : '' ?>>Hijriyah</option>
-                    <option value="MASEHI" <?= $kalenderV['wa_tagihan_calendar'] === 'MASEHI' ? 'selected' : '' ?>>Masehi</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Hari kirim</label>
-                <input type="number" name="wa_tagihan_day" class="form-control" min="1" max="30" value="<?= htmlspecialchars($kalenderV['wa_tagihan_day']) ?>">
-                <div class="form-text">Ke-1 s/d 30</div>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Jam kirim</label>
-                <input type="time" name="wa_tagihan_send_time" class="form-control" value="<?= htmlspecialchars($kalenderV['wa_tagihan_send_time']) ?>">
             </div>
             <div class="col-md-6">
                 <div class="form-check mt-4">
@@ -79,17 +76,13 @@ $waPembayaranSiap = $waMasterOn
             <div class="col-md-6">
                 <div class="form-check mt-4">
                     <input class="form-check-input" type="checkbox" id="wa_tagihan_recurring" name="wa_tagihan_recurring" value="1" <?= !empty($waJadwal['recurring']) ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="wa_tagihan_recurring">Kirim tiap hari sejak awal bulan (selama masih ada kekurangan)</label>
+                    <label class="form-check-label" for="wa_tagihan_recurring">Kirim pengingat harian (opsional)</label>
                 </div>
-                <div class="form-text">Jika nonaktif, kirim sekali di <strong>hari kirim</strong> per periode kalender.</div>
+                <div class="form-text">Default: sekali per periode pada hari kirim.</div>
             </div>
-            <div class="col-12" id="wa-wrap-custom-masehi" <?= $kalenderV['wa_tagihan_calendar'] === 'HIJRIYAH' ? 'style="display:none"' : '' ?>>
-                <label class="form-label">Tanggal Masehi khusus <span class="text-muted">(opsional)</span></label>
-                <input type="text" name="wa_tagihan_custom_masehi_dates" class="form-control" value="<?= htmlspecialchars((string) ($kalenderV['wa_tagihan_custom_masehi_dates'] ?? '')) ?>" placeholder="2026-05-28, 2026-06-02">
-                <div class="form-text">Jika diisi, kirim hanya di tanggal ini (mode Masehi).</div>
-            </div>
-            <div class="col-12">
-                <button type="submit" class="btn btn-success btn-sm">Simpan jadwal</button>
+            <div class="col-12 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-success btn-sm">Simpan pengaturan</button>
+                <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/settings/kalender.php')) ?>">Ubah jadwal di Kalender Pondok</a>
             </div>
         </form>
     </div>
@@ -132,14 +125,3 @@ $waPembayaranSiap = $waMasterOn
         </form>
     </div>
 </div>
-
-<script>
-(function () {
-    var sel = document.getElementById('wa-sel-kalender');
-    var wrap = document.getElementById('wa-wrap-custom-masehi');
-    if (!sel || !wrap) return;
-    sel.addEventListener('change', function () {
-        wrap.style.display = sel.value === 'MASEHI' ? '' : 'none';
-    });
-})();
-</script>

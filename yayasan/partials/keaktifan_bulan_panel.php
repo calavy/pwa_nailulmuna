@@ -16,7 +16,8 @@ if (empty($kb['ready'])) {
 $kbMonth = (int) ($kb['month'] ?? 1);
 $kbYear = (int) ($kb['year'] ?? 1400);
 $kbTingkatan = (string) ($kb['tingkatan'] ?? '');
-$kbHijriMonths = (array) ($kb['hijri_months'] ?? []);
+$kbHijriMonths = (array) ($kb['bulan_names'] ?? $kb['hijri_months'] ?? []);
+$kbRentangTampilan = (string) ($kb['rentang_tampilan'] ?? '');
 $kbGoodMax = (int) ($kb['good_max'] ?? 1);
 $kbMediumMax = (int) ($kb['medium_max'] ?? 3);
 $kbPeriodeLabel = (string) ($kb['periode_label'] ?? '');
@@ -41,7 +42,11 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 <div>
                     <h2 class="h5 mb-1">Rekap Keaktifan — <?= htmlspecialchars($kbPeriodeLabel) ?></h2>
                     <p class="small text-muted mb-0">
-                        <?= htmlspecialchars(date('d-m-Y', strtotime($kbStart))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($kbEnd))) ?>
+                        <?php if ($kbRentangTampilan !== ''): ?>
+                            <?= htmlspecialchars($kbRentangTampilan) ?>
+                        <?php else: ?>
+                            <?= htmlspecialchars(date('d-m-Y', strtotime($kbStart))) ?> s.d. <?= htmlspecialchars(date('d-m-Y', strtotime($kbEnd))) ?>
+                        <?php endif; ?>
                         <?= $kbTingkatan !== '' ? ' · ' . htmlspecialchars($kbTingkatan) : '' ?>
                     </p>
                 </div>
@@ -56,10 +61,16 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
             </div>
 
             <form method="get" action="<?= htmlspecialchars(app_href($kbFormAction)) ?>#yp-keaktifan-bulan" class="row g-2 align-items-end mb-3 yp-filter-bar">
-                <input type="hidden" name="kb_mode" value="hijriyah">
                 <input type="hidden" name="kb_open" value="1">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-0">Kalender</label>
+                    <select name="kb_mode" class="form-select form-select-sm">
+                        <option value="hijriyah"<?= ($kb['mode'] ?? 'hijriyah') === 'hijriyah' ? ' selected' : '' ?>>Hijriyah</option>
+                        <option value="masehi"<?= ($kb['mode'] ?? '') === 'masehi' ? ' selected' : '' ?>>Masehi</option>
+                    </select>
+                </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label small mb-0">Bulan Hijriyah</label>
+                    <label class="form-label small mb-0">Bulan</label>
                     <select name="kb_month" class="form-select form-select-sm">
                         <?php for ($m = 1; $m <= 12; $m++): ?>
                             <option value="<?= $m ?>"<?= $kbMonth === $m ? ' selected' : '' ?>><?= htmlspecialchars((string) ($kbHijriMonths[$m] ?? $m)) ?></option>
@@ -67,8 +78,8 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
-                    <label class="form-label small mb-0">Tahun Hijriyah</label>
-                    <input type="number" class="form-control form-control-sm" name="kb_year" min="1300" max="1700" value="<?= htmlspecialchars((string) $kbYear) ?>">
+                    <label class="form-label small mb-0">Tahun</label>
+                    <input type="number" class="form-control form-control-sm" name="kb_year" min="1300" max="2100" value="<?= htmlspecialchars((string) $kbYear) ?>">
                 </div>
                 <div class="col-6 col-md-3">
                     <label class="form-label small mb-0">Tingkatan</label>

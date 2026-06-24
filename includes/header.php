@@ -41,6 +41,11 @@ if (isset($_SESSION['user']) && (($_SESSION['user']['username'] ?? '') === 'admi
     $_SESSION['user']['is_super_admin'] = 1;
 }
 $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+$isScanKioskPage = app_request_path_is_scan_kiosk($requestPath);
+if ($isScanKioskPage) {
+    $hideAppSidebar = true;
+    $loadPushFcm = false;
+}
 $menuPack = app_menu_pack($pdo);
 $menuItems = $menuPack['menuItems'];
 $menuStructure = $menuPack['menuStructure'];
@@ -51,7 +56,9 @@ if (isset($_SESSION['user'])) {
         santri_list_sort_mode((string) $_GET['santri_sort']);
     }
     require_once __DIR__ . '/../helpers/app_cache.php';
-    app_performance_cache_prune_expired();
+    if (!$isScanKioskPage) {
+        app_performance_cache_prune_expired();
+    }
     try {
         app_ensure_schema_deferred($pdo);
     } catch (Throwable $e) {
@@ -312,7 +319,9 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
     <?php if (isset($_SESSION['user'])): ?>
+    <?php if (!$isScanKioskPage): ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
+    <?php endif; ?>
     <?php endif; ?>
     <?php
     $pwaLogoFallbackHref = app_href(app_pwa_default_icon_src());

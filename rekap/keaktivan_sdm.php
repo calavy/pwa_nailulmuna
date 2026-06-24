@@ -7,17 +7,26 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 munawib_ensure_schema($pdo);
 
-$dari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
-$sampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
-    $dari = date('Y-m-01');
-}
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
-    $sampai = date('Y-m-d');
+$filterMode = ($_GET['filter_mode'] ?? 'bulan') === 'rentang' ? 'rentang' : 'bulan';
+$periode = rekap_resolve_periode($pdo, $_GET);
+
+if ($filterMode === 'bulan') {
+    $dari = $periode['start_date'];
+    $sampai = $periode['end_date'];
+} else {
+    $dari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
+    $sampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
+        $dari = date('Y-m-01');
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
+        $sampai = date('Y-m-d');
+    }
 }
 
 $pembimbingRows = [];
@@ -86,11 +95,38 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0 small">Ringkasan kehadiran pembimbing dan munawib dalam satu dashboard.</p>
 </div>
 
-<form class="row g-2 align-items-end mb-3" method="get">
-    <div class="col-6 col-md-2"><label class="form-label small mb-0">Dari</label><input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($dari) ?>"></div>
-    <div class="col-6 col-md-2"><label class="form-label small mb-0">Sampai</label><input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>"></div>
-    <div class="col-auto"><button class="btn btn-primary btn-sm">Terapkan</button></div>
-</form>
+<div class="mb-3">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+        <form method="get" class="d-inline">
+            <?php foreach (['mode' => $periode['mode'], 'month' => $periode['month'], 'year' => $periode['year']] as $hk => $hv): ?>
+                <input type="hidden" name="<?= htmlspecialchars((string) $hk) ?>" value="<?= htmlspecialchars((string) $hv) ?>">
+            <?php endforeach; ?>
+            <input type="hidden" name="filter_mode" value="bulan">
+            <button type="submit" class="btn btn-sm <?= $filterMode === 'bulan' ? 'btn-primary' : 'btn-outline-secondary' ?>">Per bulan</button>
+        </form>
+        <form method="get" class="d-inline">
+            <input type="hidden" name="filter_mode" value="rentang">
+            <input type="hidden" name="dari" value="<?= htmlspecialchars($dari) ?>">
+            <input type="hidden" name="sampai" value="<?= htmlspecialchars($sampai) ?>">
+            <button type="submit" class="btn btn-sm <?= $filterMode === 'rentang' ? 'btn-primary' : 'btn-outline-secondary' ?>">Rentang tanggal</button>
+        </form>
+    </div>
+    <?php if ($filterMode === 'bulan'): ?>
+        <?php
+        $wrapCard = false;
+        $extraHidden = ['filter_mode' => 'bulan'];
+        require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+        ?>
+    <?php else: ?>
+        <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="filter_mode" value="rentang">
+            <div class="col-6 col-md-2"><label class="form-label small mb-0">Dari</label><input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($dari) ?>"></div>
+            <div class="col-6 col-md-2"><label class="form-label small mb-0">Sampai</label><input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>"></div>
+            <div class="col-auto"><button class="btn btn-primary btn-sm">Terapkan</button></div>
+            <div class="col-md"><p class="small text-muted mb-0">Rentang: <strong><?= htmlspecialchars($dari) ?></strong> s/d <strong><?= htmlspecialchars($sampai) ?></strong></p></div>
+        </form>
+    <?php endif; ?>
+</div>
 
 <div class="row g-3 mb-3">
     <div class="col-6 col-md-3"><div class="app-mini-stat h-100"><div class="app-mini-stat-label">Hadir Pembimbing</div><div class="app-mini-stat-value text-primary"><?= $totalHadirPembimbing ?></div></div></div>

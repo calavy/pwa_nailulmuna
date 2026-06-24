@@ -16,6 +16,8 @@ require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/presensi_scan_client.php';
 require_once __DIR__ . '/../helpers/perizinan_aktif.php';
 
+app_scan_page_no_cache_headers();
+
 $pbPortalScan = trim((string) ($_GET['portal'] ?? '')) === '1'
     || trim((string) ($_POST['pb_portal_scan'] ?? '')) === '1';
 
@@ -42,26 +44,11 @@ $scanBackUrl = $pbPortalScan
 $scanBackLabel = $pbPortalScan ? 'Login pembimbing' : ((string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi' ? 'Keluar' : 'Dashboard');
 $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 
-if (table_exists($pdo, 'pembimbing')) {
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS presensi_pembimbing (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            pembimbing_id INT NOT NULL,
-            kegiatan_id INT NULL,
-            tanggal DATE NOT NULL,
-            jam TIME NOT NULL,
-            jenis_scan ENUM("DATANG","PULANG") NOT NULL DEFAULT "DATANG",
-            created_by INT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pembimbing_id) REFERENCES pembimbing(id) ON DELETE CASCADE
-        )
-    ');
-    try { $pdo->exec('ALTER TABLE presensi_pembimbing ADD COLUMN IF NOT EXISTS kegiatan_id INT NULL AFTER pembimbing_id'); } catch (PDOException $e) {}
-    ensure_jadwal_kegiatan_tempat($pdo);
-}
-kegiatan_khusus_ensure_schema($pdo);
+presensi_scan_ensure_schema_deferred($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    presensi_scan_jadwal_context_invalidate();
+    kegiatan_khusus_ensure_schema_deferred($pdo);
     $scanClock = presensi_scan_resolve_clock($_POST);
     $action = trim((string) ($_POST['action'] ?? ''));
     if ($action === 'munawib_pick_schedule') {
@@ -469,61 +456,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 
-$todayDate = date('Y-m-d');
-$todayRowsStmt = $pdo->prepare('
-    SELECT p.jam_presensi AS jam, p.status_presensi AS status, s.nama_santri AS nama, s.tingkatan AS info, "Santri" AS jenis
-    FROM presensi p
-    INNER JOIN santri s ON s.id = p.santri_id AND ' . santri_sql_aktif_only('s') . '
-    WHERE p.tanggal_presensi = :tanggal
-    ORDER BY p.id DESC
-    LIMIT 20
-');
-$todayRowsStmt->execute(['tanggal' => $todayDate]);
-$todaySantri = $todayRowsStmt->fetchAll();
-
-$todayPembimbing = [];
-if (table_exists($pdo, 'presensi_pembimbing')) {
-    $todayRowsP = $pdo->prepare('
-        SELECT pp.jam AS jam, "HADIR" AS status, b.nama_pembimbing AS nama, COALESCE(k.nama_kegiatan, "-") AS info, "Pembimbing" AS jenis
-        FROM presensi_pembimbing pp
-        INNER JOIN pembimbing b ON b.id = pp.pembimbing_id
-        LEFT JOIN kegiatan k ON k.id = pp.kegiatan_id
-        WHERE pp.tanggal = :tanggal
-        ORDER BY pp.id DESC
-        LIMIT 20
-    ');
-    $todayRowsP->execute(['tanggal' => $todayDate]);
-    $todayPembimbing = $todayRowsP->fetchAll();
-}
-
-$todayKhusus = [];
-if (table_exists($pdo, 'presensi_kegiatan_khusus')) {
-    $todayRowsK = $pdo->prepare('
-        SELECT pk.jam AS jam, "HADIR" AS status, s.nama_santri AS nama,
-               CONCAT("Kegiatan Khusus: ", COALESCE(k.nama_kegiatan, "-")) AS info, "Khusus" AS jenis
-        FROM presensi_kegiatan_khusus pk
-        INNER JOIN santri s ON s.id = pk.santri_id
-        INNER JOIN kegiatan_khusus k ON k.id = pk.kegiatan_khusus_id
-        WHERE pk.tanggal = :tanggal
-        ORDER BY pk.id DESC
-        LIMIT 20
-    ');
-    $todayRowsK->execute(['tanggal' => $todayDate]);
-    $todayKhusus = $todayRowsK->fetchAll() ?: [];
-}
-
-$todayRows = array_merge($todaySantri, $todayPembimbing, $todayKhusus);
-usort($todayRows, static function ($a, $b): int {
-    return strcmp((string) ($b['jam'] ?? ''), (string) ($a['jam'] ?? ''));
-});
-$todayRows = array_slice($todayRows, 0, 30);
-
 $pageTitle = $pbPortalScan ? 'Scan Presensi Pembimbing' : 'Scan Presensi';
 $bodyClass = 'scan-simple-page' . ($pbPortalScan ? ' scan-portal-pembimbing' : '');
 $pageStylesheets = [app_asset_href('/assets/css/presensi-scan.css')];
-$isPetugasAbsensi = !$pbPortalScan && (string) ($_SESSION['user']['role'] ?? '') === 'petugas_absensi';
-$todayScanCount = count($todayRows);
-$scanJadwalCtx = presensi_scan_jadwal_context($pdo);
+$hideAppSidebar = true;
+$loadPushFcm = false;
+$scanJadwalCtx = presensi_scan_jadwal_context_cached($pdo);
 $timerState = (string) ($scanJadwalCtx['state'] ?? 'none');
 $timerClass = in_array($timerState, ['active', 'upcoming', 'ended', 'libur', 'none'], true) ? $timerState : 'none';
 $timerSec = $timerState === 'active'
@@ -631,6 +569,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
                 }
             ?></span>
             <span id="presensi-scan-timer-clock" class="presensi-scan-timer-clock"><?= htmlspecialchars($timerClockInit) ?></span>
+            <span id="presensi-scan-timer-wall" class="presensi-scan-timer-wall" aria-label="Jam sekarang"></span>
             <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint" aria-live="polite"></span>
         </div>
     </div>

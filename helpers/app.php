@@ -92,6 +92,16 @@ function app_request_path_is_lightweight(string $requestPath): bool
     return false;
 }
 
+/** Halaman scan/kiosk — layout minimal, hindari beban header/footer penuh. */
+function app_request_path_is_scan_kiosk(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+
+    return str_contains($p, '/presensi/scan')
+        || str_contains($p, '/cashless_scan')
+        || str_contains($p, '/presensi/kiosk');
+}
+
 /** Muat CSS dashboard hanya di halaman beranda/dashboard. */
 function app_should_load_dashboard_css(string $requestPath): bool
 {
@@ -119,6 +129,12 @@ function app_should_load_offline_sync_js(string $requestPath): bool
     }
 
     return true;
+}
+
+/** JS shell tambahan — tidak perlu di halaman scan agar kamera cepat siap. */
+function app_should_load_app_shell_js(string $requestPath): bool
+{
+    return !app_request_path_is_scan_kiosk($requestPath);
 }
 
 /** Hapus cache branding header (mis. setelah ubah logo/nama pondok). */

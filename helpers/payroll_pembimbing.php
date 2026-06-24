@@ -216,6 +216,7 @@ function payroll_pembimbing_normalize_kriteria(?string $kriteria): string
  */
 function payroll_pembimbing_resolve_period(PDO $pdo, array $query): array
 {
+    require_once __DIR__ . '/rekap_periode.php';
     require_once __DIR__ . '/pondok_kalender.php';
     require_once __DIR__ . '/akademik.php';
     require_once __DIR__ . '/hijri_kalender.php';
@@ -267,21 +268,25 @@ function payroll_pembimbing_resolve_period(PDO $pdo, array $query): array
 
     if ($mode === 'masehi') {
         $anchorMasehiYear = $year;
-        $startDate = sprintf('%04d-%02d-01', $year, $month);
-        $endDate = date('Y-m-t', strtotime($startDate));
-        $periodLabel = ($masehiMonths[$month] ?? (string) $month) . ' ' . $year;
-        $hijriEquivalent = get_hijri_ym_from_gregorian_month($year, $month);
-        $hEqM = (int) substr($hijriEquivalent, 5, 2);
-        $hEqY = (int) substr($hijriEquivalent, 0, 4);
-        $periodBridge = $periodLabel . ' ↔ ' . (($hijriyahMonths[$hEqM] ?? $hEqM) . ' ' . $hEqY);
-        $hijriYm = sprintf('%04d-%02d', $hEqY, $hEqM);
     } else {
         $anchorMasehiYear = max(1900, min(2100, $anchorMasehiYear));
-        [$startDate, $endDate] = akademik_gregorian_range_from_hijri_month($pdo, $year, $month);
-        $periodLabel = ($hijriyahMonths[$month] ?? (string) $month) . ' ' . $year . ' H';
+    }
+
+    $resolved = rekap_resolve_periode($pdo, [
+        'mode' => $mode,
+        'month' => $month,
+        'year' => $year,
+    ]);
+    $startDate = (string) $resolved['start_date'];
+    $endDate = (string) $resolved['end_date'];
+    $periodLabel = (string) $resolved['label'];
+    if ($mode === 'masehi') {
+        $periodBridge = $periodLabel . ' ↔ ' . (string) ($resolved['hijri_label'] ?? $periodLabel);
+        $hijriYm = $resolved['kalender_hijriyah_key'] ?? null;
+    } else {
         $mEqM = (int) date('m', strtotime($startDate));
         $mEqY = (int) date('Y', strtotime($startDate));
-        $periodBridge = (($masehiMonths[$mEqM] ?? $mEqM) . ' ' . $mEqY) . ' ↔ ' . $periodLabel;
+        $periodBridge = (($masehiMonths[$mEqM] ?? (string) $mEqM) . ' ' . $mEqY) . ' ↔ ' . $periodLabel;
         $hijriYm = sprintf('%04d-%02d', $year, $month);
     }
 
@@ -289,13 +294,14 @@ function payroll_pembimbing_resolve_period(PDO $pdo, array $query): array
 
     return [
         'calendar_mode' => $mode,
-        'month' => $month,
-        'year' => $year,
+        'month' => (int) $resolved['month'],
+        'year' => (int) $resolved['year'],
         'start_date' => $startDate,
         'end_date' => $endDate,
         'total_days' => $totalDays,
         'period_label' => $periodLabel,
         'period_bridge' => $periodBridge,
+        'rentang_tampilan' => (string) ($resolved['rentang_tampilan'] ?? ''),
         'hijri_ym' => $hijriYm ?? null,
         'anchor_masehi_year' => $anchorMasehiYear,
         'year_min' => $yearMin,

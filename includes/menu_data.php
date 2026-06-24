@@ -85,7 +85,7 @@ return [
         '/akademik/setoran_penerima.php' => 'Penerima Setoran',
         '/akademik/bait_kitab.php' => 'Pengaturan Bait',
         '/akademik/kalender.php' => 'Kalender Akademik',
-        '/settings/kalender.php' => 'Pengaturan Kalender',
+        '/settings/kalender.php' => 'Kalender Pondok',
         '/settings/kalender_ta.php' => 'Kalender & TA (Hub)',
         '/settings/hijri_mappings.php' => 'Kalender Hijriyah & Masehi',
         '/akademik/rapor.php' => 'Rapor Akademik',
@@ -100,12 +100,9 @@ return [
         '/settings/akses_mukimin.php' => 'Akses Portal Mukimin',
         '/settings/pesantren.php' => 'Pesantren',
         '/settings/wa_otomatis.php' => 'WA Otomatis',
-        '/settings/wa_gateway.php' => 'WA Otomatis',
-        '/settings/wa_pesan.php' => 'WA Otomatis',
         '/settings/wa_laporan_kelas_kosong.php' => 'Laporan WA Kelas Kosong',
         '/settings/peraturan.php' => 'Peraturan Poin',
-        '/settings/perizinan.php' => 'Perizinan Santri',
-        '/settings/alpa_notif.php' => 'WA Otomatis',
+        '/settings/perizinan.php' => 'Pengaturan alur izin',
         '/settings/tingkatan.php' => 'Tingkatan & PKPPS',
         '/settings/kamar_ranjang.php' => 'Kamar & Ranjang',
         '/settings/kelas_ruangan.php' => 'Ruangan Kelas',
@@ -189,6 +186,7 @@ return [
         '/yayasan/ketertiban.php' => 'Menu Ketertiban',
         '/yayasan/kesehatan.php' => 'Laporan Kesehatan',
         '/yayasan/keaktifan.php' => 'Keaktifan Hari Ini',
+        '/yayasan/keaktifan_ranking.php' => 'Ranking Keaktifan Tingkatan',
         '/yayasan/sdm_hari.php' => 'Keaktifan SDM Hari Ini',
         '/yayasan/executive.php' => 'Executive Summary',
         '/settings/profil.php' => 'Profil & Password',
@@ -245,23 +243,7 @@ return [
         ]],
         ['type' => 'group', 'id' => 'menu-grp-pkpps', 'label' => 'PKPPS', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
             ['title' => 'Program PKPPS', 'paths' => [
-                '/pkpps/hub.php',
                 '/pkpps/index.php',
-                '/pkpps/santri.php',
-                '/pkpps/import_santri.php',
-                '/pkpps/jadwal.php',
-                '/pkpps/import.php',
-                '/pkpps/tugas/index.php',
-                '/pkpps/tugas/buat.php',
-                '/pkpps/tugas/nilai.php',
-                '/pkpps/tugas/rekap.php',
-            ]],
-            ['title' => 'Keaktivan & Laporan', 'paths' => [
-                '/rekap/pkpps_keaktifan_hari.php',
-                '/rekap/pkpps_keaktivan.php',
-                '/pembayaran/laporan_pkpps_syahriyah.php',
-                '/pembimbing/pkpps_santri.php',
-                '/settings/tingkatan.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [
@@ -275,9 +257,6 @@ return [
             ]],
             ['title' => 'Rekap', 'paths' => [
                 '/rekap/presensi.php',
-                '/rekap/keaktivan_sdm.php',
-                '/rekap/munawib.php',
-                '/rekap/pembimbing.php',
             ]],
             ['title' => 'Setoran Hafalan', 'paths' => [
                 '/akademik/setoran.php',
@@ -298,11 +277,6 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-perizinan', 'label' => 'Perizinan', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'sections' => [
             ['title' => 'Alur izin', 'paths' => [
                 '/perizinan/hub.php',
-                '/perizinan/permohonan.php',
-                '/perizinan/index.php',
-                '/pengasuh/perizinan.php',
-                '/perizinan/rekap_aktif.php',
-                '/perizinan/izin_tetap.php',
             ]],
             ['title' => 'Surat & arsip', 'paths' => [
                 '/admin/surat_nomor.php',
@@ -314,6 +288,7 @@ return [
             ['title' => 'Pintu masuk', 'paths' => [
                 '/yayasan/operasional.php',
                 '/yayasan/keaktifan.php',
+                '/yayasan/keaktifan_ranking.php',
                 '/yayasan/sdm_hari.php',
                 '/yayasan/kesehatan.php',
             ]],
@@ -356,7 +331,7 @@ return [
         ['path' => '/settings/pesantren.php', 'label' => 'Profil Pondok', 'icon' => 'fa-solid fa-mosque', 'group' => 'Umum'],
         ['path' => '/settings/kalender_ta.php', 'label' => 'Kalender & Tagihan TA', 'icon' => 'fa-solid fa-calendar-days', 'group' => 'Umum'],
         ['path' => '/settings/peraturan.php', 'label' => 'Peraturan Poin', 'icon' => 'fa-solid fa-scale-balanced', 'group' => 'Umum'],
-        ['path' => '/settings/perizinan.php', 'label' => 'Perizinan Santri', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'group' => 'Umum'],
+        ['path' => '/settings/perizinan.php', 'label' => 'Pengaturan alur izin', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'group' => 'Umum'],
         ['path' => '/settings/wa_otomatis.php', 'label' => 'WA Otomatis', 'icon' => 'fa-solid fa-comments', 'group' => 'WhatsApp'],
         ['path' => '/settings/tingkatan.php', 'label' => 'Tingkatan & PKPPS', 'icon' => 'fa-solid fa-layer-group', 'group' => 'Master Data'],
         ['path' => '/settings/kelas_keuangan.php', 'label' => 'Kelas Keuangan', 'icon' => 'fa-solid fa-coins', 'group' => 'Master Data'],

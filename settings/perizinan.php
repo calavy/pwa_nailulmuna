@@ -71,7 +71,7 @@ $bypassAdminCandidates = $pdo->query("
 $doaSakitTpl = wa_template_get($pdo, 'izin_sakit_doa');
 $doaSakitMeta = wa_template_definitions()['izin_sakit_doa'] ?? ['placeholders' => '', 'default' => ''];
 
-$pageTitle = 'Pengaturan Perizinan';
+$pageTitle = 'Pengaturan alur izin';
 $bodyClass = 'settings-module-page';
 $settingsNavActive = '/settings/perizinan.php';
 require_once __DIR__ . '/../includes/header.php';

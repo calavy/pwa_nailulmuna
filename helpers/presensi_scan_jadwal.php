@@ -21,7 +21,8 @@ require_once __DIR__ . '/pkpps.php';
  *   seconds_remaining: int,
  *   seconds_until_start: int,
  *   libur_nama: string,
- *   slots: list<array<string, mixed>>
+ *   slots: list<array<string, mixed>>,
+ *   day_slots: list<array<string, mixed>>
  * }
  */
 function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string $jam = null): array
@@ -39,6 +40,7 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
         'seconds_until_start' => 0,
         'libur_nama' => '',
         'slots' => [],
+        'day_slots' => [],
     ];
 
     if (!table_exists($pdo, 'kegiatan')) {
@@ -108,6 +110,7 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
 
     $active = [];
     $upcoming = [];
+    $daySlots = [];
 
     foreach ($rows as $row) {
         $mulai = trim((string) ($row['jam_mulai'] ?? ''));
@@ -137,6 +140,8 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
             'seconds_until_start' => max(0, $startTs - $nowTs),
         ];
 
+        $daySlots[] = $slot;
+
         if ($nowTs >= $startTs && $nowTs <= $endTs) {
             $active[] = $slot;
         } elseif ($nowTs < $startTs) {
@@ -161,6 +166,7 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
             'seconds_until_start' => 0,
             'libur_nama' => '',
             'slots' => $active,
+            'day_slots' => $daySlots,
         ];
     }
 
@@ -181,8 +187,9 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
             'seconds_until_start' => (int) $next['seconds_until_start'],
             'libur_nama' => '',
             'slots' => [],
+            'day_slots' => $daySlots,
         ];
     }
 
-    return array_merge($empty, ['state' => 'ended']);
+    return array_merge($empty, ['state' => 'ended', 'day_slots' => $daySlots]);
 }

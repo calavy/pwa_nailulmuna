@@ -180,6 +180,17 @@ function app_asset_href(string $assetPath): string
     return $url . $sep . 'v=' . app_asset_version($assetPath);
 }
 
+/** Halaman scan/kiosk: jangan cache HTML di browser agar pembaruan langsung terlihat. */
+function app_scan_page_no_cache_headers(): void
+{
+    if (headers_sent()) {
+        return;
+    }
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+}
+
 /** Redirect ke path absolut aplikasi (mis. `/dashboard.php`). */
 function app_redirect_path(string $absolutePath): void
 {

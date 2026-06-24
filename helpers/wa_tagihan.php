@@ -46,7 +46,7 @@ function wa_tagihan_jadwal_context(PDO $pdo, ?string $tanggal = null): array
     $customRaw = trim((string) app_setting($pdo, 'wa_tagihan_custom_masehi_dates', ''));
 
     $todayDay = wa_tagihan_tanggal_hari($pdo, $today, $calendar);
-    $periodKey = $calendar === 'HIJRIYAH' ? get_hijri_year_month($today) : date('Y-m', strtotime($today));
+    $periodKey = $calendar === 'HIJRIYAH' ? wa_tagihan_hijri_period_key($pdo, $today) : date('Y-m', strtotime($today));
     $isCustomMasehi = false;
     $isSendDay = false;
 
@@ -109,31 +109,31 @@ function wa_tagihan_kumulatif_enabled(PDO $pdo): bool
 
 function wa_tagihan_recurring_enabled(PDO $pdo): bool
 {
-    return trim((string) app_setting($pdo, 'wa_tagihan_recurring', '1')) === '1';
+    return trim((string) app_setting($pdo, 'wa_tagihan_recurring', '0')) === '1';
+}
+
+/** Kunci periode hijriyah YYYY-MM dari pemetaan pondok (selaras perhitungan hari ke-N). */
+function wa_tagihan_hijri_period_key(PDO $pdo, string $tanggalMasehi): string
+{
+    require_once __DIR__ . '/akademik.php';
+
+    return akademik_hijri_ym_untuk_masehi($pdo, $tanggalMasehi);
 }
 
 /**
- * Simpan jadwal kirim WA tagihan saja (tanpa pengaturan kalender akademik lain).
+ * Simpan pengaturan WA tagihan (toggle & mode kirim). Jadwal kalender di Kalender Pondok.
  *
  * @return array{ok:bool,message:string}
  */
 function wa_tagihan_jadwal_simpan(PDO $pdo, array $post): array
 {
-    $calendar = strtoupper(trim((string) ($post['wa_tagihan_calendar'] ?? 'HIJRIYAH')));
-    if (!in_array($calendar, ['MASEHI', 'HIJRIYAH'], true)) {
-        $calendar = 'HIJRIYAH';
-    }
-    save_setting($pdo, 'wa_tagihan_calendar', $calendar);
-    save_setting($pdo, 'wa_tagihan_day', (string) max(1, min(30, (int) ($post['wa_tagihan_day'] ?? 5))));
-    save_setting($pdo, 'wa_tagihan_send_time', trim((string) ($post['wa_tagihan_send_time'] ?? '08:00')));
-    save_setting($pdo, 'wa_tagihan_custom_masehi_dates', trim((string) ($post['wa_tagihan_custom_masehi_dates'] ?? '')));
     if (array_key_exists('wa_tagihan_auto_enabled', $post)) {
         save_setting($pdo, 'wa_tagihan_auto_enabled', (string) ((int) ($post['wa_tagihan_auto_enabled'] ?? 0) === 1 ? 1 : 0));
     }
     save_setting($pdo, 'wa_tagihan_kumulatif', isset($post['wa_tagihan_kumulatif']) ? '1' : '0');
     save_setting($pdo, 'wa_tagihan_recurring', isset($post['wa_tagihan_recurring']) ? '1' : '0');
 
-    return ['ok' => true, 'message' => 'Jadwal WA tagihan disimpan.'];
+    return ['ok' => true, 'message' => 'Pengaturan WA tagihan disimpan.'];
 }
 
 /**

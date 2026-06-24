@@ -63,7 +63,7 @@ function app_hub_registry(): array
         ],
         'pkpps_hub' => [
             'title' => 'PKPPS',
-            'landing' => '/pkpps/hub.php',
+            'landing' => '/pkpps/index.php',
             'match_prefixes' => ['/pkpps/', '/rekap/pkpps_', '/pembimbing/pkpps_'],
             'match_paths' => ['/pembayaran/laporan_pkpps_syahriyah.php'],
             'tabs' => [
@@ -107,7 +107,7 @@ function app_hub_registry(): array
             'title' => 'Kalender & TA',
             'landing' => '/settings/kalender_ta.php',
             'tabs' => [
-                ['path' => '/settings/kalender.php', 'label' => 'Tagihan TA'],
+                ['path' => '/settings/kalender.php', 'label' => 'Kalender Pondok'],
                 ['path' => '/settings/hijri_mappings.php', 'label' => 'Hijriyah'],
                 ['path' => '/akademik/kalender.php', 'label' => 'Akademik'],
             ],

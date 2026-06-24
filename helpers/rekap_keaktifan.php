@@ -219,7 +219,8 @@ function rekap_keaktifan_fetch_eligible_rows(
     string $endDate,
     array $santriIds = [],
     int $kegiatanId = 0,
-    bool $runFinalize = true
+    bool $runFinalize = true,
+    ?string $kalenderHijriyahKey = null
 ): array {
     require_once __DIR__ . '/presensi_jadwal.php';
     require_once __DIR__ . '/santri_operasional.php';
@@ -248,6 +249,10 @@ function rekap_keaktifan_fetch_eligible_rows(
     if ($kegiatanId > 0) {
         $where .= ' AND p.kegiatan_id = ?';
         $params[] = $kegiatanId;
+    }
+    if ($kalenderHijriyahKey !== null && $kalenderHijriyahKey !== '' && column_exists($pdo, 'presensi', 'kalender_hijriyah')) {
+        $where .= ' AND p.kalender_hijriyah = ?';
+        $params[] = $kalenderHijriyahKey;
     }
 
     $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn (int $id): bool => $id > 0)));
@@ -412,6 +417,260 @@ function rekap_keaktifan_build_per_tingkatan(array $ranked): array
     ksort($out);
 
     return $out;
+}
+
+/**
+ * @param array<string, array<string, mixed>> $byTingkatan dari rekap_keaktifan_build_per_tingkatan
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_rank_tingkatan_list(array $byTingkatan): array
+{
+    $list = [];
+    foreach ($byTingkatan as $nama => $data) {
+        $list[] = array_merge(['tingkatan' => $nama], $data);
+    }
+    usort($list, static function (array $a, array $b): int {
+        $cmp = ($b['persen_hadir'] ?? 0) <=> ($a['persen_hadir'] ?? 0);
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+        $cmpHadir = ((int) ($b['hadir'] ?? 0)) <=> ((int) ($a['hadir'] ?? 0));
+        if ($cmpHadir !== 0) {
+            return $cmpHadir;
+        }
+
+        return strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
+    });
+    foreach ($list as $i => &$row) {
+        $row['rank'] = $i + 1;
+    }
+    unset($row);
+
+    return $list;
+}
+
+/**
+ * Siapkan presensi untuk rekap/ranking — hindari finalisasi ulang seluruh bulan.
+ */
+function rekap_keaktifan_prepare_periode_presensi(PDO $pdo, string $startDate, string $endDate): void
+{
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $today = date('Y-m-d');
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    if ($endDate < $today) {
+        return;
+    }
+    if ($startDate <= $today) {
+        presensi_finalize_today_throttled($pdo, $auditUserId > 0 ? $auditUserId : 1, 300);
+    }
+}
+
+/**
+ * Ranking tingkatan langsung dari baris eligible (tanpa per-kegiatan per santri).
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int $mediumMax): array
+{
+    $kategoriKeys = ['Bagus', 'Baik', 'Sedang', 'Buruk'];
+    $bySantri = [];
+    foreach ($rows as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        if (!isset($bySantri[$sid])) {
+            $bySantri[$sid] = [
+                'santri_id' => $sid,
+                'nis' => (string) ($row['nis'] ?? ''),
+                'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+                'tingkatan' => trim((string) ($row['tingkatan'] ?? '')) !== '' ? (string) $row['tingkatan'] : '-',
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'total' => 0,
+            ];
+        }
+        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
+        $bySantri[$sid]['total']++;
+        if ($status === 'HADIR') {
+            $bySantri[$sid]['hadir']++;
+        } elseif ($status === 'IZIN') {
+            $bySantri[$sid]['izin']++;
+        } elseif ($status === 'SAKIT') {
+            $bySantri[$sid]['sakit']++;
+        } elseif ($status === 'ALPA') {
+            $bySantri[$sid]['alpa']++;
+        }
+    }
+
+    $byTingkatan = [];
+    foreach ($bySantri as $item) {
+        $tg = (string) ($item['tingkatan'] ?? '-');
+        if (!isset($byTingkatan[$tg])) {
+            $byTingkatan[$tg] = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'total' => 0,
+                'santri_count' => 0,
+                'kategori' => array_fill_keys($kategoriKeys, 0),
+                'santri_list' => [],
+            ];
+        }
+        $kat = santri_category((int) $item['alpa'], $goodMax, $mediumMax);
+        if (!isset($byTingkatan[$tg]['kategori'][$kat])) {
+            $byTingkatan[$tg]['kategori'][$kat] = 0;
+        }
+        $totalSantri = (int) $item['total'];
+        $byTingkatan[$tg]['hadir'] += (int) $item['hadir'];
+        $byTingkatan[$tg]['izin'] += (int) $item['izin'];
+        $byTingkatan[$tg]['sakit'] += (int) $item['sakit'];
+        $byTingkatan[$tg]['alpa'] += (int) $item['alpa'];
+        $byTingkatan[$tg]['total'] += $totalSantri;
+        $byTingkatan[$tg]['santri_count']++;
+        $byTingkatan[$tg]['kategori'][$kat]++;
+        $byTingkatan[$tg]['santri_list'][] = [
+            'santri_id' => (int) ($item['santri_id'] ?? 0),
+            'nis' => (string) ($item['nis'] ?? ''),
+            'nama_santri' => (string) ($item['nama_santri'] ?? ''),
+            'hadir' => (int) $item['hadir'],
+            'izin' => (int) $item['izin'],
+            'sakit' => (int) $item['sakit'],
+            'alpa' => (int) $item['alpa'],
+            'total' => $totalSantri,
+            'persen_hadir' => $totalSantri > 0 ? round(((int) $item['hadir'] / $totalSantri) * 100, 2) : 0.0,
+            'kategori' => $kat,
+        ];
+    }
+    foreach ($byTingkatan as $tg => $data) {
+        $total = (int) $data['total'];
+        $byTingkatan[$tg]['persen_hadir'] = $total > 0 ? round(((int) $data['hadir'] / $total) * 100, 2) : 0.0;
+        usort($byTingkatan[$tg]['santri_list'], static function (array $a, array $b): int {
+            $cmp = ($b['persen_hadir'] ?? 0) <=> ($a['persen_hadir'] ?? 0);
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+            $cmpAlpa = ((int) ($a['alpa'] ?? 0)) <=> ((int) ($b['alpa'] ?? 0));
+            if ($cmpAlpa !== 0) {
+                return $cmpAlpa;
+            }
+
+            return strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
+        });
+        foreach ($byTingkatan[$tg]['santri_list'] as $i => &$santriRow) {
+            $santriRow['rank'] = $i + 1;
+        }
+        unset($santriRow);
+    }
+
+    return rekap_keaktifan_rank_tingkatan_list($byTingkatan);
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ */
+function rekap_keaktifan_filter_rows_by_kategori(array $rows, ?string $kategoriKegiatan): array
+{
+    if ($kategoriKegiatan === null || $kategoriKegiatan === '') {
+        return $rows;
+    }
+    $kat = strtoupper(trim($kategoriKegiatan));
+
+    return array_values(array_filter($rows, static function (array $row) use ($kat): bool {
+        $rowKat = strtoupper(trim((string) ($row['kategori_kegiatan'] ?? 'TAALIM')));
+
+        return $rowKat === $kat;
+    }));
+}
+
+/**
+ * Data grafik ranking tingkatan (urutan: terbaik di atas).
+ *
+ * @param list<array<string, mixed>> $ranking
+ * @return array{
+ *   labels:list<string>,
+ *   persen_hadir:list<float>,
+ *   bar_colors:list<string>,
+ *   stacked_datasets:list<array<string,mixed>>
+ * }
+ */
+function rekap_keaktifan_rank_tingkatan_chart_payload(array $ranking): array
+{
+    $labels = [];
+    $persen = [];
+    $colors = [];
+    $stacked = [
+        ['label' => 'Bagus', 'data' => [], 'backgroundColor' => 'rgba(25, 135, 84, 0.85)', 'stack' => 'kat'],
+        ['label' => 'Baik', 'data' => [], 'backgroundColor' => 'rgba(13, 110, 253, 0.85)', 'stack' => 'kat'],
+        ['label' => 'Sedang', 'data' => [], 'backgroundColor' => 'rgba(255, 193, 7, 0.9)', 'stack' => 'kat'],
+        ['label' => 'Buruk', 'data' => [], 'backgroundColor' => 'rgba(220, 53, 69, 0.85)', 'stack' => 'kat'],
+    ];
+    $max = max(1, count($ranking));
+    foreach ($ranking as $i => $row) {
+        $labels[] = (string) ($row['tingkatan'] ?? '-');
+        $p = (float) ($row['persen_hadir'] ?? 0);
+        $persen[] = $p;
+        $ratio = $max > 1 ? $i / ($max - 1) : 0.0;
+        $colors[] = sprintf('rgba(%d, %d, %d, 0.88)', (int) round(34 + 180 * $ratio), (int) round(160 - 90 * $ratio), (int) round(80 - 40 * $ratio));
+
+        $kat = (array) ($row['kategori'] ?? []);
+        $cnt = max(1, (int) ($row['santri_count'] ?? 0));
+        $stacked[0]['data'][] = round(((int) ($kat['Bagus'] ?? 0) / $cnt) * 100, 1);
+        $stacked[1]['data'][] = round(((int) ($kat['Baik'] ?? 0) / $cnt) * 100, 1);
+        $stacked[2]['data'][] = round(((int) ($kat['Sedang'] ?? 0) / $cnt) * 100, 1);
+        $stacked[3]['data'][] = round(((int) ($kat['Buruk'] ?? 0) / $cnt) * 100, 1);
+    }
+
+    return [
+        'labels' => $labels,
+        'persen_hadir' => $persen,
+        'bar_colors' => $colors,
+        'stacked_datasets' => $stacked,
+    ];
+}
+
+/**
+ * Ranking keaktifan per tingkatan — jalur cepat (cache sesi + tanpa finalisasi bulan penuh).
+ *
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_rank_tingkatan_for_periode(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $goodMax,
+    int $mediumMax,
+    bool $forceRefresh = false,
+    ?string $kategoriKegiatan = null,
+    ?string $kalenderHijriyahKey = null
+): array {
+    require_once __DIR__ . '/rekap_keaktifan_hari.php';
+    $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
+    $cacheKey = 'rekap_rank_tingkatan_v4_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? ''));
+    $cacheTsKey = $cacheKey . '_ts';
+    $ttl = 120;
+    if (
+        !$forceRefresh
+        && isset($_SESSION[$cacheKey], $_SESSION[$cacheTsKey])
+        && is_array($_SESSION[$cacheKey])
+        && (time() - (int) $_SESSION[$cacheTsKey]) < $ttl
+    ) {
+        return $_SESSION[$cacheKey];
+    }
+
+    rekap_keaktifan_prepare_periode_presensi($pdo, $startDate, $endDate);
+    $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], 0, false, $kalenderHijriyahKey);
+    $rows = rekap_keaktifan_filter_rows_by_kategori($rows, $katNorm);
+    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax);
+
+    $_SESSION[$cacheKey] = $ranking;
+    $_SESSION[$cacheTsKey] = time();
+
+    return $ranking;
 }
 
 function rekap_keaktifan_kategori_badge_class(string $kategori): string

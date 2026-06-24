@@ -80,7 +80,7 @@ function rapor_presensi_bulan(PDO $pdo, int $santriId, array $periode): ?array
     }
     $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
     $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-    $rows = presensi_fetch_rows_rekap($pdo, (string) $periode['start_date'], (string) $periode['end_date'], 0);
+    $rows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
     $filtered = array_values(array_filter($rows, static fn (array $r): bool => (int) ($r['santri_id'] ?? 0) === $santriId));
     if ($filtered === []) {
         return null;

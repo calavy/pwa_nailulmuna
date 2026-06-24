@@ -10,6 +10,10 @@
     var marqueeSyncRetries = 0;
     var MARQUEE_PX_PER_SEC = 38;
     var MARQUEE_SYNC_MAX_RETRIES = 8;
+    var parsedCtxBase = null;
+    var lastStateKey = '';
+    var lastMarqueeSig = '';
+    var daySlotBounds = null;
 
     function pad2(n) {
         return n < 10 ? '0' + n : String(n);
@@ -166,7 +170,46 @@
         });
     }
 
-    function updateMarquee(slots) {
+    function getParsedCtx() {
+        if (!parsedCtxBase) {
+            parsedCtxBase = parseCtx();
+            daySlotBounds = null;
+        }
+        return parsedCtxBase;
+    }
+
+    function getDaySlotBounds(ctx) {
+        if (daySlotBounds) {
+            return daySlotBounds;
+        }
+        if (!ctx || !Array.isArray(ctx.day_slots) || ctx.day_slots.length === 0) {
+            daySlotBounds = [];
+            return daySlotBounds;
+        }
+        var out = [];
+        var i;
+        for (i = 0; i < ctx.day_slots.length; i += 1) {
+            var slot = ctx.day_slots[i];
+            var startMs = Date.parse(slot.starts_at || '');
+            var endMs = Date.parse(slot.ends_at || '');
+            if (!isNaN(startMs) && !isNaN(endMs)) {
+                out.push({ slot: slot, startMs: startMs, endMs: endMs });
+            }
+        }
+        daySlotBounds = out;
+        return daySlotBounds;
+    }
+
+    function slotsSignature(slots) {
+        if (!Array.isArray(slots) || slots.length === 0) {
+            return '';
+        }
+        return slots.map(function (slot) {
+            return String(slot.kegiatan_id || '') + '@' + String(slot.starts_at || '') + '-' + String(slot.ends_at || '');
+        }).join('|');
+    }
+
+    function updateMarquee(slots, force) {
         var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
         var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
         var titleEl = document.getElementById('presensi-scan-timer-title');
@@ -185,8 +228,15 @@
         }
 
         if (!useMarquee || !trackEl) {
+            lastMarqueeSig = '';
             return;
         }
+
+        var sig = slotsSignature(slots);
+        if (!force && sig === lastMarqueeSig) {
+            return;
+        }
+        lastMarqueeSig = sig;
 
         var labels = slots.map(slotLabel);
         var html = '';
@@ -218,6 +268,93 @@
         });
     }
 
+    function formatWallClock(dateObj) {
+        return pad2(dateObj.getHours()) + ':' + pad2(dateObj.getMinutes()) + ':' + pad2(dateObj.getSeconds());
+    }
+
+    function recomputeLiveContext(ctx) {
+        if (!ctx) {
+            return null;
+        }
+        if (ctx.state === 'libur') {
+            return ctx;
+        }
+        var daySlots = Array.isArray(ctx.day_slots) ? ctx.day_slots : null;
+        if (!daySlots || daySlots.length === 0) {
+            return ctx;
+        }
+
+        var now = Date.now();
+        var active = [];
+        var upcoming = [];
+        var bounds = getDaySlotBounds(ctx);
+        var i;
+
+        for (i = 0; i < bounds.length; i += 1) {
+            var bound = bounds[i];
+            var slot = bound.slot;
+            if (now >= bound.startMs && now <= bound.endMs) {
+                active.push(slot);
+            } else if (now < bound.startMs) {
+                upcoming.push(slot);
+            }
+        }
+
+        if (active.length > 0) {
+            active.sort(function (a, b) {
+                return Date.parse(a.ends_at || '') - Date.parse(b.ends_at || '');
+            });
+            var primary = active[0];
+            return {
+                state: 'active',
+                nama_kegiatan: primary.nama_kegiatan || '',
+                tingkatan: primary.tingkatan || '',
+                jam_mulai: primary.jam_mulai || '',
+                jam_selesai: primary.jam_selesai || '',
+                tempat: primary.tempat || '',
+                ends_at: primary.ends_at || '',
+                starts_at: primary.starts_at || '',
+                slots: active,
+                day_slots: daySlots,
+                libur_nama: ctx.libur_nama || ''
+            };
+        }
+
+        if (upcoming.length > 0) {
+            upcoming.sort(function (a, b) {
+                return Date.parse(a.starts_at || '') - Date.parse(b.starts_at || '');
+            });
+            var next = upcoming[0];
+            return {
+                state: 'upcoming',
+                nama_kegiatan: next.nama_kegiatan || '',
+                tingkatan: next.tingkatan || '',
+                jam_mulai: next.jam_mulai || '',
+                jam_selesai: next.jam_selesai || '',
+                tempat: next.tempat || '',
+                ends_at: next.ends_at || '',
+                starts_at: next.starts_at || '',
+                slots: [],
+                day_slots: daySlots,
+                libur_nama: ctx.libur_nama || ''
+            };
+        }
+
+        return {
+            state: 'ended',
+            nama_kegiatan: '',
+            tingkatan: '',
+            jam_mulai: '',
+            jam_selesai: '',
+            tempat: '',
+            ends_at: '',
+            starts_at: '',
+            slots: [],
+            day_slots: daySlots,
+            libur_nama: ctx.libur_nama || ''
+        };
+    }
+
     function hintForState(state, remainSec) {
         if (state === 'libur') {
             return 'Hari libur — scan ditolak';
@@ -237,34 +374,9 @@
         return '';
     }
 
-    function render() {
-        var box = document.getElementById('presensi-scan-timer');
-        if (!box) {
-            return;
-        }
-
-        var ctx = parseCtx();
+    function applyStaticUi(box, ctx, state, slots, useMarquee) {
         var titleEl = document.getElementById('presensi-scan-timer-title');
-        var clockEl = document.getElementById('presensi-scan-timer-clock');
         var rangeEl = document.getElementById('presensi-scan-timer-range');
-        var hintEl = document.getElementById('presensi-scan-timer-hint');
-
-        if (!ctx) {
-            setTimerClass(box, 'none', false);
-            updateMarquee([]);
-            if (titleEl) titleEl.textContent = 'Jadwal scan';
-            if (clockEl) clockEl.textContent = '--:--';
-            if (rangeEl) rangeEl.textContent = '';
-            if (hintEl) hintEl.textContent = '';
-            return;
-        }
-
-        var state = ctx.state || 'none';
-        var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
-        var useMarquee = state === 'active' && slots.length > 0;
-        setTimerClass(box, state, useMarquee);
-        updateMarquee(useMarquee ? slots : []);
-
         var nama = ctx.nama_kegiatan || '';
         var tingkat = ctx.tingkatan || '';
         var range = '';
@@ -272,62 +384,111 @@
             range = ctx.jam_mulai + ' – ' + ctx.jam_selesai;
         }
 
+        setTimerClass(box, state, useMarquee);
+        updateMarquee(useMarquee ? slots : [], false);
+
         if (state === 'libur') {
             if (titleEl) titleEl.textContent = 'Hari libur';
-            if (clockEl) clockEl.textContent = '—';
             if (rangeEl) rangeEl.textContent = '';
-            if (hintEl) hintEl.textContent = hintForState('libur', 0);
             return;
         }
-
-        if (state === 'active' && ctx.ends_at) {
-            var endMs = Date.parse(ctx.ends_at);
-            var remain = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+        if (state === 'active') {
             if (titleEl && !useMarquee) {
                 titleEl.textContent = nama !== '' ? nama : 'Kegiatan aktif';
             }
             if (rangeEl && !useMarquee) {
                 rangeEl.textContent = range + (tingkat ? ' · ' + tingkat : '');
             }
-            if (clockEl) {
-                clockEl.textContent = formatClock(remain);
-            }
-            if (hintEl) {
-                hintEl.textContent = hintForState('active', remain);
-            }
             return;
         }
-
-        if (state === 'upcoming' && ctx.starts_at) {
-            var startMs = Date.parse(ctx.starts_at);
-            var until = Math.max(0, Math.floor((startMs - Date.now()) / 1000));
+        if (state === 'upcoming') {
             if (titleEl) {
                 titleEl.textContent = nama !== '' ? nama : 'Kegiatan berikutnya';
             }
             if (rangeEl) {
                 rangeEl.textContent = range + (tingkat ? ' · ' + tingkat : '');
             }
-            if (clockEl) {
-                clockEl.textContent = formatClock(until);
-            }
-            if (hintEl) {
-                hintEl.textContent = hintForState('upcoming', until);
-            }
             return;
         }
-
         if (state === 'ended') {
             if (titleEl) titleEl.textContent = 'Di luar jadwal';
-            if (clockEl) clockEl.textContent = '00:00';
             if (rangeEl) rangeEl.textContent = '';
+            return;
+        }
+        if (titleEl) titleEl.textContent = 'Belum ada jadwal';
+        if (rangeEl) rangeEl.textContent = '';
+    }
+
+    function updateDynamicUi(ctx, state) {
+        var clockEl = document.getElementById('presensi-scan-timer-clock');
+        var wallEl = document.getElementById('presensi-scan-timer-wall');
+        var hintEl = document.getElementById('presensi-scan-timer-hint');
+        var nowWall = formatWallClock(new Date());
+
+        if (wallEl) {
+            wallEl.textContent = nowWall;
+        }
+
+        if (state === 'libur') {
+            if (clockEl) clockEl.textContent = '—';
+            if (hintEl) hintEl.textContent = hintForState('libur', 0);
+            return;
+        }
+        if (state === 'active' && ctx.ends_at) {
+            var endMs = Date.parse(ctx.ends_at);
+            var remain = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+            if (clockEl) clockEl.textContent = formatClock(remain);
+            if (hintEl) hintEl.textContent = hintForState('active', remain);
+            return;
+        }
+        if (state === 'upcoming' && ctx.starts_at) {
+            var startMs = Date.parse(ctx.starts_at);
+            var until = Math.max(0, Math.floor((startMs - Date.now()) / 1000));
+            if (clockEl) clockEl.textContent = formatClock(until);
+            if (hintEl) hintEl.textContent = hintForState('upcoming', until);
+            return;
+        }
+        if (state === 'ended') {
+            if (clockEl) clockEl.textContent = '00:00';
             if (hintEl) hintEl.textContent = hintForState('ended', 0);
             return;
         }
-
-        if (titleEl) titleEl.textContent = 'Belum ada jadwal';
         if (clockEl) clockEl.textContent = '--:--';
-        if (rangeEl) rangeEl.textContent = '';
         if (hintEl) hintEl.textContent = hintForState('none', 0);
+    }
+
+    function render() {
+        var box = document.getElementById('presensi-scan-timer');
+        if (!box) {
+            return;
+        }
+
+        var ctx = recomputeLiveContext(getParsedCtx());
+        if (!ctx) {
+            if (lastStateKey !== 'none') {
+                lastStateKey = 'none';
+                lastMarqueeSig = '';
+                setTimerClass(box, 'none', false);
+                updateMarquee([], true);
+                var titleEl = document.getElementById('presensi-scan-timer-title');
+                var rangeEl = document.getElementById('presensi-scan-timer-range');
+                if (titleEl) titleEl.textContent = 'Jadwal scan';
+                if (rangeEl) rangeEl.textContent = '';
+            }
+            updateDynamicUi({ ends_at: '', starts_at: '' }, 'none');
+            return;
+        }
+
+        var state = ctx.state || 'none';
+        var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
+        var useMarquee = state === 'active' && slots.length > 0;
+        var stateKey = state + '|' + slotsSignature(slots) + '|' + String(ctx.nama_kegiatan || '') + '|' + String(ctx.starts_at || '') + '|' + String(ctx.ends_at || '');
+
+        if (stateKey !== lastStateKey) {
+            lastStateKey = stateKey;
+            applyStaticUi(box, ctx, state, slots, useMarquee);
+        }
+        updateDynamicUi(ctx, state);
     }
 
     function start() {
@@ -335,7 +496,21 @@
         if (tickTimer) {
             clearInterval(tickTimer);
         }
-        tickTimer = setInterval(render, 1000);
+        tickTimer = setInterval(function () {
+            var ctx = recomputeLiveContext(getParsedCtx());
+            if (!ctx) {
+                render();
+                return;
+            }
+            var state = ctx.state || 'none';
+            var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
+            var stateKey = state + '|' + slotsSignature(slots) + '|' + String(ctx.nama_kegiatan || '') + '|' + String(ctx.starts_at || '') + '|' + String(ctx.ends_at || '');
+            if (stateKey !== lastStateKey) {
+                render();
+                return;
+            }
+            updateDynamicUi(ctx, state);
+        }, 1000);
         global.addEventListener('resize', syncMarqueeSpeed);
         global.addEventListener('load', syncMarqueeSpeed);
         global.addEventListener('orientationchange', function () {

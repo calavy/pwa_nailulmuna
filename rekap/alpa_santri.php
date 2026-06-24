@@ -28,7 +28,7 @@ $santriId = (int) ($_GET['santri_id'] ?? 0);
 $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
 $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 
-$rawRows = presensi_fetch_rows_rekap($pdo, $startDate, $endDate, 0);
+$rawRows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
 if ($tingkatan !== '') {
     $rawRows = array_values(array_filter($rawRows, static function (array $row) use ($tingkatan): bool {
         return strtolower((string) ($row['tingkatan'] ?? '')) === strtolower($tingkatan);
@@ -70,44 +70,33 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
 </div>
 
-<form method="get" class="row g-2 align-items-end mb-3">
-    <input type="hidden" name="mode" value="<?= htmlspecialchars((string) ($periode['mode'] ?? 'hijriyah')) ?>">
-    <div class="col-md-2">
-        <label class="form-label small">Bulan</label>
-        <select name="month" class="form-select">
-            <?php for ($m = 1; $m <= 12; $m++): ?>
-                <option value="<?= $m ?>" <?= (int) ($periode['month'] ?? 0) === $m ? 'selected' : '' ?>><?= $m ?></option>
-            <?php endfor; ?>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <label class="form-label small">Tahun</label>
-        <input type="number" name="year" class="form-control" value="<?= (int) ($periode['year'] ?? date('Y')) ?>" min="1400" max="2100">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label small">Tingkatan</label>
-        <select name="tingkatan" class="form-select">
-            <option value="">Semua</option>
-            <?php foreach ($tingkatanList as $tk): ?>
-                <option value="<?= htmlspecialchars((string) $tk) ?>" <?= $tingkatan === (string) $tk ? 'selected' : '' ?>><?= htmlspecialchars((string) $tk) ?></option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-    <div class="col-md-4">
-        <label class="form-label small">Santri</label>
-        <select name="santri_id" class="form-select">
-            <option value="0">Semua santri</option>
-            <?php foreach ($santriList as $s): ?>
-                <option value="<?= (int) $s['id'] ?>" <?= (int) $s['id'] === $santriId ? 'selected' : '' ?>>
-                    <?= htmlspecialchars((string) $s['nama_santri']) ?> (<?= htmlspecialchars((string) $s['nis']) ?>)
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
-    </div>
-</form>
+<?php
+$wrapCard = false;
+$rekapPeriodeExtraSlot = '
+        <div class="col-md-3">
+            <label class="form-label small mb-0">Tingkatan</label>
+            <select name="tingkatan" class="form-select form-select-sm">
+                <option value="">Semua</option>';
+    foreach ($tingkatanList as $tk) {
+        $rekapPeriodeExtraSlot .= '<option value="' . htmlspecialchars((string) $tk) . '"' . ($tingkatan === (string) $tk ? ' selected' : '') . '>' . htmlspecialchars((string) $tk) . '</option>';
+    }
+    $rekapPeriodeExtraSlot .= '
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small mb-0">Santri</label>
+            <select name="santri_id" class="form-select form-select-sm">
+                <option value="0">Semua santri</option>';
+    foreach ($santriList as $s) {
+        $rekapPeriodeExtraSlot .= '<option value="' . (int) $s['id'] . '"' . ((int) $s['id'] === $santriId ? ' selected' : '') . '>'
+            . htmlspecialchars((string) $s['nama_santri']) . ' (' . htmlspecialchars((string) $s['nis']) . ')</option>';
+    }
+    $rekapPeriodeExtraSlot .= '
+            </select>
+        </div>';
+require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+unset($rekapPeriodeExtraSlot);
+?>
 
 <div class="card shadow-sm">
     <div class="card-header fw-semibold small d-flex justify-content-between align-items-center">

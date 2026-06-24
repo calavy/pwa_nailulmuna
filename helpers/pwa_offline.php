@@ -13,6 +13,8 @@ function pwa_cache_version(): string
         '/assets/css/app.css',
         '/assets/css/auth-portal.css',
         '/assets/css/offline-sync.css',
+        '/assets/css/presensi-scan.css',
+        '/assets/css/cashless-scan.css',
         '/assets/vendor/bootstrap/5.3.3/bootstrap.min.css',
         '/assets/vendor/fontawesome/6.5.2/all.min.css',
         '/assets/vendor/html5-qrcode/2.3.8/html5-qrcode.min.js',
@@ -20,6 +22,12 @@ function pwa_cache_version(): string
         '/assets/js/pwa-register.js',
         '/assets/js/offline-sync.js',
         '/assets/js/theme-mode.js',
+        '/assets/js/presensi-scan-timer.js',
+        '/assets/js/presensi-scan-camera.js',
+        '/assets/js/presensi-scan-feedback.js',
+        '/keuangan/cashless_scan.php',
+        '/presensi/scan.php',
+        '/pembimbing/perizinan.php',
     ] as $rel) {
         $full = $root . $rel;
         $parts[] = is_file($full) ? (string) filemtime($full) : '0';
@@ -106,6 +114,7 @@ function pwa_scan_precache_relative_paths(): array
     require_once __DIR__ . '/app_vendor.php';
     $paths = [
         '/assets/css/presensi-scan.css',
+        '/assets/css/cashless-scan.css',
         '/assets/js/presensi-scan-feedback.js',
         '/assets/js/presensi-scan-timer.js',
         '/assets/js/presensi-scan-camera.js',
@@ -283,7 +292,14 @@ function pwaPutCache(request, response) {
 }
 
 function pwaNetworkFirstStatic(request) {
-  return fetch(request).then(function (res) {
+  var netReq = request;
+  try {
+    var u = new URL(request.url);
+    if (u.search.indexOf('v=') >= 0) {
+      netReq = new Request(request, { cache: 'no-cache' });
+    }
+  } catch (e) {}
+  return fetch(netReq).then(function (res) {
     pwaPutCache(request, res);
     return res;
   }).catch(function () {
@@ -351,8 +367,12 @@ self.addEventListener('fetch', function (event) {
   }
 
   if (req.mode === 'navigate') {
+    var navReq = req;
+    if (pwaIsOfflineNavAllowlist(url)) {
+      navReq = new Request(req, { cache: 'no-cache' });
+    }
     event.respondWith(
-      fetch(req).then(function (res) {
+      fetch(navReq).then(function (res) {
         if (res && res.ok && res.type === 'basic' && pwaIsOfflineNavAllowlist(url)) {
           pwaPutCache(req, res);
         }
@@ -395,10 +415,21 @@ self.addEventListener('message', function (event) {
         return Promise.all(
           event.data.paths.map(function (rel) {
             var path = String(rel || '');
+            if (path.indexOf('http://') === 0 || path.indexOf('https://') === 0) {
+              return fetch(path, { credentials: 'same-origin' }).then(function (res) {
+                if (res && res.ok) {
+                  return cache.put(path, res);
+                }
+              }).catch(function () {});
+            }
             if (path.charAt(0) !== '/') {
               path = '/' + path;
             }
-            return cache.add(new Request(pwaUrl(path), { credentials: 'same-origin' })).catch(function () {});
+            return fetch(pwaUrl(path), { credentials: 'same-origin' }).then(function (res) {
+              if (res && res.ok) {
+                return cache.put(pwaUrl(path), res);
+              }
+            }).catch(function () {});
           })
         );
       })

@@ -6,16 +6,18 @@ declare(strict_types=1);
  * Format & batching pesan WA laporan ALPA: per nama santri, kegiatan di bawahnya.
  */
 
-/** Batas karakter satu pesan logis (sebelum pecahan gateway). */
+/** Batas karakter satu pesan WA laporan ALPA (pecah ke pesan berikutnya, per santri). */
+function wa_laporan_alpa_message_hard_max(): int
+{
+    return 40960;
+}
+
+/** Batas karakter satu pesan logis laporan ALPA. */
 function wa_laporan_alpa_message_max_len(PDO $pdo): int
 {
-    require_once __DIR__ . '/wa_otomatis.php';
-    $chunk = wa_otomatis_gateway_chunk_max($pdo);
-    if ($chunk >= 500) {
-        return min(4096, $chunk);
-    }
+    unset($pdo);
 
-    return max(80, min(4096, $chunk));
+    return wa_laporan_alpa_message_hard_max();
 }
 
 /**
@@ -151,20 +153,21 @@ function wa_laporan_alpa_pack_messages(
         return [];
     }
 
-    $maxLen = max(80, min(4096, $maxLen));
+    $hardMax = wa_laporan_alpa_message_hard_max();
+    $maxLen = max(80, min($hardMax, $maxLen));
     $footerLen = mb_strlen($footer);
     $messages = [];
     $part = 1;
     $header = $firstHeader;
     $body = $header;
 
-    $flush = static function (bool $withFooter) use (&$body, &$messages, $footer, $footerLen): void {
+    $flush = static function (bool $withFooter) use (&$body, &$messages, $footer, $footerLen, $hardMax): void {
         $text = rtrim($body);
         if ($text === '') {
             return;
         }
         if ($withFooter) {
-            if (mb_strlen($text) + $footerLen > 4096) {
+            if (mb_strlen($text) + $footerLen > $hardMax) {
                 $messages[] = $text;
                 $messages[] = ltrim($footer);
             } else {
@@ -353,8 +356,9 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
     }
     require_once __DIR__ . '/wa_otomatis.php';
 
+    // Pesan sudah dipecah per santri di wa_laporan_alpa_pack_messages — jangan pecah lagi di gateway.
     if (!array_key_exists('chunk_max', $opts)) {
-        $opts['chunk_max'] = wa_otomatis_gateway_chunk_max($pdo);
+        $opts['chunk_max'] = 0;
     }
 
     $delayMs = max(200, min(5000, (int) ($opts['message_delay_ms'] ?? 650)));

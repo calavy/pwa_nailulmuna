@@ -9,6 +9,8 @@ require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
+require_once __DIR__ . '/../helpers/rekap_periode.php';
+
 require_roles(['admin', 'pengurus']);
 
 if (!table_exists($pdo, 'presensi')) {
@@ -17,53 +19,20 @@ if (!table_exists($pdo, 'presensi')) {
     exit;
 }
 
-require_once __DIR__ . '/../helpers/pondok_kalender.php';
-$defaultRekapMode = pondok_kalender_hijriyah($pdo) ? 'hijriyah' : 'masehi';
-$mode = $_GET['mode'] ?? $defaultRekapMode;
-if (!in_array($mode, ['masehi', 'hijriyah'], true)) {
-    $mode = $defaultRekapMode;
-}
-$previousMode = $_GET['previous_mode'] ?? $mode;
-if (!in_array($previousMode, ['masehi', 'hijriyah'], true)) {
-    $previousMode = $mode;
-}
-$appTahunMasehiDefault = app_tahun_masehi_default($pdo);
-$tahunMasehiLiteralBerjalan = (int) date('Y');
-$anchorMasehiYear = (int) ($_GET['anchor_masehi_year'] ?? $appTahunMasehiDefault);
-$month = (int) ($_GET['month'] ?? date('m'));
-$year = (int) ($_GET['year'] ?? $appTahunMasehiDefault);
-$month = max(1, min(12, $month));
-if ($previousMode !== $mode) {
-    if ($previousMode === 'masehi' && $mode === 'hijriyah') {
-        $anchorMasehiYear = $year;
-        $convertedHijriYm = get_hijri_ym_from_gregorian_month($year, $month);
-        $year = (int) substr($convertedHijriYm, 0, 4);
-        $month = (int) substr($convertedHijriYm, 5, 2);
-    } elseif ($previousMode === 'hijriyah' && $mode === 'masehi') {
-        [$convertedStartDate, $convertedEndDate] = akademik_gregorian_range_from_hijri_month($pdo, $year, $month);
-        $year = (int) date('Y', strtotime($convertedStartDate));
-        $month = (int) date('m', strtotime($convertedStartDate));
-    }
-}
-$currentMasehiYear = $tahunMasehiLiteralBerjalan;
-$anchorHijriIni = akademik_hijri_anchor_hari_ini($pdo);
-$currentHijriYm = sprintf('%04d-%02d', $anchorHijriIni['y'], $anchorHijriIni['m']);
-$currentHijriYear = $anchorHijriIni['y'];
-$yearMin = $mode === 'hijriyah' ? 1300 : 1900;
-$yearMax = $mode === 'hijriyah' ? 1700 : 2100;
-if ($year <= 0) {
-    $year = $mode === 'hijriyah' ? $currentHijriYear : $appTahunMasehiDefault;
-}
-$year = max($yearMin, min($yearMax, $year));
-if ($mode === 'masehi') {
-    $anchorMasehiYear = $year;
-} else {
-    $anchorMasehiYear = max(1900, min(2100, $anchorMasehiYear));
-    $convertedHijriFromAnchor = get_hijri_ym_from_gregorian_month($anchorMasehiYear, $month);
-    $year = (int) substr($convertedHijriFromAnchor, 0, 4);
-}
-$tingkatan = trim($_GET['tingkatan'] ?? '');
-$reportType = trim($_GET['report_type'] ?? 'all');
+$periode = rekap_resolve_periode($pdo, $_GET);
+$mode = $periode['mode'];
+$month = (int) $periode['month'];
+$year = (int) $periode['year'];
+$filterStart = $periode['start_date'];
+$filterEnd = $periode['end_date'];
+$periodeLabel = $periode['label'];
+$rentangTampilan = $periode['rentang_tampilan'];
+$kalenderHijriyahKey = $periode['kalender_hijriyah_key'];
+$hijriToGregorianStart = $filterStart;
+$hijriToGregorianEnd = $filterEnd;
+
+$tingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
+$reportType = trim((string) ($_GET['report_type'] ?? 'all'));
 $show = ($_GET['show'] ?? '1') === '1';
 $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
@@ -83,112 +52,32 @@ $logo = app_pondok_logo_href($pdo, false);
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
 $masehiMonths = [
-    1 => 'Januari',
-    2 => 'Februari',
-    3 => 'Maret',
-    4 => 'April',
-    5 => 'Mei',
-    6 => 'Juni',
-    7 => 'Juli',
-    8 => 'Agustus',
-    9 => 'September',
-    10 => 'Oktober',
-    11 => 'November',
-    12 => 'Desember',
+    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+    7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
 ];
 $hijriyahMonths = hijri_nama_bulan_list();
 $monthName = $mode === 'hijriyah' ? ($hijriyahMonths[$month] ?? '-') : ($masehiMonths[$month] ?? '-');
-$hijriEquivalent = get_hijri_ym_from_gregorian_month($year, $month);
-[$hijriToGregorianStart, $hijriToGregorianEnd] = akademik_gregorian_range_from_hijri_month($pdo, $year, $month);
-$hijriEquivalentMonth = (int) substr($hijriEquivalent, 5, 2);
-$hijriEquivalentYear = (int) substr($hijriEquivalent, 0, 4);
-$hijriEquivalentLabel = ($hijriyahMonths[$hijriEquivalentMonth] ?? $hijriEquivalentMonth) . ' ' . $hijriEquivalentYear;
-$masehiEquivalentMonth = (int) date('m', strtotime($hijriToGregorianStart));
-$masehiEquivalentYear = (int) date('Y', strtotime($hijriToGregorianStart));
-$masehiEquivalentLabel = ($masehiMonths[$masehiEquivalentMonth] ?? $masehiEquivalentMonth) . ' ' . $masehiEquivalentYear;
-$periodBridgeLabel = $mode === 'masehi'
-    ? ($monthName . ' ' . $year . ' <-> ' . $hijriEquivalentLabel)
-    : ($masehiEquivalentLabel . ' <-> ' . $monthName . ' ' . $year);
+$periodBridgeLabel = $periodeLabel . ' · ' . $rentangTampilan;
+if ($mode === 'masehi' && ($periode['hijri_label'] ?? '') !== '') {
+    $periodBridgeLabel .= ' (≈ ' . $periode['hijri_label'] . ')';
+}
 
 $sqlAktifSantriRekap = santri_sql_aktif_only('s');
 
 $rows = [];
 $refreshFinalize = isset($_GET['refresh_finalize']) && (string) $_GET['refresh_finalize'] === '1';
 if ($show) {
-    $filterStartPre = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
-    $filterEndPre = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStartPre));
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    presensi_finalize_date_range($pdo, $filterStartPre, $filterEndPre, $auditUserId > 0 ? $auditUserId : 1, $refreshFinalize);
+    presensi_finalize_date_range($pdo, $filterStart, $filterEnd, $auditUserId > 0 ? $auditUserId : 1, $refreshFinalize);
     if ($refreshFinalize) {
         set_flash('success', 'Status ALPA/izin bulan ini disegarkan ulang.');
     }
 
-    $filterStart = $mode === 'hijriyah' ? $hijriToGregorianStart : sprintf('%04d-%02d-01', $year, $month);
-    $filterEnd = $mode === 'hijriyah' ? $hijriToGregorianEnd : date('Y-m-t', strtotime($filterStart));
-    $clampedRekap = rekap_keaktifan_clamp_periode($pdo, $filterStart, $filterEnd);
-    if ($clampedRekap === null) {
-        $rows = [];
-    } else {
-        [$filterStart, $filterEnd] = $clampedRekap;
-        if ($mode === 'hijriyah') {
-            $statement = $pdo->prepare('
-                SELECT
-                    p.tanggal_presensi,
-                    p.status_presensi,
-                    p.catatan,
-                    s.id AS santri_id,
-                    s.nama_santri,
-                    s.tingkatan,
-                    p.kegiatan_id,
-                    COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
-                FROM presensi p
-                INNER JOIN santri s ON s.id = p.santri_id
-                LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-                WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
-                  AND p.kalender_hijriyah = :kalender_hijriyah
-                  AND ' . $sqlAktifSantriRekap . '
-            ');
-            $statement->execute([
-                'start_date' => $filterStart,
-                'end_date' => $filterEnd,
-                'kalender_hijriyah' => sprintf('%04d-%02d', $year, $month),
-            ]);
-            $rows = $statement->fetchAll();
-            if ($tingkatan !== '') {
-                $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
-                    return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
-                }));
-            }
-        } else {
-            $statement = $pdo->prepare('
-                SELECT
-                    p.tanggal_presensi,
-                    p.status_presensi,
-                    p.catatan,
-                    s.id AS santri_id,
-                    s.nama_santri,
-                    s.tingkatan,
-                    p.kegiatan_id,
-                    COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan
-                FROM presensi p
-                INNER JOIN santri s ON s.id = p.santri_id
-                LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-                WHERE p.tanggal_presensi BETWEEN :start_date AND :end_date
-                  AND ' . $sqlAktifSantriRekap . '
-            ');
-            $statement->execute([
-                'start_date' => $filterStart,
-                'end_date' => $filterEnd,
-            ]);
-            $rows = $statement->fetchAll();
-            if ($tingkatan !== '') {
-                $rows = array_values(array_filter($rows, static function ($item) use ($tingkatan): bool {
-                    return strtolower((string) $item['tingkatan']) === strtolower($tingkatan);
-                }));
-            }
-        }
-
-        $rows = presensi_filter_rows_eligible($pdo, $rows, $filterStart, $filterEnd);
+    $rows = presensi_fetch_rows_rekap_periode($pdo, $periode, 0);
+    if ($tingkatan !== '') {
+        $rows = array_values(array_filter($rows, static function (array $item) use ($tingkatan): bool {
+            return strtolower((string) ($item['tingkatan'] ?? '')) === strtolower($tingkatan);
+        }));
     }
 }
 
@@ -426,90 +315,52 @@ $flashErr = get_flash('error');
                 <a href="/rekap/perizinan.php" class="btn btn-outline-primary btn-sm">Rekap Perizinan</a>
             </div>
         <?php endif; ?>
-        <form method="get" class="row g-2" id="rekap-filter-form">
-            <input type="hidden" name="previous_mode" id="previous-mode" value="<?= htmlspecialchars($mode) ?>">
-            <input type="hidden" name="anchor_masehi_year" id="anchor-masehi-year" value="<?= htmlspecialchars((string) $anchorMasehiYear) ?>">
-            <div class="col-md-2">
-                <label class="form-label">Mode</label>
-                <select class="form-select" name="mode" id="mode-kalender">
-                    <option value="masehi" <?= $mode === 'masehi' ? 'selected' : '' ?>>Masehi</option>
-                    <option value="hijriyah" <?= $mode === 'hijriyah' ? 'selected' : '' ?>>Hijriyah</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Bulan</label>
-                <select class="form-select" name="month" id="periode-bulan">
-                    <?php $activeMonthList = $mode === 'hijriyah' ? $hijriyahMonths : $masehiMonths; ?>
-                    <?php foreach ($activeMonthList as $monthNumber => $monthLabel): ?>
-                        <option value="<?= $monthNumber ?>" <?= $month === $monthNumber ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($monthLabel) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">Tahun</label>
-                <input
-                    class="form-control"
-                    type="number"
-                    min="<?= $yearMin ?>"
-                    max="<?= $yearMax ?>"
-                    name="year"
-                    id="periode-tahun"
-                    <?= $mode === 'hijriyah' ? 'readonly' : '' ?>
-                    value="<?= htmlspecialchars((string) $year) ?>"
-                >
-            </div>
+        <form method="get" class="mb-0" id="rekap-filter-form">
             <input type="hidden" name="show" value="1">
+            <?php
+            $wrapCard = false;
+            $submitLabel = 'Tampilkan Rekap';
+            $rekapPeriodeExtraSlot = '
             <div class="col-md-3">
-                <label class="form-label">Jenis Rekap</label>
-                <select class="form-select" name="report_type">
-                    <option value="all" <?= $reportType === 'all' ? 'selected' : '' ?>>Semua</option>
-                    <option value="per_tingkatan" <?= $reportType === 'per_tingkatan' ? 'selected' : '' ?>>Per Tingkatan (berdasarkan kegiatan)</option>
-                    <option value="per_santri" <?= $reportType === 'per_santri' ? 'selected' : '' ?>>Per Santri (AIST per kegiatan)</option>
-                    <option value="per_kegiatan" <?= $reportType === 'per_kegiatan' ? 'selected' : '' ?>>Per Kegiatan (daftar santri)</option>
+                <label class="form-label small mb-0">Jenis Rekap</label>
+                <select class="form-select form-select-sm" name="report_type">
+                    <option value="all"' . ($reportType === 'all' ? ' selected' : '') . '>Semua</option>
+                    <option value="per_tingkatan"' . ($reportType === 'per_tingkatan' ? ' selected' : '') . '>Per Tingkatan</option>
+                    <option value="per_santri"' . ($reportType === 'per_santri' ? ' selected' : '') . '>Per Santri</option>
+                    <option value="per_kegiatan"' . ($reportType === 'per_kegiatan' ? ' selected' : '') . '>Per Kegiatan</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Tingkatan (opsional)</label>
-                <?php if ($tingkatanList): ?>
-                    <select class="form-select" name="tingkatan">
-                        <option value="">Semua Tingkatan</option>
-                        <?php foreach ($tingkatanList as $tg): ?>
-                            <option value="<?= htmlspecialchars($tg) ?>" <?= strtolower($tingkatan) === strtolower($tg) ? 'selected' : '' ?>><?= htmlspecialchars($tg) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                <?php else: ?>
-                    <input class="form-control" type="text" name="tingkatan" value="<?= htmlspecialchars($tingkatan) ?>" placeholder="Contoh: SMP">
-                <?php endif; ?>
+                <label class="form-label small mb-0">Tingkatan</label>';
+            if ($tingkatanList) {
+                $rekapPeriodeExtraSlot .= '<select class="form-select form-select-sm" name="tingkatan"><option value="">Semua</option>';
+                foreach ($tingkatanList as $tg) {
+                    $rekapPeriodeExtraSlot .= '<option value="' . htmlspecialchars((string) $tg) . '"' . (strtolower($tingkatan) === strtolower((string) $tg) ? ' selected' : '') . '>' . htmlspecialchars((string) $tg) . '</option>';
+                }
+                $rekapPeriodeExtraSlot .= '</select>';
+            } else {
+                $rekapPeriodeExtraSlot .= '<input class="form-control form-control-sm" type="text" name="tingkatan" value="' . htmlspecialchars($tingkatan) . '" placeholder="Opsional">';
+            }
+            $rekapPeriodeExtraSlot .= '
             </div>
             <div class="col-md-2">
-                <label class="form-label">Kertas</label>
-                <select class="form-select" name="paper">
-                    <option value="A4" <?= $paper === 'A4' ? 'selected' : '' ?>>A4</option>
-                    <option value="F4" <?= $paper === 'F4' ? 'selected' : '' ?>>F4</option>
+                <label class="form-label small mb-0">Kertas</label>
+                <select class="form-select form-select-sm" name="paper">
+                    <option value="A4"' . ($paper === 'A4' ? ' selected' : '') . '>A4</option>
+                    <option value="F4"' . ($paper === 'F4' ? ' selected' : '') . '>F4</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-success w-100">Tampilkan Rekap</button>
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="button" class="btn btn-outline-dark w-100" onclick="window.print()">Cetak Resmi A4/F4</button>
-            </div>
+            <div class="col-md-auto d-flex align-items-end">
+                <button type="button" class="btn btn-outline-dark btn-sm" onclick="window.print()">Cetak</button>
+            </div>';
+            require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+            unset($rekapPeriodeExtraSlot);
+            ?>
         </form>
         <div class="mt-2 small text-muted">
-            Rekap dan grafik perbandingan bulan memuat otomatis untuk periode terpilih; ubah filter lalu <strong>Tampilkan Rekap</strong>.
+            Rekap dan grafik memuat otomatis untuk periode terpilih.
             <br>
-            <?php if ($mode === 'masehi'): ?>
-                Periode Masehi: <strong><?= htmlspecialchars($monthName . ' ' . $year) ?></strong>.
-                Konversi otomatis ke Hijriyah: <strong><?= htmlspecialchars($hijriEquivalentLabel) ?></strong>.
-            <?php else: ?>
-                Periode Hijriyah: <strong><?= htmlspecialchars($monthName . ' ' . $year) ?></strong>.
-                Konversi otomatis ke Masehi:
-                <strong><?= htmlspecialchars($hijriToGregorianStart) ?></strong> s/d <strong><?= htmlspecialchars($hijriToGregorianEnd) ?></strong>.
-            <?php endif; ?>
-            <br>
-            Padanan periode: <strong><?= htmlspecialchars($periodBridgeLabel) ?></strong>.
+            <strong><?= htmlspecialchars($periodBridgeLabel) ?></strong>
         </div>
     </div>
 </div>
@@ -787,61 +638,4 @@ $flashErr = get_flash('error');
 })();
 </script>
 <?php endif; ?>
-<script>
-    (function () {
-        const form = document.getElementById('rekap-filter-form');
-        const modeSelect = document.getElementById('mode-kalender');
-        const monthSelect = document.getElementById('periode-bulan');
-        const yearInput = document.getElementById('periode-tahun');
-        const previousModeInput = document.getElementById('previous-mode');
-        const anchorMasehiYearInput = document.getElementById('anchor-masehi-year');
-        if (!form || !modeSelect) {
-            return;
-        }
-
-        const initialMode = modeSelect.value;
-        modeSelect.addEventListener('change', function () {
-            if (previousModeInput) {
-                previousModeInput.value = initialMode;
-            }
-            if (anchorMasehiYearInput && yearInput && initialMode === 'masehi') {
-                anchorMasehiYearInput.value = yearInput.value || '<?= (int) $currentMasehiYear ?>';
-            }
-            if (yearInput) {
-                if (modeSelect.value === 'hijriyah') {
-                    yearInput.min = '1300';
-                    yearInput.max = '1700';
-                    yearInput.readOnly = true;
-                    const yearVal = parseInt(yearInput.value || '0', 10);
-                    if (!yearVal || yearVal < 1300 || yearVal > 1700) {
-                        yearInput.value = '<?= (int) $currentHijriYear ?>';
-                    }
-                } else {
-                    yearInput.min = '1900';
-                    yearInput.max = '2100';
-                    yearInput.readOnly = false;
-                    const yearVal = parseInt(yearInput.value || '0', 10);
-                    if (!yearVal || yearVal < 1900 || yearVal > 2100) {
-                        yearInput.value = '<?= (int) $currentMasehiYear ?>';
-                    }
-                }
-            }
-            // Otomatis muat ulang agar konversi kalender langsung terapkan.
-            form.submit();
-        });
-        if (monthSelect) {
-            monthSelect.addEventListener('change', function () {
-                form.submit();
-            });
-        }
-        if (yearInput) {
-            yearInput.addEventListener('change', function () {
-                if (anchorMasehiYearInput && modeSelect.value === 'masehi') {
-                    anchorMasehiYearInput.value = yearInput.value || '<?= (int) $currentMasehiYear ?>';
-                }
-                form.submit();
-            });
-        }
-    })();
-</script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

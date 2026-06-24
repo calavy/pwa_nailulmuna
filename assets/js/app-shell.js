@@ -172,12 +172,135 @@
         });
     }
 
+    function initSmoothNavigation() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return;
+        }
+        if (document.body.classList.contains('app-scan-page') || document.body.classList.contains('app-kiosk')) {
+            return;
+        }
+        document.body.classList.add('app-ready');
+        document.addEventListener('click', function (e) {
+            var link = e.target.closest('a[href]');
+            if (!link || link.target === '_blank' || link.hasAttribute('download') || link.dataset.noTransition === '1') {
+                return;
+            }
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                return;
+            }
+            var href = link.getAttribute('href');
+            if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+                return;
+            }
+            try {
+                var url = new URL(link.href, window.location.href);
+                if (url.origin !== window.location.origin) {
+                    return;
+                }
+            } catch (err) {
+                return;
+            }
+            e.preventDefault();
+            document.body.classList.add('app-page-leaving');
+            window.setTimeout(function () {
+                window.location.href = link.href;
+            }, 150);
+        });
+    }
+
+    function toggleRekapRankDetail(summaryRow) {
+        var id = summaryRow.getAttribute('data-rank-detail');
+        if (!id) {
+            return;
+        }
+        var detail = document.getElementById('rank-detail-' + id);
+        if (!detail) {
+            return;
+        }
+        var willOpen = !detail.classList.contains('is-open');
+        document.querySelectorAll('.rekap-rank-detail.is-open').forEach(function (row) {
+            row.classList.remove('is-open');
+        });
+        document.querySelectorAll('.rekap-rank-summary.is-expanded').forEach(function (row) {
+            row.classList.remove('is-expanded');
+            row.setAttribute('aria-expanded', 'false');
+        });
+        if (willOpen) {
+            detail.classList.add('is-open');
+            summaryRow.classList.add('is-expanded');
+            summaryRow.setAttribute('aria-expanded', 'true');
+            var tingkatan = summaryRow.getAttribute('data-tingkatan') || '';
+            if (tingkatan && window.history && window.history.replaceState) {
+                try {
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('tingkatan', tingkatan);
+                    window.history.replaceState({}, '', url.toString());
+                } catch (err) { /* ignore */ }
+            }
+            window.setTimeout(function () {
+                detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 80);
+        } else if (window.history && window.history.replaceState) {
+            try {
+                var closeUrl = new URL(window.location.href);
+                closeUrl.searchParams.delete('tingkatan');
+                window.history.replaceState({}, '', closeUrl.toString());
+            } catch (err2) { /* ignore */ }
+        }
+    }
+
+    function initRekapRankExpand() {
+        document.querySelectorAll('.rekap-rank-summary').forEach(function (row) {
+            if (row.dataset.rankExpandBound === '1') {
+                return;
+            }
+            row.dataset.rankExpandBound = '1';
+            row.addEventListener('click', function (e) {
+                if (e.target.closest('a, button, input, select, label')) {
+                    return;
+                }
+                toggleRekapRankDetail(row);
+            });
+            row.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleRekapRankDetail(row);
+                }
+            });
+        });
+        document.querySelectorAll('.yp-rank-podium__item[data-rank-detail]').forEach(function (item) {
+            if (item.dataset.rankExpandBound === '1') {
+                return;
+            }
+            item.dataset.rankExpandBound = '1';
+            item.addEventListener('click', function () {
+                var idx = item.getAttribute('data-rank-detail');
+                var summary = document.querySelector('.rekap-rank-summary[data-rank-detail="' + idx + '"]');
+                if (summary) {
+                    if (!summary.classList.contains('is-expanded')) {
+                        toggleRekapRankDetail(summary);
+                    } else {
+                        summary.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+            });
+        });
+        var preOpen = document.querySelector('.rekap-rank-detail.is-open');
+        if (preOpen) {
+            window.setTimeout(function () {
+                preOpen.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 200);
+        }
+    }
+
     function init() {
         cleanupStaleOverlays();
         dismissFlashAlerts();
         initDesktopSidebar();
         initMobileMenu();
         initSwipeTabs();
+        initSmoothNavigation();
+        initRekapRankExpand();
     }
 
     document.addEventListener('DOMContentLoaded', init);

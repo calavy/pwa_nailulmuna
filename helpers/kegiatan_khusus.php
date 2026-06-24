@@ -55,6 +55,15 @@ function kegiatan_khusus_ensure_schema(PDO $pdo): void
     }
 }
 
+function kegiatan_khusus_ensure_schema_deferred(PDO $pdo): void
+{
+    if (!empty($_SESSION['kegiatan_khusus_schema_ready_v1'])) {
+        return;
+    }
+    kegiatan_khusus_ensure_schema($pdo);
+    $_SESSION['kegiatan_khusus_schema_ready_v1'] = 1;
+}
+
 /** @return list<string> */
 function kegiatan_khusus_tingkatan_list(PDO $pdo): array
 {

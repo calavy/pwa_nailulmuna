@@ -8,20 +8,32 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
+require_once __DIR__ . '/../helpers/rekap_periode.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 
-$tahun = (int) ($_GET['tahun'] ?? date('Y'));
-if ($tahun < 2000 || $tahun > 2100) {
-    $tahun = (int) date('Y');
-}
-$dari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
-$sampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
-    $dari = date('Y-m-01');
-}
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
-    $sampai = date('Y-m-d');
+$periode = rekap_resolve_periode($pdo, $_GET);
+$periodeLabelPkpps = (string) ($periode['label'] ?? '');
+$rentangPkpps = (string) ($periode['rentang_tampilan'] ?? '');
+$filterMode = ($_GET['filter_mode'] ?? 'bulan') === 'rentang' ? 'rentang' : 'bulan';
+
+if ($filterMode === 'bulan') {
+    $dari = $periode['start_date'];
+    $sampai = $periode['end_date'];
+    $tahun = $periode['mode'] === 'masehi' ? (int) $periode['year'] : (int) date('Y', strtotime($dari));
+} else {
+    $tahun = (int) ($_GET['tahun'] ?? date('Y'));
+    if ($tahun < 2000 || $tahun > 2100) {
+        $tahun = (int) date('Y');
+    }
+    $dari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
+    $sampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
+        $dari = date('Y-m-01');
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
+        $sampai = date('Y-m-d');
+    }
 }
 
 $syncPresensi = isset($_GET['sync']) && (string) $_GET['sync'] === '1';
@@ -71,32 +83,62 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0 small">Rekap kehadiran santri PKPPS (tahun) dan pembimbing PKPPS (periode). Untuk tampilan harian kartu, buka <a href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktifan_hari.php')) ?>">Keaktifan PKPPS hari ini</a>.</p>
 </div>
 
-<form class="row g-2 align-items-end mb-3" method="get">
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Tahun santri</label>
-        <input type="number" name="tahun" class="form-control form-control-sm" min="2000" max="2100" value="<?= (int) $tahun ?>">
+<div class="mb-3">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+        <form method="get" class="d-inline">
+            <?php foreach (['mode' => $periode['mode'], 'month' => $periode['month'], 'year' => $periode['year']] as $hk => $hv): ?>
+                <input type="hidden" name="<?= htmlspecialchars((string) $hk) ?>" value="<?= htmlspecialchars((string) $hv) ?>">
+            <?php endforeach; ?>
+            <input type="hidden" name="filter_mode" value="bulan">
+            <input type="hidden" name="tahun" value="<?= (int) $tahun ?>">
+            <button type="submit" class="btn btn-sm <?= $filterMode === 'bulan' ? 'btn-primary' : 'btn-outline-secondary' ?>">Per bulan</button>
+        </form>
+        <form method="get" class="d-inline">
+            <input type="hidden" name="filter_mode" value="rentang">
+            <input type="hidden" name="tahun" value="<?= (int) $tahun ?>">
+            <input type="hidden" name="dari" value="<?= htmlspecialchars($dari) ?>">
+            <input type="hidden" name="sampai" value="<?= htmlspecialchars($sampai) ?>">
+            <button type="submit" class="btn btn-sm <?= $filterMode === 'rentang' ? 'btn-primary' : 'btn-outline-secondary' ?>">Rentang tanggal</button>
+        </form>
     </div>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Dari (pembimbing)</label>
-        <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($dari) ?>">
-    </div>
-    <div class="col-6 col-md-2">
-        <label class="form-label small mb-0">Sampai</label>
-        <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>">
-    </div>
-    <div class="col-auto d-flex flex-wrap gap-1">
-        <button class="btn btn-primary btn-sm">Terapkan</button>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php?' . http_build_query(array_filter([
-            'tahun' => (string) $tahun,
-            'dari' => $dari,
-            'sampai' => $sampai,
-            'sync' => '1',
-        ])))) ?>">Sinkron presensi</a>
-    </div>
-</form>
+    <?php if ($filterMode === 'bulan'): ?>
+        <?php
+        $wrapCard = false;
+        $extraHidden = ['filter_mode' => 'bulan', 'tahun' => (string) $tahun];
+        $periodeNote = 'Santri PKPPS mengikuti tahun masehi periode';
+        require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+        ?>
+    <?php else: ?>
+        <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="filter_mode" value="rentang">
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-0">Tahun santri</label>
+                <input type="number" name="tahun" class="form-control form-control-sm" min="2000" max="2100" value="<?= (int) $tahun ?>">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-0">Dari (pembimbing)</label>
+                <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($dari) ?>">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-0">Sampai</label>
+                <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($sampai) ?>">
+            </div>
+            <div class="col-auto d-flex flex-wrap gap-1">
+                <button class="btn btn-primary btn-sm">Terapkan</button>
+                <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php?' . http_build_query(array_filter([
+                    'filter_mode' => 'rentang',
+                    'tahun' => (string) $tahun,
+                    'dari' => $dari,
+                    'sampai' => $sampai,
+                    'sync' => '1',
+                ])))) ?>" data-no-transition="1">Sinkron presensi</a>
+            </div>
+        </form>
+    <?php endif; ?>
+</div>
 
 <div class="card shadow-sm mb-3">
-    <div class="card-header"><strong>Keaktivan Santri PKPPS — Tahun <?= (int) $tahun ?></strong></div>
+    <div class="card-header"><strong>Keaktivan Santri PKPPS — Tahun masehi <?= (int) $tahun ?></strong> <span class="small text-muted fw-normal">(Jan–Des, terpisah dari filter bulan)</span></div>
     <div class="table-responsive">
         <table class="table table-sm table-striped mb-0 align-middle">
             <thead class="table-light">
@@ -135,7 +177,7 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="card shadow-sm mb-3">
-    <div class="card-header"><strong>Keaktivan Pembimbing PKPPS — <?= htmlspecialchars($dari) ?> s/d <?= htmlspecialchars($sampai) ?></strong></div>
+    <div class="card-header"><strong>Keaktivan Pembimbing PKPPS — <?= $filterMode === 'bulan' ? htmlspecialchars($periodeLabelPkpps . ' (' . $rentangPkpps . ')') : htmlspecialchars($dari . ' s/d ' . $sampai) ?></strong></div>
     <div class="table-responsive">
         <table class="table table-sm table-striped mb-0 align-middle">
             <thead class="table-light">

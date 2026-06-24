@@ -145,3 +145,66 @@ function presensi_list_tanpa_kegiatan(PDO $pdo, int $limit = 200): array
 
     return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+
+/** Skema tabel scan pembimbing — sekali per sesi, bukan tiap buka kamera. */
+function presensi_scan_ensure_schema_deferred(PDO $pdo): void
+{
+    if (!empty($_SESSION['presensi_scan_schema_ready_v1'])) {
+        return;
+    }
+    if (!table_exists($pdo, 'pembimbing')) {
+        $_SESSION['presensi_scan_schema_ready_v1'] = 1;
+
+        return;
+    }
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS presensi_pembimbing (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pembimbing_id INT NOT NULL,
+            kegiatan_id INT NULL,
+            tanggal DATE NOT NULL,
+            jam TIME NOT NULL,
+            jenis_scan ENUM("DATANG","PULANG") NOT NULL DEFAULT "DATANG",
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pembimbing_id) REFERENCES pembimbing(id) ON DELETE CASCADE
+        )
+    ');
+    try {
+        $pdo->exec('ALTER TABLE presensi_pembimbing ADD COLUMN IF NOT EXISTS kegiatan_id INT NULL AFTER pembimbing_id');
+    } catch (PDOException $e) {
+        // abaikan
+    }
+    ensure_jadwal_kegiatan_tempat($pdo);
+    $_SESSION['presensi_scan_schema_ready_v1'] = 1;
+}
+
+/** Konteks jadwal scan — cache singkat agar reload halaman tidak memukul DB berulang. */
+function presensi_scan_jadwal_context_cached(PDO $pdo, bool $forceRefresh = false): array
+{
+    require_once __DIR__ . '/presensi_scan_jadwal.php';
+    $cacheKey = 'presensi_scan_jadwal_ctx_v1';
+    $tsKey = 'presensi_scan_jadwal_ctx_ts_v1';
+    $now = time();
+    if (
+        !$forceRefresh
+        && isset($_SESSION[$cacheKey], $_SESSION[$tsKey])
+        && is_array($_SESSION[$cacheKey])
+        && ($now - (int) $_SESSION[$tsKey]) < 20
+    ) {
+        return $_SESSION[$cacheKey];
+    }
+    $ctx = presensi_scan_jadwal_context($pdo);
+    $_SESSION[$cacheKey] = $ctx;
+    $_SESSION[$tsKey] = $now;
+
+    return $ctx;
+}
+
+function presensi_scan_jadwal_context_invalidate(): void
+{
+    unset(
+        $_SESSION['presensi_scan_jadwal_ctx_v1'],
+        $_SESSION['presensi_scan_jadwal_ctx_ts_v1']
+    );
+}
