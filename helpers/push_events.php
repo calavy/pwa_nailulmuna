@@ -29,7 +29,8 @@ function perizinan_push_setelah_pengajuan(
     string $nis,
     string $jenisKode,
     string $tanggalMulai,
-    string $tanggalSelesai
+    string $tanggalSelesai,
+    array $waDetail = []
 ): void {
     $label = jenis_izin_label($jenisKode);
     push_event_izin_pengajuan_baru($pdo, $namaSantri, $nis, $label, $tanggalMulai, $tanggalSelesai);
@@ -43,6 +44,79 @@ function perizinan_push_setelah_pengajuan(
             'jenis' => perizinan_jenis_izin_normalize($jenisKode),
         ], '/perizinan/index.php');
     }
+
+    perizinan_wa_kirim_permohonan_baru(
+        $pdo,
+        $jenisKode,
+        $namaSantri,
+        $nis,
+        (string) ($waDetail['tingkatan'] ?? ''),
+        $tanggalMulai,
+        $tanggalSelesai,
+        (string) ($waDetail['jam_mulai'] ?? ''),
+        (string) ($waDetail['jam_selesai'] ?? ''),
+        (string) ($waDetail['alasan'] ?? ''),
+        (string) ($waDetail['tujuan'] ?? '')
+    );
+}
+
+/**
+ * Kirim WA permohonan izin baru langsung saat pengajuan (bukan lewat cron).
+ *
+ * @return array{sent:int,skipped:bool,reason:string}
+ */
+function perizinan_wa_kirim_permohonan_baru(
+    PDO $pdo,
+    string $jenisIzin,
+    string $namaSantri,
+    string $nis = '',
+    string $tingkatan = '',
+    string $tanggalMulai = '',
+    string $tanggalSelesai = '',
+    string $jamMulai = '',
+    string $jamSelesai = '',
+    string $alasan = '',
+    string $tujuan = ''
+): array {
+    if (!function_exists('wa_permohonan_izin_should_notify')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!wa_permohonan_izin_should_notify($pdo, $jenisIzin)) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'disabled_or_jenis'];
+    }
+    if (trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'master_off'];
+    }
+
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'gateway'];
+    }
+
+    $target = wa_permohonan_izin_target($pdo);
+    if ($target === '') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_target'];
+    }
+
+    $msg = wa_format_pengajuan_izin_baru(
+        $pdo,
+        $namaSantri,
+        $nis,
+        $tingkatan,
+        $jenisIzin,
+        $tanggalMulai,
+        $tanggalSelesai,
+        substr($jamMulai, 0, 5) !== '' ? substr($jamMulai, 0, 5) : date('H:i'),
+        substr($jamSelesai, 0, 5) !== '' ? substr($jamSelesai, 0, 5) : date('H:i'),
+        $alasan,
+        $tujuan
+    );
+
+    return [
+        'sent' => send_wa_bulk($pdo, $target, $msg),
+        'skipped' => false,
+        'reason' => '',
+    ];
 }
 
 function push_event_izin_disetujui_wali(

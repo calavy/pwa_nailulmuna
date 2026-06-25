@@ -176,33 +176,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $notifMsg = wa_format_pengajuan_izin_baru(
-        $pdo,
-        (string) ($sInfoRow['nama_santri'] ?? '-'),
-        (string) ($sInfoRow['nis'] ?? ''),
-        (string) ($sInfoRow['tingkatan'] ?? ''),
-        (string) $data['jenis_izin'],
-        (string) $data['tanggal_mulai'],
-        (string) $data['tanggal_selesai'],
-        substr((string) $data['jam_mulai'], 0, 5),
-        substr((string) $data['jam_selesai'], 0, 5),
-        (string) $data['alasan'],
-        (string) ($data['tujuan'] ?? '')
-    );
+    $waDetail = [
+        'tingkatan' => (string) ($sInfoRow['tingkatan'] ?? ''),
+        'jam_mulai' => substr((string) $data['jam_mulai'], 0, 5),
+        'jam_selesai' => substr((string) $data['jam_selesai'], 0, 5),
+        'alasan' => (string) $data['alasan'],
+        'tujuan' => (string) ($data['tujuan'] ?? ''),
+    ];
     perizinan_push_setelah_pengajuan(
         $pdo,
         (string) ($sInfoRow['nama_santri'] ?? '-'),
         (string) ($sInfoRow['nis'] ?? ''),
         (string) $data['jenis_izin'],
         (string) $data['tanggal_mulai'],
-        (string) $data['tanggal_selesai']
+        (string) $data['tanggal_selesai'],
+        $waDetail
     );
-    if (push_should_send_wa($pdo) && wa_permohonan_izin_should_notify($pdo, (string) $data['jenis_izin'])) {
-        $waIzinTarget = wa_permohonan_izin_target($pdo);
-        if ($waIzinTarget !== '') {
-            send_wa_bulk($pdo, $waIzinTarget, $notifMsg);
-        }
-    }
 
     if (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
         $flashOk = 'Permohonan izin syar\'i terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';

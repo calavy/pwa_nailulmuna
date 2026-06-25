@@ -49,7 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     '',
                     $jenisRombongan,
                     trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
-                    trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d')))
+                    trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d'))),
+                    [
+                        'jam_mulai' => trim((string) ($_POST['jam_mulai'] ?? date('H:i'))),
+                        'jam_selesai' => trim((string) ($_POST['jam_selesai'] ?? date('H:i'))),
+                        'alasan' => trim((string) ($_POST['alasan'] ?? '')),
+                        'tujuan' => trim((string) ($_POST['tujuan'] ?? '')),
+                    ]
                 );
             }
             set_flash('success', $res['message']);

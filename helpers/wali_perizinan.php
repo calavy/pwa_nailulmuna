@@ -178,7 +178,8 @@ function wali_perizinan_ajukan(
         $pdo->commit();
 
         $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-        $stInfo = $pdo->prepare('SELECT ' . $nameCol . ' AS nama_santri, nis FROM santri WHERE id = :id LIMIT 1');
+        $tingkatanSelect = column_exists($pdo, 'santri', 'tingkatan') ? 'tingkatan' : "'' AS tingkatan";
+        $stInfo = $pdo->prepare('SELECT ' . $nameCol . ' AS nama_santri, nis, ' . $tingkatanSelect . ' FROM santri WHERE id = :id LIMIT 1');
         $stInfo->execute(['id' => $santriId]);
         $sInfo = $stInfo->fetch(PDO::FETCH_ASSOC) ?: [];
         require_once __DIR__ . '/push_events.php';
@@ -188,7 +189,14 @@ function wali_perizinan_ajukan(
             (string) ($sInfo['nis'] ?? ''),
             $jenisIzin,
             $tanggalMulai,
-            $tanggalSelesai
+            $tanggalSelesai,
+            [
+                'tingkatan' => (string) ($sInfo['tingkatan'] ?? ''),
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'alasan' => $alasan,
+                'tujuan' => $tujuan,
+            ]
         );
 
         $msg = 'Permohonan izin #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';
