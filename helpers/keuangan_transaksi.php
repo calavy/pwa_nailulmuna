@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/keuangan_defs.php';
+require_once __DIR__ . '/keuangan_kelas_makan.php';
 require_once __DIR__ . '/santri_operasional.php';
 require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/pondok_kalender.php';
