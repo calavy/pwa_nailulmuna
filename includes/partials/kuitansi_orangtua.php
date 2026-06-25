@@ -16,6 +16,7 @@ $showQr = $showQr ?? true;
 $noKw = (string) ($kuitansi['no_kuitansi'] ?? '');
 $tanggalFmt = (string) ($kuitansi['tanggal_bayar_fmt'] ?? '');
 $namaSantri = (string) ($kuitansi['nama_santri'] ?? '');
+$binLabel = (string) ($kuitansi['bin_label'] ?? '');
 $nis = (string) ($kuitansi['nis'] ?? '');
 $tingkatan = (string) ($kuitansi['tingkatan'] ?? '');
 $periodeLabel = (string) ($kuitansi['periode_label'] ?? '');
@@ -64,6 +65,9 @@ $verifyUrl = (string) ($kuitansi['verify_url'] ?? '');
         <section class="kuitansi-ortu__santri" aria-label="Data santri">
             <div class="kuitansi-ortu__label">Dibayar untuk santri</div>
             <div class="kuitansi-ortu__nama-santri"><?= htmlspecialchars($namaSantri) ?></div>
+            <?php if ($binLabel !== ''): ?>
+                <div class="kuitansi-ortu__bin-label"><?= htmlspecialchars($binLabel) ?></div>
+            <?php endif; ?>
             <ul class="kuitansi-ortu__info-list list-unstyled mb-0">
                 <?php if ($nis !== ''): ?>
                     <li><span>NIS</span><strong class="font-monospace"><?= htmlspecialchars($nis) ?></strong></li>

@@ -20,8 +20,12 @@ if (!table_exists($pdo, 'presensi')) {
 
 yayasan_ensure_tables($pdo);
 
-$periode = yayasan_periode_berjalan($pdo);
-$periodeLabel = $periode['label'];
+$hijriMonths = hijri_nama_bulan_list();
+$periode = rekap_resolve_periode($pdo, $_GET);
+$mode = (string) ($periode['mode'] ?? 'hijriyah');
+$month = (int) ($periode['month'] ?? 1);
+$year = (int) ($periode['year'] ?? 0);
+$periodeLabel = (string) ($periode['label'] ?? '');
 
 $kategoriRaw = trim((string) ($_GET['kategori'] ?? ''));
 $kategori = rekap_keaktifan_hari_normalize_kategori($kategoriRaw !== '' ? $kategoriRaw : null);
@@ -38,6 +42,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Ranking keaktifan per tingkatan</h1>
     <p class="text-muted mb-0 small">
         Urutan <strong>#1 terbaik</strong> di atas. Klik kartu tingkatan untuk melihat <strong>ranking santri</strong> di dalamnya.
+        Pilih <strong>bulan &amp; tahun</strong> di filter bawah untuk melihat periode lain.
         <a href="<?= htmlspecialchars(yayasan_home_href()) ?>">Kembali ke dashboard</a>
         ·
         <a href="<?= htmlspecialchars(app_href('/yayasan/keaktifan.php')) ?>">Keaktifan hari ini</a>
@@ -45,23 +50,37 @@ require_once __DIR__ . '/../includes/header.php';
     <div id="yp-rank-hero-stats" class="yp-rank-hero-stats d-none"></div>
 </div>
 
-<?php require __DIR__ . '/../includes/partials/yayasan_periode_rekap_link.php'; ?>
-
-<form method="get" action="<?= htmlspecialchars(app_href('/yayasan/keaktifan_ranking.php')) ?>" class="row g-2 align-items-end mb-3 yp-filter-bar" data-yp-period-ajax="1" data-yp-period-mount="yp-rank-mount" data-yp-period-api="<?= htmlspecialchars(app_href('/api/yayasan/rank_tingkatan.php')) ?>">
-    <div class="col-md-3 col-6">
-        <label class="form-label small mb-0">Kategori kegiatan</label>
-        <select class="form-select form-select-sm" name="kategori">
-            <option value=""<?= $kategori === null ? ' selected' : '' ?>>Semua</option>
-            <option value="JAMAAH"<?= $kategori === 'JAMAAH' ? ' selected' : '' ?>>Jamaah</option>
-            <option value="TAALIM"<?= $kategori === 'TAALIM' ? ' selected' : '' ?>>Taalim</option>
-            <option value="PKPPS"<?= $kategori === 'PKPPS' ? ' selected' : '' ?>>PKPPS</option>
-        </select>
-    </div>
-    <div class="col-md-auto col-6">
-        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Terapkan filter</button>
-        <button type="submit" name="refresh" value="1" class="btn btn-outline-secondary btn-sm" title="Muat ulang"><i class="fa-solid fa-rotate-right"></i></button>
-    </div>
-</form>
+<?php
+$formAction = app_href('/yayasan/keaktifan_ranking.php');
+$wrapCard = true;
+$cardClass = 'card shadow-sm border-0 mb-3 rekap-periode-card';
+$submitLabel = 'Tampilkan ranking';
+$periodAjaxMount = 'yp-rank-mount';
+$periodAjaxApi = app_href('/api/yayasan/rank_tingkatan.php');
+$showRefresh = false;
+$refreshHref = '';
+$periodeNote = 'Kalender Hijriyah = bulan H.; Masehi = Jan–Des';
+$rekapPeriodeExtraSlot = '
+            <div class="col-md-3 col-6">
+                <label class="form-label small mb-0">Kategori kegiatan</label>
+                <select class="form-select form-select-sm" name="kategori">
+                    <option value=""' . ($kategori === null ? ' selected' : '') . '>Semua</option>
+                    <option value="JAMAAH"' . ($kategori === 'JAMAAH' ? ' selected' : '') . '>Jamaah</option>
+                    <option value="TAALIM"' . ($kategori === 'TAALIM' ? ' selected' : '') . '>Taalim</option>
+                    <option value="PKPPS"' . ($kategori === 'PKPPS' ? ' selected' : '') . '>PKPPS</option>
+                </select>
+            </div>
+            <div class="col-auto d-flex align-items-end pb-1">
+                <button type="submit" name="refresh" value="1" class="btn btn-outline-secondary btn-sm" title="Muat ulang data"><i class="fa-solid fa-rotate-right"></i></button>
+            </div>';
+if ($openDetail !== '') {
+    $extraHidden = ['tingkatan' => $openDetail];
+} else {
+    $extraHidden = [];
+}
+require __DIR__ . '/../includes/partials/rekap_kalender_bulan_filter.php';
+unset($rekapPeriodeExtraSlot, $extraHidden, $periodAjaxMount, $periodAjaxApi);
+?>
 
 <div id="yp-rank-mount">
     <div class="text-center py-5 text-muted">
@@ -76,10 +95,13 @@ window.__ypPeriodBoot = <?= json_encode([
     'mount' => 'yp-rank-mount',
     'api' => app_href('/api/yayasan/rank_tingkatan.php'),
     'params' => array_filter([
+        'mode' => $mode,
+        'month' => (string) $month,
+        'year' => (string) $year,
         'kategori' => $kategoriRaw !== '' ? $kategoriRaw : null,
         'tingkatan' => $openDetail !== '' ? $openDetail : null,
     ], static fn ($v) => $v !== null && $v !== ''),
-    'lockPeriode' => true,
+    'lockPeriode' => false,
 ], JSON_UNESCAPED_UNICODE) ?>;
 </script>
 

@@ -263,6 +263,15 @@ body.keuangan-module [inputmode="numeric"] {
     font-weight: 800;
     color: #0f172a;
     line-height: 1.3;
+    margin-bottom: 0.25rem;
+    word-break: break-word;
+}
+
+.kuitansi-ortu__bin-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #334155;
+    line-height: 1.35;
     margin-bottom: 0.65rem;
     word-break: break-word;
 }

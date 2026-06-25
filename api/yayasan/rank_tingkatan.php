@@ -28,7 +28,7 @@ if (!table_exists($pdo, 'presensi')) {
 
 try {
     require_once __DIR__ . '/../../helpers/yayasan.php';
-    $periode = yayasan_periode_berjalan($pdo);
+    $periode = rekap_resolve_periode($pdo, $_GET);
     $startDate = $periode['start_date'];
     $endDate = $periode['end_date'];
     $periodeLabel = $periode['label'];

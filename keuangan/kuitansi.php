@@ -62,6 +62,9 @@ $namaPonpes = (string) ($kuitansi['nama_ponpes'] ?? '');
             <div>Tgl: <?= htmlspecialchars($tanggalBayarFmt) ?></div>
             <div>NIS: <?= htmlspecialchars((string) ($kuitansi['nis'] ?: '-')) ?></div>
             <div>Nama: <?= htmlspecialchars((string) ($kuitansi['nama_santri'] ?? '')) ?></div>
+            <?php if (trim((string) ($kuitansi['bin_label'] ?? '')) !== ''): ?>
+                <div><?= htmlspecialchars((string) $kuitansi['bin_label']) ?></div>
+            <?php endif; ?>
             <div>Periode: <?= htmlspecialchars((string) ($kuitansi['periode_label'] ?? '')) ?></div>
             <hr>
             <?php foreach ($details as $d): ?>

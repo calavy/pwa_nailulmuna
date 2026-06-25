@@ -87,6 +87,68 @@ function keuangan_nominal_terbilang(int $nominal): string
 }
 
 /**
+ * Muat kolom santri untuk label Bin/Binti bila belum ada di baris pembayaran.
+ *
+ * @param array<string,mixed> $row
+ * @return array<string,mixed>
+ */
+function keuangan_kuitansi_santri_row_for_bin(PDO $pdo, array $row): array
+{
+    $hasWaliHint = trim((string) ($row['nama_ayah'] ?? '')) !== ''
+        || (int) ($row['wali_santri_id'] ?? 0) > 0
+        || trim((string) ($row['nama_kafil'] ?? '')) !== '';
+    if ($hasWaliHint) {
+        return $row;
+    }
+
+    $santriId = (int) ($row['santri_id'] ?? 0);
+    if ($santriId <= 0 || !table_exists($pdo, 'santri')) {
+        return $row;
+    }
+
+    $cols = ['id'];
+    foreach (['nama_ayah', 'jenis_kelamin', 'wali_santri_id', 'nama_kafil'] as $col) {
+        if (column_exists($pdo, 'santri', $col)) {
+            $cols[] = $col;
+        }
+    }
+    if (count($cols) === 1) {
+        return $row;
+    }
+
+    $st = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM santri WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $santriId]);
+    $santri = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($santri)) {
+        return $row;
+    }
+
+    foreach ($santri as $key => $value) {
+        if ($key !== 'id' && !array_key_exists($key, $row)) {
+            $row[$key] = $value;
+        }
+    }
+
+    return $row;
+}
+
+/** Label Bin/Binti + nama wali/ayah santri (kosong jika tidak ada data). */
+function keuangan_kuitansi_bin_label(PDO $pdo, array $row): string
+{
+    require_once __DIR__ . '/wali_portal.php';
+    $row = keuangan_kuitansi_santri_row_for_bin($pdo, $row);
+    $namaWali = wali_portal_resolve_nama_wali($pdo, $row);
+    if ($namaWali === '') {
+        return '';
+    }
+
+    $jk = strtoupper(trim((string) ($row['jenis_kelamin'] ?? '')));
+    $hubungan = in_array($jk, ['PEREMPUAN', 'P', 'PUTRI', 'WANITA'], true) ? 'Binti' : 'Bin';
+
+    return $hubungan . ' ' . $namaWali;
+}
+
+/**
  * @return array<string,mixed>|null
  */
 function keuangan_kuitansi_context(PDO $pdo, int $id): ?array
@@ -103,8 +165,16 @@ function keuangan_kuitansi_context(PDO $pdo, int $id): ?array
         $santriLevelExpr = 'k.nama_kelas';
     }
 
+    $santriExtraCols = [];
+    foreach (['nama_ayah', 'jenis_kelamin', 'wali_santri_id', 'nama_kafil'] as $col) {
+        if (column_exists($pdo, 'santri', $col)) {
+            $santriExtraCols[] = 's.' . $col;
+        }
+    }
+    $santriExtraSql = $santriExtraCols !== [] ? ', ' . implode(', ', $santriExtraCols) : '';
+
     $stmt = $pdo->prepare("
-        SELECT p.*, s.nis, {$santriNameExpr} AS nama_santri, {$santriLevelExpr} AS tingkatan, u.nama AS nama_petugas
+        SELECT p.*, s.nis, {$santriNameExpr} AS nama_santri, {$santriLevelExpr} AS tingkatan, u.nama AS nama_petugas{$santriExtraSql}
         FROM keuangan_pembayaran p
         INNER JOIN santri s ON s.id = p.santri_id
         LEFT JOIN users u ON u.id = p.created_by
@@ -170,6 +240,7 @@ function keuangan_kuitansi_context_build(PDO $pdo, int $id, array $row, array $d
         'tanggal_bayar_fmt' => app_format_tanggal_id($tanggalBayar),
         'nis' => (string) ($row['nis'] ?? ''),
         'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+        'bin_label' => keuangan_kuitansi_bin_label($pdo, $row),
         'tingkatan' => trim((string) ($row['tingkatan'] ?? '')),
         'jenis_periode' => (string) ($row['jenis_periode'] ?? ''),
         'jenis_periode_label' => keuangan_kuitansi_jenis_periode_label((string) ($row['jenis_periode'] ?? '')),
