@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
 require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
 require_once __DIR__ . '/../helpers/jadwal_form_handlers.php';
+require_once __DIR__ . '/../helpers/jadwal_jamaah.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 jadwal_require_module_access();
@@ -175,6 +176,21 @@ if ($jadwalPembimbingScope && $pembimbingScopeId > 0) {
 
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
+$filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
+if (!in_array($filterKat, ['JAMAAH', 'TAALIM'], true)) {
+    $filterKat = '';
+}
+$filterKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
+if ($filterKat !== '') {
+    $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterKat): bool {
+        return strtoupper((string) ($row['kategori_kegiatan'] ?? 'TAALIM')) === $filterKat;
+    }));
+}
+if ($filterKegiatanId > 0) {
+    $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterKegiatanId): bool {
+        return (int) ($row['kegiatan_id'] ?? 0) === $filterKegiatanId;
+    }));
+}
 if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
     $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterTingkatan): bool {
         return strcasecmp(trim((string) ($row['tingkatan'] ?? '')), $filterTingkatan) === 0;
@@ -192,9 +208,10 @@ $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string 
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
 $activeTab = strtolower(trim((string) ($_GET['tab'] ?? 'minggu')));
-if (!in_array($activeTab, ['minggu', 'daftar', 'tabel'], true)) {
+if (!in_array($activeTab, ['minggu', 'daftar', 'tabel', 'jamaah'], true)) {
     $activeTab = 'minggu';
 }
+$jamaahEditorRows = jadwal_jamaah_daftar_editor($pdo);
 
 $tampilanGrup = jadwal_tampilan_grup($pdo);
 $jadwalGrouped = [];
@@ -236,10 +253,16 @@ $kegiatanListEdit = array_map(
     static fn (array $row): array => ['id' => (int) ($row['id'] ?? 0), 'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '')],
     $kegiatanRows
 );
-$jadwalTabQs = static function (string $tab, array $extra = []) use ($viewRingkas, $filterTingkatan, $filterHari): string {
+$jadwalTabQs = static function (string $tab, array $extra = []) use ($viewRingkas, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId): string {
     $q = array_merge(['tab' => $tab], $extra);
     if ($viewRingkas) {
         $q['view'] = 'ringkas';
+    }
+    if ($filterKat !== '') {
+        $q['filter_kat'] = $filterKat;
+    }
+    if ($filterKegiatanId > 0) {
+        $q['kegiatan_id'] = (string) $filterKegiatanId;
     }
     if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
         $q['filter_tingkatan'] = $filterTingkatan;
@@ -258,8 +281,9 @@ $ok = get_flash('success');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Jadwal</p>
     <h1 class="h4 mb-1">Jadwal kegiatan santri</h1>
-    <p class="text-muted mb-0">Lihat per hari (Senin–Minggu), edit cepat dari kartu, atau kelola lewat daftar/tabel.</p>
+    <p class="text-muted mb-0">Lihat per hari (Senin–Minggu), atur waktu jamaah sekaligus, atau edit cepat dari kartu jadwal.</p>
     <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>"><i class="fa-solid fa-mosque me-1"></i> Atur waktu Jama'ah</a>
         <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>"><i class="fa-solid fa-bookmark me-1"></i> Kegiatan Ta'lim / Jama'ah</a>
         <?php if (!$jadwalPembimbingScope): ?>
         <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/import.php')) ?>"><i class="fa-solid fa-file-import me-1"></i> Import Excel</a>
@@ -313,12 +337,30 @@ $ok = get_flash('success');
 
 <?php require __DIR__ . '/../includes/partials/jadwal_inline_panels.php'; ?>
 
+<?php if ($activeTab !== 'jamaah'): ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body py-2">
         <form method="get" class="row g-2 align-items-end">
             <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
             <?php if ($viewRingkas): ?><input type="hidden" name="view" value="ringkas"><?php endif; ?>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-0">Kategori</label>
+                <select name="filter_kat" class="form-select form-select-sm">
+                    <option value="">Semua</option>
+                    <option value="TAALIM" <?= $filterKat === 'TAALIM' ? 'selected' : '' ?>>Ta'lim</option>
+                    <option value="JAMAAH" <?= $filterKat === 'JAMAAH' ? 'selected' : '' ?>>Jama'ah</option>
+                </select>
+            </div>
             <div class="col-6 col-md-3">
+                <label class="form-label small mb-0">Kegiatan</label>
+                <select name="kegiatan_id" class="form-select form-select-sm">
+                    <option value="0">Semua kegiatan</option>
+                    <?php foreach ($kegiatanListAktif as $kgOpt): ?>
+                        <option value="<?= (int) $kgOpt['id'] ?>" <?= $filterKegiatanId === (int) $kgOpt['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $kgOpt['nama_kegiatan']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
                 <label class="form-label small mb-0">Tingkatan</label>
                 <select name="filter_tingkatan" class="form-select form-select-sm">
                     <option value="">Semua tingkatan</option>
@@ -328,7 +370,7 @@ $ok = get_flash('success');
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <label class="form-label small mb-0">Hari</label>
                 <select name="filter_hari" class="form-select form-select-sm">
                     <option value="0">Semua hari</option>
@@ -342,6 +384,7 @@ $ok = get_flash('success');
                 <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Filter</button>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, []))) ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
             </div>
+            <?php if ($activeTab === 'daftar'): ?>
             <div class="col-auto ms-md-auto d-flex flex-wrap gap-1 align-items-center">
                 <span class="small text-muted me-1">Kelompok:</span>
                 <?php
@@ -356,9 +399,11 @@ $ok = get_flash('success');
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $grupQs('tingkatan'))) ?>"
                    class="btn btn-sm <?= $tampilanGrup === 'tingkatan' ? 'btn-primary' : 'btn-outline-secondary' ?>">Tingkatan</a>
             </div>
+            <?php endif; ?>
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card shadow-sm mb-4 border-0 jadwal-view-card">
     <div class="card-header bg-white border-0 pt-3 pb-0">
@@ -380,11 +425,18 @@ $ok = get_flash('success');
                    aria-selected="<?= $activeTab === 'tabel' ? 'true' : 'false' ?>">
                     <i class="fa-solid fa-table me-1"></i> Tabel
                 </a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs('jamaah'))) ?>"
+                   class="btn btn-outline-primary jadwal-tab-jamaah<?= $activeTab === 'jamaah' ? ' active' : '' ?>"
+                   aria-selected="<?= $activeTab === 'jamaah' ? 'true' : 'false' ?>">
+                    <i class="fa-solid fa-mosque me-1"></i> Waktu Jama'ah
+                </a>
             </div>
         </div>
     </div>
     <div class="card-body pt-2">
-        <?php if ($activeTab === 'minggu'): ?>
+        <?php if ($activeTab === 'jamaah'): ?>
+            <?php require __DIR__ . '/../includes/partials/jadwal_jamaah_waktu.php'; ?>
+        <?php elseif ($activeTab === 'minggu'): ?>
             <?php require __DIR__ . '/../includes/partials/jadwal_minggu_grid.php'; ?>
         <?php elseif ($activeTab === 'daftar'): ?>
             <p class="text-muted small mb-3">

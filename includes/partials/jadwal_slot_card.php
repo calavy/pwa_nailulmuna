@@ -37,7 +37,7 @@ if ($hariList === [] && $hk >= 0) {
     $hariList = [$hk];
 }
 ?>
-<article class="jadwal-slot-card<?= $compact ? ' jadwal-slot-card--compact' : '' ?>" data-jadwal-id="<?= $editId ?>">
+<article class="jadwal-slot-card<?= $compact ? ' jadwal-slot-card--compact' : '' ?><?= strtolower($kat) === 'jamaah' ? ' jadwal-slot-card--jamaah' : '' ?>" data-jadwal-id="<?= $editId ?>">
     <div class="jadwal-slot-card__head">
         <span class="jadwal-peta-waktu font-monospace js-time-24">
             <i class="fa-regular fa-clock jadwal-peta-waktu__ico" aria-hidden="true"></i>
@@ -71,6 +71,11 @@ if ($hariList === [] && $hk >= 0) {
     <?php endif; ?>
     <?php if ($showActions && $editId > 0): ?>
         <div class="jadwal-slot-card__actions">
+            <?php if (strtolower($kat) === 'jamaah'): ?>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>" class="btn btn-outline-indigo btn-sm py-0 px-2 jadwal-slot-card__jamaah-link" title="Ubah waktu semua slot jamaah ini">
+                    <i class="fa-solid fa-mosque"></i><span class="d-none d-sm-inline ms-1">Waktu</span>
+                </a>
+            <?php endif; ?>
             <button type="button"
                 class="btn btn-outline-primary btn-sm py-0 px-2 jadwal-quick-edit"
                 title="Edit cepat"

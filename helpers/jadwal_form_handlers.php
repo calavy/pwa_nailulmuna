@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/jadwal_ui.php';
+require_once __DIR__ . '/jadwal_jamaah.php';
 require_once __DIR__ . '/operasional_audit.php';
 
 function jadwal_handle_post(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope, int $pembimbingScopeId): bool
@@ -23,6 +24,18 @@ function jadwal_handle_post(PDO $pdo, int $auditUserId, bool $jadwalPembimbingSc
     }
     if ($action === 'tambah_jadwal') {
         jadwal_handle_tambah_jadwal($pdo, $auditUserId, $jadwalPembimbingScope, $pembimbingScopeId);
+        return true;
+    }
+    if ($action === 'jamaah_waktu') {
+        jadwal_handle_jamaah_waktu($pdo, $auditUserId, $jadwalPembimbingScope);
+        return true;
+    }
+    if ($action === 'jamaah_buat_dasar') {
+        jadwal_handle_jamaah_buat_dasar($pdo, $auditUserId, $jadwalPembimbingScope);
+        return true;
+    }
+    if ($action === 'jamaah_pisah') {
+        jadwal_handle_jamaah_pisah($pdo, $auditUserId, $jadwalPembimbingScope);
         return true;
     }
 
@@ -173,5 +186,61 @@ function jadwal_handle_tambah_jadwal(PDO $pdo, int $auditUserId, bool $jadwalPem
     );
     set_flash('success', 'Jadwal berhasil ditambahkan: ' . $created . ' slot.');
     header('Location: ' . app_href('/jadwal/index.php'));
+    exit;
+}
+
+function jadwal_handle_jamaah_waktu(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope): void
+{
+    if ($jadwalPembimbingScope) {
+        set_flash('error', 'Atur waktu jamaah hanya untuk pengurus.');
+        header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
+        exit;
+    }
+    $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
+    $kelompok = (string) ($_POST['kelompok'] ?? '');
+    $jamMulai = trim((string) ($_POST['jam_mulai'] ?? ''));
+    $jamSelesai = trim((string) ($_POST['jam_selesai'] ?? ''));
+    $result = jadwal_jamaah_terapkan_waktu($pdo, $kegiatanId, $kelompok, $jamMulai, $jamSelesai, $auditUserId);
+    set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
+    header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
+    exit;
+}
+
+function jadwal_handle_jamaah_buat_dasar(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope): void
+{
+    if ($jadwalPembimbingScope) {
+        set_flash('error', 'Atur waktu jamaah hanya untuk pengurus.');
+        header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
+        exit;
+    }
+    $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
+    $kelompok = (string) ($_POST['kelompok'] ?? '');
+    $jamMulai = trim((string) ($_POST['jam_mulai'] ?? ''));
+    $jamSelesai = trim((string) ($_POST['jam_selesai'] ?? ''));
+    $result = jadwal_jamaah_buat_slot_dasar($pdo, $kegiatanId, $kelompok, $jamMulai, $jamSelesai, $auditUserId);
+    set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
+    header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
+    exit;
+}
+
+function jadwal_handle_jamaah_pisah(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope): void
+{
+    if ($jadwalPembimbingScope) {
+        set_flash('error', 'Atur waktu jamaah hanya untuk pengurus.');
+        header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
+        exit;
+    }
+    $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
+    $result = jadwal_jamaah_pisah_semua_tingkatan(
+        $pdo,
+        $kegiatanId,
+        trim((string) ($_POST['jam_mulai_putra'] ?? '')),
+        trim((string) ($_POST['jam_selesai_putra'] ?? '')),
+        trim((string) ($_POST['jam_mulai_putri'] ?? '')),
+        trim((string) ($_POST['jam_selesai_putri'] ?? '')),
+        $auditUserId
+    );
+    set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
+    header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
     exit;
 }

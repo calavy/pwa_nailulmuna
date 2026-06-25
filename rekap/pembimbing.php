@@ -73,20 +73,11 @@ $stmt = $pdo->prepare('
         b.nip,
         b.nama_pembimbing,
         b.gaji_pokok,
-        b.tarif_kriteria,
-        SUM(CASE WHEN p.jenis_scan = "DATANG" THEN 1 ELSE 0 END) AS total_datang,
-        COUNT(p.id) AS total_scan
+        b.tarif_kriteria
     FROM pembimbing b
-    LEFT JOIN presensi_pembimbing p
-        ON p.pembimbing_id = b.id
-       AND p.tanggal BETWEEN :start_date AND :end_date
-    GROUP BY b.id, b.nip, b.nama_pembimbing, b.gaji_pokok, b.tarif_kriteria
     ORDER BY ' . pembimbing_list_order_sql('b') . '
 ');
-$stmt->execute([
-    'start_date' => $startDate,
-    'end_date' => $endDate,
-]);
+$stmt->execute();
 $rows = $stmt->fetchAll();
 $kegiatanList = table_exists($pdo, 'kegiatan')
     ? ($pdo->query('SELECT id, nama_kegiatan FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll() ?: [])
@@ -95,76 +86,52 @@ $kegiatanMap = [];
 foreach ($kegiatanList as $kg) {
     $kegiatanMap[(int) ($kg['id'] ?? 0)] = (string) ($kg['nama_kegiatan'] ?? '');
 }
-$scanGajiSql = '
-    SELECT p.pembimbing_id,
-           SUM(' . payroll_pembimbing_scan_jam_case_sql('p') . ') AS total_jam
-    FROM presensi_pembimbing p
-    ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
-    WHERE p.tanggal BETWEEN :start_date AND :end_date
-';
-if ($kegiatanFilter > 0) {
-    $scanGajiSql .= ' AND p.kegiatan_id = :kegiatan_id';
-}
-$scanGajiSql .= ' GROUP BY p.pembimbing_id';
-$scanGajiStmt = $pdo->prepare($scanGajiSql);
-$scanParams = ['start_date' => $startDate, 'end_date' => $endDate];
-if ($kegiatanFilter > 0) {
-    $scanParams['kegiatan_id'] = $kegiatanFilter;
-}
-$scanGajiStmt->execute($scanParams);
-$jamMap = [];
-foreach ($scanGajiStmt->fetchAll(PDO::FETCH_ASSOC) as $jr) {
-    $jamMap[(int) ($jr['pembimbing_id'] ?? 0)] = (float) ($jr['total_jam'] ?? 0);
-}
-$izinStmt = $pdo->prepare('
-    SELECT pembimbing_id, jenis_izin, tanggal_mulai, tanggal_selesai
-    FROM perizinan_pembimbing
-    WHERE status_izin = "IZIN"
-      AND tanggal_mulai <= :end_date
-      AND tanggal_selesai >= :start_date
-');
-$izinStmt->execute([
-    'start_date' => $startDate,
-    'end_date' => $endDate,
-]);
-$izinRaw = $izinStmt->fetchAll();
-$izinByPembimbing = [];
-foreach ($izinRaw as $izin) {
-    $pid = (int) $izin['pembimbing_id'];
-    if (!isset($izinByPembimbing[$pid])) {
-        $izinByPembimbing[$pid] = ['IZIN' => 0, 'SAKIT' => 0];
-    }
-    $from = max($startDate, (string) $izin['tanggal_mulai']);
-    $to = min($endDate, (string) $izin['tanggal_selesai']);
-    $days = ((int) ((strtotime($to) - strtotime($from)) / 86400)) + 1;
-    if ($days < 1) {
-        $days = 0;
-    }
-    $key = strtoupper((string) $izin['jenis_izin']) === 'SAKIT' ? 'SAKIT' : 'IZIN';
-    $izinByPembimbing[$pid][$key] += $days;
-}
+
+$presensiAgg = payroll_pembimbing_presensi_agg_map($pdo, $startDate, $endDate, $kegiatanFilter);
+$expectedSlotsMap = payroll_pembimbing_expected_slots_by_pembimbing($pdo, $startDate, $endDate, $kegiatanFilter);
+$hadirSlotMap = payroll_pembimbing_hadir_slot_keys_map($pdo, $startDate, $endDate, $kegiatanFilter);
+$izinDatesMap = payroll_pembimbing_izin_dates_by_pembimbing($pdo, $startDate, $endDate);
+
 foreach ($rows as &$row) {
-    $datang = (int) $row['total_datang'];
-    $izin = (int) ($izinByPembimbing[(int) $row['pembimbing_id']]['IZIN'] ?? 0);
-    $sakit = (int) ($izinByPembimbing[(int) $row['pembimbing_id']]['SAKIT'] ?? 0);
-    $alpa = max(0, $totalDays - $datang - $izin - $sakit);
+    $pid = (int) ($row['pembimbing_id'] ?? 0);
+    $agg = $presensiAgg[$pid] ?? ['total_jam' => 0.0, 'total_datang' => 0, 'hari_hadir' => 0];
+    $datang = (int) ($agg['total_datang'] ?? 0);
+    $hariHadir = (int) ($agg['hari_hadir'] ?? 0);
+    $izinDates = $izinDatesMap[$pid] ?? ['IZIN' => [], 'SAKIT' => []];
+    $izin = count((array) ($izinDates['IZIN'] ?? []));
+    $sakit = count((array) ($izinDates['SAKIT'] ?? []));
+    $expectedSlots = (array) ($expectedSlotsMap[$pid] ?? []);
+    $hadirKeys = (array) ($hadirSlotMap[$pid] ?? []);
+    $alpa = payroll_pembimbing_hitung_alpa(
+        $pid,
+        $expectedSlots,
+        $hadirKeys,
+        $izinDates,
+        $totalDays,
+        $hariHadir,
+        $izin,
+        $sakit
+    );
+
     $lateStmt = $pdo->prepare('
         SELECT COUNT(*)
         FROM presensi_pembimbing p
         ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
         WHERE p.pembimbing_id = :pembimbing_id
           AND p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
           AND p.kegiatan_id IS NOT NULL
           AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
           AND TIME_TO_SEC(p.jam) > TIME_TO_SEC(ADDTIME(COALESCE(j.jam_mulai, pj.jam_mulai), SEC_TO_TIME(:late_sec)))
     ');
     $lateStmt->execute([
-        'pembimbing_id' => (int) $row['pembimbing_id'],
+        'pembimbing_id' => $pid,
         'start_date' => $startDate,
         'end_date' => $endDate,
         'late_sec' => $lateTolerance * 60,
     ]);
     $telat = (int) $lateStmt->fetchColumn();
+
     if ($alpa === 0) {
         $kategori = 'Bagus';
     } elseif ($alpa <= 1) {
@@ -174,12 +141,16 @@ foreach ($rows as &$row) {
     } else {
         $kategori = 'Buruk';
     }
+
+    $row['total_datang'] = $datang;
+    $row['total_scan'] = $datang;
     $row['telat'] = $telat;
     $row['izin'] = $izin;
     $row['sakit'] = $sakit;
     $row['alpa'] = $alpa;
     $row['kategori'] = $kategori;
-    $totalJam = (float) ($jamMap[(int) $row['pembimbing_id']] ?? 0);
+
+    $totalJam = (float) ($agg['total_jam'] ?? 0);
     $calc = payroll_pembimbing_compute(
         $totalJam,
         (float) ($row['gaji_pokok'] ?? 0),
@@ -202,6 +173,10 @@ $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logo = app_pondok_logo_href($pdo, false);
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
+
+$periodeLabelP = $periodLabel;
+$periodeModePay = $calendarMode === 'hijriyah' ? 'HIJRIYAH' : 'MASEHI';
+$paidGajiMap = payroll_pembimbing_paid_map($pdo, $periodeModePay, $month, $year);
 
 $totalPembimbingRekap = count($rows);
 $totalHadirRekap = 0;
@@ -227,9 +202,6 @@ foreach ($rows as $r) {
         $totalGajiBelumBayar += $gajiRow;
     }
 }
-$periodeLabelP = $periodLabel;
-$periodeModePay = $calendarMode === 'hijriyah' ? 'HIJRIYAH' : 'MASEHI';
-$paidGajiMap = payroll_pembimbing_paid_map($pdo, $periodeModePay, $month, $year);
 $akunRowsBayar = keuangan_fetch_akun_aktif($pdo);
 $defaultAkunBayar = 0;
 foreach ($akunRowsBayar as $ar) {
@@ -249,7 +221,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3 print-controls">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
     <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Jam kegiatan dari jadwal kajian atau <strong>jadwal PKPPS</strong>.</p>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. <strong>Jam kegiatan</strong> dan <strong>gaji per jam</strong> dihitung dari presensi scan <em>DATANG</em> yang dicocokkan ke jadwal kajian/PKPPS pembimbing. <strong>Alpa</strong> = slot jadwal tanpa scan (bukan per hari kalender).</p>
 </div>
 
 <div class="row g-3 mb-3 print-controls">
@@ -328,7 +300,6 @@ require_once __DIR__ . '/../includes/header.php';
                 <input class="form-control" type="number"
                        min="<?= (int) $yearMin ?>" max="<?= (int) $yearMax ?>"
                        name="year" id="periode-tahun"
-                       <?= $calendarMode === 'hijriyah' ? 'readonly' : '' ?>
                        value="<?= htmlspecialchars((string) $year) ?>">
             </div>
             <div class="col-6 col-md-2">
@@ -558,7 +529,7 @@ document.querySelectorAll('.btn-bayar-gaji').forEach(function (btn) {
             if (modeSelect.value === 'hijriyah') {
                 yearInput.min = '1300';
                 yearInput.max = '1700';
-                yearInput.readOnly = true;
+                yearInput.readOnly = false;
                 const y = parseInt(yearInput.value || '0', 10);
                 if (!y || y < 1300 || y > 1700) {
                     yearInput.value = '<?= (int) $currentHijriYear ?>';

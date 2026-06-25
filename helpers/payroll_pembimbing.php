@@ -20,7 +20,7 @@ declare(strict_types=1);
 const PAYROLL_PEMBIMBING_KRITERIA = ['BERAT', 'SEDANG', 'RINGAN', 'KHUSUS'];
 const PAYROLL_PEMBIMBING_DEFAULT_KRITERIA = 'RINGAN';
 
-/** Join jadwal presensi pembimbing — satu baris per scan (hindari duplikasi jam). */
+/** Join jadwal presensi pembimbing — cocokkan jadwal kajian/PKPPS pembimbing + jam scan. */
 function payroll_pembimbing_scan_jadwal_join_sql(string $presensiAlias = 'p'): string
 {
     $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
@@ -28,17 +28,40 @@ function payroll_pembimbing_scan_jadwal_join_sql(string $presensiAlias = 'p'): s
     return '
         LEFT JOIN jadwal_kegiatan j ON j.id = (
             SELECT j2.id FROM jadwal_kegiatan j2
+            INNER JOIN kegiatan k2 ON k2.id = j2.kegiatan_id AND k2.is_active = 1
             WHERE j2.kegiatan_id = ' . $p . '.kegiatan_id
               AND ' . $p . '.kegiatan_id IS NOT NULL
               AND (j2.hari_ke = 0 OR j2.hari_ke = WEEKDAY(' . $p . '.tanggal) + 1)
-            ORDER BY j2.jam_mulai ASC, j2.id ASC
+              AND (
+                    j2.pembimbing_id = ' . $p . '.pembimbing_id
+                    OR j2.pembimbing_id IS NULL
+                    OR j2.pembimbing_id = 0
+                  )
+              AND (
+                    ' . $p . '.jam IS NULL OR TRIM(' . $p . '.jam) = ""
+                    OR (' . $p . '.jam BETWEEN j2.jam_mulai AND j2.jam_selesai)
+                  )
+            ORDER BY
+                CASE
+                    WHEN j2.pembimbing_id = ' . $p . '.pembimbing_id THEN 0
+                    WHEN j2.pembimbing_id IS NULL OR j2.pembimbing_id = 0 THEN 1
+                    ELSE 2
+                END,
+                j2.jam_mulai ASC,
+                j2.id ASC
             LIMIT 1
         )
         LEFT JOIN pkpps_jadwal pj ON pj.id = (
             SELECT pj2.id FROM pkpps_jadwal pj2
+            INNER JOIN kegiatan k3 ON k3.id = pj2.kegiatan_id AND k3.is_active = 1
             WHERE pj2.kegiatan_id = ' . $p . '.kegiatan_id
               AND pj2.pembimbing_id = ' . $p . '.pembimbing_id
               AND pj2.is_aktif = 1
+              AND (pj2.hari_ke = 0 OR pj2.hari_ke = WEEKDAY(' . $p . '.tanggal) + 1)
+              AND (
+                    ' . $p . '.jam IS NULL OR TRIM(' . $p . '.jam) = ""
+                    OR (' . $p . '.jam BETWEEN pj2.jam_mulai AND pj2.jam_selesai)
+                  )
             ORDER BY pj2.jam_mulai ASC, pj2.id ASC
             LIMIT 1
         )
@@ -189,6 +212,279 @@ function payroll_pembimbing_normalize_kriteria(?string $kriteria): string
 {
     $k = strtoupper(trim((string) $kriteria));
     return in_array($k, PAYROLL_PEMBIMBING_KRITERIA, true) ? $k : PAYROLL_PEMBIMBING_DEFAULT_KRITERIA;
+}
+
+/**
+ * Slot jadwal yang diharapkan per pembimbing dalam rentang tanggal (kajian + PKPPS).
+ *
+ * @return array<int, list<array{tanggal:string,kegiatan_id:int}>>
+ */
+function payroll_pembimbing_expected_slots_by_pembimbing(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $kegiatanFilterId = 0
+): array {
+    /** @var list<array{pembimbing_id:int,hari_ke:int,kegiatan_id:int}> $templates */
+    $templates = [];
+
+    if (table_exists($pdo, 'jadwal_kegiatan')) {
+        $sql = '
+            SELECT j.pembimbing_id, j.hari_ke, j.kegiatan_id
+            FROM jadwal_kegiatan j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+            WHERE j.pembimbing_id IS NOT NULL AND j.pembimbing_id > 0
+        ';
+        if ($kegiatanFilterId > 0) {
+            $sql .= ' AND j.kegiatan_id = ' . (int) $kegiatanFilterId;
+        }
+        foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $templates[] = [
+                'pembimbing_id' => (int) ($row['pembimbing_id'] ?? 0),
+                'hari_ke' => (int) ($row['hari_ke'] ?? 0),
+                'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+            ];
+        }
+    }
+
+    if (table_exists($pdo, 'pkpps_jadwal')) {
+        $sql = '
+            SELECT pj.pembimbing_id, pj.hari_ke, pj.kegiatan_id
+            FROM pkpps_jadwal pj
+            INNER JOIN kegiatan k ON k.id = pj.kegiatan_id AND k.is_active = 1
+            WHERE pj.is_aktif = 1 AND pj.pembimbing_id IS NOT NULL AND pj.pembimbing_id > 0
+        ';
+        if ($kegiatanFilterId > 0) {
+            $sql .= ' AND pj.kegiatan_id = ' . (int) $kegiatanFilterId;
+        }
+        foreach ($pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $templates[] = [
+                'pembimbing_id' => (int) ($row['pembimbing_id'] ?? 0),
+                'hari_ke' => (int) ($row['hari_ke'] ?? 0),
+                'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+            ];
+        }
+    }
+
+    /** @var array<int, list<array{tanggal:string,kegiatan_id:int}>> $out */
+    $out = [];
+    /** @var array<int, array<string, true>> $seen */
+    $seen = [];
+    if ($templates === []) {
+        return $out;
+    }
+
+    $startTs = strtotime($startDate) ?: time();
+    $endTs = strtotime($endDate) ?: $startTs;
+    for ($ts = $startTs; $ts <= $endTs; $ts += 86400) {
+        $hariKe = (int) date('N', $ts);
+        $tanggal = date('Y-m-d', $ts);
+        foreach ($templates as $tpl) {
+            $jHari = (int) ($tpl['hari_ke'] ?? 0);
+            if ($jHari !== 0 && $jHari !== $hariKe) {
+                continue;
+            }
+            $pid = (int) ($tpl['pembimbing_id'] ?? 0);
+            $kid = (int) ($tpl['kegiatan_id'] ?? 0);
+            if ($pid <= 0 || $kid <= 0) {
+                continue;
+            }
+            $slotKey = $tanggal . '|' . $kid;
+            if (isset($seen[$pid][$slotKey])) {
+                continue;
+            }
+            $seen[$pid][$slotKey] = true;
+            $out[$pid][] = ['tanggal' => $tanggal, 'kegiatan_id' => $kid];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Kunci slot hadir dari presensi pembimbing (tanggal|kegiatan_id).
+ *
+ * @return array<int, array<string, true>>
+ */
+function payroll_pembimbing_hadir_slot_keys_map(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $kegiatanFilterId = 0
+): array {
+    if (!table_exists($pdo, 'presensi_pembimbing')) {
+        return [];
+    }
+
+    $sql = '
+        SELECT pembimbing_id, tanggal, COALESCE(kegiatan_id, 0) AS kegiatan_id
+        FROM presensi_pembimbing
+        WHERE tanggal BETWEEN :start_date AND :end_date
+          AND jenis_scan = "DATANG"
+    ';
+    $params = ['start_date' => $startDate, 'end_date' => $endDate];
+    if ($kegiatanFilterId > 0) {
+        $sql .= ' AND kegiatan_id = :kegiatan_id';
+        $params['kegiatan_id'] = $kegiatanFilterId;
+    }
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    /** @var array<int, array<string, true>> $map */
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $pid = (int) ($row['pembimbing_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $key = (string) ($row['tanggal'] ?? '') . '|' . (int) ($row['kegiatan_id'] ?? 0);
+        $map[$pid][$key] = true;
+    }
+
+    return $map;
+}
+
+/**
+ * Tanggal izin/sakit pembimbing dalam periode.
+ *
+ * @return array<int, array{IZIN:list<string>,SAKIT:list<string>}>
+ */
+function payroll_pembimbing_izin_dates_by_pembimbing(PDO $pdo, string $startDate, string $endDate): array
+{
+    if (!table_exists($pdo, 'perizinan_pembimbing')) {
+        return [];
+    }
+
+    $st = $pdo->prepare('
+        SELECT pembimbing_id, jenis_izin, tanggal_mulai, tanggal_selesai
+        FROM perizinan_pembimbing
+        WHERE status_izin = "IZIN"
+          AND tanggal_mulai <= :end_date
+          AND tanggal_selesai >= :start_date
+    ');
+    $st->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+
+    /** @var array<int, array{IZIN:list<string>,SAKIT:list<string>}> $out */
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $pid = (int) ($row['pembimbing_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        if (!isset($out[$pid])) {
+            $out[$pid] = ['IZIN' => [], 'SAKIT' => []];
+        }
+        $jenis = strtoupper((string) ($row['jenis_izin'] ?? '')) === 'SAKIT' ? 'SAKIT' : 'IZIN';
+        $from = max($startDate, (string) ($row['tanggal_mulai'] ?? $startDate));
+        $to = min($endDate, (string) ($row['tanggal_selesai'] ?? $endDate));
+        $fromTs = strtotime($from) ?: false;
+        $toTs = strtotime($to) ?: false;
+        if ($fromTs === false || $toTs === false || $toTs < $fromTs) {
+            continue;
+        }
+        for ($ts = $fromTs; $ts <= $toTs; $ts += 86400) {
+            $out[$pid][$jenis][] = date('Y-m-d', $ts);
+        }
+    }
+
+    foreach ($out as &$dates) {
+        $dates['IZIN'] = array_values(array_unique($dates['IZIN']));
+        $dates['SAKIT'] = array_values(array_unique($dates['SAKIT']));
+    }
+    unset($dates);
+
+    return $out;
+}
+
+/**
+ * Hitung alpa pembimbing: slot jadwal tanpa scan DATANG & tanpa izin/sakit pada tanggal itu.
+ */
+function payroll_pembimbing_hitung_alpa(
+    int $pembimbingId,
+    array $expectedSlots,
+    array $hadirKeys,
+    array $izinDates,
+    int $totalDays,
+    int $distinctHariHadir,
+    int $izinHari,
+    int $sakitHari
+): int {
+    if ($expectedSlots !== []) {
+        $izinSet = array_fill_keys((array) ($izinDates['IZIN'] ?? []), true);
+        $sakitSet = array_fill_keys((array) ($izinDates['SAKIT'] ?? []), true);
+        $alpa = 0;
+        foreach ($expectedSlots as $slot) {
+            if (!is_array($slot)) {
+                continue;
+            }
+            $tanggal = (string) ($slot['tanggal'] ?? '');
+            $kid = (int) ($slot['kegiatan_id'] ?? 0);
+            if ($tanggal === '') {
+                continue;
+            }
+            $key = $tanggal . '|' . $kid;
+            if (isset($hadirKeys[$key]) || isset($izinSet[$tanggal]) || isset($sakitSet[$tanggal])) {
+                continue;
+            }
+            $alpa++;
+        }
+
+        return $alpa;
+    }
+
+    return max(0, $totalDays - $distinctHariHadir - $izinHari - $sakitHari);
+}
+
+/**
+ * Total jam + jumlah scan DATANG per pembimbing (sumber tunggal payroll & rekap).
+ *
+ * @return array<int, array{total_jam:float,total_datang:int,hari_hadir:int}>
+ */
+function payroll_pembimbing_presensi_agg_map(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $kegiatanFilterId = 0
+): array {
+    if (!table_exists($pdo, 'presensi_pembimbing')) {
+        return [];
+    }
+
+    $sql = '
+        SELECT p.pembimbing_id,
+               SUM(' . payroll_pembimbing_scan_jam_case_sql('p') . ') AS total_jam,
+               SUM(CASE WHEN p.jenis_scan = "DATANG" THEN 1 ELSE 0 END) AS total_datang,
+               COUNT(DISTINCT CASE WHEN p.jenis_scan = "DATANG" THEN p.tanggal END) AS hari_hadir
+        FROM presensi_pembimbing p
+        ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
+        WHERE p.tanggal BETWEEN :start_date AND :end_date
+    ';
+    $params = ['start_date' => $startDate, 'end_date' => $endDate];
+    if ($kegiatanFilterId > 0) {
+        $sql .= ' AND p.kegiatan_id = :kegiatan_id';
+        $params['kegiatan_id'] = $kegiatanFilterId;
+    }
+    $sql .= ' GROUP BY p.pembimbing_id';
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    /** @var array<int, array{total_jam:float,total_datang:int,hari_hadir:int}> $map */
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $pid = (int) ($row['pembimbing_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $map[$pid] = [
+            'total_jam' => (float) ($row['total_jam'] ?? 0),
+            'total_datang' => (int) ($row['total_datang'] ?? 0),
+            'hari_hadir' => (int) ($row['hari_hadir'] ?? 0),
+        ];
+    }
+
+    return $map;
 }
 
 /**
@@ -438,6 +734,7 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
         ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
         WHERE p.pembimbing_id = :pid
           AND p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
     ');
     $jamStmt->execute([
         'pid' => $pembimbingId,

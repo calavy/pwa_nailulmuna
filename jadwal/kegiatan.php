@@ -177,6 +177,7 @@ $ok = get_flash('success');
     </p>
     <p class="small mb-0 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>"><i class="fa-solid fa-calendar me-1"></i> Daftar jadwal</a>
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>"><i class="fa-solid fa-mosque me-1"></i> Atur waktu Jama'ah</a>
         <?php if (!$jadwalPembimbingScope): ?>
         <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/import.php')) ?>"><i class="fa-solid fa-file-import me-1"></i> Import jadwal</a>
         <?php endif; ?>

@@ -1,8 +1,72 @@
 /**
- * Jadwal — edit cepat via modal & hapus tunggal.
+ * Jadwal — edit cepat via modal, hapus tunggal, atur waktu jamaah.
  */
 (function () {
     'use strict';
+
+    function parseTime24(str) {
+        var m = String(str || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) {
+            return null;
+        }
+        var h = parseInt(m[1], 10);
+        var min = parseInt(m[2], 10);
+        if (h < 0 || h > 23 || min < 0 || min > 59) {
+            return null;
+        }
+        return h * 60 + min;
+    }
+
+    function formatTime24(totalMin) {
+        var t = ((totalMin % (24 * 60)) + (24 * 60)) % (24 * 60);
+        var h = Math.floor(t / 60);
+        var m = t % 60;
+        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    }
+
+    function nudgeTimeInput(input, deltaMin) {
+        if (!input) {
+            return;
+        }
+        var cur = parseTime24(input.value);
+        if (cur === null) {
+            cur = 6 * 60;
+        }
+        input.value = formatTime24(cur + deltaMin);
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    document.addEventListener('click', function (e) {
+        var nudgeBtn = e.target.closest('.jadwal-time-nudge');
+        if (nudgeBtn) {
+            var scope = nudgeBtn.closest('.jadwal-jamaah-kelompok, .jadwal-jamaah-card, .modal-body, form');
+            if (!scope) {
+                return;
+            }
+            var target = nudgeBtn.getAttribute('data-target');
+            var delta = parseInt(nudgeBtn.getAttribute('data-delta') || '0', 10);
+            var sel = target === 'js' ? '.jadwal-jamaah-js, #jq-jam-selesai' : '.jadwal-jamaah-jm, #jq-jam-mulai';
+            var input = scope.querySelector(sel);
+            nudgeTimeInput(input, delta);
+            return;
+        }
+
+        var saranBtn = e.target.closest('.jadwal-jamaah-isi-saran');
+        if (saranBtn) {
+            var form = saranBtn.closest('form');
+            if (!form) {
+                return;
+            }
+            var jm = form.querySelector('.jadwal-jamaah-jm');
+            var js = form.querySelector('.jadwal-jamaah-js');
+            if (jm) {
+                jm.value = saranBtn.getAttribute('data-jm') || '';
+            }
+            if (js) {
+                js.value = saranBtn.getAttribute('data-js') || '';
+            }
+        }
+    });
 
     var deleteForm = document.getElementById('form-jadwal-delete-one');
     if (deleteForm) {

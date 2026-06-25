@@ -32,6 +32,20 @@ $wrapCard = $wrapCard ?? true;
 $submitLabel = $submitLabel ?? 'Tampilkan';
 $periodeNote = $periodeNote ?? '';
 
+if (!isset($masehiMonths)) {
+    $masehiMonths = [
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+        7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+    ];
+}
+$yearMin = $mode === 'hijriyah' ? 1300 : 1900;
+$yearMax = $mode === 'hijriyah' ? 1700 : 2100;
+if ($year <= 0) {
+    $year = (int) date('Y');
+}
+$year = max($yearMin, min($yearMax, $year));
+$monthOptions = $mode === 'hijriyah' ? $hijriMonths : $masehiMonths;
+
 $openCard = $wrapCard ? '<div class="' . htmlspecialchars($cardClass) . ' rekap-periode-card"><div class="card-body">' : '';
 $closeCard = $wrapCard ? '</div></div>' : '';
 echo $openCard;
@@ -44,24 +58,27 @@ if (!empty($periodAjaxMount) && !empty($periodAjaxApi)) {
     <div class="row g-2 align-items-end">
         <div class="col-md-2 col-6">
             <label class="form-label small mb-0">Kalender</label>
-            <select class="form-select form-select-sm" name="mode">
+            <select class="form-select form-select-sm" name="mode" id="rekap-periode-mode">
                 <option value="masehi" <?= $mode === 'masehi' ? 'selected' : '' ?>>Masehi</option>
                 <option value="hijriyah" <?= $mode === 'hijriyah' ? 'selected' : '' ?>>Hijriyah</option>
             </select>
         </div>
         <div class="col-md-2 col-6">
             <label class="form-label small mb-0">Bulan</label>
-            <select class="form-select form-select-sm" name="month">
+            <select class="form-select form-select-sm" name="month" id="rekap-periode-month">
                 <?php for ($m = 1; $m <= 12; $m++): ?>
                     <option value="<?= $m ?>"<?= $month === $m ? ' selected' : '' ?>>
-                        <?= htmlspecialchars($mode === 'hijriyah' ? ($hijriMonths[$m] ?? (string) $m) : sprintf('%02d', $m)) ?>
+                        <?= htmlspecialchars((string) ($monthOptions[$m] ?? (string) $m)) ?>
                     </option>
                 <?php endfor; ?>
             </select>
         </div>
         <div class="col-md-2 col-6">
             <label class="form-label small mb-0">Tahun</label>
-            <input class="form-control form-control-sm" type="number" min="1300" max="2100" name="year" value="<?= htmlspecialchars((string) $year) ?>">
+            <input class="form-control form-control-sm" type="number"
+                   id="rekap-periode-year"
+                   min="<?= (int) $yearMin ?>" max="<?= (int) $yearMax ?>"
+                   name="year" value="<?= htmlspecialchars((string) $year) ?>">
         </div>
         <?php foreach ($extraHidden as $hk => $hv): ?>
             <input type="hidden" name="<?= htmlspecialchars((string) $hk) ?>" value="<?= htmlspecialchars((string) $hv) ?>">
@@ -88,5 +105,43 @@ if (!empty($periodAjaxMount) && !empty($periodAjaxApi)) {
         </div>
     </div>
 </form>
+<?php if ($wrapCard): ?>
+<script>
+(function () {
+    if (window.__rekapPeriodeYearBoundsInit) {
+        return;
+    }
+    window.__rekapPeriodeYearBoundsInit = true;
+    document.addEventListener('change', function (ev) {
+        if (!ev.target || ev.target.id !== 'rekap-periode-mode') {
+            return;
+        }
+        var modeEl = ev.target;
+        var form = modeEl.closest('form');
+        if (!form) {
+            return;
+        }
+        var yearEl = form.querySelector('#rekap-periode-year');
+        if (!yearEl) {
+            return;
+        }
+        if (modeEl.value === 'hijriyah') {
+            yearEl.min = '1300';
+            yearEl.max = '1700';
+        } else {
+            yearEl.min = '1900';
+            yearEl.max = '2100';
+        }
+        yearEl.readOnly = false;
+        var y = parseInt(yearEl.value || '0', 10);
+        var minY = parseInt(yearEl.min, 10);
+        var maxY = parseInt(yearEl.max, 10);
+        if (!y || y < minY || y > maxY) {
+            yearEl.value = String(new Date().getFullYear());
+        }
+    });
+})();
+</script>
+<?php endif; ?>
 <?php
 echo $closeCard;
