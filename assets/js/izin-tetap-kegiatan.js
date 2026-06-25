@@ -72,11 +72,20 @@
     function renderItems(items) {
         collectChecked();
         if (!items || !items.length) {
-            wrap.innerHTML = '<p class="text-muted small mb-0 py-1" id="izin-tetap-kegiatan-kosong">Tidak ada kegiatan Jama\'ah pada jadwal yang bertabrakan dengan durasi jam hidmah. Periksa jadwal pondok atau isi kegiatan lain secara manual.</p>';
+            wrap.innerHTML = '<p class="text-muted small mb-0 py-1" id="izin-tetap-kegiatan-kosong">Tidak ada kegiatan pada jadwal yang bertabrakan dengan durasi jam hidmah. Periksa jadwal pondok atau isi kegiatan lain secara manual.</p>';
             return;
         }
 
-        var html = '<div class="form-text mb-1">Kegiatan otomatis dari jadwal &amp; durasi jam hidmah — centang yang ditinggalkan:</div>';
+        var html = '<div class="form-text mb-1">Kegiatan otomatis dari jadwal &amp; durasi — centang yang ditinggalkan:</div>';
+        var sidEl = form.querySelector('[name="santri_id"]');
+        var pickedSantri = form.querySelectorAll('.rombongan-santri-cb:checked, input[name="santri_ids[]"]:checked').length;
+        if (sidEl && sidEl.value) {
+            pickedSantri = Math.max(pickedSantri, 1);
+        }
+        var multiHint = document.getElementById('izin-tetap-kegiatan-hint-multi');
+        if (multiHint) {
+            multiHint.hidden = pickedSantri <= 1;
+        }
         items.forEach(function (item) {
             var nama = (item.nama || '').trim();
             if (!nama) {
@@ -113,6 +122,15 @@
         }
         var fd = readSlots();
         appendSantri(fd);
+        var sid = form.querySelector('[name="santri_id"]');
+        var pickedCount = form.querySelectorAll('.rombongan-santri-cb:checked, input[name="santri_ids[]"]:checked').length;
+        if (sid && sid.value) {
+            pickedCount = Math.max(pickedCount, 1);
+        }
+        var multiHint = document.getElementById('izin-tetap-kegiatan-hint-multi');
+        if (multiHint) {
+            multiHint.hidden = pickedCount <= 1;
+        }
         fetch(ajaxUrl, {
             method: 'POST',
             body: fd,
@@ -165,13 +183,12 @@
     var blok = document.getElementById('blok-kegiatan-ditinggalkan');
     var jenisSel = document.getElementById('izin-tetap-jenis');
     function syncBlok() {
-        if (!blok || !jenisSel) {
+        if (!blok) {
             return;
         }
-        blok.style.display = jenisSel.value === 'HIDMAH' ? '' : 'none';
+        blok.style.display = '';
     }
     jenisSel?.addEventListener('change', function () {
-        syncBlok();
         scheduleRefresh();
     });
     syncBlok();

@@ -237,6 +237,42 @@ function perizinan_rombongan_santri_aktif_grouped(PDO $pdo): array
     return perizinan_rombongan_group_by_tingkatan($rows);
 }
 
+/**
+ * Daftar meta izin rombongan untuk halaman pengajuan.
+ *
+ * @return list<array<string, mixed>>
+ */
+function perizinan_rombongan_list(PDO $pdo, string $statusFilter = '', int $limit = 50): array
+{
+    perizinan_rombongan_ensure_schema($pdo);
+    if (!table_exists($pdo, 'perizinan_rombongan_meta')) {
+        return [];
+    }
+    $limit = max(5, min(100, $limit));
+    $statusFilter = strtoupper(trim($statusFilter));
+    $params = [];
+    $sql = '
+        SELECT m.*,
+               (SELECT COUNT(*) FROM perizinan i WHERE i.rombongan_id = m.id) AS jumlah_santri,
+               (SELECT COUNT(*) FROM perizinan i WHERE i.rombongan_id = m.id AND COALESCE(i.rombongan_kembali, 0) = 1) AS jumlah_kembali
+        FROM perizinan_rombongan_meta m
+        WHERE 1=1
+    ';
+    if (in_array($statusFilter, ['PENDING', 'DISETUJUI', 'DITOLAK'], true)) {
+        $sql .= ' AND m.approval_status = :st';
+        $params['st'] = $statusFilter;
+    }
+    $sql .= ' ORDER BY
+        CASE m.approval_status WHEN "PENDING" THEN 0 WHEN "DISETUJUI" THEN 1 ELSE 2 END ASC,
+        m.id DESC
+        LIMIT ' . $limit;
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 /** @return list<array<string, mixed>> */
 function perizinan_rombongan_anggota(PDO $pdo, int $rombonganId): array
 {

@@ -38,36 +38,8 @@ if (isset($_GET['ajax']) && (string) $_GET['ajax'] === 'pembimbing_wa_targets') 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'create_izin';
     if ($action === 'create_rombongan') {
-        $santriIds = array_map('intval', (array) ($_POST['santri_ids_rombongan'] ?? []));
-        $res = perizinan_rombongan_create($pdo, $_POST, $santriIds, (int) ($_SESSION['user']['id'] ?? 0));
-        if ($res['ok']) {
-            if (empty($res['auto_approved'])) {
-                $jenisRombongan = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
-                perizinan_push_setelah_pengajuan(
-                    $pdo,
-                    'Izin rombongan (' . count($santriIds) . ' santri)',
-                    '',
-                    $jenisRombongan,
-                    trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
-                    trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d'))),
-                    [
-                        'jam_mulai' => trim((string) ($_POST['jam_mulai'] ?? date('H:i'))),
-                        'jam_selesai' => trim((string) ($_POST['jam_selesai'] ?? date('H:i'))),
-                        'alasan' => trim((string) ($_POST['alasan'] ?? '')),
-                        'tujuan' => trim((string) ($_POST['tujuan'] ?? '')),
-                    ]
-                );
-            }
-            set_flash('success', $res['message']);
-            if (!empty($res['auto_approved']) && !empty($res['rombongan_id'])) {
-                header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . (int) $res['rombongan_id']));
-                exit;
-            }
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
-        }
-        set_flash('error', $res['message']);
-        header('Location: ' . app_href('/perizinan/index.php'));
+        set_flash('info', 'Pengajuan izin rombongan dipindah ke halaman Izin Rombongan.');
+        header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
         exit;
     }
     if ($action === 'approve_rombongan') {
@@ -246,8 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $sqlAktifS = santri_sql_aktif_only('s');
-$rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
-$namaPengasuh = app_setting($pdo, 'nama_pengasuh', '');
 
 $filterStatus = strtoupper(trim((string) ($_GET['status'] ?? '')));
 if (!in_array($filterStatus, ['PENDING', 'DISETUJUI', 'DITOLAK'], true)) {
@@ -341,7 +311,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Perizinan</p>
     <h1 class="h4 mb-1">Persetujuan izin santri</h1>
-    <p class="text-muted mb-0">Tinjau permohonan yang masuk, setujui atau tolak, cetak surat. Pengajuan perorangan lewat menu <strong>Pengajuan</strong>; izin rombongan dapat diajukan di panel kiri.
+    <p class="text-muted mb-0">Tinjau permohonan yang masuk, setujui atau tolak, cetak surat. Pengajuan perorangan lewat menu <strong>Pengajuan</strong>; izin rombongan lewat menu <strong>Izin Rombongan</strong>.
         <?php if (user_can_access_permission_key('pengaturan') || is_super_admin()): ?>
             <a href="<?= htmlspecialchars(app_href('/settings/perizinan.php')) ?>" class="ms-1">Pengaturan syarat ALPA &amp; WA pembimbing</a>
         <?php endif; ?>
@@ -382,73 +352,17 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/permohonan.php')) ?>">Ke form pengajuan</a>
             </div>
         </div>
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-3">
             <div class="card-body">
-                <h2 class="h5 mb-3">Pengajuan izin rombongan</h2>
-                <form method="post" class="row g-2" id="form-izin-rombongan" data-rombongan-min="2" data-rombongan-target="rombongan-input">
-                    <input type="hidden" name="action" value="create_rombongan">
-                    <div class="col-12">
-                        <label class="form-label">Pilih santri rombongan <span class="text-muted fw-normal">(min. 2)</span></label>
-                        <?php
-                        $rombonganPickerName = 'santri_ids_rombongan[]';
-                        $rombonganPickerId = 'rombongan-input';
-                        $rombonganPickerShowToolbar = true;
-                        require __DIR__ . '/partials/rombongan_santri_picker.php';
-                        ?>
-                        <div class="form-text">Satu surat A4. Saat kembali, scan kartu masing-masing santri di Scan Presensi.</div>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Jenis Izin</label>
-                        <select class="form-select" name="jenis_izin" id="jenis-izin-rombongan" required>
-                            <?php $selectedJenis = 'KELUAR'; require __DIR__ . '/partials/jenis_izin_select_options.php'; ?>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Mulai</label>
-                        <input type="date" name="tanggal_mulai" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Selesai</label>
-                        <input type="date" name="tanggal_selesai" class="form-control" value="<?= date('Y-m-d') ?>" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Alasan</label>
-                        <textarea class="form-control" name="alasan" rows="2" required></textarea>
-                    </div>
-                    <?php
-                    $tujuanWrapId = 'wrap-tujuan-rombongan';
-                    $tujuanJenisSelectId = 'jenis-izin-rombongan';
-                    $tujuanValue = '';
-                    require __DIR__ . '/partials/tujuan_izin_field.php';
-                    ?>
-                    <div class="col-4">
-                        <label class="form-label">Jam mulai</label>
-                        <input type="text" name="jam_mulai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">Jam selesai</label>
-                        <input type="text" name="jam_selesai" <?= app_time_input_attrs() ?> value="<?= htmlspecialchars(app_format_jam(date('H:i'))) ?>" required>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">Durasi (jam)</label>
-                        <input type="number" step="0.25" min="0" name="durasi_jam" class="form-control">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Pemberi izin</label>
-                        <input type="text" class="form-control" name="pemberi_izin" required>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Pengasuh</label>
-                        <input type="text" class="form-control" name="penandatangan_pengasuh" value="<?= htmlspecialchars($namaPengasuh) ?>" <?= $namaPengasuh !== '' ? 'readonly' : '' ?> required>
-                    </div>
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-primary">Simpan izin rombongan</button>
-                    </div>
-                </form>
-                <div class="mt-3 d-flex flex-wrap gap-2">
-                    <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/rekap_aktif.php')) ?>">Rekap izin aktif</a>
-                    <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/izin_tetap.php')) ?>">Izin tetap hidmah</a>
-                </div>
+                <h2 class="h6 mb-2"><i class="fa-solid fa-people-group text-primary me-1"></i> Izin rombongan</h2>
+                <p class="small text-muted mb-2">Minimal 2 santri, satu surat A4. Form pengajuan &amp; riwayat rombongan ada di halaman khusus.</p>
+                <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/izin_rombongan.php')) ?>">Ke izin rombongan</a>
+            </div>
+        </div>
+        <div class="card shadow-sm">
+            <div class="card-body d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/rekap_aktif.php')) ?>">Rekap izin aktif</a>
+                <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/perizinan/izin_tetap.php')) ?>">Izin tetap hidmah</a>
             </div>
         </div>
     </div>
@@ -458,7 +372,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($rombonganPending !== []): ?>
                 <div class="alert alert-warning py-2 mb-3">
                     <strong>Izin rombongan menunggu persetujuan</strong>
-                    <span class="d-block small fw-normal text-muted">Satu surat A4 berlaku untuk semua santri dalam rombongan yang sama.</span>
+                    <span class="d-block small fw-normal text-muted">Kelola di halaman <a href="<?= htmlspecialchars(app_href('/perizinan/izin_rombongan.php')) ?>">Izin Rombongan</a>.</span>
                     <ul class="mb-0 small ps-3">
                         <?php foreach ($rombonganPending as $rm):
                             $rombonganSyari = perizinan_memerlukan_persetujuan_pengasuh((string) ($rm['jenis_izin'] ?? ''));
@@ -875,8 +789,6 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 <?php endforeach; ?>
-<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-rombongan-picker.js')) ?>" defer></script>
-<script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-tujuan-field.js')) ?>" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 (function () {

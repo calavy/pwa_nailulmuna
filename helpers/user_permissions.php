@@ -293,6 +293,8 @@ function user_permission_path_map_base(): array
         '/perizinan/izin_tetap.php' => 'perizinan',
         '/perizinan/izin_tetap_kegiatan.php' => 'perizinan',
         '/perizinan/surat_izin_tetap.php' => 'perizinan',
+        '/perizinan/izin_rombongan.php' => 'perizinan',
+        '/perizinan/surat_rombongan.php' => 'perizinan',
         '/perizinan/permohonan.php' => 'perizinan_permohonan',
         '/admin/surat_nomor.php' => 'perizinan',
         '/admin/rekap_surat_izin.php' => 'perizinan',

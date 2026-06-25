@@ -154,29 +154,128 @@ function santri_izin_tetap_kegiatan_jamaah_list(PDO $pdo): array
     return array_values($out);
 }
 
-function santri_izin_tetap_kegiatan_ditinggalkan_dari_post(array $post): ?string
+function santri_izin_tetap_kegiatan_picker_submitted(array $post): bool
+{
+    return trim((string) ($post['kegiatan_ditinggalkan_picker'] ?? '')) === '1';
+}
+
+/**
+ * @return list<string>
+ */
+function santri_izin_tetap_kegiatan_checkbox_dari_post(array $post): array
 {
     $names = [];
     $picked = $post['kegiatan_ditinggalkan_items'] ?? [];
-    if (is_array($picked)) {
-        foreach ($picked as $nama) {
-            $t = trim((string) $nama);
-            if ($t !== '') {
-                $names[$t] = $t;
-            }
-        }
+    if (!is_array($picked)) {
+        return [];
     }
-    $manual = trim((string) ($post['kegiatan_ditinggalkan'] ?? ''));
-    if ($manual !== '') {
-        foreach (preg_split('/[\n,;]+/', $manual) ?: [] as $part) {
-            $t = trim((string) $part);
-            if ($t !== '') {
-                $names[$t] = $t;
-            }
+    foreach ($picked as $nama) {
+        $t = trim((string) $nama);
+        if ($t !== '') {
+            $names[$t] = $t;
         }
     }
 
-    return $names === [] ? null : implode(', ', array_values($names));
+    return array_values($names);
+}
+
+/**
+ * @return list<string>
+ */
+function santri_izin_tetap_kegiatan_manual_dari_post(array $post): array
+{
+    $manual = trim((string) ($post['kegiatan_ditinggalkan'] ?? ''));
+    if ($manual === '') {
+        return [];
+    }
+    $names = [];
+    foreach (preg_split('/[\n,;]+/', $manual) ?: [] as $part) {
+        $t = trim((string) $part);
+        if ($t !== '') {
+            $names[$t] = $t;
+        }
+    }
+
+    return array_values($names);
+}
+
+function santri_izin_tetap_kegiatan_ditinggalkan_dari_post(array $post): ?string
+{
+    $names = santri_izin_tetap_kegiatan_checkbox_dari_post($post);
+    foreach (santri_izin_tetap_kegiatan_manual_dari_post($post) as $nama) {
+        $names[$nama] = $nama;
+    }
+    $names = array_values($names);
+    if (santri_izin_tetap_kegiatan_picker_submitted($post)) {
+        return $names === [] ? '' : implode(', ', $names);
+    }
+
+    return $names === [] ? null : implode(', ', $names);
+}
+
+/**
+ * Kegiatan ditinggalkan per santri (penting saat simpan massal / tingkatan berbeda).
+ *
+ * @param array<int, array{hari_ke:int,jam_mulai:string,jam_selesai:string}> $normalizedSlots
+ * @param list<string> $checkboxNames
+ * @param list<string> $manualNames
+ * @param bool $checkboxFieldPresent Apakah field checkbox ikut terkirim (beda "belum dirender" vs "dicentang nol")
+ */
+function santri_izin_tetap_kegiatan_ditinggalkan_for_santri(
+    PDO $pdo,
+    int $santriId,
+    array $normalizedSlots,
+    string $jenis,
+    array $checkboxNames,
+    array $manualNames,
+    bool $pickerSubmitted,
+    bool $checkboxFieldPresent = true
+): string {
+    if ($santriId <= 0) {
+        return '';
+    }
+
+    $jenis = strtoupper(trim($jenis));
+    $hanyaJamaah = $jenis !== 'TUGAS';
+    $tingList = santri_izin_tetap_tingkatan_for_santri_ids($pdo, [$santriId]);
+    $auto = $normalizedSlots === []
+        ? []
+        : santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $normalizedSlots, $tingList, $hanyaJamaah);
+    $autoNames = [];
+    foreach ($auto as $row) {
+        $n = trim((string) ($row['nama'] ?? ''));
+        if ($n !== '') {
+            $autoNames[$n] = $n;
+        }
+    }
+
+    if (!$pickerSubmitted) {
+        if ($autoNames !== []) {
+            return implode(', ', array_values($autoNames));
+        }
+
+        return '';
+    }
+
+    if (!$checkboxFieldPresent && $manualNames === []) {
+        if ($autoNames !== []) {
+            return implode(', ', array_values($autoNames));
+        }
+
+        return '';
+    }
+
+    $out = [];
+    foreach ($checkboxNames as $nama) {
+        if (isset($autoNames[$nama])) {
+            $out[$nama] = $nama;
+        }
+    }
+    foreach ($manualNames as $nama) {
+        $out[$nama] = $nama;
+    }
+
+    return implode(', ', array_values($out));
 }
 
 /** @return list<string> */
@@ -364,9 +463,8 @@ function santri_izin_tetap_kegiatan_overlap_dari_jadwal(PDO $pdo, array $slots, 
 /** Nama kegiatan ditinggalkan efektif (tersimpan atau dihitung ulang dari jadwal). */
 function santri_izin_tetap_kegiatan_ditinggalkan_efektif(PDO $pdo, array $izinRow, ?array $slots = null): string
 {
-    $stored = trim((string) ($izinRow['kegiatan_ditinggalkan'] ?? ''));
-    if ($stored !== '') {
-        return $stored;
+    if (array_key_exists('kegiatan_ditinggalkan', $izinRow) && $izinRow['kegiatan_ditinggalkan'] !== null) {
+        return trim((string) $izinRow['kegiatan_ditinggalkan']);
     }
 
     $jenis = strtoupper((string) ($izinRow['jenis'] ?? 'HIDMAH'));
@@ -799,6 +897,10 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     $id = (int) ($post['id'] ?? 0);
     $santriIds = santri_izin_tetap_santri_ids_dari_post($post);
     $judul = trim((string) ($post['judul'] ?? 'Hidmah'));
+    $pickerSubmitted = santri_izin_tetap_kegiatan_picker_submitted($post);
+    $kegiatanCheckboxFieldPresent = array_key_exists('kegiatan_ditinggalkan_items', $post);
+    $kegiatanCheckbox = santri_izin_tetap_kegiatan_checkbox_dari_post($post);
+    $kegiatanManual = santri_izin_tetap_kegiatan_manual_dari_post($post);
     $kegiatanDitinggalkan = santri_izin_tetap_kegiatan_ditinggalkan_dari_post($post);
     $jenis = strtoupper(trim((string) ($post['jenis'] ?? 'HIDMAH')));
     $tglMulai = trim((string) ($post['tanggal_mulai'] ?? ''));
@@ -856,7 +958,6 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     $tglSelesaiDb = $tglSelesai !== '' ? $tglSelesai : null;
     $ketDb = $keterangan !== '' ? $keterangan : null;
     $pjDb = $penanggungJawab !== '' ? $penanggungJawab : null;
-    $kegDb = $kegiatanDitinggalkan !== null && $kegiatanDitinggalkan !== '' ? $kegiatanDitinggalkan : null;
 
     $normalizedSlots = [];
     foreach ($slots as $slot) {
@@ -881,14 +982,33 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         return ['ok' => false, 'message' => 'Centang minimal satu hari dan isi jam yang valid pada blok waktu.'];
     }
 
-    if (($kegDb === null || $kegDb === '') && in_array($jenis, ['HIDMAH', 'TUGAS'], true)) {
-        $tingList = santri_izin_tetap_tingkatan_for_santri_ids($pdo, $santriIds);
-        $hanyaJamaah = $jenis !== 'TUGAS';
-        $autoKeg = santri_izin_tetap_kegiatan_overlap_dari_jadwal($pdo, $normalizedSlots, $tingList, $hanyaJamaah);
-        if ($autoKeg !== []) {
-            $kegDb = implode(', ', array_map(static fn (array $r): string => (string) $r['nama'], $autoKeg));
+    $resolveKegiatanDb = static function (int $santriId) use (
+        $pdo,
+        $normalizedSlots,
+        $jenis,
+        $kegiatanCheckbox,
+        $kegiatanManual,
+        $pickerSubmitted,
+        $kegiatanCheckboxFieldPresent,
+        $kegiatanDitinggalkan,
+        $santriIds
+    ): ?string {
+        $pickerActive = $pickerSubmitted || $kegiatanCheckbox !== [] || $kegiatanManual !== [];
+        if (count($santriIds) === 1 && !$pickerActive && $kegiatanDitinggalkan !== null) {
+            return $kegiatanDitinggalkan;
         }
-    }
+
+        return santri_izin_tetap_kegiatan_ditinggalkan_for_santri(
+            $pdo,
+            $santriId,
+            $normalizedSlots,
+            $jenis,
+            $kegiatanCheckbox,
+            $kegiatanManual,
+            $pickerActive,
+            $kegiatanCheckboxFieldPresent
+        );
+    };
 
     $inTransaction = false;
     $savedIds = [];
@@ -900,6 +1020,7 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
 
         foreach ($santriIds as $santriId) {
             $rowId = $id > 0 ? $id : 0;
+            $kegDb = $resolveKegiatanDb($santriId);
             $result = santri_izin_tetap_persist_one(
                 $pdo,
                 $rowId,

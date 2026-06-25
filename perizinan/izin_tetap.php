@@ -162,12 +162,15 @@ require_once __DIR__ . '/../includes/header.php';
                                     ?>
                                     <div class="rombongan-santri-picker__row px-1 py-1 border-top"
                                          data-search="<?= htmlspecialchars(strtolower((string) ($s['nis'] ?? '') . ' ' . (string) ($s['nama'] ?? ''))) ?>"
-                                         data-nis="<?= htmlspecialchars((string) ($s['nis'] ?? '')) ?>">
+                                         data-nis="<?= htmlspecialchars((string) ($s['nis'] ?? '')) ?>"
+                                         data-nama="<?= htmlspecialchars((string) ($s['nama'] ?? '')) ?>">
                                         <div class="form-check mb-0">
                                             <input class="form-check-input rombongan-santri-cb" type="checkbox" name="santri_ids[]"
                                                    id="izin-tetap-pick-<?= $sid ?>" value="<?= $sid ?>">
                                             <label class="form-check-label small" for="izin-tetap-pick-<?= $sid ?>">
                                                 <span class="font-monospace fw-semibold"><?= htmlspecialchars((string) ($s['nis'] ?? '')) ?></span>
+                                                <span class="mx-1">—</span>
+                                                <?= htmlspecialchars((string) ($s['nama'] ?? '')) ?>
                                             </label>
                                         </div>
                                     </div>
@@ -182,7 +185,7 @@ require_once __DIR__ . '/../includes/header.php';
                         $rombonganPickerName = 'santri_ids[]';
                         $rombonganPickerId = 'izin-tetap-pick';
                         $rombonganPickerHideBelumKembali = true;
-                        $rombonganPickerHideNamaInList = true;
+                        $rombonganPickerHideNamaInList = false;
                         $rombonganPickerStartHidden = true;
                         require __DIR__ . '/partials/rombongan_santri_picker.php';
                         ?>
@@ -413,9 +416,18 @@ require_once __DIR__ . '/../includes/header.php';
         pickWrap.querySelectorAll('.rombongan-santri-cb:checked').forEach(function (cb) {
             const row = cb.closest('.rombongan-santri-picker__row');
             const nis = row ? (row.getAttribute('data-nis') || '').trim() : '';
+            const nama = row ? (row.getAttribute('data-nama') || '').trim() : '';
             const badge = document.createElement('span');
             badge.className = 'badge text-bg-primary';
-            badge.textContent = nis !== '' ? nis : ('#' + cb.value);
+            if (nis !== '' && nama !== '') {
+                badge.textContent = nis + ' — ' + nama;
+            } else if (nis !== '') {
+                badge.textContent = nis;
+            } else if (nama !== '') {
+                badge.textContent = nama;
+            } else {
+                badge.textContent = '#' + cb.value;
+            }
             terpilihWrap.appendChild(badge);
         });
     }
@@ -457,7 +469,7 @@ require_once __DIR__ . '/../includes/header.php';
     function syncBlokKegiatan() {
         if (!jenisSel) return;
         const isHidmah = jenisSel.value === 'HIDMAH';
-        if (blokKeg) blokKeg.style.display = isHidmah ? '' : 'none';
+        if (blokKeg) blokKeg.style.display = '';
         if (blokKat) blokKat.style.display = isHidmah ? '' : 'none';
         if (katSel) katSel.required = isHidmah;
         if (uraianLabel) {

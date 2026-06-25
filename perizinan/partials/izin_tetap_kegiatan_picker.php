@@ -13,13 +13,17 @@ foreach ($izinTetapKegiatanChecked as $nama) {
     $checkedMap[trim((string) $nama)] = true;
 }
 ?>
+<input type="hidden" name="kegiatan_ditinggalkan_picker" value="1">
+<p class="small text-muted mb-2" id="izin-tetap-kegiatan-hint-multi" hidden>
+    Beberapa santri dipilih: daftar menampilkan gabungan jadwal. Saat disimpan &amp; dicetak, masing-masing santri hanya memuat kegiatan yang berlaku untuk tingkatannya.
+</p>
 <div id="izin-tetap-kegiatan-wrap" class="border rounded p-2 bg-light" style="max-height:11rem;overflow-y:auto">
     <?php if ($izinTetapKegiatanList === []): ?>
         <p class="text-muted small mb-0 py-1" id="izin-tetap-kegiatan-kosong">
             Isi jadwal hari &amp; jam hidmah terlebih dahulu. Sistem akan menampilkan kegiatan Jama'ah yang bertabrakan dengan durasi tersebut.
         </p>
     <?php else: ?>
-        <div class="form-text mb-1">Kegiatan otomatis dari jadwal &amp; durasi jam hidmah — centang yang ditinggalkan:</div>
+        <div class="form-text mb-1">Kegiatan otomatis dari jadwal &amp; durasi — centang yang ditinggalkan:</div>
         <?php foreach ($izinTetapKegiatanList as $kg):
             $nama = trim((string) ($kg['nama'] ?? ''));
             if ($nama === '') {

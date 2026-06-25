@@ -72,6 +72,7 @@ if (count($kegiatanItems) > 4) {
     $kegiatanKolomKiri = array_slice($kegiatanItems, 0, 4);
     $kegiatanKolomKanan = array_slice($kegiatanItems, 4);
 }
+$tampilkanKotakKegiatan = in_array($jenisRaw, ['HIDMAH', 'TUGAS'], true);
 $kategoriHidmahKode = trim((string) ($izin['kategori_hidmah'] ?? ''));
 $kategoriHidmahLabel = $kategoriHidmahKode !== '' ? izin_tetap_hidmah_kategori_label($pdo, $kategoriHidmahKode) : '';
 $keterangan = trim((string) ($izin['keterangan'] ?? ''));
@@ -314,9 +315,10 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 <tr><td>Masa Berlaku</td><td>: <?= htmlspecialchars($periodeTampil) ?></td></tr>
                 <tr><td><?= htmlspecialchars((string) $suratKonteks['label_jadwal']) ?></td><td>: <?= $slotHtml ?></td></tr>
             </table>
-            <?php if ($kegiatanItems !== []): ?>
+            <?php if ($tampilkanKotakKegiatan): ?>
             <div class="box-kegiatan">
                 <strong><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></strong>
+                <?php if ($kegiatanItems !== []): ?>
                 <?php if ($kegiatanKolomKanan !== []): ?>
                 <div class="box-kegiatan__cols">
                     <ul>
@@ -336,6 +338,9 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                         <li><?= htmlspecialchars($kgNama) ?></li>
                     <?php endforeach; ?>
                 </ul>
+                <?php endif; ?>
+                <?php else: ?>
+                <p class="mb-0 small text-muted">Tidak ada kegiatan tercatat.</p>
                 <?php endif; ?>
             </div>
             <?php endif; ?>

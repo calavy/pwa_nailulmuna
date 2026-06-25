@@ -63,7 +63,8 @@ $rombonganSantriGrouped = $rombonganSantriGrouped ?? [];
                     ?>
                     <div class="rombongan-santri-picker__row px-2 py-1 border-top<?= $sudah ? ' bg-success bg-opacity-10' : '' ?>"
                          data-search="<?= htmlspecialchars(strtolower($nis . ' ' . $nama)) ?>"
-                         data-nis="<?= htmlspecialchars($nis) ?>">
+                         data-nis="<?= htmlspecialchars($nis) ?>"
+                         data-nama="<?= htmlspecialchars($nama) ?>">
                         <?php if ($sudah && $rombonganPickerName === 'santri_kembali[]'): ?>
                             <span class="badge text-bg-success me-2"><i class="fa-solid fa-check"></i></span>
                             <span class="text-muted text-decoration-line-through small">

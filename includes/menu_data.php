@@ -113,6 +113,7 @@ return [
         '/perizinan/index.php' => 'Persetujuan Izin',
         '/perizinan/rekap_aktif.php' => 'Rekap Izin Aktif',
         '/perizinan/izin_tetap.php' => 'Izin Tetap Hidmah',
+        '/perizinan/izin_rombongan.php' => 'Izin Rombongan',
         '/admin/surat_nomor.php' => 'Nomor Surat',
         '/admin/cek_update.php' => 'Cek Update Sistem',
         '/admin/rekap_surat_izin.php' => 'Rekap Surat Izin',
