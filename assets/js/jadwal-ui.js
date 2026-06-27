@@ -137,8 +137,19 @@
             keg.value = btn.getAttribute('data-kegiatan-id') || '';
         }
         var pb = document.getElementById('jq-pembimbing');
+        var pbNote = document.getElementById('jq-pembimbing-jamaah-note');
+        var kat = (btn.getAttribute('data-kategori') || '').toLowerCase();
         if (pb) {
-            pb.value = btn.getAttribute('data-pembimbing-id') || '0';
+            if (kat === 'jamaah') {
+                pb.value = '0';
+                pb.disabled = true;
+            } else {
+                pb.disabled = false;
+                pb.value = btn.getAttribute('data-pembimbing-id') || '0';
+            }
+        }
+        if (pbNote) {
+            pbNote.classList.toggle('d-none', kat !== 'jamaah');
         }
         var jm = document.getElementById('jq-jam-mulai');
         if (jm) {

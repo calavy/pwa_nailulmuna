@@ -377,11 +377,11 @@ function jadwal_jamaah_terapkan_waktu(
 
     $upd = $pdo->prepare('
         UPDATE jadwal_kegiatan
-        SET jam_mulai = :jm, jam_selesai = :js
-        WHERE kegiatan_id = :kid AND TRIM(tingkatan) IN (' . $ph . ')
+        SET jam_mulai = ?, jam_selesai = ?
+        WHERE kegiatan_id = ? AND TRIM(tingkatan) IN (' . $ph . ')
     ');
     $upd->execute(array_merge(
-        ['jm' => $jamMulai, 'js' => $jamSelesai, 'kid' => $kegiatanId],
+        [$jamMulai, $jamSelesai, $kegiatanId],
         $tingkatanList
     ));
     $updated = $upd->rowCount();

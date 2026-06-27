@@ -31,13 +31,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $point = 0;
     if ($ruleId > 0) {
-        $ruleStmt = $pdo->prepare('SELECT id, nama_rule, bobot_poin FROM point_rules WHERE id = :id');
+        $ruleStmt = $pdo->prepare('SELECT id, nama_rule, bobot_poin, jenis_rule FROM point_rules WHERE id = :id');
         $ruleStmt->execute(['id' => $ruleId]);
         $rule = $ruleStmt->fetch();
         if ($rule) {
+            $ruleJenis = strtoupper((string) ($rule['jenis_rule'] ?? 'PLUS'));
+            if ($ruleJenis !== $jenis) {
+                set_flash('error', 'Rule yang dipilih tidak sesuai jenis perubahan (' . ($jenis === 'MINUS' ? 'pengurangan' : 'penambahan') . ').');
+                header('Location: ' . app_href('/poin/input.php'));
+                exit;
+            }
             $point = (int) $rule['bobot_poin'];
             if ($keterangan === '') {
-                $keterangan = 'Input rule: ' . $rule['nama_rule'];
+                $keterangan = ($jenis === 'MINUS' ? 'Remedial: ' : 'Input rule: ') . $rule['nama_rule'];
             }
         }
     }
@@ -82,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $santriList = $pdo->query('SELECT id, nis, nama_santri, tingkatan FROM santri ORDER BY ' . santri_list_order_sql('santri'))->fetchAll();
-$ruleList = $pdo->query('SELECT id, kategori, nama_rule, bobot_poin FROM point_rules WHERE is_active = 1 ORDER BY urutan ASC, kategori ASC')->fetchAll();
+$ruleList = $pdo->query('SELECT id, kategori, nama_rule, bobot_poin, jenis_rule FROM point_rules WHERE is_active = 1 ORDER BY urutan ASC, kategori ASC')->fetchAll();
 $recentRows = $pdo->query('
     SELECT pl.tanggal, pl.jenis_perubahan, pl.point_delta, pl.keterangan, s.nama_santri, s.tingkatan
     FROM point_ledger pl
@@ -140,7 +146,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Jenis</label>
-                        <select class="form-select" name="jenis_perubahan">
+                        <select class="form-select" name="jenis_perubahan" id="poinJenisSelect">
                             <option value="PLUS">Tambah Poin</option>
                             <option value="MINUS">Kurangi Poin (Remedial)</option>
                         </select>
@@ -150,17 +156,21 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="date" class="form-control" name="tanggal" value="<?= date('Y-m-d') ?>" required>
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Rule Pelanggaran (opsional)</label>
-                        <select class="form-select" name="rule_id">
+                        <label class="form-label">Rule / kriteria <span class="text-muted small" id="poinRuleHint">(pelanggaran)</span></label>
+                        <select class="form-select" name="rule_id" id="poinRuleSelect">
                             <option value="0">Pilih rule / kosongkan jika poin custom</option>
                             <?php foreach ($ruleList as $r): ?>
-                                <option value="<?= (int) $r['id'] ?>"><?= htmlspecialchars($r['kategori'] . ' - ' . $r['nama_rule'] . ' (' . $r['bobot_poin'] . ' poin)') ?></option>
+                                <?php $jr = strtoupper((string) ($r['jenis_rule'] ?? 'PLUS')); ?>
+                                <option value="<?= (int) $r['id'] ?>" data-jenis="<?= htmlspecialchars($jr) ?>" data-poin="<?= (int) $r['bobot_poin'] ?>">
+                                    <?= htmlspecialchars($r['kategori'] . ' - ' . $r['nama_rule'] . ' (' . $r['bobot_poin'] . ' poin)') ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Poin Custom (opsional)</label>
-                        <input type="number" min="1" class="form-control" name="point_custom" placeholder="Contoh: 2">
+                        <label class="form-label">Poin custom (opsional)</label>
+                        <input type="number" min="1" class="form-control" name="point_custom" id="poinCustomInput" placeholder="Contoh: 2">
+                        <div class="form-text" id="poinRulePreview"></div>
                     </div>
                     <div class="col-12">
                         <label class="form-label">Nama pelanggaran / keterangan</label>
@@ -198,4 +208,49 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+<script>
+(function () {
+    var jenis = document.getElementById('poinJenisSelect');
+    var rule = document.getElementById('poinRuleSelect');
+    var hint = document.getElementById('poinRuleHint');
+    var preview = document.getElementById('poinRulePreview');
+    if (!jenis || !rule) return;
+
+    function syncRules() {
+        var j = jenis.value || 'PLUS';
+        if (hint) {
+            hint.textContent = j === 'MINUS' ? '(remedial / pengurangan)' : '(pelanggaran)';
+        }
+        var selected = rule.value;
+        Array.prototype.forEach.call(rule.options, function (opt) {
+            if (!opt.value || opt.value === '0') {
+                opt.hidden = false;
+                return;
+            }
+            var match = (opt.getAttribute('data-jenis') || 'PLUS') === j;
+            opt.hidden = !match;
+            if (!match && opt.selected) {
+                rule.value = '0';
+            }
+        });
+        updatePreview();
+    }
+
+    function updatePreview() {
+        if (!preview) return;
+        var opt = rule.options[rule.selectedIndex];
+        if (!opt || !opt.value || opt.value === '0') {
+            preview.textContent = '';
+            return;
+        }
+        var p = opt.getAttribute('data-poin') || '0';
+        var sign = jenis.value === 'MINUS' ? '-' : '+';
+        preview.textContent = 'Bobot rule: ' + sign + p + ' poin';
+    }
+
+    jenis.addEventListener('change', syncRules);
+    rule.addEventListener('change', updatePreview);
+    syncRules();
+})();
+</script>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

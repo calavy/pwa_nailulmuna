@@ -1,0 +1,61 @@
+.yn-timeline-wrap {
+    overflow-x: auto;
+}
+
+.yn-timeline-table {
+    min-width: 920px;
+    font-size: 0.8125rem;
+}
+
+.yn-timeline-table th {
+    white-space: nowrap;
+    vertical-align: middle;
+    background: var(--bs-light, #f8f9fa);
+}
+
+.yn-timeline-table td {
+    vertical-align: middle;
+}
+
+.yn-timeline-table input[type="time"],
+.yn-timeline-table input[type="datetime-local"] {
+    min-width: 7.5rem;
+}
+
+.yn-format-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+
+.yn-preview-box {
+    border: 1px dashed var(--bs-border-color, #dee2e6);
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    background: var(--bs-light, #f8f9fa);
+    font-size: 0.875rem;
+}
+
+.yn-preview-box ol,
+.yn-preview-box ul {
+    margin-bottom: 0.5rem;
+    padding-left: 1.25rem;
+}
+
+.yn-list {
+    margin-bottom: 0.5rem;
+    padding-left: 1.25rem;
+}
+
+.yn-foto-thumb {
+    max-height: 120px;
+    border-radius: 0.375rem;
+    object-fit: cover;
+}
+
+@media print {
+    .yn-no-print {
+        display: none !important;
+    }
+}

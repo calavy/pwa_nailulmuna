@@ -8,6 +8,8 @@ require_once __DIR__ . '/../helpers/jadwal_ui.php';
 require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
 require_once __DIR__ . '/../helpers/jadwal_form_handlers.php';
 require_once __DIR__ . '/../helpers/jadwal_jamaah.php';
+require_once __DIR__ . '/../helpers/jadwal_jamaah_pembimbing.php';
+require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
 
 jadwal_require_module_access();
@@ -29,6 +31,7 @@ if (!column_exists($pdo, 'jadwal_kegiatan', 'tempat')) {
 if (table_exists($pdo, 'kegiatan') && !column_exists($pdo, 'kegiatan', 'kategori_kegiatan')) {
     ensure_kegiatan_kategori_column($pdo);
 }
+jadwal_jamaah_munawib_ensure_schema($pdo);
 
 /**
  * Hapus satu slot jadwal + audit + presensi terkait.
@@ -174,6 +177,22 @@ if ($jadwalPembimbingScope && $pembimbingScopeId > 0) {
     $jadwalList = $pdo->query($jadwalListSql . ' ORDER BY k.nama_kegiatan ASC, j.hari_ke ASC, j.jam_mulai ASC, j.tingkatan ASC')->fetchAll();
 }
 
+foreach ($jadwalList as &$jadwalRow) {
+    if (strtoupper((string) ($jadwalRow['kategori_kegiatan'] ?? 'TAALIM')) !== 'JAMAAH') {
+        continue;
+    }
+    $displayHk = (int) ($jadwalRow['hari_ke'] ?? 0);
+    if ($displayHk < 1 || $displayHk > 7) {
+        $displayHk = (int) date('N');
+    }
+    $namaMw = jadwal_jamaah_munawib_nama_untuk_slot($pdo, (string) ($jadwalRow['tingkatan'] ?? ''), $displayHk);
+    if ($namaMw !== '') {
+        $jadwalRow['nama_pembimbing'] = $namaMw;
+        $jadwalRow['munawib_harian'] = true;
+    }
+}
+unset($jadwalRow);
+
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
 $filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
@@ -208,10 +227,17 @@ $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string 
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
 $activeTab = strtolower(trim((string) ($_GET['tab'] ?? 'minggu')));
-if (!in_array($activeTab, ['minggu', 'daftar', 'tabel', 'jamaah'], true)) {
+if ($activeTab === 'jamaah_pembimbing') {
+    $activeTab = 'jamaah_munawib';
+}
+if (!in_array($activeTab, ['minggu', 'daftar', 'tabel', 'jamaah', 'jamaah_munawib'], true)) {
     $activeTab = 'minggu';
 }
 $jamaahEditorRows = jadwal_jamaah_daftar_editor($pdo);
+$jamaahMunawibMap = jadwal_jamaah_munawib_map($pdo);
+$munawibList = (!$jadwalPembimbingScope && table_exists($pdo, 'munawib'))
+    ? munawib_list_aktif($pdo)
+    : [];
 
 $tampilanGrup = jadwal_tampilan_grup($pdo);
 $jadwalGrouped = [];
@@ -281,9 +307,10 @@ $ok = get_flash('success');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Modul Jadwal</p>
     <h1 class="h4 mb-1">Jadwal kegiatan santri</h1>
-    <p class="text-muted mb-0">Lihat per hari (Senin–Minggu), atur waktu jamaah sekaligus, atau edit cepat dari kartu jadwal.</p>
+    <p class="text-muted mb-0">Lihat per hari (Senin–Minggu), atur waktu jamaah sekaligus, atau edit cepat dari kartu jadwal. Ubah waktu memperbarui slot yang ada — tidak menghapus kegiatan.</p>
     <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
         <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>"><i class="fa-solid fa-mosque me-1"></i> Atur waktu Jama'ah</a>
+        <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah_munawib')) ?>"><i class="fa-solid fa-user-check me-1"></i> Munawib Jama'ah</a>
         <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>"><i class="fa-solid fa-bookmark me-1"></i> Kegiatan Ta'lim / Jama'ah</a>
         <?php if (!$jadwalPembimbingScope): ?>
         <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/import.php')) ?>"><i class="fa-solid fa-file-import me-1"></i> Import Excel</a>
@@ -337,7 +364,7 @@ $ok = get_flash('success');
 
 <?php require __DIR__ . '/../includes/partials/jadwal_inline_panels.php'; ?>
 
-<?php if ($activeTab !== 'jamaah'): ?>
+<?php if ($activeTab !== 'jamaah' && $activeTab !== 'jamaah_munawib'): ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body py-2">
         <form method="get" class="row g-2 align-items-end">
@@ -430,15 +457,24 @@ $ok = get_flash('success');
                    aria-selected="<?= $activeTab === 'jamaah' ? 'true' : 'false' ?>">
                     <i class="fa-solid fa-mosque me-1"></i> Waktu Jama'ah
                 </a>
+                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs('jamaah_munawib'))) ?>"
+                   class="btn btn-outline-primary jadwal-tab-jamaah-mw<?= $activeTab === 'jamaah_munawib' ? ' active' : '' ?>"
+                   aria-selected="<?= $activeTab === 'jamaah_munawib' ? 'true' : 'false' ?>">
+                    <i class="fa-solid fa-user-check me-1"></i> Munawib Jama'ah
+                </a>
             </div>
         </div>
     </div>
     <div class="card-body pt-2">
         <?php if ($activeTab === 'jamaah'): ?>
             <?php require __DIR__ . '/../includes/partials/jadwal_jamaah_waktu.php'; ?>
+        <?php elseif ($activeTab === 'jamaah_munawib'): ?>
+            <?php require __DIR__ . '/../includes/partials/jadwal_jamaah_pembimbing.php'; ?>
         <?php elseif ($activeTab === 'minggu'): ?>
+            <?php require __DIR__ . '/../includes/partials/jadwal_legend.php'; ?>
             <?php require __DIR__ . '/../includes/partials/jadwal_minggu_grid.php'; ?>
         <?php elseif ($activeTab === 'daftar'): ?>
+            <?php require __DIR__ . '/../includes/partials/jadwal_legend.php'; ?>
             <p class="text-muted small mb-3">
                 Dikelompokkan per <?= $tampilanGrup === 'pembimbing' ? 'pembimbing' : ($tampilanGrup === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
                 Satu baris = satu slot waktu (hari & tingkatan digabung).

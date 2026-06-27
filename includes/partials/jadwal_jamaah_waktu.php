@@ -110,6 +110,9 @@ $renderJamaahKelompokForm = static function (
         <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php?filter_kat=JAMAAH')) ?>">
             <i class="fa-solid fa-bookmark me-1"></i> Kelola nama kegiatan
         </a>
+        <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah_munawib')) ?>">
+            <i class="fa-solid fa-user-check me-1"></i> Munawib harian
+        </a>
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=daftar&filter_kat=JAMAAH')) ?>">
             <i class="fa-solid fa-list me-1"></i> Lihat di daftar jadwal
         </a>

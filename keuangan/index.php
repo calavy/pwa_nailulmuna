@@ -23,7 +23,7 @@ $tabRedirects = [
     'g' => '/keuangan/cashless_scan.php',
     'h' => '/admin/cek_update.php',
     'j' => '/keuangan/inventaris.php',
-    'k' => '/rekap/pembimbing.php',
+    'k' => '/keuangan/gaji_pembimbing.php',
 ];
 
 $tab = trim((string) ($_GET['tab'] ?? 'dashboard'));
@@ -347,7 +347,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>
                 <a class="keu-modern-link" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right"></i><span>Dana talangan antar-POS</span></a>
                 <a class="keu-modern-link" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode"></i><span>Top up cashless</span></a>
-                <a class="keu-modern-link" href="/rekap/pembimbing.php"><i class="fa-solid fa-chalkboard-user"></i><span>Gaji pembimbing</span></a>
+                <a class="keu-modern-link" href="/keuangan/gaji_pembimbing.php"><i class="fa-solid fa-chalkboard-user"></i><span>Gaji pembimbing</span></a>
             </div>
         </div>
     </div>

@@ -533,27 +533,29 @@ function jadwal_tingkatan_bentrok(string $tingkatanA, string $tingkatanB): bool
 /**
  * Cari jadwal yang bentrok (tingkatan + hari + jam tumpang).
  *
+ * @param int|list<int> $excludeId satu ID atau daftar ID jadwal yang diabaikan (mis. slot sejenis sedang diedit)
  * @return array<string,mixed>|null baris jadwal bentrok
  */
-function jadwal_cek_bentrok(PDO $pdo, string $tingkatan, int $hariKe, string $jamMulai, string $jamSelesai, int $excludeId = 0): ?array
+function jadwal_cek_bentrok(PDO $pdo, string $tingkatan, int $hariKe, string $jamMulai, string $jamSelesai, int|array $excludeId = 0): ?array
 {
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
         return null;
     }
-    $sql = '
+    $excludeIds = is_array($excludeId)
+        ? array_values(array_filter(array_map('intval', $excludeId), static fn (int $v): bool => $v > 0))
+        : ($excludeId > 0 ? [(int) $excludeId] : []);
+    $excludeMap = array_fill_keys($excludeIds, true);
+
+    $st = $pdo->query('
         SELECT j.id, j.tingkatan, j.hari_ke, j.jam_mulai, j.jam_selesai, k.nama_kegiatan
         FROM jadwal_kegiatan j
         INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-    ';
-    if ($excludeId > 0) {
-        $sql .= ' WHERE j.id <> :xid';
-        $st = $pdo->prepare($sql);
-        $st->execute(['xid' => $excludeId]);
-    } else {
-        $st = $pdo->query($sql);
-    }
+    ');
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($rows as $row) {
+        if (isset($excludeMap[(int) ($row['id'] ?? 0)])) {
+            continue;
+        }
         if (!jadwal_tingkatan_bentrok($tingkatan, (string) ($row['tingkatan'] ?? ''))) {
             continue;
         }
@@ -633,10 +635,10 @@ function jadwal_pesan_bentrok(array $bentrok, array $hariLabels): string
     );
 }
 
-/** Urutan kolom tampilan mingguan (Senin–Minggu, lalu setiap hari). */
+/** Urutan kolom tampilan mingguan (Senin–Minggu). */
 function jadwal_minggu_kolom(): array
 {
-    return [1, 2, 3, 4, 5, 6, 7, 0];
+    return [1, 2, 3, 4, 5, 6, 7];
 }
 
 /**
@@ -686,4 +688,252 @@ function jadwal_hari_singkat(int $hariKe, array $hariLabels): string
     }
 
     return $hariLabels[$hariKe] ?? ('H' . $hariKe);
+}
+
+/** Kunci unik kombinasi tingkatan + hari untuk edit/simpan jadwal. */
+function jadwal_slot_tingkatan_hari_key(string $tingkatan, int $hariKe): string
+{
+    return trim($tingkatan) . '|' . $hariKe;
+}
+
+/**
+ * Kelompokkan jadwal per kolom hari; slot hari_ke=0 (setiap hari) muncul di Senin–Minggu.
+ *
+ * @param list<array<string,mixed>> $jadwalList
+ * @return array<int, list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_per_hari_tampilan(array $jadwalList): array
+{
+    $out = [];
+    for ($d = 1; $d <= 7; $d++) {
+        $out[$d] = [];
+    }
+    foreach ($jadwalList as $row) {
+        $hk = (int) ($row['hari_ke'] ?? 0);
+        if ($hk === 0) {
+            for ($d = 1; $d <= 7; $d++) {
+                $copy = $row;
+                $copy['_tampilan_hari'] = $d;
+                $copy['_setiap_hari'] = true;
+                $out[$d][] = $copy;
+            }
+        } elseif ($hk >= 1 && $hk <= 7) {
+            $out[$hk][] = $row;
+        }
+    }
+    foreach ($out as &$items) {
+        usort($items, static function (array $a, array $b): int {
+            $c = strcmp((string) ($a['jam_mulai'] ?? ''), (string) ($b['jam_mulai'] ?? ''));
+            if ($c !== 0) {
+                return $c;
+            }
+
+            return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+        });
+    }
+    unset($items);
+
+    return $out;
+}
+
+/**
+ * Ringkas daftar tingkatan untuk kartu jadwal.
+ *
+ * @param list<string> $tingkatanList
+ * @return array{visible:list<string>,extra:int,title:string}
+ */
+function jadwal_tingkatan_tampilan_ringkas(array $tingkatanList, int $maxShow = 2): array
+{
+    $list = array_values(array_filter(array_map('trim', $tingkatanList), static fn (string $v): bool => $v !== ''));
+    if ($list === []) {
+        return ['visible' => [], 'extra' => 0, 'title' => ''];
+    }
+    $visible = array_slice($list, 0, $maxShow);
+    $extra = max(0, count($list) - count($visible));
+
+    return [
+        'visible' => $visible,
+        'extra' => $extra,
+        'title' => implode(', ', $list),
+    ];
+}
+
+/**
+ * Simpan edit jadwal: perbarui baris ada, hapus yang tidak dipilih, tambah kombinasi baru.
+ * Tidak hapus-masuk ulang seluruh grup — presensi pada ID slot tetap terjaga.
+ *
+ * @param list<int> $idsScope
+ * @param list<string> $tingkatanDipilih
+ * @param list<int> $hariDipilih
+ * @return array{ok:bool,message:string,updated:int,created:int,deleted:int}
+ */
+function jadwal_simpan_perubahan_massal(
+    PDO $pdo,
+    int $anchorId,
+    array $idsScope,
+    int $kegiatanId,
+    string $jamMulai,
+    string $jamSelesai,
+    ?int $pembimbingId,
+    ?string $tempat,
+    array $tingkatanDipilih,
+    array $hariDipilih,
+    int $auditUserId
+): array {
+    if ($anchorId <= 0 || $kegiatanId <= 0) {
+        return ['ok' => false, 'message' => 'Data jadwal tidak valid.', 'updated' => 0, 'created' => 0, 'deleted' => 0];
+    }
+    if ($tingkatanDipilih === [] || $hariDipilih === []) {
+        return ['ok' => false, 'message' => 'Pilih minimal 1 tingkatan dan 1 hari.', 'updated' => 0, 'created' => 0, 'deleted' => 0];
+    }
+    if (jadwal_norm_jam($jamSelesai) <= jadwal_norm_jam($jamMulai)) {
+        return ['ok' => false, 'message' => 'Jam selesai harus setelah jam mulai.', 'updated' => 0, 'created' => 0, 'deleted' => 0];
+    }
+
+    $idsScope = array_values(array_unique(array_filter(array_map('intval', $idsScope), static fn (int $v): bool => $v > 0)));
+    if (!in_array($anchorId, $idsScope, true)) {
+        $idsScope[] = $anchorId;
+    }
+    if ($idsScope === []) {
+        $idsScope = [$anchorId];
+    }
+
+    $hariLabels = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+    $excludeBentrok = $idsScope;
+
+    /** @var array<string, array{tingkatan:string,hari_ke:int}> $desired */
+    $desired = [];
+    foreach ($tingkatanDipilih as $tingkatan) {
+        $tingkatan = trim((string) $tingkatan);
+        if ($tingkatan === '') {
+            continue;
+        }
+        foreach ($hariDipilih as $hariKe) {
+            $hariKe = (int) $hariKe;
+            if ($hariKe < 0 || $hariKe > 7) {
+                continue;
+            }
+            $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai, $excludeBentrok);
+            if ($bentrok !== null) {
+                return ['ok' => false, 'message' => jadwal_pesan_bentrok($bentrok, $hariLabels), 'updated' => 0, 'created' => 0, 'deleted' => 0];
+            }
+            $desired[jadwal_slot_tingkatan_hari_key($tingkatan, $hariKe)] = [
+                'tingkatan' => $tingkatan,
+                'hari_ke' => $hariKe,
+            ];
+        }
+    }
+    if ($desired === []) {
+        return ['ok' => false, 'message' => 'Pilih minimal 1 tingkatan dan 1 hari.', 'updated' => 0, 'created' => 0, 'deleted' => 0];
+    }
+
+    $ph = implode(',', array_fill(0, count($idsScope), '?'));
+    $stRows = $pdo->prepare('SELECT id, tingkatan, hari_ke FROM jadwal_kegiatan WHERE id IN (' . $ph . ')');
+    $stRows->execute($idsScope);
+    $existingByKey = [];
+    $existingIds = [];
+    foreach ($stRows->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $rid = (int) ($row['id'] ?? 0);
+        if ($rid <= 0) {
+            continue;
+        }
+        $existingIds[$rid] = $rid;
+        $key = jadwal_slot_tingkatan_hari_key((string) ($row['tingkatan'] ?? ''), (int) ($row['hari_ke'] ?? 0));
+        if (!isset($existingByKey[$key])) {
+            $existingByKey[$key] = $rid;
+        }
+    }
+
+    require_once __DIR__ . '/presensi_admin.php';
+
+    $beforeAudit = jadwal_kegiatan_audit_fetch($pdo, $anchorId);
+
+    $upd = $pdo->prepare('
+        UPDATE jadwal_kegiatan
+        SET kegiatan_id = :kegiatan_id, tingkatan = :tingkatan, hari_ke = :hari_ke,
+            jam_mulai = :jam_mulai, jam_selesai = :jam_selesai,
+            pembimbing_id = :pembimbing_id, tempat = :tempat
+        WHERE id = :id
+    ');
+    $ins = $pdo->prepare('
+        INSERT INTO jadwal_kegiatan (kegiatan_id, tingkatan, hari_ke, jam_mulai, jam_selesai, pembimbing_id, tempat)
+        VALUES (:kegiatan_id, :tingkatan, :hari_ke, :jam_mulai, :jam_selesai, :pembimbing_id, :tempat)
+    ');
+
+    $updated = 0;
+    $created = 0;
+    $usedIds = [];
+
+    foreach ($desired as $key => $spec) {
+        $payload = [
+            'kegiatan_id' => $kegiatanId,
+            'tingkatan' => $spec['tingkatan'],
+            'hari_ke' => $spec['hari_ke'],
+            'jam_mulai' => $jamMulai,
+            'jam_selesai' => $jamSelesai,
+            'pembimbing_id' => $pembimbingId,
+            'tempat' => $tempat,
+        ];
+        if (isset($existingByKey[$key])) {
+            $upd->execute($payload + ['id' => $existingByKey[$key]]);
+            $usedIds[(int) $existingByKey[$key]] = true;
+            $updated++;
+        } else {
+            $ins->execute($payload);
+            $newId = (int) $pdo->lastInsertId();
+            if ($newId > 0) {
+                $usedIds[$newId] = true;
+            }
+            $created++;
+        }
+    }
+
+    $deleted = 0;
+    foreach ($existingIds as $rid) {
+        if (isset($usedIds[$rid])) {
+            continue;
+        }
+        presensi_hapus_untuk_jadwal($pdo, $rid);
+        $pdo->prepare('DELETE FROM jadwal_kegiatan WHERE id = :id')->execute(['id' => $rid]);
+        $deleted++;
+    }
+
+    $beforeAudit = jadwal_kegiatan_audit_fetch($pdo, $anchorId);
+    $afterAudit = jadwal_kegiatan_audit_fetch($pdo, $anchorId);
+    operasional_audit_log(
+        $pdo,
+        OPERASIONAL_AUDIT_MODUL_JADWAL,
+        'UPDATE',
+        $anchorId,
+        $beforeAudit,
+        [
+            'jadwal_utama' => $afterAudit,
+            'updated' => $updated,
+            'created' => $created,
+            'deleted' => $deleted,
+            'kegiatan_id' => $kegiatanId,
+        ],
+        $auditUserId,
+        'Perubahan jadwal #' . $anchorId . ' (update ' . $updated . ', baru ' . $created . ', hapus ' . $deleted . ')'
+    );
+
+    $msg = 'Jadwal diperbarui';
+    if ($updated > 0) {
+        $msg .= ': ' . $updated . ' slot diubah';
+    }
+    if ($created > 0) {
+        $msg .= ($updated > 0 ? ', ' : ': ') . $created . ' slot baru';
+    }
+    if ($deleted > 0) {
+        $msg .= ', ' . $deleted . ' slot dihapus (tidak lagi dipilih)';
+    }
+    $msg .= '.';
+
+    return [
+        'ok' => true,
+        'message' => $msg,
+        'updated' => $updated,
+        'created' => $created,
+        'deleted' => $deleted,
+    ];
 }

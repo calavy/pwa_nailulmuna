@@ -234,6 +234,7 @@ function payroll_pembimbing_expected_slots_by_pembimbing(
             FROM jadwal_kegiatan j
             INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
             WHERE j.pembimbing_id IS NOT NULL AND j.pembimbing_id > 0
+              AND COALESCE(k.kategori_kegiatan, "TAALIM") != "JAMAAH"
         ';
         if ($kegiatanFilterId > 0) {
             $sql .= ' AND j.kegiatan_id = ' . (int) $kegiatanFilterId;
@@ -675,6 +676,69 @@ function payroll_pembimbing_paid_map(PDO $pdo, string $periodeMode, int $bulan, 
     }
 
     return $map;
+}
+
+/**
+ * Rincian scan presensi pembimbing per bulan (untuk payroll / audit).
+ *
+ * @return list<array<string, mixed>>
+ */
+function payroll_pembimbing_presensi_valid_rows(
+    PDO $pdo,
+    int $pembimbingId,
+    string $startDate,
+    string $endDate,
+    int $kegiatanFilterId = 0
+): array {
+    if ($pembimbingId <= 0 || !table_exists($pdo, 'presensi_pembimbing')) {
+        return [];
+    }
+
+    $sql = '
+        SELECT p.id, p.tanggal, p.jam, p.jenis_scan, p.kegiatan_id,
+               k.nama_kegiatan,
+               j.id AS jadwal_id,
+               COALESCE(j.jam_mulai, pj.jam_mulai) AS jadwal_mulai,
+               COALESCE(j.jam_selesai, pj.jam_selesai) AS jadwal_selesai,
+               ' . payroll_pembimbing_scan_jam_case_sql('p') . ' AS jam_hitung
+        FROM presensi_pembimbing p
+        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
+        WHERE p.pembimbing_id = :pid
+          AND p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
+    ';
+    $params = [
+        'pid' => $pembimbingId,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
+    ];
+    if ($kegiatanFilterId > 0) {
+        $sql .= ' AND p.kegiatan_id = :kegiatan_id';
+        $params['kegiatan_id'] = $kegiatanFilterId;
+    }
+    $sql .= ' ORDER BY p.tanggal ASC, p.jam ASC, p.id ASC';
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $jadwalMulai = (string) ($row['jadwal_mulai'] ?? '');
+        $jadwalSelesai = (string) ($row['jadwal_selesai'] ?? '');
+        $valid = (int) ($row['jadwal_id'] ?? 0) > 0 || ($jadwalMulai !== '' && $jadwalSelesai !== '');
+        $out[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'tanggal' => (string) ($row['tanggal'] ?? ''),
+            'jam' => (string) ($row['jam'] ?? ''),
+            'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
+            'jadwal_mulai' => $jadwalMulai,
+            'jadwal_selesai' => $jadwalSelesai,
+            'jam_hitung' => round((float) ($row['jam_hitung'] ?? 0), 2),
+            'valid_jadwal' => $valid,
+        ];
+    }
+
+    return $out;
 }
 
 /**

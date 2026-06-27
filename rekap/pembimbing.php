@@ -23,6 +23,10 @@ payroll_pembimbing_ensure_schema($pdo);
 payroll_pembimbing_ensure_gaji_table($pdo);
 pkpps_ensure_schema($pdo);
 
+$payrollPageBase = (defined('PAYROLL_FROM_KEUANGAN') && PAYROLL_FROM_KEUANGAN)
+    ? '/keuangan/gaji_pembimbing.php'
+    : '/rekap/pembimbing.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar_gaji') {
     $res = payroll_pembimbing_bayar($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($res['ok'] ? 'success' : 'error', $res['message']);
@@ -32,8 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar
         'cal' => (string) ($_POST['cal'] ?? ''),
         'kegiatan_id' => (int) ($_POST['kegiatan_id'] ?? 0) ?: null,
         'paper' => (string) ($_POST['paper'] ?? ''),
+        'detail' => (int) ($_POST['detail'] ?? 0) ?: null,
     ]));
-    header('Location: ' . app_href('/rekap/pembimbing.php?' . $redirectQs));
+    header('Location: ' . app_href($payrollPageBase . '?' . $redirectQs));
     exit;
 }
 
@@ -55,6 +60,7 @@ $currentHijriYear = (int) $period['current_hijri_year'];
 $currentMasehiYear = (int) $period['current_masehi_year'];
 
 $kegiatanFilter = (int) ($_GET['kegiatan_id'] ?? 0);
+$detailPembimbingId = (int) ($_GET['detail'] ?? 0);
 $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
     $paper = 'A4';
@@ -167,6 +173,25 @@ foreach ($rows as &$row) {
 }
 unset($row);
 
+$detailPembimbing = null;
+$detailPresensiRows = [];
+if ($detailPembimbingId > 0) {
+    foreach ($rows as $r) {
+        if ((int) ($r['pembimbing_id'] ?? 0) === $detailPembimbingId) {
+            $detailPembimbing = $r;
+            break;
+        }
+    }
+    if ($detailPembimbing === null) {
+        $stDet = $pdo->prepare('SELECT id AS pembimbing_id, nip, nama_pembimbing, gaji_pokok, tarif_kriteria FROM pembimbing WHERE id = :id LIMIT 1');
+        $stDet->execute(['id' => $detailPembimbingId]);
+        $detailPembimbing = $stDet->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if ($detailPembimbing !== null) {
+        $detailPresensiRows = payroll_pembimbing_presensi_valid_rows($pdo, $detailPembimbingId, $startDate, $endDate, $kegiatanFilter);
+    }
+}
+
 $namaPonpes = app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren');
 $jenisPendidikan = app_setting($pdo, 'jenis_pendidikan', '');
 $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
@@ -214,14 +239,26 @@ if ($defaultAkunBayar <= 0 && $akunRowsBayar !== []) {
     $defaultAkunBayar = (int) ($akunRowsBayar[0]['id'] ?? 0);
 }
 
-$pageTitle = 'Rekap Pembimbing (Admin)';
+$pageTitle = (defined('PAYROLL_FROM_KEUANGAN') && PAYROLL_FROM_KEUANGAN) ? 'Payroll Pembimbing' : 'Rekap Pembimbing (Admin)';
 require_once __DIR__ . '/../includes/header.php';
+$payrollQueryBase = http_build_query(array_filter([
+    'cal' => $calendarMode,
+    'month' => $month,
+    'year' => $year,
+    'kegiatan_id' => $kegiatanFilter > 0 ? $kegiatanFilter : null,
+    'paper' => $paper !== 'A4' ? $paper : null,
+]));
 ?>
 
 <div class="page-intro mb-3 print-controls">
-    <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
-    <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. <strong>Jam kegiatan</strong> dan <strong>gaji per jam</strong> dihitung dari presensi scan <em>DATANG</em> yang dicocokkan ke jadwal kajian/PKPPS pembimbing. <strong>Alpa</strong> = slot jadwal tanpa scan (bukan per hari kalender).</p>
+    <?php if (defined('PAYROLL_FROM_KEUANGAN') && PAYROLL_FROM_KEUANGAN): ?>
+        <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/keuangan/index.php')) ?>">Keuangan</a></p>
+        <h1 class="h4 mb-1">Payroll pembimbing</h1>
+    <?php else: ?>
+        <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
+        <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
+    <?php endif; ?>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. <strong>Jam kegiatan</strong> dihitung dari presensi scan <em>DATANG</em> yang cocok jadwal. Klik <strong>Detail</strong> untuk rincian presensi valid per bulan.</p>
 </div>
 
 <div class="row g-3 mb-3 print-controls">
@@ -406,7 +443,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php
                                 $pidRow = (int) ($row['pembimbing_id'] ?? 0);
                                 $sudahBayar = isset($paidGajiMap[$pidRow]);
+                                $detailQs = $payrollQueryBase !== '' ? ($payrollQueryBase . '&detail=' . $pidRow) : ('detail=' . $pidRow);
                                 ?>
+                                <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href($payrollPageBase . '?' . $detailQs)) ?>">Detail</a>
                                 <?php if ($sudahBayar): ?>
                                     <span class="badge text-bg-success"><i class="fa-solid fa-check me-1"></i>Lunas</span>
                                     <div class="small text-muted"><?= htmlspecialchars((string) ($paidGajiMap[$pidRow]['tanggal_bayar'] ?? '')) ?></div>
@@ -451,6 +490,72 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php if ($detailPembimbing !== null): ?>
+    <?php
+    $validCount = 0;
+    $validJam = 0.0;
+    foreach ($detailPresensiRows as $dr) {
+        if (!empty($dr['valid_jadwal'])) {
+            $validCount++;
+            $validJam += (float) ($dr['jam_hitung'] ?? 0);
+        }
+    }
+    ?>
+    <div class="card shadow-sm mb-4 print-controls" id="payroll-detail">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Rincian presensi — <?= htmlspecialchars((string) ($detailPembimbing['nama_pembimbing'] ?? '')) ?></h2>
+                    <p class="small text-muted mb-0">Periode <?= htmlspecialchars($periodeLabelP) ?> · <?= count($detailPresensiRows) ?> scan DATANG · <?= $validCount ?> valid jadwal · <?= number_format($validJam, 2, ',', '.') ?> jam dihitung</p>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href($payrollPageBase . ($payrollQueryBase !== '' ? '?' . $payrollQueryBase : ''))) ?>">Tutup detail</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Jam scan</th>
+                            <th>Kegiatan</th>
+                            <th>Jadwal</th>
+                            <th class="text-center">Jam hitung</th>
+                            <th class="text-center">Valid</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if ($detailPresensiRows === []): ?>
+                        <tr><td colspan="6" class="text-muted text-center py-3">Tidak ada presensi DATANG pada periode ini.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($detailPresensiRows as $dr): ?>
+                            <tr class="<?= empty($dr['valid_jadwal']) ? 'table-warning' : '' ?>">
+                                <td><?= htmlspecialchars((string) $dr['tanggal']) ?></td>
+                                <td class="font-monospace small"><?= htmlspecialchars(substr((string) ($dr['jam'] ?? ''), 0, 5) ?: '—') ?></td>
+                                <td><?= htmlspecialchars((string) $dr['nama_kegiatan']) ?></td>
+                                <td class="small font-monospace">
+                                    <?php if (!empty($dr['jadwal_mulai'])): ?>
+                                        <?= htmlspecialchars(substr((string) $dr['jadwal_mulai'], 0, 5)) ?>–<?= htmlspecialchars(substr((string) $dr['jadwal_selesai'], 0, 5)) ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">Tidak cocok jadwal</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-center"><?= number_format((float) ($dr['jam_hitung'] ?? 0), 2, ',', '.') ?></td>
+                                <td class="text-center">
+                                    <?php if (!empty($dr['valid_jadwal'])): ?>
+                                        <span class="badge text-bg-success">Ya</span>
+                                    <?php else: ?>
+                                        <span class="badge text-bg-warning">Tidak</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="modal fade" id="modalBayarGaji" tabindex="-1" aria-labelledby="modalBayarGajiLabel" aria-hidden="true">
     <div class="modal-dialog">
         <form method="post" class="modal-content">
@@ -461,6 +566,7 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="cal" value="<?= htmlspecialchars($calendarMode) ?>">
             <input type="hidden" name="kegiatan_id" value="<?= (int) $kegiatanFilter ?>">
             <input type="hidden" name="paper" value="<?= htmlspecialchars($paper) ?>">
+            <input type="hidden" name="detail" value="<?= (int) $detailPembimbingId ?>">
             <div class="modal-header">
                 <h2 class="modal-title h5" id="modalBayarGajiLabel">Bayar gaji pembimbing</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>

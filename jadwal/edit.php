@@ -28,8 +28,6 @@ if (!$jadwal) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_once __DIR__ . '/../helpers/presensi_admin.php';
-    $beforeAudit = jadwal_kegiatan_audit_fetch($pdo, $id);
     $siblingsBefore = jadwal_slot_sejenis($pdo, $id);
     $siblingIdsBefore = jadwal_slot_sejenis_ids($siblingsBefore);
 
@@ -52,92 +50,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     $pembimbingId = (int) ($_POST['pembimbing_id'] ?? 0) ?: null;
+    ensure_kegiatan_kategori_column($pdo);
+    $stKat = $pdo->prepare('SELECT COALESCE(kategori_kegiatan, "TAALIM") FROM kegiatan WHERE id = :id LIMIT 1');
+    $stKat->execute(['id' => $kegiatanId > 0 ? $kegiatanId : (int) ($jadwal['kegiatan_id'] ?? 0)]);
+    if (strtoupper((string) ($stKat->fetchColumn() ?: 'TAALIM')) === 'JAMAAH') {
+        $pembimbingId = null;
+    }
     $tempatVal = trim((string) ($_POST['tempat'] ?? ''));
     $tempatVal = $tempatVal !== '' ? $tempatVal : null;
 
-    $origKg = (int) ($jadwal['kegiatan_id'] ?? 0);
-    $origPb = isset($jadwal['pembimbing_id']) && $jadwal['pembimbing_id'] !== null && $jadwal['pembimbing_id'] !== ''
-        ? (int) $jadwal['pembimbing_id']
-        : null;
-    $origJamMulai = (string) ($jadwal['jam_mulai'] ?? '');
-    $origJamSelesai = (string) ($jadwal['jam_selesai'] ?? '');
-    $slotSignatureChanged = $kegiatanId !== $origKg
-        || $pembimbingId !== $origPb
-        || jadwal_norm_jam($jamMulai) !== jadwal_norm_jam($origJamMulai)
-        || jadwal_norm_jam($jamSelesai) !== jadwal_norm_jam($origJamSelesai);
-
-    $idsToReplace = $slotSignatureChanged ? [$id] : $siblingIdsBefore;
-
-    $hariLabels = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
-    $excludeIds = array_fill_keys($idsToReplace, true);
-    foreach ($tingkatanDipilih as $tingkatan) {
-        foreach ($hariDipilih as $hariKe) {
-            $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai);
-            if ($bentrok !== null && !isset($excludeIds[(int) ($bentrok['id'] ?? 0)])) {
-                set_flash('error', jadwal_pesan_bentrok($bentrok, $hariLabels));
-                header('Location: ' . app_rewrite_internal_url('/jadwal/edit.php?id=' . $id));
-                exit;
-            }
-        }
-    }
-
-    foreach ($idsToReplace as $delId) {
-        if ($delId !== $id) {
-            presensi_hapus_untuk_jadwal($pdo, $delId);
-            $pdo->prepare('DELETE FROM jadwal_kegiatan WHERE id = :id')->execute(['id' => $delId]);
-        }
-    }
-
-    $update = $pdo->prepare('UPDATE jadwal_kegiatan SET kegiatan_id = :kegiatan_id, tingkatan = :tingkatan, hari_ke = :hari_ke, jam_mulai = :jam_mulai, jam_selesai = :jam_selesai, pembimbing_id = :pembimbing_id, tempat = :tempat WHERE id = :id');
-    $insert = $pdo->prepare('INSERT INTO jadwal_kegiatan (kegiatan_id, tingkatan, hari_ke, jam_mulai, jam_selesai, pembimbing_id, tempat) VALUES (:kegiatan_id, :tingkatan, :hari_ke, :jam_mulai, :jam_selesai, :pembimbing_id, :tempat)');
-
-    $first = true;
-    $created = 0;
-    foreach ($tingkatanDipilih as $tingkatan) {
-        foreach ($hariDipilih as $hariKe) {
-            $payload = [
-                'kegiatan_id' => $kegiatanId,
-                'tingkatan' => $tingkatan,
-                'hari_ke' => $hariKe,
-                'jam_mulai' => $jamMulai,
-                'jam_selesai' => $jamSelesai,
-                'pembimbing_id' => $pembimbingId,
-                'tempat' => $tempatVal,
-            ];
-            if ($first) {
-                $update->execute($payload + ['id' => $id]);
-                $first = false;
-            } else {
-                $insert->execute($payload);
-                $created++;
-            }
-        }
-    }
-
-    $afterAudit = jadwal_kegiatan_audit_fetch($pdo, $id);
-    operasional_audit_log(
+    $result = jadwal_simpan_perubahan_massal(
         $pdo,
-        OPERASIONAL_AUDIT_MODUL_JADWAL,
-        'UPDATE',
         $id,
-        $beforeAudit,
-        [
-            'jadwal_utama' => $afterAudit,
-            'jadwal_tambahan_dibuat' => $created,
-            'slot_sejenis_diganti' => count($idsToReplace),
-        ],
-        $auditUserId,
-        'Perubahan jadwal #' . $id . ($created > 0 ? ' (+ ' . $created . ' baris baru)' : '')
+        $siblingIdsBefore !== [] ? $siblingIdsBefore : [$id],
+        $kegiatanId,
+        $jamMulai,
+        $jamSelesai,
+        $pembimbingId,
+        $tempatVal,
+        $tingkatanDipilih,
+        $hariDipilih,
+        $auditUserId
     );
-    $msg = 'Data jadwal berhasil diperbarui.';
-    if ($created > 0) {
-        $msg .= ' Baris baru: ' . $created . '.';
-    }
-    if ($slotSignatureChanged) {
-        $msg .= ' Jam/kegiatan/pembimbing berubah — disimpan sebagai slot terpisah.';
-    }
-    set_flash('success', $msg);
-    header('Location: ' . app_href('/jadwal/index.php'));
+    set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
+    header('Location: ' . app_href($result['ok'] ? '/jadwal/index.php' : '/jadwal/edit.php?id=' . $id));
     exit;
 }
 
@@ -170,6 +106,11 @@ if ($selectedHari === []) {
     $selectedHari = [(int) ($jadwal['hari_ke'] ?? 0)];
 }
 $siblingCount = count($siblingSlots);
+ensure_kegiatan_kategori_column($pdo);
+$stJadwalKat = $pdo->prepare('SELECT COALESCE(k.kategori_kegiatan, "TAALIM") FROM kegiatan k INNER JOIN jadwal_kegiatan j ON j.kegiatan_id = k.id WHERE j.id = :id LIMIT 1');
+$stJadwalKat->execute(['id' => $id]);
+$jadwalKategori = strtoupper((string) ($stJadwalKat->fetchColumn() ?: 'TAALIM'));
+$isJadwalJamaah = $jadwalKategori === 'JAMAAH';
 
 $pageTitle = 'Edit Jadwal Kegiatan';
 require_once __DIR__ . '/../includes/header.php';
@@ -178,15 +119,23 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Jadwal</a></p>
     <h1 class="h4 mb-1">Edit slot jadwal</h1>
-    <p class="text-muted mb-0 small">Ubah hari, tingkatan, jam, pembimbing, atau tempat. Centang beberapa hari/tingkatan untuk mengubah sekaligus.</p>
+    <p class="text-muted mb-0 small">Ubah waktu, hari, tingkatan, atau tempat. Perubahan langsung memperbarui baris jadwal yang ada — tidak menghapus kegiatan lalu membuat ulang.</p>
 </div>
+
+<?php if ($isJadwalJamaah): ?>
+<div class="alert alert-warning py-2 small mb-3">
+    <i class="fa-solid fa-mosque me-1"></i>
+    <strong>Jama'ah:</strong> ubah waktu sekaligus per kelompok Putra/Putri di
+    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>">Atur waktu Jama'ah</a>.
+    Di halaman ini hanya sesuaikan tingkatan/tempat jika perlu.
+</div>
+<?php endif; ?>
 
 <?php if ($siblingCount > 1): ?>
 <div class="alert alert-info py-2 small mb-3">
     <i class="fa-solid fa-layer-group me-1"></i>
-    Slot terhubung <strong><?= (int) $siblingCount ?></strong> baris (jam
-    <span class="font-monospace"><?= htmlspecialchars(jadwal_jam_ringkas($jadwal)) ?></span> sama).
-    Ubah jam untuk menyimpan sebagai slot terpisah.
+    Slot terhubung <strong><?= (int) $siblingCount ?></strong> baris (kegiatan &amp; jam yang sama).
+    Centang hari/tingkatan lalu simpan — baris yang ada diperbarui, hanya kombinasi yang dicabut yang dihapus.
 </div>
 <?php endif; ?>
 
@@ -196,12 +145,28 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-12"><h2 class="h6 text-muted mb-0">Kegiatan & kelas</h2></div>
             <div class="col-md-6">
                 <label class="form-label">Kegiatan</label>
+                <?php if ($isJadwalJamaah):
+                    $namaKegEdit = '';
+                    foreach ($kegiatanList as $kegiatan) {
+                        if ((int) $kegiatan['id'] === (int) $jadwal['kegiatan_id']) {
+                            $namaKegEdit = (string) $kegiatan['nama_kegiatan'];
+                            break;
+                        }
+                    }
+                    ?>
+                    <input type="hidden" name="kegiatan_id" value="<?= (int) $jadwal['kegiatan_id'] ?>">
+                    <div class="form-control bg-light">
+                        <?= htmlspecialchars($namaKegEdit !== '' ? $namaKegEdit : '—') ?>
+                        <span class="badge jadwal-kat-badge jadwal-kat-badge--jamaah ms-1">Jama'ah</span>
+                    </div>
+                <?php else: ?>
                 <select name="kegiatan_id" class="form-select" required>
                     <option value="">Pilih kegiatan</option>
                     <?php foreach ($kegiatanList as $kegiatan): ?>
                         <option value="<?= $kegiatan['id'] ?>" <?= (int) $jadwal['kegiatan_id'] === (int) $kegiatan['id'] ? 'selected' : '' ?>><?= htmlspecialchars($kegiatan['nama_kegiatan']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <?php endif; ?>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Tingkatan</label>
@@ -232,6 +197,14 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div class="col-12"><h2 class="h6 text-muted mb-0 pt-1">Pembimbing</h2></div>
+            <?php if ($isJadwalJamaah): ?>
+            <div class="col-12">
+                <div class="alert alert-info py-2 small mb-0">
+                    Munawib jamaah diatur <strong>per hari</strong> (Putra/Putri) di
+                    <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah_munawib')) ?>">Munawib Jama'ah</a>, bukan per slot kegiatan.
+                </div>
+            </div>
+            <?php else: ?>
             <div class="col-md-6">
                 <label class="form-label">Pembimbing (opsional)</label>
                 <select name="pembimbing_id" class="form-select">
@@ -241,6 +214,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php endif; ?>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk me-1"></i> Simpan perubahan</button>
                 <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-outline-secondary">Batal</a>

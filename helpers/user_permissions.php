@@ -325,6 +325,7 @@ function user_permission_path_map_base(): array
         '/rekap/alpa_santri.php' => 'rekap',
         '/rekap/izin_telat.php' => 'rekap_telat',
         '/rekap/pembimbing.php' => 'rekap_pembimbing',
+        '/keuangan/gaji_pembimbing.php' => 'rekap_pembimbing',
         '/poin/input.php' => 'poin_input',
         '/poin/rekap.php' => 'poin_rekap',
         '/poin/settings.php' => 'pengaturan',
@@ -353,6 +354,7 @@ function user_permission_path_map_base(): array
         '/yayasan/musyawarah_presensi.php' => 'yayasan',
         '/yayasan/rapat.php' => 'yayasan',
         '/yayasan/notulen.php' => 'yayasan',
+        '/yayasan/notulen_cetak.php' => 'yayasan',
         '/yayasan/executive.php' => 'yayasan',
     ];
 }

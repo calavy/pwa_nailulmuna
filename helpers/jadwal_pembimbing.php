@@ -76,9 +76,22 @@ function jadwal_slot_owned_by_pembimbing(PDO $pdo, int $jadwalId, int $pembimbin
     if ($jadwalId <= 0 || $pembimbingId <= 0) {
         return false;
     }
-    $st = $pdo->prepare('SELECT pembimbing_id FROM jadwal_kegiatan WHERE id = :id LIMIT 1');
+    $st = $pdo->prepare('
+        SELECT j.pembimbing_id, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE j.id = :id
+        LIMIT 1
+    ');
     $st->execute(['id' => $jadwalId]);
-    $ownerId = (int) ($st->fetchColumn() ?: 0);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return false;
+    }
+    if (strtoupper((string) ($row['kategori_kegiatan'] ?? 'TAALIM')) === 'JAMAAH') {
+        return false;
+    }
+    $ownerId = (int) ($row['pembimbing_id'] ?? 0);
 
     return $ownerId === $pembimbingId;
 }

@@ -789,6 +789,146 @@ function yayasan_tugas_sync_from_notulen(PDO $pdo, int $notulenId, int $rapatId,
 }
 
 /**
+ * Sinkronkan baris timeline notulen (JSON) → tugas yayasan.
+ *
+ * @param list<array{
+ *   judul:string,
+ *   penanggung_jawab:?string,
+ *   tanggal_mulai:string,
+ *   tanggal_target:string,
+ *   start_at:string,
+ *   due_at:string,
+ *   category:string,
+ *   deskripsi:?string,
+ *   progress:int
+ * }> $items
+ */
+function yayasan_tugas_sync_from_timeline_table(PDO $pdo, int $notulenId, int $rapatId, array $items, int $userId): int
+{
+    yayasan_timeline_ensure_schema($pdo);
+    if ($notulenId <= 0) {
+        return 0;
+    }
+
+    $stOld = $pdo->prepare('SELECT * FROM yayasan_tugas WHERE notulen_id = :nid ORDER BY urutan ASC, id ASC');
+    $stOld->execute(['nid' => $notulenId]);
+    $existing = $stOld->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $usedIds = [];
+    $count = 0;
+    foreach ($items as $i => $item) {
+        $judul = trim((string) ($item['judul'] ?? ''));
+        if ($judul === '') {
+            continue;
+        }
+        $progress = (int) ($item['progress'] ?? 0);
+        $target = (string) ($item['tanggal_target'] ?? '');
+        $mulai = (string) ($item['tanggal_mulai'] ?? $target);
+        $startAt = (string) ($item['start_at'] ?? ($mulai . ' 08:00:00'));
+        $dueAt = (string) ($item['due_at'] ?? ($target . ' 17:00:00'));
+        $category = (string) ($item['category'] ?? 'Yayasan');
+        if (!in_array($category, yayasan_task_categories(), true)) {
+            $category = 'Yayasan';
+        }
+        $desk = trim((string) ($item['deskripsi'] ?? '')) ?: null;
+        $pj = trim((string) ($item['penanggung_jawab'] ?? '')) ?: null;
+        $old = $existing[$i] ?? null;
+        if (is_array($old)) {
+            $tid = (int) $old['id'];
+            $progress = $progress > 0 ? $progress : (int) ($old['progress'] ?? 0);
+            $selesai = $old['tanggal_selesai'] ?? null;
+            $status = yayasan_tugas_compute_status($progress, $target, is_string($selesai) ? $selesai : null);
+            $pdo->prepare('
+                UPDATE yayasan_tugas SET
+                    judul = :judul, deskripsi = :desk, penanggung_jawab = :pj,
+                    category = :cat, tanggal_mulai = :mulai, tanggal_target = :target,
+                    start_at = :start_at, due_at = :due_at,
+                    progress = :prog, status = :st, urutan = :ur
+                WHERE id = :id
+            ')->execute([
+                'judul' => $judul,
+                'desk' => $desk,
+                'pj' => $pj,
+                'cat' => $category,
+                'mulai' => $mulai,
+                'target' => $target,
+                'start_at' => $startAt,
+                'due_at' => $dueAt,
+                'prog' => $progress,
+                'st' => $status,
+                'ur' => $i,
+                'id' => $tid,
+            ]);
+            $row = array_merge($old, [
+                'id' => $tid,
+                'judul' => $judul,
+                'penanggung_jawab' => $pj,
+                'tanggal_target' => $target,
+                'progress' => $progress,
+                'status' => $status,
+            ]);
+            $agendaId = yayasan_tugas_sync_agenda($pdo, $row, $userId);
+            if ($agendaId !== null && (int) ($old['agenda_id'] ?? 0) !== $agendaId) {
+                $pdo->prepare('UPDATE yayasan_tugas SET agenda_id = :aid WHERE id = :id')->execute(['aid' => $agendaId, 'id' => $tid]);
+            }
+            $usedIds[] = $tid;
+        } else {
+            $status = yayasan_tugas_compute_status($progress, $target, null);
+            $pdo->prepare('
+                INSERT INTO yayasan_tugas (
+                    notulen_id, rapat_id, urutan, judul, deskripsi, penanggung_jawab, category,
+                    tanggal_mulai, tanggal_target, start_at, due_at, progress, status, sumber, created_by
+                ) VALUES (
+                    :nid, :rid, :ur, :judul, :desk, :pj, :cat,
+                    :mulai, :target, :start_at, :due_at, :prog, :st, "RAPAT", :uid
+                )
+            ')->execute([
+                'nid' => $notulenId,
+                'rid' => $rapatId > 0 ? $rapatId : null,
+                'ur' => $i,
+                'judul' => $judul,
+                'desk' => $desk,
+                'pj' => $pj,
+                'cat' => $category,
+                'mulai' => $mulai,
+                'target' => $target,
+                'start_at' => $startAt,
+                'due_at' => $dueAt,
+                'prog' => $progress,
+                'st' => $status,
+                'uid' => $userId > 0 ? $userId : null,
+            ]);
+            $tid = (int) $pdo->lastInsertId();
+            $row = [
+                'id' => $tid,
+                'judul' => $judul,
+                'penanggung_jawab' => $pj,
+                'tanggal_target' => $target,
+                'progress' => $progress,
+                'status' => $status,
+                'sync_kalender' => 1,
+                'agenda_id' => null,
+            ];
+            $agendaId = yayasan_tugas_sync_agenda($pdo, $row, $userId);
+            if ($agendaId !== null) {
+                $pdo->prepare('UPDATE yayasan_tugas SET agenda_id = :aid WHERE id = :id')->execute(['aid' => $agendaId, 'id' => $tid]);
+            }
+            $usedIds[] = $tid;
+        }
+        $count++;
+    }
+
+    foreach ($existing as $ex) {
+        $eid = (int) ($ex['id'] ?? 0);
+        if ($eid > 0 && !in_array($eid, $usedIds, true)) {
+            yayasan_tugas_delete($pdo, $eid);
+        }
+    }
+
+    return $count;
+}
+
+/**
  * @param array<string, mixed> $data
  */
 function yayasan_tugas_insert_manual(PDO $pdo, array $data, int $userId, bool $forceConflict = false): array

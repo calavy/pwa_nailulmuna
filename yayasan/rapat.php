@@ -6,10 +6,11 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 require_once __DIR__ . '/../helpers/yayasan_musyawarah.php';
+require_once __DIR__ . '/../helpers/yayasan_notulen.php';
 
 require_roles(['admin', 'pengurus']);
 
-yayasan_musyawarah_ensure_schema($pdo);
+yayasan_notulen_ensure_schema($pdo);
 
 $jenisOpsi = yayasan_jenis_rapat_opsi();
 $editId = (int) ($_GET['edit'] ?? 0);
@@ -27,6 +28,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $pdo->prepare('DELETE FROM yayasan_rapat WHERE id = :id')->execute(['id' => $id]);
             set_flash('success', 'Rapat dan notulen terkait dihapus.');
+        }
+        header('Location: ' . app_href('/yayasan/rapat.php'));
+        exit;
+    }
+    if ($action === 'kirim_undangan_wa') {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $result = yayasan_rapat_kirim_undangan_wa($pdo, $id);
+            set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? 'Gagal kirim undangan.'));
         }
         header('Location: ' . app_href('/yayasan/rapat.php'));
         exit;
@@ -148,7 +158,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <?php $yayasanCrumbTail = 'Rapat & Musyawarah'; require __DIR__ . '/../includes/partials/yayasan_crumb.php'; ?>
     <h1 class="h4 mb-1">Rapat yayasan</h1>
-    <p class="text-muted mb-0">Jadwalkan rapat &amp; musyawarah — centang jabatan wajib scan presensi.</p>
+    <p class="text-muted mb-0">Jadwalkan rapat &amp; musyawarah — undangan WA otomatis ke pengurus, waktu format 24 jam.</p>
     <p class="small mb-0 mt-1"><a href="<?= htmlspecialchars(app_href('/yayasan/sdm.php')) ?>">Kelola data SDM yayasan &amp; lembaga</a></p>
 </div>
 
@@ -177,12 +187,12 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="date" class="form-control" name="tanggal_rapat" required value="<?= htmlspecialchars((string) ($editRow['tanggal_rapat'] ?? date('Y-m-d'))) ?>">
                     </div>
                     <div class="col-6">
-                        <label class="form-label small mb-0">Mulai</label>
-                        <input type="time" class="form-control" name="waktu_mulai" value="<?= htmlspecialchars(substr((string) ($editRow['waktu_mulai'] ?? ''), 0, 5)) ?>">
+                        <label class="form-label small mb-0">Jam mulai <span class="text-muted">(24 jam)</span></label>
+                        <input type="time" class="form-control" name="waktu_mulai" step="60" value="<?= htmlspecialchars(yayasan_rapat_format_jam_24($editRow['waktu_mulai'] ?? null)) ?>">
                     </div>
                     <div class="col-6">
-                        <label class="form-label small mb-0">Selesai</label>
-                        <input type="time" class="form-control" name="waktu_selesai" value="<?= htmlspecialchars(substr((string) ($editRow['waktu_selesai'] ?? ''), 0, 5)) ?>">
+                        <label class="form-label small mb-0">Jam selesai <span class="text-muted">(24 jam)</span></label>
+                        <input type="time" class="form-control" name="waktu_selesai" step="60" value="<?= htmlspecialchars(yayasan_rapat_format_jam_24($editRow['waktu_selesai'] ?? null)) ?>">
                     </div>
                     <div class="col-12">
                         <label class="form-label small mb-0">Lokasi</label>
@@ -311,6 +321,14 @@ require_once __DIR__ . '/../includes/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-end text-nowrap">
+                                        <form method="post" class="d-inline" onsubmit="return confirm('Kirim undangan musyawarah via WhatsApp ke pengurus yang diundang?');">
+                                            <input type="hidden" name="action" value="kirim_undangan_wa">
+                                            <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Undangan WA">WA</button>
+                                        </form>
+                                        <?php if (!empty($row['undangan_wa_kirim_at'])): ?>
+                                            <span class="badge text-bg-success small" title="Terakhir dikirim">✓ WA</span>
+                                        <?php endif; ?>
                                         <?php if ((int) ($row['presensi_scan'] ?? 0) === 1): ?>
                                             <a class="btn btn-sm btn-outline-info" href="<?= htmlspecialchars(app_href('/yayasan/scan_musyawarah.php?rapat_id=' . (int) $row['id'])) ?>">Scan</a>
                                             <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/yayasan/musyawarah_presensi.php?rapat_id=' . (int) $row['id'])) ?>">Presensi</a>

@@ -49,7 +49,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Formulir Pengeluaran Operasional</h1>
     <p class="text-muted mb-0">
         Catat beban keluar dari kas/bank. Untuk gaji pembimbing gunakan modul terpisah.
-        <a href="/rekap/pembimbing.php">Gaji pembimbing</a>
+        <a href="/keuangan/gaji_pembimbing.php">Gaji pembimbing</a>
         · <a href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pengeluaran.php')) ?>">Riwayat pengeluaran</a>
         · <a href="/keuangan/index.php">Dashboard keuangan</a>
     </p>

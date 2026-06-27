@@ -17,7 +17,7 @@ $showJadwalAksi = $showJadwalAksi ?? true;
 $filterHari = (int) ($filterHari ?? 0);
 $filterTingkatan = trim((string) ($filterTingkatan ?? ''));
 
-$byHari = jadwal_kelompokkan_per_hari($jadwalList);
+$byHari = jadwal_kelompokkan_per_hari_tampilan($jadwalList);
 $kolom = jadwal_minggu_kolom();
 $todayCol = (int) date('N');
 ?>
@@ -54,7 +54,16 @@ $todayCol = (int) date('N');
                     <?php if ($visibleItems === []): ?>
                         <div class="jadwal-minggu-col__empty small text-muted">—</div>
                     <?php else: ?>
-                        <?php foreach ($visibleItems as $slot): ?>
+                        <?php foreach ($visibleItems as $slot):
+                            $tampilanHk = (int) ($slot['_tampilan_hari'] ?? $hk);
+                            if (strtoupper((string) ($slot['kategori_kegiatan'] ?? 'TAALIM')) === 'JAMAAH' && (int) ($slot['hari_ke'] ?? 0) === 0 && $tampilanHk >= 1 && $tampilanHk <= 7) {
+                                $namaMw = jadwal_jamaah_munawib_nama_untuk_slot($pdo, (string) ($slot['tingkatan'] ?? ''), $tampilanHk);
+                                if ($namaMw !== '') {
+                                    $slot['nama_pembimbing'] = $namaMw;
+                                    $slot['munawib_harian'] = true;
+                                }
+                            }
+                            ?>
                             <?php
                             $showActions = $showJadwalAksi;
                             $compact = true;
@@ -79,6 +88,6 @@ $todayCol = (int) date('N');
     </div>
     <p class="small text-muted mt-2 mb-0">
         <i class="fa-solid fa-circle-info me-1"></i>
-        Geser ke kiri/kanan di layar kecil. Ketuk <strong>Edit</strong> untuk ubah cepat tanpa pindah halaman.
+        Jadwal <strong>setiap hari</strong> (mis. jamaah) tampil di semua kolom Senin–Minggu. Geser kiri/kanan di layar kecil.
     </p>
 <?php endif; ?>

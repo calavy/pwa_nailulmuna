@@ -1724,6 +1724,12 @@ function ensure_point_tables(PDO $pdo): void
     ');
     $pdo->exec('ALTER TABLE point_followups ADD COLUMN IF NOT EXISTS status_tindak ENUM("BELUM","PROSES","SELESAI") NOT NULL DEFAULT "BELUM"');
     $pdo->exec('ALTER TABLE point_followups ADD COLUMN IF NOT EXISTS bukti_tindak TEXT NULL');
+    if (function_exists('column_exists') && !column_exists($pdo, 'point_rules', 'jenis_rule')) {
+        try {
+            $pdo->exec('ALTER TABLE point_rules ADD COLUMN jenis_rule ENUM("PLUS","MINUS") NOT NULL DEFAULT "PLUS" AFTER bobot_poin');
+        } catch (PDOException $e) {
+        }
+    }
 
     $rulesCount = (int) $pdo->query('SELECT COUNT(*) FROM point_rules')->fetchColumn();
     if ($rulesCount === 0) {

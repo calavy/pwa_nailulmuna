@@ -45,6 +45,9 @@ $hari = $hari ?? [];
                                     <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars((string) $p['nama_pembimbing']) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <p class="small text-muted mb-0 mt-1 d-none" id="jq-pembimbing-jamaah-note">
+                                Munawib jamaah diatur per hari di tab <strong>Munawib Jama'ah</strong>, bukan di sini.
+                            </p>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Tingkatan</label>

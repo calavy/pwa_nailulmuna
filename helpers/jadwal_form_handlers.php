@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/jadwal_ui.php';
 require_once __DIR__ . '/jadwal_jamaah.php';
+require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
 require_once __DIR__ . '/operasional_audit.php';
 
 function jadwal_handle_post(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope, int $pembimbingScopeId): bool
@@ -36,6 +37,10 @@ function jadwal_handle_post(PDO $pdo, int $auditUserId, bool $jadwalPembimbingSc
     }
     if ($action === 'jamaah_pisah') {
         jadwal_handle_jamaah_pisah($pdo, $auditUserId, $jadwalPembimbingScope);
+        return true;
+    }
+    if ($action === 'jamaah_munawib' || $action === 'jamaah_pembimbing') {
+        jadwal_handle_jamaah_munawib($pdo, $auditUserId, $jadwalPembimbingScope);
         return true;
     }
 
@@ -243,4 +248,27 @@ function jadwal_handle_jamaah_pisah(PDO $pdo, int $auditUserId, bool $jadwalPemb
     set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
     header('Location: ' . app_href('/jadwal/index.php?tab=jamaah'));
     exit;
+}
+
+function jadwal_handle_jamaah_munawib(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope): void
+{
+    if ($jadwalPembimbingScope) {
+        set_flash('error', 'Atur munawib jamaah hanya untuk pengurus.');
+        header('Location: ' . app_href('/jadwal/index.php?tab=jamaah_munawib'));
+        exit;
+    }
+    $input = [
+        'putra' => (array) ($_POST['putra'] ?? []),
+        'putri' => (array) ($_POST['putri'] ?? []),
+    ];
+    $result = jadwal_jamaah_munawib_simpan($pdo, $input, $auditUserId);
+    set_flash($result['ok'] ? 'success' : 'error', (string) ($result['message'] ?? ''));
+    header('Location: ' . app_href('/jadwal/index.php?tab=jamaah_munawib'));
+    exit;
+}
+
+/** @deprecated */
+function jadwal_handle_jamaah_pembimbing(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope): void
+{
+    jadwal_handle_jamaah_munawib($pdo, $auditUserId, $jadwalPembimbingScope);
 }

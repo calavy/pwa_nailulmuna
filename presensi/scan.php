@@ -315,6 +315,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ');
             $jadwalM->execute(['hk' => $hariKe, 'jam' => $jam]);
             $slotsM = $jadwalM->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            require_once __DIR__ . '/../helpers/jadwal_jamaah_pembimbing.php';
+            $slotsM = jadwal_jamaah_munawib_filter_slots_scan($pdo, (int) ($munawib['id'] ?? 0), $hariKe, $slotsM);
             if ($slotsM === []) {
                 $resultType = 'warning';
                 $resultMessage = 'Tidak ada kegiatan aktif untuk scan munawib pada jam ini.';

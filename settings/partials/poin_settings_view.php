@@ -49,24 +49,40 @@
     <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <h2 class="h6">Tambah Rule Poin</h2>
+                <h2 class="h6">Tambah Rule Penambahan Poin</h2>
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="add_rule">
+                    <input type="hidden" name="jenis_rule" value="PLUS">
                     <div class="col-md-3"><input type="text" class="form-control" name="kode_rule" placeholder="Kode"></div>
                     <div class="col-md-3"><input type="text" class="form-control" name="kategori" placeholder="Kategori" required></div>
                     <div class="col-md-3"><input type="text" class="form-control" name="nama_rule" placeholder="Nama rule" required></div>
                     <div class="col-md-3"><input type="number" min="1" class="form-control" name="bobot_poin" placeholder="Poin" required></div>
                     <div class="col-md-9"><input type="text" class="form-control" name="contoh_pelanggaran" placeholder="Contoh pelanggaran"></div>
                     <div class="col-md-3"><input type="number" class="form-control" name="urutan" placeholder="Urutan"></div>
-                    <div class="col-12"><button class="btn btn-success btn-sm">Tambah Rule</button></div>
+                    <div class="col-12"><button class="btn btn-success btn-sm">Tambah rule penambahan</button></div>
+                </form>
+                <hr>
+                <h2 class="h6">Tambah Rule Pengurangan Poin (Remedial)</h2>
+                <form method="post" class="row g-2">
+                    <input type="hidden" name="action" value="add_rule">
+                    <input type="hidden" name="jenis_rule" value="MINUS">
+                    <div class="col-md-3"><input type="text" class="form-control" name="kode_rule" placeholder="Kode"></div>
+                    <div class="col-md-3"><input type="text" class="form-control" name="kategori" placeholder="Kategori remedial" required></div>
+                    <div class="col-md-3"><input type="text" class="form-control" name="nama_rule" placeholder="Nama kriteria" required></div>
+                    <div class="col-md-3"><input type="number" min="1" class="form-control" name="bobot_poin" placeholder="Poin dikurangi" required></div>
+                    <div class="col-md-9"><input type="text" class="form-control" name="contoh_pelanggaran" placeholder="Contoh tindakan remedial"></div>
+                    <div class="col-md-3"><input type="number" class="form-control" name="urutan" placeholder="Urutan"></div>
+                    <div class="col-12"><button class="btn btn-outline-success btn-sm">Tambah rule pengurangan</button></div>
                 </form>
                 <hr>
                 <div class="table-responsive">
                 <table class="table table-sm table-striped table-hover">
-                    <thead><tr><th>Kode</th><th>Kategori</th><th>Rule</th><th>Poin</th><th class="text-end">Aksi</th></tr></thead>
+                    <thead><tr><th>Jenis</th><th>Kode</th><th>Kategori</th><th>Rule</th><th>Poin</th><th class="text-end">Aksi</th></tr></thead>
                     <tbody>
                     <?php foreach ($rules as $r): ?>
+                        <?php $jr = strtoupper((string) ($r['jenis_rule'] ?? 'PLUS')); ?>
                         <tr>
+                            <td><span class="badge text-bg-<?= $jr === 'MINUS' ? 'success' : 'danger' ?>"><?= $jr === 'MINUS' ? 'Kurang' : 'Tambah' ?></span></td>
                             <td><?= htmlspecialchars($r['kode_rule']) ?></td>
                             <td><?= htmlspecialchars($r['kategori']) ?></td>
                             <td><?= htmlspecialchars($r['nama_rule']) ?></td>

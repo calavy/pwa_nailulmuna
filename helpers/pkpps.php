@@ -522,6 +522,8 @@ function activity_for_pkpps_santri(PDO $pdo, int $santriId, string $date, string
     return $row;
 }
 
+require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
+
 /** Jadwal aktif pembimbing dari pkpps_jadwal atau jadwal_kegiatan pada jam sekarang. */
 function jadwal_aktif_for_pembimbing(PDO $pdo, int $pembimbingId, string $date, string $time): ?array
 {
@@ -542,6 +544,7 @@ function jadwal_aktif_for_pembimbing(PDO $pdo, int $pembimbingId, string $date, 
             FROM jadwal_kegiatan j
             INNER JOIN kegiatan k ON k.id = j.kegiatan_id
             WHERE j.pembimbing_id = :pembimbing_id
+              AND COALESCE(k.kategori_kegiatan, "TAALIM") != "JAMAAH"
               AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
               AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
               AND k.is_active = 1

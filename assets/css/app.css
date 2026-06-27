@@ -4051,6 +4051,45 @@ html {
     border-color: rgba(99, 102, 241, 0.3);
 }
 
+.jadwal-jamaah-pembimbing-table-wrap {
+    max-width: 52rem;
+}
+
+.jadwal-jamaah-pembimbing-table__hari {
+    width: 6.5rem;
+    white-space: nowrap;
+}
+
+.jadwal-jamaah-pembimbing-table select {
+    min-width: 10rem;
+}
+
+.jadwal-legend {
+    padding: 0.5rem 0.75rem;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 0.5rem;
+}
+
+.jadwal-legend__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.25rem;
+    align-items: center;
+    font-size: 0.8125rem;
+}
+
+.jadwal-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+[data-theme="dark"] .jadwal-legend {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
 [data-theme="dark"] .jadwal-minggu-col {
     background: var(--bs-body-bg, #1e293b);
     border-color: rgba(148, 163, 184, 0.25);
