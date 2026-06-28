@@ -40,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = santri_izin_tetap_simpan($pdo, $_POST, $slots, $userId);
         set_flash($result['ok'] ? 'success' : 'error', $result['message']);
         if ($result['ok'] && (int) ($result['count'] ?? 1) > 1) {
-            header('Location: ' . app_href('/perizinan/izin_tetap.php' . ($q !== '' ? '?q=' . urlencode($q) : '')));
+            $kid = (int) ($result['kelompok_id'] ?? 0);
+            header('Location: ' . app_href('/perizinan/surat_izin_tetap.php?kelompok_id=' . $kid));
             exit;
         }
         $redirect($result['ok'] ? (int) ($result['id'] ?? $_POST['id'] ?? 0) : (int) ($_POST['id'] ?? 0));
@@ -75,6 +76,13 @@ $editSlots = santri_izin_tetap_blok_form_ke_slots($izinTetapSlotBloks);
 
 $listRows = santri_izin_tetap_list($pdo, $q);
 $jumlahAktif = count(array_filter($listRows, static fn(array $r): bool => (int) ($r['is_aktif'] ?? 0) === 1));
+$izinTetapKelompokCounts = [];
+foreach ($listRows as $rKelompok) {
+    $kidRow = (int) ($rKelompok['kelompok_id'] ?? 0);
+    if ($kidRow > 0) {
+        $izinTetapKelompokCounts[$kidRow] = ($izinTetapKelompokCounts[$kidRow] ?? 0) + 1;
+    }
+}
 $izinTetapSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
 $editKegiatanDitinggalkan = trim((string) ($editRow['kegiatan_ditinggalkan'] ?? ''));
 $editTingkatanList = $editRow
@@ -110,6 +118,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1"><i class="fa-solid fa-calendar-check text-primary me-1"></i> Izin Tetap (Hidmah)</h1>
     <p class="text-muted mb-0">
         Santri hidmah yang keluar pada <strong>hari &amp; jam tertentu</strong> dapat dicetak surat izin tetap resmi.
+        Pilih <strong>lebih dari satu santri</strong> saat menambah data untuk satu surat gabungan berisi tabel NIS, nama, dan tingkatan.
         Presensi kegiatan <strong>Jama'ah</strong> pada jadwal ini dicatat <strong>IZIN</strong> (bukan ALPA).
         Kegiatan Ta'lim tetap mengikuti aturan presensi biasa. Dapat diubah atau dihentikan kapan saja.
     </p>
@@ -254,11 +263,11 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                     <div class="mb-2">
-                        <label class="form-label">Penanggung jawab (tanda tangan surat)</label>
+                        <label class="form-label">Koordinator (tanda tangan surat)</label>
                         <input type="text" class="form-control form-control-sm" name="penanggung_jawab" maxlength="120"
-                            placeholder="Nama penanggung jawab santri / hidmah"
+                            placeholder="Nama koordinator hidmah / izin tetap"
                             value="<?= htmlspecialchars($editRow ? (string) ($editRow['penanggung_jawab'] ?? $defaultPenanggungJawab) : $defaultPenanggungJawab) ?>">
-                        <div class="form-text">Muncul di kolom tanda tangan surat cetak. Kosongkan untuk garis tanda tangan kosong.</div>
+                        <div class="form-text">Muncul di kolom tanda tangan <strong>Koordinator</strong> pada surat cetak.</div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label">Keterangan</label>
@@ -276,7 +285,15 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-save me-1"></i> Simpan</button>
                         <?php if ($editRow): ?>
-                            <a href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . (int) $editRow['id'])) ?>" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat A4</a>
+                            <?php
+                            $editKelompokId = (int) ($editRow['kelompok_id'] ?? 0);
+                            $editKelompokCount = $editKelompokId > 0 ? (int) ($izinTetapKelompokCounts[$editKelompokId] ?? 0) : 0;
+                            ?>
+                            <?php if ($editKelompokCount > 1): ?>
+                                <a href="<?= htmlspecialchars(santri_izin_tetap_surat_gabungan_href($editKelompokId)) ?>" class="btn btn-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat gabungan (<?= $editKelompokCount ?> santri)</a>
+                            <?php else: ?>
+                                <a href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . (int) $editRow['id'])) ?>" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener"><i class="fa-solid fa-print me-1"></i> Cetak surat A4</a>
+                            <?php endif; ?>
                             <a href="/perizinan/izin_tetap.php" class="btn btn-outline-secondary btn-sm">Batal</a>
                         <?php endif; ?>
                     </div>
@@ -328,11 +345,17 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php foreach ($listRows as $r):
                             $iid = (int) ($r['id'] ?? 0);
                             $aktif = (int) ($r['is_aktif'] ?? 0) === 1;
+                            $kidList = (int) ($r['kelompok_id'] ?? 0);
+                            $jumlahKelompok = $kidList > 0 ? (int) ($izinTetapKelompokCounts[$kidList] ?? 0) : 0;
+                            $isKelompokGabungan = $kidList > 0 && $jumlahKelompok > 1;
                             ?>
                             <tr class="<?= $aktif ? '' : 'table-secondary' ?>">
                                 <td class="small">
                                     <span class="fw-semibold"><?= htmlspecialchars((string) ($r['nama_santri'] ?? '')) ?></span><br>
                                     <span class="text-muted font-monospace"><?= htmlspecialchars((string) ($r['nis'] ?? '')) ?></span>
+                                    <?php if ($isKelompokGabungan): ?>
+                                        <br><span class="badge text-bg-light border" style="font-size:.65rem">Kelompok · <?= $jumlahKelompok ?> santri</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="small">
                                     <?= htmlspecialchars((string) ($r['judul'] ?? '')) ?><br>
@@ -368,7 +391,11 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="text-end text-nowrap">
                                     <?php if ($aktif): ?>
-                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . $iid)) ?>" target="_blank" rel="noopener" title="Cetak surat A4"><i class="fa-solid fa-print"></i></a>
+                                        <?php if ($isKelompokGabungan): ?>
+                                            <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(santri_izin_tetap_surat_gabungan_href($kidList)) ?>" target="_blank" rel="noopener" title="Cetak surat gabungan A4"><i class="fa-solid fa-print"></i></a>
+                                        <?php else: ?>
+                                            <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/perizinan/surat_izin_tetap.php?id=' . $iid)) ?>" target="_blank" rel="noopener" title="Cetak surat A4"><i class="fa-solid fa-print"></i></a>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                     <a class="btn btn-sm btn-outline-primary" href="?id=<?= $iid ?>">Ubah</a>
                                     <form method="post" class="d-inline">

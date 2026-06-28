@@ -59,6 +59,13 @@ function ensure_santri_izin_tetap_tables(PDO $pdo): void
         } catch (PDOException $e) {
         }
     }
+    if (table_exists($pdo, 'santri_izin_tetap') && !column_exists($pdo, 'santri_izin_tetap', 'kelompok_id')) {
+        try {
+            $pdo->exec('ALTER TABLE santri_izin_tetap ADD COLUMN kelompok_id INT UNSIGNED NULL AFTER santri_id');
+            $pdo->exec('ALTER TABLE santri_izin_tetap ADD INDEX idx_izin_tetap_kelompok (kelompok_id)');
+        } catch (PDOException $e) {
+        }
+    }
     try {
         $pdo->exec('
             ALTER TABLE santri_izin_tetap
@@ -1053,6 +1060,12 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
         if ($inTransaction && $pdo->inTransaction()) {
             $pdo->commit();
         }
+
+        if ($id <= 0 && count($savedIds) > 1) {
+            $kelompokId = santri_izin_tetap_assign_kelompok($pdo, $savedIds);
+        } else {
+            $kelompokId = 0;
+        }
     } catch (Throwable $e) {
         if ($inTransaction && $pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1069,10 +1082,11 @@ function santri_izin_tetap_simpan(PDO $pdo, array $post, array $slots, int $user
     if ($count > 1) {
         return [
             'ok' => true,
-            'message' => 'Izin tetap disimpan untuk ' . $count . ' santri.' . $presensiNote . ' Cetak surat per santri dari daftar.',
+            'message' => 'Izin tetap disimpan untuk ' . $count . ' santri.' . $presensiNote . ' Surat gabungan siap dicetak.',
             'count' => $count,
             'ids' => $savedIds,
             'id' => $savedIds[0] ?? 0,
+            'kelompok_id' => $kelompokId ?? santri_izin_tetap_assign_kelompok($pdo, $savedIds),
         ];
     }
 
@@ -1269,6 +1283,30 @@ function santri_izin_tetap_slot_hari_html(PDO $pdo, int $izinTetapId): string
     return $days !== [] ? implode(', ', array_map('htmlspecialchars', array_values($days))) : '—';
 }
 
+/** Hari hidmah surat cetak — tampil berdampingan kiri-kanan agar rapi. */
+function santri_izin_tetap_slot_hari_surat_html(PDO $pdo, int $izinTetapId): string
+{
+    $hariMap = santri_izin_tetap_hari_map();
+    $days = [];
+    foreach (santri_izin_tetap_slots($pdo, $izinTetapId) as $sl) {
+        $h = (int) ($sl['hari_ke'] ?? 0);
+        if ($h >= 1 && $h <= 7) {
+            $days[$h] = $hariMap[$h] ?? '?';
+        }
+    }
+    ksort($days);
+    if ($days === []) {
+        return '—';
+    }
+
+    $items = [];
+    foreach (array_values($days) as $namaHari) {
+        $items[] = '<span class="hari-surat-item">' . htmlspecialchars((string) $namaHari) . '</span>';
+    }
+
+    return '<span class="hari-surat-row">' . implode('', $items) . '</span>';
+}
+
 /** Format jadwal slot untuk surat cetak (satu baris per hari). */
 function santri_izin_tetap_slot_html(PDO $pdo, int $izinTetapId): string
 {
@@ -1411,4 +1449,225 @@ function santri_izin_tetap_for_print(PDO $pdo, int $id): ?array
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     return is_array($row) ? $row : null;
+}
+
+/** Gabungkan beberapa izin tetap dalam satu kelompok cetak (ID terkecil = kelompok_id). */
+function santri_izin_tetap_assign_kelompok(PDO $pdo, array $ids): int
+{
+    ensure_santri_izin_tetap_tables($pdo);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $i): bool => $i > 0)));
+    if ($ids === []) {
+        return 0;
+    }
+    if (count($ids) === 1) {
+        return $ids[0];
+    }
+    sort($ids, SORT_NUMERIC);
+    $leader = $ids[0];
+    $st = $pdo->prepare('UPDATE santri_izin_tetap SET kelompok_id = :kid WHERE id = :id');
+    foreach ($ids as $id) {
+        $st->execute(['kid' => $leader, 'id' => $id]);
+    }
+
+    return $leader;
+}
+
+/** @return list<int> */
+function santri_izin_tetap_ids_dari_get(array $get): array
+{
+    $raw = trim((string) ($get['ids'] ?? ''));
+    if ($raw === '') {
+        return [];
+    }
+    $ids = [];
+    foreach (preg_split('/[\s,;]+/', $raw) ?: [] as $part) {
+        $id = (int) $part;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+
+    return array_values($ids);
+}
+
+function santri_izin_tetap_surat_gabungan_href(int $kelompokId): string
+{
+    return app_href('/perizinan/surat_izin_tetap.php?kelompok_id=' . $kelompokId);
+}
+
+/**
+ * Pengaturan spasi cetak A4 — semakin banyak santri, semakin rapat (tetap 1 lembar).
+ *
+ * @return array{
+ *   class:string,
+ *   page_margin:string,
+ *   sheet_padding:string,
+ *   logo_px:int,
+ *   sign_mm:int,
+ *   ringkas:bool,
+ *   tabel_cols:int
+ * }
+ */
+function santri_izin_tetap_surat_density_config(int $totalSantri, bool $isGabungan): array
+{
+    if (!$isGabungan || $totalSantri <= 2) {
+        return [
+            'class' => '',
+            'page_margin' => '12mm',
+            'sheet_padding' => '12mm 14mm',
+            'logo_px' => 72,
+            'sign_mm' => 18,
+            'ringkas' => false,
+            'tabel_cols' => 1,
+        ];
+    }
+    if ($totalSantri <= 5) {
+        return [
+            'class' => 'sheet--compact',
+            'page_margin' => '10mm',
+            'sheet_padding' => '8mm 10mm',
+            'logo_px' => 58,
+            'sign_mm' => 14,
+            'ringkas' => true,
+            'tabel_cols' => 1,
+        ];
+    }
+    if ($totalSantri <= 10) {
+        return [
+            'class' => 'sheet--dense',
+            'page_margin' => '8mm',
+            'sheet_padding' => '6mm 8mm',
+            'logo_px' => 50,
+            'sign_mm' => 12,
+            'ringkas' => true,
+            'tabel_cols' => 1,
+        ];
+    }
+
+    return [
+        'class' => 'sheet--extra-dense',
+        'page_margin' => '7mm',
+        'sheet_padding' => '5mm 7mm',
+        'logo_px' => 44,
+        'sign_mm' => 10,
+        'ringkas' => true,
+        'tabel_cols' => 2,
+    ];
+}
+
+/** Alihkan cetak perorangan ke surat gabungan jika santri bagian kelompok (>1). */
+function santri_izin_tetap_redirect_gabungan_jika_perlu(PDO $pdo, array $anggotaRows, int $kelompokIdParam, array $idsParam): void
+{
+    if ($kelompokIdParam > 0 || $idsParam !== [] || count($anggotaRows) !== 1) {
+        return;
+    }
+    $row = $anggotaRows[0];
+    $kid = (int) ($row['kelompok_id'] ?? 0);
+    if ($kid <= 0) {
+        return;
+    }
+    $kelompokRows = santri_izin_tetap_anggota_by_kelompok($pdo, $kid);
+    if (count($kelompokRows) > 1) {
+        header('Location: ' . santri_izin_tetap_surat_gabungan_href($kid));
+        exit;
+    }
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function santri_izin_tetap_anggota_rows(PDO $pdo, string $whereSql, array $params): array
+{
+    ensure_santri_izin_tetap_tables($pdo);
+    if (!table_exists($pdo, 'santri')) {
+        return [];
+    }
+    if (!function_exists('perizinan_rombongan_order_sql')) {
+        require_once __DIR__ . '/perizinan_rombongan.php';
+    }
+    $tingExpr = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''";
+    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+    $st = $pdo->prepare("
+        SELECT i.*, s.nis, {$nameExpr} AS nama_santri, {$tingExpr} AS tingkatan
+        FROM santri_izin_tetap i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE {$whereSql}
+        ORDER BY " . perizinan_rombongan_order_sql('s', $pdo) . '
+    ');
+    $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    return is_array($rows) ? $rows : [];
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function santri_izin_tetap_anggota_by_kelompok(PDO $pdo, int $kelompokId): array
+{
+    if ($kelompokId <= 0) {
+        return [];
+    }
+
+    return santri_izin_tetap_anggota_rows(
+        $pdo,
+        'i.kelompok_id = :kid OR i.id = :kid2',
+        ['kid' => $kelompokId, 'kid2' => $kelompokId]
+    );
+}
+
+/**
+ * @param list<int> $ids
+ * @return list<array<string, mixed>>
+ */
+function santri_izin_tetap_anggota_by_ids(PDO $pdo, array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn(int $i): bool => $i > 0)));
+    if ($ids === []) {
+        return [];
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+    return santri_izin_tetap_anggota_rows($pdo, 'i.id IN (' . $placeholders . ')', $ids);
+}
+
+/**
+ * @param list<array<string, mixed>> $anggotaRows
+ * @return list<string>
+ */
+function santri_izin_tetap_kegiatan_items_for_print_gabungan(PDO $pdo, array $anggotaRows): array
+{
+    $merged = [];
+    foreach ($anggotaRows as $row) {
+        foreach (santri_izin_tetap_kegiatan_items_for_print($pdo, $row) as $nama) {
+            $t = trim((string) $nama);
+            if ($t !== '') {
+                $merged[$t] = $t;
+            }
+        }
+    }
+
+    return array_values($merged);
+}
+
+/** @return array{ok:bool,message:string,anggota?:list<array<string, mixed>>} */
+function santri_izin_tetap_validasi_cetak_gabungan(array $anggotaRows): array
+{
+    if ($anggotaRows === []) {
+        return ['ok' => false, 'message' => 'Data izin tetap tidak ditemukan.'];
+    }
+    $nonaktif = [];
+    foreach ($anggotaRows as $row) {
+        if ((int) ($row['is_aktif'] ?? 0) !== 1) {
+            $nonaktif[] = (string) ($row['nama_santri'] ?? $row['nis'] ?? 'Santri');
+        }
+    }
+    if ($nonaktif !== []) {
+        return [
+            'ok' => false,
+            'message' => 'Surat gabungan belum dapat dicetak. Izin nonaktif: ' . implode(', ', $nonaktif) . '.',
+        ];
+    }
+
+    return ['ok' => true, 'message' => '', 'anggota' => $anggotaRows];
 }

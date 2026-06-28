@@ -16,13 +16,47 @@ require_login();
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
 $id = (int) ($_GET['id'] ?? 0);
-$izin = santri_izin_tetap_for_print($pdo, $id);
+$kelompokId = (int) ($_GET['kelompok_id'] ?? 0);
+$idsParam = santri_izin_tetap_ids_dari_get($_GET);
 
-if (!$izin) {
-    exit('Data izin tetap tidak ditemukan.');
+$anggotaRows = [];
+if ($kelompokId > 0) {
+    $anggotaRows = santri_izin_tetap_anggota_by_kelompok($pdo, $kelompokId);
+} elseif ($idsParam !== []) {
+    $anggotaRows = santri_izin_tetap_anggota_by_ids($pdo, $idsParam);
+} elseif ($id > 0) {
+    $single = santri_izin_tetap_for_print($pdo, $id);
+    if ($single) {
+        $anggotaRows = [$single];
+    }
 }
 
-if ((int) ($izin['is_aktif'] ?? 0) !== 1) {
+$isGabungan = count($anggotaRows) > 1;
+$validasi = $isGabungan
+    ? santri_izin_tetap_validasi_cetak_gabungan($anggotaRows)
+    : ['ok' => $anggotaRows !== [], 'message' => 'Data izin tetap tidak ditemukan.', 'anggota' => $anggotaRows];
+
+if (!$validasi['ok']) {
+    http_response_code(403);
+    echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Surat belum dapat dicetak</title>';
+    echo '<style>body{font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;padding:2rem;}'
+        . '.box{max-width:520px;margin:auto;padding:24px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;}'
+        . 'h1{font-size:18px;color:#b45309;} p{font-size:14px;color:#334155;line-height:1.5;}'
+        . 'a{color:#1d4ed8;}</style></head><body><div class="box">';
+    echo '<h1>Surat belum dapat dicetak</h1>';
+    echo '<p>' . htmlspecialchars((string) ($validasi['message'] ?? 'Data tidak ditemukan.')) . '</p>';
+    echo '<p><a href="' . htmlspecialchars(app_href('/perizinan/izin_tetap.php')) . '">Kembali ke Izin Tetap</a></p>';
+    echo '</div></body></html>';
+    exit;
+}
+
+santri_izin_tetap_redirect_gabungan_jika_perlu($pdo, $anggotaRows, $kelompokId, $idsParam);
+
+$izin = $anggotaRows[0];
+$izinId = (int) ($izin['id'] ?? 0);
+$kelompokCetakId = $kelompokId > 0 ? $kelompokId : (int) ($izin['kelompok_id'] ?? 0);
+
+if (!$isGabungan && (int) ($izin['is_aktif'] ?? 0) !== 1) {
     http_response_code(403);
     echo '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Surat belum dapat dicetak</title>';
     echo '<style>body{font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;padding:2rem;}'
@@ -50,12 +84,21 @@ $headerColor = $jenisRaw === 'TUGAS' ? '#dc2626' : '#0d9488';
 $categoryClass = $jenisRaw === 'TUGAS' ? 'cat-tugas' : 'cat-hidmah';
 
 $nomorSurat = trim((string) ($izin['nomor_surat'] ?? ''));
-if ($nomorSurat === '') {
-    $nomorSurat = surat_nomor_ambil_atau_buat($pdo, 'izin_tetap', 'izin_tetap:' . $id);
+if ($isGabungan) {
+    $nomorKey = 'izin_tetap_kelompok:' . ($kelompokCetakId > 0 ? $kelompokCetakId : implode('-', array_column($anggotaRows, 'id')));
+    $nomorSurat = surat_nomor_ambil_atau_buat($pdo, 'izin_tetap', $nomorKey);
+    if (column_exists($pdo, 'santri_izin_tetap', 'nomor_surat')) {
+        $updNomor = $pdo->prepare('UPDATE santri_izin_tetap SET nomor_surat = :n WHERE id = :id');
+        foreach ($anggotaRows as $aRow) {
+            $updNomor->execute(['n' => $nomorSurat, 'id' => (int) ($aRow['id'] ?? 0)]);
+        }
+    }
+} elseif ($nomorSurat === '') {
+    $nomorSurat = surat_nomor_ambil_atau_buat($pdo, 'izin_tetap', 'izin_tetap:' . $izinId);
     if (column_exists($pdo, 'santri_izin_tetap', 'nomor_surat')) {
         $pdo->prepare('UPDATE santri_izin_tetap SET nomor_surat = :n WHERE id = :id')->execute([
             'n' => $nomorSurat,
-            'id' => $id,
+            'id' => $izinId,
         ]);
     }
 }
@@ -65,7 +108,9 @@ $tglSelesai = trim((string) ($izin['tanggal_selesai'] ?? ''));
 $periodeTampil = $tglSelesai !== '' ? ($tglMulai . ' s.d. ' . $tglSelesai) : ($tglMulai . ' (berlaku tanpa batas waktu)');
 $judulKegiatan = santri_izin_tetap_surat_teks_bersih(trim((string) ($izin['judul'] ?? '')));
 $suratKonteks = santri_izin_tetap_surat_konteks($jenisRaw, $judulKegiatan);
-$kegiatanItems = santri_izin_tetap_kegiatan_items_for_print($pdo, $izin);
+$kegiatanItems = $isGabungan
+    ? santri_izin_tetap_kegiatan_items_for_print_gabungan($pdo, $anggotaRows)
+    : santri_izin_tetap_kegiatan_items_for_print($pdo, $izin);
 $kegiatanDitinggalkan = $kegiatanItems !== [] ? implode(', ', $kegiatanItems) : '';
 $kegiatanKolomKiri = $kegiatanItems;
 $kegiatanKolomKanan = [];
@@ -95,13 +140,24 @@ $tplVars = [
     'nama_ponpes' => (string) $namaPonpes,
     'kota_ponpes' => $kotip,
     'uraian_kalimat' => (string) ($suratKonteks['uraian_kalimat'] ?? ''),
+    'jumlah_santri' => (string) count($anggotaRows),
 ];
 $izinTetapJudul = surat_cetak_template_render($pdo, 'izin_tetap_judul', $tplVars);
-$izinTetapPembuka = surat_cetak_template_render($pdo, 'izin_tetap_pembuka', $tplVars);
+$pembukaSlug = $isGabungan ? 'izin_tetap_gabungan_pembuka' : 'izin_tetap_pembuka';
+$izinTetapPembuka = surat_cetak_template_render($pdo, $pembukaSlug, $tplVars);
 $izinTetapCatatan = surat_cetak_template_render($pdo, 'izin_tetap_catatan', $tplVars);
 $izinTetapPenutup = surat_cetak_template_render($pdo, 'izin_tetap_penutup', $tplVars);
 
-$slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
+$slotHtml = santri_izin_tetap_slot_hari_surat_html($pdo, $izinId);
+$totalSantri = count($anggotaRows);
+$density = santri_izin_tetap_surat_density_config($totalSantri, $isGabungan);
+$suratRingkas = (bool) ($density['ringkas'] ?? false);
+$tabelCols = (int) ($density['tabel_cols'] ?? 1);
+$pageMargin = (string) ($density['page_margin'] ?? '12mm');
+$sheetPadding = (string) ($density['sheet_padding'] ?? '12mm 14mm');
+$logoPx = (int) ($density['logo_px'] ?? 72);
+$signMm = (int) ($density['sign_mm'] ?? 18);
+$sheetClass = trim('sheet ' . (string) ($density['class'] ?? ''));
 ?>
 <!doctype html>
 <html lang="id">
@@ -110,7 +166,7 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Surat Keterangan Izin Tetap</title>
     <style>
-        @page { size: A4 portrait; margin: 12mm; }
+        @page { size: A4 portrait; margin: <?= htmlspecialchars($pageMargin) ?>; }
         * { box-sizing: border-box; }
         body {
             font-family: "Segoe UI", Arial, sans-serif;
@@ -128,7 +184,7 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
             max-width: 100%;
             min-height: calc(297mm - 24mm);
             margin: 0 auto;
-            padding: 12mm 14mm;
+            padding: <?= htmlspecialchars($sheetPadding) ?>;
             background: #fff;
             overflow: hidden;
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
@@ -170,7 +226,7 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
             position: absolute;
             bottom: -6px;
         }
-        .logo { width: 72px; height: 72px; object-fit: cover; border-radius: 999px; border: 1px solid #d1d5db; }
+        .logo { width: <?= $logoPx ?>px; height: <?= $logoPx ?>px; object-fit: cover; border-radius: 999px; border: 1px solid #d1d5db; }
         .brand { flex: 1; text-align: center; }
         .brand .small { margin: 0; font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
         .brand h2 { margin: 0; font-size: 16pt; color: #065f46; font-weight: 800; text-transform: uppercase; line-height: 1.1; }
@@ -195,8 +251,89 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
         .content { line-height: 1.5; position: relative; z-index: 1; font-size: 10pt; flex: 1; }
         .content p { margin: 0 0 9px; text-align: justify; }
         .info { width: 100%; margin: 8px 0 10px; border-collapse: collapse; }
-        .info td { vertical-align: top; padding: 2px 0; }
-        .info td:first-child { width: 130px; color: #334155; font-weight: 700; }
+        .info-izin-tetap--compact td.info-pair {
+            width: 50%;
+            vertical-align: top;
+            padding: 2px 8px 2px 0;
+            line-height: 1.35;
+            font-size: 9.5pt;
+        }
+        .info-izin-tetap--compact td.info-pair--empty {
+            border: none;
+        }
+        .info-pair__label {
+            color: #334155;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .info-pair__sep {
+            margin: 0 3px;
+            color: #334155;
+        }
+        .info-pair__value {
+            color: #0f172a;
+        }
+        .info-pair__value .hari-surat-row {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 2px 14px;
+            align-items: center;
+            vertical-align: baseline;
+        }
+        .hari-surat-item {
+            display: inline-block;
+            min-width: 2.75rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        table.santri { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 9.5pt; }
+        table.santri th, table.santri td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; }
+        table.santri th { background: #f1f5f9; font-size: 9pt; }
+        table.santri td.num { width: 2.2rem; text-align: center; }
+        table.santri td.nis { width: 5.5rem; font-family: Consolas, monospace; font-size: 9pt; }
+        .santri-cols {
+            display: flex;
+            gap: 6px;
+            align-items: flex-start;
+            margin: 6px 0;
+        }
+        .santri-col { flex: 1 1 0; min-width: 0; }
+        .santri-col table.santri { margin: 0; font-size: 7.8pt; }
+        .santri-col table.santri th, .santri-col table.santri td { padding: 2px 4px; }
+        .santri-col table.santri td.nis { width: 4rem; font-size: 7.5pt; }
+        .sheet--compact .brand h2 { font-size: 14pt; }
+        .sheet--compact .title { margin: 8px 0 6px; }
+        .sheet--compact .title strong { font-size: 11.5pt; }
+        .sheet--compact .content { font-size: 9.5pt; }
+        .sheet--compact .content p { margin-bottom: 6px; }
+        .sheet--compact table.santri { margin: 6px 0; font-size: 9pt; }
+        .sheet--compact table.santri th, .sheet--compact table.santri td { padding: 3px 6px; }
+        .sheet--compact .box-kegiatan, .sheet--compact .box-nb, .sheet--compact .box-note { margin-top: 4px; padding: 5px 7px; }
+        .sheet--compact .sign-space { height: <?= max(10, $signMm - 4) ?>mm; min-height: 40px; }
+        .sheet--dense .brand .small { font-size: 8.5pt; }
+        .sheet--dense .brand h2 { font-size: 12.5pt; }
+        .sheet--dense .brand .addr, .sheet--dense .brand .contact { font-size: 7.5pt; }
+        .sheet--dense .header { padding-bottom: 5px; margin-bottom: 2px; }
+        .sheet--dense .title { margin: 5px 0 4px; }
+        .sheet--dense .title strong { font-size: 10.5pt; }
+        .sheet--dense .title .doc-num { font-size: 7.5pt; margin-top: 1px; }
+        .sheet--dense .badge { padding: 2px 8px; font-size: 7.2pt; margin-top: 2px; }
+        .sheet--dense .content { font-size: 9pt; line-height: 1.35; }
+        .sheet--dense .content p { margin-bottom: 4px; }
+        .sheet--dense table.santri { margin: 4px 0; font-size: 8.5pt; }
+        .sheet--dense table.santri th, .sheet--dense table.santri td { padding: 2px 5px; }
+        .sheet--dense .info-izin-tetap--compact td.info-pair { font-size: 8.8pt; padding: 1px 6px 1px 0; }
+        .sheet--dense .box-kegiatan ul { font-size: 8.5pt; }
+        .sheet--dense .box-nb { font-size: 7.5pt; line-height: 1.3; }
+        .sheet--dense .ttd-meta { margin-bottom: 6px; font-size: 7.5pt; }
+        .sheet--dense .sign-space { height: <?= max(8, $signMm - 2) ?>mm; min-height: 36px; }
+        .sheet--dense .ttd-row--single .sign-space { height: <?= $signMm ?>mm; min-height: 40px; }
+        .sheet--extra-dense .brand h2 { font-size: 11pt; }
+        .sheet--extra-dense .title strong { font-size: 10pt; }
+        .sheet--extra-dense .content { font-size: 8.5pt; }
+        .sheet--extra-dense .info-izin-tetap--compact td.info-pair { font-size: 8.2pt; }
+        .sheet--extra-dense .sign-space { height: <?= $signMm ?>mm; min-height: 32px; }
+        .sheet--extra-dense .print-time { display: none; }
         .box-note {
             margin-top: 6px;
             background: #f8fafc;
@@ -246,16 +383,19 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
         }
         .ttd-wrap { margin-top: auto; position: relative; z-index: 1; }
         .ttd-meta { text-align: right; font-size: 8pt; color: #334155; margin-bottom: 10px; }
-        .ttd {
+        .ttd-row {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 8px;
-            flex-wrap: wrap;
+            gap: 12px;
         }
-        .box { flex: 1 1 30%; min-width: 0; text-align: center; padding: 0 2px; }
-        .box .jab { font-size: 7.6pt; color: #475569; margin-bottom: 4px; min-height: 2.4em; }
-        .sign-space { height: 22mm; min-height: 56px; }
+        .ttd-row--duo { margin-bottom: 4px; }
+        .ttd-row--single { justify-content: center; margin-top: 2px; }
+        .ttd-row--single .box { flex: 0 1 42%; max-width: 240px; min-width: 140px; }
+        .box { flex: 1 1 0; min-width: 0; text-align: center; padding: 0 2px; }
+        .box .jab { font-size: 7.6pt; color: #475569; margin-bottom: 4px; min-height: 2.2em; }
+        .sign-space { height: <?= $signMm ?>mm; min-height: 48px; }
+        .ttd-row--single .sign-space { height: <?= min(20, $signMm + 2) ?>mm; min-height: 52px; }
         .line {
             margin: 0 auto;
             width: 92%;
@@ -274,8 +414,22 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
             color: #64748b;
         }
         @media print {
-            body { background: #fff; padding: 0; }
-            .sheet { border: none; box-shadow: none; border-radius: 0; width: auto; max-width: none; margin: 0; }
+            body { background: #fff; padding: 0; margin: 0; }
+            .sheet {
+                border: none;
+                box-shadow: none;
+                border-radius: 0;
+                width: auto;
+                max-width: none;
+                margin: 0;
+                min-height: auto;
+                height: auto;
+                page-break-inside: avoid;
+                break-inside: avoid-page;
+            }
+            .sheet--compact, .sheet--dense, .sheet--extra-dense {
+                page-break-after: avoid;
+            }
             .badge {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -284,11 +438,15 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+            table.santri th {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
         }
     </style>
 </head>
 <body onload="window.print()" style="--izin-accent: <?= htmlspecialchars($headerColor) ?>;">
-    <div class="sheet">
+    <div class="<?= htmlspecialchars($sheetClass) ?>">
         <div class="header">
             <?php if ($logo): ?>
                 <img src="<?= htmlspecialchars($logo) ?>" alt="logo" class="logo">
@@ -304,24 +462,16 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
         <div class="title">
             <strong><?= htmlspecialchars($izinTetapJudul) ?></strong>
             <div class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></div>
-            <span class="badge <?= htmlspecialchars($categoryClass) ?>">Jenis: <?= htmlspecialchars(strtoupper($jenisLabel)) ?></span>
+            <span class="badge <?= htmlspecialchars($categoryClass) ?>">Jenis: <?= htmlspecialchars(strtoupper($jenisLabel)) ?><?= $isGabungan ? ' · ' . $totalSantri . ' santri' : '' ?></span>
         </div>
 
         <div class="content">
             <p><?= htmlspecialchars($izinTetapPembuka) ?></p>
-            <table class="info">
-                <tr><td>Nama Santri</td><td>: <?= htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) ?></td></tr>
-                <tr><td>NIS</td><td>: <?= htmlspecialchars((string) ($izin['nis'] ?? '-')) ?></td></tr>
-                <tr><td>Tingkatan</td><td>: <?= htmlspecialchars((string) ($izin['tingkatan'] ?? '-')) ?></td></tr>
-                <tr><td>Jenis Izin</td><td>: <?= htmlspecialchars((string) $suratKonteks['jenis_label']) ?></td></tr>
-                <?php if (!$suratKonteks['is_tugas'] && $kategoriHidmahLabel !== ''): ?>
-                <tr><td>Kategori Hidmah</td><td>: <?= htmlspecialchars($kategoriHidmahLabel) ?></td></tr>
-                <?php endif; ?>
-                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_uraian']) ?></td><td>: <?= htmlspecialchars((string) ($suratKonteks['detail_teks'] ?? '') !== '' ? (string) $suratKonteks['detail_teks'] : '—') ?></td></tr>
-                <tr><td>Masa Berlaku</td><td>: <?= htmlspecialchars($periodeTampil) ?></td></tr>
-                <tr><td><?= htmlspecialchars((string) $suratKonteks['label_jadwal']) ?></td><td>: <?= $slotHtml ?></td></tr>
-            </table>
-            <?php if ($tampilkanKotakKegiatan): ?>
+            <?php if ($isGabungan): ?>
+                <?php require __DIR__ . '/partials/surat_izin_tetap_tabel_santri.php'; ?>
+            <?php endif; ?>
+            <?php require __DIR__ . '/partials/surat_izin_tetap_info.php'; ?>
+            <?php if ($tampilkanKotakKegiatan && !$suratRingkas): ?>
             <div class="box-kegiatan">
                 <strong><?= htmlspecialchars((string) $suratKonteks['label_kegiatan_box']) ?></strong>
                 <?php if ($kegiatanItems !== []): ?>
@@ -350,38 +500,45 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
                 <?php endif; ?>
             </div>
             <?php endif; ?>
-            <?php if ($keterangan !== ''): ?>
+            <?php if ($keterangan !== '' && !$suratRingkas): ?>
             <div class="box-note">
                 <strong>Keterangan:</strong><br>
                 <?= nl2br(htmlspecialchars($keterangan)) ?>
             </div>
             <?php endif; ?>
             <div class="box-nb">
-                <strong>Catatan:</strong><br>
+                <strong>Catatan:</strong>
+                <?= $suratRingkas ? ' ' : '<br>' ?>
                 <?= htmlspecialchars($izinTetapCatatan) ?>
+                <?php if (!$suratRingkas): ?>
                 <?php if ($kegiatanDitinggalkan !== '' && !$suratKonteks['is_tugas']): ?>
                 Ketidakhadiran pada kegiatan Jama'ah yang disebutkan dicatat izin, bukan alpa.
                 <?php elseif ($kegiatanDitinggalkan !== '' && $suratKonteks['is_tugas']): ?>
                 Ketidakhadiran pada kegiatan terkait yang disebutkan dicatat izin sesuai ketentuan pondok.
                 <?php endif; ?>
                 Izin tetap berlaku selama status aktif dan dapat ditinjau ulang oleh pengurus bila diperlukan.
+                <?php endif; ?>
             </div>
+            <?php if (!$suratRingkas): ?>
             <p><?= htmlspecialchars($izinTetapPenutup) ?></p>
+            <?php endif; ?>
         </div>
 
         <div class="ttd-wrap">
             <div class="ttd-meta"><?= htmlspecialchars($kotip) ?>, <?= htmlspecialchars(date('d-m-Y')) ?></div>
-            <div class="ttd">
+            <div class="ttd-row ttd-row--duo">
                 <div class="box">
                     <div class="jab">Ketua Yayasan,</div>
                     <div class="sign-space"></div>
                     <div class="line"><?= htmlspecialchars($namaKetua !== '' ? $namaKetua : '(_______________________)') ?></div>
                 </div>
                 <div class="box">
-                    <div class="jab">Penanggung Jawab,</div>
+                    <div class="jab">Koordinator,</div>
                     <div class="sign-space"></div>
                     <div class="line"><?= htmlspecialchars($namaPenanggungJawab !== '' ? $namaPenanggungJawab : '(_______________________)') ?></div>
                 </div>
+            </div>
+            <div class="ttd-row ttd-row--single">
                 <div class="box">
                     <div class="jab">Mengetahui,<br>Pengasuh,</div>
                     <div class="sign-space"></div>

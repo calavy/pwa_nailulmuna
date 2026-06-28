@@ -166,6 +166,13 @@ function surat_cetak_template_definitions(): array
             'placeholders' => '{nama_ponpes}, {uraian_kalimat}',
             'default' => 'Yang bertanda tangan di bawah ini, Pengurus {nama_ponpes} menerangkan bahwa santri berikut memperoleh izin tetap untuk melaksanakan {uraian_kalimat} pada hari dan waktu yang tercantum.',
         ],
+        'izin_tetap_gabungan_pembuka' => [
+            'group' => 'Surat Izin Tetap',
+            'label' => 'Paragraf pembuka (surat gabungan)',
+            'hint' => 'Dipakai jika satu surat berisi lebih dari satu santri. Tabel santri mengikuti paragraf ini.',
+            'placeholders' => '{nama_ponpes}, {uraian_kalimat}, {jumlah_santri}',
+            'default' => 'Dengan ini pengurus memintakan izin kepada pengasuh untuk santri-santri di bawah ini:',
+        ],
         'izin_tetap_catatan' => [
             'group' => 'Surat Izin Tetap',
             'label' => 'Catatan umum',
@@ -335,6 +342,9 @@ function surat_cetak_template_get(PDO $pdo, string $slug): string
         return '';
     }
     $custom = trim((string) app_setting($pdo, surat_cetak_template_setting_key($slug), ''));
+    if ($slug === 'izin_tetap_gabungan_pembuka' && $custom === 'Yang bertanda tangan di bawah ini, Pengurus {nama_ponpes} menerangkan bahwa santri-santri berikut ({jumlah_santri} orang) memperoleh izin tetap untuk melaksanakan {uraian_kalimat} pada hari dan waktu yang tercantum.') {
+        $custom = '';
+    }
 
     return $custom !== '' ? $custom : (string) $defs[$slug]['default'];
 }
