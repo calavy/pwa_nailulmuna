@@ -157,6 +157,53 @@ function pondok_kop_surat_css(?string $accentColor = null, string $logoUrl = '')
 CSS;
 }
 
+/** Layout lembar surat A4 — sama seperti cetak perizinan (surat_rombongan). */
+function pondok_kop_surat_sheet_a4_css(): string
+{
+    return <<<'CSS'
+        .sheet-wrap { padding: 12px; }
+        .sheet {
+            position: relative;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 10mm 12mm;
+            background: #fff;
+            max-width: 210mm;
+            margin: 0 auto;
+            min-height: calc(297mm - 24mm);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+            overflow: hidden;
+            font-family: "Segoe UI", Arial, sans-serif;
+            font-size: 10.5pt;
+            color: #111827;
+        }
+        .sheet .title { text-align: center; margin: 12px 0 10px; position: relative; z-index: 1; }
+        .sheet .title strong { font-size: 12pt; text-decoration: underline; text-transform: uppercase; letter-spacing: 0.04em; }
+        .sheet .title .doc-num { display: block; margin-top: 4px; font-size: 9pt; color: #475569; }
+        .sheet .title .doc-subtitle { margin-top: 4px; font-size: 10.5pt; font-weight: 600; color: #0f172a; }
+        .sheet .content { line-height: 1.5; position: relative; z-index: 1; font-size: 10pt; flex: 1; }
+        .sheet table.info { width: 100%; margin: 6px 0 12px; border-collapse: collapse; font-size: 9.5pt; }
+        .sheet table.info td { vertical-align: top; padding: 2px 0; border: none; background: transparent; }
+        .sheet table.info td:first-child { width: 110px; font-weight: 700; color: #334155; }
+        .sheet .section-title {
+            margin: 0 0 6px;
+            font-size: 10pt;
+            font-weight: 700;
+            color: #065f46;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+CSS;
+}
+
+/** CSS kop + lembar A4 untuk halaman cetak (embedded atau standalone). */
+function pondok_kop_surat_embed_styles(?string $accentColor, string $logoUrl = ''): string
+{
+    return pondok_kop_surat_sheet_a4_css() . "\n" . pondok_kop_surat_css($accentColor, $logoUrl);
+}
+
 /** HTML blok kop surat (class pondok-kop). */
 function pondok_kop_surat_html(array $kop, ?string $accentColor = null): string
 {

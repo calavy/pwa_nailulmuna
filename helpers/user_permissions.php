@@ -355,6 +355,7 @@ function user_permission_path_map_base(): array
         '/yayasan/scan_musyawarah.php' => 'yayasan',
         '/yayasan/kartu_sdm.php' => 'yayasan',
         '/yayasan/musyawarah_presensi.php' => 'yayasan',
+        '/yayasan/musyawarah_hasil.php' => 'yayasan',
         '/yayasan/rapat.php' => 'yayasan',
         '/yayasan/notulen.php' => 'yayasan',
         '/yayasan/notulen_cetak.php' => 'yayasan',

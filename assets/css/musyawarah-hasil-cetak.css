@@ -1,0 +1,98 @@
+@page {
+    size: A4 portrait;
+    margin: 12mm;
+}
+
+/* Isolasi kop dari Bootstrap / tema app (tampilan sama seperti surat perizinan) */
+.yn-musyawarah-hasil-page .sheet .pondok-kop,
+.yn-musyawarah-hasil-page .sheet .pondok-kop * {
+    font-family: "Segoe UI", Arial, sans-serif !important;
+}
+
+.yn-musyawarah-hasil-page .sheet .pondok-kop p {
+    margin-bottom: 0;
+}
+
+.yn-musyawarah-hasil-page .sheet .pondok-kop h2.pondok-kop__nama {
+    margin: 0 !important;
+    font-size: 13.5pt !important;
+    color: #065f46 !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    line-height: 1.12 !important;
+    letter-spacing: 0.02em !important;
+}
+
+.yn-musyawarah-hasil-page .sheet .content h2.section-title {
+    margin: 0 0 6px !important;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+    color: #065f46 !important;
+    text-transform: uppercase;
+}
+
+.yn-musyawarah-hasil-page .sheet .agenda-item {
+    margin-bottom: 10px;
+}
+
+.yn-musyawarah-hasil-page .sheet .agenda-item .agenda-label {
+    font-weight: 700;
+}
+
+.yn-musyawarah-hasil-page .sheet .agenda-item .agenda-uraian {
+    margin: 4px 0 0 1rem;
+    white-space: pre-wrap;
+}
+
+.yn-musyawarah-hasil-page .sheet .text-block {
+    margin-bottom: 12px;
+    white-space: pre-wrap;
+}
+
+@media print {
+    .yn-musyawarah-hasil-page {
+        background: #fff !important;
+    }
+
+    .yn-musyawarah-hasil-page .app-sidebar,
+    .yn-musyawarah-hasil-page .app-topbar,
+    .yn-musyawarah-hasil-page .mobile-sidebar,
+    .yn-musyawarah-hasil-page .mobile-sidebar-overlay,
+    .yn-musyawarah-hasil-page .yn-no-print,
+    .yn-musyawarah-hasil-page .card-header {
+        display: none !important;
+    }
+
+    .yn-musyawarah-hasil-page .app-shell,
+    .yn-musyawarah-hasil-page .app-content,
+    .yn-musyawarah-hasil-page .app-main,
+    .yn-musyawarah-hasil-page .container-fluid,
+    .yn-musyawarah-hasil-page .row,
+    .yn-musyawarah-hasil-page .col-lg-7,
+    .yn-musyawarah-hasil-page #pratinjau-cetak,
+    .yn-musyawarah-hasil-page .card,
+    .yn-musyawarah-hasil-page .card-body {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    .yn-musyawarah-hasil-page .sheet-wrap {
+        padding: 0;
+    }
+
+    .yn-musyawarah-hasil-page .sheet {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        max-width: none;
+        min-height: auto;
+        padding: 0;
+        page-break-inside: avoid;
+    }
+}

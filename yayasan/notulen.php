@@ -16,7 +16,7 @@ $editId = (int) ($_GET['edit'] ?? 0);
 $editRow = null;
 
 $rapatList = $pdo->query('
-    SELECT id, judul, tanggal_rapat, nomor_rapat
+    SELECT id, judul, tanggal_rapat, nomor_rapat, agenda_ringkas
     FROM yayasan_rapat
     ORDER BY tanggal_rapat DESC, id DESC
 ')->fetchAll(PDO::FETCH_ASSOC);
@@ -124,25 +124,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    $rapatRow = $pdo->prepare('SELECT tanggal_rapat FROM yayasan_rapat WHERE id = :id LIMIT 1');
+    $rapatRow = $pdo->prepare('SELECT tanggal_rapat, agenda_ringkas FROM yayasan_rapat WHERE id = :id LIMIT 1');
     $rapatRow->execute(['id' => $rapatId]);
-    $rapatDate = (string) ($rapatRow->fetchColumn() ?: date('Y-m-d'));
+    $rapatMeta = $rapatRow->fetch(PDO::FETCH_ASSOC) ?: [];
+    $rapatDate = (string) ($rapatMeta['tanggal_rapat'] ?? date('Y-m-d'));
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
 
+    $agendaItems = yayasan_agenda_ringkas_items(yayasan_rapat_agenda_teks($rapatMeta));
+    $agendaUraianTouched = false;
+    if ($agendaItems !== [] && isset($_POST['hasil_agenda_uraian']) && is_array($_POST['hasil_agenda_uraian'])) {
+        $agendaRows = [];
+        foreach ($agendaItems as $i => $agenda) {
+            $agendaRows[] = [
+                'agenda' => $agenda,
+                'uraian' => trim((string) ($_POST['hasil_agenda_uraian'][$i] ?? $_POST['hasil_agenda_uraian'][(string) $i] ?? '')),
+            ];
+        }
+        $data['agenda_uraian_json'] = json_encode($agendaRows, JSON_UNESCAPED_UNICODE);
+        $isiAgenda = yayasan_agenda_uraian_to_isi($agendaRows);
+        if ($isiAgenda !== '') {
+            $data['isi'] = $isiAgenda;
+        }
+        $agendaUraianTouched = true;
+    }
+
     if ($idPost > 0) {
-        $pdo->prepare('
-            UPDATE yayasan_notulen
-            SET rapat_id = :rapat_id, judul = :judul, isi = :isi, ringkasan = :ringkasan,
+        $sets = 'rapat_id = :rapat_id, judul = :judul, isi = :isi, ringkasan = :ringkasan,
                 keputusan = :keputusan, tindak_lanjut = :tindak_lanjut, timeline_json = :timeline_json,
-                hadir = :hadir, foto_path = :foto_path, diinput_oleh = :diinput_oleh
-            WHERE id = :id
-        ')->execute($data + ['id' => $idPost]);
+                hadir = :hadir, foto_path = :foto_path, diinput_oleh = :diinput_oleh';
+        if ($agendaUraianTouched) {
+            $sets .= ', agenda_uraian_json = :agenda_uraian_json';
+        }
+        $pdo->prepare('UPDATE yayasan_notulen SET ' . $sets . ' WHERE id = :id')->execute($data + ['id' => $idPost]);
         $notulenId = $idPost;
         set_flash('success', 'Notulen diperbarui. Tugas timeline disinkronkan.');
     } else {
+        if (!$agendaUraianTouched) {
+            $data['agenda_uraian_json'] = null;
+        }
         $pdo->prepare('
-            INSERT INTO yayasan_notulen (rapat_id, judul, isi, ringkasan, keputusan, tindak_lanjut, timeline_json, hadir, foto_path, diinput_oleh)
-            VALUES (:rapat_id, :judul, :isi, :ringkasan, :keputusan, :tindak_lanjut, :timeline_json, :hadir, :foto_path, :diinput_oleh)
+            INSERT INTO yayasan_notulen (rapat_id, judul, isi, ringkasan, keputusan, tindak_lanjut, timeline_json, hadir, foto_path, agenda_uraian_json, diinput_oleh)
+            VALUES (:rapat_id, :judul, :isi, :ringkasan, :keputusan, :tindak_lanjut, :timeline_json, :hadir, :foto_path, :agenda_uraian_json, :diinput_oleh)
         ')->execute($data);
         $notulenId = (int) $pdo->lastInsertId();
         set_flash('success', 'Notulen disimpan.');
@@ -196,6 +218,16 @@ if ($timelineInitial === [] && $editRow && !empty($editRow['tindak_lanjut'])) {
     $timelineInitial = [['bagian' => '', 'keputusan' => '', 'penanggung_jawab' => '', 'waktu_mulai' => '', 'batas_waktu' => '', 'keterangan' => '']];
 }
 
+$formIsiNotulen = (string) ($editRow['isi'] ?? '');
+$hasilAgendaRapatId = $filterRapatId > 0 ? $filterRapatId : (int) ($editRow['rapat_id'] ?? 0);
+$hasilAgendaRows = $hasilAgendaRapatId > 0
+    ? yayasan_notulen_agenda_uraian_rows($pdo, $hasilAgendaRapatId, $rapatTerpilih)
+    : [];
+if ($formIsiNotulen === '' && !$editRow && $rapatTerpilih && $hasilAgendaRows === []) {
+    $formIsiNotulen = yayasan_rapat_agenda_teks($rapatTerpilih);
+}
+$agendaRapatTerpilih = $rapatTerpilih ? yayasan_rapat_agenda_teks($rapatTerpilih) : '';
+
 $pageTitle = 'Notulen Rapat';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-notulen.css')];
 $pageScripts = [app_asset_href('/assets/js/yayasan-notulen.js')];
@@ -231,6 +263,12 @@ require_once __DIR__ . '/../includes/header.php';
                 Rapat terpilih: <strong><?= htmlspecialchars((string) $rapatTerpilih['judul']) ?></strong>
                 (<?= htmlspecialchars(yayasan_format_tanggal_rapat((string) $rapatTerpilih['tanggal_rapat'])) ?>)
             </p>
+            <?php if ($agendaRapatTerpilih !== '' && $hasilAgendaRows === []): ?>
+                <div class="small border rounded p-2 mt-2 bg-light">
+                    <span class="fw-semibold">Agenda ringkas rapat:</span>
+                    <div class="text-muted mt-1" style="white-space:pre-wrap"><?= nl2br(htmlspecialchars($agendaRapatTerpilih)) ?></div>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
@@ -275,6 +313,16 @@ require_once __DIR__ . '/../includes/header.php';
                             <label class="form-label small mb-0">Ringkasan</label>
                             <textarea class="form-control" name="ringkasan" rows="2"><?= htmlspecialchars((string) ($editRow['ringkasan'] ?? '')) ?></textarea>
                         </div>
+                        <?php if ($hasilAgendaRows !== []): ?>
+                        <div class="col-12">
+                            <label class="form-label small mb-0 fw-semibold">Hasil musyawarah per agenda</label>
+                            <p class="form-text small mb-2">Isi uraian di bawah setiap poin agenda ringkas.</p>
+                            <?php
+                            $hasilAgendaEmbedded = true;
+                            require __DIR__ . '/partials/hasil_agenda_form.php';
+                            ?>
+                        </div>
+                        <?php else: ?>
                         <div class="col-12">
                             <label class="form-label small mb-0">Isi notulen</label>
                             <div class="yn-format-bar yn-no-print">
@@ -282,9 +330,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-yn-format="bullet" data-target="ynIsi">• Bullet</button>
                                 <button type="button" class="btn btn-sm btn-outline-info" data-yn-preview="1" data-target="ynIsi" data-preview="ynIsiPreview">Pratinjau</button>
                             </div>
-                            <textarea class="form-control" name="isi" id="ynIsi" rows="5" placeholder="Gunakan 1. atau • di awal baris"><?= htmlspecialchars((string) ($editRow['isi'] ?? '')) ?></textarea>
+                            <textarea class="form-control" name="isi" id="ynIsi" rows="5" placeholder="Gunakan 1. atau • di awal baris"><?= htmlspecialchars($formIsiNotulen) ?></textarea>
                             <div id="ynIsiPreview" class="yn-preview-box d-none mt-2"></div>
                         </div>
+                        <?php endif; ?>
                         <div class="col-12">
                             <label class="form-label small mb-0">Keputusan</label>
                             <div class="yn-format-bar yn-no-print">

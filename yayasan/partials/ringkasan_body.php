@@ -84,6 +84,9 @@ declare(strict_types=1);
                                             <?php if (!empty($ev['tempat'])): ?>
                                                 <div class="small"><i class="fa-solid fa-location-dot me-1"></i><?= htmlspecialchars((string) $ev['tempat']) ?></div>
                                             <?php endif; ?>
+                                            <?php if (!empty($ev['uraian'])): ?>
+                                                <div class="small text-muted mt-1" style="white-space:pre-wrap"><?= nl2br(htmlspecialchars((string) $ev['uraian'])) ?></div>
+                                            <?php endif; ?>
                                         </div>
                                         <a class="btn btn-sm btn-outline-secondary align-self-start" href="<?= htmlspecialchars(app_href((string) ($ev['href'] ?? '/yayasan/rapat.php'))) ?>">Detail</a>
                                     </div>

@@ -429,6 +429,9 @@ function yayasan_musyawarah_rekap_rapat(PDO $pdo, int $rapatId): array
 
 function yayasan_musyawarah_format_laporan_wa(PDO $pdo, int $rapatId): string
 {
+    if (!function_exists('yayasan_notulen_agenda_uraian_rows')) {
+        require_once __DIR__ . '/yayasan_notulen.php';
+    }
     $rekap = yayasan_musyawarah_rekap_rapat($pdo, $rapatId);
     $rapat = $rekap['rapat'] ?? null;
     if (!is_array($rapat)) {
@@ -458,8 +461,28 @@ function yayasan_musyawarah_format_laporan_wa(PDO $pdo, int $rapatId): string
         '',
         'Rapat: ' . $judul,
         'Tanggal: ' . $tgl,
-        '',
     ];
+    $agenda = yayasan_rapat_agenda_teks($rapat);
+    $agendaRows = yayasan_notulen_agenda_uraian_rows($pdo, $rapatId, $rapat);
+    $hasUraianTersimpan = false;
+    foreach ($agendaRows as $ar) {
+        if (trim((string) ($ar['uraian'] ?? '')) !== '') {
+            $hasUraianTersimpan = true;
+            break;
+        }
+    }
+    if ($hasUraianTersimpan) {
+        $waHasil = yayasan_agenda_uraian_format_wa($agendaRows);
+        if ($waHasil !== '') {
+            $lines[] = '';
+            $lines[] = $waHasil;
+        }
+    } elseif ($agenda !== '') {
+        $lines[] = '';
+        $lines[] = '*Agenda:*';
+        $lines[] = $agenda;
+    }
+    $lines[] = '';
 
     $hadir = $rekap['hadir'] ?? [];
     $izin = $rekap['izin'] ?? [];
@@ -558,6 +581,7 @@ function yayasan_musyawarah_scan_jadwal_context(PDO $pdo, ?int $rapatFilter = nu
         'jam_mulai' => '',
         'jam_selesai' => '',
         'tempat' => '',
+        'agenda_ringkas' => '',
         'ends_at' => '',
         'starts_at' => '',
         'seconds_remaining' => 0,
@@ -597,6 +621,7 @@ function yayasan_musyawarah_scan_jadwal_context(PDO $pdo, ?int $rapatFilter = nu
             'tingkatan' => $lokasi,
             'jam_mulai' => $mulai,
             'jam_selesai' => $selesai,
+            'agenda_ringkas' => yayasan_rapat_agenda_teks($rapat),
         ];
 
         $startTs = $mulai !== '' ? (strtotime($tanggal . ' ' . substr($mulai, 0, 8)) ?: $nowTs) : $nowTs;
@@ -624,6 +649,7 @@ function yayasan_musyawarah_scan_jadwal_context(PDO $pdo, ?int $rapatFilter = nu
             'jam_mulai' => substr((string) ($active['waktu_mulai'] ?? ''), 0, 8),
             'jam_selesai' => substr((string) ($active['waktu_selesai'] ?? ''), 0, 8),
             'tempat' => trim((string) ($active['lokasi'] ?? '')),
+            'agenda_ringkas' => yayasan_rapat_agenda_teks($active),
             'seconds_remaining' => max(0, $endTs - $nowTs),
             'slots' => $slots,
         ]);
@@ -637,6 +663,7 @@ function yayasan_musyawarah_scan_jadwal_context(PDO $pdo, ?int $rapatFilter = nu
             'jam_mulai' => substr((string) ($upcoming['waktu_mulai'] ?? ''), 0, 8),
             'jam_selesai' => substr((string) ($upcoming['waktu_selesai'] ?? ''), 0, 8),
             'tempat' => trim((string) ($upcoming['lokasi'] ?? '')),
+            'agenda_ringkas' => yayasan_rapat_agenda_teks($upcoming),
             'seconds_until_start' => max(0, $startTs - $nowTs),
             'slots' => $slots,
         ]);
@@ -650,6 +677,7 @@ function yayasan_musyawarah_scan_jadwal_context(PDO $pdo, ?int $rapatFilter = nu
         'tingkatan' => trim((string) ($last['lokasi'] ?? '')),
         'jam_mulai' => substr((string) ($last['waktu_mulai'] ?? ''), 0, 8),
         'jam_selesai' => substr((string) ($last['waktu_selesai'] ?? ''), 0, 8),
+        'agenda_ringkas' => yayasan_rapat_agenda_teks($last),
         'slots' => $slots,
     ]);
 }

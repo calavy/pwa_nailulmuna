@@ -118,6 +118,16 @@ $activeSlotCount = count($activeSlotsTimer);
             <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint" aria-live="polite"></span>
         </div>
     </div>
+
+    <?php
+    $scanAgendaUraian = trim((string) ($scanJadwalCtx['agenda_ringkas'] ?? ''));
+    if ($scanAgendaUraian !== ''):
+        ?>
+    <div class="mx-2 mb-2 px-3 py-2 small border rounded bg-white shadow-sm" style="max-height:8rem;overflow-y:auto">
+        <div class="fw-semibold text-secondary mb-1"><i class="fa-solid fa-list-ul me-1"></i>Agenda / uraian</div>
+        <div class="text-muted" style="white-space:pre-wrap"><?= htmlspecialchars($scanAgendaUraian) ?></div>
+    </div>
+    <?php endif; ?>
     <script type="application/json" id="presensi-scan-timer-data"><?= json_encode($scanJadwalCtx, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 
     <form method="post" id="form-scan-presensi" class="visually-hidden">

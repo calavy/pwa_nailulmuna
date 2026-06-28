@@ -19,7 +19,7 @@ if ($id <= 0) {
 }
 
 $st = $pdo->prepare('
-    SELECT n.*, r.judul AS rapat_judul, r.tanggal_rapat, r.nomor_rapat, r.waktu_mulai, r.waktu_selesai, r.lokasi
+    SELECT n.*, r.judul AS rapat_judul, r.tanggal_rapat, r.nomor_rapat, r.waktu_mulai, r.waktu_selesai, r.lokasi, r.agenda_ringkas
     FROM yayasan_notulen n
     INNER JOIN yayasan_rapat r ON r.id = n.rapat_id
     WHERE n.id = :id LIMIT 1
@@ -30,6 +30,12 @@ if (!$row) {
     http_response_code(404);
     exit('Notulen tidak ditemukan.');
 }
+
+$rapatIdNotulen = (int) ($row['rapat_id'] ?? 0);
+$agendaRowsForEdit = yayasan_notulen_agenda_uraian_rows($pdo, $rapatIdNotulen, $row);
+$editHasilUrl = $rapatIdNotulen > 0 && $agendaRowsForEdit !== []
+    ? app_href('/yayasan/musyawarah_hasil.php?rapat_id=' . $rapatIdNotulen)
+    : app_href('/yayasan/notulen.php?edit=' . $id);
 
 $timelineRows = yayasan_notulen_timeline_rows_from_json((string) ($row['timeline_json'] ?? ''));
 $ponpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren Nailul Muna'));
@@ -47,7 +53,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="text-nowrap">
         <button type="button" class="btn btn-primary" onclick="window.print()">Cetak</button>
-        <a class="btn btn-outline-secondary" href="<?= htmlspecialchars(app_href('/yayasan/notulen.php?edit=' . $id)) ?>">Edit</a>
+        <a class="btn btn-outline-secondary" href="<?= htmlspecialchars($editHasilUrl) ?>">Edit</a>
     </div>
 </div>
 
@@ -81,6 +87,32 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
         </table>
 
+        <?php
+        $agendaRowsCetak = yayasan_notulen_agenda_uraian_rows($pdo, (int) ($row['rapat_id'] ?? 0), $row);
+        if ($agendaRowsCetak !== []):
+            ?>
+            <h2 class="h6">Hasil musyawarah per agenda</h2>
+            <div class="mb-4">
+                <?php foreach ($agendaRowsCetak as $i => $ar): ?>
+                    <div class="mb-3">
+                        <div class="fw-semibold"><?= (int) $i + 1 ?>. <?= htmlspecialchars((string) ($ar['agenda'] ?? '')) ?></div>
+                        <?php if (trim((string) ($ar['uraian'] ?? '')) !== ''): ?>
+                            <div class="ms-3 mt-1" style="white-space:pre-wrap"><?= nl2br(htmlspecialchars((string) $ar['uraian'])) ?></div>
+                        <?php else: ?>
+                            <div class="ms-3 mt-1 text-muted small">—</div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else:
+            $agendaCetak = yayasan_rapat_agenda_teks($row);
+            if ($agendaCetak !== ''):
+                ?>
+            <h2 class="h6">Agenda ringkas</h2>
+            <div class="mb-4" style="white-space:pre-wrap"><?= nl2br(htmlspecialchars($agendaCetak)) ?></div>
+            <?php endif;
+        endif; ?>
+
         <?php if (!empty($row['hadir'])): ?>
             <h2 class="h6">Yang hadir</h2>
             <div class="mb-3"><?= nl2br(htmlspecialchars((string) $row['hadir'])) ?></div>
@@ -91,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="mb-3"><?= nl2br(htmlspecialchars((string) $row['ringkasan'])) ?></div>
         <?php endif; ?>
 
-        <?php if (!empty($row['isi'])): ?>
+        <?php if (!empty($row['isi']) && $agendaRowsCetak === []): ?>
             <h2 class="h6">Isi notulen</h2>
             <div class="mb-3"><?= yayasan_notulen_format_hasil_rapat((string) $row['isi']) ?></div>
         <?php endif; ?>

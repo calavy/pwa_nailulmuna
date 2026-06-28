@@ -186,3 +186,13 @@ function yayasan_format_tanggal_rapat(string $tanggal, ?string $waktuMulai = nul
 
     return $out;
 }
+
+/** Teks agenda ringkas rapat (untuk musyawarah, notulen, laporan). */
+function yayasan_rapat_agenda_teks(?array $rapat): string
+{
+    if (!is_array($rapat)) {
+        return '';
+    }
+
+    return trim((string) ($rapat['agenda_ringkas'] ?? ''));
+}

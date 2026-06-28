@@ -215,7 +215,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label small mb-0">Agenda ringkas</label>
-                        <textarea class="form-control" name="agenda_ringkas" rows="3"><?= htmlspecialchars((string) ($editRow['agenda_ringkas'] ?? '')) ?></textarea>
+                        <textarea class="form-control" name="agenda_ringkas" rows="3" placeholder="Uraian agenda rapat — tampil di musyawarah, scan presensi, laporan WA, dan notulen"><?= htmlspecialchars((string) ($editRow['agenda_ringkas'] ?? '')) ?></textarea>
                     </div>
                     <div class="col-12">
                         <div class="form-check">
@@ -299,6 +299,13 @@ require_once __DIR__ . '/../includes/header.php';
                                         <?php if (!empty($row['lokasi'])): ?>
                                             <br><span class="small text-muted"><?= htmlspecialchars((string) $row['lokasi']) ?></span>
                                         <?php endif; ?>
+                                        <?php
+                                        $agendaRow = trim((string) ($row['agenda_ringkas'] ?? ''));
+                                        if ($agendaRow !== ''):
+                                            $snippet = mb_strlen($agendaRow) > 120 ? mb_substr($agendaRow, 0, 120) . '…' : $agendaRow;
+                                            ?>
+                                            <br><span class="small text-secondary" style="white-space:pre-wrap"><?= nl2br(htmlspecialchars($snippet)) ?></span>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="small">
                                         <?= htmlspecialchars(yayasan_label_jenis_rapat((string) $row['jenis'])) ?>
@@ -332,6 +339,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         <?php if ((int) ($row['presensi_scan'] ?? 0) === 1): ?>
                                             <a class="btn btn-sm btn-outline-info" href="<?= htmlspecialchars(app_href('/yayasan/scan_musyawarah.php?rapat_id=' . (int) $row['id'])) ?>">Scan</a>
                                             <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/yayasan/musyawarah_presensi.php?rapat_id=' . (int) $row['id'])) ?>">Presensi</a>
+                                            <a class="btn btn-sm btn-outline-dark" href="<?= htmlspecialchars(app_href('/yayasan/musyawarah_hasil.php?rapat_id=' . (int) $row['id'])) ?>">Hasil</a>
                                         <?php endif; ?>
                                         <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/yayasan/notulen.php?rapat_id=' . (int) $row['id'])) ?>">Notulen</a>
                                         <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/yayasan/rapat.php?edit=' . (int) $row['id'])) ?>">Edit</a>

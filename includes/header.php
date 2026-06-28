@@ -324,6 +324,11 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link href="<?= htmlspecialchars((string) $pageStylesheetHref) ?>" rel="stylesheet">
         <?php endforeach; ?>
     <?php endif; ?>
+    <?php if (!empty($pageStyleBlocks) && is_array($pageStyleBlocks)): ?>
+        <?php foreach ($pageStyleBlocks as $pageStyleBlock): ?>
+    <style><?= $pageStyleBlock ?></style>
+        <?php endforeach; ?>
+    <?php endif; ?>
     <?php if (isset($_SESSION['user']) && preg_match('#^/yayasan(/|$)#', $requestPath)): ?>
         <?php
         $ypNavJs = app_asset_href('/assets/js/yayasan-nav.js');

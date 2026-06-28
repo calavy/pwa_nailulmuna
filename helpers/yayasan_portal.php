@@ -339,7 +339,7 @@ function yayasan_kegiatan_mendatang(PDO $pdo, int $daysAhead = 21, int $limit = 
 
     if (table_exists($pdo, 'yayasan_rapat')) {
         $st = $pdo->prepare('
-            SELECT id, judul, jenis, tanggal_rapat, waktu_mulai, waktu_selesai, lokasi
+            SELECT id, judul, jenis, tanggal_rapat, waktu_mulai, waktu_selesai, lokasi, agenda_ringkas, presensi_scan
             FROM yayasan_rapat
             WHERE tanggal_rapat BETWEEN :a AND :b
             ORDER BY tanggal_rapat ASC, COALESCE(waktu_mulai, "00:00:00") ASC
@@ -348,13 +348,19 @@ function yayasan_kegiatan_mendatang(PDO $pdo, int $daysAhead = 21, int $limit = 
         $st->execute(['a' => $today, 'b' => $end]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
             $waktu = trim((string) ($r['waktu_mulai'] ?? ''));
+            $jenisRaw = strtoupper((string) ($r['jenis'] ?? ''));
+            $href = '/yayasan/rapat.php';
+            if ($jenisRaw === 'MUSYAWARAH' || (int) ($r['presensi_scan'] ?? 0) === 1) {
+                $href = '/yayasan/musyawarah_presensi.php?rapat_id=' . (int) ($r['id'] ?? 0);
+            }
             $out[] = [
                 'tanggal' => (string) ($r['tanggal_rapat'] ?? ''),
                 'judul' => (string) ($r['judul'] ?? 'Rapat yayasan'),
                 'jenis' => yayasan_label_jenis_rapat((string) ($r['jenis'] ?? '')),
                 'waktu' => $waktu !== '' ? substr($waktu, 0, 5) : null,
                 'tempat' => trim((string) ($r['lokasi'] ?? '')),
-                'href' => '/yayasan/rapat.php',
+                'uraian' => yayasan_rapat_agenda_teks($r),
+                'href' => $href,
                 'sumber' => 'rapat',
             ];
         }

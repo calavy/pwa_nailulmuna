@@ -16,6 +16,7 @@ function yayasan_notulen_ensure_schema(PDO $pdo): void
     $notulenCols = [
         'timeline_json' => 'LONGTEXT NULL',
         'foto_path' => 'VARCHAR(500) NULL',
+        'agenda_uraian_json' => 'LONGTEXT NULL',
     ];
     foreach ($notulenCols as $col => $def) {
         if (!column_exists($pdo, 'yayasan_notulen', $col)) {
@@ -37,6 +38,299 @@ function yayasan_notulen_ensure_schema(PDO $pdo): void
 function yayasan_notulen_foto_upload_dir(): string
 {
     return dirname(__DIR__) . '/uploads/yayasan_rapat';
+}
+
+/**
+ * Pecah teks agenda ringkas menjadi poin-poin (satu baris = satu agenda).
+ *
+ * @return list<string>
+ */
+function yayasan_agenda_ringkas_items(string $agendaRingkas): array
+{
+    $items = [];
+    foreach (preg_split('/\r\n|\r|\n/', $agendaRingkas) as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        $line = preg_replace('/^(\d+[\.\)]\s*|[-•*]\s*)/u', '', $line) ?? $line;
+        $line = trim($line);
+        if ($line !== '') {
+            $items[] = $line;
+        }
+    }
+
+    return $items;
+}
+
+/**
+ * @return list<array{agenda:string,uraian:string}>
+ */
+function yayasan_agenda_uraian_from_json(?string $json): array
+{
+    if ($json === null || trim($json) === '') {
+        return [];
+    }
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $out = [];
+    foreach ($decoded as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $agenda = trim((string) ($row['agenda'] ?? ''));
+        if ($agenda === '') {
+            continue;
+        }
+        $out[] = [
+            'agenda' => $agenda,
+            'uraian' => trim((string) ($row['uraian'] ?? '')),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param list<string> $agendaItems
+ * @param list<array{agenda:string,uraian:string}> $saved
+ * @return list<array{agenda:string,uraian:string}>
+ */
+function yayasan_agenda_uraian_merge_items(array $agendaItems, array $saved): array
+{
+    $savedMap = [];
+    foreach ($saved as $s) {
+        $key = trim((string) ($s['agenda'] ?? ''));
+        if ($key !== '') {
+            $savedMap[$key] = trim((string) ($s['uraian'] ?? ''));
+        }
+    }
+    $out = [];
+    foreach ($agendaItems as $agenda) {
+        $agenda = trim($agenda);
+        if ($agenda === '') {
+            continue;
+        }
+        $out[] = [
+            'agenda' => $agenda,
+            'uraian' => $savedMap[$agenda] ?? '',
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param list<array{agenda:string,uraian:string}> $rows
+ */
+function yayasan_agenda_uraian_to_isi(array $rows): string
+{
+    $blocks = [];
+    $n = 1;
+    foreach ($rows as $row) {
+        $agenda = trim((string) ($row['agenda'] ?? ''));
+        $uraian = trim((string) ($row['uraian'] ?? ''));
+        if ($agenda === '') {
+            continue;
+        }
+        $block = $n . '. ' . $agenda;
+        if ($uraian !== '') {
+            $block .= "\n   Uraian: " . $uraian;
+        }
+        $blocks[] = $block;
+        ++$n;
+    }
+
+    return implode("\n\n", $blocks);
+}
+
+/**
+ * @param list<array{agenda:string,uraian:string}> $rows
+ */
+function yayasan_agenda_uraian_format_wa(array $rows): string
+{
+    if ($rows === []) {
+        return '';
+    }
+    $lines = ['*Hasil agenda musyawarah:*'];
+    $n = 1;
+    foreach ($rows as $row) {
+        $agenda = trim((string) ($row['agenda'] ?? ''));
+        $uraian = trim((string) ($row['uraian'] ?? ''));
+        if ($agenda === '') {
+            continue;
+        }
+        $lines[] = $n . '. ' . $agenda;
+        if ($uraian !== '') {
+            $lines[] = '   _' . $uraian . '_';
+        }
+        ++$n;
+    }
+
+    return count($lines) > 1 ? implode("\n", $lines) : '';
+}
+
+/** @return array<string, mixed>|null */
+function yayasan_notulen_fetch_by_rapat(PDO $pdo, int $rapatId): ?array
+{
+    if ($rapatId <= 0 || !table_exists($pdo, 'yayasan_notulen')) {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT * FROM yayasan_notulen WHERE rapat_id = :id ORDER BY id DESC LIMIT 1');
+    $st->execute(['id' => $rapatId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($row) ? $row : null;
+}
+
+/**
+ * Baris agenda + uraian untuk rapat (gabung agenda ringkas rapat dengan simpanan notulen).
+ *
+ * @return list<array{agenda:string,uraian:string}>
+ */
+function yayasan_notulen_agenda_uraian_rows(PDO $pdo, int $rapatId, ?array $rapat = null): array
+{
+    if ($rapat === null) {
+        $st = $pdo->prepare('SELECT agenda_ringkas FROM yayasan_rapat WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $rapatId]);
+        $rapat = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    $agendaText = yayasan_rapat_agenda_teks(is_array($rapat) ? $rapat : null);
+    $items = yayasan_agenda_ringkas_items($agendaText);
+    if ($items === []) {
+        return [];
+    }
+    $notulen = yayasan_notulen_fetch_by_rapat($pdo, $rapatId);
+    $saved = yayasan_agenda_uraian_from_json($notulen['agenda_uraian_json'] ?? null);
+
+    return yayasan_agenda_uraian_merge_items($items, $saved);
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function yayasan_notulen_save_hasil_agenda(PDO $pdo, int $rapatId, array $post, int $userId): array
+{
+    yayasan_notulen_ensure_schema($pdo);
+    if ($rapatId <= 0) {
+        return ['ok' => false, 'message' => 'Rapat tidak valid.'];
+    }
+    $rapatSt = $pdo->prepare('SELECT id, agenda_ringkas FROM yayasan_rapat WHERE id = :id LIMIT 1');
+    $rapatSt->execute(['id' => $rapatId]);
+    $rapat = $rapatSt->fetch(PDO::FETCH_ASSOC);
+    if (!$rapat) {
+        return ['ok' => false, 'message' => 'Rapat tidak ditemukan.'];
+    }
+
+    $items = yayasan_agenda_ringkas_items(yayasan_rapat_agenda_teks($rapat));
+    $uraianPost = $post['hasil_agenda_uraian'] ?? [];
+    if (!is_array($uraianPost)) {
+        $uraianPost = [];
+    }
+    $rows = [];
+    foreach ($items as $i => $agenda) {
+        $uraian = trim((string) ($uraianPost[$i] ?? $uraianPost[(string) $i] ?? ''));
+        $rows[] = ['agenda' => $agenda, 'uraian' => $uraian];
+    }
+
+    $ringkasan = trim((string) ($post['ringkasan'] ?? ''));
+    $keputusan = trim((string) ($post['keputusan'] ?? ''));
+    $hadir = trim((string) ($post['hadir'] ?? ''));
+    if ($rows === [] && $ringkasan === '' && $keputusan === '' && $hadir === '') {
+        return ['ok' => false, 'message' => 'Isi uraian agenda atau bagian hadir/ringkasan/keputusan.'];
+    }
+
+    $json = $rows !== [] ? json_encode($rows, JSON_UNESCAPED_UNICODE) : null;
+    $isiGenerated = $rows !== [] ? yayasan_agenda_uraian_to_isi($rows) : null;
+    $notulen = yayasan_notulen_fetch_by_rapat($pdo, $rapatId);
+
+    if ($notulen) {
+        $pdo->prepare('
+            UPDATE yayasan_notulen
+            SET agenda_uraian_json = :json, isi = COALESCE(:isi, isi),
+                ringkasan = :ringkasan, keputusan = :keputusan, hadir = :hadir,
+                diinput_oleh = :uid, updated_at = NOW()
+            WHERE id = :id
+        ')->execute([
+            'json' => $json,
+            'isi' => $isiGenerated,
+            'ringkasan' => $ringkasan !== '' ? $ringkasan : null,
+            'keputusan' => $keputusan !== '' ? $keputusan : null,
+            'hadir' => $hadir !== '' ? $hadir : null,
+            'uid' => $userId > 0 ? $userId : null,
+            'id' => (int) $notulen['id'],
+        ]);
+    } else {
+        $pdo->prepare('
+            INSERT INTO yayasan_notulen (rapat_id, isi, agenda_uraian_json, ringkasan, keputusan, hadir, diinput_oleh)
+            VALUES (:rid, :isi, :json, :ringkasan, :keputusan, :hadir, :uid)
+        ')->execute([
+            'rid' => $rapatId,
+            'isi' => $isiGenerated,
+            'json' => $json,
+            'ringkasan' => $ringkasan !== '' ? $ringkasan : null,
+            'keputusan' => $keputusan !== '' ? $keputusan : null,
+            'hadir' => $hadir !== '' ? $hadir : null,
+            'uid' => $userId > 0 ? $userId : null,
+        ]);
+    }
+
+    return ['ok' => true, 'message' => 'Hasil musyawarah disimpan.'];
+}
+
+/**
+ * Gabungkan data rapat + notulen untuk pratinjau/cetak hasil musyawarah.
+ *
+ * @return array<string, mixed>|null
+ */
+function yayasan_musyawarah_hasil_dokumen_row(PDO $pdo, int $rapatId): ?array
+{
+    if ($rapatId <= 0) {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT * FROM yayasan_rapat WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $rapatId]);
+    $rapat = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$rapat) {
+        return null;
+    }
+    $notulen = yayasan_notulen_fetch_by_rapat($pdo, $rapatId);
+    $row = $rapat;
+    if (is_array($notulen)) {
+        foreach ($notulen as $k => $v) {
+            if ($k === 'id') {
+                $row['notulen_id'] = $v;
+                continue;
+            }
+            if (!array_key_exists($k, $row) || in_array($k, ['judul', 'isi', 'ringkasan', 'keputusan', 'hadir', 'agenda_uraian_json', 'timeline_json', 'foto_path', 'created_at', 'updated_at', 'diinput_oleh'], true)) {
+                $row[$k] = $v;
+            }
+        }
+    }
+    $row['rapat_judul'] = (string) ($rapat['judul'] ?? '');
+    $row['rapat_id'] = $rapatId;
+
+    return $row;
+}
+
+/**
+ * @param list<array<string, mixed>> $hadirRows
+ */
+function yayasan_musyawarah_hadir_dari_rekap(array $hadirRows): string
+{
+    $lines = [];
+    foreach ($hadirRows as $h) {
+        $nama = trim((string) ($h['nama'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $jab = trim((string) ($h['jabatan'] ?? ''));
+        $lines[] = $jab !== '' ? $nama . ' (' . $jab . ')' : $nama;
+    }
+
+    return implode("\n", $lines);
 }
 
 /**
