@@ -7,6 +7,7 @@ require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/pondok_stampel.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -112,9 +113,12 @@ $jamSelesai = trim((string) ($izin['jam_selesai'] ?? ''));
 $jamMulaiTampil = app_format_jam($jamMulai);
 $jamSelesaiTampil = app_format_jam($jamSelesai);
 $harusDatang = app_format_tanggal_id($tanggalSelesai) . ' pukul ' . $jamSelesaiTampil;
-$nbText = $jenisIzin === 'TUGAS'
-    ? 'Jika ingin melakukan perpanjangan izin tugas, harap sowan pengasuh terlebih dahulu.'
-    : 'Jika ingin melakukan perpanjangan izin sakit/keluar, harap konfirmasi kepada petugas.';
+$tplVars = ['nama_ponpes' => $namaPonpes];
+$nbSlug = $jenisIzin === 'TUGAS' ? 'izin_nb_tugas' : 'izin_nb_sakit_keluar';
+$nbText = surat_cetak_template_render($pdo, $nbSlug, $tplVars);
+$izinJudul = surat_cetak_template_render($pdo, 'izin_judul', $tplVars);
+$izinPembuka = surat_cetak_template_render($pdo, 'izin_pembuka', $tplVars);
+$izinPenutup = surat_cetak_template_render($pdo, 'izin_penutup', $tplVars);
 ?>
 <!doctype html>
 <html lang="id">
@@ -346,13 +350,13 @@ $nbText = $jenisIzin === 'TUGAS'
         <?= pondok_kop_surat_html($kop, $headerColor) ?>
 
         <div class="title">
-            <strong>SURAT IZIN SANTRI</strong>
+            <strong><?= htmlspecialchars($izinJudul) ?></strong>
             <div class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></div>
             <span class="badge <?= htmlspecialchars($categoryClass) ?>">KATEGORI: <?= htmlspecialchars($categoryLabel) ?></span>
         </div>
 
         <div class="content">
-            <p>Yang bertanda tangan di bawah ini, pengurus pondok pesantren, menerangkan bahwa santri berikut memperoleh izin resmi sesuai ketentuan pondok.</p>
+            <p><?= htmlspecialchars($izinPembuka) ?></p>
             <table class="info">
                 <tr><td>Nama</td><td>: <?= htmlspecialchars($izin['nama_santri']) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars($izin['nis']) ?></td></tr>
@@ -380,7 +384,7 @@ $nbText = $jenisIzin === 'TUGAS'
                 <?= htmlspecialchars($nbText) ?>
             </div>
             <?php require __DIR__ . '/partials/surat_pengasuh_paraf.php'; ?>
-            <p class="mb-0">Demikian surat izin ini dibuat agar dapat dipergunakan sebagaimana mestinya dan dipatuhi waktu kembalinya.</p>
+            <p class="mb-0"><?= htmlspecialchars($izinPenutup) ?></p>
 
         </div>
 

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/pondok_cetak.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/pondok_stampel.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -37,6 +38,11 @@ foreach ($anggotaGrouped as $rows) {
 $kop = pondok_kop_data($pdo);
 $namaPonpes = (string) $kop['nama_ponpes'];
 $kotaPonpes = (string) $kop['kota_ponpes'];
+$tplVars = ['nama_ponpes' => $namaPonpes];
+$rombonganJudul = surat_cetak_template_render($pdo, 'rombongan_judul', $tplVars);
+$rombonganPembuka = surat_cetak_template_render($pdo, 'rombongan_pembuka', $tplVars);
+$rombonganCatatan = surat_cetak_template_render($pdo, 'rombongan_catatan', $tplVars);
+$rombonganPenutup = surat_cetak_template_render($pdo, 'rombongan_penutup', $tplVars);
 $jamTerbit = app_format_datetime_id(date('Y-m-d H:i:s'));
 $pengasuhBlok = perizinan_rombongan_surat_blok_pengasuh($pdo, $id, $meta);
 
@@ -244,13 +250,13 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
     <?= pondok_kop_surat_html($kop, $headerColor) ?>
 
     <div class="title">
-        <strong>Surat Keterangan Izin Keluar Rombongan Santri</strong>
+        <strong><?= htmlspecialchars($rombonganJudul) ?></strong>
         <span class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></span>
         <span class="badge <?= htmlspecialchars($categoryClass) ?>">Kategori: <?= htmlspecialchars($categoryLabel) ?></span>
     </div>
 
     <div class="content">
-        <p>Yang bertanda tangan di bawah ini, Pengurus <?= htmlspecialchars($namaPonpes) ?>, dengan ini menerangkan bahwa santri-santri yang namanya tercantum dalam daftar berikut diizinkan untuk keluar pesantren secara <strong>rombongan</strong> dengan ketentuan dan masa berlaku sebagaimana disebutkan di bawah ini.</p>
+        <p><?= htmlspecialchars($rombonganPembuka) ?></p>
 
         <table class="santri">
             <thead>
@@ -299,12 +305,12 @@ $logoHref = (string) ($kop['logo_href'] ?? '');
         <?php endif; ?>
 
         <div class="box-nb">
-            <strong>Catatan:</strong> Surat ini berlaku untuk seluruh rombongan. Saat tiba di pesantren, scan <strong>QR kartu masing-masing santri</strong> di halaman Scan Presensi — izin otomatis selesai per santri.
+            <strong>Catatan:</strong> <?= htmlspecialchars($rombonganCatatan) ?>
         </div>
 
         <?php require __DIR__ . '/partials/surat_pengasuh_paraf.php'; ?>
 
-        <p>Demikian surat keterangan izin keluar rombongan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya. Seluruh santri rombongan wajib mematuhi tata tertib pondok dan kembali tepat pada waktu yang ditetapkan.</p>
+        <p><?= htmlspecialchars($rombonganPenutup) ?></p>
     </div>
 
     <div class="surat-footer">

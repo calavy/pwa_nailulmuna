@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/akademik_rapor.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_akademik_rapor_columns($pdo);
@@ -48,6 +49,10 @@ $tglTerbitTampil = preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglTerbit)
     ? date('d-m-Y', strtotime($tglTerbit))
     : $tglTerbit;
 $jamCetak = date('d-m-Y H:i');
+$raporJudul = surat_cetak_template_render($pdo, 'rapor_judul', [
+    'nama_ponpes' => (string) $kop['nama_ponpes'],
+    'tahun_ajaran' => $raporPeriodeLabel,
+]);
 $autoPrint = !isset($_GET['preview']);
 ?>
 <!doctype html>
@@ -286,7 +291,7 @@ $autoPrint = !isset($_GET['preview']);
             <img src="<?= htmlspecialchars((string) $kop['logo']) ?>" alt="">
         <?php endif; ?>
         <div class="kop-mid">
-            <p class="tag"><?= htmlspecialchars($kop['jenis_pendidikan'] !== '' ? $kop['jenis_pendidikan'] : 'Lembaga Pondok Pesantren') ?></p>
+            <p class="tag"><?= htmlspecialchars((string) ($kop['jenis_label'] ?? ($kop['jenis_pendidikan'] !== '' ? $kop['jenis_pendidikan'] : 'Lembaga Pondok Pesantren'))) ?></p>
             <p class="nama"><?= htmlspecialchars((string) $kop['nama_ponpes']) ?></p>
             <?php if ($kop['alamat_ponpes'] !== ''): ?>
                 <p class="addr"><?= htmlspecialchars((string) $kop['alamat_ponpes']) ?></p>
@@ -302,7 +307,7 @@ $autoPrint = !isset($_GET['preview']);
     </div>
 
     <div class="doc-title">
-        <h1>Rapor Akademik Santri</h1>
+        <h1><?= htmlspecialchars($raporJudul) ?></h1>
         <div class="sub"><?= htmlspecialchars((string) ($rapor['judul_periode'] ?? '')) ?></div>
     </div>
 

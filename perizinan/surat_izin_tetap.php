@@ -10,6 +10,7 @@ require_once __DIR__ . '/../helpers/santri_izin_tetap.php';
 require_once __DIR__ . '/../helpers/izin_tetap_hidmah_kategori.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_login();
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
@@ -89,6 +90,16 @@ $kotip = trim((string) app_setting($pdo, 'kota_ponpes', 'Muntilan'));
 if ($kotip === '') {
     $kotip = 'Muntilan';
 }
+
+$tplVars = [
+    'nama_ponpes' => (string) $namaPonpes,
+    'kota_ponpes' => $kotip,
+    'uraian_kalimat' => (string) ($suratKonteks['uraian_kalimat'] ?? ''),
+];
+$izinTetapJudul = surat_cetak_template_render($pdo, 'izin_tetap_judul', $tplVars);
+$izinTetapPembuka = surat_cetak_template_render($pdo, 'izin_tetap_pembuka', $tplVars);
+$izinTetapCatatan = surat_cetak_template_render($pdo, 'izin_tetap_catatan', $tplVars);
+$izinTetapPenutup = surat_cetak_template_render($pdo, 'izin_tetap_penutup', $tplVars);
 
 $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
 ?>
@@ -291,18 +302,13 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
         </div>
 
         <div class="title">
-            <strong>SURAT KETERANGAN IZIN TETAP SANTRI</strong>
+            <strong><?= htmlspecialchars($izinTetapJudul) ?></strong>
             <div class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></div>
             <span class="badge <?= htmlspecialchars($categoryClass) ?>">Jenis: <?= htmlspecialchars(strtoupper($jenisLabel)) ?></span>
         </div>
 
         <div class="content">
-            <p>
-                Yang bertanda tangan di bawah ini, Pengurus <?= htmlspecialchars($namaPonpes) ?> menerangkan bahwa
-                santri berikut memperoleh <strong>izin tetap</strong> untuk melaksanakan
-                <strong><?= htmlspecialchars((string) $suratKonteks['uraian_kalimat']) ?></strong>
-                pada hari dan waktu yang tercantum.
-            </p>
+            <p><?= htmlspecialchars($izinTetapPembuka) ?></p>
             <table class="info">
                 <tr><td>Nama Santri</td><td>: <?= htmlspecialchars((string) ($izin['nama_santri'] ?? '-')) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars((string) ($izin['nis'] ?? '-')) ?></td></tr>
@@ -352,17 +358,15 @@ $slotHtml = santri_izin_tetap_slot_hari_html($pdo, $id);
             <?php endif; ?>
             <div class="box-nb">
                 <strong>Catatan:</strong><br>
-                Santri wajib mematuhi tata tertib pondok dan menjaga nama baik lembaga.
+                <?= htmlspecialchars($izinTetapCatatan) ?>
                 <?php if ($kegiatanDitinggalkan !== '' && !$suratKonteks['is_tugas']): ?>
-                Ketidakhadiran pada kegiatan Jama'ah yang disebutkan dicatat <strong>izin</strong>, bukan alpa.
+                Ketidakhadiran pada kegiatan Jama'ah yang disebutkan dicatat izin, bukan alpa.
                 <?php elseif ($kegiatanDitinggalkan !== '' && $suratKonteks['is_tugas']): ?>
-                Ketidakhadiran pada kegiatan terkait yang disebutkan dicatat <strong>izin</strong> sesuai ketentuan pondok.
+                Ketidakhadiran pada kegiatan terkait yang disebutkan dicatat izin sesuai ketentuan pondok.
                 <?php endif; ?>
                 Izin tetap berlaku selama status aktif dan dapat ditinjau ulang oleh pengurus bila diperlukan.
             </div>
-            <p>
-                Demikian surat keterangan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
-            </p>
+            <p><?= htmlspecialchars($izinTetapPenutup) ?></p>
         </div>
 
         <div class="ttd-wrap">

@@ -101,6 +101,7 @@ return [
         '/akademik/ikhtibar_rekap.php' => 'Rekap Tugas Ikhtibar',
         '/settings/akses_mukimin.php' => 'Akses Portal Mukimin',
         '/settings/pesantren.php' => 'Pesantren',
+        '/settings/surat_cetak.php' => 'Kop & Template Surat',
         '/settings/wa_otomatis.php' => 'WA Otomatis',
         '/settings/wa_laporan_kelas_kosong.php' => 'Laporan WA Kelas Kosong',
         '/settings/peraturan.php' => 'Peraturan Poin',
@@ -291,6 +292,7 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [
             ['title' => 'Umum', 'paths' => [
                 '/settings/pesantren.php',
+                '/settings/surat_cetak.php',
                 '/settings/kalender_ta.php',
                 '/settings/peraturan.php',
                 '/settings/perizinan.php',
@@ -319,6 +321,7 @@ return [
     ],
     'pengaturanNav' => [
         ['path' => '/settings/pesantren.php', 'label' => 'Profil Pondok', 'icon' => 'fa-solid fa-mosque', 'group' => 'Umum'],
+        ['path' => '/settings/surat_cetak.php', 'label' => 'Kop & Template Surat', 'icon' => 'fa-solid fa-file-lines', 'group' => 'Umum'],
         ['path' => '/settings/kalender_ta.php', 'label' => 'Kalender & Tagihan TA', 'icon' => 'fa-solid fa-calendar-days', 'group' => 'Umum'],
         ['path' => '/settings/peraturan.php', 'label' => 'Peraturan Poin', 'icon' => 'fa-solid fa-scale-balanced', 'group' => 'Umum'],
         ['path' => '/settings/perizinan.php', 'label' => 'Pengaturan alur izin', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'group' => 'Umum'],

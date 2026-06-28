@@ -21,7 +21,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Profil Pondok</h1>
-    <p class="text-muted mb-0 small">Identitas pesantren, logo, mode tampilan, dan parameter presensi/izin. Pengaturan WhatsApp ada di <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">Pusat WA Otomatis</a>.</p>
+    <p class="text-muted mb-0 small">Identitas pesantren, logo, mode tampilan, dan parameter presensi/izin. Kop &amp; template surat di <a href="<?= htmlspecialchars(app_href('/settings/surat_cetak.php')) ?>">Kop &amp; Template Surat</a>. Pengaturan WhatsApp ada di <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">Pusat WA Otomatis</a>.</p>
 </div>
 
 <div class="row g-3 mb-3">

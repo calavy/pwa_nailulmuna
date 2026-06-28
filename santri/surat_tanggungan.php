@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_keluar_columns($pdo);
@@ -32,6 +33,10 @@ $nomorSurat = trim((string) ($s['nomor_surat_tanggungan'] ?? '-'));
 $wali = santri_wali_display_row($pdo, $s);
 $ringkas = trim((string) ($s['keluar_ringkasan_keuangan'] ?? ''));
 $jamTerbit = date('d-m-Y H:i');
+$tplVars = ['nama_ponpes' => $namaPonpes];
+$tanggunganJudul = surat_cetak_template_render($pdo, 'tanggungan_judul', $tplVars);
+$tanggunganPembuka = surat_cetak_template_render($pdo, 'tanggungan_pembuka', $tplVars);
+$tanggunganPenutup = surat_cetak_template_render($pdo, 'tanggungan_penutup', $tplVars);
 ?>
 <!doctype html>
 <html lang="id">
@@ -85,11 +90,11 @@ $jamTerbit = date('d-m-Y H:i');
             </div>
         </div>
         <div class="title">
-            <strong>SURAT PERNYATAAN PENYELESAIAN TANGGUNGAN</strong>
+            <strong><?= htmlspecialchars($tanggunganJudul) ?></strong>
             <div class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></div>
         </div>
         <div class="content">
-            <p>Bersama ini kami sampaikan pernyataan penyelesaian tanggihan keuangan santri:</p>
+            <p><?= htmlspecialchars($tanggunganPembuka) ?></p>
             <table class="info">
                 <tr><td>Nama santri</td><td>: <?= htmlspecialchars((string) $s['nama_santri']) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars((string) $s['nis']) ?></td></tr>
@@ -107,7 +112,7 @@ $jamTerbit = date('d-m-Y H:i');
             <?php endif; ?>
             <p><strong>Rincian penyelesaian administrasi:</strong></p>
             <div class="box"><?= $ringkas !== '' ? nl2br(htmlspecialchars($ringkas)) : 'Tanggungan bulanan telah diselesaikan sesuai catatan keuangan internal.' ?></div>
-            <p class="mb-0">Demikian pernyataan ini dibuat dengan sebenarnya untuk dipergunakan seperlunya.</p>
+            <p class="mb-0"><?= htmlspecialchars($tanggunganPenutup) ?></p>
         </div>
         <div class="ttd-wrap">
             <div class="text-end small text-muted mb-2"><?= htmlspecialchars(date('d-m-Y')) ?> — <?= htmlspecialchars($namaPonpes) ?></div>

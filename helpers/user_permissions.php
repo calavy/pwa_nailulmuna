@@ -274,6 +274,7 @@ function user_permission_path_map_base(): array
         '/settings/wa_pesan.php' => 'pengaturan',
         '/settings/wa_laporan_kelas_kosong.php' => 'pengaturan',
         '/settings/pesantren.php' => 'pengaturan',
+        '/settings/surat_cetak.php' => 'pengaturan',
         '/settings/peraturan.php' => 'pengaturan',
         '/settings/perizinan.php' => 'pengaturan',
         '/settings/alpa_notif.php' => 'pengaturan',

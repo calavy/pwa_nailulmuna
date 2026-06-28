@@ -25,8 +25,10 @@ $pondokIdentityFields = [
     'nama_ponpes',
     'jenis_pendidikan',
     'alamat_ponpes',
+    'telp_ponpes',
+    'website_ponpes',
+    'kota_ponpes',
     'nama_pengasuh',
-    'nama_ketua_yayasan',
     'kategori_baik_max',
     'kategori_sedang_max',
     'keaktifan_tanggal_mulai_scan',
@@ -200,6 +202,10 @@ $waConfigured = trim((string) ($values['wa_gateway_token'] ?? '')) !== '';
 $logoConfigured = trim((string) ($values['logo_path'] ?? '')) !== '';
 $stampelSuratConfigured = pondok_stampel_configured($pdo, 'surat');
 $stampelKuitansiConfigured = pondok_stampel_configured($pdo, 'kuitansi');
+if (!function_exists('yayasan_ketua_yayasan_nama')) {
+    require_once __DIR__ . '/../../helpers/yayasan.php';
+}
+$ketuaYayasanNama = yayasan_ketua_yayasan_nama($pdo);
 $pengurusWaCount = 0;
 if (trim((string) ($values['wa_pengurus'] ?? '')) !== '') {
     $pengurusWaCount = count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);

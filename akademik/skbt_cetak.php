@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/akademik_skbt.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
@@ -98,6 +99,10 @@ $nextPage = static function () use (&$page): int {
     return $page;
 };
 
+$skbtJudul = strtoupper(surat_cetak_template_render($pdo, 'skbt_judul', [
+    'nama_ponpes' => $namaPonpes,
+    'nama_santri' => (string) ($santri['nama_santri'] ?? ''),
+]));
 $autoPrint = !$preview;
 ?>
 <!doctype html>
@@ -125,7 +130,7 @@ $autoPrint = !$preview;
         <?= pondok_kop_surat_html($kop, '#15803d') ?>
 
         <div class="skbt-doc-title">
-            <h1>SKBT <?= htmlspecialchars(strtoupper($namaPonpes)) ?></h1>
+            <h1><?= htmlspecialchars($skbtJudul) ?></h1>
             <p class="skbt-subtitle">Surat Keterangan Belajar dan Tingkatan</p>
             <?php if ($alamat !== '' || $kontak !== ''): ?>
                 <p class="skbt-kontak"><?= htmlspecialchars($alamat) ?><?= $kontak !== '' ? ' · ' . htmlspecialchars($kontak) : '' ?></p>

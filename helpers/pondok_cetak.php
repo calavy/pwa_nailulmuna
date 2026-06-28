@@ -5,26 +5,24 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/app_path.php';
 
-/** Nama ketua yayasan untuk kop surat (modul yayasan, lalu pengaturan pondok). */
+/** Nama ketua yayasan untuk kop surat — selalu dari struktur SDM yayasan. */
 function pondok_ketua_yayasan_nama(PDO $pdo): string
 {
-    if (!function_exists('yayasan_nama_by_jabatan')) {
+    if (!function_exists('yayasan_ketua_yayasan_nama')) {
         require_once __DIR__ . '/yayasan.php';
     }
-    $nama = yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan');
-    if ($nama !== '') {
-        return $nama;
-    }
 
-    return trim((string) app_setting($pdo, 'nama_ketua_yayasan', ''));
+    return yayasan_ketua_yayasan_nama($pdo);
 }
 
 /** Data kop surat pondok (logo, nama, alamat, kontak). */
 function pondok_kop_data(PDO $pdo): array
 {
+    if (!function_exists('surat_cetak_kop_accent_color')) {
+        require_once __DIR__ . '/surat_cetak_templates.php';
+    }
     $logoHref = app_pondok_logo_href($pdo, false);
-
-    return [
+    $kop = [
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         'jenis_pendidikan' => trim((string) app_setting($pdo, 'jenis_pendidikan', '')),
         'alamat_ponpes' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
@@ -35,7 +33,11 @@ function pondok_kop_data(PDO $pdo): array
         'logo_href' => $logoHref,
         'nama_pengasuh' => trim((string) app_setting($pdo, 'nama_pengasuh', '')),
         'nama_ketua_yayasan' => pondok_ketua_yayasan_nama($pdo),
+        'kop_accent_color' => surat_cetak_kop_accent_color($pdo),
     ];
+    $kop['jenis_label'] = surat_cetak_kop_jenis_label($pdo, $kop);
+
+    return $kop;
 }
 
 /** Baris kontak kop (telp / website). */
@@ -158,8 +160,11 @@ CSS;
 /** HTML blok kop surat (class pondok-kop). */
 function pondok_kop_surat_html(array $kop, ?string $accentColor = null): string
 {
-    $jenis = trim((string) ($kop['jenis_pendidikan'] ?? ''));
-    $jenisLabel = $jenis !== '' ? $jenis : 'Lembaga Pondok Pesantren';
+    $jenisLabel = trim((string) ($kop['jenis_label'] ?? ''));
+    if ($jenisLabel === '') {
+        $jenis = trim((string) ($kop['jenis_pendidikan'] ?? ''));
+        $jenisLabel = $jenis !== '' ? $jenis : 'Lembaga Pondok Pesantren';
+    }
     $nama = trim((string) ($kop['nama_ponpes'] ?? 'Pondok Pesantren'));
     $alamat = trim((string) ($kop['alamat_ponpes'] ?? ''));
     $kontak = pondok_kop_contact_line($kop);

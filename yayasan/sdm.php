@@ -112,6 +112,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         set_flash('success', 'SDM ditambahkan. Kode QR otomatis dibuat.');
     }
+    if ($postTab === 'YAYASAN' && strcasecmp($jabatan, 'Ketua Yayasan') === 0 && table_exists($pdo, 'app_settings')) {
+        $pdo->prepare('DELETE FROM app_settings WHERE setting_key = :k LIMIT 1')->execute(['k' => 'nama_ketua_yayasan']);
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
+        }
+    }
     header('Location: ' . app_href('/yayasan/sdm.php?tab=' . strtolower($postTab)));
     exit;
 }

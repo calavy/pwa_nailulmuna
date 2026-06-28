@@ -21,15 +21,36 @@
                 <label class="form-label">Alamat pesantren</label>
                 <input type="text" class="form-control" name="alamat_ponpes" value="<?= htmlspecialchars($values['alamat_ponpes']) ?>">
             </div>
+            <div class="col-md-4">
+                <label class="form-label">Telepon (kop surat)</label>
+                <input type="text" class="form-control" name="telp_ponpes" value="<?= htmlspecialchars((string) ($values['telp_ponpes'] ?? '')) ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Website (kop surat)</label>
+                <input type="text" class="form-control" name="website_ponpes" value="<?= htmlspecialchars((string) ($values['website_ponpes'] ?? '')) ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Kota (tempat TTD)</label>
+                <input type="text" class="form-control" name="kota_ponpes" value="<?= htmlspecialchars((string) (($values['kota_ponpes'] ?? '') !== '' ? $values['kota_ponpes'] : 'Muntilan')) ?>">
+            </div>
             <div class="col-md-6">
                 <label class="form-label">Nama pengasuh</label>
                 <input type="text" class="form-control" name="nama_pengasuh" value="<?= htmlspecialchars($values['nama_pengasuh']) ?>">
                 <div class="form-text">Tampil di blok tanda tangan surat cetak (pengasuh).</div>
             </div>
             <div class="col-md-6">
-                <label class="form-label">Nama ketua yayasan</label>
-                <input type="text" class="form-control" name="nama_ketua_yayasan" value="<?= htmlspecialchars((string) ($values['nama_ketua_yayasan'] ?? '')) ?>">
-                <div class="form-text">Cadangan jika belum diisi di data pengurus yayasan. Dipakai di surat cetak.</div>
+                <label class="form-label">Ketua yayasan (surat cetak)</label>
+                <div class="form-control bg-light">
+                    <?php if (($ketuaYayasanNama ?? '') !== ''): ?>
+                        <?= htmlspecialchars((string) $ketuaYayasanNama) ?>
+                    <?php else: ?>
+                        <span class="text-muted">Belum diisi di struktur yayasan</span>
+                    <?php endif; ?>
+                </div>
+                <div class="form-text">
+                    Diambil otomatis dari jabatan <strong>Ketua Yayasan</strong> di
+                    <a href="<?= htmlspecialchars(app_href('/yayasan/sdm.php?tab=yayasan')) ?>">SDM Kepengurusan Yayasan</a>.
+                </div>
             </div>
             <div class="col-md-12">
                 <label class="form-label">Logo pesantren</label>

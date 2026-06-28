@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_keluar_columns($pdo);
@@ -32,6 +33,11 @@ $nomorSurat = trim((string) ($s['nomor_surat_keluar'] ?? '-'));
 $wali = santri_wali_display_row($pdo, $s);
 $katLabel = keluar_kategori_label((string) ($s['keluar_kategori'] ?? ''));
 $jamTerbit = date('d-m-Y H:i');
+$tplVars = ['nama_ponpes' => $namaPonpes];
+$keluarJudul = surat_cetak_template_render($pdo, 'keluar_judul', $tplVars);
+$keluarPembuka = surat_cetak_template_render($pdo, 'keluar_pembuka', $tplVars);
+$keluarAdmin = surat_cetak_template_render($pdo, 'keluar_administrasi', $tplVars);
+$keluarPenutup = surat_cetak_template_render($pdo, 'keluar_penutup', $tplVars);
 ?>
 <!doctype html>
 <html lang="id">
@@ -78,11 +84,11 @@ $jamTerbit = date('d-m-Y H:i');
             </div>
         </div>
         <div class="title">
-            <strong>SURAT KETERANGAN KELUAR SANTRI</strong>
+            <strong><?= htmlspecialchars($keluarJudul) ?></strong>
             <div class="doc-num">Nomor: <?= htmlspecialchars($nomorSurat) ?></div>
         </div>
         <div class="content">
-            <p>Yang bertanda tangan di bawah ini, pengurus <?= htmlspecialchars($namaPonpes) ?>, menerangkan bahwa:</p>
+            <p><?= htmlspecialchars($keluarPembuka) ?></p>
             <table class="info">
                 <tr><td>Nama santri</td><td>: <?= htmlspecialchars((string) $s['nama_santri']) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars((string) $s['nis']) ?></td></tr>
@@ -100,8 +106,8 @@ $jamTerbit = date('d-m-Y H:i');
                     <tr><td>Alamat</td><td>: <?= nl2br(htmlspecialchars($wali['alamat'])) ?></td></tr>
                 </table>
             <?php endif; ?>
-            <p>Administrasi keuangan pondok atas nama santri tersebut telah diselesaikan sesuai ketentuan yang berlaku pada tanggal diterbitkannya surat ini.</p>
-            <p class="mb-0">Demikian surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.</p>
+            <p><?= htmlspecialchars($keluarAdmin) ?></p>
+            <p class="mb-0"><?= htmlspecialchars($keluarPenutup) ?></p>
         </div>
         <div class="ttd-wrap">
             <div><?= htmlspecialchars(date('d-m-Y')) ?></div>

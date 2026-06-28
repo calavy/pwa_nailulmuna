@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_point_tables($pdo);
@@ -70,10 +71,18 @@ $websitePonpes = (string) ($kop['website_ponpes'] !== '' ? $kop['website_ponpes'
 $logo = (string) ($kop['logo_href'] ?? '');
 $jamTerbit = date('d-m-Y H:i');
 
-$judul = $spLevel === 'SP2' ? 'Surat Peringatan 2 (SP2)' : 'Surat Peringatan 1 (SP1)';
-$isiSanksi = $spLevel === 'SP2'
-    ? 'Pemanggilan orang tua/wali dan pembinaan kedisiplinan lanjutan sesuai ketentuan pondok.'
-    : 'Pembinaan kedisiplinan tahap awal sesuai ketentuan pondok.';
+$spSlug = $spLevel === 'SP2' ? 'sp2' : 'sp1';
+$tplVars = [
+    'nama_ponpes' => $namaPonpes,
+    'total_poin' => (string) $totalPoin,
+    'periode' => $periodeLabel,
+];
+$judul = surat_cetak_template_render($pdo, $spSlug . '_judul', $tplVars);
+$tplVars['judul_sp'] = $judul;
+$spPembuka = surat_cetak_template_render($pdo, $spSlug . '_pembuka', $tplVars);
+$spIsi = surat_cetak_template_render($pdo, $spSlug . '_isi', $tplVars);
+$isiSanksi = surat_cetak_template_render($pdo, $spSlug . '_sanksi', $tplVars);
+$spPenutup = surat_cetak_template_render($pdo, $spSlug . '_penutup', $tplVars);
 $headerColor = $spLevel === 'SP2' ? '#b91c1c' : '#b45309';
 ?>
 <!doctype html>
@@ -216,7 +225,7 @@ $headerColor = $spLevel === 'SP2' ? '#b91c1c' : '#b45309';
         </div>
 
         <div class="content">
-            <p>Yang bertanda tangan di bawah ini, pengurus <?= htmlspecialchars($namaPonpes) ?>, menerangkan bahwa:</p>
+            <p><?= htmlspecialchars($spPembuka) ?></p>
             <table class="info">
                 <tr><td>Nama</td><td>: <?= htmlspecialchars((string) $santri['nama_santri']) ?></td></tr>
                 <tr><td>NIS</td><td>: <?= htmlspecialchars((string) $santri['nis']) ?></td></tr>
@@ -224,11 +233,11 @@ $headerColor = $spLevel === 'SP2' ? '#b91c1c' : '#b45309';
                 <tr><td>Periode poin</td><td>: <?= htmlspecialchars($periodeLabel) ?></td></tr>
                 <tr><td>Total poin</td><td>: <strong><?= (int) $totalPoin ?></strong> poin</td></tr>
             </table>
-            <p>Santri tersebut telah mencapai akumulasi poin kedisiplinan sesuai ketentuan pondok, sehingga diberikan <strong><?= htmlspecialchars($judul) ?></strong>.</p>
+            <p><?= htmlspecialchars($spIsi) ?></p>
             <div class="box-note">
                 <strong>Tindak lanjut:</strong> <?= htmlspecialchars($isiSanksi) ?>
             </div>
-            <p class="mb-0">Demikian surat ini dibuat untuk dipergunakan sebagaimana mestinya.</p>
+            <p class="mb-0"><?= htmlspecialchars($spPenutup) ?></p>
         </div>
 
         <div class="ttd-wrap">

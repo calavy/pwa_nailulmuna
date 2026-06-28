@@ -52,19 +52,41 @@ function yayasan_jenis_rapat_opsi(): array
     return ['RUTIN', 'INSIDENTAL', 'MUSYAWARAH', 'LAIN'];
 }
 
-function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan): string
+function yayasan_nama_by_jabatan(PDO $pdo, string $jabatan, ?string $kategori = null): string
 {
     yayasan_ensure_tables($pdo);
-    $stmt = $pdo->prepare('
+    $sql = '
         SELECT nama FROM yayasan_pengurus
         WHERE jabatan = :jabatan AND is_aktif = 1
-        ORDER BY urutan ASC, id ASC
-        LIMIT 1
-    ');
-    $stmt->execute(['jabatan' => $jabatan]);
+    ';
+    $params = ['jabatan' => $jabatan];
+    if ($kategori !== null && $kategori !== '') {
+        $sql .= ' AND kategori = :kategori';
+        $params['kategori'] = strtoupper($kategori);
+    }
+    $sql .= ' ORDER BY urutan ASC, id ASC LIMIT 1';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $nama = $stmt->fetchColumn();
 
     return is_string($nama) ? trim($nama) : '';
+}
+
+/** Nama ketua yayasan aktif dari struktur SDM yayasan (bukan pengaturan pondok). */
+function yayasan_ketua_yayasan_nama(PDO $pdo): string
+{
+    if (!function_exists('yayasan_musyawarah_ensure_schema')) {
+        require_once __DIR__ . '/yayasan_musyawarah.php';
+    }
+    yayasan_musyawarah_ensure_schema($pdo);
+
+    $nama = yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan', 'YAYASAN');
+    if ($nama !== '') {
+        return $nama;
+    }
+
+    // Data lama sebelum kolom kategori ada / belum terisi.
+    return yayasan_nama_by_jabatan($pdo, 'Ketua Yayasan');
 }
 
 function yayasan_ensure_tables(PDO $pdo): void

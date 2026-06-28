@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/yayasan.php';
 require_once __DIR__ . '/../helpers/yayasan_notulen.php';
+require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -32,6 +33,7 @@ if (!$row) {
 
 $timelineRows = yayasan_notulen_timeline_rows_from_json((string) ($row['timeline_json'] ?? ''));
 $ponpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren Nailul Muna'));
+$notulenJudul = surat_cetak_template_render($pdo, 'notulen_judul', ['nama_ponpes' => $ponpes]);
 
 $pageTitle = 'Cetak Notulen Rapat';
 $pageStylesheets = [app_asset_href('/assets/css/yayasan-notulen.css')];
@@ -53,7 +55,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <div class="text-center mb-4">
             <div class="fw-bold"><?= htmlspecialchars($ponpes) ?></div>
-            <div class="h5 mb-1">Notulen Rapat</div>
+            <div class="h5 mb-1"><?= htmlspecialchars($notulenJudul) ?></div>
             <div><?= htmlspecialchars((string) ($row['judul'] ?: $row['rapat_judul'])) ?></div>
             <?php if (!empty($row['nomor_rapat'])): ?>
                 <div class="small text-muted">No. <?= htmlspecialchars((string) $row['nomor_rapat']) ?></div>
