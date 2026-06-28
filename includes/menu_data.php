@@ -90,7 +90,7 @@ return [
         '/settings/kalender.php' => 'Kalender Pondok',
         '/settings/kalender_ta.php' => 'Kalender & TA (Hub)',
         '/settings/hijri_mappings.php' => 'Kalender Hijriyah & Masehi',
-        '/akademik/rapor.php' => 'Rapor Akademik',
+        '/akademik/rapor.php' => 'Rapor Pesantren',
         '/akademik/skbt.php' => 'SKBT',
         '/pembimbing/tugas/index.php' => 'Tugas Ikhtibar (Pembimbing)',
         '/akademik/ikhtibar.php' => 'Tugas Ikhtibar (Hub)',
@@ -137,6 +137,7 @@ return [
         '/keuangan/neraca.php' => 'Neraca',
         '/keuangan/arus-kas.php' => 'Arus Kas',
         '/keuangan/pembayaran.php' => 'Input Pembayaran',
+        '/keuangan/tagihan_wali.php' => 'Tagihan Khusus ke Wali',
         '/keuangan/pemasukan.php' => 'Pemasukan Lain',
         '/keuangan/pengeluaran.php' => 'Input Pengeluaran',
         '/keuangan/riwayat_pengeluaran.php' => 'Riwayat Pengeluaran',
@@ -165,6 +166,8 @@ return [
         '/pkpps/tugas/buat.php' => 'Buat Tugas PKPPS',
         '/pkpps/tugas/nilai.php' => 'Nilai Tugas PKPPS',
         '/pkpps/tugas/rekap.php' => 'Rekap Tugas PKPPS',
+        '/pkpps/rapor.php' => 'Rapor PKPPS',
+        '/pkpps/pengaturan_rapor.php' => 'Pengaturan Rapor PKPPS',
         '/rekap/pkpps_keaktivan.php' => 'Keaktivan PKPPS',
         '/rekap/pkpps_keaktifan_hari.php' => 'Keaktifan PKPPS Hari Ini',
         '/settings/kelas_syahriyah.php' => 'Jenis Syahriyah (master)',
@@ -248,6 +251,8 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-pkpps', 'label' => 'PKPPS', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
             ['title' => 'Program PKPPS', 'paths' => [
                 '/pkpps/index.php',
+                '/pkpps/rapor.php',
+                '/pkpps/pengaturan_rapor.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [

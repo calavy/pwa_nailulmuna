@@ -149,6 +149,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'save_wa_templates') {
         $res = wa_template_save_all($pdo, $_POST);
+        save_setting($pdo, 'wa_rapor_pesantren_enabled', isset($_POST['wa_rapor_pesantren_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_rapor_pkpps_enabled', isset($_POST['wa_rapor_pkpps_enabled']) ? '1' : '0');
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
+        }
         set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=template'));
         exit;
@@ -314,11 +319,14 @@ $notifyMode = push_notify_mode($pdo);
 $kalenderV = kalender_pengaturan_load($pdo);
 
 // Template
+wa_template_migrate_rapor_legacy($pdo);
 $tplDefs = wa_template_definitions();
 $tplValues = [];
 foreach ($tplDefs as $slug => $meta) {
     $tplValues[$slug] = wa_template_get($pdo, $slug);
 }
+$waRaporPesantrenOn = wa_rapor_auto_enabled($pdo, 'pesantren');
+$waRaporPkppsOn = wa_rapor_auto_enabled($pdo, 'pkpps');
 
 // Alpa
 $periodeMode = alpa_tier_periode_mode($pdo);

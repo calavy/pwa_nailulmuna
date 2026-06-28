@@ -29,6 +29,8 @@ $hubLinks = [
     ['path' => '/pkpps/import_santri.php', 'icon' => 'fa-solid fa-file-import', 'label' => 'Import santri', 'desc' => 'Unggah data santri PKPPS dari spreadsheet'],
 
     ['path' => '/pkpps/import.php', 'icon' => 'fa-solid fa-file-import', 'label' => 'Import jadwal', 'desc' => 'Unggah jadwal kegiatan PKPPS'],
+    ['path' => '/pkpps/rapor.php', 'icon' => 'fa-solid fa-file-lines', 'label' => 'Rapor PKPPS', 'desc' => 'Kelola rapor program PKPPS & unggah PDF'],
+    ['path' => '/pkpps/pengaturan_rapor.php', 'icon' => 'fa-solid fa-sliders', 'label' => 'Pengaturan rapor', 'desc' => 'Label, judul cetak, dan pesan WA rapor PKPPS'],
 
     ['path' => '/settings/tingkatan.php#pkpps', 'icon' => 'fa-solid fa-layer-group', 'label' => 'Tingkatan PKPPS', 'desc' => 'Master tingkatan program'],
 

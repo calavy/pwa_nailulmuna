@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/datetime_display.php';
 
 /** Tanggal mulai scan resmi untuk rekap keaktivan (Y-m-d) atau kosong = semua riwayat. */
 function rekap_keaktifan_tanggal_mulai_scan(PDO $pdo): string

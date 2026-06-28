@@ -31,13 +31,16 @@ if (!$rapor) {
 }
 
 $kop = pondok_kop_data($pdo);
-$periode = rapor_periode_dari_row($pdo, $rapor);
+$konten = akademik_rapor_konten_from_row($pdo, $rapor);
+$periode = $konten['periode'];
+$raporJenis = $konten['jenis'];
 $santriId = (int) ($rapor['santri_id'] ?? 0);
 $tingkatan = trim((string) ($rapor['tingkatan'] ?? ''));
-$raporPeriodeLabel = (string) $periode['label'];
-$raporPresensi = rapor_presensi_bulan($pdo, $santriId, $periode);
-$raporSetoran = rapor_setoran_bulan($pdo, $santriId, $periode);
-$raporTugas = rapor_tugas_bulan($pdo, $santriId, $periode);
+$raporPeriodeLabel = $konten['periode_label'];
+$raporPresensi = $konten['presensi'];
+$raporSetoran = $konten['setoran'];
+$raporTugas = $konten['tugas'];
+$raporSectionLabels = $konten['section_labels'];
 $raporCompact = false;
 
 $namaPengasuh = (string) $kop['nama_pengasuh'];
@@ -49,10 +52,15 @@ $tglTerbitTampil = preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglTerbit)
     ? date('d-m-Y', strtotime($tglTerbit))
     : $tglTerbit;
 $jamCetak = date('d-m-Y H:i');
-$raporJudul = surat_cetak_template_render($pdo, 'rapor_judul', [
-    'nama_ponpes' => (string) $kop['nama_ponpes'],
-    'tahun_ajaran' => $raporPeriodeLabel,
-]);
+if ($raporJenis === 'pkpps') {
+    require_once __DIR__ . '/../helpers/pkpps_rapor.php';
+    $raporJudul = pkpps_rapor_setting($pdo, 'pkpps_rapor_judul_cetak', 'Rapor PKPPS');
+} else {
+    $raporJudul = surat_cetak_template_render($pdo, 'rapor_judul', [
+        'nama_ponpes' => (string) $kop['nama_ponpes'],
+        'tahun_ajaran' => $raporPeriodeLabel,
+    ]);
+}
 $autoPrint = !isset($_GET['preview']);
 ?>
 <!doctype html>

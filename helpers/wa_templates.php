@@ -275,6 +275,41 @@ function wa_template_definitions(): array
                 . 'Mohon segera update status & unggah bukti di:\n{link_tugas}\n\n'
                 . '— {nama_ponpes}',
         ],
+        'tagihan_khusus_wali' => [
+            'label' => 'Tagihan khusus ke wali (berobat, dll.)',
+            'hint' => 'Dikirim saat admin membuat tagihan khusus ke santri (pinjaman dari alokasi syahriyah).',
+            'placeholders' => '{nama_santri}, {judul}, {kategori}, {nominal}, {sisa}, {tanggal}, {keterangan}, {alokasi}, {portal_url}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . '*Yth. Wali santri {nama_santri}*\n\n'
+                . 'Kami informasikan tagihan *{judul}* ({kategori}):\n'
+                . 'Nominal: *{nominal}*\n'
+                . 'Tanggal: {tanggal}\n'
+                . 'Sumber dana: pinjaman alokasi syahriyah ({alokasi})\n'
+                . 'Keterangan: {keterangan}\n\n'
+                . 'Silakan cek detail di portal wali: {portal_url}\n\n'
+                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
+                . '_{nama_ponpes}_',
+        ],
+        'rapor_terbit_pesantren' => [
+            'label' => 'Rapor pesantren diterbitkan → wali santri',
+            'hint' => 'Dikirim otomatis ke wali saat rapor pesantren diterbitkan (jika fitur aktif di bawah).',
+            'placeholders' => '{nama_santri}, {judul_periode}, {tanggal_terbit}, {nis}, {portal_url}, {jenis_rapor}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . 'Kami informasikan rapor akademik untuk *{nama_santri}* ({judul_periode}).\n'
+                . 'Silakan cek di portal wali: {portal_url}\n\n'
+                . 'Terima kasih.\n'
+                . '_{nama_ponpes}_',
+        ],
+        'rapor_terbit_pkpps' => [
+            'label' => 'Rapor PKPPS diterbitkan → wali santri',
+            'hint' => 'Dikirim otomatis ke wali saat rapor PKPPS diterbitkan (jika fitur aktif di bawah).',
+            'placeholders' => '{nama_santri}, {judul_periode}, {tanggal_terbit}, {nis}, {portal_url}, {jenis_rapor}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
+                . 'Kami informasikan rapor PKPPS untuk *{nama_santri}* ({judul_periode}).\n'
+                . 'Silakan cek di portal wali: {portal_url}\n\n'
+                . 'Terima kasih.\n'
+                . '_{nama_ponpes}_',
+        ],
     ];
 }
 
@@ -371,4 +406,62 @@ function wa_template_save_all(PDO $pdo, array $post): array
     }
 
     return ['ok' => true, 'message' => 'Template pesan WA otomatis disimpan.'];
+}
+
+/** Pindahkan template rapor dari pengaturan lama ke wa_tpl_* (sekali). */
+function wa_template_migrate_rapor_legacy(PDO $pdo): void
+{
+    if (trim((string) app_setting($pdo, 'wa_tpl_rapor_migrated', '')) === '1') {
+        return;
+    }
+
+    $pesantrenOld = trim((string) app_setting($pdo, 'surat_tpl_rapor_wa_pesan', ''));
+    if ($pesantrenOld !== '' && trim((string) app_setting($pdo, wa_template_setting_key('rapor_terbit_pesantren'), '')) === '') {
+        save_setting($pdo, wa_template_setting_key('rapor_terbit_pesantren'), $pesantrenOld);
+    }
+
+    $pkppsOld = trim((string) app_setting($pdo, 'pkpps_rapor_wa_pesan', ''));
+    if ($pkppsOld !== '' && trim((string) app_setting($pdo, wa_template_setting_key('rapor_terbit_pkpps'), '')) === '') {
+        save_setting($pdo, wa_template_setting_key('rapor_terbit_pkpps'), $pkppsOld);
+    }
+
+    if (trim((string) app_setting($pdo, 'wa_rapor_pesantren_enabled', '')) === '') {
+        $legacy = trim((string) app_setting($pdo, 'akademik_rapor_wa_auto_pesantren', '1'));
+        save_setting($pdo, 'wa_rapor_pesantren_enabled', $legacy !== '' ? $legacy : '1');
+    }
+    if (trim((string) app_setting($pdo, 'wa_rapor_pkpps_enabled', '')) === '') {
+        $legacy = trim((string) app_setting($pdo, 'pkpps_rapor_wa_auto', '1'));
+        save_setting($pdo, 'wa_rapor_pkpps_enabled', $legacy !== '' ? $legacy : '1');
+    }
+
+    save_setting($pdo, 'wa_tpl_rapor_migrated', '1');
+    if (function_exists('app_settings_cache_reset')) {
+        app_settings_cache_reset($pdo);
+    }
+}
+
+function wa_rapor_auto_enabled(PDO $pdo, string $jenis): bool
+{
+    wa_template_migrate_rapor_legacy($pdo);
+    $jenis = strtolower(trim($jenis)) === 'pkpps' ? 'pkpps' : 'pesantren';
+    if ($jenis === 'pkpps') {
+        $v = trim((string) app_setting($pdo, 'wa_rapor_pkpps_enabled', ''));
+        if ($v === '') {
+            $v = trim((string) app_setting($pdo, 'pkpps_rapor_wa_auto', '1'));
+        }
+
+        return $v === '1';
+    }
+
+    $v = trim((string) app_setting($pdo, 'wa_rapor_pesantren_enabled', ''));
+    if ($v === '') {
+        $v = trim((string) app_setting($pdo, 'akademik_rapor_wa_auto_pesantren', '1'));
+    }
+
+    return $v === '1';
+}
+
+function wa_rapor_template_slug(string $jenis): string
+{
+    return strtolower(trim($jenis)) === 'pkpps' ? 'rapor_terbit_pkpps' : 'rapor_terbit_pesantren';
 }

@@ -31,7 +31,7 @@ function wali_nav_resolve_active(?string $navActive): ?string
     if ($navActive === null || $navActive === '') {
         return $navActive;
     }
-    if (in_array($navActive, ['tagihan', 'pembayaran', 'ringkasan', 'bayar'], true)) {
+    if (in_array($navActive, ['tagihan', 'tagihan_lain', 'pembayaran', 'ringkasan', 'bayar'], true)) {
         return 'keuangan';
     }
     if (in_array($navActive, ['rapor', 'hafalan'], true)) {

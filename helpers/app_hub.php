@@ -13,7 +13,8 @@ function app_hub_registry(): array
             'landing' => '/keuangan/transaksi.php',
             'tabs' => [
                 ['path' => '/keuangan/pembayaran.php', 'label' => 'Input bayar'],
-                ['path' => '/pembayaran/tagihan_syahriyah.php', 'label' => 'Tagihan'],
+                ['path' => '/keuangan/tagihan_wali.php', 'label' => 'Tagihan ke wali'],
+                ['path' => '/pembayaran/tagihan_syahriyah.php', 'label' => 'Tagihan bulanan'],
                 ['path' => '/pembayaran/riwayat.php', 'label' => 'Riwayat'],
             ],
         ],

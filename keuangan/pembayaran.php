@@ -100,6 +100,7 @@ require_once __DIR__ . '/../includes/header.php';
         Bulan tagihan ikut kalender <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>.
         <span class="text-nowrap">·</span> <a href="/keuangan/pemasukan.php">Pemasukan lain</a>
         <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
+        <span class="text-nowrap">·</span> <a href="<?= htmlspecialchars(app_href('/keuangan/tagihan_wali.php')) ?>">Tagihan khusus ke wali</a>
         <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=syahriyah_makan">Pengaturan syahriyah &amp; PKPPS</a>
         <span class="text-nowrap">·</span> <a href="/settings/opsional_santri.php">Atur Makan &amp; Saku</a>
     </p>

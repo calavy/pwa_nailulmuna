@@ -27,7 +27,8 @@ function wali_keuangan_hub_tabs(string $activeTab, string $querySuffix = ''): ar
 
     return [
         ['key' => 'ringkasan', 'label' => 'Ringkasan', 'href' => $base . '?tab=ringkasan' . $q],
-        ['key' => 'tagihan', 'label' => 'Tagihan', 'href' => $base . '?tab=tagihan' . $q],
+        ['key' => 'tagihan', 'label' => 'Tagihan bulanan', 'href' => $base . '?tab=tagihan' . $q],
+        ['key' => 'tagihan_lain', 'label' => 'Tagihan lain', 'href' => $base . '?tab=tagihan_lain' . $q],
         ['key' => 'bayar', 'label' => 'Riwayat bayar', 'href' => $base . '?tab=bayar' . $q],
     ];
 }
@@ -38,7 +39,8 @@ function wali_akademik_hub_tabs(string $activeTab): array
     $base = app_href('/wali/akademik.php');
 
     return [
-        ['key' => 'rapor', 'label' => 'Rapor', 'href' => $base . '?tab=rapor'],
+        ['key' => 'rapor_pesantren', 'label' => 'Rapor Pesantren', 'href' => $base . '?tab=rapor_pesantren'],
+        ['key' => 'rapor_pkpps', 'label' => 'Rapor PKPPS', 'href' => $base . '?tab=rapor_pkpps'],
         ['key' => 'hafalan', 'label' => 'Hafalan', 'href' => $base . '?tab=hafalan'],
     ];
 }

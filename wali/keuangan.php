@@ -6,7 +6,7 @@ require_once __DIR__ . '/inc_portal.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 
 $tab = trim((string) ($_GET['tab'] ?? 'ringkasan'));
-if (!in_array($tab, ['ringkasan', 'tagihan', 'bayar'], true)) {
+if (!in_array($tab, ['ringkasan', 'tagihan', 'tagihan_lain', 'bayar'], true)) {
     $tab = 'ringkasan';
 }
 
@@ -69,6 +69,7 @@ require_once __DIR__ . '/includes/layout.php';
 $tabTitles = [
     'ringkasan' => 'Ringkasan keuangan',
     'tagihan' => 'Tagihan bulanan',
+    'tagihan_lain' => 'Tagihan lain',
     'bayar' => 'Riwayat pembayaran',
 ];
 wali_layout_head(($tabTitles[$tab] ?? 'Keuangan') . ' — Portal Wali', true, 'keuangan');
@@ -87,6 +88,8 @@ require __DIR__ . '/partials/greeting.php';
             <?php require __DIR__ . '/partials/keuangan_tab_ringkasan.php'; ?>
         <?php elseif ($tab === 'tagihan'): ?>
             <?php require __DIR__ . '/partials/keuangan_tab_tagihan.php'; ?>
+        <?php elseif ($tab === 'tagihan_lain'): ?>
+            <?php require __DIR__ . '/partials/keuangan_tab_tagihan_lain.php'; ?>
         <?php else: ?>
             <p class="small text-muted mb-3">Pembayaran tagihan, bukti kuitansi, dan ringkasan POS.</p>
             <?php require __DIR__ . '/partials/keuangan_tab_bayar.php'; ?>

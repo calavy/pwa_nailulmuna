@@ -3,21 +3,25 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/inc_portal.php';
-require_once __DIR__ . '/../helpers/akademik.php';
-require_once __DIR__ . '/../helpers/akademik_rapor.php';
 
-ensure_akademik_rapor_columns($pdo);
-ensure_akademik_hafalan_setoran_table($pdo);
+$tab = trim((string) ($_GET['tab'] ?? 'rapor_pesantren'));
+if ($tab === 'rapor') {
+    $tab = 'rapor_pesantren';
+}
+if (!in_array($tab, ['rapor_pesantren', 'rapor_pkpps', 'hafalan'], true)) {
+    $tab = 'rapor_pesantren';
+}
 
-$tab = trim((string) ($_GET['tab'] ?? 'rapor'));
-if (!in_array($tab, ['rapor', 'hafalan'], true)) {
-    $tab = 'rapor';
+if ($tab === 'hafalan') {
+    require_once __DIR__ . '/../helpers/akademik.php';
+    ensure_akademik_hafalan_setoran_table($pdo);
 }
 
 require_once __DIR__ . '/includes/layout.php';
 
 $tabTitles = [
-    'rapor' => 'Rapor akademik',
+    'rapor_pesantren' => 'Rapor Pesantren',
+    'rapor_pkpps' => 'Rapor PKPPS',
     'hafalan' => 'Setoran hafalan',
 ];
 wali_layout_head(($tabTitles[$tab] ?? 'Akademik') . ' — Portal Wali', true, 'akademik');
@@ -29,10 +33,13 @@ wali_layout_head(($tabTitles[$tab] ?? 'Akademik') . ' — Portal Wali', true, 'a
 
         <?php wali_portal_render_hub_tabs(wali_akademik_hub_tabs($tab), $tab); ?>
 
-        <?php if ($tab === 'rapor'): ?>
-            <?php require __DIR__ . '/partials/akademik_tab_rapor.php'; ?>
-        <?php else: ?>
+        <?php if ($tab === 'hafalan'): ?>
             <?php require __DIR__ . '/partials/akademik_tab_hafalan.php'; ?>
+        <?php else: ?>
+            <?php
+            $raporJenisFilter = $tab === 'rapor_pkpps' ? 'pkpps' : 'pesantren';
+            require __DIR__ . '/partials/akademik_tab_rapor.php';
+            ?>
         <?php endif; ?>
 <?php
 wali_layout_foot(true, 'akademik');

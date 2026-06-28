@@ -7,12 +7,21 @@ require_once __DIR__ . '/../../helpers/akademik_rapor.php';
 /**
  * Partial isi rapor: presensi bulanan + tugas pembimbing.
  * Variabel: $raporPeriodeLabel, $raporPresensi, $raporTugas, $raporSetoran, $raporCompact (bool, opsional)
+ * Opsional: $raporSectionLabels (array presensi/setoran/tugas)
  */
 $raporCompact = !empty($raporCompact);
 $raporPeriodeLabel = (string) ($raporPeriodeLabel ?? '');
 $raporPresensi = is_array($raporPresensi ?? null) ? $raporPresensi : null;
 $raporTugas = is_array($raporTugas ?? null) ? $raporTugas : [];
 $raporSetoran = is_array($raporSetoran ?? null) ? $raporSetoran : [];
+$raporSectionLabels = is_array($raporSectionLabels ?? null) ? $raporSectionLabels : [
+    'presensi' => 'Presensi bulanan',
+    'setoran' => 'Setoran hafalan',
+    'tugas' => 'Hasil tugas (Ikhtibar) per pembimbing',
+];
+$lblPresensi = (string) ($raporSectionLabels['presensi'] ?? 'Presensi bulanan');
+$lblSetoran = (string) ($raporSectionLabels['setoran'] ?? 'Setoran hafalan');
+$lblTugas = (string) ($raporSectionLabels['tugas'] ?? 'Hasil tugas per pembimbing');
 ?>
 
 <?php if ($raporPeriodeLabel !== ''): ?>
@@ -20,7 +29,7 @@ $raporSetoran = is_array($raporSetoran ?? null) ? $raporSetoran : [];
 <?php endif; ?>
 
 <section class="mb-3">
-    <h3 class="h6 text-primary border-bottom pb-1 mb-2">Presensi bulanan</h3>
+    <h3 class="h6 text-primary border-bottom pb-1 mb-2"><?= htmlspecialchars($lblPresensi) ?></h3>
     <?php if ($raporPresensi === null): ?>
         <p class="small text-muted mb-0">Tidak ada data presensi pada periode ini.</p>
     <?php else: ?>
@@ -73,7 +82,7 @@ $raporSetoran = is_array($raporSetoran ?? null) ? $raporSetoran : [];
 </section>
 
 <section class="mb-3">
-    <h3 class="h6 text-primary border-bottom pb-1 mb-2">Setoran hafalan</h3>
+    <h3 class="h6 text-primary border-bottom pb-1 mb-2"><?= htmlspecialchars($lblSetoran) ?></h3>
     <?php if ($raporSetoran === []): ?>
         <p class="small text-muted mb-0">Belum ada setoran pada periode ini.</p>
     <?php else: ?>
@@ -113,7 +122,7 @@ $raporSetoran = is_array($raporSetoran ?? null) ? $raporSetoran : [];
 </section>
 
 <section>
-    <h3 class="h6 text-primary border-bottom pb-1 mb-2">Hasil tugas (Ikhtibar) per pembimbing</h3>
+    <h3 class="h6 text-primary border-bottom pb-1 mb-2"><?= htmlspecialchars($lblTugas) ?></h3>
     <?php if ($raporTugas === []): ?>
         <p class="small text-muted mb-0">Belum ada tugas / nilai pada periode ini.</p>
     <?php else: ?>

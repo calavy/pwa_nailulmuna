@@ -308,8 +308,8 @@ function surat_cetak_template_definitions(): array
         ],
         'rapor_judul' => [
             'group' => 'Rapor Akademik',
-            'label' => 'Judul rapor',
-            'hint' => 'Judul utama pada halaman cetak rapor.',
+            'label' => 'Judul rapor pesantren',
+            'hint' => 'Judul utama pada halaman cetak rapor pesantren (bukan PKPPS).',
             'placeholders' => '{nama_ponpes}, {tahun_ajaran}',
             'default' => 'Rapor Akademik Santri',
         ],
