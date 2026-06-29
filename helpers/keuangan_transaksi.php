@@ -592,6 +592,137 @@ function keuangan_build_santri_tier_label_map(PDO $pdo, ?array $santriRows = nul
 }
 
 /**
+ * Label bulan tagihan TA untuk pesan validasi.
+ */
+function keuangan_bulan_tagihan_label_tampilan(
+    PDO $pdo,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai
+): string {
+    if ($bulanTagihan < 1 || $bulanTagihan > 12) {
+        return 'Bulan ' . $bulanTagihan;
+    }
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $slot = pondok_slot_dari_bulan_tagihan($slots, $bulanTagihan);
+
+    return $slot ? pondok_bulan_slot_label_tampilan($pdo, $slot) : ('Bulan ' . $bulanTagihan);
+}
+
+/**
+ * Peta ketersediaan input pembayaran per bulan (wajib lunas berurutan).
+ *
+ * @return array<int, array{allowed:bool,dibebankan:bool,message:string,status:string,lunas:bool}>
+ */
+function keuangan_pembayaran_bulan_urutan_map(
+    PDO $pdo,
+    int $santriId,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai
+): array {
+    if ($santriId <= 0) {
+        return [];
+    }
+    if (!function_exists('tagihan_bulanan_page_context')) {
+        require_once __DIR__ . '/tagihan_bulanan.php';
+    }
+    if (!function_exists('tagihan_bulan_dibebankan')) {
+        require_once __DIR__ . '/tagihan_santri_masuk.php';
+    }
+    if (!function_exists('keuangan_santri_kelas_tagihan')) {
+        require_once __DIR__ . '/santri_ta.php';
+    }
+
+    $kelasKategori = keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $slots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $map = [];
+    $blockThroughBulan = null;
+
+    foreach ($slots as $slot) {
+        $m = (int) ($slot['bulan_tagihan'] ?? 0);
+        if ($m < 1 || $m > 12) {
+            continue;
+        }
+        if (!tagihan_bulan_dibebankan($pdo, $santriId, $m, $tahunAjaranMulai, $tahunAjaranSelesai)) {
+            $map[$m] = [
+                'allowed' => false,
+                'dibebankan' => false,
+                'message' => '',
+                'status' => '—',
+                'lunas' => false,
+            ];
+            continue;
+        }
+
+        $allowed = $blockThroughBulan === null || $m <= $blockThroughBulan;
+        $message = '';
+        if (!$allowed) {
+            $blokLabel = keuangan_bulan_tagihan_label_tampilan($pdo, $blockThroughBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
+            $message = 'Tagihan wajib bulan ' . $blokLabel . ' belum lunas. Lunasi terlebih dahulu sebelum mencatat pembayaran bulan ini.';
+        }
+
+        $ctx = tagihan_bulanan_page_context($pdo, $m, $tahunAjaranMulai, $tahunAjaranSelesai);
+        $st = tagihan_wajib_status_for_month_bulk(
+            $pdo,
+            $santriId,
+            $m,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $kelasKategori,
+            $ctx['paid_map'],
+            $ctx['sy_ctx']
+        );
+        $status = (string) ($st['status'] ?? '—');
+        $expectedTotal = (int) ($st['expected_total'] ?? 0);
+
+        $map[$m] = [
+            'allowed' => $allowed,
+            'dibebankan' => true,
+            'message' => $message,
+            'status' => $status,
+            'lunas' => $status === 'Lunas',
+        ];
+
+        if ($allowed && $expectedTotal > 0 && $status !== 'Lunas') {
+            if ($blockThroughBulan === null || $m > $blockThroughBulan) {
+                $blockThroughBulan = $m;
+            }
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_pembayaran_validasi_urutan_bulan(
+    PDO $pdo,
+    int $santriId,
+    int $bulanTagihan,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai
+): array {
+    if ($bulanTagihan <= 1) {
+        return ['ok' => true, 'message' => ''];
+    }
+    $map = keuangan_pembayaran_bulan_urutan_map($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
+    $entry = $map[$bulanTagihan] ?? null;
+    if (!is_array($entry)) {
+        return ['ok' => true, 'message' => ''];
+    }
+    if (!empty($entry['allowed'])) {
+        return ['ok' => true, 'message' => ''];
+    }
+    $message = trim((string) ($entry['message'] ?? ''));
+    if ($message === '') {
+        $message = 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.';
+    }
+
+    return ['ok' => false, 'message' => $message];
+}
+
+/**
  * @param array<string, mixed> $post
  * @return array{ok:bool,message:string,id?:int}
  */
@@ -647,6 +778,12 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
     if ($metodeBayar === 'TRANSFER' && $noReferensi === '') {
         return ['ok' => false, 'message' => 'Nomor referensi transfer wajib diisi.'];
+    }
+    if ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0) {
+        $urutan = keuangan_pembayaran_validasi_urutan_bulan($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai);
+        if (!$urutan['ok']) {
+            return $urutan;
+        }
     }
 
     $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';

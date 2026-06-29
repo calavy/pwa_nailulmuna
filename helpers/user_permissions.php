@@ -372,7 +372,9 @@ function user_permission_path_map_keuangan(): array
     $map = [
         '/keuangan/index.php' => $laporan,
         '/keuangan/neraca.php' => $laporan,
+        '/keuangan/neraca-perbaikan.php' => $laporan,
         '/keuangan/arus-kas.php' => $laporan,
+        '/keuangan/rekap-kas-bulan.php' => $laporan,
         '/pembayaran/rekap_pos.php' => $laporan,
         '/pembayaran/laporan.php' => $laporan,
         '/pembayaran/laporan_kopsa_per_santri.php' => $laporan,

@@ -251,6 +251,16 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
     if ($detailRows === []) {
         return ['ok' => false, 'message' => 'Minimal satu komponen pembayaran dengan nominal valid.'];
     }
+    if (
+        $jenisPeriode === 'BULANAN'
+        && $bulanTagihan > 0
+        && (int) ($before['bulan_tagihan'] ?? 0) !== $bulanTagihan
+    ) {
+        $urutan = keuangan_pembayaran_validasi_urutan_bulan($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai);
+        if (!$urutan['ok']) {
+            return $urutan;
+        }
+    }
 
     $statusLunas = 'LUNAS';
     if (column_exists($pdo, 'keuangan_pembayaran', 'status_lunas')) {

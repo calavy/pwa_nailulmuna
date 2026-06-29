@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/keuangan_akun_mutasi.php';
+require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 
 /**
  * Laporan Arus Kas — PAP / ISAK 35 (metode langsung + rekonsiliasi saldo kas).
@@ -21,6 +22,7 @@ require_once __DIR__ . '/keuangan_akun_mutasi.php';
  *   kas_akhir: int,
  *   kas_akhir_hitung: int,
  *   selisih_rekonsiliasi: int,
+ *   rekonsiliasi: array<string, mixed>,
  *   metode: string
  * }
  */
@@ -42,46 +44,100 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
 
     // —— Aktivitas operasi (arus kas langsung) ——
     $operasiBaris = [];
+    $totalIuranOps = 0;
+    $totalSakuOps = 0;
+    $totalDonasiOps = 0;
+    $totalPemasukanLainOps = 0;
 
     if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
         $penerimaanStmt = $pdo->prepare("
-            SELECT COALESCE(d.pos_nama, d.pos_slug, 'Pembayaran') AS label_pos,
+            SELECT LOWER(TRIM(d.pos_slug)) AS pos_slug,
+                   COALESCE(d.pos_nama, d.pos_slug, 'Pembayaran') AS label_pos,
                    SUM(d.nominal) AS total
             FROM keuangan_pembayaran_detail d
             INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
             WHERE p.tanggal_bayar BETWEEN :dari AND :sampai
-            GROUP BY d.pos_slug, d.pos_nama
+            GROUP BY LOWER(TRIM(d.pos_slug)), d.pos_nama, d.pos_slug
             ORDER BY total DESC, label_pos ASC
         ");
         $penerimaanStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
+        $iuranDetail = [];
+        $sakuTotal = 0;
         foreach ($penerimaanStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $nom = (int) round((float) ($row['total'] ?? 0));
             if ($nom === 0) {
                 continue;
             }
-            $operasiBaris[] = [
-                'label' => 'Penerimaan: ' . (string) ($row['label_pos'] ?? 'Pembayaran'),
+            if ((string) ($row['pos_slug'] ?? '') === 'saku') {
+                $sakuTotal += $nom;
+                continue;
+            }
+            $iuranDetail[] = [
+                'label' => (string) ($row['label_pos'] ?? 'Pembayaran'),
                 'nominal' => $nom,
+            ];
+            $totalIuranOps += $nom;
+        }
+
+        if ($iuranDetail !== [] || $sakuTotal > 0) {
+            $operasiBaris[] = [
+                'label' => 'Penerimaan Iuran Santri',
+                'nominal' => 0,
+                'baris_tipe' => 'judul',
+            ];
+            foreach ($iuranDetail as $item) {
+                $operasiBaris[] = [
+                    'label' => $item['label'],
+                    'nominal' => $item['nominal'],
+                    'indent' => true,
+                ];
+            }
+            if ($totalIuranOps > 0) {
+                $operasiBaris[] = [
+                    'label' => 'Subtotal iuran santri',
+                    'nominal' => $totalIuranOps,
+                    'baris_tipe' => 'subtotal_grup',
+                ];
+            }
+            if ($sakuTotal > 0) {
+                $totalSakuOps = $sakuTotal;
+                $operasiBaris[] = [
+                    'label' => 'Penerimaan titipan saku santri (bukan iuran)',
+                    'nominal' => $sakuTotal,
+                    'indent' => true,
+                ];
+            }
+        }
+    }
+
+    if ($operasiBaris === [] && table_exists($pdo, 'keuangan_pembayaran')) {
+        $penerimaanTotalStmt = $pdo->prepare('
+            SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
+            WHERE tanggal_bayar BETWEEN :dari AND :sampai
+        ');
+        $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
+        $totalIuranOps = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
+        if ($totalIuranOps > 0) {
+            $operasiBaris[] = [
+                'label' => 'Penerimaan Iuran Santri',
+                'nominal' => 0,
+                'baris_tipe' => 'judul',
+            ];
+            $operasiBaris[] = [
+                'label' => 'Pembayaran santri/wali',
+                'nominal' => $totalIuranOps,
                 'indent' => true,
+            ];
+            $operasiBaris[] = [
+                'label' => 'Subtotal iuran santri',
+                'nominal' => $totalIuranOps,
+                'baris_tipe' => 'subtotal_grup',
             ];
         }
     }
 
-    $penerimaanTotalStmt = $pdo->prepare('
-        SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
-        WHERE tanggal_bayar BETWEEN :dari AND :sampai
-    ');
-    $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-    $totalPenerimaan = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
-
-    if ($operasiBaris === [] && $totalPenerimaan > 0) {
-        $operasiBaris[] = [
-            'label' => 'Penerimaan dari pembayaran santri/wali',
-            'nominal' => $totalPenerimaan,
-            'indent' => true,
-        ];
-    }
-
+    $donasiRows = [];
+    $lainRows = [];
     if (table_exists($pdo, 'keuangan_pemasukan')) {
         $pemasukanStmt = $pdo->prepare("
             SELECT sumber, SUM(nominal) AS total
@@ -96,14 +152,70 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             if ($nom === 0) {
                 continue;
             }
-            $operasiBaris[] = [
-                'label' => 'Pemasukan lain: ' . (string) ($row['sumber'] ?? 'Lainnya'),
-                'nominal' => $nom,
-                'indent' => true,
-            ];
+            $sumber = (string) ($row['sumber'] ?? 'Lainnya');
+            if (keuangan_pemasukan_kategori_sumber($sumber) === 'donasi') {
+                $donasiRows[] = ['label' => $sumber, 'nominal' => $nom];
+                $totalDonasiOps += $nom;
+            } else {
+                $lainRows[] = ['label' => $sumber, 'nominal' => $nom];
+                $totalPemasukanLainOps += $nom;
+            }
         }
     }
 
+    if ($donasiRows !== [] || $lainRows !== []) {
+        $operasiBaris[] = [
+            'label' => 'Pemasukan Lain-lain',
+            'nominal' => 0,
+            'baris_tipe' => 'judul',
+        ];
+        if ($donasiRows !== []) {
+            $operasiBaris[] = [
+                'label' => 'Penerimaan donasi/infaq',
+                'nominal' => 0,
+                'baris_tipe' => 'subjudul',
+            ];
+            foreach ($donasiRows as $item) {
+                $operasiBaris[] = [
+                    'label' => $item['label'],
+                    'nominal' => $item['nominal'],
+                    'indent' => true,
+                ];
+            }
+            $operasiBaris[] = [
+                'label' => 'Subtotal donasi/infaq',
+                'nominal' => $totalDonasiOps,
+                'baris_tipe' => 'subtotal_grup',
+            ];
+        }
+        if ($lainRows !== []) {
+            $operasiBaris[] = [
+                'label' => 'Pemasukan non-donasi',
+                'nominal' => 0,
+                'baris_tipe' => 'subjudul',
+            ];
+            foreach ($lainRows as $item) {
+                $operasiBaris[] = [
+                    'label' => $item['label'],
+                    'nominal' => $item['nominal'],
+                    'indent' => true,
+                ];
+            }
+            if ($totalPemasukanLainOps > 0) {
+                $operasiBaris[] = [
+                    'label' => 'Subtotal pemasukan lain',
+                    'nominal' => $totalPemasukanLainOps,
+                    'baris_tipe' => 'subtotal_grup',
+                ];
+            }
+        }
+    }
+
+    $operasiBaris[] = [
+        'label' => 'Pengeluaran operasional',
+        'nominal' => 0,
+        'baris_tipe' => 'judul',
+    ];
     $pengeluaranOpsStmt = $pdo->prepare("
         SELECT COALESCE(pos, 'Beban operasional') AS label_pos, SUM(nominal) AS total
         FROM keuangan_pengeluaran
@@ -163,7 +275,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         }
     }
 
-    $totalOperasi = array_sum(array_column($operasiBaris, 'nominal'));
+    $totalOperasi = keuangan_aruskas_total_dari_baris($operasiBaris);
 
     // —— Aktivitas investasi ——
     $investasiBaris = [];
@@ -227,7 +339,10 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             SELECT j.kode_akun, j.nama_akun, COALESCE(SUM(j.kredit), 0) - COALESCE(SUM(j.debit), 0) AS neto
             FROM akuntansi_jurnal_umum j
             INNER JOIN akuntansi_chart_of_accounts c ON c.kode_akun = j.kode_akun
-            WHERE c.kelompok_laporan = 'ASET_NETO' AND j.tanggal BETWEEN :dari AND :sampai
+            WHERE c.kelompok_laporan = 'ASET_NETO'
+              AND j.kode_akun NOT LIKE '41%'
+              AND j.kode_akun NOT LIKE '42%'
+              AND j.tanggal BETWEEN :dari AND :sampai
             GROUP BY j.kode_akun, j.nama_akun
             HAVING neto <> 0
             ORDER BY j.kode_akun ASC
@@ -275,13 +390,27 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $kasAkhirHitung = $kasAwal + $kenaikanKas;
     $selisih = $kasAkhir - $kasAkhirHitung;
 
+    $rekonsiliasi = keuangan_rekonsiliasi_kas_ringkas(
+        $pdo,
+        $dateFrom,
+        $dateTo,
+        $kasAwal,
+        $kasAkhir
+    );
+
     return [
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'periode_label' => $periodeLabel,
         'nama_lembaga' => $namaLembaga,
         'metode' => 'langsung',
-        'operasi' => ['baris' => $operasiBaris, 'total' => $totalOperasi],
+        'operasi' => [
+            'baris' => $operasiBaris,
+            'total' => $totalOperasi,
+            'total_iuran' => $totalIuranOps,
+            'total_donasi' => $totalDonasiOps,
+            'total_pemasukan_lain' => $totalPemasukanLainOps + $totalSakuOps,
+        ],
         'investasi' => ['baris' => $investasiBaris, 'total' => $totalInvestasi],
         'pendanaan' => ['baris' => $pendanaanBaris, 'total' => $totalPendanaan],
         'kenaikan_kas' => $kenaikanKas,
@@ -289,6 +418,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         'kas_akhir' => $kasAkhir,
         'kas_akhir_hitung' => $kasAkhirHitung,
         'selisih_rekonsiliasi' => $selisih,
+        'rekonsiliasi' => $rekonsiliasi,
     ];
 }
 
@@ -325,6 +455,20 @@ function keuangan_build_arus_kas_cached(PDO $pdo, ?string $dateFrom = null, ?str
     }
 
     return $data;
+}
+
+function keuangan_aruskas_total_dari_baris(array $baris): int
+{
+    $total = 0;
+    foreach ($baris as $row) {
+        $tipe = (string) ($row['baris_tipe'] ?? '');
+        if (in_array($tipe, ['judul', 'subjudul'], true)) {
+            continue;
+        }
+        $total += (int) ($row['nominal'] ?? 0);
+    }
+
+    return $total;
 }
 
 /**
@@ -422,7 +566,15 @@ body.aruskas-page .aruskas-report-body { padding: 1.25rem 1.5rem !important; ove
 .aruskas-table .saldo td { background: #eff6ff; font-weight: 700; }
 .aruskas-table .neg { color: #b91c1c; }
 .aruskas-table .pos { color: #0f766e; }
-.aruskas-rekon { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
+.aruskas-table .judul td { background: #f8fafc; font-weight: 700; color: #0f4c5c; border-bottom: 1px solid #cbd5e1; }
+.aruskas-table .subjudul td { background: #fff; font-weight: 600; color: #475569; font-size: 0.9rem; }
+.aruskas-table .subtotal-grup td { background: #f1f5f9; font-weight: 700; border-top: 1px dashed #cbd5e1; }
+.aruskas-rekon-box { margin-top: 1.25rem; padding: 1rem 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; }
+.aruskas-rekon-box h3 { font-size: 0.95rem; font-weight: 700; margin: 0 0 0.5rem; color: #0f4c5c; }
+.aruskas-rekon-pending { margin-top: 0.75rem; }
+.aruskas-rekon-pending table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+.aruskas-rekon-pending th, .aruskas-rekon-pending td { padding: 4px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.aruskas-rekon-pending th:last-child, .aruskas-rekon-pending td:last-child { text-align: right; }
 .aruskas-rekon.ok { color: #0f766e; }
 .aruskas-rekon.warn { color: #b45309; }
 @media print {
@@ -465,17 +617,68 @@ function keuangan_aruskas_render_html(array $lak, callable $fmt): void
 
     $selisih = (int) ($lak['selisih_rekonsiliasi'] ?? 0);
     if ($selisih !== 0) {
-        echo '<p class="aruskas-rekon warn">Selisih rekonsiliasi kas ' . htmlspecialchars($fmt($selisih))
-            . ' — saldo akhir per buku kas: ' . htmlspecialchars($fmt((int) ($lak['kas_akhir_hitung'] ?? 0))) . '.</p>';
+        echo '<p class="aruskas-rekon warn">Selisih rekonsiliasi arus kas ' . htmlspecialchars($fmt($selisih))
+            . ' — saldo akhir per hitungan arus kas: ' . htmlspecialchars($fmt((int) ($lak['kas_akhir_hitung'] ?? 0))) . '.</p>';
     } else {
-        echo '<p class="aruskas-rekon ok">Rekonsiliasi kas sesuai: kenaikan bersih + saldo awal = saldo akhir.</p>';
+        echo '<p class="aruskas-rekon ok">Rekonsiliasi arus kas sesuai: kenaikan bersih + saldo awal = saldo akhir.</p>';
+    }
+
+    $rekon = $lak['rekonsiliasi'] ?? [];
+    if (is_array($rekon) && $rekon !== []) {
+        keuangan_aruskas_render_rekonsiliasi_kas($rekon, $fmt);
     }
 
     echo '</div>';
 }
 
 /**
- * @param array{baris?: list<array{label: string, nominal: int, indent?: bool, catatan?: string}>, total?: int} $bagian
+ * @param array<string, mixed> $rekon
+ * @param callable(int): string $fmt
+ */
+function keuangan_aruskas_render_rekonsiliasi_kas(array $rekon, callable $fmt): void
+{
+    $selisihKas = (int) ($rekon['selisih'] ?? 0);
+    echo '<div class="aruskas-rekon-box">';
+    echo '<h3>Sinkronisasi Kas Fisik</h3>';
+    echo '<p class="mb-1">(Iuran santri + titipan saku + donasi/infaq + pemasukan lain) − pengeluaran operasional = perubahan kas operasional.</p>';
+    echo '<table class="aruskas-table" role="presentation" style="margin-top:0.5rem">';
+    echo '<tr><td class="lbl indent">Penerimaan iuran santri</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_iuran'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Penerimaan titipan saku</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_titipan_saku'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Penerimaan donasi/infaq</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_donasi'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Pemasukan lain-lain</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_pemasukan_lain'] ?? 0))) . '</td></tr>';
+    echo '<tr class="subtotal"><td class="lbl">Total kas masuk operasional</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_masuk'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Total pengeluaran operasional</td><td class="amt neg">(' . htmlspecialchars($fmt((int) ($rekon['total_keluar'] ?? 0))) . ')</td></tr>';
+    echo '<tr class="subtotal"><td class="lbl">Kas bersih operasional (formula)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_bersih_operasi'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Saldo kas awal periode</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_awal'] ?? 0))) . '</td></tr>';
+    echo '<tr><td class="lbl indent">Saldo kas akhir (fisik)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_akhir'] ?? 0))) . '</td></tr>';
+    echo '<tr class="subtotal"><td class="lbl">Perubahan kas fisik (akhir − awal)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_delta_fisik'] ?? 0))) . '</td></tr>';
+    echo '</table>';
+    if ($selisihKas !== 0) {
+        echo '<p class="aruskas-rekon warn mt-2 mb-0">Selisih sinkronisasi kas operasional: <strong>' . htmlspecialchars($fmt($selisihKas)) . '</strong>. Periksa transaksi tanpa jurnal atau mutasi di luar periode.</p>';
+    } else {
+        echo '<p class="aruskas-rekon ok mt-2 mb-0">Formula kas operasional sesuai dengan perubahan saldo kas fisik.</p>';
+    }
+
+    $pending = $rekon['transaksi_tanpa_jurnal'] ?? [];
+    if (is_array($pending) && $pending !== []) {
+        echo '<div class="aruskas-rekon-pending">';
+        echo '<p class="fw-semibold mb-1">Transaksi belum memiliki jurnal otomatis (' . count($pending) . '):</p>';
+        echo '<table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th>Nominal</th></tr></thead><tbody>';
+        foreach ($pending as $tx) {
+            echo '<tr>';
+            echo '<td>' . htmlspecialchars((string) ($tx['tanggal'] ?? '')) . '</td>';
+            echo '<td>' . htmlspecialchars((string) ($tx['tipe'] ?? '')) . ' #' . (int) ($tx['id'] ?? 0) . '</td>';
+            echo '<td>' . htmlspecialchars((string) ($tx['keterangan'] ?? '')) . '</td>';
+            echo '<td>' . htmlspecialchars($fmt((int) ($tx['nominal'] ?? 0))) . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+    echo '</div>';
+}
+
+/**
+ * @param array{baris?: list<array{label: string, nominal: int, indent?: bool, catatan?: string, baris_tipe?: string}>, total?: int} $bagian
  * @param callable(int): string $fmt
  */
 function keuangan_aruskas_render_bagian(array $bagian, string $judul, string $sectionClass, callable $fmt): void
@@ -487,17 +690,30 @@ function keuangan_aruskas_render_bagian(array $bagian, string $judul, string $se
         echo '<tr><td class="lbl indent">Tidak ada transaksi</td><td class="amt">' . htmlspecialchars($fmt(0)) . '</td></tr>';
     } else {
         foreach ($baris as $row) {
-            $indent = !empty($row['indent']) ? ' indent' : '';
-            $catatan = !empty($row['catatan']) ? ' catatan' : '';
+            $tipe = (string) ($row['baris_tipe'] ?? '');
+            $rowClass = trim(
+                (!empty($row['indent']) ? ' indent' : '')
+                . ($tipe === 'judul' ? ' judul' : '')
+                . ($tipe === 'subjudul' ? ' subjudul' : '')
+                . ($tipe === 'subtotal_grup' ? ' subtotal-grup' : '')
+                . (!empty($row['catatan']) ? ' catatan' : '')
+            );
             $nom = (int) ($row['nominal'] ?? 0);
             $cls = $nom < 0 ? 'neg' : ($nom > 0 ? 'pos' : '');
-            echo '<tr class="' . trim($indent . $catatan) . '">';
+            if (in_array($tipe, ['judul', 'subjudul'], true)) {
+                $cls = '';
+            }
+            echo '<tr class="' . trim($rowClass) . '">';
             echo '<td class="lbl">' . htmlspecialchars((string) ($row['label'] ?? ''));
             if (!empty($row['catatan'])) {
                 echo '<br><small>' . htmlspecialchars((string) $row['catatan']) . '</small>';
             }
             echo '</td>';
-            echo '<td class="amt ' . $cls . '">' . htmlspecialchars($fmt($nom)) . '</td></tr>';
+            if (in_array($tipe, ['judul', 'subjudul'], true)) {
+                echo '<td class="amt"></td></tr>';
+            } else {
+                echo '<td class="amt ' . $cls . '">' . htmlspecialchars($fmt($nom)) . '</td></tr>';
+            }
         }
     }
 

@@ -284,6 +284,10 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php
                     };
                     ?>
+                    <div id="bulan-urutan-blokir" class="alert alert-warning py-2 px-3 small mb-2 d-none" role="alert">
+                        <i class="fa-solid fa-lock me-1"></i>
+                        <span id="bulan-urutan-blokir-teks"></span>
+                    </div>
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                         <p class="small text-muted mb-0" id="tagihan-summary-hint">
                             Pilih santri dan bulan untuk melihat sisa tagihan wajib (Syahriyah).
@@ -445,7 +449,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="pembayaran-actions-total__label">Total transaksi</span>
                     <span class="pembayaran-actions-total__amount" id="pembayaran-actions-amount">Rp 0</span>
                 </div>
-                <button type="submit" class="btn btn-success btn-lg">
+                <button type="submit" class="btn btn-success btn-lg" id="btn-simpan-pembayaran">
                     <i class="fa-solid fa-check me-1"></i> Simpan &amp; buka kuitansi
                 </button>
                 <a class="btn btn-outline-secondary" href="/pembayaran/riwayat.php">Riwayat</a>

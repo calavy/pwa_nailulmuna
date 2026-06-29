@@ -27,9 +27,15 @@
     const actionsAmountEl = document.getElementById('pembayaran-actions-amount');
     const actionsTotalWrap = document.getElementById('pembayaran-actions-total');
     const opsEditorCards = document.querySelectorAll('.opsional-editor-card');
+    const btnSimpan = document.getElementById('btn-simpan-pembayaran');
+    const bulanBlokirBox = document.getElementById('bulan-urutan-blokir');
+    const bulanBlokirTeks = document.getElementById('bulan-urutan-blokir-teks');
     const map = window.keuanganSantriTier || {};
     const feeMatrix = window.keuanganFeeMatrix || {};
     let tagihanPos = {};
+    let bulanUrutanMap = {};
+    let bulanUrutanBlokir = false;
+    let bulanUrutanBlokirPesan = '';
     let savingSlug = null;
 
     function appBase() {
@@ -176,7 +182,80 @@
     }
 
     function isJenisBulanan() {
-        return !jenisSel || jenisSel.value !== 'AWAL_TAHUN';
+        return !jenisSel || jenisSel.value === 'BULANAN';
+    }
+
+    function bulanUrutanInfo(bulan) {
+        const m = parseInt(bulan, 10);
+        if (!m) {
+            return null;
+        }
+        return bulanUrutanMap[m] || bulanUrutanMap[String(m)] || null;
+    }
+
+    function applyBulanUrutanRestrictions() {
+        if (!bulanSel || !isJenisBulanan()) {
+            return false;
+        }
+        if (!bulanUrutanMap || Object.keys(bulanUrutanMap).length === 0) {
+            Array.from(bulanSel.options).forEach(function (opt) {
+                opt.disabled = false;
+                opt.title = '';
+            });
+            return false;
+        }
+        let currentAllowed = true;
+        const currentVal = parseInt(bulanSel.value, 10) || 0;
+        Array.from(bulanSel.options).forEach(function (opt) {
+            const m = parseInt(opt.value, 10);
+            const info = bulanUrutanInfo(m);
+            if (!info) {
+                opt.disabled = false;
+                opt.title = '';
+                return;
+            }
+            if (info.dibebankan === false) {
+                opt.disabled = true;
+                opt.title = '';
+                return;
+            }
+            const blocked = info.allowed === false;
+            opt.disabled = blocked;
+            opt.title = blocked ? (info.message || '') : '';
+            if (m === currentVal) {
+                currentAllowed = !blocked;
+            }
+        });
+        if (!currentAllowed) {
+            for (let i = 0; i < bulanSel.options.length; i++) {
+                if (!bulanSel.options[i].disabled) {
+                    const nextVal = bulanSel.options[i].value;
+                    if (String(bulanSel.value) !== String(nextVal)) {
+                        bulanSel.value = nextVal;
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    function setBulanUrutanBlokirUi(blocked, message) {
+        bulanUrutanBlokir = !!blocked;
+        bulanUrutanBlokirPesan = message || '';
+        if (bulanBlokirBox) {
+            bulanBlokirBox.classList.toggle('d-none', !bulanUrutanBlokir);
+        }
+        if (bulanBlokirTeks) {
+            bulanBlokirTeks.textContent = bulanUrutanBlokirPesan;
+        }
+        if (btnSimpan) {
+            btnSimpan.disabled = bulanUrutanBlokir;
+        }
+        form.querySelectorAll('.bayar-pos-check, .nominal-pos').forEach(function (el) {
+            el.disabled = bulanUrutanBlokir;
+        });
     }
 
     /** Baris komponen pada periode yang sedang dipilih (bulanan / awal tahun). */
@@ -452,7 +531,7 @@
                 }
             });
         }
-        btnPilihSemua.disabled = !hasSisa;
+        btnPilihSemua.disabled = !hasSisa || bulanUrutanBlokir;
     }
 
     function pilihSemuaSisa() {
@@ -717,6 +796,14 @@
         const sid = santriSel ? parseInt(santriSel.value, 10) : 0;
         if (sid <= 0) {
             tagihanPos = {};
+            bulanUrutanMap = {};
+            if (bulanSel) {
+                Array.from(bulanSel.options).forEach(function (opt) {
+                    opt.disabled = false;
+                    opt.title = '';
+                });
+            }
+            setBulanUrutanBlokirUi(false, '');
             renderPaidHints();
             return;
         }
@@ -736,12 +823,28 @@
             .then(function (data) {
                 if (!data || !data.ok) {
                     tagihanPos = {};
+                    bulanUrutanMap = {};
+                    setBulanUrutanBlokirUi(false, '');
                     resetOpsEditors('Gagal memuat pengaturan.');
                     applyNominalFromFeeMatrix();
                     renderPaidHints();
                     return;
                 }
                 tagihanPos = data.pos || {};
+                bulanUrutanMap = data.bulan_urutan || {};
+                if (applyBulanUrutanRestrictions()) {
+                    window.setTimeout(loadTagihanPreview, 0);
+                    return;
+                }
+                const currentBulan = parseInt(bulanSel ? bulanSel.value : '0', 10) || 0;
+                const bulanInfo = bulanUrutanInfo(currentBulan);
+                const bulanBlocked = !!(bulanInfo && bulanInfo.dibebankan !== false && bulanInfo.allowed === false);
+                setBulanUrutanBlokirUi(
+                    bulanBlocked,
+                    bulanBlocked
+                        ? (bulanInfo.message || data.bulan_blokir_pesan || 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.')
+                        : ''
+                );
                 const nominalFill = data.nominal_fill || null;
                 Object.keys(tagihanPos).forEach(function (slug) {
                     const info = tagihanPos[slug];
@@ -782,21 +885,23 @@
                             ' (termasuk PKPPS jika berlaku). Nominal default terisi otomatis — bisa diubah untuk cicilan.';
                     }
                 }
-                visibleKomponenRows().forEach(function (tr) {
-                    if (tr.style.display === 'none') {
-                        return;
-                    }
-                    const slug = tr.getAttribute('data-slug');
-                    const info = slug ? tagihanPos[slug] : null;
-                    const cb = tr.querySelector('.bayar-pos-check');
-                    const inp = tr.querySelector('.nominal-pos');
-                    if (cb && info && (info.sisa || 0) > 0) {
-                        cb.checked = true;
-                    }
-                    if (inp && nominalFill && nominalFill[slug] > 0) {
-                        inp.value = fmtThousand(nominalFill[slug]);
-                    }
-                });
+                if (!bulanUrutanBlokir) {
+                    visibleKomponenRows().forEach(function (tr) {
+                        if (tr.style.display === 'none') {
+                            return;
+                        }
+                        const slug = tr.getAttribute('data-slug');
+                        const info = slug ? tagihanPos[slug] : null;
+                        const cb = tr.querySelector('.bayar-pos-check');
+                        const inp = tr.querySelector('.nominal-pos');
+                        if (cb && info && (info.sisa || 0) > 0) {
+                            cb.checked = true;
+                        }
+                        if (inp && nominalFill && nominalFill[slug] > 0) {
+                            inp.value = fmtThousand(nominalFill[slug]);
+                        }
+                    });
+                }
                 updateStatusTransaksi();
             })
             .catch(function () {
@@ -1034,8 +1139,12 @@
         btnPilihSemua.addEventListener('click', pilihSemuaSisa);
     }
 
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (ev) {
         resetHiddenKomponenRows();
+        if (isJenisBulanan() && bulanUrutanBlokir) {
+            ev.preventDefault();
+            window.alert(bulanUrutanBlokirPesan || 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.');
+        }
     });
 
     bindOpsionalEditorEvents();

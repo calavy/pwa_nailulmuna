@@ -135,7 +135,9 @@ return [
         '/keuangan/kas.php' => 'Kas Umum',
         '/keuangan/cashless.php' => 'Cashless Koperasi',
         '/keuangan/neraca.php' => 'Neraca',
+        '/keuangan/neraca-perbaikan.php' => 'Saran Perbaikan Neraca',
         '/keuangan/arus-kas.php' => 'Arus Kas',
+        '/keuangan/rekap-kas-bulan.php' => 'Rekap Kas Bulanan',
         '/keuangan/pembayaran.php' => 'Input Pembayaran',
         '/keuangan/tagihan_wali.php' => 'Tagihan Khusus ke Wali',
         '/keuangan/pemasukan.php' => 'Pemasukan Lain',
@@ -225,7 +227,9 @@ return [
             ['title' => 'Ringkasan', 'paths' => [
                 '/keuangan/index.php',
                 '/keuangan/neraca.php',
+                '/keuangan/neraca-perbaikan.php',
                 '/keuangan/arus-kas.php',
+                '/keuangan/rekap-kas-bulan.php',
                 '/pembayaran/rekap_pos.php',
             ]],
             ['title' => 'Transaksi', 'paths' => [

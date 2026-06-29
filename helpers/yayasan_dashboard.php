@@ -504,7 +504,7 @@ function yayasan_dashboard_snapshot(PDO $pdo): array
     if (!$neracaSeimbang) {
         yayasan_dashboard_push_item($perhatian, 'keuangan', 'danger', 'Neraca tidak seimbang',
             'Selisih ' . $fmt(abs($selisih)) . ' per ' . date('d/m/Y') . ' — segera rekonsiliasi jurnal dan saldo akun.',
-            '/keuangan/neraca.php', 'fa-scale-unbalanced');
+            '/keuangan/neraca-perbaikan.php', 'fa-scale-unbalanced');
     }
     if ($piutang > 0 && $persenTertagih < 60) {
         yayasan_dashboard_push_item($perhatian, 'keuangan', 'danger', 'Penagihan kritis',

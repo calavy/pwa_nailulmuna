@@ -99,10 +99,19 @@ foreach ($breakdown as $slug => $row) {
     }
 }
 
+$bulanUrutan = $jenisPeriode === 'BULANAN'
+    ? keuangan_pembayaran_bulan_urutan_map($pdo, $santriId, $tahunMulai, $tahunSelesai)
+    : [];
+$bulanUrutanEntry = $bulanUrutan[$bulanTagihan] ?? null;
+$bulanDiblokir = is_array($bulanUrutanEntry) && !empty($bulanUrutanEntry['dibebankan']) && empty($bulanUrutanEntry['allowed']);
+
 echo json_encode([
     'ok' => true,
     'pos' => $breakdown,
     'nominal_fill' => $nominalFill,
+    'bulan_urutan' => $bulanUrutan,
+    'bulan_diblokir' => $bulanDiblokir,
+    'bulan_blokir_pesan' => $bulanDiblokir ? (string) ($bulanUrutanEntry['message'] ?? '') : '',
     'summary' => [
         'expected_wajib' => $expectedWajib,
         'sisa_wajib' => $sisaWajib,

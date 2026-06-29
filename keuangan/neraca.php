@@ -20,6 +20,8 @@ $print = isset($_GET['print']) && (string) $_GET['print'] === '1';
 $neraca = keuangan_build_neraca($pdo, $asOfInput);
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 $ring = $neraca['ringkasan'] ?? [];
+$selisihNeraca = (int) ($neraca['selisih'] ?? 0);
+$seimbang = abs($selisihNeraca) < 1;
 
 if ($print) {
     header('Content-Type: text/html; charset=utf-8');
@@ -50,14 +52,32 @@ require_once __DIR__ . '/../includes/header.php';
                 <label class="form-label small">Per tanggal</label>
                 <input type="date" name="per" class="form-control" value="<?= htmlspecialchars((string) $neraca['as_of']) ?>">
             </div>
-            <div class="col-md-4 d-flex gap-2">
+            <div class="col-md-4 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
                 <a class="btn btn-outline-secondary" href="/keuangan/neraca.php?per=<?= urlencode((string) $neraca['as_of']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <?php if (!$seimbang): ?>
+                <a class="btn btn-warning" href="/keuangan/neraca-perbaikan.php?per=<?= urlencode((string) $neraca['as_of']) ?>">
+                    <i class="fa-solid fa-wrench me-1"></i> Saran perbaikan
+                </a>
+                <?php endif; ?>
                 <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
             </div>
         </form>
     </div>
 </div>
+
+<?php if (!$seimbang): ?>
+<div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <span>
+        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+        Neraca belum seimbang — selisih <strong><?= htmlspecialchars($fmt(abs($selisihNeraca))) ?></strong>.
+        Gunakan panduan perbaikan untuk menelusuri penyebab dan langkah koreksi.
+    </span>
+    <a href="/keuangan/neraca-perbaikan.php?per=<?= urlencode((string) $neraca['as_of']) ?>" class="btn btn-sm btn-warning">
+        Buka saran perbaikan
+    </a>
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-3">
     <div class="col-md-3">
@@ -81,21 +101,34 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-md-3">
         <div class="app-mini-stat">
             <div class="app-mini-stat-label">Status neraca</div>
-            <div class="app-mini-stat-value text-success">Seimbang</div>
+            <div class="app-mini-stat-value <?= $seimbang ? 'text-success' : 'text-danger' ?>"><?= $seimbang ? 'Seimbang' : 'Selisih ' . htmlspecialchars($fmt(abs($selisihNeraca))) ?></div>
         </div>
     </div>
 </div>
 
+<?php if ((int) ($ring['pendapatan_iuran'] ?? $ring['pendapatan_pembayaran'] ?? 0) > 0): ?>
+<p class="small text-muted mb-2">
+    Penerimaan iuran santri (kumulatif, tidak termasuk saku):
+    <strong><?= htmlspecialchars($fmt((int) ($ring['pendapatan_iuran'] ?? $ring['pendapatan_pembayaran'] ?? 0))) ?></strong>
+</p>
+<?php endif; ?>
 <?php if ((int) ($ring['pendapatan_saku'] ?? 0) > 0): ?>
-<p class="small text-muted mb-3">
+<p class="small text-muted mb-2">
     Pembayaran pos <strong>Saku</strong> (<?= htmlspecialchars($fmt((int) $ring['pendapatan_saku'])) ?>)
-    dicatat sebagai liabilitas titipan santri, bukan pendapatan aset neto.
+    dicatat sebagai liabilitas titipan santri, bukan iuran.
+</p>
+<?php endif; ?>
+<?php if ((int) ($ring['pendapatan_donasi'] ?? 0) > 0): ?>
+<p class="small text-muted mb-2">
+    Penerimaan donasi/infaq (kumulatif):
+    <strong><?= htmlspecialchars($fmt((int) $ring['pendapatan_donasi'])) ?></strong>
+    — masuk pemasukan lain-lain pada arus kas operasi.
 </p>
 <?php endif; ?>
 <?php if ((int) ($ring['pendapatan_lain'] ?? 0) > 0): ?>
 <p class="small text-muted mb-3">
-    Pemasukan dari sumber lain (donasi, hibah, dll.): <strong><?= htmlspecialchars($fmt((int) $ring['pendapatan_lain'])) ?></strong>
-    — termasuk dalam surplus operasional aset neto.
+    Pemasukan lain-lain non-donasi (bunga bank, dll.):
+    <strong><?= htmlspecialchars($fmt((int) $ring['pendapatan_lain'])) ?></strong>
 </p>
 <?php endif; ?>
 

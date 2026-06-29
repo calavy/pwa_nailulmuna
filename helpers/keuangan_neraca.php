@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/keuangan_typography.php';
 require_once __DIR__ . '/keuangan_akun_mutasi.php';
+require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 
 /**
  * Susun Laporan Posisi Keuangan (Neraca) pondok — PAP / ISAK 35.
@@ -173,39 +174,62 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
     $totalLiabilitas = array_sum(array_column($liabBaris, 'nominal'));
 
-    // Aset neto — COA + surplus operasional, lalu disesuaikan agar neraca selalu seimbang
-    $asetNetoCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'ASET_NETO');
-    $totalAsetNetoCoa = array_sum(array_column($asetNetoCoaBaris, 'nominal'));
+    // Aset neto — saldo ekuitas dari operasional (tanpa penyesuaian paksa)
+    $asetNetoCoaBaris = keuangan_neraca_baris_from_coa(
+        $coaSaldo,
+        'ASET_NETO',
+        ['4101', '4102', '4103', '4199', '4201']
+    );
 
     $ringkasanOperasi = keuangan_neraca_ringkasan_operasi($pdo, $asOf);
-    $surplusOperasi = (int) ($ringkasanOperasi['surplus_operasi'] ?? 0);
-
-    // Identitas: Aktiva = Liabilitas + Aset Neto
-    $totalAsetNeto = $totalAset - $totalLiabilitas;
-    $penyesuaianNeraca = $totalAsetNeto - $totalAsetNetoCoa - $surplusOperasi;
 
     $asetNetoBaris = $asetNetoCoaBaris;
-    if ($surplusOperasi !== 0) {
+    if ((int) ($ringkasanOperasi['pendapatan_iuran'] ?? 0) > 0) {
         $asetNetoBaris[] = [
-            'label' => 'Surplus/(defisit) operasional (tanpa titipan saku)',
-            'nominal' => $surplusOperasi,
+            'label' => 'Akumulasi penerimaan iuran santri (tidak termasuk saku)',
+            'nominal' => (int) $ringkasanOperasi['pendapatan_iuran'],
             'indent' => true,
         ];
     }
-    if ($penyesuaianNeraca !== 0) {
+    if ((int) ($ringkasanOperasi['pendapatan_donasi'] ?? 0) > 0) {
         $asetNetoBaris[] = [
-            'label' => 'Penyesuaian penyeimbang neraca',
-            'nominal' => $penyesuaianNeraca,
+            'label' => 'Akumulasi penerimaan donasi/infaq',
+            'nominal' => (int) $ringkasanOperasi['pendapatan_donasi'],
             'indent' => true,
         ];
     }
-    if ($asetNetoBaris === [] && $totalAsetNeto !== 0) {
+    if ((int) ($ringkasanOperasi['pendapatan_lain'] ?? 0) > 0) {
         $asetNetoBaris[] = [
-            'label' => 'Aset neto (saldo awal / simulasi)',
-            'nominal' => $totalAsetNeto,
+            'label' => 'Akumulasi pemasukan lain-lain',
+            'nominal' => (int) $ringkasanOperasi['pendapatan_lain'],
             'indent' => true,
         ];
     }
+    $beban = (int) ($ringkasanOperasi['beban'] ?? 0);
+    if ($beban > 0) {
+        $asetNetoBaris[] = [
+            'label' => 'Dikurangi: Beban operasional',
+            'nominal' => -$beban,
+            'indent' => true,
+        ];
+    }
+    $penyusutan = (int) ($ringkasanOperasi['penyusutan'] ?? 0);
+    if ($penyusutan > 0) {
+        $asetNetoBaris[] = [
+            'label' => 'Dikurangi: Penyusutan aset tetap',
+            'nominal' => -$penyusutan,
+            'indent' => true,
+        ];
+    }
+    if ($asetNetoBaris === []) {
+        $asetNetoBaris[] = [
+            'label' => 'Aset neto (belum ada mutasi)',
+            'nominal' => 0,
+            'indent' => true,
+        ];
+    }
+
+    $totalAsetNeto = array_sum(array_column($asetNetoBaris, 'nominal'));
 
     $asetNetoSections = [];
     if ($asetNetoBaris !== []) {
@@ -228,7 +252,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
         'total_pasiva' => $totalPasiva,
         'selisih' => $totalAset - $totalPasiva,
         'ringkasan' => $ringkasanOperasi,
-        'penyesuaian_neraca' => $penyesuaianNeraca,
+        'transaksi_tanpa_jurnal' => keuangan_rekonsiliasi_transaksi_tanpa_jurnal($pdo, '2000-01-01', $asOf),
     ];
 }
 
@@ -239,6 +263,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
  *   pendapatan_total:int,
  *   pendapatan_saku:int,
  *   pendapatan_pembayaran:int,
+ *   pendapatan_donasi:int,
  *   pendapatan_lain:int,
  *   pendapatan_operasi:int,
  *   beban:int,
@@ -297,20 +322,33 @@ function keuangan_neraca_ringkasan_operasi(PDO $pdo, string $asOf): array
 
     $pendapatanPembayaran = max(0, $pendapatanTotal - $pendapatanSaku);
 
+    $pendapatanDonasi = 0;
     $pendapatanLain = 0;
     if (table_exists($pdo, 'keuangan_pemasukan')) {
-        $lainStmt = $pdo->prepare('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pemasukan WHERE tanggal <= :t');
+        $lainStmt = $pdo->prepare('SELECT sumber, COALESCE(SUM(nominal), 0) AS total FROM keuangan_pemasukan WHERE tanggal <= :t GROUP BY sumber');
         $lainStmt->execute(['t' => $asOf]);
-        $pendapatanLain = (int) round((float) ($lainStmt->fetchColumn() ?: 0));
+        foreach ($lainStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $nom = (int) round((float) ($row['total'] ?? 0));
+            if ($nom === 0) {
+                continue;
+            }
+            if (keuangan_pemasukan_kategori_sumber((string) ($row['sumber'] ?? '')) === 'donasi') {
+                $pendapatanDonasi += $nom;
+            } else {
+                $pendapatanLain += $nom;
+            }
+        }
     }
 
-    $pendapatanOperasi = $pendapatanPembayaran + $pendapatanLain;
+    $pendapatanOperasi = $pendapatanPembayaran + $pendapatanDonasi + $pendapatanLain;
     $surplusOperasi = $pendapatanOperasi - $beban - $penyusutan;
 
     return [
         'pendapatan_total' => $pendapatanTotal,
         'pendapatan_saku' => $pendapatanSaku,
         'pendapatan_pembayaran' => $pendapatanPembayaran,
+        'pendapatan_iuran' => $pendapatanPembayaran,
+        'pendapatan_donasi' => $pendapatanDonasi,
         'pendapatan_lain' => $pendapatanLain,
         'pendapatan_operasi' => $pendapatanOperasi,
         'beban' => $beban,
@@ -534,6 +572,7 @@ body.neraca-page .neraca-report-body { padding: 1.25rem 1.5rem !important; overf
 .neraca-balance-note { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
 .neraca-balance-note.ok { color: #0f766e; }
 .neraca-balance-note.warn { color: #b45309; }
+.neraca-diagnostik { margin-top: 1rem; padding: 1rem; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; font-size: 0.88rem; }
 @media (min-width: 1400px) {
     .neraca-kolom table { font-size: 1rem; }
     .neraca-kolom .amt { font-size: 0.98rem; }
@@ -588,11 +627,36 @@ function keuangan_neraca_render_html(array $neraca, callable $fmt): void
 
     $selisih = (int) ($neraca['selisih'] ?? 0);
     if ($selisih !== 0) {
-        echo '<p class="neraca-balance-note warn">Selisih neraca ' . htmlspecialchars($fmt($selisih)) . ' — periksa jurnal dan saldo operasional.</p>';
+        echo '<p class="neraca-balance-note warn">Selisih neraca ' . htmlspecialchars($fmt($selisih)) . ' — aktiva dan pasiva belum seimbang.</p>';
+        echo '<p class="neraca-balance-note text-center"><a href="' . htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php?per=' . urlencode((string) ($neraca['as_of'] ?? '')))) . '">Buka saran perbaikan neraca</a></p>';
+        keuangan_neraca_render_diagnostik($neraca, $fmt);
     } else {
         echo '<p class="neraca-balance-note ok">Neraca seimbang: Jumlah Aktiva = Jumlah Pasiva.</p>';
     }
     echo '</div>';
+}
+
+/**
+ * @param callable(int): string $fmt
+ */
+function keuangan_neraca_render_diagnostik(array $neraca, callable $fmt): void
+{
+    $pending = $neraca['transaksi_tanpa_jurnal'] ?? [];
+    if (!is_array($pending) || $pending === []) {
+        return;
+    }
+    echo '<div class="neraca-diagnostik">';
+    echo '<p class="fw-semibold mb-1">Transaksi operasional tanpa jurnal otomatis (' . count($pending) . ' terakhir):</p>';
+    echo '<table class="table table-sm table-bordered mb-0"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th class="text-end">Nominal</th></tr></thead><tbody>';
+    foreach (array_slice($pending, 0, 15) as $tx) {
+        echo '<tr>';
+        echo '<td>' . htmlspecialchars((string) ($tx['tanggal'] ?? '')) . '</td>';
+        echo '<td>' . htmlspecialchars((string) ($tx['tipe'] ?? '')) . ' #' . (int) ($tx['id'] ?? 0) . '</td>';
+        echo '<td>' . htmlspecialchars((string) ($tx['keterangan'] ?? '')) . '</td>';
+        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tx['nominal'] ?? 0))) . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table></div>';
 }
 
 /**

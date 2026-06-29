@@ -58,6 +58,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-md-6 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
                 <a class="btn btn-outline-secondary" href="/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <a class="btn btn-outline-primary" href="/keuangan/rekap-kas-bulan.php">Rekap kas bulanan</a>
                 <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
                 <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
             </div>
@@ -68,20 +69,20 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="row g-3 mb-3">
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Kas operasi</div>
+            <div class="app-mini-stat-label">Iuran santri (operasi)</div>
+            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_iuran'] ?? 0))) ?></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="app-mini-stat">
+            <div class="app-mini-stat-label">Donasi/infaq (operasi)</div>
+            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_donasi'] ?? 0))) ?></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="app-mini-stat">
+            <div class="app-mini-stat-label">Kas bersih operasi</div>
             <div class="app-mini-stat-value <?= (int) $lak['operasi']['total'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= htmlspecialchars($fmt((int) $lak['operasi']['total'])) ?></div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Kas investasi</div>
-            <div class="app-mini-stat-value text-danger"><?= htmlspecialchars($fmt((int) $lak['investasi']['total'])) ?></div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Kas pendanaan</div>
-            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) $lak['pendanaan']['total'])) ?></div>
         </div>
     </div>
     <div class="col-md-3">

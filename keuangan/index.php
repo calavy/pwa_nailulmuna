@@ -109,6 +109,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="dash-kpi-value fs-6"><?= $seimbang ? 'Seimbang' : 'Belum seimbang' ?></div>
                         <?php if (!$seimbang): ?>
                             <div class="small text-danger">Selisih <?= htmlspecialchars($formatRupiah(abs((int) $ner['selisih']))) ?></div>
+                            <a href="/keuangan/neraca-perbaikan.php" class="small">Saran perbaikan →</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -303,6 +304,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="mb-3">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
+                    <?php if (empty($nerSnap['seimbang']) && (int) ($nerSnap['selisih'] ?? 0) !== 0): ?>
+                    <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Saran perbaikan</a>
+                    <?php endif; ?>
                     <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
                 </div>
             </div>

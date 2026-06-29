@@ -267,3 +267,163 @@ function keuangan_jurnal_capex_aset(PDO $pdo, int $asetId, string $tanggal, int 
     $ket = 'Perolehan aset tetap: ' . $namaAset;
     keuangan_jurnal_post($pdo, $tanggal, $lines, 'aset_tetap', $asetId, $userId, $ket);
 }
+
+/**
+ * Buat jurnal otomatis untuk transaksi operasional yang belum punya jurnal.
+ *
+ * @return array{ok:bool,message:string,posted:array{pembayaran:int,pemasukan:int,pengeluaran:int},dilewati:int,gagal:list<string>}
+ */
+function keuangan_jurnal_backfill_operasional(PDO $pdo, string $asOf, int $userId, int $limit = 200): array
+{
+    ensure_keuangan_jurnal_tables($pdo);
+    if (!table_exists($pdo, 'akuntansi_jurnal_umum')) {
+        return ['ok' => false, 'message' => 'Tabel jurnal belum tersedia.', 'posted' => ['pembayaran' => 0, 'pemasukan' => 0, 'pengeluaran' => 0], 'dilewati' => 0, 'gagal' => []];
+    }
+
+    $posted = ['pembayaran' => 0, 'pemasukan' => 0, 'pengeluaran' => 0];
+    $dilewati = 0;
+    $gagal = [];
+    $limit = max(1, min(500, $limit));
+
+    if (table_exists($pdo, 'keuangan_pembayaran')) {
+        $st = $pdo->prepare("
+            SELECT p.id, p.tanggal_bayar, p.total_nominal, p.akun_id, p.jenis_periode
+            FROM keuangan_pembayaran p
+            WHERE p.tanggal_bayar <= :as_of
+              AND p.akun_id IS NOT NULL AND p.akun_id > 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM akuntansi_jurnal_umum j
+                  WHERE j.ref_type = 'pembayaran' AND j.ref_id = p.id
+              )
+            ORDER BY p.tanggal_bayar ASC, p.id ASC
+            LIMIT {$limit}
+        ");
+        $st->execute(['as_of' => $asOf]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $pid = (int) ($row['id'] ?? 0);
+            $detailRows = [];
+            if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
+                $det = $pdo->prepare('SELECT pos_slug AS slug, pos_nama AS nama, nominal FROM keuangan_pembayaran_detail WHERE pembayaran_id = :id');
+                $det->execute(['id' => $pid]);
+                foreach ($det->fetchAll(PDO::FETCH_ASSOC) as $dr) {
+                    $nom = (int) round((float) ($dr['nominal'] ?? 0));
+                    if ($nom <= 0) {
+                        continue;
+                    }
+                    $detailRows[] = [
+                        'slug' => (string) ($dr['slug'] ?? ''),
+                        'nama' => (string) ($dr['nama'] ?? ''),
+                        'nominal' => $nom,
+                    ];
+                }
+            }
+            if ($detailRows === []) {
+                $dilewati++;
+                continue;
+            }
+            $jenis = strtoupper((string) ($row['jenis_periode'] ?? 'BULANAN'));
+            $kat = $jenis === 'AWAL_TAHUN' ? 'Awal Tahun' : 'Bulanan';
+            try {
+                keuangan_jurnal_pembayaran(
+                    $pdo,
+                    $pid,
+                    (string) ($row['tanggal_bayar'] ?? date('Y-m-d')),
+                    (int) ($row['akun_id'] ?? 0),
+                    (int) round((float) ($row['total_nominal'] ?? 0)),
+                    $detailRows,
+                    $kat,
+                    $userId
+                );
+                if (keuangan_jurnal_ref_exists($pdo, 'pembayaran', $pid)) {
+                    $posted['pembayaran']++;
+                }
+            } catch (Throwable $e) {
+                $gagal[] = 'Pembayaran #' . $pid . ': ' . $e->getMessage();
+            }
+        }
+    }
+
+    if (table_exists($pdo, 'keuangan_pemasukan')) {
+        $st = $pdo->prepare("
+            SELECT p.id, p.tanggal, p.nominal, p.akun_id, p.sumber
+            FROM keuangan_pemasukan p
+            WHERE p.tanggal <= :as_of
+              AND p.akun_id IS NOT NULL AND p.akun_id > 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM akuntansi_jurnal_umum j
+                  WHERE j.ref_type = 'pemasukan' AND j.ref_id = p.id
+              )
+            ORDER BY p.tanggal ASC, p.id ASC
+            LIMIT {$limit}
+        ");
+        $st->execute(['as_of' => $asOf]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            try {
+                keuangan_jurnal_pemasukan(
+                    $pdo,
+                    $id,
+                    (string) ($row['tanggal'] ?? date('Y-m-d')),
+                    (int) ($row['akun_id'] ?? 0),
+                    (int) round((float) ($row['nominal'] ?? 0)),
+                    (string) ($row['sumber'] ?? ''),
+                    $userId
+                );
+                if (keuangan_jurnal_ref_exists($pdo, 'pemasukan', $id)) {
+                    $posted['pemasukan']++;
+                }
+            } catch (Throwable $e) {
+                $gagal[] = 'Pemasukan #' . $id . ': ' . $e->getMessage();
+            }
+        }
+    }
+
+    if (table_exists($pdo, 'keuangan_pengeluaran')) {
+        $st = $pdo->prepare("
+            SELECT p.id, p.tanggal, p.nominal, p.akun_id, p.pos
+            FROM keuangan_pengeluaran p
+            WHERE p.tanggal <= :as_of
+              AND p.akun_id IS NOT NULL AND p.akun_id > 0
+              AND (p.pos IS NULL OR p.pos NOT LIKE 'Belanja Modal%')
+              AND NOT EXISTS (
+                  SELECT 1 FROM akuntansi_jurnal_umum j
+                  WHERE j.ref_type = 'pengeluaran' AND j.ref_id = p.id
+              )
+            ORDER BY p.tanggal ASC, p.id ASC
+            LIMIT {$limit}
+        ");
+        $st->execute(['as_of' => $asOf]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            try {
+                keuangan_jurnal_pengeluaran(
+                    $pdo,
+                    $id,
+                    (string) ($row['tanggal'] ?? date('Y-m-d')),
+                    (int) ($row['akun_id'] ?? 0),
+                    (int) round((float) ($row['nominal'] ?? 0)),
+                    (string) ($row['pos'] ?? ''),
+                    $userId
+                );
+                if (keuangan_jurnal_ref_exists($pdo, 'pengeluaran', $id)) {
+                    $posted['pengeluaran']++;
+                }
+            } catch (Throwable $e) {
+                $gagal[] = 'Pengeluaran #' . $id . ': ' . $e->getMessage();
+            }
+        }
+    }
+
+    $totalPosted = $posted['pembayaran'] + $posted['pemasukan'] + $posted['pengeluaran'];
+    $msg = $totalPosted > 0
+        ? 'Jurnal berhasil dibuat: ' . $posted['pembayaran'] . ' pembayaran, ' . $posted['pemasukan'] . ' pemasukan, ' . $posted['pengeluaran'] . ' pengeluaran.'
+        : 'Tidak ada jurnal baru yang dibuat. Perbaiki akun kas/bank pada transaksi yang belum lengkap.';
+
+    return [
+        'ok' => $totalPosted > 0 || $dilewati === 0,
+        'message' => $msg,
+        'posted' => $posted,
+        'dilewati' => $dilewati,
+        'gagal' => $gagal,
+    ];
+}
