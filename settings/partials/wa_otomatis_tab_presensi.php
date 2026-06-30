@@ -80,6 +80,14 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                 <div class="form-text small">Isi daftar hadir, izin, dan tidak hadir dari halaman <a href="<?= htmlspecialchars(app_href('/yayasan/musyawarah_presensi.php')) ?>">Presensi Musyawarah</a> — scan di <a href="<?= htmlspecialchars(app_href('/yayasan/scan_musyawarah.php')) ?>">Scan Musyawarah</a>.</div>
             </div>
             <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12"><h3 class="h6 text-primary mb-2">Kegiatan kosong → WA otomatis</h3></div>
+            <div class="col-12">
+                <p class="small text-muted mb-2">
+                    Sistem mengecek slot jadwal aktif (setelah batas menit dari jam mulai).
+                    Deteksi ke-1 dikirim ke petugas pendidikan; setelah berturut-turut N kali (default 3) dikirim ke
+                    <strong>nomor pengurus</strong> (tab Alpa) kecuali diisi override di bawah.
+                </p>
+            </div>
             <div class="col-md-3">
                 <label class="form-label">Aktifkan</label>
                 <select class="form-select" name="wa_kelas_kosong_enabled">
@@ -92,12 +100,16 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                 <input type="number" min="5" max="180" class="form-control" name="wa_kelas_kosong_batas_menit" value="<?= htmlspecialchars((string) (($values['wa_kelas_kosong_batas_menit'] ?? '') !== '' ? $values['wa_kelas_kosong_batas_menit'] : '20')) ?>">
             </div>
             <div class="col-md-3">
-                <label class="form-label">Tujuan laporan ke-1</label>
-                <input type="text" class="form-control" name="wa_kelas_kosong_target_1" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_1'] ?? '')) ?>" placeholder="Nomor atau grup">
+                <label class="form-label">Eskalasi ke pengurus (x deteksi)</label>
+                <input type="number" min="2" max="10" class="form-control" name="wa_kelas_kosong_batas_kali" value="<?= htmlspecialchars((string) (($values['wa_kelas_kosong_batas_kali'] ?? '') !== '' ? $values['wa_kelas_kosong_batas_kali'] : '3')) ?>">
             </div>
             <div class="col-md-3">
-                <label class="form-label">Tujuan laporan ke-3</label>
-                <input type="text" class="form-control" name="wa_kelas_kosong_target_3" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_3'] ?? '')) ?>" placeholder="Eskalasi">
+                <label class="form-label">Tujuan laporan awal <span class="text-muted">(opsional)</span></label>
+                <input type="text" class="form-control" name="wa_kelas_kosong_target_1" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_1'] ?? '')) ?>" placeholder="Kosong = petugas pendidikan">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Tujuan eskalasi <span class="text-muted">(opsional)</span></label>
+                <input type="text" class="form-control" name="wa_kelas_kosong_target_3" value="<?= htmlspecialchars((string) ($values['wa_kelas_kosong_target_3'] ?? '')) ?>" placeholder="Kosong = nomor pengurus (<?= (int) ($pengurusWaCount ?? 0) ?> terdaftar)">
             </div>
             <div class="col-12">
                 <div class="alert alert-secondary py-2 small mb-0">

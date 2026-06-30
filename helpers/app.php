@@ -284,6 +284,7 @@ function app_run_deferred_maintenance(PDO $pdo, int $userId): void
     sync_points_from_presensi($pdo, $userId);
     trigger_auto_wa_notifications($pdo);
     trigger_auto_wa_tagihan_wali($pdo);
+    require_once __DIR__ . '/wa_kegiatan_kosong.php';
     trigger_wa_kelas_kosong_bertahap($pdo);
 
     save_setting($pdo, 'app_maintenance_last_at', (string) $now);
@@ -300,7 +301,7 @@ function wa_cleanup_old_debounce_keys(PDO $pdo, int $keepDays = 30): int
         return 0;
     }
     $cutoffDate = date('Y-m-d', $cutoffTs);
-    $patterns = ['wa_pb_scan_sent_%', 'wa_mw_scan_sent_%', 'wa_mudabir_missing_%'];
+    $patterns = ['wa_pb_scan_sent_%', 'wa_mw_scan_sent_%', 'wa_mudabir_missing_%', 'wa_kelas_kosong_counter_%', 'wa_kelas_kosong_ok_%'];
     $deleted = 0;
     foreach ($patterns as $pattern) {
         $st = $pdo->prepare('SELECT setting_key FROM app_settings WHERE setting_key LIKE :p');
@@ -556,6 +557,7 @@ function pondok_settings_defaults(): array
         'mudabir_batas_menit' => '30',
         'wa_kelas_kosong_enabled' => '1',
         'wa_kelas_kosong_batas_menit' => '20',
+        'wa_kelas_kosong_batas_kali' => '3',
         'wa_kelas_kosong_target_1' => '',
         'wa_kelas_kosong_target_3' => '',
         'jam_kirim_wa_auto' => '',
@@ -1504,161 +1506,6 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
             }
         }
         save_setting($pdo, 'wa_mudabir_last_sent_at', date('Y-m-d H:i:s'));
-    }
-}
-
-/**
- * Notifikasi kelas kosong bertahap:
- * - laporan ke-1  -> target level 1
- * - laporan ke-3  -> target level 3 (eskalasi)
- *
- * Kelas dianggap kosong jika pada slot aktif tidak ada scan pembimbing
- * terjadwal dan tidak ada scan munawib pada kegiatan tersebut.
- */
-function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
-{
-    require_once __DIR__ . '/wa_otomatis.php';
-    if (!wa_otomatis_should_run($pdo, 'general')) {
-        return;
-    }
-    if (!table_exists($pdo, 'jadwal_kegiatan')
-        || !table_exists($pdo, 'kegiatan')
-        || !table_exists($pdo, 'pembimbing')
-        || !table_exists($pdo, 'presensi_pembimbing')
-        || !table_exists($pdo, 'presensi_munawib')) {
-        return;
-    }
-
-    $enabled = trim((string) app_setting($pdo, 'wa_kelas_kosong_enabled', '1')) === '1';
-    if (!$enabled) {
-        return;
-    }
-    if (wa_otomatis_gateway_error($pdo) !== null) {
-        return;
-    }
-
-    $target1 = trim((string) app_setting($pdo, 'wa_kelas_kosong_target_1', ''));
-    $target3 = trim((string) app_setting($pdo, 'wa_kelas_kosong_target_3', ''));
-    if ($target1 === '' && $target3 === '') {
-        return;
-    }
-
-    $batasMenit = max(5, (int) app_setting($pdo, 'wa_kelas_kosong_batas_menit', '20'));
-    $tanggal = date('Y-m-d');
-    $jamSekarang = date('H:i:s');
-    $hariKe = (int) date('N', strtotime($tanggal));
-
-    $sql = '
-        SELECT
-            j.id AS jadwal_id,
-            j.kegiatan_id,
-            j.pembimbing_id,
-            j.jam_mulai,
-            j.jam_selesai,
-            COALESCE(j.tingkatan, "") AS tingkatan,
-            COALESCE(j.tempat, "") AS tempat,
-            COALESCE(k.nama_kegiatan, "Kegiatan") AS nama_kegiatan,
-            COALESCE(b.nama_pembimbing, "-") AS nama_pembimbing
-        FROM jadwal_kegiatan j
-        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-        LEFT JOIN pembimbing b ON b.id = j.pembimbing_id
-        WHERE j.pembimbing_id IS NOT NULL
-          AND j.pembimbing_id > 0
-          AND k.is_active = 1
-          AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
-          AND :jam_now BETWEEN ADDTIME(j.jam_mulai, SEC_TO_TIME(:batas_sec)) AND j.jam_selesai
-        ORDER BY j.jam_mulai ASC, j.id ASC
-    ';
-    $st = $pdo->prepare($sql);
-    $st->execute([
-        'hari_ke' => $hariKe,
-        'jam_now' => $jamSekarang,
-        'batas_sec' => $batasMenit * 60,
-    ]);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    if ($rows === []) {
-        return;
-    }
-
-    foreach ($rows as $r) {
-        $jadwalId = (int) ($r['jadwal_id'] ?? 0);
-        $kegiatanId = (int) ($r['kegiatan_id'] ?? 0);
-        $pembimbingId = (int) ($r['pembimbing_id'] ?? 0);
-        if ($jadwalId <= 0 || $kegiatanId <= 0 || $pembimbingId <= 0) {
-            continue;
-        }
-
-        $stPb = $pdo->prepare('
-            SELECT id
-            FROM presensi_pembimbing
-            WHERE pembimbing_id = :pid
-              AND kegiatan_id = :kid
-              AND tanggal = :tgl
-            LIMIT 1
-        ');
-        $stPb->execute(['pid' => $pembimbingId, 'kid' => $kegiatanId, 'tgl' => $tanggal]);
-        $hadirPembimbing = (int) ($stPb->fetchColumn() ?: 0) > 0;
-
-        $stMw = $pdo->prepare('
-            SELECT id
-            FROM presensi_munawib
-            WHERE kegiatan_id = :kid
-              AND tanggal = :tgl
-            LIMIT 1
-        ');
-        $stMw->execute(['kid' => $kegiatanId, 'tgl' => $tanggal]);
-        $hadirMunawib = (int) ($stMw->fetchColumn() ?: 0) > 0;
-
-        if ($hadirPembimbing || $hadirMunawib) {
-            continue;
-        }
-
-        $counterKey = 'wa_kelas_kosong_counter_' . $tanggal . '_' . $jadwalId;
-        $counter = (int) app_setting($pdo, $counterKey, '0');
-        $counter++;
-        save_setting($pdo, $counterKey, (string) $counter);
-
-        $sentKey1 = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_1';
-        $sentKey3 = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_3';
-
-        $jamMulai = substr((string) ($r['jam_mulai'] ?? '00:00:00'), 0, 5);
-        $jamSelesai = substr((string) ($r['jam_selesai'] ?? '00:00:00'), 0, 5);
-        $tingkatan = trim((string) ($r['tingkatan'] ?? ''));
-        $tempat = trim((string) ($r['tempat'] ?? ''));
-
-        $levels = [];
-        if ($counter >= 1 && trim((string) app_setting($pdo, $sentKey1, '')) !== '1' && $target1 !== '') {
-            $levels[] = ['level' => 1, 'target' => $target1, 'sent_key' => $sentKey1];
-        }
-        if ($counter >= 3 && trim((string) app_setting($pdo, $sentKey3, '')) !== '1' && $target3 !== '') {
-            $levels[] = ['level' => 3, 'target' => $target3, 'sent_key' => $sentKey3];
-        }
-        if ($levels === []) {
-            continue;
-        }
-
-        foreach ($levels as $lv) {
-            $lines = [];
-            $lines[] = '⚠️ Laporan kelas kosong (ke-' . (int) $lv['level'] . ')';
-            $lines[] = 'Tanggal: ' . date('d/m/Y');
-            $lines[] = 'Kegiatan: ' . (string) ($r['nama_kegiatan'] ?? 'Kegiatan');
-            $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
-            $lines[] = 'Kelas/Tingkatan: ' . ($tingkatan !== '' ? $tingkatan : '-');
-            if ($tempat !== '') {
-                $lines[] = 'Tempat: ' . $tempat;
-            }
-            $lines[] = 'Pembimbing jadwal: ' . (string) ($r['nama_pembimbing'] ?? '-');
-            $lines[] = 'Status: belum ada scan pembimbing maupun munawib.';
-            $lines[] = 'ID Jadwal: #' . $jadwalId;
-            $message = implode("\n", $lines);
-
-            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message);
-            if ((int) ($bulk['sent'] ?? 0) > 0) {
-                save_setting($pdo, (string) $lv['sent_key'], '1');
-                save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
-                save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);
-            }
-        }
     }
 }
 

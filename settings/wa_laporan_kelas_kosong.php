@@ -52,7 +52,7 @@ if ($hasWaLogs) {
     ';
     $st = $pdo->prepare($sql);
     $st->execute([
-        'msg' => '⚠️ Laporan kelas kosong%',
+        'msg' => '⚠️ Laporan %kosong%',
         'from' => $dateFrom,
         'to' => $dateTo,
     ]);
@@ -68,7 +68,7 @@ if ($hasWaLogs) {
           AND DATE(created_at) BETWEEN :from AND :to
     ');
     $stSum->execute([
-        'msg' => '⚠️ Laporan kelas kosong%',
+        'msg' => '⚠️ Laporan %kosong%',
         'from' => $dateFrom,
         'to' => $dateTo,
     ]);

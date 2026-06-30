@@ -19,7 +19,7 @@ $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
     'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
-    'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit',
+    'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali',
     'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
     'wa_musyawarah_enabled', 'wa_musyawarah_target', 'wa_musyawarah_auto_selesai',
     'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit',
@@ -116,9 +116,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
     } elseif ($action === 'save_presensi') {
-        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_musyawarah_target'] as $field) {
+        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_musyawarah_target'] as $field) {
             if (array_key_exists($field, $_POST)) {
-                save_setting($pdo, $field, trim((string) $_POST[$field]));
+                if ($field === 'wa_kelas_kosong_batas_kali') {
+                    save_setting($pdo, $field, (string) max(2, min(10, (int) $_POST[$field])));
+                } else {
+                    save_setting($pdo, $field, trim((string) $_POST[$field]));
+                }
             }
         }
         save_setting($pdo, 'wa_pembimbing_scan_enabled', isset($_POST['wa_pembimbing_scan_enabled']) ? '1' : '0');

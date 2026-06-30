@@ -27,6 +27,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
             '/jadwal/index.php' => 'Jadwal Kegiatan',
             '/settings/profil.php' => 'Profil & Password',
         '/settings/akses_saya.php' => 'Hak Akses Saya',
+        '/catatan/index.php' => 'Buku Catatan',
             '/pembimbing/setoran_dashboard.php' => 'Portal Setoran Hafalan',
         ],
         'menuStructure' => [
@@ -41,6 +42,7 @@ if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
                     '/pembimbing/perizinan.php',
                     '/jadwal/index.php',
                     '/settings/profil.php',
+                    '/catatan/index.php',
                     '/pembimbing/setoran_dashboard.php',
                 ]],
             ]],
@@ -200,6 +202,7 @@ return [
         '/yayasan/executive.php' => 'Executive Summary',
         '/settings/profil.php' => 'Profil & Password',
         '/settings/akses_saya.php' => 'Hak Akses Saya',
+        '/catatan/index.php' => 'Buku Catatan',
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],
@@ -298,6 +301,7 @@ return [
             ]],
         ]],
         ['type' => 'item', 'path' => '/yayasan/operasional.php', 'icon' => 'fa-solid fa-building-columns', 'match_prefix' => '/yayasan/'],
+        ['type' => 'item', 'path' => '/catatan/index.php', 'icon' => 'fa-solid fa-book'],
         ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [
             ['title' => 'Umum', 'paths' => [
                 '/settings/pesantren.php',

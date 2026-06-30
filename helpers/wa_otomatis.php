@@ -632,6 +632,7 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
     trigger_auto_wa_tagihan_wali($pdo);
     $results['tagihan']['ran'] = true;
 
+    require_once __DIR__ . '/wa_kegiatan_kosong.php';
     trigger_wa_kelas_kosong_bertahap($pdo);
     $results['kelas_kosong']['ran'] = true;
 
@@ -681,6 +682,10 @@ function wa_auto_run_tick(PDO $pdo): array
                 require_once __DIR__ . '/wa_yayasan_tugas.php';
             }
             trigger_wa_yayasan_tugas_belum_progres($pdo);
+            if (!function_exists('trigger_wa_kelas_kosong_bertahap')) {
+                require_once __DIR__ . '/wa_kegiatan_kosong.php';
+            }
+            trigger_wa_kelas_kosong_bertahap($pdo);
             save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
         }
 

@@ -339,6 +339,8 @@ function user_permission_path_map_base(): array
         '/admin/cek_update.php' => 'settings_admin',
         '/settings/profil.php' => 'dashboard',
         '/settings/akses_saya.php' => 'dashboard',
+        '/catatan/index.php' => 'dashboard',
+        '/catatan/edit.php' => 'dashboard',
         '/yayasan/timeline.php' => 'yayasan',
         '/yayasan/operasional.php' => 'yayasan',
         '/yayasan/pengawasan.php' => 'yayasan',
@@ -941,7 +943,7 @@ function user_permission_access_summary(PDO $pdo): array
         if (!is_string($path) || $path === '' || !is_string($label)) {
             continue;
         }
-        if (in_array($path, ['/dashboard.php', '/settings/profil.php', '/settings/akses_saya.php'], true)) {
+        if (in_array($path, ['/dashboard.php', '/settings/profil.php', '/settings/akses_saya.php', '/catatan/index.php', '/catatan/edit.php'], true)) {
             continue;
         }
         $menuPreview[] = ['path' => $path, 'label' => trim($label)];

@@ -48,6 +48,7 @@ $pondokWaFields = [
     'mudabir_batas_menit',
     'wa_kelas_kosong_enabled',
     'wa_kelas_kosong_batas_menit',
+    'wa_kelas_kosong_batas_kali',
     'wa_kelas_kosong_target_1',
     'wa_kelas_kosong_target_3',
     'jam_kirim_wa_auto',
