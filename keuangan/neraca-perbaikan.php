@@ -38,11 +38,10 @@ $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
 $selisihNeraca = (int) ($neraca['selisih'] ?? 0);
 $seimbang = abs($selisihNeraca) < 1;
-$penyesuaianAbs = (int) ($kesehatan['penyesuaian_abs'] ?? 0);
 $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
 $saran = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
 $adaBackfill = (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) > 0;
-$perluPerhatian = !$seimbang || $penyesuaianAbs > 0 || $adaBackfill || abs((int) ($kesehatan['selisih_saku_cashless'] ?? 0)) >= 1000;
+$perluPerhatian = !$seimbang || $adaBackfill || abs((int) ($kesehatan['selisih_saku_cashless'] ?? 0)) >= 1000;
 
 $pageTitle = 'Saran Perbaikan Neraca';
 $bodyClass = keuangan_body_class('neraca-perbaikan-page');
@@ -81,27 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($seimbang && !$perluPerhatian): ?>
 <div class="alert alert-success mb-3">
     <i class="fa-solid fa-scale-balanced me-1"></i>
-    Neraca <strong>seimbang</strong> tanpa penyesuaian penyeimbang. Data operasional dan buku besar selaras.
-</div>
-<?php elseif ($seimbang && $penyesuaianAbs > 0): ?>
-<div class="alert alert-warning mb-3">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-            <i class="fa-solid fa-triangle-exclamation me-1"></i>
-            Neraca tampak seimbang, tetapi ada penyesuaian penyeimbang
-            <strong><?= htmlspecialchars($fmt($penyesuaianAbs)) ?></strong>.
-            Lihat saran di bawah untuk menelusuri penyebab.
-        </div>
-        <?php if ($adaBackfill): ?>
-        <form method="post" class="mb-0" onsubmit="return confirm('Buat jurnal otomatis untuk transaksi yang belum punya jurnal?');">
-            <input type="hidden" name="action" value="backfill_jurnal">
-            <input type="hidden" name="per" value="<?= htmlspecialchars((string) $neraca['as_of']) ?>">
-            <button type="submit" class="btn btn-sm btn-warning">
-                <i class="fa-solid fa-rotate me-1"></i> Sinkronkan jurnal
-            </button>
-        </form>
-        <?php endif; ?>
-    </div>
+    Neraca <strong>seimbang</strong>. Data operasional dan buku besar selaras.
 </div>
 <?php elseif ($seimbang): ?>
 <div class="alert alert-info mb-3">
@@ -146,9 +125,9 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="row g-3 mb-3">
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Penyesuaian neraca</div>
-            <div class="app-mini-stat-value <?= $penyesuaianAbs >= keuangan_neraca_penyesuaian_threshold() ? 'text-danger' : 'text-success' ?>">
-                <?= htmlspecialchars($fmt((int) ($kesehatan['penyesuaian_neraca'] ?? 0))) ?>
+            <div class="app-mini-stat-label">Selisih neraca</div>
+            <div class="app-mini-stat-value <?= abs($selisihNeraca) >= keuangan_neraca_penyesuaian_threshold() ? 'text-danger' : 'text-success' ?>">
+                <?= htmlspecialchars($fmt($selisihNeraca)) ?>
             </div>
         </div>
     </div>

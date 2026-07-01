@@ -84,8 +84,7 @@ require_once __DIR__ . '/../includes/header.php';
     $kasBank = $dashSnap['kas_bank'] ?? ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => ''];
     $seimbang = !empty($ner['seimbang']);
     $neracaSehat = !empty($ner['sehat']);
-    $penyesuaianBesar = !empty($ner['penyesuaian_besar']);
-    $penyesuaianAbs = abs((int) ($ner['penyesuaian_neraca'] ?? 0));
+    $selisihNeraca = abs((int) ($ner['selisih'] ?? 0));
     $selisihRekapKas = (int) ($rekapKas['selisih_saldo'] ?? 0);
     $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan'];
 ?>
@@ -109,19 +108,16 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="row g-3 mb-3">
         <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--neraca h-100 border-0 shadow-sm <?= $neracaSehat ? 'dash-kpi--ok' : ($penyesuaianBesar ? 'dash-kpi--warn' : ($seimbang ? 'dash-kpi--warn' : 'dash-kpi--warn')) ?>">
+            <div class="card dash-kpi dash-kpi--neraca h-100 border-0 shadow-sm <?= $neracaSehat ? 'dash-kpi--ok' : 'dash-kpi--warn' ?>">
                 <div class="card-body dash-kpi-inner">
                     <span class="dash-kpi-ico"><i class="fa-solid <?= $neracaSehat ? 'fa-scale-balanced' : 'fa-scale-unbalanced' ?>"></i></span>
                     <div>
                         <div class="dash-kpi-label">Neraca</div>
                         <?php if ($neracaSehat): ?>
                             <div class="dash-kpi-value fs-6">Seimbang</div>
-                        <?php elseif ($seimbang && $penyesuaianAbs > 0): ?>
-                            <div class="dash-kpi-value fs-6">Seimbang*</div>
-                            <div class="small text-warning">Penyesuaian <?= htmlspecialchars($formatRupiah($penyesuaianAbs)) ?></div>
                         <?php elseif (!$seimbang): ?>
                             <div class="dash-kpi-value fs-6">Belum seimbang</div>
-                            <div class="small text-danger">Selisih <?= htmlspecialchars($formatRupiah(abs((int) $ner['selisih']))) ?></div>
+                            <div class="small text-danger">Selisih <?= htmlspecialchars($formatRupiah($selisihNeraca)) ?></div>
                         <?php else: ?>
                             <div class="dash-kpi-value fs-6">Perlu cek</div>
                         <?php endif; ?>
@@ -312,7 +308,8 @@ require_once __DIR__ . '/../includes/header.php';
     $nerSnap = $dashSnap['neraca'];
     $rekapSnap = $dashSnap['rekap_kas'] ?? [];
     $lakRingkas = $dashSnap['arus_kas_ringkas'] ?? ['kenaikan_kas' => 0, 'periode_label' => ''];
-    $penyesuaianSnap = abs((int) ($nerSnap['penyesuaian_neraca'] ?? 0));
+    $selisihNeracaSnap = abs((int) ($nerSnap['selisih'] ?? 0));
+    $neracaSnapSeimbang = !empty($nerSnap['seimbang']);
 ?>
 <div class="row g-3 mb-4" id="laporan">
     <div class="col-lg-4">
@@ -342,16 +339,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <h2 class="h5 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
                 <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) ($nerSnap['as_of_label'] ?? date('d/m/Y'))) ?></p>
                 <p class="mb-1">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
-                <?php if ($penyesuaianSnap > 0): ?>
-                <p class="small text-warning mb-2">Penyesuaian penyeimbang: <?= htmlspecialchars($formatRupiah($penyesuaianSnap)) ?></p>
+                <?php if (!$neracaSnapSeimbang): ?>
+                <p class="small text-warning mb-2">Selisih neraca: <?= htmlspecialchars($formatRupiah($selisihNeracaSnap)) ?></p>
                 <?php elseif ((int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
                 <p class="small text-warning mb-2"><?= (int) $nerSnap['jumlah_tanpa_jurnal'] ?> transaksi tanpa jurnal</p>
                 <?php else: ?>
-                <p class="small text-muted mb-2">Data neraca konsisten</p>
+                <p class="small text-muted mb-2">Neraca seimbang</p>
                 <?php endif; ?>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
-                    <?php if ($penyesuaianSnap > 0 || (int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
+                    <?php if (!$neracaSnapSeimbang || (int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
                     <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Analisis</a>
                     <?php endif; ?>
                     <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>

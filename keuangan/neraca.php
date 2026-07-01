@@ -42,7 +42,6 @@ $ring = $neraca['ringkasan'] ?? [];
 $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
 $selisihNeraca = (int) ($neraca['selisih'] ?? 0);
 $seimbang = abs($selisihNeraca) < 1;
-$penyesuaianAbs = (int) ($kesehatan['penyesuaian_abs'] ?? 0);
 
 if ($print) {
     header('Content-Type: text/html; charset=utf-8');
@@ -50,10 +49,6 @@ if ($print) {
     echo keuangan_typography_font_links();
     echo '<style>' . keuangan_typography_print_css() . keuangan_neraca_css_dua_kolom() . '</style></head><body class="' . htmlspecialchars(keuangan_body_class('neraca-page')) . '">';
     echo '<div class="noprint" style="margin-bottom:12px"><button onclick="window.print()">Cetak / PDF</button> <a href="/keuangan/neraca.php?per=' . urlencode($neraca['as_of']) . '">Kembali</a></div>';
-    if ($penyesuaianAbs > 0) {
-        echo '<p style="font-size:0.9rem;color:#b45309;margin:0 0 12px"><strong>Catatan:</strong> Neraca disesuaikan dengan penyeimbang '
-            . htmlspecialchars($fmt($penyesuaianAbs)) . ' — lihat baris Aset Neto.</p>';
-    }
     keuangan_neraca_render_html($neraca, $fmt);
     echo '</body></html>';
     exit;
@@ -111,11 +106,8 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-md-3">
         <div class="app-mini-stat">
             <div class="app-mini-stat-label">Status neraca</div>
-            <?php if ($seimbang && $penyesuaianAbs === 0): ?>
+            <?php if ($seimbang): ?>
             <div class="app-mini-stat-value text-success">Seimbang</div>
-            <?php elseif ($seimbang && $penyesuaianAbs > 0): ?>
-            <div class="app-mini-stat-value text-warning">Seimbang*</div>
-            <div class="small text-muted">Penyesuaian <?= htmlspecialchars($fmt($penyesuaianAbs)) ?></div>
             <?php else: ?>
             <div class="app-mini-stat-value text-danger">Selisih <?= htmlspecialchars($fmt(abs($selisihNeraca))) ?></div>
             <?php endif; ?>

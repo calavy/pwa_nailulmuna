@@ -144,9 +144,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $selisih = (int) ($neraca['selisih'] ?? 0);
     $seimbang = abs($selisih) < 1;
     $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
-    $penyesuaianNeraca = (int) ($kesehatan['penyesuaian_neraca'] ?? 0);
-    $penyesuaianBesar = !empty($kesehatan['penyesuaian_besar']);
-    $neracaSehat = $seimbang && !$penyesuaianBesar && (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) === 0;
+    $neracaSehat = $seimbang && (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) === 0;
 
     $periode = keuangan_periode_berjalan($pdo, $today);
     $bulan = (int) $periode['bulan'];
@@ -277,8 +275,8 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'total_aset' => (int) ($neraca['aset']['total'] ?? 0),
             'total_pasiva' => (int) ($neraca['total_pasiva'] ?? 0),
             'as_of_label' => (string) ($neraca['as_of_label'] ?? $today),
-            'penyesuaian_neraca' => $penyesuaianNeraca,
-            'penyesuaian_besar' => $penyesuaianBesar,
+            'penyesuaian_neraca' => 0,
+            'penyesuaian_besar' => false,
             'jumlah_tanpa_jurnal' => (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0),
         ],
         'kesehatan_neraca' => $kesehatan,
@@ -464,15 +462,6 @@ function keuangan_dashboard_build_tindakan(
             'deskripsi' => 'Selisih ' . $fmt(abs($selisih)) . ' — periksa jurnal, saldo akun, dan transaksi terakhir.',
             'href' => '/keuangan/neraca.php',
             'icon' => 'fa-scale-unbalanced',
-        ];
-    } elseif (!empty($kesehatan['penyesuaian_besar'])) {
-        $out[] = [
-            'level' => 'warning',
-            'judul' => 'Neraca seimbang dengan penyesuaian besar',
-            'deskripsi' => 'Penyesuaian penyeimbang ' . $fmt((int) ($kesehatan['penyesuaian_abs'] ?? 0))
-                . ' — data operasional dan buku besar belum selaras. Buka neraca untuk detail.',
-            'href' => '/keuangan/neraca.php',
-            'icon' => 'fa-scale-balanced',
         ];
     }
 
