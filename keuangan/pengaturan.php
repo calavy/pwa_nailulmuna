@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'save_pkpps_syahriyah' => keuangan_pkpps_syahriyah_save_settings($pdo, $_POST),
         'save_makan_pengaturan' => keuangan_makan_save_pengaturan($pdo, $_POST),
         'save_akun' => keuangan_save_akun($pdo, $_POST),
+        'save_kas_saldo_mode' => keuangan_save_kas_saldo_mode($pdo, $_POST),
         'save_alokasi' => keuangan_save_alokasi($pdo, $_POST),
         default => ['ok' => false, 'message' => 'Aksi tidak dikenali.'],
     };
@@ -57,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'save_tarif_bulan', 'save_pkpps_syahriyah' => 'syahriyah_makan',
         'save_makan_pengaturan' => 'makan',
         'save_akun' => 'akun',
+        'save_kas_saldo_mode' => 'akun',
         'save_alokasi' => keuangan_alokasi_section_for_jenis((string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH)),
         default => 'umum',
     };
@@ -84,6 +86,10 @@ $taMeta = null;
 $keuanganTa = null;
 $editAkun = null;
 $editAlokasi = null;
+$kasSaldoMode = KEUNGAN_KAS_MODE_TRANSAKSI;
+$kasUsesOpening = false;
+$totalOpening = 0;
+$tanpaAkun = 0;
 
 if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
@@ -146,7 +152,11 @@ if ($section === 'umum') {
     $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
 } elseif ($section === 'akun') {
     $editAkunId = (int) ($_GET['edit_akun'] ?? 0);
-    $akunRows = keuangan_fetch_akun_all($pdo);
+    $kasSaldoMode = keuangan_kas_saldo_mode($pdo);
+    $kasUsesOpening = keuangan_kas_uses_opening_balance($pdo);
+    $totalOpening = keuangan_kas_total_opening_balance($pdo);
+    $tanpaAkun = keuangan_count_transaksi_tanpa_akun($pdo);
+    $akunRows = keuangan_fetch_akun_all_with_saldo($pdo);
     foreach ($akunRows as $ar) {
         if ((int) ($ar['id'] ?? 0) === $editAkunId) {
             $editAkun = $ar;
@@ -455,6 +465,47 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <?php if ($section === 'akun'): ?>
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold">Mode perhitungan saldo kas</div>
+    <div class="card-body">
+        <p class="small text-muted mb-3">
+            Pilih cara menghitung saldo berjalan di setiap akun kas/bank.
+            Mode <strong>Mulai dari nol</strong> mengabaikan saldo awal manual — saldo hanya dari transaksi tercatat.
+        </p>
+        <form method="post" id="form-kas-saldo-mode" class="vstack gap-2">
+            <input type="hidden" name="action" value="save_kas_saldo_mode">
+            <input type="hidden" name="reset_opening" value="0" id="reset-opening-hidden">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="keuangan_kas_saldo_mode"
+                       id="kas-mode-transaksi" value="<?= htmlspecialchars(KEUNGAN_KAS_MODE_TRANSAKSI) ?>"
+                       <?= $kasSaldoMode === KEUNGAN_KAS_MODE_TRANSAKSI ? 'checked' : '' ?>>
+                <label class="form-check-label" for="kas-mode-transaksi">
+                    <strong>Mulai dari nol (transaksi)</strong>
+                    <span class="d-block small text-muted">Saldo berjalan = total masuk − keluar per akun. Saldo awal manual tidak dipakai.</span>
+                </label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="keuangan_kas_saldo_mode"
+                       id="kas-mode-legacy" value="<?= htmlspecialchars(KEUNGAN_KAS_MODE_LEGACY) ?>"
+                       <?= $kasSaldoMode === KEUNGAN_KAS_MODE_LEGACY ? 'checked' : '' ?>>
+                <label class="form-check-label" for="kas-mode-legacy">
+                    <strong>Ada saldo sebelumnya (legacy)</strong>
+                    <span class="d-block small text-muted">Saldo berjalan = saldo awal + transaksi. Cocok bila sudah ada saldo kas/rekening sebelum pencatatan dimulai.</span>
+                </label>
+            </div>
+            <?php if ($tanpaAkun > 0): ?>
+                <p class="small text-warning mb-0">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <?= (int) $tanpaAkun ?> transaksi belum punya akun kas/bank —
+                    <a href="<?= htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php')) ?>">perbaiki di neraca</a>.
+                </p>
+            <?php endif; ?>
+            <div>
+                <button type="submit" class="btn btn-primary btn-sm">Simpan mode saldo</button>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="row g-3">
     <div class="col-lg-5">
         <div class="card shadow-sm">
@@ -487,11 +538,20 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">Atas nama</label>
                         <input class="form-control" name="atas_nama" value="<?= htmlspecialchars((string) ($editAkun['atas_nama'] ?? '')) ?>">
                     </div>
+                    <?php if ($kasUsesOpening): ?>
                     <div class="col-md-6">
                         <label class="form-label">Saldo awal</label>
                         <input class="form-control" name="opening_balance" inputmode="numeric"
                                value="<?= htmlspecialchars((string) (int) round((float) ($editAkun['opening_balance'] ?? 0))) ?>">
+                        <div class="form-text">Kas/rekening sebelum transaksi pertama tercatat di sistem.</div>
                     </div>
+                    <?php else: ?>
+                    <div class="col-12">
+                        <p class="small text-muted mb-0">
+                            Mode <strong>Mulai dari nol</strong>: saldo awal otomatis 0 — saldo berjalan hanya dari pembayaran, pemasukan, dan pengeluaran.
+                        </p>
+                    </div>
+                    <?php endif; ?>
                     <div class="col-md-6 d-flex flex-column justify-content-end gap-2">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="is_default" value="1" id="akun-default"
@@ -526,12 +586,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <tr>
                                 <th>Akun</th>
                                 <th class="text-end">Saldo awal</th>
+                                <th class="text-end">Saldo berjalan</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if ($akunRows === []): ?>
-                            <tr><td colspan="3" class="text-muted text-center py-3">Belum ada akun. Tambahkan kas bendahara.</td></tr>
+                            <tr><td colspan="4" class="text-muted text-center py-3">Belum ada akun. Tambahkan kas bendahara.</td></tr>
                         <?php else: ?>
                             <?php foreach ($akunRows as $ar): ?>
                                 <tr class="<?= (int) ($ar['is_active'] ?? 1) !== 1 ? 'table-secondary' : '' ?>">
@@ -542,7 +603,14 @@ require_once __DIR__ . '/../includes/header.php';
                                             <?php if ((int) ($ar['is_active'] ?? 1) !== 1): ?> · nonaktif<?php endif; ?>
                                         </div>
                                     </td>
-                                    <td class="text-end small"><?= htmlspecialchars($formatRupiah((int) round((float) ($ar['opening_balance'] ?? 0)))) ?></td>
+                                    <td class="text-end small">
+                                        <?php if ($kasUsesOpening): ?>
+                                            <?= htmlspecialchars($formatRupiah((int) round((float) ($ar['opening_balance'] ?? 0)))) ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-end small fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($ar['saldo_berjalan'] ?? 0))) ?></td>
                                     <td class="text-end">
                                         <a class="btn btn-sm btn-outline-primary" href="?bagian=akun&amp;edit_akun=<?= (int) $ar['id'] ?>">Ubah</a>
                                     </td>
@@ -556,6 +624,33 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+<script>
+(function () {
+    var form = document.getElementById('form-kas-saldo-mode');
+    if (!form) return;
+    var currentMode = <?= json_encode($kasSaldoMode, JSON_UNESCAPED_UNICODE) ?>;
+    var totalOpening = <?= (int) $totalOpening ?>;
+    form.addEventListener('submit', function (e) {
+        var selected = form.querySelector('input[name="keuangan_kas_saldo_mode"]:checked');
+        if (!selected) return;
+        if (
+            selected.value === <?= json_encode(KEUNGAN_KAS_MODE_TRANSAKSI, JSON_UNESCAPED_UNICODE) ?>
+            && currentMode !== <?= json_encode(KEUNGAN_KAS_MODE_TRANSAKSI, JSON_UNESCAPED_UNICODE) ?>
+            && totalOpening > 0
+        ) {
+            var ok = window.confirm(
+                'Total saldo awal tercatat ' + totalOpening.toLocaleString('id-ID')
+                + '. Beralih ke mode transaksi akan mengosongkan semua saldo awal di database. Lanjutkan?'
+            );
+            if (!ok) {
+                e.preventDefault();
+                return;
+            }
+            document.getElementById('reset-opening-hidden').value = '1';
+        }
+    });
+})();
+</script>
 <?php endif; ?>
 
 <?php if ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan'): ?>

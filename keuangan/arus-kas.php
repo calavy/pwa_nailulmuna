@@ -41,7 +41,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Laporan Arus Kas</h1>
-    <p class="text-muted mb-0">Arus kas operasi, investasi, dan pendanaan <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.</p>
+    <p class="text-muted mb-0">Kas masuk &amp; keluar per pos pembayaran/pengeluaran <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.</p>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -69,14 +69,14 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="row g-3 mb-3">
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Iuran santri (operasi)</div>
-            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_iuran'] ?? 0))) ?></div>
+            <div class="app-mini-stat-label">Kas masuk (per pos)</div>
+            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_masuk'] ?? 0))) ?></div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Donasi/infaq (operasi)</div>
-            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_donasi'] ?? 0))) ?></div>
+            <div class="app-mini-stat-label">Kas keluar (per pos)</div>
+            <div class="app-mini-stat-value text-danger"><?= htmlspecialchars($fmt((int) ($lak['operasi']['total_keluar'] ?? 0))) ?></div>
         </div>
     </div>
     <div class="col-md-3">
@@ -87,8 +87,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Kenaikan kas bersih</div>
-            <div class="app-mini-stat-value <?= (int) $lak['kenaikan_kas'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= htmlspecialchars($fmt((int) $lak['kenaikan_kas'])) ?></div>
+            <div class="app-mini-stat-label">Kas akhir periode</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) $lak['kas_akhir'])) ?></div>
         </div>
     </div>
 </div>

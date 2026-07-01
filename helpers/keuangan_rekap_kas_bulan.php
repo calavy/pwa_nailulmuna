@@ -154,18 +154,66 @@ function keuangan_rekap_kas_bulan_css(): string
 {
     return '
 body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
-.rekap-kas-table { width: 100%; font-size: 0.9rem; }
-.rekap-kas-table th, .rekap-kas-bulan-table td { padding: 0.45rem 0.6rem; vertical-align: middle; }
-.rekap-kas-table thead th { background: #0f4c5c; color: #fff; font-weight: 600; white-space: nowrap; }
+.rekap-kas-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 8px; }
+.rekap-kas-table { width: 100%; min-width: 920px; font-size: 0.875rem; margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+.rekap-kas-table th, .rekap-kas-table td { padding: 0.5rem 0.65rem; vertical-align: middle; border: 1px solid #e2e8f0; }
+.rekap-kas-table thead th { background: #0f4c5c; color: #fff !important; font-weight: 600; white-space: nowrap; text-align: center; }
+.rekap-kas-table thead .rekap-kas-head-group th { font-size: 0.8rem; letter-spacing: 0.02em; padding-top: 0.6rem; padding-bottom: 0.35rem; color: #fff !important; }
+.rekap-kas-table thead .rekap-kas-head-detail th { font-size: 0.75rem; font-weight: 500; background: #134e4a; color: #fff !important; padding-top: 0.35rem; padding-bottom: 0.55rem; }
+.rekap-kas-table .rekap-kas-grp-masuk { background: #0f766e !important; color: #fff !important; }
+.rekap-kas-table .rekap-kas-grp-keluar { background: #991b1b !important; color: #fff !important; }
+.rekap-kas-table .rekap-kas-grp-verif { background: #1e40af !important; color: #fff !important; }
 .rekap-kas-table .text-end { text-align: right; font-variant-numeric: tabular-nums; }
+.rekap-kas-table .rekap-kas-col-bulan { min-width: 7rem; text-align: left !important; position: sticky; left: 0; z-index: 2; background: #fff; box-shadow: 2px 0 4px rgba(15, 76, 92, 0.06); }
+.rekap-kas-table thead .rekap-kas-col-bulan { background: #0f4c5c; color: #fff !important; z-index: 3; }
+.rekap-kas-table thead .rekap-kas-col-periode { color: #fff !important; background: #0f4c5c; }
+.rekap-kas-table thead .rekap-kas-col-saldo { color: #fff !important; background: #0f4c5c; }
+.rekap-kas-table tfoot .rekap-kas-col-bulan { background: #f1f5f9; }
+.rekap-kas-table .rekap-kas-col-periode { font-size: 0.78rem; max-width: 9rem; white-space: normal; line-height: 1.25; }
+.rekap-kas-table tbody .rekap-kas-col-periode { color: #64748b; font-size: 0.78rem; }
+.rekap-kas-table td.rekap-kas-masuk { background: #f0fdf4; }
+.rekap-kas-table td.rekap-kas-masuk-total { background: #dcfce7; font-weight: 600; color: #166534; }
+.rekap-kas-table td.rekap-kas-keluar { background: #fef2f2; color: #b91c1c; font-weight: 600; }
+.rekap-kas-table td.rekap-kas-saldo { background: #f8fafc; font-weight: 600; }
+.rekap-kas-table td.rekap-kas-verif { background: #eff6ff; }
+.rekap-kas-table .rekap-kas-zero { color: #94a3b8; }
 .rekap-kas-table tbody tr.bulan-ini { background: #ecfdf5; }
-.rekap-kas-table tfoot td { font-weight: 700; background: #f1f5f9; border-top: 2px solid #cbd5e1; }
-.rekap-kas-table .sub-hdr { font-size: 0.78rem; color: #64748b; }
+.rekap-kas-table tbody tr.bulan-ini td.rekap-kas-col-bulan { background: #ecfdf5; }
+.rekap-kas-table tbody tr.bulan-ini td.rekap-kas-masuk { background: #d1fae5; }
+.rekap-kas-table tbody tr.bulan-ini td.rekap-kas-keluar { background: #fee2e2; }
+.rekap-kas-table tbody tr:hover td { filter: brightness(0.98); }
+.rekap-kas-table tfoot td { font-weight: 700; background: #f1f5f9; border-top: 2px solid #94a3b8; }
+.rekap-kas-table tfoot td.rekap-kas-masuk-total { color: #166534; }
+.rekap-kas-table tfoot td.rekap-kas-keluar { color: #b91c1c; }
+.rekap-kas-table .selisih-ok { color: #64748b; }
+.rekap-kas-table .selisih-warn { color: #b45309; font-weight: 700; }
+@media (max-width: 768px) {
+    .rekap-kas-table .rekap-kas-col-periode { display: none; }
+    .rekap-kas-table thead .rekap-kas-col-periode { display: none; }
+}
 @media print {
-    .rekap-kas-table { font-size: 8.5pt; }
-    .rekap-kas-table thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .rekap-kas-table { font-size: 8pt; min-width: 0; }
+    .rekap-kas-table-wrap { border: none; }
+    .rekap-kas-table thead th, .rekap-kas-table td.rekap-kas-masuk,
+    .rekap-kas-table td.rekap-kas-keluar, .rekap-kas-table tbody tr.bulan-ini td {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .rekap-kas-table .rekap-kas-col-bulan { position: static; box-shadow: none; }
 }
 ';
+}
+
+function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, string $kind = 'neutral'): string
+{
+    if ($nominal === 0 && $kind !== 'saldo') {
+        return '<span class="rekap-kas-zero">—</span>';
+    }
+    $text = htmlspecialchars($fmt($nominal));
+    if ($kind === 'keluar' && $nominal !== 0) {
+        return '(' . $text . ')';
+    }
+
+    return $text;
 }
 
 /**
@@ -173,47 +221,65 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
  */
 function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): void
 {
-    echo '<div class="table-responsive">';
-    echo '<table class="table table-sm table-bordered rekap-kas-table rekap-kas-bulan-table mb-0">';
-    echo '<thead><tr>';
-    echo '<th>Bulan</th><th>Periode (M)</th>';
-    echo '<th class="text-end">Saldo awal</th>';
-    echo '<th class="text-end">Masuk iuran</th><th class="text-end">Masuk saku</th>';
-    echo '<th class="text-end">Donasi/infaq</th><th class="text-end">Masuk lain</th>';
-    echo '<th class="text-end">Total masuk</th><th class="text-end">Total keluar</th>';
-    echo '<th class="text-end">Saldo akhir</th>';
+    echo '<div class="rekap-kas-table-wrap">';
+    echo '<table class="table table-sm rekap-kas-table mb-0">';
+    echo '<thead>';
+    echo '<tr class="rekap-kas-head-group">';
+    echo '<th rowspan="2" class="rekap-kas-col-bulan">Bulan</th>';
+    echo '<th rowspan="2" class="rekap-kas-col-periode">Periode</th>';
+    echo '<th rowspan="2" class="text-end rekap-kas-col-saldo">Saldo awal</th>';
+    echo '<th colspan="5" class="rekap-kas-grp-masuk">Kas masuk</th>';
+    echo '<th rowspan="2" class="text-end rekap-kas-grp-keluar">Kas keluar</th>';
+    echo '<th rowspan="2" class="text-end rekap-kas-col-saldo">Saldo akhir</th>';
+    echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi</th>';
+    echo '</tr>';
+    echo '<tr class="rekap-kas-head-detail">';
+    echo '<th class="text-end">Iuran</th><th class="text-end">Saku</th>';
+    echo '<th class="text-end">Donasi</th><th class="text-end">Lain</th>';
+    echo '<th class="text-end">Total masuk</th>';
+    echo '<th class="text-end">Fisik</th><th class="text-end">Selisih</th>';
     echo '</tr></thead><tbody>';
 
     foreach ($rekap['baris'] ?? [] as $row) {
         $cls = !empty($row['is_bulan_ini']) ? ' class="bulan-ini"' : '';
         echo '<tr' . $cls . '>';
-        echo '<td><strong>' . htmlspecialchars((string) ($row['label'] ?? '')) . '</strong>';
+        echo '<td class="rekap-kas-col-bulan"><strong>' . htmlspecialchars((string) ($row['label'] ?? '')) . '</strong>';
         if (!empty($row['is_bulan_ini'])) {
             echo ' <span class="badge bg-success">berjalan</span>';
         }
         echo '</td>';
-        echo '<td class="sub-hdr">' . htmlspecialchars((string) ($row['periode_teks'] ?? '')) . '</td>';
-        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($row['saldo_awal'] ?? 0))) . '</td>';
-        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($row['masuk_iuran'] ?? 0))) . '</td>';
-        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($row['masuk_saku'] ?? 0))) . '</td>';
-        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($row['masuk_donasi'] ?? 0))) . '</td>';
-        echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($row['masuk_lain'] ?? 0))) . '</td>';
-        echo '<td class="text-end fw-semibold">' . htmlspecialchars($fmt((int) ($row['masuk_total'] ?? 0))) . '</td>';
-        echo '<td class="text-end text-danger">(' . htmlspecialchars($fmt((int) ($row['keluar'] ?? 0))) . ')</td>';
-        echo '<td class="text-end fw-bold">' . htmlspecialchars($fmt((int) ($row['saldo_akhir'] ?? 0))) . '</td>';
+        echo '<td class="rekap-kas-col-periode">' . htmlspecialchars((string) ($row['periode_teks'] ?? '')) . '</td>';
+        echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_awal'] ?? 0), $fmt, 'saldo') . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_iuran'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_saku'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_donasi'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_lain'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_total'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
+        echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+        $selisihRow = (int) ($row['selisih_saldo'] ?? 0);
+        echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
+        echo '<td class="text-end rekap-kas-verif' . ($selisihRow !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';
+        echo $selisihRow !== 0 ? htmlspecialchars($fmt($selisihRow)) : '—';
+        echo '</td>';
         echo '</tr>';
     }
 
     $tot = $rekap['total'] ?? [];
     echo '</tbody><tfoot><tr>';
-    echo '<td colspan="2">Jumlah bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($rekap['saldo_awal_ta'] ?? 0))) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tot['masuk_iuran'] ?? 0))) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tot['masuk_saku'] ?? 0))) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tot['masuk_donasi'] ?? 0))) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tot['masuk_lain'] ?? 0))) . '</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($tot['masuk_total'] ?? 0))) . '</td>';
-    echo '<td class="text-end">(' . htmlspecialchars($fmt((int) ($tot['keluar'] ?? 0))) . ')</td>';
-    echo '<td class="text-end">' . htmlspecialchars($fmt((int) ($rekap['saldo_akhir'] ?? 0))) . '</td>';
+    echo '<td class="rekap-kas-col-bulan" colspan="2">Jumlah bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . '</td>';
+    echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_awal_ta'] ?? 0), $fmt, 'saldo') . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_iuran'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_saku'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_donasi'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_lain'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_total'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
+    echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+    echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
+    $selisihTa = (int) ($rekap['selisih_saldo'] ?? 0);
+    echo '<td class="text-end rekap-kas-verif' . ($selisihTa !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';
+    echo $selisihTa !== 0 ? htmlspecialchars($fmt($selisihTa)) : '—';
+    echo '</td>';
     echo '</tr></tfoot></table></div>';
 }

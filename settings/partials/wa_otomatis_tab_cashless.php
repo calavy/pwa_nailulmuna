@@ -57,8 +57,8 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === 
             </div>
             <div class="col-md-5">
                 <label class="form-label" for="cashless_laporan_harian_wa_targets">Nomor penerima</label>
-                <input type="text" class="form-control" id="cashless_laporan_harian_wa_targets" name="cashless_laporan_harian_wa_targets" value="<?= htmlspecialchars($cashlessLaporanHarianWaTargets) ?>" placeholder="Kosongkan = bidang keuangan / wa_pengurus">
-                <div class="form-text">Pisahkan dengan koma atau baris baru.</div>
+                <input type="text" class="form-control" id="cashless_laporan_harian_wa_targets" name="cashless_laporan_harian_wa_targets" value="<?= htmlspecialchars($cashlessLaporanHarianWaTargets) ?>" placeholder="Kosongkan = nomor pengurus (tab Alpa)">
+                <div class="form-text">Pisahkan dengan koma atau baris baru. Jangan kosongkan jika tab Alpa belum diisi nomor pengurus.</div>
             </div>
 
             <div class="col-12">
@@ -79,7 +79,11 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === 
                 · jam <?= htmlspecialchars($cashlessLaporanHarianWaJam) ?>
                 · <?= !empty($cashlessLaporanStatus['send_time_ok']) ? '<span class="text-success">sudah lewat</span>' : '<span class="text-warning">belum</span>' ?></li>
             <li>Hari ini <?= $cashlessSudahDikirimHariIni ? '<span class="text-muted">sudah dikirim</span>' : '<span class="text-success">belum dikirim</span>' ?>
-                · Terakhir sukses: <strong><?= ($cashlessLaporanStatus['last_sent_at'] ?? '') !== '' ? htmlspecialchars((string) $cashlessLaporanStatus['last_sent_at']) : 'Belum pernah' ?></strong></li>
+                · Terakhir sukses: <strong><?= ($cashlessLaporanStatus['last_sent_at'] ?? '') !== '' ? htmlspecialchars((string) $cashlessLaporanStatus['last_sent_at']) : 'Belum pernah' ?></strong>
+                · Penerima terdaftar: <strong><?= (int) ($cashlessLaporanStatus['targets_count'] ?? 0) ?></strong></li>
+            <?php if (trim((string) ($cashlessLaporanStatus['last_error'] ?? '')) !== ''): ?>
+                <li class="text-danger">Error terakhir: <?= htmlspecialchars((string) $cashlessLaporanStatus['last_error']) ?></li>
+            <?php endif; ?>
             <li>Transaksi <?= htmlspecialchars($cashlessLaporanTanggalLabel) ?>: <strong><?= (int) ($cashlessRingkasanHariIni['total_transaksi'] ?? 0) ?></strong>
                 · <?= htmlspecialchars(cashless_wa_rp((int) ($cashlessRingkasanHariIni['total_nominal'] ?? 0))) ?></li>
             <?php foreach (($cashlessRingkasanHariIni['per_koperasi'] ?? []) as $pk): ?>

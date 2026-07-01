@@ -7,8 +7,10 @@ require_once __DIR__ . '/santri_list_sort.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/keuangan_neraca.php';
 require_once __DIR__ . '/keuangan_aruskas.php';
+require_once __DIR__ . '/keuangan_rekap_kas_bulan.php';
 require_once __DIR__ . '/tagihan_bulanan.php';
 require_once __DIR__ . '/santri_ta.php';
+require_once __DIR__ . '/keuangan_pengaturan.php';
 
 /** Hapus cache dashboard setelah transaksi keuangan berubah. */
 function keuangan_dashboard_cache_invalidate(): void
@@ -141,6 +143,10 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $neraca = keuangan_build_neraca_cached($pdo, $today);
     $selisih = (int) ($neraca['selisih'] ?? 0);
     $seimbang = abs($selisih) < 1;
+    $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
+    $penyesuaianNeraca = (int) ($kesehatan['penyesuaian_neraca'] ?? 0);
+    $penyesuaianBesar = !empty($kesehatan['penyesuaian_besar']);
+    $neracaSehat = $seimbang && !$penyesuaianBesar && (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) === 0;
 
     $periode = keuangan_periode_berjalan($pdo, $today);
     $bulan = (int) $periode['bulan'];
@@ -233,6 +239,10 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $periodSent = $waLastKey === $waCalendar . ':' . $periodKey;
     $hariIniJadwalKirim = $todayDay === $waDueDay;
 
+    $kasSaldoMode = keuangan_kas_saldo_mode($pdo);
+    $kasTotalOpening = keuangan_kas_total_opening_balance($pdo);
+    $transaksiTanpaAkun = keuangan_count_transaksi_tanpa_akun($pdo, $today);
+
     $tindakan = keuangan_dashboard_build_tindakan(
         $seimbang,
         $selisih,
@@ -246,20 +256,40 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         $waDueDay,
         $waSendTime,
         $periode,
-        $topPenunggak
+        $topPenunggak,
+        $kesehatan,
+        $transaksiTanpaAkun,
+        $kasSaldoMode,
+        $kasTotalOpening
     );
 
     $yearStart = date('Y') . '-01-01';
     $lakRingkas = keuangan_build_arus_kas_cached($pdo, $yearStart, $today);
     $kasBank = keuangan_dashboard_kas_bank_ringkas($pdo, $today);
 
+    $rekapKas = keuangan_build_rekap_kas_bulanan($pdo, $tm, $ts, $bulan);
+
     return [
         'neraca' => [
             'seimbang' => $seimbang,
+            'sehat' => $neracaSehat,
             'selisih' => $selisih,
             'total_aset' => (int) ($neraca['aset']['total'] ?? 0),
             'total_pasiva' => (int) ($neraca['total_pasiva'] ?? 0),
             'as_of_label' => (string) ($neraca['as_of_label'] ?? $today),
+            'penyesuaian_neraca' => $penyesuaianNeraca,
+            'penyesuaian_besar' => $penyesuaianBesar,
+            'jumlah_tanpa_jurnal' => (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0),
+        ],
+        'kesehatan_neraca' => $kesehatan,
+        'rekap_kas' => [
+            'saldo_akhir' => (int) ($rekapKas['saldo_akhir'] ?? 0),
+            'saldo_akhir_fisik' => (int) ($rekapKas['saldo_akhir_fisik'] ?? 0),
+            'selisih_saldo' => (int) ($rekapKas['selisih_saldo'] ?? 0),
+            'masuk_total' => (int) ($rekapKas['total']['masuk_total'] ?? 0),
+            'keluar' => (int) ($rekapKas['total']['keluar'] ?? 0),
+            'bulan_berjalan_label' => (string) ($rekapKas['bulan_berjalan_label'] ?? ''),
+            'ta_label' => (string) ($rekapKas['ta_label'] ?? ''),
         ],
         'arus_kas_ringkas' => [
             'kenaikan_kas' => (int) ($lakRingkas['kenaikan_kas'] ?? 0),
@@ -295,6 +325,10 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'penunggak_dengan_wa' => $penunggakDenganWa,
             'penunggak_tanpa_wa' => $penunggakTanpaWa,
         ],
+        'kas_saldo_mode' => $kasSaldoMode,
+        'kas_saldo_mode_label' => keuangan_kas_saldo_mode_label($kasSaldoMode),
+        'kas_total_opening' => $kasTotalOpening,
+        'transaksi_tanpa_akun' => $transaksiTanpaAkun,
         'tindakan' => $tindakan,
     ];
 }
@@ -320,9 +354,10 @@ function keuangan_dashboard_kas_bank_ringkas(PDO $pdo, ?string $asOf = null): ar
     }
     $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
     $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
+    $openingExpr = keuangan_kas_uses_opening_balance($pdo) ? 'COALESCE(a.opening_balance, 0)' : '0';
     $stmt = $pdo->prepare("
         SELECT a.id, a.jenis_akun, a.nama_akun, a.nama_bank, a.no_rekening,
-               (COALESCE(a.opening_balance, 0) + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo
+               ({$openingExpr} + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo
         FROM keuangan_akun a
         LEFT JOIN ( {$masukSub} ) inc ON inc.akun_id = a.id
         LEFT JOIN (
@@ -387,14 +422,40 @@ function keuangan_dashboard_build_tindakan(
     int $waDueDay,
     string $waSendTime,
     array $periode,
-    array $topPenunggak
+    array $topPenunggak,
+    array $kesehatan = [],
+    int $transaksiTanpaAkun = 0,
+    string $kasSaldoMode = KEUNGAN_KAS_MODE_TRANSAKSI,
+    int $kasTotalOpening = 0
 ): array {
     $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
     $bulanLabel = (string) ($periode['bulan_label'] ?? '');
     $taLabel = (string) ($periode['ta_label'] ?? '');
     $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) ($periode['bulan'] ?? 0);
     $settingsUrl = '/settings/pesantren.php';
+    $akunSettingsUrl = '/keuangan/pengaturan.php?bagian=akun';
     $out = [];
+
+    if ($transaksiTanpaAkun > 0) {
+        $out[] = [
+            'level' => 'warning',
+            'judul' => 'Transaksi tanpa akun kas/bank',
+            'deskripsi' => $transaksiTanpaAkun . ' transaksi belum terhubung ke akun — saldo kas per akun tidak akurat. Perbaiki lewat analisis neraca.',
+            'href' => '/keuangan/neraca-perbaikan.php',
+            'icon' => 'fa-wallet',
+        ];
+    }
+
+    if ($kasSaldoMode === KEUNGAN_KAS_MODE_TRANSAKSI && $kasTotalOpening > 0) {
+        $out[] = [
+            'level' => 'warning',
+            'judul' => 'Saldo awal masih tercatat',
+            'deskripsi' => 'Mode transaksi aktif tetapi total saldo awal ' . $fmt($kasTotalOpening)
+                . ' masih ada di database — tidak dipakai perhitungan. Kosongkan lewat pengaturan akun.',
+            'href' => $akunSettingsUrl,
+            'icon' => 'fa-coins',
+        ];
+    }
 
     if (!$seimbang) {
         $out[] = [
@@ -404,7 +465,35 @@ function keuangan_dashboard_build_tindakan(
             'href' => '/keuangan/neraca.php',
             'icon' => 'fa-scale-unbalanced',
         ];
+    } elseif (!empty($kesehatan['penyesuaian_besar'])) {
+        $out[] = [
+            'level' => 'warning',
+            'judul' => 'Neraca seimbang dengan penyesuaian besar',
+            'deskripsi' => 'Penyesuaian penyeimbang ' . $fmt((int) ($kesehatan['penyesuaian_abs'] ?? 0))
+                . ' — data operasional dan buku besar belum selaras. Buka neraca untuk detail.',
+            'href' => '/keuangan/neraca.php',
+            'icon' => 'fa-scale-balanced',
+        ];
     }
+
+    $jumlahTanpaJurnal = (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0);
+    if ($jumlahTanpaJurnal > 0) {
+        $out[] = [
+            'level' => 'warning',
+            'judul' => 'Sinkronkan jurnal operasional',
+            'deskripsi' => $jumlahTanpaJurnal . ' transaksi belum punya jurnal otomatis — jalankan sinkronisasi dari halaman neraca.',
+            'href' => '/keuangan/neraca.php',
+            'icon' => 'fa-rotate',
+        ];
+    }
+
+    $out[] = [
+        'level' => 'info',
+        'judul' => 'Rekap kas bulanan',
+        'deskripsi' => 'Laporan utama pengurus — verifikasi saldo masuk/keluar per bulan TA ' . $taLabel . '.',
+        'href' => '/keuangan/rekap-kas-bulan.php',
+        'icon' => 'fa-table-list',
+    ];
 
     if ($jumlahPenunggak > 0) {
         $out[] = [

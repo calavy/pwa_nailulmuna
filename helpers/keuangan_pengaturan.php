@@ -90,6 +90,135 @@ function keuangan_save_tarif_settings(PDO $pdo, array $post): array
     return ['ok' => true, 'message' => 'Tarif komponen biaya berhasil disimpan.'];
 }
 
+const KEUNGAN_KAS_MODE_TRANSAKSI = 'transaksi';
+const KEUNGAN_KAS_MODE_LEGACY = 'legacy';
+
+function keuangan_kas_saldo_mode(PDO $pdo): string
+{
+    $mode = strtolower(trim((string) app_setting($pdo, 'keuangan_kas_saldo_mode', KEUNGAN_KAS_MODE_TRANSAKSI)));
+    if ($mode === KEUNGAN_KAS_MODE_LEGACY) {
+        return KEUNGAN_KAS_MODE_LEGACY;
+    }
+
+    return KEUNGAN_KAS_MODE_TRANSAKSI;
+}
+
+function keuangan_kas_uses_opening_balance(PDO $pdo): bool
+{
+    return keuangan_kas_saldo_mode($pdo) === KEUNGAN_KAS_MODE_LEGACY;
+}
+
+function keuangan_kas_saldo_mode_label(string $mode): string
+{
+    return match ($mode) {
+        KEUNGAN_KAS_MODE_LEGACY => 'Ada saldo sebelumnya',
+        default => 'Mulai dari nol (transaksi)',
+    };
+}
+
+/** @return array{ok:bool,message:string} */
+function keuangan_save_kas_saldo_mode(PDO $pdo, array $post): array
+{
+    $mode = strtolower(trim((string) ($post['keuangan_kas_saldo_mode'] ?? KEUNGAN_KAS_MODE_TRANSAKSI)));
+    if (!in_array($mode, [KEUNGAN_KAS_MODE_TRANSAKSI, KEUNGAN_KAS_MODE_LEGACY], true)) {
+        return ['ok' => false, 'message' => 'Mode saldo kas tidak valid.'];
+    }
+
+    $prev = keuangan_kas_saldo_mode($pdo);
+
+    save_setting($pdo, 'keuangan_kas_saldo_mode', $mode);
+    app_settings_cache($pdo, true);
+
+    if ($mode === KEUNGAN_KAS_MODE_TRANSAKSI && !empty($post['reset_opening']) && table_exists($pdo, 'keuangan_akun')) {
+        $pdo->exec('UPDATE keuangan_akun SET opening_balance = 0');
+    }
+
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
+
+    $msg = 'Mode saldo kas disimpan: ' . keuangan_kas_saldo_mode_label($mode) . '.';
+    if ($mode === KEUNGAN_KAS_MODE_TRANSAKSI && !empty($post['reset_opening'])) {
+        $msg .= ' Saldo awal semua akun direset ke 0.';
+    } elseif ($mode === KEUNGAN_KAS_MODE_LEGACY && $prev === KEUNGAN_KAS_MODE_TRANSAKSI) {
+        $msg .= ' Isi saldo awal per akun jika ada kas sebelum transaksi tercatat.';
+    }
+
+    return [
+        'ok' => true,
+        'message' => $msg,
+    ];
+}
+
+function keuangan_kas_total_opening_balance(PDO $pdo): int
+{
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        return 0;
+    }
+
+    return (int) round((float) ($pdo->query('SELECT COALESCE(SUM(opening_balance), 0) FROM keuangan_akun')->fetchColumn() ?: 0));
+}
+
+function keuangan_count_transaksi_tanpa_akun(PDO $pdo, ?string $asOf = null): int
+{
+    if (!function_exists('keuangan_neraca_hitung_transaksi_tanpa_akun')) {
+        require_once __DIR__ . '/keuangan_neraca_perbaikan.php';
+    }
+    $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
+    $total = 0;
+    foreach (
+        [
+            'keuangan_pembayaran' => 'tanggal_bayar',
+            'keuangan_pemasukan' => 'tanggal',
+            'keuangan_pengeluaran' => 'tanggal',
+        ] as $table => $dateCol
+    ) {
+        $res = keuangan_neraca_hitung_transaksi_tanpa_akun($pdo, $table, $dateCol, $asOf);
+        $total += (int) ($res['jumlah'] ?? 0);
+    }
+
+    return $total;
+}
+
+/** @return list<array<string, mixed>> */
+function keuangan_fetch_akun_all_with_saldo(PDO $pdo, ?string $asOf = null): array
+{
+    $rows = keuangan_fetch_akun_all($pdo);
+    if ($rows === []) {
+        return [];
+    }
+    if (!function_exists('keuangan_sql_subquery_masuk_per_akun')) {
+        require_once __DIR__ . '/keuangan_akun_mutasi.php';
+    }
+    $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
+    $openingExpr = keuangan_kas_uses_opening_balance($pdo) ? 'COALESCE(a.opening_balance, 0)' : '0';
+    $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
+    $stmt = $pdo->prepare("
+        SELECT a.id,
+               ({$openingExpr} + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo_berjalan
+        FROM keuangan_akun a
+        LEFT JOIN ( {$masukSub} ) inc ON inc.akun_id = a.id
+        LEFT JOIN (
+            SELECT akun_id, SUM(nominal) AS total_keluar
+            FROM keuangan_pengeluaran
+            WHERE akun_id IS NOT NULL AND tanggal <= :as_of2
+            GROUP BY akun_id
+        ) exp ON exp.akun_id = a.id
+    ");
+    $stmt->execute(['as_of' => $asOf, 'as_of2' => $asOf]);
+    $saldoMap = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $sr) {
+        $saldoMap[(int) ($sr['id'] ?? 0)] = (int) round((float) ($sr['saldo_berjalan'] ?? 0));
+    }
+    foreach ($rows as &$row) {
+        $row['saldo_berjalan'] = $saldoMap[(int) ($row['id'] ?? 0)] ?? 0;
+    }
+    unset($row);
+
+    return $rows;
+}
+
 /** @return list<array<string, mixed>> */
 function keuangan_fetch_akun_all(PDO $pdo): array
 {
@@ -119,6 +248,9 @@ function keuangan_save_akun(PDO $pdo, array $post): array
     $noRek = trim((string) ($post['no_rekening'] ?? ''));
     $atasNama = trim((string) ($post['atas_nama'] ?? ''));
     $opening = keuangan_money_input_to_int((string) ($post['opening_balance'] ?? '0'));
+    if (!keuangan_kas_uses_opening_balance($pdo)) {
+        $opening = 0;
+    }
     $isDefault = !empty($post['is_default']);
     $isActive = !isset($post['is_active']) || (string) $post['is_active'] === '1';
 
@@ -152,6 +284,11 @@ function keuangan_save_akun(PDO $pdo, array $post): array
             'id' => $id,
         ]);
 
+        if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+            require_once __DIR__ . '/keuangan_dashboard.php';
+        }
+        keuangan_dashboard_cache_invalidate();
+
         return ['ok' => true, 'message' => 'Akun kas/bank diperbarui.'];
     }
 
@@ -167,6 +304,11 @@ function keuangan_save_akun(PDO $pdo, array $post): array
         'opening' => $opening,
         'is_default' => $isDefault ? 1 : 0,
     ]);
+
+    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_dashboard.php';
+    }
+    keuangan_dashboard_cache_invalidate();
 
     return ['ok' => true, 'message' => 'Akun kas/bank ditambahkan.'];
 }

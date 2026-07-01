@@ -45,20 +45,32 @@ function cashless_wa_laporan_harian_enabled(PDO $pdo): bool
 function cashless_wa_laporan_harian_jam(PDO $pdo): string
 {
     $jam = trim((string) app_setting($pdo, 'cashless_laporan_harian_wa_jam', '20:00'));
-    if (!preg_match('/^\d{1,2}:\d{2}$/', $jam)) {
-        return '20:00';
+    if (preg_match('/^(\d{1,2}):(\d{2})$/', $jam, $m)) {
+        return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
     }
 
-    return $jam;
+    return '20:00';
+}
+
+function cashless_wa_laporan_send_time_ok(PDO $pdo, ?string $nowHm = null): bool
+{
+    $nowHm = $nowHm ?? date('H:i');
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', $nowHm, $nm)) {
+        return false;
+    }
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', cashless_wa_laporan_harian_jam($pdo), $jm)) {
+        return false;
+    }
+    $nowMinutes = ((int) $nm[1]) * 60 + (int) $nm[2];
+    $jamMinutes = ((int) $jm[1]) * 60 + (int) $jm[2];
+
+    return $nowMinutes >= $jamMinutes;
 }
 
 /** @return list<string> */
 function cashless_wa_laporan_harian_targets(PDO $pdo): array
 {
     $raw = trim((string) app_setting($pdo, 'cashless_laporan_harian_wa_targets', ''));
-    if ($raw === '') {
-        $raw = trim((string) app_setting($pdo, 'keterangan_pengurus_bidang_keuangan', ''));
-    }
     if ($raw === '') {
         $raw = trim((string) app_setting($pdo, 'wa_pengurus', ''));
     }
@@ -420,7 +432,16 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
 
     require_once __DIR__ . '/wa_otomatis.php';
     if (!wa_otomatis_should_run($pdo, 'general')) {
-        return ['ok' => false, 'message' => 'Gateway WA otomatis tidak siap.', 'sent' => 0];
+        $msg = 'Master WA otomatis nonaktif.';
+        save_setting($pdo, 'cashless_laporan_harian_last_error', $msg);
+
+        return ['ok' => false, 'message' => $msg, 'sent' => 0];
+    }
+    $gwErr = wa_otomatis_gateway_error($pdo);
+    if ($gwErr !== null) {
+        save_setting($pdo, 'cashless_laporan_harian_last_error', $gwErr);
+
+        return ['ok' => false, 'message' => 'Gateway WA otomatis tidak siap: ' . $gwErr, 'sent' => 0];
     }
 
     $today = date('Y-m-d');
@@ -429,38 +450,52 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
         if ($last === $today) {
             return ['ok' => true, 'message' => 'Laporan hari ini sudah dikirim.', 'sent' => 0, 'skipped' => true];
         }
-        $jam = cashless_wa_laporan_harian_jam($pdo);
-        $nowHm = date('H:i');
-        if ($nowHm < $jam) {
-            return ['ok' => true, 'message' => 'Belum jam kirim (' . $jam . ').', 'sent' => 0, 'skipped' => true];
+        if (!cashless_wa_laporan_send_time_ok($pdo)) {
+            return [
+                'ok' => true,
+                'message' => 'Belum jam kirim (' . cashless_wa_laporan_harian_jam($pdo) . ').',
+                'sent' => 0,
+                'skipped' => true,
+            ];
         }
     }
 
     $targets = cashless_wa_laporan_harian_targets($pdo);
     if ($targets === []) {
-        return ['ok' => false, 'message' => 'Nomor penerima laporan belum diatur.', 'sent' => 0];
+        $msg = 'Nomor penerima laporan belum diatur. Isi di tab Cashless atau nomor pengurus (tab Alpa).';
+        save_setting($pdo, 'cashless_laporan_harian_last_error', $msg);
+
+        return ['ok' => false, 'message' => $msg, 'sent' => 0];
     }
 
     $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
     $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $msg = wa_format_cashless_laporan_harian_pengurus($pdo, $ringkasan);
 
-    $sent = 0;
-    foreach ($targets as $phone) {
-        if (send_wa_message($pdo, $phone, $msg)) {
-            $sent++;
-        }
-    }
+    $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg);
+    $sent = (int) ($bulk['sent'] ?? 0);
+    $failed = (int) ($bulk['failed'] ?? 0);
 
     if ($sent > 0) {
         save_setting($pdo, 'cashless_laporan_harian_last_date', $today);
         save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
+        save_setting($pdo, 'cashless_laporan_harian_last_error', '');
         save_setting($pdo, 'cashless_laporan_harian_last_stats', json_encode([
             'tanggal' => $laporanTanggal,
             'transaksi' => (int) $ringkasan['total_transaksi'],
             'nominal' => (int) $ringkasan['total_nominal'],
             'sent' => $sent,
+            'failed' => $failed,
         ], JSON_UNESCAPED_UNICODE));
+    } else {
+        $errParts = [];
+        foreach ((array) ($bulk['details'] ?? []) as $d) {
+            if (empty($d['success']) && !empty($d['error'])) {
+                $errParts[] = (string) $d['error'];
+            }
+        }
+        $errMsg = $errParts !== [] ? implode('; ', array_unique($errParts)) : 'Gagal mengirim ke semua nomor penerima.';
+        save_setting($pdo, 'cashless_laporan_harian_last_error', $errMsg);
     }
 
     return [
@@ -468,8 +503,9 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
         'message' => $sent > 0
             ? 'Laporan cashless ' . (string) ($ringkasan['tanggal_label'] ?? '') . ' terkirim ke ' . $sent . ' nomor ('
                 . (int) $ringkasan['total_transaksi'] . ' transaksi, ' . cashless_wa_rp((int) $ringkasan['total_nominal']) . ').'
-            : 'Gagal mengirim laporan cashless.',
+            : ('Gagal mengirim laporan cashless' . ($failed > 0 ? ' (' . $failed . ' gagal).' : '.')),
         'sent' => $sent,
+        'failed' => $failed,
     ];
 }
 
@@ -494,7 +530,9 @@ function cashless_wa_laporan_status_hari_ini(PDO $pdo): array
         'jam' => cashless_wa_laporan_harian_jam($pdo),
         'last_date' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_date', '')),
         'last_sent_at' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_sent_at', '')),
+        'last_error' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_error', '')),
         'last_stats' => is_array($lastStats) ? $lastStats : null,
-        'send_time_ok' => date('H:i') >= cashless_wa_laporan_harian_jam($pdo),
+        'send_time_ok' => cashless_wa_laporan_send_time_ok($pdo),
+        'targets_count' => count(cashless_wa_laporan_harian_targets($pdo)),
     ];
 }

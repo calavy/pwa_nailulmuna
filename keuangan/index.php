@@ -78,10 +78,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($dashSnap !== null):
     $ner = $dashSnap['neraca'];
+    $rekapKas = $dashSnap['rekap_kas'] ?? [];
     $tag = $dashSnap['tagihan_bulan'];
     $wa = $dashSnap['wa_tagihan'];
     $kasBank = $dashSnap['kas_bank'] ?? ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => ''];
     $seimbang = !empty($ner['seimbang']);
+    $neracaSehat = !empty($ner['sehat']);
+    $penyesuaianBesar = !empty($ner['penyesuaian_besar']);
+    $penyesuaianAbs = abs((int) ($ner['penyesuaian_neraca'] ?? 0));
+    $selisihRekapKas = (int) ($rekapKas['selisih_saldo'] ?? 0);
     $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan'];
 ?>
 <section class="keu-dash-snapshot mb-4" aria-label="Kondisi keuangan terkini">
@@ -91,7 +96,10 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="small text-muted mb-0">
                 Tagihan wajib <strong><?= htmlspecialchars((string) $tag['bulan_label']) ?></strong>
                 TA <?= htmlspecialchars((string) $tag['ta_label']) ?>
-                Â· Neraca per <?= htmlspecialchars((string) $ner['as_of_label']) ?>
+                · Neraca per <?= htmlspecialchars((string) $ner['as_of_label']) ?>
+                <?php if (!empty($dashSnap['kas_saldo_mode_label'])): ?>
+                    · Saldo kas: <span class="badge text-bg-light border"><?= htmlspecialchars((string) $dashSnap['kas_saldo_mode_label']) ?></span>
+                <?php endif; ?>
             </p>
         </div>
         <a href="<?= htmlspecialchars($tagihanUrl) ?>" class="btn btn-sm btn-outline-primary">
@@ -101,15 +109,24 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="row g-3 mb-3">
         <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--neraca h-100 border-0 shadow-sm <?= $seimbang ? 'dash-kpi--ok' : 'dash-kpi--warn' ?>">
+            <div class="card dash-kpi dash-kpi--neraca h-100 border-0 shadow-sm <?= $neracaSehat ? 'dash-kpi--ok' : ($penyesuaianBesar ? 'dash-kpi--warn' : ($seimbang ? 'dash-kpi--warn' : 'dash-kpi--warn')) ?>">
                 <div class="card-body dash-kpi-inner">
-                    <span class="dash-kpi-ico"><i class="fa-solid <?= $seimbang ? 'fa-scale-balanced' : 'fa-scale-unbalanced' ?>"></i></span>
+                    <span class="dash-kpi-ico"><i class="fa-solid <?= $neracaSehat ? 'fa-scale-balanced' : 'fa-scale-unbalanced' ?>"></i></span>
                     <div>
                         <div class="dash-kpi-label">Neraca</div>
-                        <div class="dash-kpi-value fs-6"><?= $seimbang ? 'Seimbang' : 'Belum seimbang' ?></div>
-                        <?php if (!$seimbang): ?>
+                        <?php if ($neracaSehat): ?>
+                            <div class="dash-kpi-value fs-6">Seimbang</div>
+                        <?php elseif ($seimbang && $penyesuaianAbs > 0): ?>
+                            <div class="dash-kpi-value fs-6">Seimbang*</div>
+                            <div class="small text-warning">Penyesuaian <?= htmlspecialchars($formatRupiah($penyesuaianAbs)) ?></div>
+                        <?php elseif (!$seimbang): ?>
+                            <div class="dash-kpi-value fs-6">Belum seimbang</div>
                             <div class="small text-danger">Selisih <?= htmlspecialchars($formatRupiah(abs((int) $ner['selisih']))) ?></div>
-                            <a href="/keuangan/neraca-perbaikan.php" class="small">Saran perbaikan →</a>
+                        <?php else: ?>
+                            <div class="dash-kpi-value fs-6">Perlu cek</div>
+                        <?php endif; ?>
+                        <?php if (!$neracaSehat): ?>
+                            <a href="/keuangan/neraca.php" class="small">Indikator kesehatan →</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -293,26 +310,56 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($dashSnap !== null): ?>
 <?php
     $nerSnap = $dashSnap['neraca'];
+    $rekapSnap = $dashSnap['rekap_kas'] ?? [];
     $lakRingkas = $dashSnap['arus_kas_ringkas'] ?? ['kenaikan_kas' => 0, 'periode_label' => ''];
+    $penyesuaianSnap = abs((int) ($nerSnap['penyesuaian_neraca'] ?? 0));
 ?>
 <div class="row g-3 mb-4" id="laporan">
-    <div class="col-lg-6">
+    <div class="col-lg-4">
+        <div class="card shadow-sm h-100 border-success border-2">
+            <div class="card-body">
+                <h2 class="h5 mb-2">
+                    <i class="fa-solid fa-table-list text-success me-1"></i> Rekap kas bulanan
+                    <span class="badge bg-success ms-1" style="font-size:0.65rem">Laporan utama</span>
+                </h2>
+                <p class="small text-muted mb-2">TA <?= htmlspecialchars((string) ($rekapSnap['ta_label'] ?? '')) ?> · s.d. <?= htmlspecialchars((string) ($rekapSnap['bulan_berjalan_label'] ?? '')) ?></p>
+                <p class="mb-1">Saldo akhir: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir'] ?? 0))) ?></strong></p>
+                <?php if ((int) ($rekapSnap['selisih_saldo'] ?? 0) !== 0): ?>
+                <p class="small text-warning mb-2">Selisih saldo fisik: <?= htmlspecialchars($formatRupiah(abs((int) $rekapSnap['selisih_saldo']))) ?></p>
+                <?php else: ?>
+                <p class="small text-muted mb-2">Masuk <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['masuk_total'] ?? 0))) ?> · Keluar <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['keluar'] ?? 0))) ?></p>
+                <?php endif; ?>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="/keuangan/rekap-kas-bulan.php" class="btn btn-success btn-sm">Buka rekap</a>
+                    <a href="/keuangan/rekap-kas-bulan.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-primary border-opacity-25">
             <div class="card-body">
                 <h2 class="h5 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
                 <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) ($nerSnap['as_of_label'] ?? date('d/m/Y'))) ?></p>
-                <p class="mb-3">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
+                <p class="mb-1">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
+                <?php if ($penyesuaianSnap > 0): ?>
+                <p class="small text-warning mb-2">Penyesuaian penyeimbang: <?= htmlspecialchars($formatRupiah($penyesuaianSnap)) ?></p>
+                <?php elseif ((int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
+                <p class="small text-warning mb-2"><?= (int) $nerSnap['jumlah_tanpa_jurnal'] ?> transaksi tanpa jurnal</p>
+                <?php else: ?>
+                <p class="small text-muted mb-2">Data neraca konsisten</p>
+                <?php endif; ?>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
-                    <?php if (empty($nerSnap['seimbang']) && (int) ($nerSnap['selisih'] ?? 0) !== 0): ?>
-                    <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Saran perbaikan</a>
+                    <?php if ($penyesuaianSnap > 0 || (int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
+                    <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Analisis</a>
                     <?php endif; ?>
                     <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-lg-6">
+    <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-success border-opacity-25">
             <div class="card-body">
                 <h2 class="h5 mb-2"><i class="fa-solid fa-money-bill-transfer text-success me-1"></i> Arus kas</h2>
@@ -333,6 +380,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--laporan">
             <div class="card-header fw-semibold">Laporan</div>
             <div class="card-body d-grid gap-2">
+                <a class="keu-modern-link keu-modern-link--featured" href="/keuangan/rekap-kas-bulan.php"><i class="fa-solid fa-table-list"></i><span>Rekap kas bulanan <span class="badge bg-success ms-1">utama</span></span></a>
                 <a class="keu-modern-link" href="/keuangan/neraca.php"><i class="fa-solid fa-scale-balanced"></i><span>Neraca</span></a>
                 <a class="keu-modern-link" href="/keuangan/arus-kas.php"><i class="fa-solid fa-money-bill-transfer"></i><span>Arus kas</span></a>
                 <a class="keu-modern-link" href="/pembayaran/rekap_pos.php"><i class="fa-solid fa-chart-pie"></i><span>Rekap per POS</span></a>

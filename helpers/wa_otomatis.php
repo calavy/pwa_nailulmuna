@@ -638,6 +638,11 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
 
     cashless_wa_cron_laporan_harian($pdo);
     $results['cashless_laporan']['ran'] = true;
+    $cashlessRes = json_decode((string) app_setting($pdo, 'cashless_laporan_harian_last_stats', ''), true);
+    $results['cashless_laporan']['note'] = trim((string) app_setting($pdo, 'cashless_laporan_harian_last_error', ''));
+    if ($results['cashless_laporan']['note'] === '' && is_array($cashlessRes) && (int) ($cashlessRes['sent'] ?? 0) > 0) {
+        $results['cashless_laporan']['note'] = 'sent=' . (int) $cashlessRes['sent'];
+    }
 
     save_setting($pdo, 'wa_auto_scheduled_last_at', date('Y-m-d H:i:s'));
     save_setting($pdo, 'wa_auto_scheduled_last_result', json_encode([
@@ -686,6 +691,10 @@ function wa_auto_run_tick(PDO $pdo): array
                 require_once __DIR__ . '/wa_kegiatan_kosong.php';
             }
             trigger_wa_kelas_kosong_bertahap($pdo);
+            if (!function_exists('cashless_wa_cron_laporan_harian')) {
+                require_once __DIR__ . '/cashless_wa.php';
+            }
+            cashless_wa_cron_laporan_harian($pdo);
             save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
         }
 

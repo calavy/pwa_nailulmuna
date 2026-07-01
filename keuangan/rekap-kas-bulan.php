@@ -86,6 +86,18 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php
+$selisihRekap = (int) ($rekap['selisih_saldo'] ?? 0);
+if (abs($selisihRekap) >= 1000): ?>
+<div class="alert alert-warning mb-3">
+    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+    Selisih saldo akhir TA: hitung <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir'])) ?></strong>
+    vs fisik <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir_fisik'])) ?></strong>
+    (selisih <?= htmlspecialchars($fmt(abs($selisihRekap))) ?>).
+    Periksa transaksi tanpa akun kas atau entri ganda.
+</div>
+<?php endif; ?>
+
 <div class="row g-3 mb-3">
     <div class="col-md-3">
         <div class="app-mini-stat">
@@ -120,8 +132,11 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <?php keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt); ?>
         <p class="small text-muted mt-3 mb-0">
-            <strong>Catatan:</strong> Total masuk = iuran santri + titipan saku + donasi/infaq + pemasukan lain.
-            Pengeluaran investasi/belanja modal tidak termasuk. Baris hijau = bulan berjalan (periode dipotong sampai hari ini).
+            <strong>Petunjuk baca tabel:</strong>
+            <span class="d-inline-block me-2"><span class="badge" style="background:#dcfce7;color:#166534">Hijau</span> = kas masuk</span>
+            <span class="d-inline-block me-2"><span class="badge" style="background:#fee2e2;color:#b91c1c">Merah</span> = kas keluar</span>
+            <span class="d-inline-block me-2">— = nol</span>
+            Baris hijau = bulan berjalan. Kolom <strong>Selisih</strong> sehat jika — atau mendekati nol.
         </p>
     </div>
 </div>

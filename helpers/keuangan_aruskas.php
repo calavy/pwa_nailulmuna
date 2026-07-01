@@ -42,102 +42,49 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $kasAwal = keuangan_aruskas_total_kas($pdo, date('Y-m-d', strtotime($dateFrom . ' -1 day')));
     $kasAkhir = keuangan_aruskas_total_kas($pdo, $dateTo);
 
-    // —— Aktivitas operasi (arus kas langsung) ——
+    // —— Aktivitas operasi (arus kas langsung, detail per pos) ——
     $operasiBaris = [];
-    $totalIuranOps = 0;
-    $totalSakuOps = 0;
-    $totalDonasiOps = 0;
-    $totalPemasukanLainOps = 0;
+    $totalMasukOps = 0;
+    $totalKeluarOps = 0;
 
+    $penerimaanPerPos = [];
     if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
         $penerimaanStmt = $pdo->prepare("
-            SELECT LOWER(TRIM(d.pos_slug)) AS pos_slug,
-                   COALESCE(d.pos_nama, d.pos_slug, 'Pembayaran') AS label_pos,
+            SELECT COALESCE(d.pos_nama, d.pos_slug, 'Pembayaran') AS label_pos,
                    SUM(d.nominal) AS total
             FROM keuangan_pembayaran_detail d
             INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
             WHERE p.tanggal_bayar BETWEEN :dari AND :sampai
-            GROUP BY LOWER(TRIM(d.pos_slug)), d.pos_nama, d.pos_slug
+            GROUP BY d.pos_slug, d.pos_nama
             ORDER BY total DESC, label_pos ASC
         ");
         $penerimaanStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-        $iuranDetail = [];
-        $sakuTotal = 0;
         foreach ($penerimaanStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $nom = (int) round((float) ($row['total'] ?? 0));
             if ($nom === 0) {
                 continue;
             }
-            if ((string) ($row['pos_slug'] ?? '') === 'saku') {
-                $sakuTotal += $nom;
-                continue;
-            }
-            $iuranDetail[] = [
+            $penerimaanPerPos[] = [
                 'label' => (string) ($row['label_pos'] ?? 'Pembayaran'),
                 'nominal' => $nom,
             ];
-            $totalIuranOps += $nom;
-        }
-
-        if ($iuranDetail !== [] || $sakuTotal > 0) {
-            $operasiBaris[] = [
-                'label' => 'Penerimaan Iuran Santri',
-                'nominal' => 0,
-                'baris_tipe' => 'judul',
-            ];
-            foreach ($iuranDetail as $item) {
-                $operasiBaris[] = [
-                    'label' => $item['label'],
-                    'nominal' => $item['nominal'],
-                    'indent' => true,
-                ];
-            }
-            if ($totalIuranOps > 0) {
-                $operasiBaris[] = [
-                    'label' => 'Subtotal iuran santri',
-                    'nominal' => $totalIuranOps,
-                    'baris_tipe' => 'subtotal_grup',
-                ];
-            }
-            if ($sakuTotal > 0) {
-                $totalSakuOps = $sakuTotal;
-                $operasiBaris[] = [
-                    'label' => 'Penerimaan titipan saku santri (bukan iuran)',
-                    'nominal' => $sakuTotal,
-                    'indent' => true,
-                ];
-            }
+            $totalMasukOps += $nom;
         }
     }
 
-    if ($operasiBaris === [] && table_exists($pdo, 'keuangan_pembayaran')) {
-        $penerimaanTotalStmt = $pdo->prepare('
-            SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
-            WHERE tanggal_bayar BETWEEN :dari AND :sampai
-        ');
-        $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-        $totalIuranOps = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
-        if ($totalIuranOps > 0) {
-            $operasiBaris[] = [
-                'label' => 'Penerimaan Iuran Santri',
-                'nominal' => 0,
-                'baris_tipe' => 'judul',
-            ];
-            $operasiBaris[] = [
-                'label' => 'Pembayaran santri/wali',
-                'nominal' => $totalIuranOps,
-                'indent' => true,
-            ];
-            $operasiBaris[] = [
-                'label' => 'Subtotal iuran santri',
-                'nominal' => $totalIuranOps,
-                'baris_tipe' => 'subtotal_grup',
-            ];
-        }
+    $penerimaanTotalStmt = $pdo->prepare('
+        SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
+        WHERE tanggal_bayar BETWEEN :dari AND :sampai
+    ');
+    $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
+    $totalPenerimaan = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
+
+    if ($penerimaanPerPos === [] && $totalPenerimaan > 0) {
+        $penerimaanPerPos[] = ['label' => 'Pembayaran santri/wali', 'nominal' => $totalPenerimaan];
+        $totalMasukOps += $totalPenerimaan;
     }
 
-    $donasiRows = [];
-    $lainRows = [];
+    $pemasukanLain = [];
     if (table_exists($pdo, 'keuangan_pemasukan')) {
         $pemasukanStmt = $pdo->prepare("
             SELECT sumber, SUM(nominal) AS total
@@ -152,70 +99,15 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             if ($nom === 0) {
                 continue;
             }
-            $sumber = (string) ($row['sumber'] ?? 'Lainnya');
-            if (keuangan_pemasukan_kategori_sumber($sumber) === 'donasi') {
-                $donasiRows[] = ['label' => $sumber, 'nominal' => $nom];
-                $totalDonasiOps += $nom;
-            } else {
-                $lainRows[] = ['label' => $sumber, 'nominal' => $nom];
-                $totalPemasukanLainOps += $nom;
-            }
+            $pemasukanLain[] = [
+                'label' => (string) ($row['sumber'] ?? 'Lainnya'),
+                'nominal' => $nom,
+            ];
+            $totalMasukOps += $nom;
         }
     }
 
-    if ($donasiRows !== [] || $lainRows !== []) {
-        $operasiBaris[] = [
-            'label' => 'Pemasukan Lain-lain',
-            'nominal' => 0,
-            'baris_tipe' => 'judul',
-        ];
-        if ($donasiRows !== []) {
-            $operasiBaris[] = [
-                'label' => 'Penerimaan donasi/infaq',
-                'nominal' => 0,
-                'baris_tipe' => 'subjudul',
-            ];
-            foreach ($donasiRows as $item) {
-                $operasiBaris[] = [
-                    'label' => $item['label'],
-                    'nominal' => $item['nominal'],
-                    'indent' => true,
-                ];
-            }
-            $operasiBaris[] = [
-                'label' => 'Subtotal donasi/infaq',
-                'nominal' => $totalDonasiOps,
-                'baris_tipe' => 'subtotal_grup',
-            ];
-        }
-        if ($lainRows !== []) {
-            $operasiBaris[] = [
-                'label' => 'Pemasukan non-donasi',
-                'nominal' => 0,
-                'baris_tipe' => 'subjudul',
-            ];
-            foreach ($lainRows as $item) {
-                $operasiBaris[] = [
-                    'label' => $item['label'],
-                    'nominal' => $item['nominal'],
-                    'indent' => true,
-                ];
-            }
-            if ($totalPemasukanLainOps > 0) {
-                $operasiBaris[] = [
-                    'label' => 'Subtotal pemasukan lain',
-                    'nominal' => $totalPemasukanLainOps,
-                    'baris_tipe' => 'subtotal_grup',
-                ];
-            }
-        }
-    }
-
-    $operasiBaris[] = [
-        'label' => 'Pengeluaran operasional',
-        'nominal' => 0,
-        'baris_tipe' => 'judul',
-    ];
+    $pengeluaranPerPos = [];
     $pengeluaranOpsStmt = $pdo->prepare("
         SELECT COALESCE(pos, 'Beban operasional') AS label_pos, SUM(nominal) AS total
         FROM keuangan_pengeluaran
@@ -234,13 +126,14 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         if ($nom === 0) {
             continue;
         }
-        $operasiBaris[] = [
-            'label' => 'Pembayaran: ' . (string) ($row['label_pos'] ?? 'Beban'),
-            'nominal' => -$nom,
-            'indent' => true,
+        $pengeluaranPerPos[] = [
+            'label' => (string) ($row['label_pos'] ?? 'Beban'),
+            'nominal' => $nom,
         ];
+        $totalKeluarOps += $nom;
     }
 
+    $totalGaji = 0;
     if (table_exists($pdo, 'keuangan_gaji_pembimbing')) {
         $gajiStmt = $pdo->prepare('
             SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
@@ -248,11 +141,63 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         ');
         $gajiStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
         $totalGaji = (int) round((float) ($gajiStmt->fetchColumn() ?: 0));
+        $totalKeluarOps += $totalGaji;
+    }
+
+    if ($penerimaanPerPos !== [] || $pemasukanLain !== []) {
+        $operasiBaris[] = [
+            'label' => 'Kas masuk — penerimaan per pos',
+            'nominal' => 0,
+            'baris_tipe' => 'judul',
+        ];
+        foreach ($penerimaanPerPos as $item) {
+            $operasiBaris[] = [
+                'label' => $item['label'],
+                'nominal' => $item['nominal'],
+                'indent' => true,
+            ];
+        }
+        foreach ($pemasukanLain as $item) {
+            $operasiBaris[] = [
+                'label' => $item['label'] . ' (pemasukan lain)',
+                'nominal' => $item['nominal'],
+                'indent' => true,
+            ];
+        }
+        if ($totalMasukOps > 0) {
+            $operasiBaris[] = [
+                'label' => 'Subtotal kas masuk',
+                'nominal' => $totalMasukOps,
+                'baris_tipe' => 'subtotal_grup',
+            ];
+        }
+    }
+
+    if ($pengeluaranPerPos !== [] || $totalGaji > 0) {
+        $operasiBaris[] = [
+            'label' => 'Kas keluar — pengeluaran per pos',
+            'nominal' => 0,
+            'baris_tipe' => 'judul',
+        ];
+        foreach ($pengeluaranPerPos as $item) {
+            $operasiBaris[] = [
+                'label' => $item['label'],
+                'nominal' => -$item['nominal'],
+                'indent' => true,
+            ];
+        }
         if ($totalGaji > 0) {
             $operasiBaris[] = [
-                'label' => 'Pembayaran gaji pembimbing',
+                'label' => 'Gaji pembimbing',
                 'nominal' => -$totalGaji,
                 'indent' => true,
+            ];
+        }
+        if ($totalKeluarOps > 0) {
+            $operasiBaris[] = [
+                'label' => 'Subtotal kas keluar',
+                'nominal' => -$totalKeluarOps,
+                'baris_tipe' => 'subtotal_grup',
             ];
         }
     }
@@ -275,7 +220,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         }
     }
 
-    $totalOperasi = keuangan_aruskas_total_dari_baris($operasiBaris);
+    $totalOperasi = $totalMasukOps - $totalKeluarOps;
 
     // —— Aktivitas investasi ——
     $investasiBaris = [];
@@ -339,10 +284,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             SELECT j.kode_akun, j.nama_akun, COALESCE(SUM(j.kredit), 0) - COALESCE(SUM(j.debit), 0) AS neto
             FROM akuntansi_jurnal_umum j
             INNER JOIN akuntansi_chart_of_accounts c ON c.kode_akun = j.kode_akun
-            WHERE c.kelompok_laporan = 'ASET_NETO'
-              AND j.kode_akun NOT LIKE '41%'
-              AND j.kode_akun NOT LIKE '42%'
-              AND j.tanggal BETWEEN :dari AND :sampai
+            WHERE c.kelompok_laporan = 'ASET_NETO' AND j.tanggal BETWEEN :dari AND :sampai
             GROUP BY j.kode_akun, j.nama_akun
             HAVING neto <> 0
             ORDER BY j.kode_akun ASC
@@ -407,9 +349,8 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         'operasi' => [
             'baris' => $operasiBaris,
             'total' => $totalOperasi,
-            'total_iuran' => $totalIuranOps,
-            'total_donasi' => $totalDonasiOps,
-            'total_pemasukan_lain' => $totalPemasukanLainOps + $totalSakuOps,
+            'total_masuk' => $totalMasukOps,
+            'total_keluar' => $totalKeluarOps,
         ],
         'investasi' => ['baris' => $investasiBaris, 'total' => $totalInvestasi],
         'pendanaan' => ['baris' => $pendanaanBaris, 'total' => $totalPendanaan],
@@ -462,7 +403,7 @@ function keuangan_aruskas_total_dari_baris(array $baris): int
     $total = 0;
     foreach ($baris as $row) {
         $tipe = (string) ($row['baris_tipe'] ?? '');
-        if (in_array($tipe, ['judul', 'subjudul'], true)) {
+        if (in_array($tipe, ['judul', 'subjudul', 'subtotal_grup'], true)) {
             continue;
         }
         $total += (int) ($row['nominal'] ?? 0);

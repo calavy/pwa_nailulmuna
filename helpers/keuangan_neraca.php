@@ -174,62 +174,39 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
     $totalLiabilitas = array_sum(array_column($liabBaris, 'nominal'));
 
-    // Aset neto — saldo ekuitas dari operasional (tanpa penyesuaian paksa)
-    $asetNetoCoaBaris = keuangan_neraca_baris_from_coa(
-        $coaSaldo,
-        'ASET_NETO',
-        ['4101', '4102', '4103', '4199', '4201']
-    );
+    // Aset neto — COA + surplus operasional, lalu disesuaikan agar neraca selalu seimbang
+    $asetNetoCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'ASET_NETO');
+    $totalAsetNetoCoa = array_sum(array_column($asetNetoCoaBaris, 'nominal'));
 
     $ringkasanOperasi = keuangan_neraca_ringkasan_operasi($pdo, $asOf);
+    $surplusOperasi = (int) ($ringkasanOperasi['surplus_operasi'] ?? 0);
+
+    // Identitas: Aktiva = Liabilitas + Aset Neto
+    $totalAsetNeto = $totalAset - $totalLiabilitas;
+    $penyesuaianNeraca = $totalAsetNeto - $totalAsetNetoCoa - $surplusOperasi;
 
     $asetNetoBaris = $asetNetoCoaBaris;
-    if ((int) ($ringkasanOperasi['pendapatan_iuran'] ?? 0) > 0) {
+    if ($surplusOperasi !== 0) {
         $asetNetoBaris[] = [
-            'label' => 'Akumulasi penerimaan iuran santri (tidak termasuk saku)',
-            'nominal' => (int) $ringkasanOperasi['pendapatan_iuran'],
+            'label' => 'Surplus/(defisit) operasional (tanpa titipan saku)',
+            'nominal' => $surplusOperasi,
             'indent' => true,
         ];
     }
-    if ((int) ($ringkasanOperasi['pendapatan_donasi'] ?? 0) > 0) {
+    if ($penyesuaianNeraca !== 0) {
         $asetNetoBaris[] = [
-            'label' => 'Akumulasi penerimaan donasi/infaq',
-            'nominal' => (int) $ringkasanOperasi['pendapatan_donasi'],
+            'label' => 'Penyesuaian penyeimbang neraca',
+            'nominal' => $penyesuaianNeraca,
             'indent' => true,
         ];
     }
-    if ((int) ($ringkasanOperasi['pendapatan_lain'] ?? 0) > 0) {
+    if ($asetNetoBaris === [] && $totalAsetNeto !== 0) {
         $asetNetoBaris[] = [
-            'label' => 'Akumulasi pemasukan lain-lain',
-            'nominal' => (int) $ringkasanOperasi['pendapatan_lain'],
+            'label' => 'Aset neto (saldo awal / simulasi)',
+            'nominal' => $totalAsetNeto,
             'indent' => true,
         ];
     }
-    $beban = (int) ($ringkasanOperasi['beban'] ?? 0);
-    if ($beban > 0) {
-        $asetNetoBaris[] = [
-            'label' => 'Dikurangi: Beban operasional',
-            'nominal' => -$beban,
-            'indent' => true,
-        ];
-    }
-    $penyusutan = (int) ($ringkasanOperasi['penyusutan'] ?? 0);
-    if ($penyusutan > 0) {
-        $asetNetoBaris[] = [
-            'label' => 'Dikurangi: Penyusutan aset tetap',
-            'nominal' => -$penyusutan,
-            'indent' => true,
-        ];
-    }
-    if ($asetNetoBaris === []) {
-        $asetNetoBaris[] = [
-            'label' => 'Aset neto (belum ada mutasi)',
-            'nominal' => 0,
-            'indent' => true,
-        ];
-    }
-
-    $totalAsetNeto = array_sum(array_column($asetNetoBaris, 'nominal'));
 
     $asetNetoSections = [];
     if ($asetNetoBaris !== []) {
@@ -252,7 +229,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
         'total_pasiva' => $totalPasiva,
         'selisih' => $totalAset - $totalPasiva,
         'ringkasan' => $ringkasanOperasi,
-        'transaksi_tanpa_jurnal' => keuangan_rekonsiliasi_transaksi_tanpa_jurnal($pdo, '2000-01-01', $asOf),
+        'penyesuaian_neraca' => $penyesuaianNeraca,
     ];
 }
 
@@ -263,7 +240,6 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
  *   pendapatan_total:int,
  *   pendapatan_saku:int,
  *   pendapatan_pembayaran:int,
- *   pendapatan_donasi:int,
  *   pendapatan_lain:int,
  *   pendapatan_operasi:int,
  *   beban:int,
@@ -322,33 +298,20 @@ function keuangan_neraca_ringkasan_operasi(PDO $pdo, string $asOf): array
 
     $pendapatanPembayaran = max(0, $pendapatanTotal - $pendapatanSaku);
 
-    $pendapatanDonasi = 0;
     $pendapatanLain = 0;
     if (table_exists($pdo, 'keuangan_pemasukan')) {
-        $lainStmt = $pdo->prepare('SELECT sumber, COALESCE(SUM(nominal), 0) AS total FROM keuangan_pemasukan WHERE tanggal <= :t GROUP BY sumber');
+        $lainStmt = $pdo->prepare('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pemasukan WHERE tanggal <= :t');
         $lainStmt->execute(['t' => $asOf]);
-        foreach ($lainStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $nom = (int) round((float) ($row['total'] ?? 0));
-            if ($nom === 0) {
-                continue;
-            }
-            if (keuangan_pemasukan_kategori_sumber((string) ($row['sumber'] ?? '')) === 'donasi') {
-                $pendapatanDonasi += $nom;
-            } else {
-                $pendapatanLain += $nom;
-            }
-        }
+        $pendapatanLain = (int) round((float) ($lainStmt->fetchColumn() ?: 0));
     }
 
-    $pendapatanOperasi = $pendapatanPembayaran + $pendapatanDonasi + $pendapatanLain;
+    $pendapatanOperasi = $pendapatanPembayaran + $pendapatanLain;
     $surplusOperasi = $pendapatanOperasi - $beban - $penyusutan;
 
     return [
         'pendapatan_total' => $pendapatanTotal,
         'pendapatan_saku' => $pendapatanSaku,
         'pendapatan_pembayaran' => $pendapatanPembayaran,
-        'pendapatan_iuran' => $pendapatanPembayaran,
-        'pendapatan_donasi' => $pendapatanDonasi,
         'pendapatan_lain' => $pendapatanLain,
         'pendapatan_operasi' => $pendapatanOperasi,
         'beban' => $beban,
@@ -627,9 +590,7 @@ function keuangan_neraca_render_html(array $neraca, callable $fmt): void
 
     $selisih = (int) ($neraca['selisih'] ?? 0);
     if ($selisih !== 0) {
-        echo '<p class="neraca-balance-note warn">Selisih neraca ' . htmlspecialchars($fmt($selisih)) . ' — aktiva dan pasiva belum seimbang.</p>';
-        echo '<p class="neraca-balance-note text-center"><a href="' . htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php?per=' . urlencode((string) ($neraca['as_of'] ?? '')))) . '">Buka saran perbaikan neraca</a></p>';
-        keuangan_neraca_render_diagnostik($neraca, $fmt);
+        echo '<p class="neraca-balance-note warn">Selisih neraca ' . htmlspecialchars($fmt($selisih)) . ' — periksa jurnal dan saldo operasional.</p>';
     } else {
         echo '<p class="neraca-balance-note ok">Neraca seimbang: Jumlah Aktiva = Jumlah Pasiva.</p>';
     }
@@ -721,4 +682,159 @@ function keuangan_neraca_render_baris_tabel(array $bagian, callable $fmt, bool $
             echo '<td class="amt">' . htmlspecialchars($fmt((int) ($sec['subtotal'] ?? 0))) . '</td></tr>';
         }
     }
+}
+
+/** Ambang penyesuaian neraca dianggap tidak sehat (Rp). */
+function keuangan_neraca_penyesuaian_threshold(): int
+{
+    return 100_000;
+}
+
+/**
+ * Indikator kesehatan neraca (penyesuaian, jurnal, saku vs cashless).
+ *
+ * @return array{
+ *   penyesuaian_neraca:int,
+ *   penyesuaian_abs:int,
+ *   penyesuaian_besar:bool,
+ *   jumlah_tanpa_jurnal:int,
+ *   transaksi_tanpa_jurnal:list<array<string,mixed>>,
+ *   saku_dibayar:int,
+ *   cashless_saldo:int,
+ *   selisih_saku_cashless:int,
+ *   level:string,
+ *   seimbang_formal:bool
+ * }
+ */
+function keuangan_neraca_kesehatan(PDO $pdo, array $neraca, ?int $penyesuaianThreshold = null): array
+{
+    $asOf = (string) ($neraca['as_of'] ?? date('Y-m-d'));
+    $threshold = $penyesuaianThreshold ?? keuangan_neraca_penyesuaian_threshold();
+    $penyesuaian = (int) ($neraca['penyesuaian_neraca'] ?? 0);
+    $penyesuaianAbs = abs($penyesuaian);
+    $ring = is_array($neraca['ringkasan'] ?? null) ? $neraca['ringkasan'] : [];
+
+    $tanpaJurnal = keuangan_rekonsiliasi_transaksi_tanpa_jurnal($pdo, '2000-01-01', $asOf);
+    $jumlahTanpaJurnal = count($tanpaJurnal);
+
+    $sakuBayar = (int) ($ring['pendapatan_saku'] ?? 0);
+    $cashlessSaldo = 0;
+    if (table_exists($pdo, 'cashless_accounts')) {
+        $cashlessSaldo = (int) round((float) ($pdo->query('SELECT COALESCE(SUM(balance),0) FROM cashless_accounts')->fetchColumn() ?: 0));
+    }
+    $selisihSaku = $sakuBayar - $cashlessSaldo;
+
+    $penyesuaianBesar = $penyesuaianAbs >= $threshold;
+    $selisihSakuBesar = abs($selisihSaku) >= $threshold;
+
+    $level = 'ok';
+    if ($penyesuaianBesar || $jumlahTanpaJurnal > 0 || $selisihSakuBesar) {
+        $level = 'warn';
+    }
+    if ($penyesuaianBesar && ($jumlahTanpaJurnal > 0 || $selisihSakuBesar)) {
+        $level = 'danger';
+    }
+
+    return [
+        'penyesuaian_neraca' => $penyesuaian,
+        'penyesuaian_abs' => $penyesuaianAbs,
+        'penyesuaian_besar' => $penyesuaianBesar,
+        'penyesuaian_threshold' => $threshold,
+        'jumlah_tanpa_jurnal' => $jumlahTanpaJurnal,
+        'transaksi_tanpa_jurnal' => array_slice($tanpaJurnal, 0, 15),
+        'saku_dibayar' => $sakuBayar,
+        'cashless_saldo' => $cashlessSaldo,
+        'selisih_saku_cashless' => $selisihSaku,
+        'level' => $level,
+        'seimbang_formal' => abs((int) ($neraca['selisih'] ?? 0)) < 1,
+    ];
+}
+
+/**
+ * Panel indikator kesehatan neraca (hanya tampilan web, bukan cetak).
+ *
+ * @param callable(int): string $fmt
+ */
+function keuangan_neraca_render_panel_kesehatan(
+    array $kesehatan,
+    callable $fmt,
+    string $asOf,
+    bool $showBackfill = true
+): void {
+    $level = (string) ($kesehatan['level'] ?? 'ok');
+    $penyesuaian = (int) ($kesehatan['penyesuaian_neraca'] ?? 0);
+    $penyesuaianAbs = (int) ($kesehatan['penyesuaian_abs'] ?? 0);
+    $jumlahTanpaJurnal = (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0);
+    $selisihSaku = (int) ($kesehatan['selisih_saku_cashless'] ?? 0);
+
+    $alertClass = match ($level) {
+        'danger' => 'alert-danger',
+        'warn' => 'alert-warning',
+        default => 'alert-success',
+    };
+
+    echo '<div class="card shadow-sm mb-3 neraca-kesehatan-card">';
+    echo '<div class="card-header fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">';
+    echo '<span><i class="fa-solid fa-heart-pulse me-1"></i> Indikator kesehatan neraca</span>';
+    if ($level === 'ok') {
+        echo '<span class="badge bg-success">Data konsisten</span>';
+    } elseif ($level === 'warn') {
+        echo '<span class="badge bg-warning text-dark">Perlu perhatian</span>';
+    } else {
+        echo '<span class="badge bg-danger">Perlu tindakan</span>';
+    }
+    echo '</div>';
+    echo '<div class="card-body">';
+
+    echo '<div class="alert ' . $alertClass . ' py-2 mb-3">';
+    if ($penyesuaianAbs === 0 && $jumlahTanpaJurnal === 0 && abs($selisihSaku) < 1000) {
+        echo '<i class="fa-solid fa-circle-check me-1"></i> Neraca seimbang tanpa penyesuaian penyeimbang. Data operasional dan buku besar selaras.';
+    } elseif ($penyesuaianAbs > 0) {
+        echo '<i class="fa-solid fa-triangle-exclamation me-1"></i> Neraca tampak seimbang, tetapi ada penyesuaian penyeimbang '
+            . '<strong>' . htmlspecialchars($fmt($penyesuaianAbs)) . '</strong>'
+            . ($penyesuaian < 0 ? ' (defisit disembunyikan)' : ' (surplus disembunyikan)')
+            . '. Angka ini menutupi ketidakselarasan operasional vs buku besar.';
+    } else {
+        echo '<i class="fa-solid fa-info-circle me-1"></i> Neraca seimbang. Periksa indikator di bawah untuk memastikan kualitas data.';
+    }
+    echo '</div>';
+
+    echo '<div class="row g-2 mb-3">';
+    echo '<div class="col-md-4"><div class="border rounded p-2 h-100">';
+    echo '<div class="small text-muted">Penyesuaian penyeimbang</div>';
+    echo '<div class="fw-semibold ' . ($penyesuaianAbs >= (int) ($kesehatan['penyesuaian_threshold'] ?? 100000) ? 'text-danger' : 'text-success') . '">';
+    echo htmlspecialchars($fmt($penyesuaian));
+    echo '</div></div></div>';
+    echo '<div class="col-md-4"><div class="border rounded p-2 h-100">';
+    echo '<div class="small text-muted">Transaksi tanpa jurnal</div>';
+    echo '<div class="fw-semibold ' . ($jumlahTanpaJurnal > 0 ? 'text-warning' : 'text-success') . '">';
+    echo (int) $jumlahTanpaJurnal;
+    echo '</div></div></div>';
+    echo '<div class="col-md-4"><div class="border rounded p-2 h-100">';
+    echo '<div class="small text-muted">Selisih saku vs cashless</div>';
+    echo '<div class="fw-semibold ' . (abs($selisihSaku) >= 1000 ? 'text-warning' : 'text-success') . '">';
+    echo htmlspecialchars($fmt($selisihSaku));
+    echo '</div></div></div>';
+    echo '</div>';
+
+    echo '<div class="d-flex flex-wrap gap-2">';
+    if ($showBackfill && $jumlahTanpaJurnal > 0) {
+        echo '<form method="post" class="mb-0" onsubmit="return confirm(\'Buat jurnal otomatis untuk transaksi yang belum punya jurnal?\');">';
+        echo '<input type="hidden" name="action" value="backfill_jurnal">';
+        echo '<input type="hidden" name="per" value="' . htmlspecialchars($asOf) . '">';
+        echo '<button type="submit" class="btn btn-sm btn-warning"><i class="fa-solid fa-rotate me-1"></i> Sinkronkan jurnal (' . $jumlahTanpaJurnal . ')</button>';
+        echo '</form>';
+    }
+    echo '<a href="' . htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php?per=' . urlencode($asOf))) . '" class="btn btn-sm btn-outline-secondary">Detail analisis</a>';
+    echo '<a href="' . htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) . '" class="btn btn-sm btn-outline-primary">Rekap kas bulanan</a>';
+    echo '</div>';
+
+    $pending = $kesehatan['transaksi_tanpa_jurnal'] ?? [];
+    if (is_array($pending) && $pending !== []) {
+        echo '<div class="mt-3">';
+        keuangan_neraca_render_diagnostik(['transaksi_tanpa_jurnal' => $pending], $fmt);
+        echo '</div>';
+    }
+
+    echo '</div></div>';
 }
