@@ -69,6 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . app_href('/perizinan/permohonan.php'));
             exit;
         }
+        $blokirPending = perizinan_cek_blokir_pengajuan_baru($pdo, $santriIdPost);
+        if ($blokirPending !== null) {
+            set_flash('error', $blokirPending);
+            header('Location: ' . app_href('/perizinan/permohonan.php'));
+            exit;
+        }
     }
 
     if ($alasanPost === '') {
@@ -206,6 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $sqlAktifS = santri_sql_aktif_only('s');
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
 $santriList = $pdo->query('SELECT id, nama_santri, nis, tingkatan FROM santri s WHERE ' . $sqlAktifS . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll();
+$santriIdsList = array_map(static fn(array $s): int => (int) ($s['id'] ?? 0), $santriList ?: []);
+$pendingBySantri = perizinan_santri_pending_map($pdo, $santriIdsList);
 $namaPengasuh = (string) app_setting($pdo, 'nama_pengasuh', '');
 
 $myIzinList = $pdo->query('
@@ -266,6 +274,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <h2 class="h5 mb-2">Form permohonan izin</h2>
                 <p class="small text-muted mb-3">Isi data santri dan keperluannya. Permohonan akan masuk antrian persetujuan pengurus.</p>
                 <form method="post" class="row g-2" id="form-permohonan">
+                    <div class="col-12 d-none" id="wrap-pending-blokir">
+                        <div class="alert alert-warning small py-2 mb-0" id="pending-blokir-teks"></div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label">Santri</label>
                         <select class="form-select" name="santri_id" id="santri-permohonan-select" required>
@@ -350,7 +361,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <div class="col-12 mt-2">
-                        <button type="submit" class="btn btn-success">Kirim permohonan</button>
+                        <button type="submit" class="btn btn-success" id="btn-kirim-permohonan">Kirim permohonan</button>
                     </div>
                 </form>
             </div>
@@ -421,6 +432,43 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script>
+(function () {
+    var pendingMap = <?= json_encode(array_map(
+        static fn(array $row): array => [
+            'id' => (int) ($row['id'] ?? 0),
+            'message' => perizinan_pesan_blokir_pending($row) ?? '',
+        ],
+        $pendingBySantri
+    ), JSON_UNESCAPED_UNICODE) ?>;
+    var santriSelect = document.getElementById('santri-permohonan-select');
+    var wrapPending = document.getElementById('wrap-pending-blokir');
+    var txtPending = document.getElementById('pending-blokir-teks');
+    var btnKirim = document.getElementById('btn-kirim-permohonan');
+
+    function syncPendingBlokir() {
+        if (!santriSelect || !wrapPending || !txtPending || !btnKirim) {
+            return;
+        }
+        var sid = parseInt(santriSelect.value || '0', 10);
+        var info = pendingMap[sid] || pendingMap[String(sid)] || null;
+        if (info && info.message) {
+            wrapPending.classList.remove('d-none');
+            txtPending.textContent = info.message;
+            btnKirim.disabled = true;
+            return;
+        }
+        wrapPending.classList.add('d-none');
+        txtPending.textContent = '';
+        btnKirim.disabled = false;
+    }
+
+    if (santriSelect) {
+        santriSelect.addEventListener('change', syncPendingBlokir);
+        syncPendingBlokir();
+    }
+})();
+</script>
 <script>
 (function () {
     var jenis = document.getElementById('jenis-izin-permohonan');

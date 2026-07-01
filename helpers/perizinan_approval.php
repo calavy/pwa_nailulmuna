@@ -2065,3 +2065,91 @@ function perizinan_pengasuh_pending_count(PDO $pdo): int
 
     return (int) $cnt;
 }
+
+/**
+ * Permohonan izin santri yang masih menunggu persetujuan (belum disetujui).
+ *
+ * @return array<string, mixed>|null
+ */
+function perizinan_santri_pending_row(PDO $pdo, int $santriId): ?array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'perizinan')) {
+        return null;
+    }
+    perizinan_approval_ensure_schema($pdo);
+    $st = $pdo->prepare('
+        SELECT id, jenis_izin, tanggal_mulai, tanggal_selesai, approval_status, alasan
+        FROM perizinan
+        WHERE santri_id = :sid AND approval_status = "PENDING"
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $st->execute(['sid' => $santriId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return $row ?: null;
+}
+
+/** Pesan blokir pengajuan baru jika masih ada permohonan PENDING. */
+function perizinan_pesan_blokir_pending(?array $pending): ?string
+{
+    if ($pending === null) {
+        return null;
+    }
+    $id = (int) ($pending['id'] ?? 0);
+    $jenis = jenis_izin_label((string) ($pending['jenis_izin'] ?? ''));
+    $tgl1 = (string) ($pending['tanggal_mulai'] ?? '');
+    $tgl2 = (string) ($pending['tanggal_selesai'] ?? '');
+    $rentang = '';
+    if ($tgl1 !== '') {
+        $rentang = $tgl2 !== '' && $tgl2 !== $tgl1
+            ? " ({$tgl1} – {$tgl2})"
+            : " ({$tgl1})";
+    }
+
+    return 'Masih ada permohonan izin #' . $id . ' (' . $jenis . ')' . $rentang
+        . ' yang belum disetujui. Tunggu persetujuan atau penolakan terlebih dahulu sebelum mengajukan izin baru.';
+}
+
+/** @return string|null pesan error jika pengajuan baru diblokir */
+function perizinan_cek_blokir_pengajuan_baru(PDO $pdo, int $santriId): ?string
+{
+    return perizinan_pesan_blokir_pending(perizinan_santri_pending_row($pdo, $santriId));
+}
+
+/**
+ * Daftar santri yang punya permohonan PENDING (satu baris terbaru per santri).
+ *
+ * @param list<int> $santriIds
+ * @return array<int, array<string, mixed>>
+ */
+function perizinan_santri_pending_map(PDO $pdo, array $santriIds = []): array
+{
+    if (!table_exists($pdo, 'perizinan')) {
+        return [];
+    }
+    perizinan_approval_ensure_schema($pdo);
+    $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn(int $id): bool => $id > 0)));
+    $sql = '
+        SELECT santri_id, id, jenis_izin, tanggal_mulai, tanggal_selesai, approval_status, alasan
+        FROM perizinan
+        WHERE approval_status = "PENDING"';
+    $params = [];
+    if ($santriIds !== []) {
+        $ph = implode(',', array_fill(0, count($santriIds), '?'));
+        $sql .= ' AND santri_id IN (' . $ph . ')';
+        $params = $santriIds;
+    }
+    $sql .= ' ORDER BY id DESC';
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid > 0 && !isset($map[$sid])) {
+            $map[$sid] = $row;
+        }
+    }
+
+    return $map;
+}

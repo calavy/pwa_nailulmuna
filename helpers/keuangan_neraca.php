@@ -519,6 +519,8 @@ body.neraca-page .neraca-report-body { padding: 1.25rem 1.5rem !important; overf
 .neraca-balance-note { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
 .neraca-balance-note.ok { color: #0f766e; }
 .neraca-balance-note.warn { color: #b45309; }
+.neraca-balance-note.danger { color: #b91c1c; font-weight: 700; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.65rem 1rem; }
+.neraca-grid--imbalance .neraca-kolom-foot { background: #fef2f2 !important; color: #991b1b !important; border-top-color: #dc2626 !important; }
 .neraca-diagnostik { margin-top: 1rem; padding: 1rem; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; font-size: 0.88rem; }
 @media (min-width: 1400px) {
     .neraca-kolom table { font-size: 1rem; }
@@ -554,7 +556,11 @@ function keuangan_neraca_render_html(array $neraca, callable $fmt): void
     echo '<p class="sub">' . $nama . '</p>';
     echo '<p class="per">Per ' . htmlspecialchars((string) $neraca['as_of_label']) . '</p>';
 
-    echo '<div class="neraca-grid">';
+    $selisih = (int) ($neraca['selisih'] ?? 0);
+    $seimbang = abs($selisih) < 1;
+    $gridClass = $seimbang ? '' : ' neraca-grid--imbalance';
+
+    echo '<div class="neraca-grid' . $gridClass . '">';
     echo '<div class="neraca-kolom neraca-kolom-aktiva">';
     echo '<div class="neraca-kolom-head">AKTIVA</div>';
     echo '<div class="neraca-kolom-body">';
@@ -574,7 +580,10 @@ function keuangan_neraca_render_html(array $neraca, callable $fmt): void
 
     $selisih = (int) ($neraca['selisih'] ?? 0);
     if ($selisih !== 0) {
-        echo '<p class="neraca-balance-note warn">Selisih neraca ' . htmlspecialchars($fmt($selisih)) . ' — periksa jurnal dan saldo operasional.</p>';
+        $arah = $selisih > 0 ? 'Aktiva lebih besar dari pasiva' : 'Pasiva lebih besar dari aktiva';
+        echo '<p class="neraca-balance-note danger"><i class="fa-solid fa-circle-exclamation me-1"></i> '
+            . 'Neraca tidak seimbang — selisih ' . htmlspecialchars($fmt(abs($selisih)))
+            . ' (' . htmlspecialchars($arah) . '). Lihat panel kesalahan pencatatan di atas.</p>';
     } else {
         echo '<p class="neraca-balance-note ok">Neraca seimbang: Jumlah Aktiva = Jumlah Pasiva.</p>';
     }

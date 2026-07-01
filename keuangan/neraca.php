@@ -8,7 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/keuangan_jurnal.php';
 require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
-require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/keuangan_neraca_perbaikan.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -134,12 +134,16 @@ require_once __DIR__ . '/../includes/header.php';
 </p>
 <?php endif; ?>
 
-<div class="card shadow-sm neraca-report-card">
+<?php if (!$seimbang): ?>
+<?php keuangan_neraca_render_kesalahan_pencatatan($pdo, $neraca, $fmt, true); ?>
+<?php endif; ?>
+
+<div class="card shadow-sm neraca-report-card <?= !$seimbang ? 'border-danger border-2' : '' ?>">
     <div class="card-body neraca-report-body">
         <?php keuangan_neraca_render_html($neraca, $fmt); ?>
     </div>
 </div>
 
-<style><?= keuangan_neraca_css_dua_kolom() ?></style>
+<style><?= keuangan_neraca_css_dua_kolom() ?><?= keuangan_neraca_perbaikan_css() ?></style>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

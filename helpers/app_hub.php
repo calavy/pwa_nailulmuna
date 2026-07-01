@@ -15,7 +15,7 @@ function app_hub_registry(): array
                 ['path' => '/keuangan/pembayaran.php', 'label' => 'Input bayar'],
                 ['path' => '/keuangan/tagihan_wali.php', 'label' => 'Tagihan ke wali'],
                 ['path' => '/pembayaran/tagihan_syahriyah.php', 'label' => 'Tagihan bulanan'],
-                ['path' => '/pembayaran/riwayat.php', 'label' => 'Riwayat'],
+                ['path' => '/keuangan/riwayat_pembayaran.php', 'label' => 'Riwayat masuk & keluar'],
             ],
         ],
         'keuangan_kas' => [
@@ -24,8 +24,8 @@ function app_hub_registry(): array
             'tabs' => [
                 ['path' => '/keuangan/pemasukan.php', 'label' => 'Pemasukan'],
                 ['path' => '/keuangan/pengeluaran.php', 'label' => 'Pengeluaran'],
-                ['path' => '/keuangan/riwayat_pemasukan.php', 'label' => 'Riwayat masuk'],
-                ['path' => '/keuangan/riwayat_pengeluaran.php', 'label' => 'Riwayat keluar'],
+                ['path' => '/keuangan/riwayat_pembayaran.php', 'label' => 'Riwayat masuk & keluar'],
+                ['path' => '/keuangan/riwayat_pemasukan.php', 'label' => 'Pemasukan lain'],
             ],
         ],
         'keuangan_cashless' => [

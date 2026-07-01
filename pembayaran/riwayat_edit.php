@@ -25,6 +25,11 @@ if ($pembayaranId <= 0) {
     exit;
 }
 
+$returnRaw = trim((string) ($_GET['return'] ?? $_POST['return'] ?? ''));
+$returnUrl = ($returnRaw !== '' && str_starts_with($returnRaw, '/') && !preg_match('#^https?://#i', $returnRaw))
+    ? $returnRaw
+    : app_url('pembayaran/riwayat.php');
+
 // ---- Alur token: redeem terlebih dahulu jika user belum punya akses edit ----
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 $tokenRequired = pembayaran_edit_token_required_for_current_user();
@@ -66,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash('error', $result['message']);
         }
-        header('Location: ' . app_url('pembayaran/riwayat.php'));
+        header('Location: ' . $returnUrl);
         exit;
     }
 
@@ -74,11 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = keuangan_update_pembayaran($pdo, $pembayaranId, $_POST, $userId, $alasan);
         if ($result['ok']) {
             set_flash('success', $result['message']);
-            header('Location: ' . app_url('pembayaran/riwayat.php'));
+            header('Location: ' . $returnUrl);
             exit;
         }
         set_flash('error', $result['message']);
-        header('Location: ' . app_url('pembayaran/riwayat_edit.php?id=' . $pembayaranId));
+        header('Location: ' . app_url('pembayaran/riwayat_edit.php?id=' . $pembayaranId . '&return=' . rawurlencode($returnUrl)));
         exit;
     }
 }
@@ -86,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $row = keuangan_pembayaran_fetch($pdo, $pembayaranId);
 if ($row === null) {
     set_flash('error', 'Pembayaran tidak ditemukan.');
-    header('Location: ' . app_url('pembayaran/riwayat.php'));
+    header('Location: ' . $returnUrl);
     exit;
 }
 
@@ -111,7 +116,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="<?= htmlspecialchars(app_url('pembayaran/riwayat.php')) ?>">Riwayat pembayaran</a>
+        <a href="<?= htmlspecialchars($returnUrl) ?>">Kembali ke riwayat</a>
         · Admin
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
@@ -183,6 +188,7 @@ $canEditNow = !$tokenRequired || $tokenSessionAktif;
 <form method="post" class="card shadow-sm mb-4" id="form-koreksi-pembayaran">
     <input type="hidden" name="action" value="update_pembayaran">
     <input type="hidden" name="id" value="<?= $pembayaranId ?>">
+    <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl) ?>">
     <div class="card-header fw-semibold">Ubah data pembayaran</div>
     <div class="card-body row g-3">
         <div class="col-md-4">
@@ -300,6 +306,7 @@ $canEditNow = !$tokenRequired || $tokenSessionAktif;
         <form method="post" onsubmit="return confirm('Yakin hapus pembayaran #<?= $pembayaranId ?>? Tindakan ini dicatat di log audit.');">
             <input type="hidden" name="action" value="delete_pembayaran">
             <input type="hidden" name="id" value="<?= $pembayaranId ?>">
+            <input type="hidden" name="return" value="<?= htmlspecialchars($returnUrl) ?>">
             <div class="mb-3">
                 <label class="form-label">Alasan penghapusan <span class="text-danger">*</span></label>
                 <textarea name="alasan" class="form-control" rows="2" required></textarea>

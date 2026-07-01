@@ -145,6 +145,7 @@ return [
         '/keuangan/pemasukan.php' => 'Pemasukan Lain',
         '/keuangan/pengeluaran.php' => 'Input Pengeluaran',
         '/keuangan/riwayat_pengeluaran.php' => 'Riwayat Pengeluaran',
+        '/keuangan/riwayat_pembayaran.php' => 'Riwayat Masuk & Keluar',
         '/keuangan/talangan.php' => 'Dana Talangan',
         '/keuangan/potongan_syahriyah.php' => 'Potongan Syahriyah',
         '/keuangan/inventaris.php' => 'Inventaris Aset',
@@ -238,6 +239,7 @@ return [
             ['title' => 'Transaksi', 'paths' => [
                 '/keuangan/transaksi.php',
                 '/keuangan/kas.php',
+                '/keuangan/riwayat_pembayaran.php',
                 '/keuangan/cashless.php',
                 '/keuangan/potongan_syahriyah.php',
                 '/keuangan/talangan.php',

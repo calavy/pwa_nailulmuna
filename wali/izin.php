@@ -14,6 +14,8 @@ if ($defaultPemohon === '') {
 
 $syariKategoriOpsi = perizinan_syari_kategori_list_portal($pdo);
 $alpaInfoAwal = wali_perizinan_alpa_info_portal($pdo, $waliSantriId, date('Y-m-d'));
+$pendingAwal = perizinan_santri_pending_row($pdo, $waliSantriId);
+$pendingBlokirAwal = perizinan_pesan_blokir_pending($pendingAwal);
 $apiAlpaUrl = app_href('/wali/api_alpa.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -132,6 +134,12 @@ require __DIR__ . '/partials/anak_switcher.php';
                     $tujuanInputClass = 'form-control-sm';
                     require __DIR__ . '/../perizinan/partials/tujuan_izin_field.php';
                     ?>
+                    <div class="col-12 d-none" id="wrap-pending-blokir">
+                        <div class="alert alert-warning border-warning small mb-0 py-2">
+                            <div class="fw-semibold mb-1"><i class="fa-solid fa-hourglass-half me-1"></i> Pengajuan ditahan</div>
+                            <div id="pending-blokir-teks"></div>
+                        </div>
+                    </div>
                     <div class="col-12 d-none" id="wrap-alpa-peringatan">
                         <div class="alert alert-warning border-warning small mb-0 py-2">
                             <div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i> Perhatian — syarat ALPA</div>
@@ -146,7 +154,7 @@ require __DIR__ . '/partials/anak_switcher.php';
                         </div>
                     </div>
                     <div class="col-12">
-                        <button type="submit" class="btn btn-teal btn-sm w-100" <?= $syariKategoriOpsi === [] ? 'disabled' : '' ?>>Kirim permohonan izin</button>
+                        <button type="submit" class="btn btn-teal btn-sm w-100" id="btn-kirim-wali-izin" <?= ($syariKategoriOpsi === [] || $pendingBlokirAwal !== null) ? 'disabled' : '' ?>>Kirim permohonan izin</button>
                     </div>
                 </form>
             </div>
@@ -203,7 +211,28 @@ require __DIR__ . '/partials/anak_switcher.php';
     var wrapOk = document.getElementById('wrap-alpa-ok');
     var txtBlocked = document.getElementById('alpa-peringatan-teks');
     var txtOk = document.getElementById('alpa-ok-teks');
+    var wrapPending = document.getElementById('wrap-pending-blokir');
+    var txtPending = document.getElementById('pending-blokir-teks');
+    var btnKirim = document.getElementById('btn-kirim-wali-izin');
     var apiAlpaUrl = <?= json_encode($apiAlpaUrl, JSON_UNESCAPED_UNICODE) ?>;
+
+    function renderPending(data) {
+        if (!wrapPending || !txtPending || !btnKirim) return;
+        var blocked = data && data.pending_blocked;
+        if (blocked && data.pending_message) {
+            wrapPending.classList.remove('d-none');
+            txtPending.textContent = data.pending_message;
+            btnKirim.disabled = true;
+            return;
+        }
+        wrapPending.classList.add('d-none');
+        txtPending.textContent = '';
+        if (<?= $syariKategoriOpsi === [] ? 'true' : 'false' ?>) {
+            btnKirim.disabled = true;
+        } else {
+            btnKirim.disabled = false;
+        }
+    }
 
     function formatDate(d) {
         var y = d.getFullYear();
@@ -281,7 +310,12 @@ require __DIR__ . '/partials/anak_switcher.php';
             headers: { 'Accept': 'application/json' }
         })
             .then(function (r) { return r.json(); })
-            .then(function (data) { if (data && data.ok) renderAlpa(data); })
+            .then(function (data) {
+                if (data && data.ok) {
+                    renderAlpa(data);
+                    renderPending(data);
+                }
+            })
             .catch(function () { /* abaikan */ });
     }
 
@@ -297,6 +331,10 @@ require __DIR__ . '/partials/anak_switcher.php';
         santriSelect.addEventListener('change', refreshAlpa);
     }
     renderAlpa(<?= json_encode($alpaInfoAwal, JSON_UNESCAPED_UNICODE) ?>);
+    renderPending({
+        pending_blocked: <?= $pendingBlokirAwal !== null ? 'true' : 'false' ?>,
+        pending_message: <?= json_encode($pendingBlokirAwal ?? '', JSON_UNESCAPED_UNICODE) ?>
+    });
     refreshAlpa();
 })();
 </script>

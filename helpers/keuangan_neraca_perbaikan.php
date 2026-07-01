@@ -341,7 +341,194 @@ body.neraca-perbaikan-page .saran-card.prio-tinggi { border-left-color: #dc2626;
 body.neraca-perbaikan-page .saran-card.prio-sedang { border-left-color: #d97706; }
 body.neraca-perbaikan-page .saran-card.prio-rendah { border-left-color: #64748b; }
 body.neraca-perbaikan-page .saran-langkah { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.9rem; }
+body.neraca-page .neraca-kesalahan-panel { border: 2px solid #dc2626; border-radius: 10px; overflow: hidden; }
+body.neraca-page .neraca-kesalahan-head { background: #fef2f2; color: #991b1b; padding: 0.85rem 1.1rem; border-bottom: 1px solid #fecaca; }
+body.neraca-page .neraca-kesalahan-body { padding: 1rem 1.1rem; background: #fff; }
+body.neraca-page .neraca-kesalahan-item { border-left: 4px solid #dc2626; background: #fff5f5; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.65rem; }
+body.neraca-page .neraca-kesalahan-item.prio-sedang { border-left-color: #d97706; background: #fffbeb; }
+body.neraca-page .neraca-kesalahan-item:last-child { margin-bottom: 0; }
+body.neraca-page .neraca-kesalahan-sampel { font-size: 0.82rem; margin-top: 0.5rem; }
+body.neraca-page .neraca-kesalahan-sampel table { margin-bottom: 0; }
+body.neraca-page .neraca-kesalahan-sampel td, body.neraca-page .neraca-kesalahan-sampel th { padding: 0.3rem 0.5rem; }
+body.neraca-page .neraca-kesalahan-sampel tbody tr { background: #fff; }
+body.neraca-page .neraca-grid--imbalance .neraca-kolom-foot { background: #fef2f2 !important; color: #991b1b !important; border-top-color: #dc2626 !important; }
+body.neraca-page .neraca-balance-note.danger { color: #b91c1c; font-weight: 700; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.65rem 1rem; }
 ';
+}
+
+/**
+ * Temuan kesalahan pencatatan yang memengaruhi keseimbangan neraca.
+ *
+ * @return array{selisih:int,seimbang:bool,analisis:array<string,mixed>,kesalahan:list<array<string,mixed>>}
+ */
+function keuangan_neraca_kesalahan_pencatatan(PDO $pdo, array $neraca): array
+{
+    $selisih = (int) ($neraca['selisih'] ?? 0);
+    $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
+    $allSaran = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
+    $skipKode = ['seimbang', 'saldo_awal', 'arah_aktiva', 'arah_pasiva', 'aset_coa'];
+    $kesalahan = [];
+    foreach ($allSaran as $item) {
+        $kode = (string) ($item['kode'] ?? '');
+        if (in_array($kode, $skipKode, true)) {
+            continue;
+        }
+        $jumlah = (int) ($item['jumlah'] ?? 0);
+        $nominal = (int) ($item['nominal'] ?? 0);
+        if ($jumlah <= 0 && $nominal <= 0) {
+            continue;
+        }
+        $kesalahan[] = $item;
+    }
+
+    return [
+        'selisih' => $selisih,
+        'seimbang' => abs($selisih) < 1,
+        'analisis' => $analisis,
+        'kesalahan' => $kesalahan,
+    ];
+}
+
+/**
+ * @param callable(int): string $fmt
+ */
+function keuangan_neraca_render_kesalahan_pencatatan(
+    PDO $pdo,
+    array $neraca,
+    callable $fmt,
+    bool $showBackfill = true
+): void {
+    $paket = keuangan_neraca_kesalahan_pencatatan($pdo, $neraca);
+    if (!empty($paket['seimbang']) && ($paket['kesalahan'] ?? []) === []) {
+        return;
+    }
+
+    $selisih = (int) ($paket['selisih'] ?? 0);
+    $analisis = (array) ($paket['analisis'] ?? []);
+    $kesalahan = (array) ($paket['kesalahan'] ?? []);
+    $arah = (string) ($analisis['arah'] ?? '');
+    $arahLabel = match ($arah) {
+        'aktiva_lebih' => 'Aktiva lebih besar dari pasiva',
+        'pasiva_lebih' => 'Pasiva lebih besar dari aktiva',
+        default => 'Neraca tidak seimbang',
+    };
+
+    echo '<div class="card shadow-sm mb-3 neraca-kesalahan-panel border-danger">';
+    echo '<div class="neraca-kesalahan-head">';
+    echo '<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">';
+    echo '<div>';
+    echo '<div class="fw-bold fs-6"><i class="fa-solid fa-circle-exclamation me-1"></i> Neraca tidak seimbang</div>';
+    if (abs($selisih) >= 1) {
+        echo '<div class="small mt-1">Selisih <strong>' . htmlspecialchars($fmt(abs($selisih))) . '</strong>';
+        echo ' — ' . htmlspecialchars($arahLabel) . '</div>';
+    }
+    echo '</div>';
+    if (abs($selisih) >= 1) {
+        echo '<span class="badge bg-danger fs-6">' . htmlspecialchars($fmt(abs($selisih))) . '</span>';
+    }
+    echo '</div></div>';
+
+    echo '<div class="neraca-kesalahan-body">';
+    if ($kesalahan === []) {
+        echo '<p class="text-muted small mb-0">Tidak ada pola kesalahan spesifik terdeteksi otomatis. Periksa saldo awal akun, jurnal manual, dan mutasi kas di rekap kas bulanan.</p>';
+        echo '<a class="btn btn-sm btn-outline-danger mt-2" href="' . htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php?per=' . urlencode((string) ($neraca['as_of'] ?? '')))) . '">Analisis lengkap</a>';
+        echo '</div></div>';
+        return;
+    }
+
+    echo '<p class="small text-danger fw-semibold mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i> Kemungkinan kesalahan pencatatan:</p>';
+
+    foreach ($kesalahan as $item) {
+        $prio = (string) ($item['prioritas'] ?? 'tinggi');
+        $prioClass = $prio === 'sedang' ? ' prio-sedang' : '';
+        $badge = $prio === 'tinggi' ? 'danger' : ($prio === 'sedang' ? 'warning text-dark' : 'secondary');
+        echo '<div class="neraca-kesalahan-item' . $prioClass . '">';
+        echo '<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-1">';
+        echo '<strong class="text-danger">' . htmlspecialchars((string) ($item['judul'] ?? '')) . '</strong>';
+        echo '<span class="badge bg-' . $badge . '">' . htmlspecialchars(ucfirst($prio)) . '</span>';
+        echo '</div>';
+        echo '<p class="small mb-1 text-body-secondary">' . htmlspecialchars((string) ($item['deskripsi'] ?? '')) . '</p>';
+        if ((int) ($item['jumlah'] ?? 0) > 0 || (int) ($item['nominal'] ?? 0) > 0) {
+            echo '<p class="small mb-1 fw-semibold text-danger">';
+            if ((int) ($item['jumlah'] ?? 0) > 0) {
+                echo (int) $item['jumlah'] . ' transaksi';
+            }
+            if ((int) ($item['nominal'] ?? 0) > 0) {
+                echo ((int) ($item['jumlah'] ?? 0) > 0 ? ' · ' : '') . 'terkait ' . htmlspecialchars($fmt((int) $item['nominal']));
+            }
+            echo '</p>';
+        }
+        keuangan_neraca_render_kesalahan_sampel((string) ($item['kode'] ?? ''), $analisis, $fmt);
+        echo '<div class="d-flex flex-wrap gap-2 mt-2">';
+        if (!empty($item['link'])) {
+            echo '<a class="btn btn-sm btn-danger" href="' . htmlspecialchars(app_href((string) $item['link'])) . '">';
+            echo '<i class="fa-solid fa-wrench me-1"></i>' . htmlspecialchars((string) ($item['link_label'] ?? 'Perbaiki'));
+            echo '</a>';
+        }
+        if ($showBackfill && ($item['aksi'] ?? '') === 'backfill_jurnal') {
+            echo '<form method="post" class="mb-0 d-inline" onsubmit="return confirm(\'Buat jurnal otomatis untuk transaksi yang belum punya jurnal?\');">';
+            echo '<input type="hidden" name="action" value="backfill_jurnal">';
+            echo '<input type="hidden" name="per" value="' . htmlspecialchars((string) ($neraca['as_of'] ?? '')) . '">';
+            echo '<button type="submit" class="btn btn-sm btn-warning"><i class="fa-solid fa-rotate me-1"></i> Sinkronkan jurnal</button>';
+            echo '</form>';
+        }
+        echo '</div></div>';
+    }
+
+    echo '<div class="mt-2 pt-2 border-top">';
+    echo '<a class="btn btn-sm btn-outline-secondary" href="' . htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php?per=' . urlencode((string) ($neraca['as_of'] ?? '')))) . '">Analisis &amp; saran lengkap</a>';
+    echo '</div>';
+    echo '</div></div>';
+}
+
+/**
+ * @param array<string, mixed> $analisis
+ * @param callable(int): string $fmt
+ */
+function keuangan_neraca_render_kesalahan_sampel(string $kode, array $analisis, callable $fmt): void
+{
+    $rows = [];
+    $labelTanggal = 'Tanggal';
+    $labelNom = 'Nominal';
+
+    if ($kode === 'pembayaran_tanpa_akun') {
+        foreach ((array) (($analisis['pembayaran_tanpa_akun']['sampel'] ?? [])) as $r) {
+            $rows[] = [(string) ($r['tanggal'] ?? ''), 'Pembayaran #' . (int) ($r['id'] ?? 0), (int) ($r['nominal'] ?? 0)];
+        }
+    } elseif ($kode === 'pemasukan_tanpa_akun') {
+        foreach ((array) (($analisis['pemasukan_tanpa_akun']['sampel'] ?? [])) as $r) {
+            $rows[] = [(string) ($r['tanggal'] ?? ''), 'Pemasukan #' . (int) ($r['id'] ?? 0), (int) ($r['nominal'] ?? 0)];
+        }
+    } elseif ($kode === 'pengeluaran_tanpa_akun') {
+        foreach ((array) (($analisis['pengeluaran_tanpa_akun']['sampel'] ?? [])) as $r) {
+            $rows[] = [(string) ($r['tanggal'] ?? ''), 'Pengeluaran #' . (int) ($r['id'] ?? 0), (int) ($r['nominal'] ?? 0)];
+        }
+    } elseif ($kode === 'tanpa_jurnal') {
+        foreach (array_slice((array) ($analisis['transaksi_tanpa_jurnal'] ?? []), 0, 5) as $tx) {
+            $rows[] = [
+                (string) ($tx['tanggal'] ?? ''),
+                (string) ($tx['tipe'] ?? '') . ' #' . (int) ($tx['id'] ?? 0),
+                (int) ($tx['nominal'] ?? 0),
+            ];
+        }
+        $labelTanggal = 'Tanggal';
+    }
+
+    if ($rows === []) {
+        return;
+    }
+
+    echo '<div class="neraca-kesalahan-sampel table-responsive">';
+    echo '<table class="table table-sm table-bordered border-danger mb-0">';
+    echo '<thead class="table-danger"><tr><th>' . $labelTanggal . '</th><th>Transaksi</th><th class="text-end">' . $labelNom . '</th></tr></thead><tbody>';
+    foreach ($rows as $row) {
+        echo '<tr>';
+        echo '<td>' . htmlspecialchars($row[0]) . '</td>';
+        echo '<td>' . htmlspecialchars($row[1]) . '</td>';
+        echo '<td class="text-end fw-semibold text-danger">' . htmlspecialchars($fmt((int) $row[2])) . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table></div>';
 }
 
 /**

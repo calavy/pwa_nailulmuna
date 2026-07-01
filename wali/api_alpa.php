@@ -19,4 +19,12 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
 }
 
 $info = wali_perizinan_alpa_info_portal($pdo, $santriId, $tanggal);
-echo json_encode(['ok' => true] + $info, JSON_UNESCAPED_UNICODE);
+$pending = perizinan_santri_pending_row($pdo, $santriId);
+$pendingMessage = perizinan_pesan_blokir_pending($pending);
+echo json_encode([
+    'ok' => true,
+] + $info + [
+    'pending_blocked' => $pending !== null,
+    'pending_message' => $pendingMessage ?? '',
+    'pending_id' => (int) ($pending['id'] ?? 0),
+], JSON_UNESCAPED_UNICODE);

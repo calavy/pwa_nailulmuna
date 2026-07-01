@@ -426,7 +426,7 @@ function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $d
     }
     $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
     $sql = '
-        SELECT ct.tanggal, ct.nominal, ct.keterangan, s.nis,
+        SELECT ct.id, ct.tanggal, ct.nominal, ct.keterangan, ct.setor_at, s.nis,
                COALESCE(NULLIF(s.nama_santri,\'\'), s.nama) AS nama_santri,
                s.tingkatan';
     if ($hasKop) {
@@ -1137,6 +1137,122 @@ function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
 
         return ['ok' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()];
     }
+}
+
+/**
+ * Ubah nominal/keterangan transaksi debit (super admin). Sesuaikan saldo santri dan jurnal.
+ *
+ * @return array{ok:bool,message:string}
+ */
+function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, string $newKeterangan, int $userId): array
+{
+    cashless_koperasi_ensure_schema($pdo);
+    if ($txId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+        return ['ok' => false, 'message' => 'Transaksi tidak valid.'];
+    }
+    if ($newNominal <= 0) {
+        return ['ok' => false, 'message' => 'Nominal harus lebih dari nol.'];
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT id, santri_id, jenis, nominal, keterangan, tanggal, setor_at
+        FROM cashless_transactions
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $stmt->execute(['id' => $txId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || strtoupper((string) ($row['jenis'] ?? '')) !== 'DEBIT') {
+        return ['ok' => false, 'message' => 'Transaksi debit tidak ditemukan.'];
+    }
+
+    $santriId = (int) ($row['santri_id'] ?? 0);
+    $oldNominal = (int) round((float) ($row['nominal'] ?? 0));
+    $oldKeterangan = trim((string) ($row['keterangan'] ?? ''));
+    if ($santriId <= 0 || $oldNominal <= 0) {
+        return ['ok' => false, 'message' => 'Data transaksi tidak lengkap.'];
+    }
+    if ($newNominal === $oldNominal && $newKeterangan === $oldKeterangan) {
+        return ['ok' => true, 'message' => 'Tidak ada perubahan.'];
+    }
+
+    $diff = $newNominal - $oldNominal;
+    if ($diff > 0) {
+        $balStmt = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :sid LIMIT 1');
+        $balStmt->execute(['sid' => $santriId]);
+        $balance = (int) round((float) ($balStmt->fetchColumn() ?: 0));
+        if ($balance < $diff) {
+            $kurang = $diff - $balance;
+
+            return [
+                'ok' => false,
+                'message' => 'Saldo santri tidak cukup untuk menaikkan nominal (kurang Rp ' . number_format($kurang, 0, ',', '.') . ').',
+            ];
+        }
+    }
+
+    $tanggalJurnal = date('Y-m-d', strtotime((string) ($row['tanggal'] ?? 'now')));
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('
+            UPDATE cashless_transactions
+            SET nominal = :nominal, keterangan = :keterangan
+            WHERE id = :id
+        ')->execute([
+            'nominal' => $newNominal,
+            'keterangan' => $newKeterangan !== '' ? $newKeterangan : null,
+            'id' => $txId,
+        ]);
+        if ($diff !== 0) {
+            $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :diff WHERE santri_id = :sid')->execute([
+                'diff' => $diff,
+                'sid' => $santriId,
+            ]);
+        }
+        require_once __DIR__ . '/keuangan_jurnal.php';
+        keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
+        cashless_jurnal_belanja_scan($pdo, $txId, $tanggalJurnal, $newNominal, $userId, $newKeterangan);
+        $pdo->commit();
+
+        $msg = 'Transaksi diperbarui.';
+        if (!empty($row['setor_at'])) {
+            $msg .= ' Catatan: transaksi sudah pernah disetor — periksa kesesuaian setor harian.';
+        }
+
+        return ['ok' => true, 'message' => $msg];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memperbarui: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Aksi super admin: hapus atau ubah transaksi debit cashless.
+ *
+ * @return array{ok:bool,message:string}|null null jika action tidak dikenali
+ */
+function cashless_koperasi_admin_aksi_transaksi(PDO $pdo, string $action, array $post, int $userId, bool $isSuperAdmin): ?array
+{
+    if (!$isSuperAdmin) {
+        return ['ok' => false, 'message' => 'Hanya super admin yang dapat mengubah transaksi cashless.'];
+    }
+
+    $txId = (int) ($post['tx_id'] ?? 0);
+    if ($action === 'delete_debit_tx') {
+        return cashless_koperasi_hapus_debit($pdo, $txId);
+    }
+    if ($action === 'edit_debit_tx') {
+        $nominal = (int) ($post['nominal'] ?? 0);
+        $keterangan = trim((string) ($post['keterangan'] ?? ''));
+
+        return cashless_koperasi_ubah_debit($pdo, $txId, $nominal, $keterangan, $userId);
+    }
+
+    return null;
 }
 
 /** Cek QR/NIS santri terdaftar (untuk notifikasi scan), termasuk kartu sementara aktif. */

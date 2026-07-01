@@ -144,6 +144,11 @@ function wali_perizinan_ajukan(
         return ['ok' => false, 'message' => 'Santri tidak aktif — tidak dapat mengajukan izin.'];
     }
 
+    $blokirPending = perizinan_cek_blokir_pengajuan_baru($pdo, $santriId);
+    if ($blokirPending !== null) {
+        return ['ok' => false, 'message' => $blokirPending];
+    }
+
     $pengasuh = trim((string) app_setting($pdo, 'nama_pengasuh', 'Pengasuh Pondok'));
     $grace = (int) app_setting($pdo, 'grace_period_menit', '15');
 
