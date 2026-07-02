@@ -168,6 +168,75 @@
         }
     }
 
+    function isPosLunas(info, slug) {
+        if (!info || slug === 'saku') {
+            return false;
+        }
+        const expected = parseInt(info.expected, 10) || 0;
+        const sisa = parseInt(info.sisa, 10) || 0;
+        return expected > 0 && sisa <= 0;
+    }
+
+    function applyLunasRowLocks() {
+        visibleKomponenRows().forEach(function (tr) {
+            if (tr.style.display === 'none') {
+                return;
+            }
+            const slug = tr.getAttribute('data-slug') || '';
+            const info = slug ? tagihanPos[slug] : null;
+            const cb = tr.querySelector('.bayar-pos-check');
+            const inp = tr.querySelector('.nominal-pos');
+            const locked = isPosLunas(info, slug) || (slug !== 'saku' && info && info.status === 'Lunas');
+            tr.classList.toggle('is-lunas-locked', locked);
+            if (cb) {
+                if (locked) {
+                    cb.checked = false;
+                    cb.disabled = true;
+                } else if (!bulanUrutanBlokir) {
+                    cb.disabled = false;
+                }
+            }
+            if (inp) {
+                if (locked) {
+                    inp.value = '0';
+                    inp.disabled = true;
+                } else if (!bulanUrutanBlokir) {
+                    inp.disabled = false;
+                }
+            }
+        });
+    }
+
+    function collectDobelPaymentError() {
+        let msg = '';
+        visibleKomponenRows().forEach(function (tr) {
+            if (tr.style.display === 'none' || msg) {
+                return;
+            }
+            const slug = tr.getAttribute('data-slug') || '';
+            const cb = tr.querySelector('.bayar-pos-check');
+            const inp = tr.querySelector('.nominal-pos');
+            if (!slug || slug === 'saku' || !cb || !cb.checked || !inp) {
+                return;
+            }
+            const info = tagihanPos[slug];
+            const nominal = parseRpInput(inp.value);
+            if (nominal <= 0) {
+                return;
+            }
+            if (isPosLunas(info, slug)) {
+                const nama = (info && info.nama) ? info.nama : slug;
+                msg = 'Komponen ' + nama + ' sudah lunas untuk periode ini. Input dobel tidak diizinkan.';
+                return;
+            }
+            if (info && (info.expected || 0) > 0 && nominal > (info.sisa || 0)) {
+                const nama = info.nama || slug;
+                msg = 'Nominal ' + nama + ' melebihi sisa tagihan (' + fmtRp(info.sisa || 0) + ').';
+            }
+        });
+        return msg;
+    }
+
     function fmtRp(n) {
         return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
     }
@@ -256,6 +325,9 @@
         form.querySelectorAll('.bayar-pos-check, .nominal-pos').forEach(function (el) {
             el.disabled = bulanUrutanBlokir;
         });
+        if (!bulanUrutanBlokir) {
+            applyLunasRowLocks();
+        }
     }
 
     /** Baris komponen pada periode yang sedang dipilih (bulanan / awal tahun). */
@@ -866,6 +938,7 @@
                     tierHint.textContent = base + (kk !== '' ? ' · PKPPS (' + kk + ')' : ' · Santri PKPPS');
                 }
                 updatePilihSemuaBtn();
+                applyLunasRowLocks();
                 if (summaryHint && data.summary) {
                     const sisa = parseInt(data.summary.sisa_wajib, 10) || 0;
                     const exp = parseInt(data.summary.expected_wajib, 10) || 0;
@@ -922,6 +995,15 @@
 
     function onBayarPosCheckChange(ev) {
         const cb = ev.currentTarget;
+        const tr = cb ? cb.closest('tr') : null;
+        const slug = tr ? (tr.getAttribute('data-slug') || '') : '';
+        const info = slug ? tagihanPos[slug] : null;
+        if (cb && cb.checked && isPosLunas(info, slug)) {
+            cb.checked = false;
+            window.alert('Komponen ini sudah lunas untuk periode ini. Input dobel tidak diizinkan.');
+            updateStatusTransaksi();
+            return;
+        }
         if (cb && cb.checked) {
             const tr = cb.closest('tr');
             if (tr && tr.style.display !== 'none') {
@@ -1119,7 +1201,29 @@
     });
     document.querySelectorAll('.nominal-pos').forEach(function (el) {
         el.addEventListener('change', updateStatusTransaksi);
-        el.addEventListener('input', updateStatusTransaksi);
+        el.addEventListener('input', function () {
+            const tr = el.closest('tr');
+            if (tr && tr.style.display !== 'none') {
+                const slug = tr.getAttribute('data-slug') || '';
+                if (slug && slug !== 'saku') {
+                    const info = tagihanPos[slug];
+                    if (info && (info.expected || 0) > 0) {
+                        const sisa = Math.max(0, info.sisa || 0);
+                        const n = parseRpInput(el.value);
+                        if (sisa <= 0 && n > 0) {
+                            el.value = '0';
+                            const cb = tr.querySelector('.bayar-pos-check');
+                            if (cb) {
+                                cb.checked = false;
+                            }
+                        } else if (n > sisa) {
+                            el.value = sisa > 0 ? fmtThousand(sisa) : '0';
+                        }
+                    }
+                }
+            }
+            updateStatusTransaksi();
+        });
     });
 
     document.querySelectorAll('.nominal-pos').forEach(function (inp) {
@@ -1144,6 +1248,12 @@
         if (isJenisBulanan() && bulanUrutanBlokir) {
             ev.preventDefault();
             window.alert(bulanUrutanBlokirPesan || 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.');
+            return;
+        }
+        const dobelErr = collectDobelPaymentError();
+        if (dobelErr) {
+            ev.preventDefault();
+            window.alert(dobelErr);
         }
     });
 

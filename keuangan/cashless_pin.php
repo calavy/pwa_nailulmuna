@@ -237,7 +237,8 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
         </div>
     </div>
     <div class="alert alert-info small">
-        Saldo = top-up pos <em>Saku</em> − belanja cashless. Batas belanja harian per santri: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong>.
+        Saldo = top-up pos <em>Saku</em> − belanja cashless (langsung saat scan, tanpa menunggu setor).
+        Batas belanja harian per santri: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong> — reset otomatis setiap hari.
     </div>
     <div class="card shadow-sm">
         <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
@@ -267,7 +268,7 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
                         <th class="text-end">Saldo</th>
                         <th class="text-end d-none d-md-table-cell">Top-up</th>
                         <th class="text-end d-none d-md-table-cell">Belanja</th>
-                        <th class="text-end d-none d-lg-table-cell">Pakai hari ini</th>
+                        <th class="text-end d-none d-lg-table-cell">Terpakai hari ini</th>
                         <th class="text-end d-none d-lg-table-cell">Sisa jatah</th>
                         <th>PIN</th>
                         <th class="text-end d-print-none">Aksi</th>

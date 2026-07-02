@@ -71,6 +71,7 @@ $rekapTanggal = cashless_koperasi_rekap_tanggal_range($pdo, $rekapDari, $rekapSa
 $koperasiList = cashless_koperasi_list($pdo);
 $tanggalLabel = app_format_tanggal_id($tanggal);
 $sakuReal = cashless_saku_total_real($pdo);
+$belanjaHari = cashless_koperasi_total_debit_tanggal($pdo, $tanggal);
 $belumSetorHari = cashless_koperasi_total_belum_setor_tanggal($pdo, $tanggal);
 $sudahSetorHari = 0;
 $belumSetorJumlah = 0;
@@ -122,31 +123,40 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="fw-semibold mb-2"><i class="fa-solid fa-route me-1"></i> Alur uang saku / cashless / jajan</p>
     <ol class="mb-0 ps-3">
         <li class="mb-1"><strong>Pembayaran pos Saku</strong> — kas masuk, Saldo Saku santri bertambah.</li>
-        <li class="mb-1"><strong>Scan jajan di koperasi</strong> — Saldo Saku santri berkurang sesuai transaksi (walaupun belum disetor).</li>
+        <li class="mb-1"><strong>Scan jajan di koperasi</strong> — Saldo Saku berkurang saat scan; <strong>tidak menunggu setor</strong>. Batas harian reset tiap pergantian tanggal.</li>
         <li class="mb-0"><strong>Setor harian</strong> — bendahara menyerahkan uang fisik ke koperasi; <strong>kas berkurang</strong>.</li>
     </ol>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
             <div class="card-body">
                 <div class="small text-muted mb-1"><i class="fa-solid fa-wallet me-1"></i> Total Saldo Saku seluruh santri</div>
                 <div class="h4 mb-0 text-primary">Rp <?= number_format((int) ($sakuReal['total'] ?? 0), 0, ',', '.') ?></div>
-                <div class="small text-muted">Top-up − belanja (semua transaksi) · turun saat scan jajan</div>
+                <div class="small text-muted">Top-up − semua belanja (sudah termasuk hari ini)</div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-4 border-info">
+            <div class="card-body">
+                <div class="small text-muted mb-1"><i class="fa-solid fa-cart-shopping me-1"></i> Belanja cashless · <?= htmlspecialchars($tanggalLabel) ?></div>
+                <div class="h4 mb-0 text-info">Rp <?= number_format($belanjaHari, 0, ',', '.') ?></div>
+                <div class="small text-muted">Sudah mengurangi saldo santri saat scan</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
             <div class="card-body">
-                <div class="small text-muted mb-1"><i class="fa-solid fa-vault me-1"></i> Uang saku di bendahara (belum disetor) · <?= htmlspecialchars($tanggalLabel) ?></div>
+                <div class="small text-muted mb-1"><i class="fa-solid fa-vault me-1"></i> Uang fisik belum disetor · <?= htmlspecialchars($tanggalLabel) ?></div>
                 <div class="h4 mb-0 text-warning">Rp <?= number_format($belumSetorHari, 0, ',', '.') ?></div>
-                <div class="small text-muted"><?= $belumSetorJumlah ?> transaksi scan · uang fisik masih bendahara</div>
+                <div class="small text-muted"><?= $belumSetorJumlah ?> transaksi · masih di bendahara</div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
             <div class="card-body">
                 <div class="small text-muted mb-1"><i class="fa-solid fa-circle-check me-1"></i> Sudah disetor · <?= htmlspecialchars($tanggalLabel) ?></div>

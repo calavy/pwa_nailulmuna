@@ -78,6 +78,10 @@ try {
         'pass' => $dbPass,
         'options' => $pondokPdoOptions,
     ];
+    try {
+        $pdo->exec("SET time_zone = '+07:00'");
+    } catch (PDOException $e) {
+    }
 } catch (PDOException $exception) {
     die('Koneksi database gagal: ' . $exception->getMessage());
 }

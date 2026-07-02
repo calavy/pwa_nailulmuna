@@ -106,18 +106,19 @@ function keuangan_pembayaran_reverse_cashless(PDO $pdo, int $pembayaranId): void
     }
     $st = $pdo->prepare('SELECT id, santri_id, jenis, nominal FROM cashless_transactions WHERE ref_pembayaran_id = :id');
     $st->execute(['id' => $pembayaranId]);
+    $affectedSantri = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $tx) {
         $sid = (int) ($tx['santri_id'] ?? 0);
-        $nom = (int) round((float) ($tx['nominal'] ?? 0));
-        $jenis = strtoupper((string) ($tx['jenis'] ?? ''));
-        if ($sid <= 0 || $nom <= 0) {
-            continue;
-        }
-        if ($jenis === 'TOPUP') {
-            $pdo->prepare('UPDATE cashless_accounts SET balance = GREATEST(0, balance - :nom) WHERE santri_id = :sid')
-                ->execute(['nom' => $nom, 'sid' => $sid]);
+        if ($sid > 0) {
+            $affectedSantri[$sid] = true;
         }
         $pdo->prepare('DELETE FROM cashless_transactions WHERE id = :id')->execute(['id' => (int) $tx['id']]);
+    }
+    if ($affectedSantri !== []) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        foreach (array_keys($affectedSantri) as $sid) {
+            cashless_sync_account_balance($pdo, $sid);
+        }
     }
 }
 
@@ -134,10 +135,6 @@ function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, in
         return;
     }
     $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
-    $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')
-        ->execute(['santri_id' => $santriId]);
-    $pdo->prepare('UPDATE cashless_accounts SET balance = balance + :nominal WHERE santri_id = :santri_id')
-        ->execute(['nominal' => $topupNominal, 'santri_id' => $santriId]);
     if (table_exists($pdo, 'cashless_transactions') && column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
         $pdo->prepare("
             INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
@@ -150,10 +147,10 @@ function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, in
             'created_by' => $userId > 0 ? $userId : null,
         ]);
     }
+    require_once __DIR__ . '/cashless_koperasi.php';
     require_once __DIR__ . '/cashless_wa.php';
-    $stSaldo = $pdo->prepare('SELECT COALESCE(balance, 0) FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-    $stSaldo->execute(['id' => $santriId]);
-    cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) ($stSaldo->fetchColumn() ?: 0));
+    cashless_sync_account_balance($pdo, $santriId);
+    cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
 }
 
 /**
@@ -251,6 +248,32 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
     if ($detailRows === []) {
         return ['ok' => false, 'message' => 'Minimal satu komponen pembayaran dengan nominal valid.'];
     }
+
+    $paidAdjustBySlug = [];
+    foreach ($before['details'] as $oldDet) {
+        $oldSlug = strtolower(trim((string) ($oldDet['pos_slug'] ?? '')));
+        if ($oldSlug === '') {
+            continue;
+        }
+        $paidAdjustBySlug[$oldSlug] = ($paidAdjustBySlug[$oldSlug] ?? 0)
+            + (int) round((float) ($oldDet['nominal'] ?? 0));
+    }
+    keuangan_transaksi_bootstrap_rekap();
+    $antiDobel = keuangan_pembayaran_validasi_anti_dobel(
+        $pdo,
+        $santriId,
+        $jenisPeriode,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $detailRows,
+        $biayaDefinitions,
+        $paidAdjustBySlug
+    );
+    if (!$antiDobel['ok']) {
+        return $antiDobel;
+    }
+
     if (
         $jenisPeriode === 'BULANAN'
         && $bulanTagihan > 0

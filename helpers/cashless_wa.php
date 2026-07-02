@@ -81,22 +81,16 @@ function cashless_wa_laporan_harian_targets(PDO $pdo): array
 /**
  * @return array{limit:int,terpakai:int,sisa:int,balance:int}
  */
-function cashless_santri_jatah_harian(PDO $pdo, int $santriId, ?float $balanceOverride = null): array
+function cashless_santri_jatah_harian(PDO $pdo, int $santriId, ?float $balanceOverride = null, ?string $tanggal = null): array
 {
+    require_once __DIR__ . '/cashless_koperasi.php';
     $limit = max(0, (int) app_setting($pdo, 'cashless_daily_limit', '10000'));
-    $terpakai = 0;
-    if ($santriId > 0 && table_exists($pdo, 'cashless_transactions')) {
-        $st = $pdo->prepare("SELECT COALESCE(SUM(nominal),0) FROM cashless_transactions WHERE santri_id = :sid AND jenis='DEBIT' AND DATE(tanggal)=CURDATE()");
-        $st->execute(['sid' => $santriId]);
-        $terpakai = (int) ($st->fetchColumn() ?: 0);
-    }
+    $terpakai = cashless_santri_debit_total_tanggal($pdo, $santriId, $tanggal);
     $balance = 0;
     if ($balanceOverride !== null) {
         $balance = (int) round((float) $balanceOverride);
-    } elseif ($santriId > 0 && table_exists($pdo, 'cashless_accounts')) {
-        $st = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :sid LIMIT 1');
-        $st->execute(['sid' => $santriId]);
-        $balance = (int) round((float) ($st->fetchColumn() ?: 0));
+    } elseif ($santriId > 0) {
+        $balance = cashless_santri_saldo_tampil($pdo, $santriId);
     }
 
     return [
@@ -107,7 +101,7 @@ function cashless_santri_jatah_harian(PDO $pdo, int $santriId, ?float $balanceOv
     ];
 }
 
-function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal): ?string
+function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal, ?string $tanggal = null): ?string
 {
     if ($nominal <= 0) {
         return 'Nominal tidak valid.';
@@ -116,6 +110,8 @@ function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal
         return 'Akun cashless belum tersedia.';
     }
     require_once __DIR__ . '/cashless_koperasi.php';
+    $tglOps = $tanggal ?? cashless_tanggal_hari_ini();
+    // Saldo & batas harian dari ledger transaksi — setor harian tidak memblokir belanja.
     $saldo = cashless_santri_saldo_tampil($pdo, $santriId);
     if ($saldo <= 0) {
         return 'Transaksi ditolak: saldo uang saku habis.';
@@ -123,7 +119,7 @@ function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal
     if ($saldo < $nominal) {
         return 'Transaksi ditolak: saldo tidak cukup.';
     }
-    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldo);
+    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldo, $tglOps);
     if (($jatah['terpakai'] + $nominal) > $jatah['limit']) {
         return 'Transaksi ditolak: batas belanja harian terlampaui. Sisa jatah hari ini Rp '
             . number_format($jatah['sisa'], 0, ',', '.') . '.';

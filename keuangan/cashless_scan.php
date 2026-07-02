@@ -12,6 +12,9 @@ app_scan_page_no_cache_headers();
 
 keuangan_ensure_schema_deferred($pdo);
 cashless_koperasi_ensure_schema_deferred($pdo);
+cashless_verified_session_normalize();
+
+$tglOperasional = cashless_tanggal_hari_ini();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && trim((string) ($_GET['action'] ?? '')) === 'lookup_qr') {
     header('Content-Type: application/json; charset=utf-8');
@@ -122,7 +125,7 @@ if (isset($_SESSION['cashless_verified']) && is_array($_SESSION['cashless_verifi
         if (is_array($verifiedSantri)) {
             require_once __DIR__ . '/../helpers/cashless_koperasi.php';
             $balInit = (float) cashless_santri_saldo_tampil($pdo, $verifiedId);
-            $jatahInit = cashless_santri_jatah_harian($pdo, $verifiedId, $balInit);
+            $jatahInit = cashless_santri_jatah_harian($pdo, $verifiedId, $balInit, $tglOperasional);
             $verifiedSantri['saldo_saku'] = (int) round($balInit);
             $verifiedSantri['sisa_jatah_hari'] = (int) ($jatahInit['sisa'] ?? 0);
             $verifiedSantri['limit_harian'] = (int) ($jatahInit['limit'] ?? 0);
@@ -168,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $cashlessVoiceText = 'Saldo kosong. Transaksi ditolak.';
                     }
                 } else {
-                    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoTampil);
+                    $jatah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoTampil, $tglOperasional);
                     if ((int) ($jatah['sisa'] ?? 0) <= 0) {
                         $resultType = 'warning';
                         $resultMessage = 'Transaksi ditolak: batas belanja harian terlampaui.';
@@ -180,10 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'nis' => (string) ($santri['nis'] ?? ''),
                             'nama' => $nama,
                         ];
-                        $_SESSION['cashless_verified'] = [
-                            'santri_id' => $santriId,
-                            'verified_at' => time(),
-                        ];
+                        cashless_verified_session_mark($santriId);
                         $_SESSION['cashless_auto_nominal_scan'] = true;
                         $verifiedSantri = [
                             'id' => $santriId,
@@ -209,6 +209,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$verified || $santriId <= 0) {
             $resultType = 'warning';
             $resultMessage = 'Sesi verifikasi habis. Silakan scan QR dan PIN kembali.';
+        } elseif ((string) ($verified['operational_date'] ?? '') !== $tglOperasional) {
+            unset($_SESSION['cashless_verified'], $_SESSION['cashless_auto_nominal_scan']);
+            $resultType = 'warning';
+            $resultMessage = 'Hari operasional berganti. Silakan scan QR dan PIN kembali.';
         } elseif ((int) ($verified['verified_at'] ?? 0) > 0 && time() - (int) $verified['verified_at'] > 30) {
             unset($_SESSION['cashless_verified']);
             $resultType = 'warning';
@@ -259,7 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $resultMessage = 'Data santri/cashless tidak ditemukan.';
                     unset($_SESSION['cashless_verified']);
                 } else {
-                    $saldoErr = cashless_santri_saldo_cukup_debit($pdo, $santriId, $nominal);
+                    $saldoErr = cashless_santri_saldo_cukup_debit($pdo, $santriId, $nominal, $tglOperasional);
                     if ($saldoErr !== null) {
                         $resultType = 'warning';
                         if (str_contains($saldoErr, 'habis') || str_contains($saldoErr, 'kosong')) {
@@ -285,10 +289,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ensure_keuangan_jurnal_tables($pdo);
                         $pdo->beginTransaction();
                         try {
-                            $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :nominal WHERE santri_id = :santri_id')->execute([
-                                'nominal' => $nominal,
-                                'santri_id' => $santriId,
-                            ]);
                             $txId = cashless_koperasi_insert_debit(
                                 $pdo,
                                 $santriId,
@@ -330,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
                             $lastSuccessNominal = $nominal;
                             $lastSaldoSaku = $saldoSetelah;
-                            $jatahSetelah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoSetelah);
+                            $jatahSetelah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoSetelah, $tglOperasional);
                             $lastSisaJatah = (int) ($jatahSetelah['sisa'] ?? 0);
                             $resultType = 'success';
                             $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp '
@@ -556,8 +556,10 @@ if ($koperasiPortal) {
 <details class="cashless-history small" id="cashless_history_details">
     <summary>Riwayat debit hari ini</summary>
     <p class="small text-muted mt-2 mb-2">
-        Saldo Saku santri berkurang saat scan. Uang fisik masih bendahara sampai
-        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>">setor harian</a> (kas keluar ke koperasi).
+        Belanja mengurangi Saldo Saku saat scan — <strong>tidak menunggu setor harian</strong>.
+        Batas belanja harian reset otomatis setiap pergantian tanggal.
+        Uang fisik bendahara disetor terpisah via
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>">setor harian</a>.
     </p>
     <div class="table-responsive mt-2">
         <table class="table table-sm table-striped mb-0">
@@ -622,7 +624,8 @@ if ($koperasiPortal) {
             voiceEnabled: <?= $scanUangVoice ? 'true' : 'false' ?>,
             pinMinLen: 4,
             pinIdleMs: 1500,
-            moneyPhaseTimeoutMs: 30000
+            moneyPhaseTimeoutMs: 30000,
+            operationalDate: <?= json_encode($tglOperasional, JSON_UNESCAPED_UNICODE) ?>
         };
         const wrap = document.getElementById('cashless_scan_wrap');
         const input = document.getElementById('kode_qr');
@@ -1172,6 +1175,38 @@ if ($koperasiPortal) {
 
         setInterval(tickLiveClock, 1000);
         tickLiveClock();
+
+        function currentOperationalDateLocal() {
+            var d = new Date();
+            var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        }
+
+        async function checkOperationalDateRollover() {
+            if (!CFG.operationalDate) {
+                return;
+            }
+            var today = currentOperationalDateLocal();
+            if (today === CFG.operationalDate) {
+                return;
+            }
+            CFG.operationalDate = today;
+            if (moneyPhase) {
+                await cancelMoneyPhaseSession('Hari berganti — scan QR santri & PIN lagi (jatah harian direset).');
+            } else {
+                resetToSantriPhase({ clearFlash: false, clearSantriChip: true, clearStats: true });
+                notifyResult('info', 'Hari operasional berganti. Jatah belanja harian direset.');
+            }
+        }
+
+        setInterval(function () {
+            checkOperationalDateRollover().catch(function () {});
+        }, 30000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                checkOperationalDateRollover().catch(function () {});
+            }
+        });
 
         function resetToSantriPhase(opts) {
             opts = opts || {};

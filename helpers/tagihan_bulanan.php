@@ -773,24 +773,36 @@ function tagihan_laporan_12bulan_compute(
     if (!function_exists('pondok_sql_match_bulan_tagihan')) {
         require_once __DIR__ . '/pondok_kalender.php';
     }
-    foreach ($bulanSlots as $slot) {
-        $b = (int) ($slot['bulan_tagihan'] ?? 0);
-        if ($b < 1 || $b > 12) {
-            continue;
+    if ($santriRows !== []) {
+        require_once __DIR__ . '/keuangan_rekap.php';
+        if (!function_exists('keuangan_biaya_definitions')) {
+            require_once __DIR__ . '/keuangan_defs.php';
         }
-        $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunAjaranMulai, $tahunAjaranSelesai, $b, 'p');
-        $st = $pdo->prepare('
-            SELECT COALESCE(SUM(d.nominal), 0) AS total
-            FROM keuangan_pembayaran_detail d
-            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-            WHERE p.jenis_periode = \'BULANAN\'
-              AND p.tahun_ajaran_mulai = :tm
-              AND p.tahun_ajaran_selesai = :ts
-              AND LOWER(TRIM(d.pos_slug)) = \'syahriyah\'
-              AND ' . $bulanMatch['sql'] . '
-        ');
-        $st->execute(array_merge(['tm' => $tahunAjaranMulai, 'ts' => $tahunAjaranSelesai], $bulanMatch['params']));
-        $paidByMonth[$b] = (int) ((float) ($st->fetchColumn() ?: 0));
+        $biayaDefs = keuangan_biaya_definitions();
+        foreach ($santriRows as $s) {
+            $sid = (int) ($s['id'] ?? 0);
+            if ($sid <= 0) {
+                continue;
+            }
+            foreach ($bulanList as $b) {
+                $bd = keuangan_tagihan_breakdown_for_santri(
+                    $pdo,
+                    $sid,
+                    'BULANAN',
+                    $b,
+                    $tahunAjaranMulai,
+                    $tahunAjaranSelesai,
+                    $biayaDefs
+                );
+                $info = $bd['syahriyah'] ?? null;
+                if (!is_array($info)) {
+                    continue;
+                }
+                $exp = max(0, (int) ($info['expected'] ?? 0));
+                $paid = max(0, (int) ($info['paid'] ?? 0));
+                $paidByMonth[$b] += $exp > 0 ? min($paid, $exp) : $paid;
+            }
+        }
     }
 
     return [

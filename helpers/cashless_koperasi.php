@@ -80,6 +80,160 @@ function cashless_koperasi_ensure_schema(PDO $pdo): void
         $pdo->exec('ALTER TABLE cashless_setor_log ADD UNIQUE KEY uk_cashless_setor_kop_tgl (koperasi_id, tanggal)');
     } catch (PDOException $e) {
     }
+
+    cashless_reconcile_account_balances_if_needed($pdo);
+}
+
+/** Tanggal operasional hari ini (Asia/Jakarta via PHP). */
+function cashless_tanggal_hari_ini(): string
+{
+    return date('Y-m-d');
+}
+
+/**
+ * Rentang waktu satu hari operasional [start, end) — reset batas harian tiap pergantian tanggal.
+ *
+ * @return array{start:string,end:string}
+ */
+function cashless_tanggal_rentang_harian(string $tanggal): array
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        $tanggal = cashless_tanggal_hari_ini();
+    }
+
+    return [
+        'start' => $tanggal . ' 00:00:00',
+        'end' => date('Y-m-d', strtotime($tanggal . ' +1 day')) . ' 00:00:00',
+    ];
+}
+
+/** Batalkan sesi scan PIN jika sudah berganti tanggal operasional. */
+function cashless_verified_session_normalize(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    if (empty($_SESSION['cashless_verified']) || !is_array($_SESSION['cashless_verified'])) {
+        return;
+    }
+    $today = cashless_tanggal_hari_ini();
+    $sessDate = (string) ($_SESSION['cashless_verified']['operational_date'] ?? '');
+    if ($sessDate === '' || $sessDate !== $today) {
+        unset($_SESSION['cashless_verified'], $_SESSION['cashless_auto_nominal_scan']);
+    }
+}
+
+function cashless_verified_session_mark(int $santriId): void
+{
+    $_SESSION['cashless_verified'] = [
+        'santri_id' => $santriId,
+        'verified_at' => time(),
+        'operational_date' => cashless_tanggal_hari_ini(),
+    ];
+}
+
+/**
+ * Samakan cashless_accounts.balance dengan ledger transaksi (top-up − debit).
+ */
+function cashless_sync_account_balance(PDO $pdo, int $santriId): void
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'cashless_accounts')) {
+        return;
+    }
+    $saldo = cashless_santri_saldo_tampil($pdo, $santriId);
+    $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:id, 0)')->execute(['id' => $santriId]);
+    $pdo->prepare('UPDATE cashless_accounts SET balance = :saldo WHERE santri_id = :id')->execute([
+        'saldo' => $saldo,
+        'id' => $santriId,
+    ]);
+}
+
+/** Rekonsiliasi saldo semua santri yang punya akun/transaksi cashless. */
+function cashless_sync_all_account_balances(PDO $pdo): int
+{
+    if (!table_exists($pdo, 'cashless_accounts')) {
+        return 0;
+    }
+    $ids = [];
+    if (table_exists($pdo, 'cashless_transactions')) {
+        foreach ($pdo->query('SELECT DISTINCT santri_id FROM cashless_transactions')->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sid) {
+            $ids[(int) $sid] = true;
+        }
+    }
+    foreach ($pdo->query('SELECT santri_id FROM cashless_accounts')->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sid) {
+        $ids[(int) $sid] = true;
+    }
+    $n = 0;
+    foreach (array_keys($ids) as $sid) {
+        if ($sid <= 0) {
+            continue;
+        }
+        cashless_sync_account_balance($pdo, $sid);
+        $n++;
+    }
+
+    return $n;
+}
+
+/** Sekali per sesi: perbaiki drift balance vs transaksi (debit lama tanpa update balance). */
+function cashless_reconcile_account_balances_if_needed(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'cashless_accounts') || !table_exists($pdo, 'cashless_transactions')) {
+        return;
+    }
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['cashless_balance_reconciled_v2'])) {
+        return;
+    }
+    static $doneCli = false;
+    if (session_status() !== PHP_SESSION_ACTIVE && $doneCli) {
+        return;
+    }
+    cashless_sync_all_account_balances($pdo);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['cashless_balance_reconciled_v2'] = 1;
+    } else {
+        $doneCli = true;
+    }
+}
+
+/** Total debit (belanja) santri pada satu tanggal — sumber «terpakai hari ini». */
+function cashless_santri_debit_total_tanggal(PDO $pdo, int $santriId, ?string $tanggal = null): int
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+        return 0;
+    }
+    $tgl = $tanggal ?? cashless_tanggal_hari_ini();
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
+        $tgl = cashless_tanggal_hari_ini();
+    }
+    $range = cashless_tanggal_rentang_harian($tgl);
+    $st = $pdo->prepare("
+        SELECT COALESCE(SUM(nominal), 0)
+        FROM cashless_transactions
+        WHERE santri_id = :sid AND UPPER(jenis) = 'DEBIT'
+          AND tanggal >= :tgl_start AND tanggal < :tgl_end
+    ");
+    $st->execute(['sid' => $santriId, 'tgl_start' => $range['start'], 'tgl_end' => $range['end']]);
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+/** Total belanja cashless semua santri pada tanggal (termasuk tanpa koperasi_id). */
+function cashless_koperasi_total_debit_tanggal(PDO $pdo, string $tanggal): int
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) || !table_exists($pdo, 'cashless_transactions')) {
+        return 0;
+    }
+    $range = cashless_tanggal_rentang_harian($tanggal);
+    $st = $pdo->prepare("
+        SELECT COALESCE(SUM(nominal), 0)
+        FROM cashless_transactions
+        WHERE UPPER(jenis) = 'DEBIT'
+          AND tanggal >= :tgl_start AND tanggal < :tgl_end
+    ");
+    $st->execute(['tgl_start' => $range['start'], 'tgl_end' => $range['end']]);
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
 }
 
 function cashless_koperasi_ensure_schema_deferred(PDO $pdo): void
@@ -324,8 +478,10 @@ function cashless_koperasi_insert_debit(PDO $pdo, int $santriId, int $nominal, s
     }
     $sql = 'INSERT INTO cashless_transactions (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
     $pdo->prepare($sql)->execute($params);
+    $txId = (int) $pdo->lastInsertId();
+    cashless_sync_account_balance($pdo, $santriId);
 
-    return (int) $pdo->lastInsertId();
+    return $txId;
 }
 
 /** Akun kas operasional default untuk setor cashless. */
@@ -402,8 +558,9 @@ function cashless_koperasi_fetch_debit_hari_ini(PDO $pdo, ?int $koperasiId, int 
     $sql .= '
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
-        WHERE ct.jenis = \'DEBIT\' AND DATE(ct.tanggal) = CURDATE()';
-    $params = [];
+        WHERE ct.jenis = \'DEBIT\' AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end';
+    $range = cashless_tanggal_rentang_harian(cashless_tanggal_hari_ini());
+    $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop && $koperasiId !== null && $koperasiId > 0) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
         $params['koperasi_id'] = $koperasiId;
@@ -521,11 +678,12 @@ function cashless_koperasi_ringkas_harian_belum_setor(PDO $pdo, ?int $koperasiId
                s.nis, COALESCE(NULLIF(s.nama_santri,\'\'), s.nama) AS nama_santri
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
-        WHERE ct.jenis = \'DEBIT\' AND DATE(ct.tanggal) = :tgl';
+        WHERE ct.jenis = \'DEBIT\' AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end';
     if ($hasSetor) {
         $sql .= ' AND ct.setor_at IS NULL';
     }
-    $params = ['tgl' => $tanggal];
+    $range = cashless_tanggal_rentang_harian($tanggal);
+    $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop && $koperasiId !== null && $koperasiId > 0) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
         $params['koperasi_id'] = $koperasiId;
@@ -543,7 +701,7 @@ function cashless_koperasi_ringkas_harian_belum_setor(PDO $pdo, ?int $koperasiId
 }
 
 /**
- * Total debit belum disetor (saldo titipan belum terpotong).
+ * Total debit belum disetor (hanya untuk laporan setor bendahara — tidak memblokir scan).
  * $tanggal null = semua tanggal.
  */
 function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $tanggal = null): int
@@ -559,8 +717,10 @@ function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $t
     ";
     $params = ['sid' => $santriId];
     if ($tanggal !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        $sql .= ' AND DATE(tanggal) = :tgl';
-        $params['tgl'] = $tanggal;
+        $range = cashless_tanggal_rentang_harian($tanggal);
+        $sql .= ' AND tanggal >= :tgl_start AND tanggal < :tgl_end';
+        $params['tgl_start'] = $range['start'];
+        $params['tgl_end'] = $range['end'];
     }
     if (column_exists($pdo, 'cashless_transactions', 'setor_at')) {
         $sql .= ' AND setor_at IS NULL';
@@ -571,7 +731,7 @@ function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $t
     return (int) round((float) ($st->fetchColumn() ?: 0));
 }
 
-/** Saldo tampil = top-up − semua debit (termasuk belum disetor). */
+/** Saldo tampil = top-up − semua debit. Status setor tidak mempengaruhi saldo maupun batas harian. */
 function cashless_santri_saldo_tampil(PDO $pdo, int $santriId): int
 {
     if ($santriId <= 0) {
@@ -659,8 +819,9 @@ function cashless_koperasi_transaksi_harian(PDO $pdo, int $koperasiId, string $t
                s.nis, COALESCE(NULLIF(s.nama_santri,\'\'), s.nama) AS nama_santri, s.tingkatan
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
-        WHERE ct.jenis = \'DEBIT\' AND DATE(ct.tanggal) = :tgl';
-    $params = ['tgl' => $tanggal];
+        WHERE ct.jenis = \'DEBIT\' AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end';
+    $range = cashless_tanggal_rentang_harian($tanggal);
+    $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
         $params['koperasi_id'] = $koperasiId;
@@ -765,13 +926,17 @@ function cashless_koperasi_rekap_tanggal_range(PDO $pdo, string $dari, string $s
  *   daily_limit: int
  * }
  */
-function cashless_rekap_saldo_santri(PDO $pdo): array
+function cashless_rekap_saldo_santri(PDO $pdo, ?string $tanggalHari = null): array
 {
     require_once __DIR__ . '/santri_list_sort.php';
 
     cashless_koperasi_ensure_schema($pdo);
 
     $dailyLimit = max(0, (int) app_setting($pdo, 'cashless_daily_limit', '10000'));
+    $tglHari = $tanggalHari ?? cashless_tanggal_hari_ini();
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglHari)) {
+        $tglHari = cashless_tanggal_hari_ini();
+    }
     $emptySummary = [
         'total_santri' => 0,
         'total_saldo' => 0,
@@ -798,12 +963,13 @@ function cashless_rekap_saldo_santri(PDO $pdo): array
     $debitExpr = '0';
     $debitHariExpr = '0';
     if (table_exists($pdo, 'cashless_transactions')) {
+        $rangeHari = cashless_tanggal_rentang_harian($tglHari);
         $txJoin = '
             LEFT JOIN (
                 SELECT santri_id,
                     COALESCE(SUM(CASE WHEN UPPER(jenis) = \'TOPUP\' THEN nominal ELSE 0 END), 0) AS total_topup,
                     COALESCE(SUM(CASE WHEN UPPER(jenis) = \'DEBIT\' THEN nominal ELSE 0 END), 0) AS total_debit,
-                    COALESCE(SUM(CASE WHEN UPPER(jenis) = \'DEBIT\' AND DATE(tanggal) = CURDATE() THEN nominal ELSE 0 END), 0) AS debit_hari_ini
+                    COALESCE(SUM(CASE WHEN UPPER(jenis) = \'DEBIT\' AND tanggal >= :tgl_hari_start AND tanggal < :tgl_hari_end THEN nominal ELSE 0 END), 0) AS debit_hari_ini
                 FROM cashless_transactions
                 GROUP BY santri_id
             ) tx ON tx.santri_id = s.id
@@ -831,7 +997,16 @@ function cashless_rekap_saldo_santri(PDO $pdo): array
         ' . $whereAktif . '
         ORDER BY ' . $orderBy;
 
-    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (table_exists($pdo, 'cashless_transactions')) {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'tgl_hari_start' => $rangeHari['start'],
+            'tgl_hari_end' => $rangeHari['end'],
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } else {
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 
     $totalSaldo = 0;
     $jumlahBersaldo = 0;
@@ -1121,12 +1296,9 @@ function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM cashless_transactions WHERE id = :id')->execute(['id' => $txId]);
-        $pdo->prepare('UPDATE cashless_accounts SET balance = balance + :nominal WHERE santri_id = :sid')->execute([
-            'nominal' => $nominal,
-            'sid' => $santriId,
-        ]);
         require_once __DIR__ . '/keuangan_jurnal.php';
         keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
+        cashless_sync_account_balance($pdo, $santriId);
         $pdo->commit();
 
         return ['ok' => true, 'message' => 'Transaksi dihapus. Saldo dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.'];
@@ -1178,11 +1350,9 @@ function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, stri
 
     $diff = $newNominal - $oldNominal;
     if ($diff > 0) {
-        $balStmt = $pdo->prepare('SELECT balance FROM cashless_accounts WHERE santri_id = :sid LIMIT 1');
-        $balStmt->execute(['sid' => $santriId]);
-        $balance = (int) round((float) ($balStmt->fetchColumn() ?: 0));
-        if ($balance < $diff) {
-            $kurang = $diff - $balance;
+        $saldoTampil = cashless_santri_saldo_tampil($pdo, $santriId);
+        if ($saldoTampil < $diff) {
+            $kurang = $diff - $saldoTampil;
 
             return [
                 'ok' => false,
@@ -1204,15 +1374,10 @@ function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, stri
             'keterangan' => $newKeterangan !== '' ? $newKeterangan : null,
             'id' => $txId,
         ]);
-        if ($diff !== 0) {
-            $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :diff WHERE santri_id = :sid')->execute([
-                'diff' => $diff,
-                'sid' => $santriId,
-            ]);
-        }
         require_once __DIR__ . '/keuangan_jurnal.php';
         keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
         cashless_jurnal_belanja_scan($pdo, $txId, $tanggalJurnal, $newNominal, $userId, $newKeterangan);
+        cashless_sync_account_balance($pdo, $santriId);
         $pdo->commit();
 
         $msg = 'Transaksi diperbarui.';

@@ -147,10 +147,12 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     $totalAsetCoa = array_sum(array_column($asetCoaBaris, 'nominal'));
     $totalAset = $totalKasBank + $totalAsetTetapBersih + $totalAsetCoa;
 
-    // Liabilitas
+    // Liabilitas titipan santri — dari ledger transaksi (top-up − belanja), bukan balance mentah.
     $totalCashless = 0;
-    if (table_exists($pdo, 'cashless_accounts')) {
-        $totalCashless = (int) round((float) ($pdo->query('SELECT COALESCE(SUM(balance),0) FROM cashless_accounts')->fetchColumn() ?: 0));
+    if (table_exists($pdo, 'cashless_transactions') || table_exists($pdo, 'cashless_accounts')) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        cashless_koperasi_ensure_schema($pdo);
+        $totalCashless = (int) (cashless_saku_total_real($pdo)['total'] ?? 0);
     }
     $liabSections = [];
     $liabBaris = [];
@@ -712,8 +714,10 @@ function keuangan_neraca_kesehatan(PDO $pdo, array $neraca, ?int $penyesuaianThr
 
     $sakuBayar = (int) ($ring['pendapatan_saku'] ?? 0);
     $cashlessSaldo = 0;
-    if (table_exists($pdo, 'cashless_accounts')) {
-        $cashlessSaldo = (int) round((float) ($pdo->query('SELECT COALESCE(SUM(balance),0) FROM cashless_accounts')->fetchColumn() ?: 0));
+    if (table_exists($pdo, 'cashless_transactions') || table_exists($pdo, 'cashless_accounts')) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        cashless_koperasi_ensure_schema($pdo);
+        $cashlessSaldo = (int) (cashless_saku_total_real($pdo)['total'] ?? 0);
     }
     $selisihSaku = $sakuBayar - $cashlessSaldo;
 

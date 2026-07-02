@@ -417,19 +417,14 @@ function wali_portal_cashless_saldo(PDO $pdo, int $santriId): ?float
 }
 
 /** Total belanja (DEBIT) hari ini untuk santri. */
-function wali_portal_cashless_debit_hari_ini(PDO $pdo, int $santriId): int
+function wali_portal_cashless_debit_hari_ini(PDO $pdo, int $santriId, ?string $tanggal = null): int
 {
-    if ($santriId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+    if ($santriId <= 0) {
         return 0;
     }
-    $st = $pdo->prepare("
-        SELECT COALESCE(SUM(nominal), 0)
-        FROM cashless_transactions
-        WHERE santri_id = :sid AND jenis = 'DEBIT' AND DATE(tanggal) = CURDATE()
-    ");
-    $st->execute(['sid' => $santriId]);
+    require_once __DIR__ . '/cashless_koperasi.php';
 
-    return (int) round((float) ($st->fetchColumn() ?: 0));
+    return cashless_santri_debit_total_tanggal($pdo, $santriId, $tanggal);
 }
 
 /**

@@ -35,6 +35,7 @@ $sumExpected = 0;
 $sumPaid = 0;
 $jumlahSantriAktif = 0;
 
+$sumPaidLebih = 0;
 if ($tablesOk) {
     $rows = keuangan_rekap_pos_with_expected(
         $pdo,
@@ -47,6 +48,7 @@ if ($tablesOk) {
     foreach ($rows as $r) {
         $sumExpected += (int) ($r['expected'] ?? 0);
         $sumPaid += (int) ($r['paid'] ?? 0);
+        $sumPaidLebih += (int) ($r['paid_lebih'] ?? 0);
     }
     if (table_exists($pdo, 'santri')) {
         $aktifSql = santri_sql_aktif_only('s');
@@ -80,11 +82,12 @@ if (($_GET['export'] ?? '') === 'csv' && $tablesOk) {
     header('Content-Disposition: attachment; filename="' . $fn . '"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['POS', 'Slug', 'Tagihan wajib', 'Target (santri aktif × tarif)', 'Terbayar', 'Sisa', 'Capai %'], ';');
+    fputcsv($out, ['POS', 'Slug', 'Tagihan wajib', 'Target (santri aktif × tarif)', 'Terbayar', 'Lebih bayar', 'Sisa', 'Capai %'], ';');
     foreach ($rows as $r) {
         $slug = (string) ($r['pos_slug'] ?? '');
         $exp = (int) ($r['expected'] ?? 0);
         $paid = (int) ($r['paid'] ?? 0);
+        $paidLebih = (int) ($r['paid_lebih'] ?? 0);
         $sisa = max(0, $exp - $paid);
         $pct = $exp > 0 ? (string) (int) round(($paid / $exp) * 100) : '—';
         fputcsv($out, [
@@ -93,11 +96,12 @@ if (($_GET['export'] ?? '') === 'csv' && $tablesOk) {
             isset($wajibSlugs[$slug]) ? 'Ya' : 'Tidak',
             (string) $exp,
             (string) $paid,
+            (string) $paidLebih,
             (string) $sisa,
             $pct,
         ], ';');
     }
-    fputcsv($out, ['TOTAL', '', '', (string) $sumExpected, (string) $sumPaid, (string) $sumSisa, (string) $pctCapai], ';');
+    fputcsv($out, ['TOTAL', '', '', (string) $sumExpected, (string) $sumPaid, (string) $sumPaidLebih, (string) $sumSisa, (string) $pctCapai], ';');
     fclose($out);
     exit;
 }
@@ -119,7 +123,7 @@ $iconPage = bendahara_page_icon('rekap_pos');
     </h1>
     <p class="text-muted mb-0">
         <strong>Target</strong> = jumlah santri aktif × tarif pengaturan per komponen.
-        <strong>Terbayar</strong> = akumulasi rincian pembayaran pada periode terpilih.
+        <strong>Terbayar</strong> = akumulasi valid per santri (dibatasi tagihan; kelebihan bayar dobel tidak dihitung).
         Tagihan wajib bulanan: <strong>Syahriyah</strong> (Makan &amp; Saku opsional) — lihat juga
         <a href="/pembayaran/tagihan_syahriyah.php">Tagihan Bulanan</a>.
     </p>
@@ -200,19 +204,23 @@ $iconPage = bendahara_page_icon('rekap_pos');
                         <th class="text-center">Wajib</th>
                         <th class="text-end">Target</th>
                         <th class="text-end">Terbayar</th>
+                        <?php if ($sumPaidLebih > 0): ?>
+                        <th class="text-end">Lebih bayar</th>
+                        <?php endif; ?>
                         <th class="text-end">Sisa</th>
                         <th class="text-end" style="min-width:7rem;">Capai</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (!$rows): ?>
-                    <tr><td colspan="6" class="text-center text-muted py-4">Tidak ada data untuk filter ini.</td></tr>
+                    <tr><td colspan="<?= $sumPaidLebih > 0 ? 7 : 6 ?>" class="text-center text-muted py-4">Tidak ada data untuk filter ini.</td></tr>
                 <?php else: ?>
                     <?php foreach ($rows as $r): ?>
                         <?php
                         $slug = (string) ($r['pos_slug'] ?? '');
                         $exp = (int) ($r['expected'] ?? 0);
                         $paid = (int) ($r['paid'] ?? 0);
+                        $paidLebih = (int) ($r['paid_lebih'] ?? 0);
                         $sisa = max(0, $exp - $paid);
                         $pct = $exp > 0 ? min(100, (int) round(($paid / $exp) * 100)) : null;
                         $isWajib = isset($wajibSlugs[$slug]);
@@ -233,6 +241,11 @@ $iconPage = bendahara_page_icon('rekap_pos');
                             </td>
                             <td class="text-end font-monospace">Rp <?= number_format($exp, 0, ',', '.') ?></td>
                             <td class="text-end font-monospace text-success">Rp <?= number_format($paid, 0, ',', '.') ?></td>
+                            <?php if ($sumPaidLebih > 0): ?>
+                            <td class="text-end font-monospace<?= $paidLebih > 0 ? ' text-warning' : ' text-muted' ?>">
+                                <?= $paidLebih > 0 ? 'Rp ' . number_format($paidLebih, 0, ',', '.') : '—' ?>
+                            </td>
+                            <?php endif; ?>
                             <td class="text-end font-monospace<?= $sisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($sisa, 0, ',', '.') ?></td>
                             <td class="text-end">
                                 <?php if ($pct === null): ?>
@@ -249,6 +262,9 @@ $iconPage = bendahara_page_icon('rekap_pos');
                         <td colspan="2">Total</td>
                         <td class="text-end font-monospace">Rp <?= number_format($sumExpected, 0, ',', '.') ?></td>
                         <td class="text-end font-monospace text-success">Rp <?= number_format($sumPaid, 0, ',', '.') ?></td>
+                        <?php if ($sumPaidLebih > 0): ?>
+                        <td class="text-end font-monospace text-warning">Rp <?= number_format($sumPaidLebih, 0, ',', '.') ?></td>
+                        <?php endif; ?>
                         <td class="text-end font-monospace">Rp <?= number_format($sumSisa, 0, ',', '.') ?></td>
                         <td class="text-end"><?= $pctCapai ?>%</td>
                     </tr>

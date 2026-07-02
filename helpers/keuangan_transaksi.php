@@ -797,7 +797,6 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         $tahunSelesai,
         $biayaDefinitions
     );
-    $wajibSlugs = $jenisPeriode === 'BULANAN' ? keuangan_tagihan_wajib_slugs() : [];
 
     $totalNominal = 0;
     $detailRows = [];
@@ -818,11 +817,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         if (is_array($posInfo) && $slug !== 'saku') {
             $sisa = (int) ($posInfo['sisa'] ?? 0);
             $expected = (int) ($posInfo['expected'] ?? 0);
-            $isWajibBulanan = $jenisPeriode === 'BULANAN' && in_array($slug, $wajibSlugs, true);
-            if ($expected > 0 && $nominal > $sisa && ($isWajibBulanan || $jenisPeriode === 'AWAL_TAHUN')) {
+            if ($expected > 0 && $sisa <= 0) {
                 return [
                     'ok' => false,
-                    'message' => 'Nominal ' . ($def['nama'] ?? $slug) . ' melebihi sisa tagihan (Rp ' . number_format($sisa, 0, ',', '.') . ').',
+                    'message' => 'Komponen ' . ($def['nama'] ?? $slug) . ' sudah lunas untuk periode ini. Input dobel tidak diizinkan.',
                 ];
             }
         }
@@ -836,6 +834,20 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
 
     if ($detailRows === []) {
         return ['ok' => false, 'message' => 'Nominal pembayaran tidak valid.'];
+    }
+
+    $antiDobel = keuangan_pembayaran_validasi_anti_dobel(
+        $pdo,
+        $santriId,
+        $jenisPeriode,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $detailRows,
+        $biayaDefinitions
+    );
+    if (!$antiDobel['ok']) {
+        return $antiDobel;
     }
 
     foreach ($detailRows as $dr) {
@@ -918,10 +930,6 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     if ($hasSaku) {
         $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
         $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
-        $pdo->prepare('UPDATE cashless_accounts SET balance = balance + :nominal WHERE santri_id = :santri_id')->execute([
-            'nominal' => $topupNominal,
-            'santri_id' => $santriId,
-        ]);
         $pdo->prepare("
             INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
             VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
@@ -932,10 +940,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
             'ref_pembayaran_id' => $pembayaranId,
             'created_by' => $userId > 0 ? $userId : null,
         ]);
+        require_once __DIR__ . '/cashless_koperasi.php';
         require_once __DIR__ . '/cashless_wa.php';
-        $stSaldo = $pdo->prepare('SELECT COALESCE(balance, 0) FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-        $stSaldo->execute(['id' => $santriId]);
-        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) ($stSaldo->fetchColumn() ?: 0));
+        cashless_sync_account_balance($pdo, $santriId);
+        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
     }
 
     keuangan_transaksi_bootstrap_jurnal();

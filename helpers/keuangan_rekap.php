@@ -7,8 +7,9 @@ require_once __DIR__ . '/santri_list_sort.php';
 
 /**
  * Perhitungan target dana masuk per pos (rekap) dari santri aktif × tarif pengaturan.
+ * Terbayar = akumulasi valid (dibatasi tagihan per santri, tanpa kelebihan bayar dobel).
  *
- * @return list<array{pos_slug:string,pos_nama:string,expected:int,paid:int}>
+ * @return list<array{pos_slug:string,pos_nama:string,expected:int,paid:int,paid_raw?:int,paid_lebih?:int}>
  */
 function keuangan_rekap_pos_with_expected(
     PDO $pdo,
@@ -22,47 +23,12 @@ function keuangan_rekap_pos_with_expected(
         return [];
     }
 
-    $paidBySlug = [];
-    if (table_exists($pdo, 'keuangan_pembayaran') && table_exists($pdo, 'keuangan_pembayaran_detail')) {
-        $bulanSql = '1=1';
-        $bulanParams = [];
-        if ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0) {
-            if (!function_exists('pondok_sql_match_bulan_tagihan')) {
-                require_once __DIR__ . '/pondok_kalender.php';
-            }
-            $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan, 'p');
-            $bulanSql = $bulanMatch['sql'];
-            $bulanParams = $bulanMatch['params'];
-        }
-        $paidStmt = $pdo->prepare('
-            SELECT d.pos_slug, d.pos_nama, COALESCE(SUM(d.nominal), 0) AS total_nominal
-            FROM keuangan_pembayaran p
-            INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
-            WHERE p.jenis_periode = :jenis_periode
-              AND p.tahun_ajaran_mulai = :tahun_mulai
-              AND p.tahun_ajaran_selesai = :tahun_selesai
-              AND (' . ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0 ? $bulanSql : '1=1') . ')
-            GROUP BY d.pos_slug, d.pos_nama
-        ');
-        $paidStmt->execute(array_merge([
-            'jenis_periode' => $jenisPeriode,
-            'tahun_mulai' => $tahunMulai,
-            'tahun_selesai' => $tahunSelesai,
-        ], $bulanParams));
-        foreach ($paidStmt->fetchAll(PDO::FETCH_ASSOC) as $pr) {
-            $slug = strtolower(trim((string) ($pr['pos_slug'] ?? '')));
-            if ($slug === '') {
-                continue;
-            }
-            $paidBySlug[$slug] = [
-                'nama' => (string) ($pr['pos_nama'] ?? $slug),
-                'paid' => (int) ((float) ($pr['total_nominal'] ?? 0)),
-            ];
-        }
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
     }
 
-    $expectedBySlug = [];
     $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
+    $agg = [];
     foreach ($biayaDefinitions as $def) {
         if (($def['kategori'] ?? '') !== $kategoriFilter) {
             continue;
@@ -71,75 +37,66 @@ function keuangan_rekap_pos_with_expected(
         if ($slug === '') {
             continue;
         }
-        $expectedBySlug[$slug] = [
+        $agg[$slug] = [
             'nama' => (string) ($def['nama'] ?? $slug),
             'expected' => 0,
+            'paid_valid' => 0,
+            'paid_raw' => 0,
         ];
     }
 
     $aktifSql = santri_sql_aktif_only('s');
     $levelExpr = column_exists($pdo, 'santri', 'kategori_kelas') ? 's.kategori_kelas' : (column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''");
-    $santriRows = $pdo->query('SELECT s.id, ' . $levelExpr . ' AS kategori_kelas, s.nis, s.nama_santri, s.tingkatan FROM santri s WHERE ' . $aktifSql . ' ORDER BY ' . santri_list_order_sql('s'))->fetchAll(PDO::FETCH_ASSOC);
-
-    $useSyahriyahPotongan = $jenisPeriode === 'BULANAN'
-        && isset($expectedBySlug['syahriyah']);
-    $syCtx = null;
-    $tarifWajib = null;
-    if ($useSyahriyahPotongan) {
-        if (!function_exists('keuangan_syahriyah_bulk_context')) {
-            require_once __DIR__ . '/keuangan_syahriyah_potongan.php';
-        }
-        $syCtx = keuangan_syahriyah_bulk_context($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
-        if (!function_exists('tagihan_wajib_tarif_cache_by_tier')) {
-            require_once __DIR__ . '/tagihan_bulanan.php';
-        }
-        $tarifWajib = tagihan_wajib_tarif_cache_by_tier($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
-    }
+    $santriRows = $pdo->query('SELECT s.id FROM santri s WHERE ' . $aktifSql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     foreach ($santriRows as $sr) {
         $sid = (int) ($sr['id'] ?? 0);
-        $kat = trim((string) ($sr['kategori_kelas'] ?? ''));
-        $tier = keuangan_tier_key_from_kelas($kat, $pdo);
-        foreach ($biayaDefinitions as $def) {
-            if (($def['kategori'] ?? '') !== $kategoriFilter) {
+        if ($sid <= 0) {
+            continue;
+        }
+        $breakdown = keuangan_tagihan_breakdown_for_santri(
+            $pdo,
+            $sid,
+            $jenisPeriode,
+            $bulanTagihan,
+            $tahunMulai,
+            $tahunSelesai,
+            $biayaDefinitions
+        );
+        foreach ($breakdown as $slugRaw => $info) {
+            $slug = strtolower(trim((string) $slugRaw));
+            if ($slug === '') {
                 continue;
             }
-            $slug = strtolower(trim((string) ($def['slug'] ?? '')));
-            if ($slug === '' || !isset($expectedBySlug[$slug])) {
-                continue;
+            if (!isset($agg[$slug])) {
+                $agg[$slug] = [
+                    'nama' => $slug,
+                    'expected' => 0,
+                    'paid_valid' => 0,
+                    'paid_raw' => 0,
+                ];
             }
-            if ($useSyahriyahPotongan && $slug === 'syahriyah' && $sid > 0 && is_array($syCtx)) {
-                $syPot = keuangan_syahriyah_simulasi(
-                    $pdo,
-                    $sid,
-                    $kat,
-                    $bulanTagihan,
-                    $tahunMulai,
-                    $tahunSelesai,
-                    $syCtx
-                );
-                $expectedBySlug[$slug]['expected'] += max(0, (int) ($syPot['expected'] ?? 0));
-                continue;
-            }
-            if ($jenisPeriode === 'BULANAN' && is_array($tarifWajib) && isset($tarifWajib[$slug][$tier])) {
-                $expectedBySlug[$slug]['expected'] += max(0, (int) $tarifWajib[$slug][$tier]);
-                continue;
-            }
-            $fallback = (int) ($def['default'][$tier] ?? 0);
-            $fee = (int) app_setting($pdo, 'keuangan_fee_' . $slug . '_' . $tier, (string) $fallback);
-            $expectedBySlug[$slug]['expected'] += max(0, $fee);
+            $expected = max(0, (int) ($info['expected'] ?? 0));
+            $paid = max(0, (int) ($info['paid'] ?? 0));
+            $paidValid = $expected > 0 ? min($paid, $expected) : $paid;
+            $agg[$slug]['expected'] += $expected;
+            $agg[$slug]['paid_raw'] += $paid;
+            $agg[$slug]['paid_valid'] += $paidValid;
         }
     }
 
-    $allSlugs = array_unique(array_merge(array_keys($expectedBySlug), array_keys($paidBySlug)));
-    sort($allSlugs);
+    ksort($agg);
     $rows = [];
-    foreach ($allSlugs as $slug) {
+    foreach ($agg as $slug => $a) {
+        $paidValid = (int) ($a['paid_valid'] ?? 0);
+        $paidRaw = (int) ($a['paid_raw'] ?? 0);
         $rows[] = [
             'pos_slug' => $slug,
-            'pos_nama' => (string) ($expectedBySlug[$slug]['nama'] ?? $paidBySlug[$slug]['nama'] ?? $slug),
-            'expected' => (int) ($expectedBySlug[$slug]['expected'] ?? 0),
-            'paid' => (int) ($paidBySlug[$slug]['paid'] ?? 0),
+            'pos_nama' => (string) ($a['nama'] ?? $slug),
+            'expected' => (int) ($a['expected'] ?? 0),
+            'paid' => $paidValid,
+            'paid_raw' => $paidRaw,
+            'paid_lebih' => max(0, $paidRaw - $paidValid),
         ];
     }
 
@@ -435,36 +392,103 @@ function keuangan_tagihan_breakdown_for_santri(
     return $out;
 }
 
-/** Total pembayaran pos syahriyah (slug) untuk satu bulan tagihan. */
+/**
+ * Cegah input pembayaran dobel: komponen yang sudah lunas tidak boleh dibayar lagi.
+ *
+ * @param list<array{slug:string,nama?:string,nominal:int}> $detailRows
+ * @param array<string, int> $paidAdjustBySlug Kurangi paid (mis. nominal lama saat edit pembayaran)
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_pembayaran_validasi_anti_dobel(
+    PDO $pdo,
+    int $santriId,
+    string $jenisPeriode,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai,
+    array $detailRows,
+    array $biayaDefinitions,
+    array $paidAdjustBySlug = []
+): array {
+    if ($santriId <= 0 || $detailRows === []) {
+        return ['ok' => true, 'message' => ''];
+    }
+
+    $breakdown = keuangan_tagihan_breakdown_for_santri(
+        $pdo,
+        $santriId,
+        $jenisPeriode,
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        $biayaDefinitions
+    );
+    $wajibSlugs = $jenisPeriode === 'BULANAN' ? keuangan_tagihan_wajib_slugs() : [];
+
+    foreach ($detailRows as $dr) {
+        $slug = (string) ($dr['slug'] ?? '');
+        $nominal = (int) ($dr['nominal'] ?? 0);
+        if ($slug === '' || $nominal <= 0) {
+            continue;
+        }
+        if ($slug === 'saku') {
+            continue;
+        }
+        $info = $breakdown[$slug] ?? null;
+        if (!is_array($info)) {
+            continue;
+        }
+        $nama = (string) ($dr['nama'] ?? $slug);
+        $expected = (int) ($info['expected'] ?? 0);
+        $paid = max(0, (int) ($info['paid'] ?? 0) - (int) ($paidAdjustBySlug[$slug] ?? 0));
+        $sisa = max(0, $expected - $paid);
+        $isWajibBulanan = $jenisPeriode === 'BULANAN' && in_array($slug, $wajibSlugs, true);
+
+        if ($expected > 0 && $sisa <= 0) {
+            return [
+                'ok' => false,
+                'message' => 'Komponen ' . $nama . ' sudah lunas untuk periode ini. Input dobel tidak diizinkan.',
+            ];
+        }
+        if ($expected > 0 && $nominal > $sisa && ($isWajibBulanan || $jenisPeriode === 'AWAL_TAHUN')) {
+            return [
+                'ok' => false,
+                'message' => 'Nominal ' . $nama . ' melebihi sisa tagihan (Rp ' . number_format($sisa, 0, ',', '.') . ').',
+            ];
+        }
+    }
+
+    return ['ok' => true, 'message' => ''];
+}
+
+/** Total pembayaran pos syahriyah (slug) untuk satu bulan tagihan — terbayar valid (tanpa kelebihan dobel). */
 function keuangan_syahriyah_terbayar_bulan(
     PDO $pdo,
     int $bulanTagihan,
     int $tahunMulai,
     int $tahunSelesai
 ): int {
-    if (
-        $bulanTagihan < 1
-        || $bulanTagihan > 12
-        || !table_exists($pdo, 'keuangan_pembayaran')
-        || !table_exists($pdo, 'keuangan_pembayaran_detail')
-    ) {
+    if ($bulanTagihan < 1 || $bulanTagihan > 12) {
         return 0;
     }
+    if (!function_exists('keuangan_biaya_definitions')) {
+        require_once __DIR__ . '/keuangan_defs.php';
+    }
+    $rekap = keuangan_rekap_pos_with_expected(
+        $pdo,
+        'BULANAN',
+        $bulanTagihan,
+        $tahunMulai,
+        $tahunSelesai,
+        keuangan_biaya_definitions()
+    );
+    foreach ($rekap as $row) {
+        if (strtolower(trim((string) ($row['pos_slug'] ?? ''))) === 'syahriyah') {
+            return (int) ($row['paid'] ?? 0);
+        }
+    }
 
-    $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan, 'p');
-    $st = $pdo->prepare('
-        SELECT COALESCE(SUM(d.nominal), 0)
-        FROM keuangan_pembayaran_detail d
-        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE p.jenis_periode = \'BULANAN\'
-          AND p.tahun_ajaran_mulai = :tm
-          AND p.tahun_ajaran_selesai = :ts
-          AND LOWER(TRIM(d.pos_slug)) = \'syahriyah\'
-          AND ' . $bulanMatch['sql'] . '
-    ');
-    $st->execute(array_merge(['tm' => $tahunMulai, 'ts' => $tahunSelesai], $bulanMatch['params']));
-
-    return (int) round((float) ($st->fetchColumn() ?: 0));
+    return 0;
 }
 
 /**
