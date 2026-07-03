@@ -14,6 +14,7 @@ if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
 <div class="card shadow-sm mt-4 border-info">
     <div class="card-header fw-semibold text-info-emphasis">Panduan operator — tagihan &amp; alokasi</div>
     <div class="card-body small text-muted">
+        <p class="mb-2"><strong>Tagihan masuk santri baru:</strong> isi <em>tanggal masuk</em> di data santri. Santri baru ditagih bulanan mulai bulan masuk pada TA pertama; catatan tersimpan di riwayat dan tetap terlihat di TA berikutnya.</p>
         <p class="mb-2"><strong>Tagihan syahriyah per bulan</strong> = tarif tier kelas keuangan (Muadalah / Wustho / Ulya)
             − potongan % per santri (bulan jeda tidak mengurangi) + <strong>tambahan PKPPS</strong> bila santri aktif di PKPPS.
             Jenis kelas syahriyah di master data <em>tidak</em> menambah nominal tagihan.</p>

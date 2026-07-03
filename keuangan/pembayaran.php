@@ -101,8 +101,8 @@ require_once __DIR__ . '/../includes/header.php';
         <span class="text-nowrap">·</span> <a href="/keuangan/pemasukan.php">Pemasukan lain</a>
         <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
         <span class="text-nowrap">·</span> <a href="<?= htmlspecialchars(app_href('/keuangan/tagihan_wali.php')) ?>">Tagihan khusus ke wali</a>
-        <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=syahriyah_makan">Pengaturan syahriyah &amp; PKPPS</a>
-        <span class="text-nowrap">·</span> <a href="/settings/opsional_santri.php">Atur Makan &amp; Saku</a>
+        <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps">Pengaturan syahriyah &amp; PKPPS</a>
+        <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=santri_bulanan&amp;sub=opsional">Atur Makan &amp; Saku</a>
     </p>
 </div>
 
@@ -288,6 +288,11 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="fa-solid fa-lock me-1"></i>
                         <span id="bulan-urutan-blokir-teks"></span>
                     </div>
+                    <div id="tagihan-masuk-catatan" class="alert alert-info py-2 px-3 small mb-2 d-none" role="status">
+                        <i class="fa-solid fa-calendar-check me-1"></i>
+                        <span id="tagihan-masuk-catatan-teks"></span>
+                        <ul id="tagihan-masuk-riwayat" class="mb-0 mt-2 ps-3 small"></ul>
+                    </div>
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                         <p class="small text-muted mb-0" id="tagihan-summary-hint">
                             Pilih santri dan bulan untuk melihat sisa tagihan wajib (Syahriyah).
@@ -304,7 +309,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div id="pkpps-hint-box" class="alert alert-warning py-2 px-3 small mb-2 d-none" role="status">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i>
                         Santri terdaftar PKPPS, tetapi tambahan PKPPS = Rp 0. Periksa
-                        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">nominal PKPPS</a>
+                        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">nominal PKPPS</a>
                         dan kelas keuangan TA santri.
                     </div>
                     <div class="table-responsive pembayaran-table-wrap">

@@ -15,30 +15,58 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
 require_once __DIR__ . '/../helpers/keuangan_kelas_makan.php';
+require_once __DIR__ . '/../helpers/keuangan_pengaturan_sections.php';
+require_once __DIR__ . '/../helpers/santri_opsional_pengaturan.php';
+require_once __DIR__ . '/../helpers/keuangan_syahriyah_potongan_pengaturan.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
 
-$section = trim((string) ($_GET['bagian'] ?? 'umum'));
-if ($section === 'tarif_bulan') {
-    $redirectQs = $_GET;
-    $redirectQs['bagian'] = 'syahriyah_makan';
-    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?' . http_build_query($redirectQs)));
+$rawSection = trim((string) ($_GET['bagian'] ?? 'umum'));
+$legacyRedirect = keuangan_pengaturan_legacy_redirect($rawSection, $_GET);
+if ($legacyRedirect !== null) {
+    header('Location: ' . app_rewrite_internal_url($legacyRedirect));
     exit;
 }
-$validSections = ['umum', 'syahriyah_makan', 'makan', 'tarif', 'akun', 'alokasi', 'alokasi_awal', 'alokasi_makan'];
-if (!in_array($section, $validSections, true)) {
+$section = keuangan_pengaturan_normalize_bagian($rawSection);
+if (!in_array($section, keuangan_pengaturan_valid_sections(), true)) {
     $section = 'umum';
+}
+$alokasiJenisKey = strtolower(trim((string) ($_GET['alokasi_jenis'] ?? 'syahriyah')));
+if (!in_array($alokasiJenisKey, ['syahriyah', 'awal_tahun', 'makan'], true)) {
+    $alokasiJenisKey = 'syahriyah';
+}
+$santriBulananSub = strtolower(trim((string) ($_GET['sub'] ?? 'opsional')));
+if (!in_array($santriBulananSub, ['opsional', 'potongan'], true)) {
+    $santriBulananSub = 'opsional';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
     keuangan_ensure_schema_deferred($pdo);
     $action = (string) ($_POST['action'] ?? '');
+    if (in_array($action, ['save_table', 'bulk_aktif', 'bulk_nonaktif'], true)) {
+        $opsRes = santri_opsional_pengaturan_handle_post(
+            $pdo,
+            $_POST,
+            keuangan_pengaturan_url('santri_bulanan', ['sub' => 'opsional'])
+        );
+        set_flash($opsRes['ok'] ? 'success' : 'error', $opsRes['message']);
+        header('Location: ' . app_rewrite_internal_url($opsRes['redirect']));
+        exit;
+    }
+    if (in_array($action, ['simpan_potongan', 'hapus_potongan', 'tambah_jeda', 'hapus_jeda'], true)) {
+        $userId = (int) ($_SESSION['user']['id'] ?? 0);
+        $potRes = keuangan_syahriyah_potongan_pengaturan_handle_post($pdo, $_POST, $userId);
+        set_flash($potRes['ok'] ? 'success' : 'error', $potRes['message']);
+        header('Location: ' . app_rewrite_internal_url($potRes['redirect']));
+        exit;
+    }
     $result = match ($action) {
         'save_periode' => keuangan_save_periode_settings($pdo, $_POST),
         'save_tagihan_masuk' => keuangan_save_tagihan_masuk_settings($pdo, $_POST),
         'save_tarif_awal_jenis' => keuangan_save_tarif_awal_tahun_jenis_settings($pdo, $_POST),
+        'save_awal_tahun_pos_aktif' => keuangan_save_awal_tahun_pos_aktif_settings($pdo, $_POST),
         'save_tarif' => keuangan_save_tarif_settings($pdo, $_POST),
         'save_tarif_bulan' => keuangan_save_tarif_bulanan_settings($pdo, $_POST),
         'save_pkpps_syahriyah' => keuangan_pkpps_syahriyah_save_settings($pdo, $_POST),
@@ -52,22 +80,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $redirectSection = match ($action) {
         'save_tagihan_masuk' => 'umum',
         'save_tarif_awal_jenis' => 'tarif',
-        'save_tarif' => trim((string) ($_POST['redirect_bagian'] ?? '')) === 'syahriyah_makan'
-            ? 'syahriyah_makan'
-            : 'tarif',
-        'save_tarif_bulan', 'save_pkpps_syahriyah' => 'syahriyah_makan',
-        'save_makan_pengaturan' => 'makan',
+        'save_awal_tahun_pos_aktif' => 'tarif',
+        'save_tarif', 'save_tarif_bulan', 'save_pkpps_syahriyah', 'save_makan_pengaturan' => 'tarif',
         'save_akun' => 'akun',
         'save_kas_saldo_mode' => 'akun',
-        'save_alokasi' => keuangan_alokasi_section_for_jenis((string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH)),
+        'save_alokasi' => 'alokasi',
         default => 'umum',
     };
+    $redirectExtra = [];
+    if ($redirectSection === 'alokasi') {
+        $jenisDana = (string) ($_POST['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH);
+        $redirectExtra['alokasi_jenis'] = match ($jenisDana) {
+            KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'awal_tahun',
+            KEUNGAN_ALOKASI_JENIS_MAKAN => 'makan',
+            default => 'syahriyah',
+        };
+    }
     $hash = match ($action) {
         'save_pkpps_syahriyah' => '#tambahan-pkpps',
         'save_tarif_bulan' => '#tarif-per-bulan',
+        'save_makan_pengaturan' => '#makan-kelas',
+        'save_tarif_awal_jenis', 'save_awal_tahun_pos_aktif' => '#tarif-saku-awal',
         default => '',
     };
-    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?bagian=' . urlencode($redirectSection) . $hash));
+    $qs = array_merge(['bagian' => $redirectSection], $redirectExtra);
+    header('Location: ' . app_rewrite_internal_url('/keuangan/pengaturan.php?' . http_build_query($qs) . $hash));
     exit;
 }
 
@@ -95,9 +132,10 @@ if ($section === 'umum') {
     $taMeta = pondok_ta_form_meta($pdo);
     $tagihanMulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
     $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
-} elseif ($section === 'syahriyah_makan') {
+} elseif ($section === 'tarif') {
     ensure_keuangan_tarif_bulanan_table($pdo);
     pkpps_ensure_schema($pdo);
+    ensure_kelas_keuangan_table($pdo);
     $periode = pondok_tahun_ajaran_aktif($pdo);
     $taMeta = pondok_ta_form_meta($pdo);
     $syMakanDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), true);
@@ -122,25 +160,6 @@ if ($section === 'umum') {
         }
     }
     $loadSyahriyahBulanToggle = true;
-} elseif ($section === 'makan') {
-    ensure_kelas_keuangan_table($pdo);
-    $periode = pondok_tahun_ajaran_aktif($pdo);
-    $taMulaiTarifBulan = (int) ($periode['mulai'] ?? 0);
-    $taSelesaiTarifBulan = (int) ($periode['selesai'] ?? 0);
-    $bulanSlotsTarif = pondok_bulan_slots_tahun_ajaran($pdo, $taMulaiTarifBulan, $taSelesaiTarifBulan);
-    $bulanLabelsShort = [];
-    foreach ($bulanSlotsTarif as $slot) {
-        $b = (int) ($slot['bulan_tagihan'] ?? 0);
-        if ($b >= 1 && $b <= 12) {
-            $bulanLabelsShort[$b] = pondok_bulan_slot_label_tampilan($pdo, $slot);
-        }
-    }
-    for ($b = 1; $b <= 12; $b++) {
-        if (!isset($bulanLabelsShort[$b])) {
-            $bulanLabelsShort[$b] = 'B' . $b;
-        }
-    }
-} elseif ($section === 'tarif') {
     $biayaDefs = keuangan_biaya_filter_syahriyah_makan(keuangan_biaya_definitions(), false);
     $feeMatrix = keuangan_fee_matrix_from_settings($pdo, $biayaDefs);
     $awalTahunDefs = array_values(array_filter(
@@ -148,8 +167,17 @@ if ($section === 'umum') {
         static fn (array $d): bool => (string) ($d['kategori'] ?? '') === 'Awal Tahun'
     ));
     $feeMatrixAwalJenis = keuangan_fee_matrix_awal_tahun_jenis($pdo, $awalTahunDefs);
+    $posAktifAwal = keuangan_awal_tahun_pos_aktif_matrix($pdo, $awalTahunDefs);
     $tagihanMulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
     $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
+} elseif ($section === 'santri_bulanan') {
+    if ($santriBulananSub === 'opsional') {
+        $ops = santri_opsional_pengaturan_load($pdo, $_GET);
+        $opsEmbedBase = 'bagian=santri_bulanan&sub=opsional';
+    } else {
+        $potongan = keuangan_syahriyah_potongan_pengaturan_load($pdo, $_GET);
+        $loadSantriSelectJs = true;
+    }
 } elseif ($section === 'akun') {
     $editAkunId = (int) ($_GET['edit_akun'] ?? 0);
     $kasSaldoMode = keuangan_kas_saldo_mode($pdo);
@@ -163,7 +191,7 @@ if ($section === 'umum') {
             break;
         }
     }
-} elseif ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan') {
+} elseif ($section === 'alokasi') {
     require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
     ensure_keuangan_alokasi_jenis_dana($pdo);
     $keuanganTa = keuangan_ta_resolve($pdo);
@@ -189,41 +217,13 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Pengaturan</p>
     <h1 class="h4 mb-1">Pengaturan Keuangan</h1>
     <p class="text-muted mb-0">
-        Tahun ajaran, <strong>syahriyah &amp; makan</strong>, tarif lainnya, akun kas/bank, dan alokasi dana (syahriyah, awal tahun, makan) — dalam satu halaman.
-        Lainnya di menu pengaturan:
-        <a href="/settings/kelas_keuangan.php">Kelas keuangan</a>,
-        <a href="/keuangan/inventaris.php">Inventaris aset</a>,
-        <a href="/keuangan/cashless_pin.php">Cashless &amp; uang saku</a>,
-        <a href="/keuangan/potongan_syahriyah.php">Potongan syahriyah per santri</a>.
+        Satu pusat pengaturan: <strong>tarif &amp; komponen</strong>, <strong>alokasi dana</strong>, <strong>override per santri bulanan</strong>, tahun ajaran, dan akun kas.
+        Master kelas keuangan di <a href="/settings/kelas_keuangan.php">Settings → Kelas keuangan</a>.
+        Cashless di <a href="/keuangan/cashless_pin.php">Cashless &amp; uang saku</a>.
     </p>
 </div>
 
-<ul class="nav nav-tabs mb-3 flex-wrap">
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'umum' ? 'active' : '' ?>" href="?bagian=umum">Umum &amp; periode</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'syahriyah_makan' ? 'active' : '' ?>" href="?bagian=syahriyah_makan">Syahriyah (termasuk PKPPS)</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'makan' ? 'active' : '' ?>" href="?bagian=makan">Makan per kelas</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'tarif' ? 'active' : '' ?>" href="?bagian=tarif">Tarif lainnya</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'akun' ? 'active' : '' ?>" href="?bagian=akun">Akun kas/bank</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'alokasi' ? 'active' : '' ?>" href="?bagian=alokasi">Alokasi syahriyah</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'alokasi_awal' ? 'active' : '' ?>" href="?bagian=alokasi_awal">Alokasi awal tahun</a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?= $section === 'alokasi_makan' ? 'active' : '' ?>" href="?bagian=alokasi_makan">Alokasi makan</a>
-    </li>
-</ul>
+<?php require __DIR__ . '/partials/pengaturan_nav.php'; ?>
 
 <?php if ($section === 'umum'): ?>
 <div class="row g-3">
@@ -266,7 +266,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header fw-semibold">Syahriyah &amp; operasional</div>
+            <div class="card-header fw-semibold">Tautan terkait</div>
             <div class="card-body d-grid gap-2">
                 <a class="btn btn-outline-info text-start" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>">
                     <i class="fa-solid fa-book-open me-2"></i>Panduan alur keuangan
@@ -274,23 +274,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="btn btn-outline-primary text-start" href="/settings/kelas_keuangan.php">
                     <i class="fa-solid fa-layer-group me-2"></i>Kelas / kategori keuangan santri
                 </a>
-                <a class="btn btn-warning text-start" href="/keuangan/potongan_syahriyah.php">
-                    <i class="fa-solid fa-percent me-2"></i>Potongan syahriyah per santri (%)
+                <a class="btn btn-outline-primary text-start" href="?bagian=tarif">
+                    <i class="fa-solid fa-tags me-2"></i>Tarif &amp; komponen (syahriyah, makan, saku, awal tahun)
                 </a>
-                <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=makan')) ?>">
-                    <i class="fa-solid fa-utensils me-2"></i>Pengaturan makan per kelas
+                <a class="btn btn-outline-primary text-start" href="?bagian=santri_bulanan">
+                    <i class="fa-solid fa-user-gear me-2"></i>Override per santri (bulanan)
                 </a>
-                <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan')) ?>">
-                    <i class="fa-solid fa-calendar-days me-2"></i>Syahriyah, makan &amp; tambahan PKPPS
-                </a>
-                <a class="btn btn-outline-primary text-start" href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">
-                    <i class="fa-solid fa-layer-group me-2"></i>Kelas keuangan santri
-                </a>
-                <a class="btn btn-outline-primary text-start" href="/pembayaran/tagihan_syahriyah.php">
+                <a class="btn btn-outline-secondary text-start" href="/pembayaran/tagihan_syahriyah.php">
                     <i class="fa-solid fa-receipt me-2"></i>Tagihan syahriyah per bulan
-                </a>
-                <a class="btn btn-outline-secondary text-start" href="/pembayaran/laporan.php">
-                    <i class="fa-solid fa-chart-column me-2"></i>Laporan syahriyah
                 </a>
                 <a class="btn btn-outline-secondary text-start" href="/keuangan/cashless_pin.php">
                     <i class="fa-solid fa-key me-2"></i>Cashless &amp; uang saku
@@ -303,10 +294,11 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-header fw-semibold">Tagihan sesuai tanggal masuk santri</div>
             <div class="card-body">
                 <p class="small text-muted mb-3">
-                    Santri yang masuk di pertengahan tahun ajaran tidak ditagih bulan sebelum tanggal masuk.
-                    Pada pembayaran <strong>awal tahun</strong>, sistem membedakan <strong>santri baru</strong> (masuk TA ini)
-                    dan <strong>santri lama</strong> (sudah pernah tinggal di TA sebelumnya). Pastikan kolom
-                    <strong>tanggal masuk</strong> di data santri terisi.
+                    <strong>Santri baru</strong> ditagih bulanan mulai <strong>bulan tanggal masuk</strong> pada TA pertama mereka
+                    (bulan sebelumnya tidak ditagih). Catatan tersimpan otomatis dan tetap terlihat di TA berikutnya sebagai riwayat.
+                    <strong>Santri lama</strong> ditagih penuh dari bulan 1.
+                    Pada pembayaran <strong>awal tahun</strong>, sistem membedakan santri baru dan santri lama.
+                    Pastikan kolom <strong>tanggal masuk</strong> di data santri terisi.
                 </p>
                 <form method="post" class="vstack gap-2">
                     <input type="hidden" name="action" value="save_tagihan_masuk">
@@ -314,7 +306,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input class="form-check-input" type="checkbox" name="keuangan_tagihan_mulai_masuk" value="1" id="tagihan-mulai-masuk"
                             <?= !empty($tagihanMulaiMasuk) ? 'checked' : '' ?>>
                         <label class="form-check-label" for="tagihan-mulai-masuk">
-                            Tagihan bulanan mulai dari bulan masuk santri (berdasarkan tanggal masuk)
+                            Santri baru ditagih bulanan mulai bulan tanggal masuk (santri lama tetap dari bulan 1)
                         </label>
                     </div>
                     <div class="form-check">
@@ -337,30 +329,23 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php if ($section === 'syahriyah_makan'): ?>
-<div class="alert alert-info small mb-3">
-    Semua nominal di halaman ini otomatis dipakai di
-    <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>"><strong>input pembayaran</strong></a>
-    dan <a href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">tagihan bulanan</a>
-    (syahriyah pokok + makan + <strong>tambahan PKPPS</strong> untuk santri PKPPS).
-</div>
-<?php require __DIR__ . '/partials/syahriyah_makan_pengaturan.php'; ?>
-<?php require __DIR__ . '/partials/syahriyah_tambahan_nominal.php'; ?>
-<?php require __DIR__ . '/partials/syahriyah_operator_notes.php'; ?>
-<?php endif; ?>
-
-<?php if ($section === 'makan'): ?>
-<div class="alert alert-info small mb-3">
-    Tarif tier global (Muadalah/Wustho/Ulya) tetap di tab
-    <a href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>.
-    Halaman ini untuk <strong>nama tampilan</strong> dan <strong>override per kelas keuangan</strong> (by name).
-    Atur pembagian dana makan (bahan, gaji dapur, operasional) di tab
-    <a href="?bagian=alokasi_makan"><strong>Alokasi makan</strong></a>.
-</div>
-<?php require __DIR__ . '/partials/makan_kelas_pengaturan.php'; ?>
-<?php endif; ?>
-
 <?php if ($section === 'tarif'): ?>
+<div class="alert alert-info small mb-3">
+    Semua tarif &amp; komponen di halaman ini otomatis dipakai di
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>"><strong>input pembayaran</strong></a>
+    dan <a href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">tagihan bulanan</a>.
+    Override per santri (makan/saku aktif, potongan %) di tab <a href="?bagian=santri_bulanan">Per santri (bulanan)</a>.
+</div>
+<div id="syahriyah-pokok" class="pt-1">
+<?php require __DIR__ . '/partials/syahriyah_makan_pengaturan.php'; ?>
+</div>
+<div id="tambahan-pkpps" class="pt-2">
+<?php require __DIR__ . '/partials/syahriyah_tambahan_nominal.php'; ?>
+</div>
+<div id="makan-kelas" class="pt-2">
+<?php require __DIR__ . '/partials/makan_kelas_pengaturan.php'; ?>
+</div>
+<div id="tarif-saku-awal" class="pt-2">
 <?php
     $byKategori = [];
     foreach ($biayaDefs as $def) {
@@ -369,12 +354,9 @@ require_once __DIR__ . '/../includes/header.php';
     }
 ?>
 <div class="card shadow-sm">
-    <div class="card-header fw-semibold">Tarif saku, awal tahun, dan komponen lain</div>
+    <div class="card-header fw-semibold">Saku &amp; pembayaran awal tahun</div>
     <div class="card-body">
-        <p class="small text-muted">
-            Syahriyah &amp; makan di tab <a href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>.
-            Tier dari <strong>Kelas keuangan</strong> santri. Nominal tanpa titik — contoh: 200000.
-        </p>
+        <p class="small text-muted">Tier dari <strong>Kelas keuangan</strong> santri. Syahriyah &amp; makan di atas.</p>
         <form method="post">
             <input type="hidden" name="action" value="save_tarif">
             <?php foreach ($byKategori as $katNama => $defsKat): ?>
@@ -410,18 +392,13 @@ require_once __DIR__ . '/../includes/header.php';
                     </table>
                 </div>
             <?php endforeach; ?>
-            <button type="submit" class="btn btn-primary">Simpan semua tarif</button>
+            <button type="submit" class="btn btn-primary">Simpan tarif saku &amp; lainnya</button>
         </form>
 
         <?php if (!empty($awalTahunBedakan) && ($awalTahunDefs ?? []) !== []): ?>
         <hr class="my-4" id="tarif-awal-jenis">
         <h2 class="h6 text-secondary">Awal tahun — santri baru vs lama</h2>
-        <p class="small text-muted">
-            Tarif di bawah dipakai saat input pembayaran awal tahun.
-            Santri <strong>baru</strong> = tahun ajaran masuk sama dengan TA aktif.
-            Santri <strong>lama</strong> = sudah punya riwayat tingkatan di TA sebelumnya atau masuk sebelum TA ini.
-            Kosongkan tidak perlu — isi 0 bila komponen tidak dikenakan (mis. pendaftaran untuk santri lama).
-        </p>
+        <p class="small text-muted">Santri baru = masuk TA aktif; santri lama = sudah pernah di TA sebelumnya.</p>
         <form method="post">
             <input type="hidden" name="action" value="save_tarif_awal_jenis">
             <?php foreach (['baru' => 'Santri baru', 'lama' => 'Santri lama'] as $jenisKey => $jenisLabel): ?>
@@ -459,9 +436,55 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endforeach; ?>
             <button type="submit" class="btn btn-warning">Simpan tarif awal tahun (baru &amp; lama)</button>
         </form>
+
+        <hr class="my-4" id="pos-awal-jenis">
+        <h2 class="h6 text-secondary">Komponen yang ditagihkan</h2>
+        <p class="small text-muted">Centang komponen berlaku per jenis santri. Tidak dicentang = tidak muncul di form pembayaran awal tahun.</p>
+        <form method="post">
+            <input type="hidden" name="action" value="save_awal_tahun_pos_aktif">
+            <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Komponen</th>
+                            <th class="text-center">Santri baru</th>
+                            <th class="text-center">Santri lama</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($awalTahunDefs as $def):
+                        $slug = (string) $def['slug'];
+                        $aktifBaru = !empty($posAktifAwal['baru'][$slug]);
+                        $aktifLama = !empty($posAktifAwal['lama'][$slug]);
+                        ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) $def['nama']) ?></td>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input" name="pos_aktif_baru[<?= htmlspecialchars($slug) ?>]" value="1" <?= $aktifBaru ? 'checked' : '' ?>>
+                            </td>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input" name="pos_aktif_lama[<?= htmlspecialchars($slug) ?>]" value="1" <?= $aktifLama ? 'checked' : '' ?>>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="btn btn-outline-warning">Simpan komponen berlaku</button>
+        </form>
         <?php endif; ?>
     </div>
 </div>
+</div>
+<?php require __DIR__ . '/partials/syahriyah_operator_notes.php'; ?>
+<?php endif; ?>
+
+<?php if ($section === 'santri_bulanan'): ?>
+<?php if ($santriBulananSub === 'potongan'): ?>
+    <?php require __DIR__ . '/partials/potongan_syahriyah_embed.php'; ?>
+<?php else: ?>
+    <?php require __DIR__ . '/partials/santri_opsional_pengaturan.php'; ?>
+<?php endif; ?>
 <?php endif; ?>
 
 <?php if ($section === 'akun'): ?>
@@ -653,21 +676,17 @@ require_once __DIR__ . '/../includes/header.php';
 </script>
 <?php endif; ?>
 
-<?php if ($section === 'alokasi' || $section === 'alokasi_awal' || $section === 'alokasi_makan'): ?>
+<?php if ($section === 'alokasi'): ?>
 <?php
-    $alokasiJenisDana = match ($section) {
-        'alokasi_awal' => KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN,
-        'alokasi_makan' => KEUNGAN_ALOKASI_JENIS_MAKAN,
-        default => KEUNGAN_ALOKASI_JENIS_SYAHRIYAH,
-    };
-    $alokasiSectionBagian = $section;
+    $alokasiJenisDana = keuangan_pengaturan_alokasi_jenis_dana($alokasiJenisKey);
+    $alokasiSectionBagian = 'alokasi';
     $alokasiRowsFiltered = keuangan_alokasi_rows_for_jenis($alokasiRows, $alokasiJenisDana);
     $editAlokasiScoped = keuangan_alokasi_edit_for_jenis($editAlokasi, $alokasiJenisDana);
     require __DIR__ . '/partials/alokasi_pengaturan_section.php';
 ?>
 <?php endif; ?>
 
-<?php if ($section === 'umum' || $section === 'syahriyah_makan'): ?>
+<?php if ($section === 'umum' || $section === 'tarif' || ($section === 'santri_bulanan' && $santriBulananSub === 'potongan')): ?>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if (!empty($loadSyahriyahBulanToggle)): ?>

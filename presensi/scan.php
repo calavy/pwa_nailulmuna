@@ -470,6 +470,10 @@ $timerSec = $timerState === 'active'
     ? (int) ($scanJadwalCtx['seconds_remaining'] ?? 0)
     : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
 $timerClockInit = sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60);
+$scanFlashSuccess = get_flash('success');
+$scanFlashError = get_flash('error');
+$scanFlashMessage = $scanFlashSuccess ?: $scanFlashError ?: '';
+$scanFlashType = $scanFlashSuccess !== null ? 'success' : ($scanFlashError !== null ? 'error' : '');
 require_once __DIR__ . '/../includes/header.php';
 $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
 ?>
@@ -616,6 +620,8 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         <select id="camera-select" class="form-select form-select-sm" aria-label="Pilih kamera"></select>
     </div>
 
+    <div id="presensi-scan-flash" class="presensi-scan-flash<?= $scanFlashMessage === '' ? ' is-empty' : (' is-' . htmlspecialchars($scanFlashType)) ?>" role="status" aria-live="polite"><?= $scanFlashMessage !== '' ? htmlspecialchars($scanFlashMessage) : '' ?></div>
+
     <div class="presensi-scan-controls">
         <button type="button" class="btn-scan-ctl" id="btn-flip-camera" title="Ganti kamera depan/belakang">
             <i class="fa-solid fa-camera-rotate"></i>
@@ -625,9 +631,9 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
             <i class="fa-solid fa-sliders"></i>
             <span>Kamera</span>
         </button>
-        <button type="button" class="btn-scan-ctl" id="btn-torch" title="Lampu (jika didukung)" style="display:none">
-            <i class="fa-solid fa-lightbulb"></i>
-            <span>Lampu</span>
+        <button type="button" class="btn-scan-ctl" id="btn-torch" title="Nyalakan/matikan flash kamera" style="display:none">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Flash</span>
         </button>
         <button type="button" class="btn-scan-ctl" id="btn-super-focus" title="Optimalkan fokus kamera">
             <i class="fa-solid fa-crosshairs"></i>

@@ -67,14 +67,14 @@ function bendahara_nav_cards(): array
             'color' => 'info',
         ],
         [
-            'href' => '/keuangan/potongan_syahriyah.php',
+            'href' => '/keuangan/pengaturan.php?bagian=santri_bulanan&sub=potongan',
             'title' => 'Potongan syahriyah',
             'desc' => 'Potongan persen per santri (prestasi, kaka beradik, dll.).',
             'icon' => 'fa-percent',
             'color' => 'warning',
         ],
         [
-            'href' => '/keuangan/pengaturan.php?bagian=syahriyah_makan',
+            'href' => '/keuangan/pengaturan.php?bagian=tarif',
             'title' => 'Pengaturan tarif',
             'desc' => 'Nominal syahriyah, makan, saku, dan komponen lain.',
             'icon' => 'fa-sliders',
@@ -88,7 +88,7 @@ function bendahara_nav_cards(): array
             'color' => 'dark',
         ],
         [
-            'href' => '/settings/opsional_santri.php',
+            'href' => '/keuangan/pengaturan.php?bagian=santri_bulanan&sub=opsional',
             'title' => 'Opsional santri (Makan & Saku)',
             'desc' => 'Aktifkan/nonaktifkan Makan & Saku per santri, set nominal khusus.',
             'icon' => 'fa-utensils',

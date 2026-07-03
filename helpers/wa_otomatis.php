@@ -632,6 +632,11 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
     trigger_auto_wa_tagihan_wali($pdo);
     $results['tagihan']['ran'] = true;
 
+    if (!function_exists('wa_awal_tahun_cron')) {
+        require_once __DIR__ . '/wa_awal_tahun.php';
+    }
+    wa_awal_tahun_cron($pdo);
+
     require_once __DIR__ . '/wa_kegiatan_kosong.php';
     trigger_wa_kelas_kosong_bertahap($pdo);
     $results['kelas_kosong']['ran'] = true;

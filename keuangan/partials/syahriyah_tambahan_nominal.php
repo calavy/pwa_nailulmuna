@@ -103,7 +103,7 @@ $detailOpen = isset($_GET['pkpps_detail']) && $_GET['pkpps_detail'] === '1';
 
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <button type="submit" class="btn btn-primary btn-sm">Simpan pengaturan PKPPS</button>
-                <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan&pkpps_detail=1#tambahan-pkpps')) ?>">
+                <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif&pkpps_detail=1#tambahan-pkpps')) ?>">
                     <?= $detailOpen ? 'Sembunyikan' : 'Buka' ?> pengaturan per kelas/bulan
                 </a>
             </div>

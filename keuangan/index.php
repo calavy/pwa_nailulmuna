@@ -17,7 +17,7 @@ $tabRedirects = [
     'a' => '/keuangan/pengaturan.php',
     'b' => '/keuangan/pembayaran.php',
     'c' => '/pembayaran/laporan.php',
-    'd' => '/keuangan/pengaturan.php?bagian=syahriyah_makan',
+    'd' => '/keuangan/pengaturan.php?bagian=tarif',
     'e' => '/keuangan/pengeluaran.php',
     'f' => '/pembayaran/riwayat.php',
     'g' => '/keuangan/cashless_scan.php',
@@ -406,10 +406,9 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body d-grid gap-2">
                 <a class="keu-modern-link" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>"><i class="fa-solid fa-book-open"></i><span>Panduan alur keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi syahriyah</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_awal"><i class="fa-solid fa-chart-pie"></i><span>Alokasi awal tahun</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi_makan"><i class="fa-solid fa-utensils"></i><span>Alokasi makan</span></a>
-                <a class="keu-modern-link" href="/keuangan/potongan_syahriyah.php"><i class="fa-solid fa-percent"></i><span>Potongan syahriyah per santri</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=tarif"><i class="fa-solid fa-tags"></i><span>Tarif &amp; komponen</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi dana</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=santri_bulanan"><i class="fa-solid fa-user-gear"></i><span>Override per santri (bulanan)</span></a>
                 <a class="keu-modern-link" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group"></i><span>Kelas keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse"></i><span>Inventaris aset</span></a>
                 <a class="keu-modern-link" href="/keuangan/cashless_pin.php"><i class="fa-solid fa-key"></i><span>Cashless &amp; uang saku</span></a>

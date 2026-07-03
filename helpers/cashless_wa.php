@@ -45,7 +45,7 @@ function cashless_wa_laporan_harian_enabled(PDO $pdo): bool
 function cashless_wa_laporan_harian_jam(PDO $pdo): string
 {
     $jam = trim((string) app_setting($pdo, 'cashless_laporan_harian_wa_jam', '20:00'));
-    if (preg_match('/^(\d{1,2}):(\d{2})$/', $jam, $m)) {
+    if (preg_match('/^(\d{1,2}):(\d{2})/', $jam, $m)) {
         return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
     }
 
@@ -373,18 +373,21 @@ function cashless_wa_ringkasan_harian(PDO $pdo, ?string $tanggal = null): array
         return $empty;
     }
 
+    require_once __DIR__ . '/cashless_koperasi.php';
+    $range = cashless_tanggal_rentang_harian($tanggal);
     $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
     $sql = "
         SELECT " . ($hasKop ? 'COALESCE(ct.koperasi_id, 0)' : '0') . " AS koperasi_id,
                COUNT(*) AS jumlah,
                COALESCE(SUM(ct.nominal), 0) AS nominal
         FROM cashless_transactions ct
-        WHERE ct.jenis = 'DEBIT' AND DATE(ct.tanggal) = :tgl
+        WHERE UPPER(ct.jenis) = 'DEBIT'
+          AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end
         GROUP BY " . ($hasKop ? 'COALESCE(ct.koperasi_id, 0)' : '0') . "
         ORDER BY koperasi_id ASC
     ";
     $st = $pdo->prepare($sql);
-    $st->execute(['tgl' => $tanggal]);
+    $st->execute(['tgl_start' => $range['start'], 'tgl_end' => $range['end']]);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $kopMap = [];
@@ -441,10 +444,16 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
     }
 
     $today = date('Y-m-d');
+    $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
     if (!$paksa) {
-        $last = trim((string) app_setting($pdo, 'cashless_laporan_harian_last_date', ''));
-        if ($last === $today) {
-            return ['ok' => true, 'message' => 'Laporan hari ini sudah dikirim.', 'sent' => 0, 'skipped' => true];
+        $lastLaporan = trim((string) app_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', ''));
+        if ($lastLaporan === $laporanTanggal) {
+            return [
+                'ok' => true,
+                'message' => 'Laporan tanggal ' . app_format_tanggal_id($laporanTanggal) . ' sudah dikirim.',
+                'sent' => 0,
+                'skipped' => true,
+            ];
         }
         if (!cashless_wa_laporan_send_time_ok($pdo)) {
             return [
@@ -464,7 +473,6 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
         return ['ok' => false, 'message' => $msg, 'sent' => 0];
     }
 
-    $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
     $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $msg = wa_format_cashless_laporan_harian_pengurus($pdo, $ringkasan);
 
@@ -474,6 +482,7 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
 
     if ($sent > 0) {
         save_setting($pdo, 'cashless_laporan_harian_last_date', $today);
+        save_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', $laporanTanggal);
         save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
         save_setting($pdo, 'cashless_laporan_harian_last_error', '');
         save_setting($pdo, 'cashless_laporan_harian_last_stats', json_encode([
@@ -525,6 +534,7 @@ function cashless_wa_laporan_status_hari_ini(PDO $pdo): array
         'enabled' => cashless_wa_laporan_harian_enabled($pdo),
         'jam' => cashless_wa_laporan_harian_jam($pdo),
         'last_date' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_date', '')),
+        'last_laporan_tanggal' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', '')),
         'last_sent_at' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_sent_at', '')),
         'last_error' => trim((string) app_setting($pdo, 'cashless_laporan_harian_last_error', '')),
         'last_stats' => is_array($lastStats) ? $lastStats : null,

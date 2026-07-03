@@ -30,6 +30,9 @@
     const btnSimpan = document.getElementById('btn-simpan-pembayaran');
     const bulanBlokirBox = document.getElementById('bulan-urutan-blokir');
     const bulanBlokirTeks = document.getElementById('bulan-urutan-blokir-teks');
+    const tagihanMasukBox = document.getElementById('tagihan-masuk-catatan');
+    const tagihanMasukTeks = document.getElementById('tagihan-masuk-catatan-teks');
+    const tagihanMasukRiwayat = document.getElementById('tagihan-masuk-riwayat');
     const map = window.keuanganSantriTier || {};
     const feeMatrix = window.keuanganFeeMatrix || {};
     let tagihanPos = {};
@@ -330,6 +333,54 @@
         }
     }
 
+    function renderTagihanMasukCatatan(summary) {
+        if (!tagihanMasukBox) {
+            return;
+        }
+        if (!isJenisBulanan() || !summary) {
+            tagihanMasukBox.classList.add('d-none');
+            if (tagihanMasukTeks) {
+                tagihanMasukTeks.textContent = '';
+            }
+            if (tagihanMasukRiwayat) {
+                tagihanMasukRiwayat.innerHTML = '';
+            }
+            return;
+        }
+        const info = summary.tagihan_masuk || null;
+        const riwayat = info && Array.isArray(info.riwayat_teks) ? info.riwayat_teks : [];
+        const catatanTa = info && info.catatan_ta_ini ? String(info.catatan_ta_ini) : '';
+        const bulanMulai = info ? parseInt(info.bulan_mulai, 10) || 1 : 1;
+        const jenis = info && info.jenis_santri ? String(info.jenis_santri) : '';
+        let teks = '';
+        if (jenis === 'baru' && bulanMulai > 1) {
+            teks = catatanTa || ('Santri baru — tagihan bulanan mulai bulan ke-' + bulanMulai + '.');
+        } else if (catatanTa !== '') {
+            teks = catatanTa;
+        } else if (riwayat.length > 0) {
+            teks = 'Riwayat tagihan masuk santri:';
+        }
+        if (teks === '' && riwayat.length === 0) {
+            tagihanMasukBox.classList.add('d-none');
+            return;
+        }
+        tagihanMasukBox.classList.remove('d-none');
+        if (tagihanMasukTeks) {
+            tagihanMasukTeks.textContent = teks;
+        }
+        if (tagihanMasukRiwayat) {
+            tagihanMasukRiwayat.innerHTML = '';
+            const showRiwayat = riwayat.length > 1 || (riwayat.length === 1 && teks !== riwayat[0]);
+            if (showRiwayat) {
+                riwayat.forEach(function (line) {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    tagihanMasukRiwayat.appendChild(li);
+                });
+            }
+        }
+    }
+
     /** Baris komponen pada periode yang sedang dipilih (bulanan / awal tahun). */
     function visibleKomponenRows() {
         const kat = kategoriForJenis();
@@ -509,6 +560,16 @@
                 if (cb) {
                     cb.checked = false;
                 }
+            } else if (!isJenisBulanan() && info && info.berlaku === false) {
+                tr.style.display = 'none';
+                const cb = tr.querySelector('.bayar-pos-check');
+                const inp = tr.querySelector('.nominal-pos');
+                if (cb) {
+                    cb.checked = false;
+                }
+                if (inp) {
+                    inp.value = '0';
+                }
             } else {
                 tr.style.display = '';
             }
@@ -663,7 +724,7 @@
                 pkppsHintBox.innerHTML =
                     '<i class="fa-solid fa-triangle-exclamation me-1"></i> ' +
                     'Santri PKPPS (kelas: <strong>' + kk + '</strong>) — tambahan PKPPS = Rp 0. Periksa ' +
-                    '<a href="' + appUrl('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps') + '">nominal PKPPS</a> ' +
+                    '<a href="' + appUrl('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps') + '">nominal PKPPS</a> ' +
                     'untuk kelas keuangan tersebut.';
             }
         }
@@ -739,7 +800,7 @@
             }
         }
         if (opsBulkLink) {
-            const baseHref = appUrl('/settings/opsional_santri.php');
+            const baseHref = appUrl('/keuangan/pengaturan.php?bagian=santri_bulanan&sub=opsional');
             if (sid) {
                 opsBulkLink.href = baseHref + '?q=' + encodeURIComponent(santriSel.options[santriSel.selectedIndex].text || '');
             } else {
@@ -897,6 +958,7 @@
                     tagihanPos = {};
                     bulanUrutanMap = {};
                     setBulanUrutanBlokirUi(false, '');
+                    renderTagihanMasukCatatan(null);
                     resetOpsEditors('Gagal memuat pengaturan.');
                     applyNominalFromFeeMatrix();
                     renderPaidHints();
@@ -929,6 +991,7 @@
                 renderPaidHints();
                 applyNominalFromTagihan(nominalFill);
                 renderSyahriyahBreakdown(data.summary || null);
+                renderTagihanMasukCatatan(data.summary || null);
                 if (tierHint && data.summary && data.summary.pkpps_aktif) {
                     const kk = data.summary.pkpps_kelas_kode || data.summary.kelas_tagihan || '';
                     const sidInfo = map[santriSel ? String(santriSel.value) : ''];
@@ -943,8 +1006,19 @@
                     const sisa = parseInt(data.summary.sisa_wajib, 10) || 0;
                     const exp = parseInt(data.summary.expected_wajib, 10) || 0;
                     if (!isJenisBulanan()) {
+                        const jenisLabel = (data.summary && data.summary.jenis_santri === 'lama')
+                            ? 'santri lama'
+                            : ((data.summary && data.summary.jenis_santri === 'baru') ? 'santri baru' : 'santri');
                         summaryHint.textContent =
-                            'Pos pembayaran awal tahun — nominal default terisi otomatis sesuai tarif kelas. Centang pos yang dibayar; nominal dapat diedit.';
+                            'Pembayaran awal tahun (' + jenisLabel + ') — hanya komponen yang berlaku. Centang pos yang dibayar; nominal dapat diedit.';
+                    } else if (exp <= 0 && data.summary.tagihan_masuk && parseInt(data.summary.tagihan_masuk.bulan_mulai, 10) > 1) {
+                        const bm = parseInt(data.summary.tagihan_masuk.bulan_mulai, 10) || 1;
+                        const bulanNow = parseInt(bulanSel ? bulanSel.value : '0', 10) || 0;
+                        if (bulanNow > 0 && bulanNow < bm) {
+                            summaryHint.textContent = 'Bulan ini belum ditagih (santri baru mulai bulan ke-' + bm + ').';
+                        } else {
+                            summaryHint.textContent = 'Belum ada tarif tagihan wajib untuk kelas santri ini.';
+                        }
                     } else if (exp <= 0) {
                         summaryHint.textContent = 'Belum ada tarif tagihan wajib untuk kelas santri ini.';
                     } else if (sisa <= 0) {

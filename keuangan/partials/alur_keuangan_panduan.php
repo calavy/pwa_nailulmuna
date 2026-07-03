@@ -35,7 +35,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                                 <li><a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan keuangan</a></li>
                                 <li><a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">Kelas keuangan</a></li>
                                 <li><a href="<?= htmlspecialchars(app_href('/settings/kalender.php')) ?>">Kalender &amp; bulan tagihan</a></li>
-                                <li><a href="<?= htmlspecialchars(app_href('/keuangan/potongan_syahriyah.php')) ?>">Potongan syahriyah</a></li>
+                                <li><a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=santri_bulanan&sub=potongan')) ?>">Potongan syahriyah</a></li>
                             </ul>
                         </div>
                         <div class="col-md-4">
@@ -104,8 +104,8 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         <li>Kurangi total yang sudah dibayar → sisa &amp; status (lunas / sebagian / belum)</li>
                     </ol>
                     <p class="mb-2"><strong>Rumus:</strong> expected = (tarif tier − potongan%) + tambahan PKPPS.</p>
-                    <p class="mb-2">Modifier: potongan % (<a href="<?= htmlspecialchars(app_href('/keuangan/potongan_syahriyah.php')) ?>">pengaturan</a>),
-                        PKPPS (<a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">nominal PKPPS</a>).</p>
+                    <p class="mb-2">Modifier: potongan % (<a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=santri_bulanan&sub=potongan')) ?>">pengaturan</a>),
+                        PKPPS (<a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">nominal PKPPS</a>).</p>
                     <p class="mb-2">Jenis syahriyah di <a href="<?= htmlspecialchars(app_href('/settings/kelas_syahriyah.php')) ?>">master data</a> <em>tidak</em> menambah nominal tagihan.</p>
                     <p class="mb-2">Makan &amp; saku opsional — tarif tier + override per santri; tidak menentukan status lunas wajib.</p>
                     <p class="mb-0">Helper: <code>tagihan_bulanan_page_context()</code>, <code>tagihan_wajib_status_for_month_bulk()</code>, <code>tagihan_syahriyah_list_cached()</code>.</p>
@@ -168,9 +168,9 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         Bukan transfer otomatis — dipakai untuk melacak pagu virtual per komponen (bahan, gaji dapur, operasional).
                     </p>
                     <ol class="mb-2 ps-3">
-                        <li>Atur tarif makan di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan')) ?>">Syahriyah &amp; makan</a> dan override kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=makan')) ?>">Makan per kelas</a></li>
+                        <li>Atur tarif makan di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#syahriyah-pokok')) ?>">Tarif &amp; komponen</a> dan override kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#makan-kelas')) ?>">Makan per kelas</a></li>
                         <li>Catat pembayaran pos makan bulanan di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a></li>
-                        <li>Atur persen komponen di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=alokasi_makan')) ?>">Alokasi makan</a> (total aktif ≤ 100%)</li>
+                        <li>Atur persen komponen di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=alokasi&alokasi_jenis=makan')) ?>">Alokasi makan</a> (total aktif ≤ 100%)</li>
                         <li>Saat pengeluaran dapur/konsumsi, pilih alokasi grup <strong>Dana makan</strong> di <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a></li>
                     </ol>
                     <p class="mb-0 text-muted">Default komponen: bahan baku 55%, gaji dapur 25%, operasional 20% — dapat diubah sesuai kebijakan yayasan.</p>
@@ -220,7 +220,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         <li>Saat laporan: <code>keuangan_syahriyah_split_pembayaran_tambahan()</code> pisahkan PKPPS vs dasar</li>
                     </ol>
                     <p class="mb-0">
-                        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Pengaturan nominal PKPPS</a>
+                        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">Pengaturan nominal PKPPS</a>
                         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_pkpps_syahriyah.php')) ?>">Laporan PKPPS</a>
                     </p>
                 </div>

@@ -157,7 +157,7 @@ $iconTagihan = bendahara_page_icon('tagihan');
             <span class="text-muted">(<?= htmlspecialchars((string) $slotAktif['masehi_awal']) ?> s/d <?= htmlspecialchars((string) $slotAktif['masehi_akhir']) ?> M)</span>.
         <?php endif; ?>
         Potongan syahriyah per santri diatur di
-        <a href="/keuangan/potongan_syahriyah.php">Pengaturan potongan syahriyah</a>.
+        <a href="/keuangan/pengaturan.php?bagian=santri_bulanan&amp;sub=potongan">Pengaturan potongan syahriyah</a>.
     </p>
 </div>
 

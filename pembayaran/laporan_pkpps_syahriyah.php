@@ -106,7 +106,7 @@ $iconLaporan = bendahara_page_icon('laporan');
         <strong>Dana PKPPS harus masuk</strong> = tambahan PKPPS menurut tagihan;
         <strong>Dana PKPPS masuk</strong> = bagian PKPPS dari pembayaran aktual (alokasi ke
         <strong><?= htmlspecialchars($pkppsKomponen) ?></strong>).
-        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Pengaturan nominal</a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">Pengaturan nominal</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php')) ?>">Laporan syahriyah</a>
     </p>
 </div>

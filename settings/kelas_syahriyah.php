@@ -81,7 +81,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted small mb-0">
         Pemetaan jenis ke <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">kelas keuangan</a>
         santri (Wustho 1/2/3 → Wustho). <strong>Tidak menambah nominal tagihan</strong> — tambahan syahriyah hanya
-        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">PKPPS</a>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">PKPPS</a>
         di pengaturan keuangan.
     </p>
 </div>

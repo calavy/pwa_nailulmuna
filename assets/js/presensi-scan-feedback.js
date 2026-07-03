@@ -404,6 +404,51 @@
             .replace(/"/g, '&quot;');
     }
 
+    function setFlashMessage(message, type) {
+        var el = document.getElementById('presensi-scan-flash');
+        if (!el) {
+            return;
+        }
+        global.clearTimeout(el._hideTimer);
+        var text = String(message || '').trim();
+        if (!text) {
+            el.textContent = '';
+            el.className = 'presensi-scan-flash is-empty';
+            return;
+        }
+        type = normalizeType(type, text);
+        var tone = type;
+        if (tone === 'danger') {
+            tone = 'error';
+        }
+        el.textContent = text;
+        el.className = 'presensi-scan-flash is-' + tone;
+        var duration = type === 'success' ? 5500 : (type === 'info' ? 6000 : 6500);
+        el._hideTimer = global.setTimeout(function () {
+            setFlashMessage('', '');
+        }, duration);
+    }
+
+    function handleSessionFlash() {
+        var el = document.getElementById('presensi-scan-flash');
+        if (!el || el.classList.contains('is-empty')) {
+            return;
+        }
+        var msg = (el.textContent || '').trim();
+        if (!msg) {
+            return;
+        }
+        var type = 'info';
+        if (el.classList.contains('is-success')) {
+            type = 'success';
+        } else if (el.classList.contains('is-error') || el.classList.contains('is-danger')) {
+            type = 'error';
+        } else if (el.classList.contains('is-warning')) {
+            type = 'warning';
+        }
+        setFlashMessage(msg, type);
+    }
+
     function handlePageResult() {
         var el = document.getElementById('presensi-scan-result');
         if (!el) {
@@ -420,6 +465,7 @@
         });
         showOverlayResult(normalized, message);
         setBanner(normalized, message);
+        setFlashMessage(message, normalized);
     }
 
     function overlayMeta(type) {
@@ -546,6 +592,7 @@
         playFeedback(type, message);
         showOverlayResult(type, message);
         setBanner(type, message);
+        setFlashMessage(message, type);
     }
 
     document.addEventListener('touchstart', function () {
@@ -568,12 +615,18 @@
         speak: speakText,
         show: showResult,
         setBanner: setBanner,
+        setFlash: setFlashMessage,
         onPageLoad: handlePageResult,
     };
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', handlePageResult);
-    } else {
+    function bootFeedback() {
+        handleSessionFlash();
         handlePageResult();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootFeedback);
+    } else {
+        bootFeedback();
     }
 })(window);

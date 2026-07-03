@@ -258,7 +258,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="alert alert-info py-2 small mb-3">
     <strong>Tarif syahriyah PKPPS</strong> di
-    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">Keuangan → Pengaturan → Syahriyah</a>.
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">Keuangan → Pengaturan → Tarif</a>.
     Import data: <a href="<?= htmlspecialchars(app_href('/pkpps/import_santri.php')) ?>">santri</a> ·
     <a href="<?= htmlspecialchars(app_href('/pkpps/import.php')) ?>">jadwal</a>.
     · <a href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktifan_hari.php')) ?>"><strong>Keaktifan PKPPS hari ini</strong></a> (tampilan kartu)

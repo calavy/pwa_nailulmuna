@@ -31,6 +31,59 @@
     margin-bottom: 0 !important;
 }
 
+.scan-simple-page .app-main > .app-flash {
+    display: none !important;
+}
+
+.presensi-scan-flash {
+    min-height: 2.5rem;
+    margin: 0.5rem 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    text-align: center;
+    line-height: 1.35;
+    white-space: pre-line;
+}
+
+.presensi-scan-flash.is-empty {
+    visibility: hidden;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.presensi-scan-flash.is-success {
+    background: rgba(34, 197, 94, 0.18);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.presensi-scan-flash.is-error {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fecaca;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.presensi-scan-flash.is-warning {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fde68a;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.presensi-scan-flash.is-info,
+.presensi-scan-flash.is-duplicate {
+    background: rgba(56, 189, 248, 0.12);
+    color: #bae6fd;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.presensi-scan-flash.is-danger {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fecaca;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
 .presensi-scan-app {
     position: relative;
     width: 100%;

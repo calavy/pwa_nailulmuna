@@ -213,7 +213,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'cashless_saldo_rendah_wa_ambang', (string) max(0, (int) ($_POST['cashless_saldo_rendah_wa_ambang'] ?? 30000)));
         save_setting($pdo, 'cashless_transaksi_wa_enabled', isset($_POST['cashless_transaksi_wa_enabled']) ? '1' : '0');
         save_setting($pdo, 'cashless_laporan_harian_wa_enabled', isset($_POST['cashless_laporan_harian_wa_enabled']) ? '1' : '0');
-        save_setting($pdo, 'cashless_laporan_harian_wa_jam', trim((string) ($_POST['cashless_laporan_harian_wa_jam'] ?? '20:00')));
+        $jamRaw = trim((string) ($_POST['cashless_laporan_harian_wa_jam'] ?? '20:00'));
+        if (preg_match('/^(\d{1,2}):(\d{2})/', $jamRaw, $jm)) {
+            $jamRaw = sprintf('%02d:%02d', (int) $jm[1], (int) $jm[2]);
+        }
+        save_setting($pdo, 'cashless_laporan_harian_wa_jam', $jamRaw);
         save_setting($pdo, 'cashless_laporan_harian_wa_targets', trim((string) ($_POST['cashless_laporan_harian_wa_targets'] ?? '')));
         set_flash('success', 'Pengaturan WA cashless disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=cashless'));
@@ -227,6 +231,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cashlessRedirect = 'cashless';
         }
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=' . rawurlencode($cashlessRedirect)));
+        exit;
+    } elseif ($action === 'save_awal_tahun_wa') {
+        save_setting($pdo, 'wa_awal_tahun_auto_enabled', isset($_POST['wa_awal_tahun_auto_enabled']) ? '1' : '0');
+        $jamRaw = trim((string) ($_POST['wa_awal_tahun_send_time'] ?? '09:00'));
+        if (preg_match('/^(\d{1,2}):(\d{2})/', $jamRaw, $jm)) {
+            $jamRaw = sprintf('%02d:%02d', (int) $jm[1], (int) $jm[2]);
+        }
+        save_setting($pdo, 'wa_awal_tahun_send_time', $jamRaw);
+        set_flash('success', 'Pengaturan WA pengingat awal tahun disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
+        exit;
+    } elseif ($action === 'jalankan_wa_awal_tahun') {
+        require_once __DIR__ . '/../../helpers/wa_awal_tahun.php';
+        $res = wa_awal_tahun_jalankan_kirim($pdo, true);
+        set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
         exit;
     } elseif ($action === 'save_periode') {
         $mode = strtolower(trim((string) ($_POST['periode_mode'] ?? 'monthly')));
@@ -358,6 +378,13 @@ $waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled
 $waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
 $waPembayaranWaliEnabled = trim((string) app_setting($pdo, 'wa_pembayaran_wali_enabled', '1')) === '1';
+$waAwalTahunEnabled = trim((string) app_setting($pdo, 'wa_awal_tahun_auto_enabled', '0')) === '1';
+$waAwalTahunJam = trim((string) app_setting($pdo, 'wa_awal_tahun_send_time', '09:00'));
+$waAwalTahunLastAt = trim((string) app_setting($pdo, 'wa_awal_tahun_last_sent_at', ''));
+$waAwalTahunLastStats = json_decode((string) app_setting($pdo, 'wa_awal_tahun_last_stats', ''), true);
+if (!is_array($waAwalTahunLastStats)) {
+    $waAwalTahunLastStats = null;
+}
 $cashlessSaldoRendahWaEnabled = trim((string) app_setting($pdo, 'cashless_saldo_rendah_wa_enabled', '1')) === '1';
 $cashlessSaldoRendahWaAmbang = max(0, (int) app_setting($pdo, 'cashless_saldo_rendah_wa_ambang', '30000'));
 require_once __DIR__ . '/../../helpers/cashless_wa.php';

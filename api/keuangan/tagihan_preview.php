@@ -105,6 +105,17 @@ $bulanUrutan = $jenisPeriode === 'BULANAN'
 $bulanUrutanEntry = $bulanUrutan[$bulanTagihan] ?? null;
 $bulanDiblokir = is_array($bulanUrutanEntry) && !empty($bulanUrutanEntry['dibebankan']) && empty($bulanUrutanEntry['allowed']);
 
+$jenisSantri = 'semua';
+$tagihanMasukInfo = null;
+if ($jenisPeriode === 'AWAL_TAHUN') {
+    require_once __DIR__ . '/../../helpers/tagihan_santri_masuk.php';
+    $jenisSantri = tagihan_santri_jenis_ta($pdo, $santriId, $tahunMulai);
+} elseif ($jenisPeriode === 'BULANAN') {
+    require_once __DIR__ . '/../../helpers/tagihan_santri_masuk.php';
+    $tagihanMasukInfo = tagihan_santri_masuk_info_for_ta($pdo, $santriId, $tahunMulai, $tahunSelesai);
+    $jenisSantri = (string) ($tagihanMasukInfo['jenis_santri'] ?? 'semua');
+}
+
 echo json_encode([
     'ok' => true,
     'pos' => $breakdown,
@@ -120,5 +131,7 @@ echo json_encode([
         'pkpps_aktif' => $pkppsAktif,
         'kelas_tagihan' => $kelasTagihan,
         'pkpps_kelas_kode' => $pkppsKelasKode,
+        'jenis_santri' => $jenisSantri,
+        'tagihan_masuk' => $tagihanMasukInfo,
     ],
 ], JSON_UNESCAPED_UNICODE);

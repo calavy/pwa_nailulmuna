@@ -172,6 +172,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         santri_riwayat_upsert_tingkatan($pdo, $newId, trim((string) ($data['tingkatan'] ?? '')), $data['kategori_kelas'] ?: null);
         if ($tglMasuk !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglMasuk)) {
             santri_riwayat_upsert_tingkatan($pdo, $newId, trim((string) ($data['tingkatan'] ?? '')), $data['kategori_kelas'] ?: null, $tglMasuk, 'Tahun masuk pondok');
+            require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
+            tagihan_santri_masuk_riwayat_sync($pdo, $newId, $tglMasuk);
         }
         if (!empty($_FILES['foto_profil']['name'])) {
             $fotoUp = santri_foto_handle_upload($_FILES['foto_profil'], null, $newId);

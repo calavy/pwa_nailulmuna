@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 $cashlessRingkasanHariIni = $cashlessLaporanStatus['ringkasan'] ?? [];
 $cashlessLaporanTanggalLabel = (string) ($cashlessRingkasanHariIni['tanggal_label'] ?? 'hari kemarin');
-$cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === date('Y-m-d'));
+$cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_laporan_tanggal'] ?? '') === ($cashlessLaporanStatus['laporan_tanggal'] ?? ''));
 ?>
 <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
     <div class="card-body">
@@ -78,7 +78,7 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_date'] ?? '') === 
             <li>Laporan harian (data <strong><?= htmlspecialchars($cashlessLaporanTanggalLabel) ?></strong>): <strong><?= $cashlessLaporanHarianWaEnabled ? 'Aktif' : 'Nonaktif' ?></strong>
                 · jam <?= htmlspecialchars($cashlessLaporanHarianWaJam) ?>
                 · <?= !empty($cashlessLaporanStatus['send_time_ok']) ? '<span class="text-success">sudah lewat</span>' : '<span class="text-warning">belum</span>' ?></li>
-            <li>Hari ini <?= $cashlessSudahDikirimHariIni ? '<span class="text-muted">sudah dikirim</span>' : '<span class="text-success">belum dikirim</span>' ?>
+            <li>Data <?= htmlspecialchars($cashlessLaporanTanggalLabel) ?> <?= $cashlessSudahDikirimHariIni ? '<span class="text-muted">sudah dikirim</span>' : '<span class="text-success">belum dikirim</span>' ?>
                 · Terakhir sukses: <strong><?= ($cashlessLaporanStatus['last_sent_at'] ?? '') !== '' ? htmlspecialchars((string) $cashlessLaporanStatus['last_sent_at']) : 'Belum pernah' ?></strong>
                 · Penerima terdaftar: <strong><?= (int) ($cashlessLaporanStatus['targets_count'] ?? 0) ?></strong></li>
             <?php if (trim((string) ($cashlessLaporanStatus['last_error'] ?? '')) !== ''): ?>

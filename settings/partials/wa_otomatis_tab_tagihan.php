@@ -39,6 +39,45 @@ $waPembayaranSiap = $waMasterOn
     </div>
 </div>
 
+<div class="card shadow-sm border-0 mb-3 border-primary-subtle">
+    <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-calendar-plus text-primary me-1"></i> Pengingat pembayaran awal tahun</h2>
+        <p class="small text-muted mb-3">
+            Kirim WA ke wali santri yang masih punya <strong>tunggakan komponen awal tahun</strong> (sesuai pengaturan komponen berlaku di
+            <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#pos-awal-jenis')) ?>">Keuangan → Tarif</a>).
+            Sekali per tahun ajaran aktif. Terpisah dari pengingat tagihan bulanan.
+        </p>
+        <form method="post" class="row g-3 mb-3">
+            <input type="hidden" name="action" value="save_awal_tahun_wa">
+            <input type="hidden" name="redirect_tab" value="tagihan">
+            <div class="col-md-4">
+                <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="wa_awal_tahun_auto_enabled" name="wa_awal_tahun_auto_enabled" value="1" <?= !empty($waAwalTahunEnabled) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_awal_tahun_auto_enabled">Kirim otomatis (cron)</label>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="wa_awal_tahun_send_time">Jam kirim</label>
+                <input type="time" class="form-control" id="wa_awal_tahun_send_time" name="wa_awal_tahun_send_time" value="<?= htmlspecialchars($waAwalTahunJam) ?>">
+            </div>
+            <div class="col-md-5 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary btn-sm">Simpan pengingat awal tahun</button>
+            </div>
+        </form>
+        <ul class="small text-muted mb-3 ps-3">
+            <li>Status: <strong><?= !empty($waAwalTahunEnabled) ? 'Aktif' : 'Nonaktif' ?></strong> · jam <?= htmlspecialchars($waAwalTahunJam) ?></li>
+            <li>Terakhir sukses: <strong><?= $waAwalTahunLastAt !== '' ? htmlspecialchars($waAwalTahunLastAt) : 'Belum pernah' ?></strong></li>
+            <?php if ($waAwalTahunLastStats): ?>
+                <li>Run terakhir: terkirim <?= (int) ($waAwalTahunLastStats['sent'] ?? 0) ?>, gagal <?= (int) ($waAwalTahunLastStats['failed'] ?? 0) ?>, tanpa nomor <?= (int) ($waAwalTahunLastStats['skipped'] ?? 0) ?></li>
+            <?php endif; ?>
+        </ul>
+        <form method="post" class="d-inline" onsubmit="return confirm('Kirim pengingat tunggakan awal tahun ke semua wali yang bersangkutan?');">
+            <input type="hidden" name="action" value="jalankan_wa_awal_tahun">
+            <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fa-brands fa-whatsapp me-1"></i> Kirim pengingat awal tahun sekarang</button>
+        </form>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Pengingat tagihan otomatis</h2>

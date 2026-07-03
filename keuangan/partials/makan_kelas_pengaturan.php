@@ -21,7 +21,7 @@ $kelasMakanRows = kelas_keuangan_list_active($pdo);
             Atur <strong>nama tampilan</strong> komponen makan di kuitansi/tagihan, dan <strong>nominal khusus per kelas keuangan</strong>
             (nama/kode di <a href="<?= htmlspecialchars(app_href('/settings/kelas_keuangan.php')) ?>">Kelas keuangan</a>).
             Kosongkan nominal kelas = pakai tarif tier (Muadalah/Wustho/Ulya) di tab
-            <a href="?bagian=syahriyah_makan">Syahriyah &amp; makan</a>.
+            <a href="?bagian=tarif#syahriyah-pokok">Syahriyah &amp; makan</a>.
         </p>
         <form method="post">
             <input type="hidden" name="action" value="save_makan_pengaturan">

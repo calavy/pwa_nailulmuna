@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'save_pkpps_syahriyah') {
         $res = keuangan_pkpps_syahriyah_save_settings($pdo, $_POST);
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps'));
+        header('Location: ' . app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps'));
         exit;
     }
     if ($action === 'sync_pkpps') {
@@ -297,7 +297,7 @@ $pkppsRows = pkpps_tingkatan_list($pdo, false);
         <p class="small text-muted mb-2">
             Nominal per <strong>kelas keuangan</strong> (bukan per Wustho 1/2/3). Kelola di menu Keuangan.
         </p>
-        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=syahriyah_makan#tambahan-pkpps')) ?>">
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps')) ?>">
             Keuangan → Pengaturan syahriyah
         </a>
     </div>

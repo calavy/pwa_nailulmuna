@@ -23,7 +23,7 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => keuangan_makan_pos_nama($pd
         </p>
         <form method="post">
             <input type="hidden" name="action" value="save_tarif">
-            <input type="hidden" name="redirect_bagian" value="syahriyah_makan">
+            <input type="hidden" name="redirect_bagian" value="tarif">
             <div class="table-responsive mb-3">
                 <table class="table table-sm table-bordered align-middle mb-0">
                     <thead class="table-light">
@@ -68,7 +68,7 @@ $posLabels = ['syahriyah' => 'Syahriyah', 'makan' => keuangan_makan_pos_nama($pd
             Isi hanya bulan yang nominal <strong>syahriyah</strong> atau <strong>makan</strong> berbeda dari tarif default. Kosongkan = pakai default.
         </p>
         <form method="get" class="row g-2 align-items-end mb-3 syahriyah-bulan-cols d-none">
-            <input type="hidden" name="bagian" value="syahriyah_makan">
+            <input type="hidden" name="bagian" value="tarif">
             <?php
             $taMulai = $taMulaiTarifBulan;
             $taSelesai = $taSelesaiTarifBulan;

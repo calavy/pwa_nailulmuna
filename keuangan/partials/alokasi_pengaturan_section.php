@@ -74,7 +74,7 @@ $paguSumber = match ($alokasiJenisDana) {
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Simpan alokasi</button>
                         <?php if ($editAlokasiScoped): ?>
-                            <a class="btn btn-outline-secondary" href="?bagian=<?= htmlspecialchars($alokasiSectionBagian) ?>">Batal</a>
+                            <a class="btn btn-outline-secondary" href="?bagian=alokasi&amp;alokasi_jenis=<?= htmlspecialchars($alokasiJenisKey ?? 'syahriyah') ?>">Batal</a>
                         <?php endif; ?>
                     </div>
                 </form>
@@ -117,7 +117,7 @@ $paguSumber = match ($alokasiJenisDana) {
                                     </td>
                                     <td class="text-end small"><?= htmlspecialchars((string) $al['persen']) ?>%</td>
                                     <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-primary" href="?bagian=<?= htmlspecialchars($alokasiSectionBagian) ?>&amp;edit_alokasi=<?= (int) $al['id'] ?>">Ubah</a>
+                                        <a class="btn btn-sm btn-outline-primary" href="?bagian=alokasi&amp;alokasi_jenis=<?= htmlspecialchars($alokasiJenisKey ?? 'syahriyah') ?>&amp;edit_alokasi=<?= (int) $al['id'] ?>">Ubah</a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -157,7 +157,7 @@ $paguSumber = match ($alokasiJenisDana) {
             <?php if ($alokasiJenisDana === KEUNGAN_ALOKASI_JENIS_MAKAN): ?>
                 <span class="d-block mt-1">
                     Pagu dihitung dari pembayaran bulanan pos <strong>makan</strong> pada TA aktif.
-                    Tarif &amp; kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=makan')) ?>">Makan per kelas</a>.
+                    Tarif &amp; kelas di <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=tarif#makan-kelas')) ?>">Makan per kelas</a>.
                     Catat bayar di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>.
                     Pengeluaran dapur/konsumsi pilih komponen <strong>Dana makan</strong> di
                     <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a>.

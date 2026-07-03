@@ -235,6 +235,13 @@ function keuangan_tagihan_breakdown_for_santri(
     $paidMap = keuangan_paid_pos_map_for_santri_month($pdo, $santriId, $jenisPeriode, $bulanTagihan, $tahunMulai, $tahunSelesai);
     $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
     $wajibSlugs = $jenisPeriode === 'BULANAN' ? keuangan_tagihan_wajib_slugs() : [];
+    $jenisSantriAwal = 'semua';
+    if ($jenisPeriode === 'AWAL_TAHUN') {
+        if (!function_exists('tagihan_santri_jenis_ta')) {
+            require_once __DIR__ . '/tagihan_santri_masuk.php';
+        }
+        $jenisSantriAwal = tagihan_santri_jenis_ta($pdo, $santriId, $tahunMulai);
+    }
     $perPosWajib = [];
     if ($jenisPeriode === 'BULANAN' && $bulanTagihan >= 1 && $bulanTagihan <= 12) {
         $st = tagihan_wajib_status_for_month($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai, $kat);
@@ -260,10 +267,13 @@ function keuangan_tagihan_breakdown_for_santri(
                 if (!function_exists('keuangan_fee_nominal_awal_tahun')) {
                     require_once __DIR__ . '/tagihan_santri_masuk.php';
                 }
-                $jenisSantri = tagihan_santri_jenis_ta($pdo, $santriId, $tahunMulai);
-                $expected = keuangan_fee_nominal_awal_tahun($pdo, $def, $tier, $jenisSantri);
+                $berlakuAwal = keuangan_awal_tahun_pos_berlaku($pdo, $slug, $jenisSantriAwal);
+                $expected = $berlakuAwal
+                    ? keuangan_fee_nominal_awal_tahun($pdo, $def, $tier, $jenisSantriAwal)
+                    : 0;
             } else {
                 $expected = keuangan_fee_nominal_for_tier($pdo, $def, $tier);
+                $berlakuAwal = true;
             }
             if (
                 $jenisPeriode === 'BULANAN'
@@ -356,6 +366,10 @@ function keuangan_tagihan_breakdown_for_santri(
             'status' => $status,
             'is_wajib' => in_array($slug, $wajibSlugs, true),
         ];
+        if ($jenisPeriode === 'AWAL_TAHUN') {
+            $row['berlaku'] = $berlakuAwal ?? true;
+            $row['jenis_santri'] = $jenisSantriAwal;
+        }
         if (!isset($perPosWajib[$slug]) && isset($expectedDefault, $overrideAktif, $isOpsionalBulanan) && $isOpsionalBulanan) {
             $row['is_opsional'] = true;
             $row['expected_default'] = (int) $expectedDefault;

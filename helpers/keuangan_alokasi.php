@@ -555,9 +555,5 @@ function keuangan_alokasi_edit_for_jenis(?array $editAlokasi, string $jenisDana)
 
 function keuangan_alokasi_section_for_jenis(string $jenisDana): string
 {
-    return match (keuangan_alokasi_normalize_jenis($jenisDana)) {
-        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'alokasi_awal',
-        KEUNGAN_ALOKASI_JENIS_MAKAN => 'alokasi_makan',
-        default => 'alokasi',
-    };
+    return 'alokasi';
 }

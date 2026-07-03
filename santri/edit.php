@@ -45,6 +45,13 @@ if (!$santri) {
     exit;
 }
 
+require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
+$tagihanMasukRiwayat = tagihan_santri_masuk_riwayat_get_or_sync(
+    $pdo,
+    $id,
+    trim((string) ($santri['tanggal_masuk'] ?? ''))
+);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pinWaliBaru = trim((string) ($_POST['wali_pin_baru'] ?? ''));
     $pinWaliKonf = trim((string) ($_POST['wali_pin_konfirmasi'] ?? ''));
@@ -213,6 +220,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tglMasukBaru = trim((string) $data['tanggal_masuk']);
     if ($tglMasukBaru !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglMasukBaru)) {
         santri_riwayat_upsert_tingkatan($pdo, $id, $data['tingkatan'], $data['kategori_kelas'] ?: null, $tglMasukBaru, 'Tahun masuk pondok');
+        require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
+        tagihan_santri_masuk_riwayat_sync($pdo, $id, $tglMasukBaru);
     }
     if (santri_status_hapus_operasional($statusSantri)) {
         santri_hapus_data_operasional_nonaktif($pdo, $id);
@@ -584,6 +593,18 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-md-6"><label class="form-label">Keluhan Sakit</label><textarea name="keluhan_sakit" rows="2" class="form-control"><?= htmlspecialchars($santri['keluhan_sakit'] ?? '') ?></textarea></div>
             <div class="col-md-6"><label class="form-label">Pengobatan</label><textarea name="pengobatan" rows="2" class="form-control"><?= htmlspecialchars($santri['pengobatan'] ?? '') ?></textarea></div>
             <div class="col-md-4"><label class="form-label">Tanggal Masuk</label><input type="date" name="tanggal_masuk" class="form-control" value="<?= htmlspecialchars($santri['tanggal_masuk'] ?? '') ?>"></div>
+            <?php if (!empty($tagihanMasukRiwayat)): ?>
+            <div class="col-12">
+                <div class="alert alert-light border small mb-0 py-2">
+                    <div class="fw-semibold text-info-emphasis mb-1"><i class="fa-solid fa-receipt me-1"></i> Riwayat tagihan masuk (tetap tersimpan)</div>
+                    <ul class="mb-0 ps-3 text-muted">
+                        <?php foreach ($tagihanMasukRiwayat as $tmRow): ?>
+                            <li><?= htmlspecialchars((string) ($tmRow['catatan'] ?? '')) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endif; ?>
             <div class="col-md-8"><label class="form-label">Alasan Mondok</label><input type="text" name="alasan_mondok" class="form-control" value="<?= htmlspecialchars($santri['alasan_mondok'] ?? '') ?>"></div>
             <div class="col-md-6">
                 <label class="form-label">Atas Keinginan</label>

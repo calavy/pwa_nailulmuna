@@ -599,6 +599,8 @@ function pondok_settings_defaults(): array
         'cashless_laporan_harian_wa_enabled' => '0',
         'cashless_laporan_harian_wa_jam' => '20:00',
         'cashless_laporan_harian_wa_targets' => '',
+        'wa_awal_tahun_auto_enabled' => '0',
+        'wa_awal_tahun_send_time' => '09:00',
         'keuangan_pkpps_alokasi_komponen' => '',
         'keuangan_pos_nama_makan' => 'Makan',
         'app_tahun_masehi_mode' => 'BERJALAN',
