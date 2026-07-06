@@ -438,8 +438,8 @@ function keuangan_dashboard_build_tindakan(
         $out[] = [
             'level' => 'warning',
             'judul' => 'Transaksi tanpa akun kas/bank',
-            'deskripsi' => $transaksiTanpaAkun . ' transaksi belum terhubung ke akun — saldo kas per akun tidak akurat. Perbaiki lewat analisis neraca.',
-            'href' => '/keuangan/neraca-perbaikan.php',
+            'deskripsi' => $transaksiTanpaAkun . ' transaksi belum terhubung ke akun kas — saldo fisik tidak selaras. Setiap transaksi tanpa akun: uang tercatat di buku tetapi tidak masuk/turun di kas.',
+            'href' => '/keuangan/perbaikan-kas.php',
             'icon' => 'fa-wallet',
         ];
     }

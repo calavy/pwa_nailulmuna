@@ -130,7 +130,7 @@ if (strtoupper(trim((string) ($_SERVER['HTTP_X_TAGIHAN_PARTIAL'] ?? ''))) === '1
     exit;
 }
 
-$pageTitle = 'Tagihan Bulanan';
+$pageTitle = 'Status Tagihan Bulanan';
 $bodyClass = keuangan_body_class('bendahara-page');
 require_once __DIR__ . '/../includes/header.php';
 $iconTagihan = bendahara_page_icon('tagihan');
@@ -146,6 +146,10 @@ $iconTagihan = bendahara_page_icon('tagihan');
         Tagihan Bulanan
     </h1>
     <p class="text-muted mb-0">
+        <strong>Hanya untuk melihat status</strong> tagihan wajib per santri.
+        Untuk <strong>mencatat pembayaran</strong>, gunakan
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?mode=BULANAN&mulai=1')) ?>">Input pembayaran</a>
+        (formulir yang sama — pilih santri, bulan tagihan, dan komponen bayar).
         Tagihan <strong>wajib</strong>: <strong>Syahriyah</strong> saja.
         <strong>Makan</strong> dan <strong>Saku</strong> opsional (bisa dibayar terpisah).
         Kalender <?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?>.
@@ -171,6 +175,14 @@ $iconTagihan = bendahara_page_icon('tagihan');
 
 <?php if (!$tablesOk): ?>
     <div class="alert alert-warning">Tabel keuangan belum tersedia. Buka <a href="/keuangan/pembayaran.php">Input pembayaran</a> sekali untuk inisialisasi skema.</div>
+<?php endif; ?>
+
+<?php if ($tablesOk): ?>
+<div class="alert alert-light border small mb-3 py-2">
+    <i class="fa-solid fa-circle-info me-1 text-primary"></i>
+    Tombol <strong>Bayar</strong> membuka <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>
+    dengan santri dan bulan yang sama — tidak ada formulir input terpisah.
+</div>
 <?php endif; ?>
 
 <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>

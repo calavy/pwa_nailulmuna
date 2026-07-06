@@ -112,6 +112,10 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
     if (!in_array($metodeKeluar, ['KAS', 'TRANSFER'], true)) {
         $metodeKeluar = 'KAS';
     }
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
+    }
 
     $sets = [
         'tanggal = :tanggal',
@@ -134,7 +138,7 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
         $sets[] = 'metode_keluar = :metode_keluar';
         $params['metode_keluar'] = $metodeKeluar;
     }
-    if (column_exists($pdo, 'keuangan_pengeluaran', 'akun_id') && $akunId > 0) {
+    if (column_exists($pdo, 'keuangan_pengeluaran', 'akun_id')) {
         $sets[] = 'akun_id = :akun_id';
         $params['akun_id'] = $akunId;
     }

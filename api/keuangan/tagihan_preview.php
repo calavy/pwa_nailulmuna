@@ -103,7 +103,7 @@ $bulanUrutan = $jenisPeriode === 'BULANAN'
     ? keuangan_pembayaran_bulan_urutan_map($pdo, $santriId, $tahunMulai, $tahunSelesai)
     : [];
 $bulanUrutanEntry = $bulanUrutan[$bulanTagihan] ?? null;
-$bulanDiblokir = is_array($bulanUrutanEntry) && !empty($bulanUrutanEntry['dibebankan']) && empty($bulanUrutanEntry['allowed']);
+$bulanDiblokir = is_array($bulanUrutanEntry) && empty($bulanUrutanEntry['dibebankan']);
 
 $jenisSantri = 'semua';
 $tagihanMasukInfo = null;

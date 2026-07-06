@@ -101,8 +101,9 @@ function keuangan_pemasukan_update(PDO $pdo, array $post, int $userId): array
     if ($sumber === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Sumber dan nominal wajib diisi.'];
     }
-    if ($akunId <= 0) {
-        return ['ok' => false, 'message' => 'Pilih akun kas/bank.'];
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
     }
     if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
         $metodeBayar = 'KAS';

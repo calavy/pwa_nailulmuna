@@ -11,18 +11,18 @@ function bendahara_nav_cards(): array
 {
     return [
         [
-            'href' => '/pembayaran/tagihan_syahriyah.php',
-            'title' => 'Tagihan Bulanan',
-            'desc' => 'Status lunas / belum per santri per bulan ajaran.',
-            'icon' => 'fa-receipt',
-            'color' => 'primary',
-        ],
-        [
             'href' => '/keuangan/pembayaran.php',
             'title' => 'Input pembayaran',
-            'desc' => 'Penerimaan kas/bank per komponen biaya santri.',
+            'desc' => 'Catat pembayaran tagihan bulanan (Syahriyah, Makan, Saku) dan awal tahun.',
             'icon' => 'fa-circle-plus',
             'color' => 'success',
+        ],
+        [
+            'href' => '/pembayaran/tagihan_syahriyah.php',
+            'title' => 'Status tagihan bulanan',
+            'desc' => 'Lihat lunas / belum per santri — pencatatan bayar lewat Input pembayaran.',
+            'icon' => 'fa-receipt',
+            'color' => 'primary',
         ],
         [
             'href' => '/keuangan/talangan.php',

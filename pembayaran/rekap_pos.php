@@ -122,10 +122,11 @@ $iconPage = bendahara_page_icon('rekap_pos');
         Rekap per POS
     </h1>
     <p class="text-muted mb-0">
-        <strong>Target</strong> = jumlah santri aktif × tarif pengaturan per komponen.
-        <strong>Terbayar</strong> = akumulasi valid per santri (dibatasi tagihan; kelebihan bayar dobel tidak dihitung).
-        Tagihan wajib bulanan: <strong>Syahriyah</strong> (Makan &amp; Saku opsional) — lihat juga
-        <a href="/pembayaran/tagihan_syahriyah.php">Tagihan Bulanan</a>.
+        <strong>Target</strong> = santri aktif × tarif pengaturan (hormat aturan <strong>santri baru/lama</strong> &amp; bulan masuk).
+        <strong>Terbayar</strong> = akumulasi valid per santri.
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan wajib bayar</a>
+        · <a href="/pembayaran/tagihan_syahriyah.php">Tagihan Bulanan</a>
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">Rekap kas + tagihan</a>
     </p>
 </div>
 

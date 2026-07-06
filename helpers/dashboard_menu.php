@@ -35,10 +35,10 @@ function dashboard_quick_action_definitions(): array
             'label' => 'Keuangan',
         ],
         [
-            'path' => '/pembayaran/tagihan_syahriyah.php',
+            'path' => '/keuangan/pembayaran.php',
             'class' => 'dash-quick-action',
-            'icon' => 'fa-receipt',
-            'label' => 'Tagihan syahriyah',
+            'icon' => 'fa-circle-plus',
+            'label' => 'Input pembayaran',
         ],
         [
             'path' => '/jadwal/index.php',

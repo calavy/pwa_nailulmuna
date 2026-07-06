@@ -9,12 +9,12 @@ function app_hub_registry(): array
 {
     return [
         'keuangan_transaksi' => [
-            'title' => 'Tagihan & Pembayaran',
+            'title' => 'Pembayaran & Tagihan',
             'landing' => '/keuangan/transaksi.php',
             'tabs' => [
-                ['path' => '/keuangan/pembayaran.php', 'label' => 'Input bayar'],
+                ['path' => '/keuangan/pembayaran.php', 'label' => 'Input pembayaran'],
+                ['path' => '/pembayaran/tagihan_syahriyah.php', 'label' => 'Status tagihan'],
                 ['path' => '/keuangan/tagihan_wali.php', 'label' => 'Tagihan ke wali'],
-                ['path' => '/pembayaran/tagihan_syahriyah.php', 'label' => 'Tagihan bulanan'],
                 ['path' => '/keuangan/riwayat_pembayaran.php', 'label' => 'Riwayat masuk & keluar'],
             ],
         ],

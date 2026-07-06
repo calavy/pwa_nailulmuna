@@ -448,6 +448,8 @@ function keuangan_save_awal_tahun_pos_aktif_settings(PDO $pdo, array $post): arr
         save_setting($pdo, keuangan_awal_tahun_pos_setting_key($slug, 'lama'), !empty($posLama[$slug]) ? '1' : '0');
     }
     app_settings_cache($pdo, true);
+    require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
+    keuangan_rekap_tagihan_cache_invalidate();
 
     return ['ok' => true, 'message' => 'Komponen pembayaran awal tahun (baru/lama) disimpan.'];
 }
@@ -506,10 +508,8 @@ function keuangan_save_tagihan_masuk_settings(PDO $pdo, array $post): array
     save_setting($pdo, 'keuangan_tagihan_mulai_masuk', !empty($post['keuangan_tagihan_mulai_masuk']) ? '1' : '0');
     save_setting($pdo, 'keuangan_awal_tahun_bedakan_baru_lama', !empty($post['keuangan_awal_tahun_bedakan_baru_lama']) ? '1' : '0');
     app_settings_cache($pdo, true);
-    if (function_exists('keuangan_dashboard_cache_invalidate')) {
-        require_once __DIR__ . '/keuangan_dashboard.php';
-        keuangan_dashboard_cache_invalidate();
-    }
+    require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
+    keuangan_rekap_tagihan_cache_invalidate();
 
     return [
         'ok' => true,
@@ -551,6 +551,8 @@ function keuangan_save_tarif_awal_tahun_jenis_settings(PDO $pdo, array $post): a
     }
 
     app_settings_cache($pdo, true);
+    require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
+    keuangan_rekap_tagihan_cache_invalidate();
 
     return ['ok' => true, 'message' => 'Tarif awal tahun (santri baru & lama) disimpan.'];
 }

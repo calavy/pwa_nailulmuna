@@ -432,6 +432,26 @@ function keuangan_seed_alokasi_default(PDO $pdo): void
     }
 }
 
+require_once __DIR__ . '/keuangan_validasi_pesan.php';
+
+/** Validasi akun kas/bank aktif; null jika valid, pesan error jika tidak. */
+function keuangan_validasi_akun_kas_id(PDO $pdo, int $akunId): ?string
+{
+    if ($akunId <= 0) {
+        return keuangan_validasi_pesan('AKUN_KOSONG');
+    }
+    if (!table_exists($pdo, 'keuangan_akun')) {
+        return keuangan_validasi_pesan('AKUN_BELUM_ADA');
+    }
+    $st = $pdo->prepare('SELECT id FROM keuangan_akun WHERE id = :id AND is_active = 1 LIMIT 1');
+    $st->execute(['id' => $akunId]);
+    if (!$st->fetchColumn()) {
+        return keuangan_validasi_pesan('AKUN_TIDAK_AKTIF');
+    }
+
+    return null;
+}
+
 /** @return list<array<string, mixed>> */
 function keuangan_fetch_akun_aktif(PDO $pdo): array
 {
@@ -610,9 +630,12 @@ function keuangan_bulan_tagihan_label_tampilan(
 }
 
 /**
- * Peta ketersediaan input pembayaran per bulan (wajib lunas berurutan).
+ * Peta ketersediaan input pembayaran per bulan tagihan TA.
  *
- * @return array<int, array{allowed:bool,dibebankan:bool,message:string,status:string,lunas:bool}>
+ * Semua bulan yang sudah ditagih untuk santri dapat dipilih (termasuk tunggakan
+ * meski bulan sebelumnya belum lunas). Hanya bulan yang belum ditagih yang diblokir.
+ *
+ * @return array<int, array{allowed:bool,dibebankan:bool,message:string,status:string,lunas:bool,ada_tunggakan:bool}>
  */
 function keuangan_pembayaran_bulan_urutan_map(
     PDO $pdo,
@@ -636,7 +659,6 @@ function keuangan_pembayaran_bulan_urutan_map(
     $kelasKategori = keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunAjaranMulai, $tahunAjaranSelesai);
     $slots = pondok_bulan_slots_tahun_ajaran($pdo, $tahunAjaranMulai, $tahunAjaranSelesai);
     $map = [];
-    $blockThroughBulan = null;
 
     foreach ($slots as $slot) {
         $m = (int) ($slot['bulan_tagihan'] ?? 0);
@@ -647,18 +669,12 @@ function keuangan_pembayaran_bulan_urutan_map(
             $map[$m] = [
                 'allowed' => false,
                 'dibebankan' => false,
-                'message' => '',
+                'message' => 'Bulan ini belum ditagih untuk santri ini.',
                 'status' => '—',
                 'lunas' => false,
+                'ada_tunggakan' => false,
             ];
             continue;
-        }
-
-        $allowed = $blockThroughBulan === null || $m <= $blockThroughBulan;
-        $message = '';
-        if (!$allowed) {
-            $blokLabel = keuangan_bulan_tagihan_label_tampilan($pdo, $blockThroughBulan, $tahunAjaranMulai, $tahunAjaranSelesai);
-            $message = 'Tagihan wajib bulan ' . $blokLabel . ' belum lunas. Lunasi terlebih dahulu sebelum mencatat pembayaran bulan ini.';
         }
 
         $ctx = tagihan_bulanan_page_context($pdo, $m, $tahunAjaranMulai, $tahunAjaranSelesai);
@@ -674,20 +690,17 @@ function keuangan_pembayaran_bulan_urutan_map(
         );
         $status = (string) ($st['status'] ?? '—');
         $expectedTotal = (int) ($st['expected_total'] ?? 0);
+        $lunas = $status === 'Lunas';
+        $adaTunggakan = $expectedTotal > 0 && !$lunas;
 
         $map[$m] = [
-            'allowed' => $allowed,
+            'allowed' => true,
             'dibebankan' => true,
-            'message' => $message,
+            'message' => '',
             'status' => $status,
-            'lunas' => $status === 'Lunas',
+            'lunas' => $lunas,
+            'ada_tunggakan' => $adaTunggakan,
         ];
-
-        if ($allowed && $expectedTotal > 0 && $status !== 'Lunas') {
-            if ($blockThroughBulan === null || $m > $blockThroughBulan) {
-                $blockThroughBulan = $m;
-            }
-        }
     }
 
     return $map;
@@ -711,12 +724,12 @@ function keuangan_pembayaran_validasi_urutan_bulan(
     if (!is_array($entry)) {
         return ['ok' => true, 'message' => ''];
     }
-    if (!empty($entry['allowed'])) {
+    if (!empty($entry['dibebankan'])) {
         return ['ok' => true, 'message' => ''];
     }
     $message = trim((string) ($entry['message'] ?? ''));
     if ($message === '') {
-        $message = 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.';
+        $message = 'Bulan tagihan ini belum ditagih untuk santri yang dipilih.';
     }
 
     return ['ok' => false, 'message' => $message];
@@ -771,13 +784,14 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
 
     if ($santriId <= 0 || $pickedPos === []) {
-        return ['ok' => false, 'message' => 'Pilih santri dan minimal satu komponen pembayaran.'];
+        return ['ok' => false, 'message' => keuangan_validasi_pesan('POS_KOSONG')];
     }
-    if ($akunId <= 0) {
-        return ['ok' => false, 'message' => 'Pilih akun kas/bank penerimaan.'];
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
     }
     if ($metodeBayar === 'TRANSFER' && $noReferensi === '') {
-        return ['ok' => false, 'message' => 'Nomor referensi transfer wajib diisi.'];
+        return ['ok' => false, 'message' => keuangan_validasi_pesan('TRANSFER_TANPA_REF')];
     }
     if ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0) {
         $urutan = keuangan_pembayaran_validasi_urutan_bulan($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai);
@@ -820,7 +834,9 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
             if ($expected > 0 && $sisa <= 0) {
                 return [
                     'ok' => false,
-                    'message' => 'Komponen ' . ($def['nama'] ?? $slug) . ' sudah lunas untuk periode ini. Input dobel tidak diizinkan.',
+                    'message' => keuangan_validasi_pesan('DOBEL_LUNAS', [
+                        'detail' => 'Komponen ' . ($def['nama'] ?? $slug) . ' sudah lunas untuk periode ini. Input dobel tidak diizinkan.',
+                    ]),
                 ];
             }
         }
@@ -833,7 +849,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
 
     if ($detailRows === []) {
-        return ['ok' => false, 'message' => 'Nominal pembayaran tidak valid.'];
+        return ['ok' => false, 'message' => keuangan_validasi_pesan('NOMINAL_KOSONG')];
     }
 
     $antiDobel = keuangan_pembayaran_validasi_anti_dobel(
@@ -1000,14 +1016,15 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
         $metodeKeluar = 'KAS';
     }
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
-        return ['ok' => false, 'message' => 'Form pengeluaran belum lengkap (penanggung jawab, pos, nominal).'];
+        return ['ok' => false, 'message' => keuangan_validasi_pesan('FORM_PENGELUARAN_KOSONG')];
     }
     $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
     if ($alokasiErr !== null) {
         return ['ok' => false, 'message' => $alokasiErr];
     }
-    if ($akunId <= 0) {
-        return ['ok' => false, 'message' => 'Pilih akun kas/bank sumber dana.'];
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
     }
 
     $cols = ['tanggal', 'penanggung_jawab', 'pos', 'alokasi_nama', 'nominal', 'keterangan', 'created_by'];
@@ -1091,10 +1108,11 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
         $metodeBayar = 'KAS';
     }
     if ($sumber === '' || $nominal <= 0) {
-        return ['ok' => false, 'message' => 'Form pemasukan belum lengkap (sumber, nominal).'];
+        return ['ok' => false, 'message' => keuangan_validasi_pesan('FORM_PEMASUKAN_KOSONG')];
     }
-    if ($akunId <= 0) {
-        return ['ok' => false, 'message' => 'Pilih akun kas/bank penerimaan.'];
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
     }
 
     $pdo->prepare('

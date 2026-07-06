@@ -30,6 +30,14 @@ function keuangan_sql_pengeluaran_investasi_where(string $alias = ''): string
           )";
 }
 
+/** Klausa SQL: transaksi sudah punya akun kas/bank terisi. */
+function keuangan_sql_akun_kas_terisi_where(string $alias = ''): string
+{
+    $col = ($alias !== '' ? $alias . '.' : '') . 'akun_id';
+
+    return "({$col} IS NOT NULL AND {$col} > 0)";
+}
+
 /** Klausa SQL: gaji yang belum tercatat di keuangan_pengeluaran (data lama). */
 function keuangan_sql_gaji_belum_di_pengeluaran_where(PDO $pdo, string $alias = ''): string
 {
@@ -212,12 +220,22 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
     $totalPemasukanLain = 0;
     $totalKeluar = 0;
 
+    $pembayaranAkunWhere = column_exists($pdo, 'keuangan_pembayaran', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where('p')
+        : '';
+    $pemasukanAkunWhere = column_exists($pdo, 'keuangan_pemasukan', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+        : '';
+    $pengeluaranAkunWhere = column_exists($pdo, 'keuangan_pengeluaran', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+        : '';
+
     if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
         $st = $pdo->prepare("
             SELECT LOWER(TRIM(d.pos_slug)) AS slug, COALESCE(SUM(d.nominal), 0) AS total
             FROM keuangan_pembayaran_detail d
             INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-            WHERE p.tanggal_bayar BETWEEN :dari AND :sampai
+            WHERE p.tanggal_bayar BETWEEN :dari AND :sampai{$pembayaranAkunWhere}
             GROUP BY LOWER(TRIM(d.pos_slug))
         ");
         $st->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
@@ -233,9 +251,12 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
             }
         }
     } elseif (table_exists($pdo, 'keuangan_pembayaran')) {
+        $bayarAkunOnly = column_exists($pdo, 'keuangan_pembayaran', 'akun_id')
+            ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+            : '';
         $st = $pdo->prepare('
             SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
-            WHERE tanggal_bayar BETWEEN :dari AND :sampai
+            WHERE tanggal_bayar BETWEEN :dari AND :sampai' . $bayarAkunOnly . '
         ');
         $st->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
         $totalIuran = (int) round((float) ($st->fetchColumn() ?: 0));
@@ -245,7 +266,7 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
         $st = $pdo->prepare('
             SELECT sumber, COALESCE(SUM(nominal), 0) AS total
             FROM keuangan_pemasukan
-            WHERE tanggal BETWEEN :dari AND :sampai
+            WHERE tanggal BETWEEN :dari AND :sampai' . $pemasukanAkunWhere . '
             GROUP BY sumber
         ');
         $st->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
@@ -265,7 +286,7 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
     $opsWhere = keuangan_sql_pengeluaran_operasional_where();
     $stKeluar = $pdo->prepare("
         SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran
-        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}
+        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}{$pengeluaranAkunWhere}
     ");
     $stKeluar->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
     $totalKeluar = (int) round((float) ($stKeluar->fetchColumn() ?: 0));

@@ -208,8 +208,9 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalBayar)) {
         $tanggalBayar = (string) ($before['tanggal_bayar'] ?? date('Y-m-d'));
     }
-    if ($akunId <= 0) {
-        return ['ok' => false, 'message' => 'Pilih akun kas/bank penerimaan.'];
+    $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
+    if ($akunErr !== null) {
+        return ['ok' => false, 'message' => $akunErr];
     }
     if ($metodeBayar === 'TRANSFER' && $noReferensi === '') {
         return ['ok' => false, 'message' => 'Nomor referensi transfer wajib diisi.'];

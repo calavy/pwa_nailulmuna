@@ -7,6 +7,7 @@ require_once __DIR__ . '/pondok_kalender.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 require_once __DIR__ . '/keuangan_aruskas.php';
+require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
 
 /**
  * Rekap kas masuk/keluar & saldo per bulan tagihan TA (1 s.d. bulan berjalan).
@@ -134,6 +135,9 @@ function keuangan_build_rekap_kas_bulanan(
         ? (int) ($baris[count($baris) - 1]['saldo_fisik'] ?? keuangan_aruskas_total_kas($pdo, $today))
         : keuangan_aruskas_total_kas($pdo, $today);
 
+    $tagihanRekap = keuangan_rekap_tagihan_bulanan_ta($pdo, $tm, $ts, $bulanBerjalan);
+    $baris = keuangan_rekap_kas_gabung_tagihan($baris, $tagihanRekap['baris'] ?? []);
+
     return [
         'tahun_mulai' => $tm,
         'tahun_selesai' => $ts,
@@ -147,6 +151,7 @@ function keuangan_build_rekap_kas_bulanan(
         'selisih_saldo' => $saldoAkhirFisik - $saldoAkhirHitung,
         'baris' => $baris,
         'total' => $totals,
+        'tagihan' => $tagihanRekap,
     ];
 }
 
@@ -155,7 +160,7 @@ function keuangan_rekap_kas_bulan_css(): string
     return '
 body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
 .rekap-kas-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #cbd5e1; border-radius: 8px; }
-.rekap-kas-table { width: 100%; min-width: 920px; font-size: 0.875rem; margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+.rekap-kas-table { width: 100%; min-width: 1180px; font-size: 0.875rem; margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
 .rekap-kas-table th, .rekap-kas-table td { padding: 0.5rem 0.65rem; vertical-align: middle; border: 1px solid #e2e8f0; }
 .rekap-kas-table thead th { background: #0f4c5c; color: #fff !important; font-weight: 600; white-space: nowrap; text-align: center; }
 .rekap-kas-table thead .rekap-kas-head-group th { font-size: 0.8rem; letter-spacing: 0.02em; padding-top: 0.6rem; padding-bottom: 0.35rem; color: #fff !important; }
@@ -163,6 +168,10 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
 .rekap-kas-table .rekap-kas-grp-masuk { background: #0f766e !important; color: #fff !important; }
 .rekap-kas-table .rekap-kas-grp-keluar { background: #991b1b !important; color: #fff !important; }
 .rekap-kas-table .rekap-kas-grp-verif { background: #1e40af !important; color: #fff !important; }
+.rekap-kas-table .rekap-kas-grp-tagihan { background: #7c3aed !important; color: #fff !important; }
+.rekap-kas-table td.rekap-kas-tagihan { background: #f5f3ff; }
+.rekap-kas-table td.rekap-kas-tagihan-target { background: #ede9fe; font-weight: 600; color: #5b21b6; }
+.rekap-kas-table td.rekap-kas-tagihan-sisa { background: #fef3c7; color: #92400e; font-weight: 600; }
 .rekap-kas-table .text-end { text-align: right; font-variant-numeric: tabular-nums; }
 .rekap-kas-table .rekap-kas-col-bulan { min-width: 7rem; text-align: left !important; position: sticky; left: 0; z-index: 2; background: #fff; box-shadow: 2px 0 4px rgba(15, 76, 92, 0.06); }
 .rekap-kas-table thead .rekap-kas-col-bulan { background: #0f4c5c; color: #fff !important; z-index: 3; }
@@ -231,12 +240,15 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<th colspan="5" class="rekap-kas-grp-masuk">Kas masuk</th>';
     echo '<th rowspan="2" class="text-end rekap-kas-grp-keluar">Kas keluar</th>';
     echo '<th rowspan="2" class="text-end rekap-kas-col-saldo">Saldo akhir</th>';
-    echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi</th>';
+    echo '<th colspan="4" class="rekap-kas-grp-tagihan">Dana tagihan (harus masuk)</th>';
+    echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi kas</th>';
     echo '</tr>';
     echo '<tr class="rekap-kas-head-detail">';
     echo '<th class="text-end">Iuran</th><th class="text-end">Saku</th>';
     echo '<th class="text-end">Donasi</th><th class="text-end">Lain</th>';
     echo '<th class="text-end">Total masuk</th>';
+    echo '<th class="text-end">Target</th><th class="text-end">Terbayar</th>';
+    echo '<th class="text-end">Sisa</th><th class="text-end">Capai</th>';
     echo '<th class="text-end">Fisik</th><th class="text-end">Selisih</th>';
     echo '</tr></thead><tbody>';
 
@@ -257,6 +269,11 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
         echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_total'] ?? 0), $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
         echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+        echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-target">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_target'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-tagihan">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_terbayar'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-sisa">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_sisa'] ?? 0), $fmt) . '</td>';
+        $pctTag = (int) ($row['tagihan_pct'] ?? 0);
+        echo '<td class="text-end rekap-kas-tagihan">' . ($pctTag > 0 || (int) ($row['tagihan_target'] ?? 0) > 0 ? htmlspecialchars((string) $pctTag) . '%' : '<span class="rekap-kas-zero">—</span>') . '</td>';
         $selisihRow = (int) ($row['selisih_saldo'] ?? 0);
         echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
         echo '<td class="text-end rekap-kas-verif' . ($selisihRow !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';
@@ -266,6 +283,7 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     }
 
     $tot = $rekap['total'] ?? [];
+    $tagTot = is_array($rekap['tagihan']['total'] ?? null) ? $rekap['tagihan']['total'] : [];
     echo '</tbody><tfoot><tr>';
     echo '<td class="rekap-kas-col-bulan" colspan="2">Jumlah bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . '</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_awal_ta'] ?? 0), $fmt, 'saldo') . '</td>';
@@ -276,6 +294,10 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_total'] ?? 0), $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+    echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-target">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['expected'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-tagihan">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['paid'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-sisa">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['sisa'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-tagihan">' . ((int) ($tagTot['pct'] ?? 0) > 0 ? htmlspecialchars((string) (int) ($tagTot['pct'] ?? 0)) . '%' : '—') . '</td>';
     echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
     $selisihTa = (int) ($rekap['selisih_saldo'] ?? 0);
     echo '<td class="text-end rekap-kas-verif' . ($selisihTa !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';

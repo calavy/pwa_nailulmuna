@@ -143,7 +143,7 @@ declare(strict_types=1);
                             <?php elseif ($punyaTagihan): ?>
                                 <span class="badge text-bg-warning text-dark" title="Isi nomor WA wali di data santri">Tanpa no. WA</span>
                             <?php endif; ?>
-                            <a class="btn btn-sm btn-outline-primary" href="/keuangan/pembayaran.php?santri_id=<?= (int) $r['id'] ?>&bulan=<?= (int) $bulanTagihan ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
+                            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?santri_id=' . (int) $r['id'] . '&bulan=' . (int) $bulanTagihan . '&mode=BULANAN&mulai=1')) ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
                         </td>
                     </tr>
                     <tr class="tagihan-row-detail d-none" id="tagihan-detail-<?= (int) $r['id'] ?>" data-parent="<?= (int) $r['id'] ?>">

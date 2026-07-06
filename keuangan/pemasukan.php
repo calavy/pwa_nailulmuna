@@ -43,8 +43,17 @@ foreach ($recentRows as $pr) {
 
 $pageTitle = 'Input Pemasukan Lain';
 $bodyClass = keuangan_body_class('keuangan-form-page');
+$pageScripts = [app_asset_href('/assets/js/keuangan-form-validasi.js')];
 require_once __DIR__ . '/../includes/header.php';
 ?>
+
+<?php if ($akunRows === []): ?>
+<div class="alert alert-danger mb-3">
+    <i class="fa-solid fa-circle-xmark me-1"></i>
+    <strong>Tidak dapat input pemasukan.</strong> Belum ada akun kas/bank aktif.
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=akun')) ?>">Buat akun kas</a> dulu.
+</div>
+<?php endif; ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Pemasukan</p>
@@ -63,7 +72,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-header bg-success bg-opacity-10 fw-semibold text-success">Uang masuk</div>
             <div class="card-body">
-                <form method="post" class="row g-2">
+                <form method="post" class="row g-2" data-keuangan-validasi data-keuangan-nominal="nominal_pemasukan"<?= $akunRows === [] ? ' data-keuangan-cek-akun="0"' : '' ?>>
                     <input type="hidden" name="action" value="save_pemasukan">
                     <div class="col-md-4">
                         <label class="form-label">Tanggal <span class="text-danger">*</span></label>
@@ -116,7 +125,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input class="form-control" name="keterangan_pemasukan" placeholder="Catatan tambahan">
                     </div>
                     <div class="col-12">
-                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-plus-circle me-1"></i> Simpan pemasukan</button>
+                        <button type="submit" class="btn btn-success"<?= $akunRows === [] ? ' disabled' : '' ?>><i class="fa-solid fa-plus-circle me-1"></i> Simpan pemasukan</button>
                     </div>
                 </form>
             </div>

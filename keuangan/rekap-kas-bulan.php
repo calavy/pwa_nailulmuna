@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_rekap_kas_bulan.php';
+require_once __DIR__ . '/../helpers/keuangan_validasi_pesan.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -50,8 +51,10 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Rekap Kas Masuk &amp; Keluar</h1>
     <p class="text-muted mb-0">
         Ringkasan kas per bulan tagihan TA <?= htmlspecialchars((string) $rekap['ta_label']) ?>
-        sampai <strong><?= htmlspecialchars((string) $rekap['bulan_berjalan_label']) ?></strong>
-        (bulan berjalan).
+        sampai <strong><?= htmlspecialchars((string) $rekap['bulan_berjalan_label']) ?></strong>.
+        Kolom ungu <strong>Dana tagihan</strong> = target menurut pengaturan tarif &amp; santri baru/lama.
+        <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan keuangan</a>
+        · <a href="<?= htmlspecialchars(app_href('/pembayaran/rekap_pos.php')) ?>">Rekap per POS</a>
     </p>
 </div>
 
@@ -88,13 +91,86 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $selisihRekap = (int) ($rekap['selisih_saldo'] ?? 0);
+$analisisSelisih = abs($selisihRekap) >= 1000
+    ? keuangan_rekap_kas_analisis_selisih($pdo, $rekap)
+    : [];
 if (abs($selisihRekap) >= 1000): ?>
 <div class="alert alert-warning mb-3">
     <i class="fa-solid fa-triangle-exclamation me-1"></i>
     Selisih saldo akhir TA: hitung <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir'])) ?></strong>
     vs fisik <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir_fisik'])) ?></strong>
     (selisih <?= htmlspecialchars($fmt(abs($selisihRekap))) ?>).
+    <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>" class="alert-link">Perbaiki transaksi kas</a>.
+    <?php if ($analisisSelisih !== []): ?>
+    <hr class="my-2">
+    <div class="small mb-0"><strong>Kemungkinan penyebab:</strong></div>
+    <ul class="small mb-0 ps-3">
+        <?php foreach ($analisisSelisih as $item): ?>
+            <li>
+                <strong><?= htmlspecialchars((string) ($item['judul'] ?? '')) ?></strong>
+                <?php if ((int) ($item['jumlah'] ?? 0) > 0): ?>
+                    — <?= (int) $item['jumlah'] ?> transaksi
+                    <?php if ((int) ($item['nominal'] ?? 0) > 0): ?>
+                        (<?= htmlspecialchars((string) ($item['nominal_fmt'] ?? '')) ?>)
+                    <?php endif; ?>
+                <?php endif; ?>
+                <br><span class="text-muted"><?= htmlspecialchars((string) ($item['keterangan'] ?? '')) ?></span>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php else: ?>
     Periksa transaksi tanpa akun kas atau entri ganda.
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php
+$tagihanTa = is_array($rekap['tagihan'] ?? null) ? $rekap['tagihan'] : [];
+$tagTot = is_array($tagihanTa['total'] ?? null) ? $tagihanTa['total'] : [];
+$tagAwal = is_array($tagihanTa['awal_tahun'] ?? null) ? $tagihanTa['awal_tahun'] : [];
+$wajibSet = is_array($tagihanTa['pengaturan'] ?? null) ? $tagihanTa['pengaturan'] : [];
+?>
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="app-mini-stat border-start border-4 border-purple" style="border-color:#7c3aed!important">
+            <div class="app-mini-stat-label">Target tagihan TA</div>
+            <div class="app-mini-stat-value" style="color:#5b21b6"><?= htmlspecialchars($fmt((int) ($tagTot['expected'] ?? 0))) ?></div>
+            <div class="small text-muted">Bulanan + awal tahun</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="app-mini-stat">
+            <div class="app-mini-stat-label">Terbayar tagihan</div>
+            <div class="app-mini-stat-value text-success"><?= htmlspecialchars($fmt((int) ($tagTot['paid'] ?? 0))) ?></div>
+            <div class="small text-muted">Capai <?= (int) ($tagTot['pct'] ?? 0) ?>%</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="app-mini-stat">
+            <div class="app-mini-stat-label">Sisa tagihan</div>
+            <div class="app-mini-stat-value text-warning"><?= htmlspecialchars($fmt((int) ($tagTot['sisa'] ?? 0))) ?></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="app-mini-stat">
+            <div class="app-mini-stat-label">Awal tahun (target)</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($tagAwal['expected'] ?? 0))) ?></div>
+            <div class="small text-muted">Terbayar <?= htmlspecialchars($fmt((int) ($tagAwal['paid'] ?? 0))) ?></div>
+        </div>
+    </div>
+</div>
+
+<?php if ($wajibSet !== []): ?>
+<div class="alert alert-light border small mb-3 py-2">
+    <strong>Pengaturan aktif:</strong>
+    Bulanan wajib <?= htmlspecialchars(implode(', ', (array) ($wajibSet['wajib_bulanan'] ?? [])) ?: '—') ?>.
+    <?php if (!empty($wajibSet['tagihan_mulai_masuk'])): ?>
+        Santri baru ditagih mulai bulan masuk.
+    <?php endif; ?>
+    <?php if (!empty($wajibSet['bedakan_awal_tahun'])): ?>
+        Awal tahun beda tarif/komponen baru vs lama.
+    <?php endif; ?>
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Ubah pengaturan</a>
 </div>
 <?php endif; ?>
 
@@ -132,11 +208,11 @@ if (abs($selisihRekap) >= 1000): ?>
     <div class="card-body">
         <?php keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt); ?>
         <p class="small text-muted mt-3 mb-0">
-            <strong>Petunjuk baca tabel:</strong>
-            <span class="d-inline-block me-2"><span class="badge" style="background:#dcfce7;color:#166534">Hijau</span> = kas masuk</span>
+            <strong>Petunjuk:</strong>
+            <span class="d-inline-block me-2"><span class="badge" style="background:#dcfce7;color:#166534">Hijau</span> = kas masuk riil</span>
+            <span class="d-inline-block me-2"><span class="badge" style="background:#ede9fe;color:#5b21b6">Ungu</span> = target tagihan (harus masuk menurut tarif &amp; santri baru/lama)</span>
             <span class="d-inline-block me-2"><span class="badge" style="background:#fee2e2;color:#b91c1c">Merah</span> = kas keluar</span>
-            <span class="d-inline-block me-2">— = nol</span>
-            Baris hijau = bulan berjalan. Kolom <strong>Selisih</strong> sehat jika — atau mendekati nol.
+            Target tagihan ≠ kas masuk jika ada tunggakan, pembayaran di bulan lain, atau pemasukan non-tagihan.
         </p>
     </div>
 </div>

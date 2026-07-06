@@ -142,12 +142,11 @@ function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analis
             'judul' => 'Pengeluaran tanpa akun kas/bank',
             'deskripsi' => 'Beban tercatat di aset neto, tetapi kas operasional tidak berkurang karena akun penerima tidak diisi. Ini sering membuat pasiva tampak lebih kecil dari aktiva.',
             'langkah' => [
-                'Buka riwayat pengeluaran dan edit transaksi yang akunnya kosong.',
-                'Pilih akun kas/bank yang benar-benar digunakan untuk pembayaran.',
+                'Buka Perbaikan Kas dan pilih akun kas/bank yang benar-benar digunakan.',
                 'Setelah diperbaiki, saldo kas di neraca akan turun sesuai pengeluaran.',
             ],
-            'link' => '/keuangan/riwayat_pengeluaran.php',
-            'link_label' => 'Riwayat pengeluaran',
+            'link' => '/keuangan/perbaikan-kas.php',
+            'link_label' => 'Perbaikan Kas',
             'jumlah' => (int) $pengTanpaAkun['jumlah'],
             'nominal' => (int) $pengTanpaAkun['nominal'],
         ];
@@ -161,11 +160,11 @@ function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analis
             'judul' => 'Pembayaran santri tanpa akun penerimaan',
             'deskripsi' => 'Uang masuk tidak masuk ke saldo kas operasional, sementara aset neto tetap bertambah dari iuran.',
             'langkah' => [
-                'Periksa riwayat pembayaran santri yang belum memiliki akun kas/bank.',
-                'Koreksi melalui menu edit pembayaran (jika tersedia) atau input ulang dengan akun yang benar.',
+                'Buka menu Perbaikan Kas dan pilih akun kas/bank untuk setiap transaksi.',
+                'Atau gunakan tombol perbaiki semua jika semua uang masuk ke akun yang sama.',
             ],
-            'link' => '/pembayaran/riwayat.php',
-            'link_label' => 'Riwayat pembayaran',
+            'link' => '/keuangan/perbaikan-kas.php',
+            'link_label' => 'Perbaikan Kas',
             'jumlah' => (int) $bayTanpaAkun['jumlah'],
             'nominal' => (int) $bayTanpaAkun['nominal'],
         ];
@@ -179,11 +178,11 @@ function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analis
             'judul' => 'Pemasukan lain tanpa akun penerimaan',
             'deskripsi' => 'Donasi/infaq tercatat di aset neto tetapi tidak menambah kas operasional.',
             'langkah' => [
-                'Edit pemasukan di riwayat pemasukan dan pilih akun kas/bank.',
+                'Buka Perbaikan Kas dan hubungkan setiap pemasukan ke akun kas/bank.',
                 'Pastikan klasifikasi sumber (donasi vs lain-lain) sudah benar.',
             ],
-            'link' => '/keuangan/riwayat_pemasukan.php',
-            'link_label' => 'Riwayat pemasukan',
+            'link' => '/keuangan/perbaikan-kas.php',
+            'link_label' => 'Perbaikan Kas',
             'jumlah' => (int) $masukTanpaAkun['jumlah'],
             'nominal' => (int) $masukTanpaAkun['nominal'],
         ];

@@ -265,6 +265,35 @@
         return bulanUrutanMap[m] || bulanUrutanMap[String(m)] || null;
     }
 
+    function bulanSelectBaseLabel(opt) {
+        if (!opt.dataset.baseLabel) {
+            opt.dataset.baseLabel = String(opt.textContent || '')
+                .replace(/\s*·\s*(ada tunggakan|lunas|belum ditagih)\s*$/i, '')
+                .trim();
+        }
+        return opt.dataset.baseLabel;
+    }
+
+    function updateBulanSelectLabels() {
+        if (!bulanSel || !isJenisBulanan()) {
+            return;
+        }
+        Array.from(bulanSel.options).forEach(function (opt) {
+            const m = parseInt(opt.value, 10);
+            const base = bulanSelectBaseLabel(opt);
+            const info = bulanUrutanInfo(m);
+            let suffix = '';
+            if (info && info.dibebankan === false) {
+                suffix = ' · belum ditagih';
+            } else if (info && info.ada_tunggakan) {
+                suffix = ' · ada tunggakan';
+            } else if (info && info.lunas) {
+                suffix = ' · lunas';
+            }
+            opt.textContent = base + suffix;
+        });
+    }
+
     function applyBulanUrutanRestrictions() {
         if (!bulanSel || !isJenisBulanan()) {
             return false;
@@ -276,8 +305,6 @@
             });
             return false;
         }
-        let currentAllowed = true;
-        const currentVal = parseInt(bulanSel.value, 10) || 0;
         Array.from(bulanSel.options).forEach(function (opt) {
             const m = parseInt(opt.value, 10);
             const info = bulanUrutanInfo(m);
@@ -288,28 +315,19 @@
             }
             if (info.dibebankan === false) {
                 opt.disabled = true;
-                opt.title = '';
+                opt.title = info.message || 'Bulan ini belum ditagih untuk santri ini.';
                 return;
             }
-            const blocked = info.allowed === false;
-            opt.disabled = blocked;
-            opt.title = blocked ? (info.message || '') : '';
-            if (m === currentVal) {
-                currentAllowed = !blocked;
+            opt.disabled = false;
+            if (info.ada_tunggakan) {
+                opt.title = 'Ada tagihan wajib belum lunas pada bulan ini.';
+            } else if (info.lunas) {
+                opt.title = 'Tagihan wajib sudah lunas — masih bisa catat Saku atau pos lain.';
+            } else {
+                opt.title = '';
             }
         });
-        if (!currentAllowed) {
-            for (let i = 0; i < bulanSel.options.length; i++) {
-                if (!bulanSel.options[i].disabled) {
-                    const nextVal = bulanSel.options[i].value;
-                    if (String(bulanSel.value) !== String(nextVal)) {
-                        bulanSel.value = nextVal;
-                        return true;
-                    }
-                    break;
-                }
-            }
-        }
+        updateBulanSelectLabels();
         return false;
     }
 
@@ -934,6 +952,7 @@
                 Array.from(bulanSel.options).forEach(function (opt) {
                     opt.disabled = false;
                     opt.title = '';
+                    opt.textContent = bulanSelectBaseLabel(opt);
                 });
             }
             setBulanUrutanBlokirUi(false, '');
@@ -972,11 +991,11 @@
                 }
                 const currentBulan = parseInt(bulanSel ? bulanSel.value : '0', 10) || 0;
                 const bulanInfo = bulanUrutanInfo(currentBulan);
-                const bulanBlocked = !!(bulanInfo && bulanInfo.dibebankan !== false && bulanInfo.allowed === false);
+                const bulanBlocked = !!(bulanInfo && bulanInfo.dibebankan === false);
                 setBulanUrutanBlokirUi(
                     bulanBlocked,
                     bulanBlocked
-                        ? (bulanInfo.message || data.bulan_blokir_pesan || 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.')
+                        ? (bulanInfo.message || data.bulan_blokir_pesan || 'Bulan ini belum ditagih untuk santri ini.')
                         : ''
                 );
                 const nominalFill = data.nominal_fill || null;
@@ -1314,13 +1333,71 @@
         resetHiddenKomponenRows();
         if (isJenisBulanan() && bulanUrutanBlokir) {
             ev.preventDefault();
-            window.alert(bulanUrutanBlokirPesan || 'Lunasi tagihan wajib bulan sebelumnya terlebih dahulu.');
+            const msg = bulanUrutanBlokirPesan || 'Bulan tagihan ini belum ditagih untuk santri yang dipilih.';
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, msg);
+            } else {
+                window.alert(msg);
+            }
             return;
         }
         const dobelErr = collectDobelPaymentError();
         if (dobelErr) {
             ev.preventDefault();
-            window.alert(dobelErr);
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, dobelErr);
+            } else {
+                window.alert(dobelErr);
+            }
+            return;
+        }
+        const akunSel = form.querySelector('[name="akun_id"]');
+        if (akunSel && (!akunSel.value || parseInt(akunSel.value, 10) <= 0)) {
+            ev.preventDefault();
+            const msg = 'Akun kas/bank wajib dipilih. Tanpa akun, uang tidak masuk saldo fisik.';
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, msg);
+            } else {
+                window.alert(msg);
+            }
+            return;
+        }
+        if (metodeSel && String(metodeSel.value || '').toUpperCase() === 'TRANSFER' && noRef && String(noRef.value || '').trim() === '') {
+            ev.preventDefault();
+            const msg = 'Metode transfer wajib diisi nomor referensi/bukti transfer.';
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, msg);
+            } else {
+                window.alert(msg);
+            }
+            return;
+        }
+        if (!santriSel || parseInt(santriSel.value, 10) <= 0) {
+            ev.preventDefault();
+            const msg = 'Pilih santri terlebih dahulu.';
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, msg);
+            } else {
+                window.alert(msg);
+            }
+            return;
+        }
+        let adaNominal = false;
+        form.querySelectorAll('.bayar-pos-check:checked').forEach(function (cb) {
+            const tr = cb.closest('tr');
+            const inp = tr ? tr.querySelector('.nominal-pos') : null;
+            if (inp && parseRpInput(inp.value) > 0) {
+                adaNominal = true;
+            }
+        });
+        if (!adaNominal) {
+            ev.preventDefault();
+            const msg = 'Pilih minimal satu komponen pembayaran dengan nominal lebih dari nol.';
+            if (window.keuanganFormValidasi) {
+                window.keuanganFormValidasi.showError(form, msg);
+            } else {
+                window.alert(msg);
+            }
         }
     });
 

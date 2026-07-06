@@ -326,6 +326,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
+    <?php require __DIR__ . '/partials/pengaturan_wajib_baru_lama.php'; ?>
 </div>
 <?php endif; ?>
 
@@ -520,7 +521,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="small text-warning mb-0">
                     <i class="fa-solid fa-triangle-exclamation me-1"></i>
                     <?= (int) $tanpaAkun ?> transaksi belum punya akun kas/bank —
-                    <a href="<?= htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php')) ?>">perbaiki di neraca</a>.
+                    <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>">perbaiki di Perbaikan Kas</a>.
                 </p>
             <?php endif; ?>
             <div>

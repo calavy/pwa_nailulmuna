@@ -389,8 +389,8 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--transaksi">
             <div class="card-header fw-semibold">Transaksi</div>
             <div class="card-body d-grid gap-2">
-                <a class="keu-modern-link" href="/keuangan/pembayaran.php"><i class="fa-solid fa-user-graduate"></i><span>Input pembayaran santri</span></a>
-                <a class="keu-modern-link" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt"></i><span>Tagihan bulanan</span></a>
+                <a class="keu-modern-link" href="/keuangan/pembayaran.php"><i class="fa-solid fa-circle-plus"></i><span>Input pembayaran</span></a>
+                <a class="keu-modern-link" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt"></i><span>Status tagihan</span></a>
                 <a class="keu-modern-link" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat pembayaran</span></a>
                 <a class="keu-modern-link" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar"></i><span>Pemasukan lain</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>

@@ -85,21 +85,25 @@ $bulanBerjalanLabel = $slotBerjalan
     : ('Bulan ' . (int) $berjalan['bulan']);
 $taLabelSingkat = (string) ($keuanganTa['label'] ?? pondok_tahun_ajaran_label($pdo, $keuanganTa));
 
-$pageTitle = 'Input Pembayaran';
+$pageTitle = 'Input Pembayaran & Tagihan';
 $bodyClass = keuangan_body_class('keuangan-form-page');
 $loadSantriSelectJs = true;
-$pageScripts = [app_asset_href('/assets/js/keuangan-pembayaran-form.js')];
+$pageScripts = [
+    app_asset_href('/assets/js/keuangan-form-validasi.js'),
+    app_asset_href('/assets/js/keuangan-pembayaran-form.js'),
+];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Pemasukan</p>
-    <h1 class="h3 mb-1">Input Pembayaran Santri</h1>
+    <h1 class="h3 mb-1">Input Pembayaran &amp; Tagihan Bulanan</h1>
     <p class="text-muted small mb-0">
-        Pilih jenis pembayaran, lalu isi formulir singkat. Kuitansi otomatis setelah simpan.
+        Satu formulir untuk mencatat pembayaran tagihan bulanan (Syahriyah, Makan, Saku) dan awal tahun.
+        Pilih santri, bulan tagihan (termasuk tunggakan), lalu komponen yang dibayar.
         Bulan tagihan ikut kalender <strong><?= $kalenderMode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?></strong>.
         <span class="text-nowrap">·</span> <a href="/keuangan/pemasukan.php">Pemasukan lain</a>
-        <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Tagihan bulanan</a>
+        <span class="text-nowrap">·</span> <a href="/pembayaran/tagihan_syahriyah.php">Status tagihan bulanan</a>
         <span class="text-nowrap">·</span> <a href="<?= htmlspecialchars(app_href('/keuangan/tagihan_wali.php')) ?>">Tagihan khusus ke wali</a>
         <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=tarif#tambahan-pkpps">Pengaturan syahriyah &amp; PKPPS</a>
         <span class="text-nowrap">·</span> <a href="/keuangan/pengaturan.php?bagian=santri_bulanan&amp;sub=opsional">Atur Makan &amp; Saku</a>
@@ -107,6 +111,16 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
+
+<?php if ($akunRows === []): ?>
+<div class="alert alert-danger mb-3">
+    <i class="fa-solid fa-circle-xmark me-1"></i>
+    <strong>Tidak dapat input transaksi kas.</strong>
+    Belum ada akun kas/bank aktif. Buat akun di
+    <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=akun')) ?>">Pengaturan Keuangan → Akun</a>
+    terlebih dahulu.
+</div>
+<?php endif; ?>
 
 <div class="row g-4 pembayaran-layout">
     <div class="col-xl-8">
@@ -153,7 +167,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat pembayaran
                 </a>
                 <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">
-                    <i class="fa-solid fa-list-check me-1"></i> Lihat tagihan bulanan
+                    <i class="fa-solid fa-list-check me-1"></i> Status tagihan bulanan
                 </a>
             </div>
         </div>
@@ -215,7 +229,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text">Pilih bulan tagihan yang akan dicatat (bukan hanya bulan berjalan).</div>
+                            <div class="form-text">Pilih bulan tagihan — semua bulan yang ada tunggakan dapat dipilih (tidak harus berurutan).</div>
                             <?php if ($slotBerjalan && !empty($slotBerjalan['masehi_awal'])): ?>
                             <div class="form-text">
                                 Bulan berjalan:
@@ -455,7 +469,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="pembayaran-actions-total__label">Total transaksi</span>
                     <span class="pembayaran-actions-total__amount" id="pembayaran-actions-amount">Rp 0</span>
                 </div>
-                <button type="submit" class="btn btn-success btn-lg" id="btn-simpan-pembayaran">
+                <button type="submit" class="btn btn-success btn-lg" id="btn-simpan-pembayaran"<?= $akunRows === [] ? ' disabled' : '' ?>>
                     <i class="fa-solid fa-check me-1"></i> Simpan &amp; buka kuitansi
                 </button>
                 <a class="btn btn-outline-secondary" href="/pembayaran/riwayat.php">Riwayat</a>
