@@ -108,6 +108,12 @@ function keuangan_kas_uses_opening_balance(PDO $pdo): bool
     return keuangan_kas_saldo_mode($pdo) === KEUNGAN_KAS_MODE_LEGACY;
 }
 
+/** Ekspresi SQL saldo awal akun — mengikuti mode kas (transaksi vs legacy). */
+function keuangan_sql_opening_balance_expr(PDO $pdo): string
+{
+    return keuangan_kas_uses_opening_balance($pdo) ? 'COALESCE(a.opening_balance, 0)' : '0';
+}
+
 function keuangan_kas_saldo_mode_label(string $mode): string
 {
     return match ($mode) {
@@ -192,7 +198,7 @@ function keuangan_fetch_akun_all_with_saldo(PDO $pdo, ?string $asOf = null): arr
         require_once __DIR__ . '/keuangan_akun_mutasi.php';
     }
     $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
-    $openingExpr = keuangan_kas_uses_opening_balance($pdo) ? 'COALESCE(a.opening_balance, 0)' : '0';
+    $openingExpr = keuangan_sql_opening_balance_expr($pdo);
     $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
     $stmt = $pdo->prepare("
         SELECT a.id,

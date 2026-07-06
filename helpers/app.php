@@ -177,6 +177,17 @@ function app_ensure_schema_deferred(PDO $pdo): void
         return;
     }
 
+    // Lokal (XAMPP): DB dari impor SQL sudah lengkap — lewati puluhan ALTER TABLE per login.
+    if (
+        function_exists('app_is_local_dev') && app_is_local_dev()
+        && table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'status_santri')
+        && table_exists($pdo, 'user_access_permissions')
+    ) {
+        $_SESSION['app_schema_ready_v1'] = 1;
+
+        return;
+    }
+
     try {
         if (table_exists($pdo, 'users')) {
             $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0');
@@ -784,6 +795,9 @@ function ensure_pondok_settings_defaults(PDO $pdo): void
     if (!table_exists($pdo, 'app_settings')) {
         return;
     }
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['pondok_settings_defaults_ok'])) {
+        return;
+    }
     $ins = $pdo->prepare('
         INSERT IGNORE INTO app_settings (setting_key, setting_value)
         VALUES (:k, :v)
@@ -796,6 +810,9 @@ function ensure_pondok_settings_defaults(PDO $pdo): void
     } elseif (file_exists(__DIR__ . '/pwa_brand.php')) {
         require_once __DIR__ . '/pwa_brand.php';
         logo_ensure_white_bg_pwa_icons($pdo);
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['pondok_settings_defaults_ok'] = 1;
     }
 }
 

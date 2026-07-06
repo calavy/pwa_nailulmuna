@@ -81,6 +81,7 @@ require_once __DIR__ . '/../includes/header.php';
         <a href="/santri/mukimin.php" class="btn btn-outline-secondary btn-sm">Data Mukimin</a>
         <a href="/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
         <a href="/santri/export_excel.php" class="btn btn-outline-primary btn-sm" title="CSV UTF-8">Export</a>
+        <a href="/santri/import.php" class="btn btn-outline-success btn-sm"><i class="fa-solid fa-file-import me-1"></i> Import Excel</a>
         <a href="/santri/create.php" class="btn btn-success btn-sm" data-sdm-modal="/santri/create.php" data-sdm-title="Tambah santri">+ Tambah</a>
     </div>
 </div>

@@ -351,8 +351,8 @@ function keuangan_dashboard_kas_bank_ringkas(PDO $pdo, ?string $asOf = null): ar
         require_once __DIR__ . '/keuangan_akun_mutasi.php';
     }
     $asOf = $asOf !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf) ? $asOf : date('Y-m-d');
+    $openingExpr = keuangan_sql_opening_balance_expr($pdo);
     $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
-    $openingExpr = keuangan_kas_uses_opening_balance($pdo) ? 'COALESCE(a.opening_balance, 0)' : '0';
     $stmt = $pdo->prepare("
         SELECT a.id, a.jenis_akun, a.nama_akun, a.nama_bank, a.no_rekening,
                ({$openingExpr} + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo

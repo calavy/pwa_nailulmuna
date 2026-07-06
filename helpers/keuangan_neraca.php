@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/keuangan_typography.php';
 require_once __DIR__ . '/keuangan_akun_mutasi.php';
+require_once __DIR__ . '/keuangan_pengaturan.php';
 require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 
 /**
@@ -43,11 +44,12 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
 
     // Kas & bank per akun operasional (pembayaran santri + pemasukan lain)
     $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
+    $openingExpr = keuangan_sql_opening_balance_expr($pdo);
     $mutasiStmt = $pdo->prepare("
         SELECT
             a.jenis_akun,
             a.nama_akun,
-            (COALESCE(a.opening_balance, 0) + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo
+            ({$openingExpr} + COALESCE(inc.total_masuk, 0) - COALESCE(exp.total_keluar, 0)) AS saldo
         FROM keuangan_akun a
         LEFT JOIN ( {$masukSub} ) inc ON inc.akun_id = a.id
         LEFT JOIN (
@@ -184,7 +186,8 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     $surplusOperasi = (int) ($ringkasanOperasi['surplus_operasi'] ?? 0);
 
     $asetNetoBaris = $asetNetoCoaBaris;
-    if ($surplusOperasi !== 0) {
+    // Hindari double-count: surplus operasional hanya jika buku besar belum punya saldo aset neto
+    if ($surplusOperasi !== 0 && abs($totalAsetNetoCoa) < 1) {
         $asetNetoBaris[] = [
             'label' => 'Surplus/(defisit) operasional (tanpa titipan saku)',
             'nominal' => $surplusOperasi,
@@ -257,19 +260,15 @@ function keuangan_neraca_ringkasan_operasi(PDO $pdo, string $asOf): array
 
     $beban = 0;
     if (table_exists($pdo, 'keuangan_pengeluaran')) {
+        $opsWhere = keuangan_sql_pengeluaran_operasional_where();
         $bebanStmt = $pdo->prepare("
             SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran
-            WHERE tanggal <= :t
-              AND pos NOT LIKE 'Belanja Modal%'
+            WHERE tanggal <= :t AND {$opsWhere}
         ");
         $bebanStmt->execute(['t' => $asOf]);
         $beban = (int) round((float) ($bebanStmt->fetchColumn() ?: 0));
     }
-    if (table_exists($pdo, 'keuangan_gaji_pembimbing')) {
-        $gajiStmt = $pdo->prepare('SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing WHERE tanggal_bayar <= :t');
-        $gajiStmt->execute(['t' => $asOf]);
-        $beban += (int) round((float) ($gajiStmt->fetchColumn() ?: 0));
-    }
+    $beban += keuangan_sum_gaji_keluar_tambahan_asof($pdo, $asOf);
 
     $penyusutan = 0;
     if (table_exists($pdo, 'akuntansi_jurnal_penyesuaian')) {

@@ -4,6 +4,82 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 
+/** Klausa SQL: pengeluaran operasional (bukan belanja modal / investasi). */
+function keuangan_sql_pengeluaran_operasional_where(string $alias = ''): string
+{
+    $p = $alias !== '' ? $alias . '.' : '';
+
+    return "NOT (
+              LOWER(COALESCE({$p}pos, '')) LIKE '%aset%'
+              OR LOWER(COALESCE({$p}pos, '')) LIKE '%invent%'
+              OR LOWER(COALESCE({$p}pos, '')) LIKE '%invest%'
+              OR COALESCE({$p}pos, '') LIKE 'Belanja Modal%'
+          )";
+}
+
+/** Klausa SQL: pengeluaran investasi / belanja modal. */
+function keuangan_sql_pengeluaran_investasi_where(string $alias = ''): string
+{
+    $p = $alias !== '' ? $alias . '.' : '';
+
+    return "(
+              LOWER(COALESCE({$p}pos, '')) LIKE '%aset%'
+              OR LOWER(COALESCE({$p}pos, '')) LIKE '%invent%'
+              OR LOWER(COALESCE({$p}pos, '')) LIKE '%invest%'
+              OR COALESCE({$p}pos, '') LIKE 'Belanja Modal%'
+          )";
+}
+
+/** Klausa SQL: gaji yang belum tercatat di keuangan_pengeluaran (data lama). */
+function keuangan_sql_gaji_belum_di_pengeluaran_where(PDO $pdo, string $alias = ''): string
+{
+    if (!table_exists($pdo, 'keuangan_gaji_pembimbing')) {
+        return '1=0';
+    }
+    $col = ($alias !== '' ? $alias . '.' : '') . 'pengeluaran_id';
+    if (!column_exists($pdo, 'keuangan_gaji_pembimbing', 'pengeluaran_id')) {
+        return '1=1';
+    }
+
+    return "({$col} IS NULL OR {$col} <= 0)";
+}
+
+/**
+ * Total gaji pembimbing yang belum punya baris pengeluaran terkait (hindari double-count).
+ */
+function keuangan_sum_gaji_keluar_tambahan(PDO $pdo, string $dateFrom, string $dateTo): int
+{
+    if (!table_exists($pdo, 'keuangan_gaji_pembimbing')) {
+        return 0;
+    }
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+    $gajiWhere = keuangan_sql_gaji_belum_di_pengeluaran_where($pdo);
+    $st = $pdo->prepare("
+        SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
+        WHERE tanggal_bayar BETWEEN :dari AND :sampai AND {$gajiWhere}
+    ");
+    $st->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+function keuangan_sum_gaji_keluar_tambahan_asof(PDO $pdo, string $asOf): int
+{
+    if (!table_exists($pdo, 'keuangan_gaji_pembimbing')) {
+        return 0;
+    }
+    $gajiWhere = keuangan_sql_gaji_belum_di_pengeluaran_where($pdo);
+    $st = $pdo->prepare("
+        SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
+        WHERE tanggal_bayar <= :t AND {$gajiWhere}
+    ");
+    $st->execute(['t' => $asOf]);
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
 /**
  * Klasifikasi sumber pemasukan: donasi/infaq vs lain-lain.
  */
@@ -186,27 +262,14 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
         }
     }
 
+    $opsWhere = keuangan_sql_pengeluaran_operasional_where();
     $stKeluar = $pdo->prepare("
         SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran
-        WHERE tanggal BETWEEN :dari AND :sampai
-          AND NOT (
-              LOWER(COALESCE(pos, '')) LIKE '%aset%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invent%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invest%'
-              OR pos LIKE 'Belanja Modal%'
-          )
+        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}
     ");
     $stKeluar->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
     $totalKeluar = (int) round((float) ($stKeluar->fetchColumn() ?: 0));
-
-    if (table_exists($pdo, 'keuangan_gaji_pembimbing')) {
-        $stGaji = $pdo->prepare('
-            SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
-            WHERE tanggal_bayar BETWEEN :dari AND :sampai
-        ');
-        $stGaji->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-        $totalKeluar += (int) round((float) ($stGaji->fetchColumn() ?: 0));
-    }
+    $totalKeluar += keuangan_sum_gaji_keluar_tambahan($pdo, $dateFrom, $dateTo);
 
     $totalMasuk = $totalIuran + $totalSaku + $totalDonasi + $totalPemasukanLain;
 

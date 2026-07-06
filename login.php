@@ -11,7 +11,7 @@ require_once __DIR__ . '/helpers/munawib.php';
 require_once __DIR__ . '/helpers/local_dev.php';
 require_once __DIR__ . '/includes/auth_portal_layout.php';
 
-if ($pdo instanceof PDO) {
+if ($pdo instanceof PDO && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     ensure_pondok_settings_defaults($pdo);
 }
 

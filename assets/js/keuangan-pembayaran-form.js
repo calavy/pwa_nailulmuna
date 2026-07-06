@@ -1166,13 +1166,6 @@
         }
         setJenisPeriode(mode);
         syncJenisToggleButtons();
-        if (mode === 'BULANAN' && bulanSel) {
-            const berjalan = parseInt(window.pembayaranBulanBerjalan, 10) || 0;
-            if (berjalan > 0 && bulanSel.value !== String(berjalan)) {
-                bulanSel.value = String(berjalan);
-                bulanSel.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        }
         window.setTimeout(focusSantriField, 80);
     }
 

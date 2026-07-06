@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/keuangan_akun_mutasi.php';
+require_once __DIR__ . '/keuangan_pengaturan.php';
 require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 
 /**
@@ -108,15 +109,11 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     }
 
     $pengeluaranPerPos = [];
+    $opsWhere = keuangan_sql_pengeluaran_operasional_where();
     $pengeluaranOpsStmt = $pdo->prepare("
         SELECT COALESCE(pos, 'Beban operasional') AS label_pos, SUM(nominal) AS total
         FROM keuangan_pengeluaran
-        WHERE tanggal BETWEEN :dari AND :sampai
-          AND NOT (
-              LOWER(COALESCE(pos, '')) LIKE '%aset%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invent%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invest%'
-          )
+        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}
         GROUP BY pos
         ORDER BY total DESC, label_pos ASC
     ");
@@ -133,14 +130,8 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         $totalKeluarOps += $nom;
     }
 
-    $totalGaji = 0;
-    if (table_exists($pdo, 'keuangan_gaji_pembimbing')) {
-        $gajiStmt = $pdo->prepare('
-            SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
-            WHERE tanggal_bayar BETWEEN :dari AND :sampai
-        ');
-        $gajiStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-        $totalGaji = (int) round((float) ($gajiStmt->fetchColumn() ?: 0));
+    $totalGaji = keuangan_sum_gaji_keluar_tambahan($pdo, $dateFrom, $dateTo);
+    if ($totalGaji > 0) {
         $totalKeluarOps += $totalGaji;
     }
 
@@ -224,15 +215,11 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
 
     // —— Aktivitas investasi ——
     $investasiBaris = [];
+    $investWhere = keuangan_sql_pengeluaran_investasi_where();
     $investPengStmt = $pdo->prepare("
         SELECT COALESCE(pos, 'Investasi') AS label_pos, SUM(nominal) AS total
         FROM keuangan_pengeluaran
-        WHERE tanggal BETWEEN :dari AND :sampai
-          AND (
-              LOWER(COALESCE(pos, '')) LIKE '%aset%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invent%'
-              OR LOWER(COALESCE(pos, '')) LIKE '%invest%'
-          )
+        WHERE tanggal BETWEEN :dari AND :sampai AND {$investWhere}
         GROUP BY pos
         ORDER BY total DESC
     ");
@@ -250,10 +237,13 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     }
 
     if (table_exists($pdo, 'akuntansi_aset_tetap')) {
+        $asetRefFilter = column_exists($pdo, 'akuntansi_aset_tetap', 'ref_pengeluaran_id')
+            ? ' AND (ref_pengeluaran_id IS NULL OR ref_pengeluaran_id <= 0)'
+            : '';
         $asetStmt = $pdo->prepare('
             SELECT nama_aset, kategori_aset, harga_perolehan
             FROM akuntansi_aset_tetap
-            WHERE tanggal_perolehan BETWEEN :dari AND :sampai AND harga_perolehan > 0
+            WHERE tanggal_perolehan BETWEEN :dari AND :sampai AND harga_perolehan > 0' . $asetRefFilter . '
             ORDER BY tanggal_perolehan ASC, nama_aset ASC
         ');
         $asetStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
@@ -447,10 +437,11 @@ function keuangan_aruskas_total_kas(PDO $pdo, string $asOf): int
     }
     $asOf = date('Y-m-d', strtotime($asOf) ?: time());
     $masukSub = keuangan_sql_subquery_masuk_per_akun($pdo);
+    $openingExpr = keuangan_sql_opening_balance_expr($pdo);
 
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(
-            COALESCE(a.opening_balance, 0)
+            {$openingExpr}
             + COALESCE(inc.total_masuk, 0)
             - COALESCE(exp.total_keluar, 0)
         ), 0) AS saldo

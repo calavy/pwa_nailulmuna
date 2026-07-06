@@ -36,9 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rows = [];
 
     try {
-        if (str_ends_with($name, '.xlsx')) {
-            $rows = parse_xlsx_rows($tmp);
-            $rows = normalize_santri_import_rows($rows);
+        if (import_upload_is_xlsx($name, $tmp)) {
+            $rows = normalize_santri_import_rows(parse_xlsx_rows($tmp));
         } elseif (str_ends_with($name, '.csv')) {
             if (($handle = fopen($tmp, 'r')) !== false) {
                 $header = fgetcsv($handle);
@@ -111,7 +110,7 @@ require_once __DIR__ . '/../includes/header.php';
         </p>
         <form method="post" enctype="multipart/form-data" class="row g-3">
             <div class="col-md-8">
-                <input type="file" class="form-control" name="file_import" accept=".xlsx,.csv" required>
+                <input type="file" class="form-control" name="file_import" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" required>
             </div>
             <div class="col-md-4">
                 <button class="btn btn-success w-100">Import Sekarang</button>

@@ -63,6 +63,7 @@ return [
         '/santri/create.php' => 'Tambah santri',
         '/santri/keluar.php' => 'Administrasi keluar',
         '/santri/mukimin.php' => 'Data Mukimin',
+        '/santri/import.php' => 'Import Santri',
         '/data/wali.php' => 'Wali Santri',
         '/pembimbing/index.php' => 'Data Pembimbing',
         '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
@@ -210,6 +211,7 @@ return [
         ['type' => 'group', 'id' => 'menu-grp-sdm', 'label' => 'Manajemen SDM', 'icon' => 'fa-solid fa-address-card', 'sections' => [
             ['title' => 'Santri', 'paths' => [
                 '/santri/index.php',
+                '/santri/import.php',
                 '/santri/hidmah.php',
                 '/santri/tingkatan_ta.php',
                 '/santri/mukimin.php',

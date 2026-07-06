@@ -1,19 +1,303 @@
 <?php
 
-function parse_xlsx_rows(string $filePath): array
+function import_upload_is_xlsx(string $filename, string $tmpPath): bool
 {
-    if (!class_exists('ZipArchive')) {
-        throw new RuntimeException('Extension ZipArchive belum aktif di PHP.');
+    $name = strtolower(trim($filename));
+    if (str_ends_with($name, '.xlsx')) {
+        return true;
+    }
+    if ($tmpPath === '' || !is_readable($tmpPath)) {
+        return false;
+    }
+    if (function_exists('mime_content_type')) {
+        $mime = strtolower((string) mime_content_type($tmpPath));
+        if ($mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+            return true;
+        }
+    }
+    if (class_exists('finfo')) {
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = strtolower((string) $finfo->file($tmpPath));
+        if ($mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+            return true;
+        }
     }
 
-    $zip = new ZipArchive();
-    if ($zip->open($filePath) !== true) {
-        throw new RuntimeException('File Excel tidak bisa dibuka.');
+    return false;
+}
+
+/**
+ * @return ?string isi entry dalam arsip ZIP
+ */
+function zip_archive_read_entry(string $zipPath, string $entryName): ?string
+{
+    $entryName = str_replace('\\', '/', ltrim($entryName, '/'));
+    if ($entryName === '' || !is_readable($zipPath)) {
+        return null;
+    }
+
+    if (class_exists('ZipArchive')) {
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) === true) {
+            $data = $zip->getFromName($entryName);
+            $zip->close();
+            if ($data !== false) {
+                return $data;
+            }
+        }
+    }
+
+    if (class_exists('PharData')) {
+        $tmpBase = tempnam(sys_get_temp_dir(), 'xlsx');
+        if ($tmpBase !== false) {
+            $tmpZip = $tmpBase . '.zip';
+            try {
+                if (@copy($zipPath, $tmpZip)) {
+                    $phar = new PharData($tmpZip);
+                    $data = $phar->getFromName($entryName);
+                    if ($data !== false) {
+                        return (string) $data;
+                    }
+                }
+            } catch (Throwable $e) {
+                // lanjut ke parser native
+            } finally {
+                @unlink($tmpZip);
+                @unlink($tmpBase);
+            }
+        }
+    }
+
+    return zip_archive_read_entry_native($zipPath, $entryName);
+}
+
+function zip_archive_inflate_entry(string $data, int $method, int $uncompSize): ?string
+{
+    if ($method === 0) {
+        return $data;
+    }
+    if ($method !== 8) {
+        return null;
+    }
+    if (function_exists('zlib_decode')) {
+        $out = @zlib_decode($data);
+        if ($out !== false) {
+            return $out;
+        }
+    }
+    $out = @gzinflate($data);
+    if ($out !== false) {
+        return $out;
+    }
+    if ($uncompSize > 0) {
+        $out = @gzinflate($data, $uncompSize);
+        if ($out !== false) {
+            return $out;
+        }
+    }
+
+    return null;
+}
+
+function zip_archive_read_entry_native(string $zipPath, string $entryName): ?string
+{
+    $entryName = str_replace('\\', '/', ltrim($entryName, '/'));
+    $handle = @fopen($zipPath, 'rb');
+    if ($handle === false) {
+        return null;
+    }
+
+    $result = null;
+    while (!feof($handle)) {
+        $header = @fread($handle, 4);
+        if ($header === false || strlen($header) !== 4) {
+            break;
+        }
+        $sig = unpack('V', $header)[1];
+        if ($sig !== 0x04034b50) {
+            break;
+        }
+        $rest = @fread($handle, 26);
+        if ($rest === false || strlen($rest) !== 26) {
+            break;
+        }
+        $meta = unpack('vversion/vflags/vmethod/VmodTime/VmodDate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen', $rest);
+        $name = @fread($handle, (int) $meta['nameLen']);
+        if ($name === false) {
+            break;
+        }
+        if ((int) $meta['extraLen'] > 0) {
+            @fread($handle, (int) $meta['extraLen']);
+        }
+        $name = str_replace('\\', '/', $name);
+        $data = @fread($handle, (int) $meta['compSize']);
+        if ($data === false) {
+            break;
+        }
+        if ($name === $entryName) {
+            $result = zip_archive_inflate_entry($data, (int) $meta['method'], (int) $meta['uncompSize']);
+            break;
+        }
+    }
+    fclose($handle);
+
+    return $result;
+}
+
+/**
+ * @param array<string, string> $files path dalam arsip => isi file
+ */
+function zip_archive_build(array $files): string
+{
+    if (class_exists('ZipArchive')) {
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        if ($tmp === false) {
+            throw new RuntimeException('Tidak bisa membuat file sementara.');
+        }
+        $zipPath = $tmp . '.zip';
+        @unlink($tmp);
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+            foreach ($files as $name => $contents) {
+                $zip->addFromString(str_replace('\\', '/', $name), (string) $contents);
+            }
+            $zip->close();
+            $bytes = (string) file_get_contents($zipPath);
+            @unlink($zipPath);
+            if ($bytes !== '') {
+                return $bytes;
+            }
+        }
+        @unlink($zipPath);
+    }
+
+    if (class_exists('PharData')) {
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        if ($tmp !== false) {
+            $zipPath = $tmp . '.zip';
+            @unlink($tmp);
+            try {
+                @unlink($zipPath);
+                $phar = new PharData($zipPath, Phar::ZIP | Phar::CREATE);
+                foreach ($files as $name => $contents) {
+                    $phar->addFromString(str_replace('\\', '/', $name), (string) $contents);
+                }
+                unset($phar);
+                $bytes = (string) file_get_contents($zipPath);
+                @unlink($zipPath);
+                if ($bytes !== '') {
+                    return $bytes;
+                }
+            } catch (Throwable $e) {
+                @unlink($zipPath);
+            }
+        }
+    }
+
+    return zip_archive_build_native($files);
+}
+
+/**
+ * @param array<string, string> $files
+ */
+function zip_archive_build_native(array $files): string
+{
+    if (!function_exists('gzdeflate')) {
+        throw new RuntimeException(
+            'Import Excel membutuhkan ekstensi PHP zip atau zlib. Aktifkan extension=zip di php.ini, lalu restart Apache.'
+        );
+    }
+
+    $localParts = [];
+    $centralParts = [];
+    $offset = 0;
+
+    foreach ($files as $name => $contents) {
+        $name = str_replace('\\', '/', (string) $name);
+        $contents = (string) $contents;
+        $crc = crc32($contents);
+        if ($crc < 0) {
+            $crc += 0x100000000;
+        }
+        $uncompressedLen = strlen($contents);
+        $compressed = gzdeflate($contents, 6);
+        if ($compressed === false) {
+            throw new RuntimeException('Gagal mengompres file Excel.');
+        }
+        $compressedLen = strlen($compressed);
+
+        $localHeader = pack(
+            'Vv5V3v2',
+            0x04034b50,
+            20,
+            0,
+            8,
+            0,
+            0,
+            $crc,
+            $compressedLen,
+            $uncompressedLen,
+            strlen($name),
+            0
+        );
+        $localRecord = $localHeader . $name . $compressed;
+        $localParts[] = $localRecord;
+
+        $centralHeader = pack(
+            'Vv6V3v5VV',
+            0x02014b50,
+            20,
+            20,
+            0,
+            8,
+            0,
+            0,
+            $crc,
+            $compressedLen,
+            $uncompressedLen,
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $offset
+        );
+        $centralParts[] = $centralHeader . $name;
+
+        $offset += strlen($localRecord);
+    }
+
+    $centralDir = implode('', $centralParts);
+    $centralDirOffset = $offset;
+    $centralDirSize = strlen($centralDir);
+    $entryCount = count($files);
+
+    $eocd = pack(
+        'Vv4V2v',
+        0x06054b50,
+        0,
+        0,
+        $entryCount,
+        $entryCount,
+        $centralDirSize,
+        $centralDirOffset,
+        0
+    );
+
+    return implode('', $localParts) . $centralDir . $eocd;
+}
+
+function parse_xlsx_rows(string $filePath): array
+{
+    if (!is_readable($filePath)) {
+        throw new RuntimeException('File Excel tidak bisa dibaca.');
     }
 
     $sharedStrings = [];
-    $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
-    if ($sharedXml !== false) {
+    $sharedXml = zip_archive_read_entry($filePath, 'xl/sharedStrings.xml');
+    if ($sharedXml !== null && $sharedXml !== '') {
         $shared = simplexml_load_string($sharedXml);
         if ($shared && isset($shared->si)) {
             foreach ($shared->si as $item) {
@@ -30,9 +314,8 @@ function parse_xlsx_rows(string $filePath): array
         }
     }
 
-    $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
-    $zip->close();
-    if ($sheetXml === false) {
+    $sheetXml = zip_archive_read_entry($filePath, 'xl/worksheets/sheet1.xml');
+    if ($sheetXml === null || $sheetXml === '') {
         throw new RuntimeException('Sheet1 pada Excel tidak ditemukan.');
     }
 
@@ -72,6 +355,26 @@ function normalize_santri_import_rows(array $rows): array
 {
     if (!$rows) {
         return [];
+    }
+
+    $normalized = normalize_import_rows($rows);
+    if ($normalized !== []) {
+        $result = [];
+        foreach ($normalized as $raw) {
+            $entry = [
+                'qr' => trim((string) ($raw['qr'] ?? '')),
+                'nis' => trim((string) ($raw['nis'] ?? '')),
+                'nama_santri' => trim((string) ($raw['nama_santri'] ?? $raw['nama'] ?? '')),
+                'tingkatan' => trim((string) ($raw['tingkatan'] ?? '')),
+                'no_wa_wali' => trim((string) ($raw['no_wa_wali'] ?? $raw['wa_wali'] ?? $raw['no_wa'] ?? '')),
+            ];
+            if ($entry['nis'] === '' || $entry['nama_santri'] === '') {
+                continue;
+            }
+            $result[] = $entry;
+        }
+
+        return $result;
     }
 
     $result = [];
@@ -350,10 +653,6 @@ function xlsx_xml_escape(string $value): string
  */
 function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
 {
-    if (!class_exists('ZipArchive')) {
-        throw new RuntimeException('Extension ZipArchive belum aktif di PHP.');
-    }
-
     $sheetRows = '';
     foreach ($rows as $rowIndex => $row) {
         $r = $rowIndex + 1;
@@ -401,28 +700,13 @@ function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
         . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
         . '</Relationships>';
 
-    $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
-    if ($tmp === false) {
-        throw new RuntimeException('Tidak bisa membuat file sementara.');
-    }
-    $zipPath = $tmp . '.xlsx';
-    @unlink($tmp);
-
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-        throw new RuntimeException('Tidak bisa membuat file Excel.');
-    }
-    $zip->addFromString('[Content_Types].xml', $contentTypes);
-    $zip->addFromString('_rels/.rels', $rootRels);
-    $zip->addFromString('xl/workbook.xml', $workbookXml);
-    $zip->addFromString('xl/_rels/workbook.xml.rels', $workbookRels);
-    $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
-    $zip->close();
-
-    $bytes = (string) file_get_contents($zipPath);
-    @unlink($zipPath);
-
-    return $bytes;
+    return zip_archive_build([
+        '[Content_Types].xml' => $contentTypes,
+        '_rels/.rels' => $rootRels,
+        'xl/workbook.xml' => $workbookXml,
+        'xl/_rels/workbook.xml.rels' => $workbookRels,
+        'xl/worksheets/sheet1.xml' => $sheetXml,
+    ]);
 }
 
 /**

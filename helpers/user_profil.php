@@ -8,6 +8,9 @@ declare(strict_types=1);
 
 function user_profil_ensure_schema(PDO $pdo): void
 {
+    if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['user_profil_schema_ok'])) {
+        return;
+    }
     if (!table_exists($pdo, 'users')) {
         return;
     }
@@ -21,6 +24,9 @@ function user_profil_ensure_schema(PDO $pdo): void
         } catch (PDOException $e) {
             /* abaikan */
         }
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['user_profil_schema_ok'] = 1;
     }
 }
 

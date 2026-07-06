@@ -130,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </span>
                         <span class="pembayaran-launch-card__body">
                             <span class="pembayaran-launch-card__title">Tagihan Bulanan</span>
-                            <span class="pembayaran-launch-card__desc">Syahriyah, Makan, Saku — bulan berjalan: <strong><?= htmlspecialchars($bulanBerjalanLabel) ?></strong></span>
+                            <span class="pembayaran-launch-card__desc">Syahriyah, Makan, Saku — pilih bulan tagihan di formulir (default: <strong><?= htmlspecialchars($bulanBerjalanLabel) ?></strong>)</span>
                         </span>
                         <i class="fa-solid fa-chevron-right pembayaran-launch-card__arrow"></i>
                     </button>
@@ -215,6 +215,7 @@ require_once __DIR__ . '/../includes/header.php';
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <div class="form-text">Pilih bulan tagihan yang akan dicatat (bukan hanya bulan berjalan).</div>
                             <?php if ($slotBerjalan && !empty($slotBerjalan['masehi_awal'])): ?>
                             <div class="form-text">
                                 Bulan berjalan:
@@ -513,7 +514,6 @@ require_once __DIR__ . '/../includes/header.php';
 window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;
 window.keuanganSantriTier = <?= json_encode($santriTierById, JSON_UNESCAPED_UNICODE) ?>;
 window.keuanganFeeMatrix = <?= json_encode($keuanganFeeMatrix, JSON_UNESCAPED_UNICODE) ?>;
-window.pembayaranBulanBerjalan = <?= (int) $berjalan['bulan'] ?>;
 window.pembayaranSkipLauncher = <?= $skipLauncher ? 'true' : 'false' ?>;
 </script>
 <script src="<?= htmlspecialchars(app_href('/assets/js/pondok-ta-fields.js')) ?>"></script>
