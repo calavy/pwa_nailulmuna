@@ -451,3 +451,92 @@ function keuangan_cek_pembayaran_ringkas_from_body(array $body): array
         'count_sebagian' => $countSebagian,
     ];
 }
+
+/** Apakah baris tabel cek/tagihan masih perlu tombol Bayar. */
+function keuangan_cek_pembayaran_row_perlu_bayar(array $row): bool
+{
+    if (array_key_exists('belum_lunas', $row)) {
+        return (bool) $row['belum_lunas'] || (int) ($row['total_sisa'] ?? 0) > 0;
+    }
+    $sisa = (int) ($row['sisa'] ?? 0);
+    if ($sisa > 0) {
+        return true;
+    }
+    $status = (string) ($row['status'] ?? '');
+
+    return in_array($status, ['Belum', 'Sebagian'], true);
+}
+
+/** URL riwayat pembayaran santri (opsional semua periode TA). */
+function keuangan_riwayat_pembayaran_url_santri(int $santriId, bool $semuaPeriode = true): string
+{
+    if ($santriId <= 0) {
+        return app_href('/pembayaran/riwayat.php');
+    }
+    $qs = ['santri_id' => $santriId];
+    if ($semuaPeriode) {
+        $qs['semua_periode'] = '1';
+    }
+
+    return app_href('/pembayaran/riwayat.php?' . http_build_query($qs));
+}
+
+/**
+ * Rentang tanggal riwayat: lebarkan ke TA aktif jika semua periode / filter santri aktif.
+ *
+ * @return array{0:string,1:string,bool}
+ */
+function keuangan_riwayat_pembayaran_resolve_tanggal(
+    PDO $pdo,
+    string $tanggalDari,
+    string $tanggalSampai,
+    int $santriId,
+    string $q,
+    bool $semuaPeriodeExplicit
+): array {
+    $autoSemua = $semuaPeriodeExplicit || $santriId > 0 || trim($q) !== '';
+    if (!$autoSemua) {
+        return [$tanggalDari, $tanggalSampai, false];
+    }
+    if (!function_exists('pondok_tahun_ajaran_aktif')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    $ta = pondok_tahun_ajaran_aktif($pdo);
+    [$taAwal, $taAkhir] = pondok_tahun_ajaran_gregorian_range($pdo, (int) $ta['mulai'], (int) $ta['selesai']);
+    $hariIni = date('Y-m-d');
+    $dari = $taAwal;
+    $sampai = $hariIni < $taAkhir ? $hariIni : $taAkhir;
+    if ($dari > $sampai) {
+        [$dari, $sampai] = [$sampai, $dari];
+    }
+
+    return [$dari, $sampai, true];
+}
+
+/** Klausa SQL + params untuk filter nama/NIS santri di riwayat pembayaran. */
+function keuangan_riwayat_pembayaran_sql_q_filter(PDO $pdo, string $q, string $alias = 's'): array
+{
+    $q = trim($q);
+    if ($q === '') {
+        return ['', []];
+    }
+    ensure_santri_identity_columns($pdo);
+    $like = '%' . mb_strtolower($q) . '%';
+    $cols = [
+        "LOWER({$alias}.nama_santri) LIKE :riwayat_q",
+        "LOWER(COALESCE({$alias}.nis, '')) LIKE :riwayat_q2",
+    ];
+    if (column_exists($pdo, 'santri', 'nama')) {
+        $cols[] = "LOWER(COALESCE({$alias}.nama, '')) LIKE :riwayat_q3";
+    }
+    $sql = ' AND (' . implode(' OR ', $cols) . ')';
+    $params = [
+        'riwayat_q' => $like,
+        'riwayat_q2' => $like,
+    ];
+    if (column_exists($pdo, 'santri', 'nama')) {
+        $params['riwayat_q3'] = $like;
+    }
+
+    return [$sql, $params];
+}

@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/bendahara_ui.php';
 require_once __DIR__ . '/../helpers/keuangan_pembayaran_admin.php';
 require_once __DIR__ . '/../helpers/pembayaran_edit_token.php';
+require_once __DIR__ . '/../helpers/keuangan_cek_pembayaran.php';
 
 require_roles(['admin', 'pengurus']);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
@@ -28,7 +29,7 @@ if (
         set_flash('error', $redeemResult['message']);
     }
     $redirectQs = [];
-    foreach (['dari', 'sampai', 'jenis', 'santri_id', 'metode', 'pos', 'limit'] as $qk) {
+    foreach (['dari', 'sampai', 'jenis', 'santri_id', 'metode', 'pos', 'limit', 'q', 'semua_periode'] as $qk) {
         if (isset($_POST[$qk]) && (string) $_POST[$qk] !== '') {
             $redirectQs[$qk] = (string) $_POST[$qk];
         }
@@ -52,6 +53,8 @@ if (!in_array($jenis, ['', 'BULANAN', 'AWAL_TAHUN'], true)) {
     $jenis = '';
 }
 $santriId = (int) ($_GET['santri_id'] ?? 0);
+$q = trim((string) ($_GET['q'] ?? ''));
+$semuaPeriode = (string) ($_GET['semua_periode'] ?? '') === '1';
 $metode = strtoupper(trim((string) ($_GET['metode'] ?? '')));
 if (!in_array($metode, ['', 'KAS', 'TRANSFER'], true)) {
     $metode = '';
@@ -77,10 +80,19 @@ if ($tanggalDari > $tanggalSampai) {
     $tanggalSampai = $tmp;
 }
 
+[$tanggalDari, $tanggalSampai, $semuaPeriodeAktif] = keuangan_riwayat_pembayaran_resolve_tanggal(
+    $pdo,
+    $tanggalDari,
+    $tanggalSampai,
+    $santriId,
+    $q,
+    $semuaPeriode
+);
+
 $tablesOk = table_exists($pdo, 'keuangan_pembayaran');
 $detailOk = $tablesOk && table_exists($pdo, 'keuangan_pembayaran_detail');
 $list = [];
-$santriPick = [];
+$santriSelected = null;
 $posOptions = [];
 $detailMap = [];
 $ringkasan = [
@@ -128,6 +140,11 @@ if ($tablesOk) {
     if ($posSlug !== '' && $detailOk) {
         $sqlWhere .= ' AND EXISTS (SELECT 1 FROM keuangan_pembayaran_detail dx WHERE dx.pembayaran_id = p.id AND dx.pos_slug = :pos_slug)';
         $params['pos_slug'] = $posSlug;
+    }
+    [$qSql, $qParams] = keuangan_riwayat_pembayaran_sql_q_filter($pdo, $q);
+    if ($qSql !== '') {
+        $sqlWhere .= $qSql;
+        $params = array_merge($params, $qParams);
     }
 
     $sqlBase = $sqlFromJoins . $sqlWhere;
@@ -192,7 +209,12 @@ if ($tablesOk) {
 
     require_once __DIR__ . '/../helpers/santri_list_sort.php';
     santri_list_sort_mode($_GET['santri_sort'] ?? null);
-    $santriPick = $pdo->query('SELECT id, nis, nama_santri FROM santri ORDER BY ' . santri_list_order_sql('santri') . ' LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($santriId > 0) {
+        ensure_santri_identity_columns($pdo);
+        $stSantri = $pdo->prepare('SELECT id, nis, nama_santri FROM santri WHERE id = :id LIMIT 1');
+        $stSantri->execute(['id' => $santriId]);
+        $santriSelected = $stSantri->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
 }
 
 
@@ -211,7 +233,7 @@ $iconRiwayat = bendahara_page_icon('riwayat');
         <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconRiwayat) ?>"></i></span>
         Riwayat pembayaran (detail)
     </h1>
-    <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Total dan rincian per POS dihitung otomatis sesuai filter.</p>
+    <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Cari nama/NIS santri untuk melihat seluruh pembayaran pada periode TA.</p>
     <?php if (user_can_lihat_audit_operasional() || is_super_admin()): ?>
         <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
             <?php if (user_can_lihat_audit_operasional()): ?>
@@ -259,6 +281,8 @@ $iconRiwayat = bendahara_page_icon('riwayat');
                     <?php if ($santriId > 0): ?><input type="hidden" name="santri_id" value="<?= $santriId ?>"><?php endif; ?>
                     <?php if ($metode !== ''): ?><input type="hidden" name="metode" value="<?= htmlspecialchars($metode) ?>"><?php endif; ?>
                     <?php if ($posSlug !== ''): ?><input type="hidden" name="pos" value="<?= htmlspecialchars($posSlug) ?>"><?php endif; ?>
+                    <?php if ($q !== ''): ?><input type="hidden" name="q" value="<?= htmlspecialchars($q) ?>"><?php endif; ?>
+                    <?php if ($semuaPeriode): ?><input type="hidden" name="semua_periode" value="1"><?php endif; ?>
                     <input type="hidden" name="limit" value="<?= $limit ?>">
                     <div class="col-12 col-md-8 col-lg-5">
                         <label class="form-label small text-muted mb-1">Token edit</label>
@@ -287,6 +311,14 @@ $flashErr = get_flash('error');
 <?php endif; ?>
 
 <?php if ($tablesOk): ?>
+<?php if ($semuaPeriodeAktif): ?>
+    <div class="alert alert-info py-2 small mb-3">
+        <i class="fa-solid fa-calendar-days me-1"></i>
+        Rentang tanggal diperluas ke <strong>seluruh periode TA aktif</strong>
+        (<?= htmlspecialchars($tanggalDari) ?> s/d <?= htmlspecialchars($tanggalSampai) ?>)
+        karena filter santri atau pencarian nama aktif.
+    </div>
+<?php endif; ?>
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Dari tanggal</label>
@@ -326,16 +358,29 @@ $flashErr = get_flash('error');
         </select>
         <div class="form-text small">Pilih komponen rincian. <?= $posSlug !== '' ? '<span class="text-primary"><i class="fa-solid fa-filter"></i> Aktif</span>' : '' ?></div>
     </div>
+    <div class="col-12 col-md-3">
+        <label class="form-label small mb-0">Cari nama / NIS</label>
+        <input class="form-control form-control-sm" type="search" name="q" value="<?= htmlspecialchars($q) ?>" placeholder="Ketik nama atau NIS…" autocomplete="off">
+    </div>
     <div class="col-12 col-md-4">
         <label class="form-label small mb-0">Santri</label>
-        <select class="form-select form-select-sm" name="santri_id">
+        <select class="form-select form-select-sm santri-select-searchable" name="santri_id"
+            data-santri-ajax="1"
+            data-santri-search-url="<?= htmlspecialchars(app_href('/api/keuangan/santri_search.php')) ?>"
+            data-search-placeholder="Ketik nama atau NIS santri…">
             <option value="0">Semua santri</option>
-            <?php foreach ($santriPick as $sp): ?>
-                <option value="<?= (int) $sp['id'] ?>" <?= $santriId === (int) $sp['id'] ? 'selected' : '' ?>>
-                    <?= htmlspecialchars((string) $sp['nama_santri']) ?> (<?= htmlspecialchars((string) $sp['nis']) ?>)
+            <?php if (is_array($santriSelected)): ?>
+                <option value="<?= (int) $santriSelected['id'] ?>" selected>
+                    <?= htmlspecialchars((string) ($santriSelected['nis'] ?: '-')) ?> — <?= htmlspecialchars((string) $santriSelected['nama_santri']) ?>
                 </option>
-            <?php endforeach; ?>
+            <?php endif; ?>
         </select>
+    </div>
+    <div class="col-12 col-md-3 d-flex align-items-end">
+        <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" name="semua_periode" value="1" id="semua_periode" <?= $semuaPeriode || $semuaPeriodeAktif ? 'checked' : '' ?>>
+            <label class="form-check-label small" for="semua_periode">Semua periode TA aktif</label>
+        </div>
     </div>
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Maks. baris</label>

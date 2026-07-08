@@ -52,7 +52,8 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Ringkasan kas per bulan tagihan TA <?= htmlspecialchars((string) $rekap['ta_label']) ?>
         sampai <strong><?= htmlspecialchars((string) $rekap['bulan_berjalan_label']) ?></strong>.
-        Kolom ungu <strong>Dana tagihan</strong> = target menurut pengaturan tarif &amp; santri baru/lama.
+        Kas masuk &amp; keluar diperinci <strong>Syahriyah</strong>, <strong>Makan</strong>, <strong>Saku</strong>, <strong>Awal Tahun</strong>.
+        Klik angka untuk melihat detail transaksi.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan keuangan</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/rekap_pos.php')) ?>">Rekap per POS</a>
     </p>
@@ -83,6 +84,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
                 <a class="btn btn-outline-secondary" href="/keuangan/rekap-kas-bulan.php?tm=<?= (int) $rekap['tahun_mulai'] ?>&amp;ts=<?= (int) $rekap['tahun_selesai'] ?>&amp;bulan=<?= (int) $rekap['bulan_berjalan'] ?>&amp;print=1" target="_blank">Cetak / PDF</a>
                 <a class="btn btn-outline-primary" href="/keuangan/arus-kas.php">Arus kas</a>
+                <a class="btn btn-outline-primary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href()) ?>">Riwayat masuk &amp; keluar</a>
                 <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
             </div>
         </form>
@@ -210,9 +212,8 @@ $wajibSet = is_array($tagihanTa['pengaturan'] ?? null) ? $tagihanTa['pengaturan'
         <p class="small text-muted mt-3 mb-0">
             <strong>Petunjuk:</strong>
             <span class="d-inline-block me-2"><span class="badge" style="background:#dcfce7;color:#166534">Hijau</span> = kas masuk riil</span>
-            <span class="d-inline-block me-2"><span class="badge" style="background:#ede9fe;color:#5b21b6">Ungu</span> = target tagihan (harus masuk menurut tarif &amp; santri baru/lama)</span>
-            <span class="d-inline-block me-2"><span class="badge" style="background:#fee2e2;color:#b91c1c">Merah</span> = kas keluar</span>
-            Target tagihan ≠ kas masuk jika ada tunggakan, pembayaran di bulan lain, atau pemasukan non-tagihan.
+            <span class="d-inline-block me-2"><span class="badge" style="background:#ede9fe;color:#5b21b6">Ungu</span> = status tagihan (terbayar / sisa)</span>
+            <span class="d-inline-block me-2"><span class="badge" style="background:#fee2e2;color:#b91c1c">Merah</span> = kas keluar per sumber dana</span>
         </p>
     </div>
 </div>

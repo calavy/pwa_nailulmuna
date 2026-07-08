@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/keuangan_riwayat_pembayaran.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -207,10 +208,18 @@ require_once __DIR__ . '/../includes/header.php';
                         <span class="text-muted">Bersih</span>
                         <span class="fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['bersih'] ?? 0))) ?></span>
                     </div>
+                    <div class="small mt-2">
+                        <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href(date('Y-m-d'), date('Y-m-d'))) ?>">Rekap masuk &amp; keluar hari ini</a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <?php
+    $checklistKas = keuangan_dashboard_checklist_kas($dashSnap);
+    require __DIR__ . '/partials/checklist_kas_bulanan.php';
+    ?>
 
     <?php if ($selisihRekapKas !== 0 || $selisihSakuCashless !== 0 || $transaksiTanpaAkun > 0): ?>
     <div class="alert alert-warning py-2 small mb-3">

@@ -8,6 +8,8 @@ require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 require_once __DIR__ . '/keuangan_aruskas.php';
 require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
+require_once __DIR__ . '/keuangan_riwayat_pembayaran.php';
+require_once __DIR__ . '/keuangan_alokasi.php';
 
 /**
  * Rekap kas masuk/keluar & saldo per bulan tagihan TA (1 s.d. bulan berjalan).
@@ -73,11 +75,19 @@ function keuangan_build_rekap_kas_bulanan(
     $today = date('Y-m-d');
     $baris = [];
     $totals = [
-        'masuk_iuran' => 0,
+        'masuk_syahriyah' => 0,
+        'masuk_makan' => 0,
         'masuk_saku' => 0,
+        'masuk_awal_tahun' => 0,
+        'masuk_lain_bayar' => 0,
         'masuk_donasi' => 0,
         'masuk_lain' => 0,
         'masuk_total' => 0,
+        'keluar_syahriyah' => 0,
+        'keluar_makan' => 0,
+        'keluar_saku' => 0,
+        'keluar_awal_tahun' => 0,
+        'keluar_lain' => 0,
         'keluar' => 0,
         'bersih' => 0,
     ];
@@ -101,22 +111,32 @@ function keuangan_build_rekap_kas_bulanan(
         }
 
         $mutasi = keuangan_rekap_kas_mutasi_periode($pdo, $dari, $sampai);
+        $katMasuk = keuangan_riwayat_pembayaran_ringkasan_masuk_kategori($pdo, $dari, $sampai);
+        $katKeluar = keuangan_pengeluaran_ringkasan_kategori($pdo, $dari, $sampai, true);
         $saldoAwalBulan = $saldoBerjalan;
         $saldoAkhirBulan = $saldoAwalBulan + (int) $mutasi['bersih'];
         $saldoFisik = keuangan_aruskas_total_kas($pdo, $sampai);
 
-        $baris[] = [
+        $row = [
             'bulan' => $m,
             'label' => $label,
             'tanggal_dari' => $dari,
             'tanggal_sampai' => $sampai,
             'periode_teks' => $dari . ' s/d ' . $sampai,
             'saldo_awal' => $saldoAwalBulan,
-            'masuk_iuran' => (int) $mutasi['masuk_iuran'],
-            'masuk_saku' => (int) $mutasi['masuk_saku'],
+            'masuk_syahriyah' => (int) ($katMasuk['syahriyah'] ?? 0),
+            'masuk_makan' => (int) ($katMasuk['makan'] ?? 0),
+            'masuk_saku' => (int) ($katMasuk['saku'] ?? 0),
+            'masuk_awal_tahun' => (int) ($katMasuk['awal_tahun'] ?? 0),
+            'masuk_lain_bayar' => (int) ($katMasuk['lain'] ?? 0),
             'masuk_donasi' => (int) $mutasi['masuk_donasi'],
             'masuk_lain' => (int) $mutasi['masuk_lain'],
             'masuk_total' => (int) $mutasi['masuk_total'],
+            'keluar_syahriyah' => (int) ($katKeluar['syahriyah'] ?? 0),
+            'keluar_makan' => (int) ($katKeluar['makan'] ?? 0),
+            'keluar_saku' => (int) ($katKeluar['saku'] ?? 0),
+            'keluar_awal_tahun' => (int) ($katKeluar['awal_tahun'] ?? 0),
+            'keluar_lain' => (int) ($katKeluar['lain'] ?? 0),
             'keluar' => (int) $mutasi['keluar'],
             'bersih' => (int) $mutasi['bersih'],
             'saldo_akhir' => $saldoAkhirBulan,
@@ -124,9 +144,15 @@ function keuangan_build_rekap_kas_bulanan(
             'selisih_saldo' => $saldoFisik - $saldoAkhirBulan,
             'is_bulan_ini' => $m === $bulanBerjalan,
         ];
+        $baris[] = $row;
 
-        foreach (['masuk_iuran', 'masuk_saku', 'masuk_donasi', 'masuk_lain', 'masuk_total', 'keluar', 'bersih'] as $k) {
-            $totals[$k] += (int) $mutasi[$k];
+        foreach ([
+            'masuk_syahriyah', 'masuk_makan', 'masuk_saku', 'masuk_awal_tahun', 'masuk_lain_bayar',
+            'masuk_donasi', 'masuk_lain', 'masuk_total',
+            'keluar_syahriyah', 'keluar_makan', 'keluar_saku', 'keluar_awal_tahun', 'keluar_lain',
+            'keluar', 'bersih',
+        ] as $k) {
+            $totals[$k] += (int) ($row[$k] ?? 0);
         }
 
         $saldoBerjalan = $saldoAkhirBulan;
@@ -207,7 +233,11 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
     .rekap-kas-table .rekap-kas-col-periode { display: none; }
     .rekap-kas-table thead .rekap-kas-col-periode { display: none; }
 }
-@media print {
+.rekap-kas-table td.rekap-kas-masuk a.rekap-kas-link { color: inherit; border-bottom: 1px dotted currentColor; }
+.rekap-kas-table td.rekap-kas-masuk a.rekap-kas-link:hover { color: #0d6efd; }
+.rekap-kas-table td.rekap-kas-keluar a.rekap-kas-link { color: inherit; border-bottom: 1px dotted currentColor; }
+.rekap-kas-table td.rekap-kas-keluar a.rekap-kas-link:hover { color: #dc3545; }
+.rekap-kas-table td.rekap-kas-keluar-total { font-weight: 700; }
     .rekap-kas-table { font-size: 8pt; min-width: 0; }
     .rekap-kas-table-wrap { border: none; }
     .rekap-kas-table thead th, .rekap-kas-table td.rekap-kas-masuk,
@@ -219,17 +249,22 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
 ';
 }
 
-function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, string $kind = 'neutral'): string
+function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, string $kind = 'neutral', ?string $href = null): string
 {
     if ($nominal === 0 && $kind !== 'saldo') {
         return '<span class="rekap-kas-zero">—</span>';
     }
     $text = htmlspecialchars($fmt($nominal));
     if ($kind === 'keluar' && $nominal !== 0) {
-        return '(' . $text . ')';
+        $inner = '(' . $text . ')';
+    } else {
+        $inner = $text;
+    }
+    if ($href !== null && $nominal !== 0) {
+        return '<a href="' . htmlspecialchars($href) . '" class="rekap-kas-link text-decoration-none" title="Lihat detail transaksi">' . $inner . '</a>';
     }
 
-    return $text;
+    return $inner;
 }
 
 /**
@@ -237,6 +272,9 @@ function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, strin
  */
 function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): void
 {
+    $colspanMasuk = 7;
+    $colspanKeluar = 5;
+
     echo '<div class="rekap-kas-table-wrap">';
     echo '<table class="table table-sm rekap-kas-table mb-0">';
     echo '<thead>';
@@ -244,22 +282,39 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<th rowspan="2" class="rekap-kas-col-bulan">Bulan</th>';
     echo '<th rowspan="2" class="rekap-kas-col-periode">Periode</th>';
     echo '<th rowspan="2" class="text-end rekap-kas-col-saldo">Saldo awal</th>';
-    echo '<th colspan="5" class="rekap-kas-grp-masuk">Kas masuk</th>';
-    echo '<th rowspan="2" class="text-end rekap-kas-grp-keluar">Kas keluar</th>';
+    echo '<th colspan="' . $colspanMasuk . '" class="rekap-kas-grp-masuk">Kas masuk</th>';
+    echo '<th colspan="' . $colspanKeluar . '" class="rekap-kas-grp-keluar">Kas keluar</th>';
     echo '<th rowspan="2" class="text-end rekap-kas-col-saldo">Saldo akhir</th>';
-    echo '<th colspan="4" class="rekap-kas-grp-tagihan">Dana tagihan (harus masuk)</th>';
+    echo '<th colspan="3" class="rekap-kas-grp-tagihan">Dana tagihan</th>';
     echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi kas</th>';
     echo '</tr>';
     echo '<tr class="rekap-kas-head-detail">';
-    echo '<th class="text-end">Iuran</th><th class="text-end">Saku</th>';
-    echo '<th class="text-end">Donasi</th><th class="text-end">Lain</th>';
-    echo '<th class="text-end">Total masuk</th>';
-    echo '<th class="text-end">Target</th><th class="text-end">Terbayar</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end">Saku</th>';
+    echo '<th class="text-end">Awal Tahun</th><th class="text-end">Donasi</th><th class="text-end">Lain</th><th class="text-end">Total masuk</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end">Saku</th>';
+    echo '<th class="text-end">Awal Tahun</th><th class="text-end">Total keluar</th>';
+    echo '<th class="text-end">Terbayar</th>';
     echo '<th class="text-end">Sisa</th><th class="text-end">Capai</th>';
     echo '<th class="text-end">Fisik</th><th class="text-end">Selisih</th>';
     echo '</tr></thead><tbody>';
 
     foreach ($rekap['baris'] ?? [] as $row) {
+        $dariBulan = (string) ($row['tanggal_dari'] ?? '');
+        $sampaiBulan = (string) ($row['tanggal_sampai'] ?? '');
+        $hrefSy = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', 'kat:syahriyah') : null;
+        $hrefMakan = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', 'kat:makan') : null;
+        $hrefSaku = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', 'kat:saku') : null;
+        $hrefAwal = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', 'kat:awal_tahun') : null;
+        $hrefKeluar = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'keluar', '') : null;
+        $hrefMasuk = $dariBulan !== '' && $sampaiBulan !== ''
+            ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', '') : null;
+        $lainMasuk = (int) ($row['masuk_lain_bayar'] ?? 0) + (int) ($row['masuk_lain'] ?? 0);
+
         $cls = !empty($row['is_bulan_ini']) ? ' class="bulan-ini"' : '';
         echo '<tr' . $cls . '>';
         echo '<td class="rekap-kas-col-bulan"><strong>' . htmlspecialchars((string) ($row['label'] ?? '')) . '</strong>';
@@ -269,14 +324,19 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
         echo '</td>';
         echo '<td class="rekap-kas-col-periode">' . htmlspecialchars((string) ($row['periode_teks'] ?? '')) . '</td>';
         echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_awal'] ?? 0), $fmt, 'saldo') . '</td>';
-        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_iuran'] ?? 0), $fmt) . '</td>';
-        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_saku'] ?? 0), $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefSy) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefMakan) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefSaku) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_awal_tahun'] ?? 0), $fmt, 'masuk', $hrefAwal) . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_donasi'] ?? 0), $fmt) . '</td>';
-        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_lain'] ?? 0), $fmt) . '</td>';
-        echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_total'] ?? 0), $fmt) . '</td>';
-        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal($lainMasuk, $fmt) . '</td>';
+        echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_total'] ?? 0), $fmt, 'masuk', $hrefMasuk) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_syahriyah'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_makan'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_awal_tahun'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
         echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
-        echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-target">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_target'] ?? 0), $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-tagihan">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_terbayar'] ?? 0), $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-sisa">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_sisa'] ?? 0), $fmt) . '</td>';
         $pctTag = (int) ($row['tagihan_pct'] ?? 0);
@@ -291,17 +351,32 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
 
     $tot = $rekap['total'] ?? [];
     $tagTot = is_array($rekap['tagihan']['total'] ?? null) ? $rekap['tagihan']['total'] : [];
+    $barisAll = $rekap['baris'] ?? [];
+    $taDari = $barisAll !== [] ? (string) ($barisAll[0]['tanggal_dari'] ?? '') : '';
+    $taSampai = $barisAll !== [] ? (string) ($barisAll[count($barisAll) - 1]['tanggal_sampai'] ?? '') : '';
+    $hrefTaSy = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:syahriyah') : null;
+    $hrefTaMakan = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:makan') : null;
+    $hrefTaSaku = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:saku') : null;
+    $hrefTaAwal = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:awal_tahun') : null;
+    $hrefTaKeluar = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'keluar', '') : null;
+    $hrefTaMasuk = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', '') : null;
+    $lainTa = (int) ($tot['masuk_lain_bayar'] ?? 0) + (int) ($tot['masuk_lain'] ?? 0);
     echo '</tbody><tfoot><tr>';
     echo '<td class="rekap-kas-col-bulan" colspan="2">Jumlah bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . '</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_awal_ta'] ?? 0), $fmt, 'saldo') . '</td>';
-    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_iuran'] ?? 0), $fmt) . '</td>';
-    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_saku'] ?? 0), $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefTaSy) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefTaMakan) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefTaSaku) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_awal_tahun'] ?? 0), $fmt, 'masuk', $hrefTaAwal) . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_donasi'] ?? 0), $fmt) . '</td>';
-    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_lain'] ?? 0), $fmt) . '</td>';
-    echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_total'] ?? 0), $fmt) . '</td>';
-    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar'] ?? 0), $fmt, 'keluar') . '</td>';
+    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal($lainTa, $fmt) . '</td>';
+    echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_total'] ?? 0), $fmt, 'masuk', $hrefTaMasuk) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_syahriyah'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_makan'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_awal_tahun'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
-    echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-target">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['expected'] ?? 0), $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-tagihan">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['paid'] ?? 0), $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-sisa">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tagTot['sisa'] ?? 0), $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-tagihan">' . ((int) ($tagTot['pct'] ?? 0) > 0 ? htmlspecialchars((string) (int) ($tagTot['pct'] ?? 0)) . '%' : '—') . '</td>';

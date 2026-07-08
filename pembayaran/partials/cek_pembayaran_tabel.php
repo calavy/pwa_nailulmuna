@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+if (!function_exists('keuangan_cek_pembayaran_row_perlu_bayar')) {
+    require_once __DIR__ . '/../../helpers/keuangan_cek_pembayaran.php';
+}
+
 /** @var string $jenis */
 /** @var int $totalRows */
 /** @var int $page */
@@ -175,7 +179,14 @@ $isAwal = $jenis === 'awal_tahun';
                                 </td>
                             <?php endif; ?>
                             <td class="text-end">
-                                <a href="<?= htmlspecialchars($payUrl) ?>" class="btn btn-success btn-sm">Bayar</a>
+                                <?php
+                                $perluBayar = keuangan_cek_pembayaran_row_perlu_bayar($r);
+                                if ($perluBayar):
+                                    ?>
+                                    <a href="<?= htmlspecialchars($payUrl) ?>" class="btn btn-success btn-sm">Bayar</a>
+                                <?php else: ?>
+                                    <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_url_santri($sid)) ?>" class="btn btn-outline-secondary btn-sm">Riwayat</a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

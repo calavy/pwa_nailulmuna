@@ -229,6 +229,19 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     $kasSaldoMode = keuangan_kas_saldo_mode($pdo);
     $kasTotalOpening = keuangan_kas_total_opening_balance($pdo);
     $transaksiTanpaAkun = keuangan_count_transaksi_tanpa_akun($pdo, $today);
+    $sakuAuditSantri = 0;
+    $sakuOrphanCount = 0;
+    if (!function_exists('keuangan_saku_cashless_audit_per_santri_count')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+    }
+    try {
+        $sakuAuditSantri = keuangan_saku_cashless_audit_per_santri_count($pdo);
+        if (function_exists('keuangan_pembayaran_list_saku_tanpa_topup')) {
+            $sakuOrphanCount = count(keuangan_pembayaran_list_saku_tanpa_topup($pdo, 5000));
+        }
+    } catch (Throwable $e) {
+        error_log('keuangan_dashboard_snapshot saku audit: ' . $e->getMessage());
+    }
 
     $tindakan = keuangan_dashboard_build_tindakan(
         $seimbang,
@@ -268,6 +281,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'selisih' => $selisih,
             'total_aset' => (int) ($neraca['aset']['total'] ?? 0),
             'total_pasiva' => (int) ($neraca['total_pasiva'] ?? 0),
+            'kas_neraca' => keuangan_neraca_total_kas_bank($neraca),
             'as_of_label' => (string) ($neraca['as_of_label'] ?? $today),
             'penyesuaian_neraca' => 0,
             'penyesuaian_besar' => false,
@@ -333,6 +347,8 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         'kas_saldo_mode_label' => keuangan_kas_saldo_mode_label($kasSaldoMode),
         'kas_total_opening' => $kasTotalOpening,
         'transaksi_tanpa_akun' => $transaksiTanpaAkun,
+        'saku_audit_santri' => $sakuAuditSantri,
+        'saku_orphan' => $sakuOrphanCount,
         'tindakan' => $tindakan,
     ];
 }
@@ -577,4 +593,115 @@ function keuangan_dashboard_build_tindakan(
     }
 
     return $out;
+}
+
+/** Total kas & bank dari bagian neraca "Kas dan Setara Kas". */
+function keuangan_neraca_total_kas_bank(array $neraca): int
+{
+    foreach ((array) ($neraca['aset']['sections'] ?? []) as $sec) {
+        $judul = (string) ($sec['judul'] ?? '');
+        if (stripos($judul, 'Kas') !== false) {
+            return (int) ($sec['subtotal'] ?? 0);
+        }
+    }
+
+    return 0;
+}
+
+/** Toleransi selisih checklist kas dashboard (Rp). */
+function keuangan_dashboard_checklist_kas_toleransi(): int
+{
+    return 1000;
+}
+
+/**
+ * Checklist 3 angka kas untuk panel dashboard.
+ *
+ * @return array<string, mixed>
+ */
+function keuangan_dashboard_checklist_kas(array $dashSnap): array
+{
+    $tol = keuangan_dashboard_checklist_kas_toleransi();
+    $kasBank = is_array($dashSnap['kas_bank'] ?? null) ? $dashSnap['kas_bank'] : [];
+    $rekap = is_array($dashSnap['rekap_kas'] ?? null) ? $dashSnap['rekap_kas'] : [];
+    $ner = is_array($dashSnap['neraca'] ?? null) ? $dashSnap['neraca'] : [];
+    $kesehatan = is_array($dashSnap['kesehatan_neraca'] ?? null) ? $dashSnap['kesehatan_neraca'] : [];
+
+    $angkaDashboard = (int) ($kasBank['total'] ?? 0);
+    $angkaRekap = (int) ($rekap['saldo_akhir_uang_nyata'] ?? $rekap['saldo_akhir_fisik'] ?? 0);
+    $angkaNeraca = (int) ($ner['kas_neraca'] ?? 0);
+
+    $selisihDashboardRekap = $angkaDashboard - $angkaRekap;
+    $selisihDashboardNeraca = $angkaDashboard - $angkaNeraca;
+    $selisihRekapNeraca = $angkaRekap - $angkaNeraca;
+
+    $cocok = static fn(int $a, int $b): bool => abs($a - $b) < $tol;
+
+    $transaksiTanpaAkun = (int) ($dashSnap['transaksi_tanpa_akun'] ?? 0);
+    $sakuAuditSantri = (int) ($dashSnap['saku_audit_santri'] ?? 0);
+    $sakuOrphanCount = (int) ($dashSnap['saku_orphan'] ?? 0);
+    $selisihRekapKas = (int) ($rekap['selisih_saldo'] ?? 0);
+    $selisihSakuCashless = (int) ($kesehatan['selisih_saku_cashless'] ?? 0);
+    $neracaSeimbang = !empty($ner['seimbang']);
+    $neracaSehat = !empty($ner['sehat']);
+
+    $semuaCocok = $cocok($angkaDashboard, $angkaRekap)
+        && $cocok($angkaDashboard, $angkaNeraca)
+        && $cocok($angkaRekap, $angkaNeraca)
+        && $transaksiTanpaAkun === 0
+        && abs($selisihSakuCashless) < $tol
+        && $sakuAuditSantri === 0;
+
+    $sakuAuditLabel = 'Backfill top-up saku (cashless) jika pembayaran saku belum masuk saldo';
+    if ($sakuAuditSantri > 0) {
+        $sakuAuditLabel .= ' — ' . $sakuAuditSantri . ' santri tidak selaras';
+    } elseif ($sakuOrphanCount > 0) {
+        $sakuAuditLabel .= ' — ' . $sakuOrphanCount . ' pembayaran tanpa top-up';
+    }
+
+    $langkah = [
+        [
+            'label' => 'Perbaikan Kas — transaksi tanpa akun, dobel, nominal berlebih',
+            'href' => app_href('/keuangan/perbaikan-kas.php'),
+            'selesai' => $transaksiTanpaAkun === 0 && abs($selisihRekapKas) < $tol,
+        ],
+        [
+            'label' => $sakuAuditLabel,
+            'href' => app_href('/keuangan/perbaikan-kas.php#saku-audit-santri'),
+            'selesai' => abs($selisihSakuCashless) < $tol && $sakuAuditSantri === 0 && $sakuOrphanCount === 0,
+        ],
+        [
+            'label' => 'Rekap kas bulanan — bandingkan saldo hitung vs uang nyata',
+            'href' => app_href('/keuangan/rekap-kas-bulan.php'),
+            'selesai' => abs($selisihRekapKas) < $tol,
+        ],
+        [
+            'label' => 'Neraca perbaikan — jika aktiva ≠ pasiva atau selisih saku',
+            'href' => app_href('/keuangan/neraca-perbaikan.php'),
+            'selesai' => $neracaSeimbang && $neracaSehat,
+        ],
+        [
+            'label' => 'Riwayat pembayaran — audit transaksi per santri',
+            'href' => app_href('/pembayaran/riwayat.php'),
+            'selesai' => null,
+        ],
+    ];
+
+    return [
+        'toleransi' => $tol,
+        'angka_dashboard' => $angkaDashboard,
+        'angka_rekap' => $angkaRekap,
+        'angka_neraca' => $angkaNeraca,
+        'selisih_dashboard_rekap' => $selisihDashboardRekap,
+        'selisih_dashboard_neraca' => $selisihDashboardNeraca,
+        'selisih_rekap_neraca' => $selisihRekapNeraca,
+        'cocok_dashboard_rekap' => $cocok($angkaDashboard, $angkaRekap),
+        'cocok_dashboard_neraca' => $cocok($angkaDashboard, $angkaNeraca),
+        'cocok_rekap_neraca' => $cocok($angkaRekap, $angkaNeraca),
+        'semua_cocok' => $semuaCocok,
+        'langkah' => $langkah,
+        'rekap_ta_label' => (string) ($rekap['ta_label'] ?? ''),
+        'neraca_as_of' => (string) ($ner['as_of_label'] ?? ''),
+        'kas_as_of' => (string) ($kasBank['as_of_label'] ?? ''),
+    ];
 }

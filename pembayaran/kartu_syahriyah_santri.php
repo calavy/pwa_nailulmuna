@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/keuangan_kartu_syahriyah.php';
+require_once __DIR__ . '/../helpers/keuangan_cek_pembayaran.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 
 require_roles(['admin', 'pengurus']);
@@ -122,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="mt-2">
                 <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?santri_id=' . $santriId)) ?>">Input pembayaran</a>
-                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/pembayaran/riwayat.php?santri_id=' . $santriId)) ?>">Riwayat</a>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_url_santri($santriId)) ?>">Riwayat</a>
             </div>
         </div>
     </div>

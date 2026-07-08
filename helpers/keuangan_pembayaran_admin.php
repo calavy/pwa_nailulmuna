@@ -191,22 +191,232 @@ function keuangan_pembayaran_list_saku_tanpa_topup(PDO $pdo, int $limit = 500): 
 }
 
 /**
- * @return array{ok:bool,processed:int,success:int,failed:int,message:string,rows:list<array<string,mixed>>}
+ * Audit per santri: bandingkan pembayaran pos Saku vs TOPUP cashless terkait.
+ *
+ * @return list<array{
+ *   santri_id:int,
+ *   nama_santri:string,
+ *   jumlah_pembayaran_saku:int,
+ *   jumlah_topup_terkait:int,
+ *   total_nominal_saku:int,
+ *   total_topup_terkait:int,
+ *   selisih:int,
+ *   perlu_perbaikan:bool
+ * }>
  */
-function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dryRun = true, int $limit = 500): array
+function keuangan_saku_cashless_audit_per_santri(PDO $pdo, ?string $q = null, bool $hanyaTidakSelaras = true, int $limit = 500): array
 {
-    $orphans = keuangan_pembayaran_list_saku_tanpa_topup($pdo, $limit);
+    if (!table_exists($pdo, 'keuangan_pembayaran_detail') || !table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    if (!table_exists($pdo, 'cashless_transactions') || !column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        return [];
+    }
+
+    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+    $params = [];
+    $whereQ = '';
+    $qTrim = $q !== null ? trim($q) : '';
+    if ($qTrim !== '') {
+        $whereQ = ' AND ' . $nameExpr . ' LIKE :q ';
+        $params['q'] = '%' . $qTrim . '%';
+    }
+
+    $sql = "
+        SELECT sub.santri_id, sub.nama_santri,
+               COUNT(*) AS jumlah_pembayaran_saku,
+               SUM(CASE WHEN sub.punya_topup = 1 THEN 1 ELSE 0 END) AS jumlah_topup_terkait,
+               COALESCE(SUM(sub.nominal_saku), 0) AS total_nominal_saku,
+               COALESCE(SUM(sub.nominal_topup), 0) AS total_topup_terkait
+        FROM (
+            SELECT p.id AS pembayaran_id, p.santri_id, {$nameExpr} AS nama_santri,
+                   COALESCE(SUM(d.nominal), 0) AS nominal_saku,
+                   MAX(CASE WHEN ct.id IS NOT NULL THEN 1 ELSE 0 END) AS punya_topup,
+                   COALESCE(MAX(ct.nominal), 0) AS nominal_topup
+            FROM keuangan_pembayaran_detail d
+            INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+            INNER JOIN santri s ON s.id = p.santri_id
+            LEFT JOIN cashless_transactions ct
+                ON ct.ref_pembayaran_id = p.id AND UPPER(ct.jenis) = 'TOPUP'
+            WHERE LOWER(TRIM(d.pos_slug)) = 'saku' AND d.nominal > 0{$whereQ}
+            GROUP BY p.id, p.santri_id, {$nameExpr}
+        ) sub
+        GROUP BY sub.santri_id, sub.nama_santri
+    ";
+    if ($hanyaTidakSelaras) {
+        $sql .= '
+        HAVING COUNT(*) > SUM(CASE WHEN sub.punya_topup = 1 THEN 1 ELSE 0 END)
+            OR COALESCE(SUM(sub.nominal_saku), 0) <> COALESCE(SUM(sub.nominal_topup), 0)
+        ';
+    }
+    $sql .= ' ORDER BY (COUNT(*) - SUM(CASE WHEN sub.punya_topup = 1 THEN 1 ELSE 0 END)) DESC,
+        (COALESCE(SUM(sub.nominal_saku), 0) - COALESCE(SUM(sub.nominal_topup), 0)) DESC,
+        sub.nama_santri ASC';
+    $sql .= ' LIMIT ' . max(1, min(5000, $limit));
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $raw = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $out = [];
+    foreach ($raw as $row) {
+        $totalSaku = (int) round((float) ($row['total_nominal_saku'] ?? 0));
+        $totalTopup = (int) round((float) ($row['total_topup_terkait'] ?? 0));
+        $jumlahBayar = (int) ($row['jumlah_pembayaran_saku'] ?? 0);
+        $jumlahTopup = (int) ($row['jumlah_topup_terkait'] ?? 0);
+        $selisih = $totalSaku - $totalTopup;
+        $perlu = $jumlahBayar > $jumlahTopup || $selisih !== 0;
+        if ($hanyaTidakSelaras && !$perlu) {
+            continue;
+        }
+        $out[] = [
+            'santri_id' => (int) ($row['santri_id'] ?? 0),
+            'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+            'jumlah_pembayaran_saku' => $jumlahBayar,
+            'jumlah_topup_terkait' => $jumlahTopup,
+            'total_nominal_saku' => $totalSaku,
+            'total_topup_terkait' => $totalTopup,
+            'selisih' => $selisih,
+            'perlu_perbaikan' => $perlu,
+        ];
+    }
+
+    return $out;
+}
+
+/** Jumlah santri dengan ketidaksesuaian pembayaran saku vs top-up cashless. */
+function keuangan_saku_cashless_audit_per_santri_count(PDO $pdo): int
+{
+    return count(keuangan_saku_cashless_audit_per_santri($pdo, null, true, 5000));
+}
+
+/**
+ * Rincian setiap pembayaran saku santri vs top-up cashless terkait.
+ *
+ * @return list<array{
+ *   pembayaran_id:int,
+ *   tanggal_bayar:string,
+ *   nominal_saku:int,
+ *   topup_id:int,
+ *   topup_nominal:int,
+ *   punya_topup:bool
+ * }>
+ */
+function keuangan_saku_cashless_audit_detail_santri(PDO $pdo, int $santriId): array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'keuangan_pembayaran_detail') || !table_exists($pdo, 'keuangan_pembayaran')) {
+        return [];
+    }
+
+    $ctJoin = '';
+    $topupIdExpr = '0';
+    $topupNomExpr = '0';
+    if (table_exists($pdo, 'cashless_transactions') && column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        $ctJoin = ' LEFT JOIN cashless_transactions ct ON ct.ref_pembayaran_id = p.id AND UPPER(ct.jenis) = \'TOPUP\' ';
+        $topupIdExpr = 'MAX(ct.id)';
+        $topupNomExpr = 'COALESCE(MAX(ct.nominal), 0)';
+    }
+
+    $sql = "
+        SELECT p.id AS pembayaran_id, p.tanggal_bayar,
+               COALESCE(SUM(d.nominal), 0) AS nominal_saku,
+               {$topupIdExpr} AS topup_id,
+               {$topupNomExpr} AS topup_nominal
+        FROM keuangan_pembayaran_detail d
+        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+        {$ctJoin}
+        WHERE p.santri_id = :santri_id
+          AND LOWER(TRIM(d.pos_slug)) = 'saku' AND d.nominal > 0
+        GROUP BY p.id, p.tanggal_bayar
+        ORDER BY p.tanggal_bayar ASC, p.id ASC
+    ";
+    $st = $pdo->prepare($sql);
+    $st->execute(['santri_id' => $santriId]);
+    $raw = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $out = [];
+    foreach ($raw as $row) {
+        $topupId = (int) ($row['topup_id'] ?? 0);
+        $out[] = [
+            'pembayaran_id' => (int) ($row['pembayaran_id'] ?? 0),
+            'tanggal_bayar' => (string) ($row['tanggal_bayar'] ?? ''),
+            'nominal_saku' => (int) round((float) ($row['nominal_saku'] ?? 0)),
+            'topup_id' => $topupId,
+            'topup_nominal' => (int) round((float) ($row['topup_nominal'] ?? 0)),
+            'punya_topup' => $topupId > 0,
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * Backfill top-up cashless hanya untuk pembayaran saku orphan satu santri.
+ *
+ * @return array{ok:bool,success:int,failed:int,synced:int,message:string}
+ */
+function keuangan_pembayaran_backfill_saku_santri(PDO $pdo, int $santriId, int $userId): array
+{
+    if ($santriId <= 0) {
+        return ['ok' => false, 'success' => 0, 'failed' => 0, 'synced' => 0, 'message' => 'Santri tidak valid.'];
+    }
+
+    $success = 0;
+    $failed = 0;
+    foreach (keuangan_pembayaran_list_saku_tanpa_topup($pdo, 5000) as $orphan) {
+        if ((int) ($orphan['santri_id'] ?? 0) !== $santriId) {
+            continue;
+        }
+        $pembayaranId = (int) ($orphan['pembayaran_id'] ?? 0);
+        if ($pembayaranId <= 0) {
+            continue;
+        }
+        $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
+        $detailRows = keuangan_pembayaran_detail_rows_normalize(is_array($fetch['details'] ?? null) ? $fetch['details'] : []);
+        $applied = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+        if ($applied || keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId)) {
+            $success++;
+        } else {
+            $failed++;
+        }
+    }
+
+    $synced = 0;
+    if ($success > 0) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        cashless_sync_account_balance($pdo, $santriId);
+        $synced = 1;
+    }
+
+    $msg = $success > 0
+        ? $success . ' top-up dibuat untuk santri ini' . ($failed > 0 ? ', ' . $failed . ' gagal' : '') . '.'
+        : ($failed > 0 ? 'Backfill gagal untuk ' . $failed . ' pembayaran.' : 'Tidak ada pembayaran saku tanpa top-up untuk santri ini.');
+
+    return [
+        'ok' => $failed === 0 && $success >= 0,
+        'success' => $success,
+        'failed' => $failed,
+        'synced' => $synced,
+        'message' => $msg,
+    ];
+}
+
+/**
+ * @return array{ok:bool,processed:int,success:int,failed:int,remaining:int,batches:int,synced:int,message:string,rows:list<array<string,mixed>>}
+ */
+function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dryRun = true, int $limit = 500, int $maxBatches = 10): array
+{
     $rows = [];
     $success = 0;
     $failed = 0;
+    $batches = 0;
+    $synced = 0;
 
-    foreach ($orphans as $orphan) {
+    $processOrphan = static function (array $orphan) use ($pdo, $userId, $dryRun, &$rows, &$success, &$failed): void {
         $pembayaranId = (int) ($orphan['pembayaran_id'] ?? 0);
         $santriId = (int) ($orphan['santri_id'] ?? 0);
         $nominalSaku = (int) round((float) ($orphan['nominal_saku'] ?? 0));
         $nama = (string) ($orphan['nama_santri'] ?? '');
         if ($pembayaranId <= 0 || $santriId <= 0) {
-            continue;
+            return;
         }
 
         if ($dryRun) {
@@ -218,7 +428,8 @@ function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dr
                 'status' => 'DRY_RUN',
             ];
             $success++;
-            continue;
+
+            return;
         }
 
         $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
@@ -239,18 +450,62 @@ function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dr
             'nominal_saku' => $nominalSaku,
             'status' => $status,
         ];
+    };
+
+    if ($dryRun) {
+        foreach (keuangan_pembayaran_list_saku_tanpa_topup($pdo, $limit) as $orphan) {
+            $processOrphan($orphan);
+        }
+    } else {
+        while ($batches < max(1, $maxBatches)) {
+            $batch = keuangan_pembayaran_list_saku_tanpa_topup($pdo, $limit);
+            if ($batch === []) {
+                break;
+            }
+            $batches++;
+            foreach ($batch as $orphan) {
+                $processOrphan($orphan);
+            }
+            if (count($batch) < $limit) {
+                break;
+            }
+        }
     }
 
     $processed = count($rows);
-    $msg = $dryRun
-        ? 'Dry-run: ' . $processed . ' pembayaran saku tanpa top-up ditemukan.'
-        : 'Backfill selesai: ' . $success . ' berhasil, ' . $failed . ' gagal dari ' . $processed . ' pembayaran.';
+    $remainingList = keuangan_pembayaran_list_saku_tanpa_topup($pdo, 5000);
+    $remaining = count($remainingList);
+
+    if (!$dryRun && $success > 0) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        $synced = cashless_sync_all_account_balances($pdo);
+    }
+
+    if ($dryRun) {
+        $msg = 'Dry-run: ' . $processed . ' pembayaran saku tanpa top-up ditemukan.';
+    } else {
+        $msg = 'Backfill selesai: ' . $success . ' top-up dibuat, ' . $failed . ' gagal dari ' . $processed . ' pembayaran';
+        if ($batches > 1) {
+            $msg .= ' (' . $batches . ' batch)';
+        }
+        if ($synced > 0) {
+            $msg .= '; saldo ' . $synced . ' akun cashless disamakan';
+        }
+        if ($remaining > 0) {
+            $msg .= '. Masih ' . $remaining . ' pembayaran tertinggal — jalankan backfill lagi.';
+        } else {
+            $msg .= '. Semua pembayaran saku sudah punya top-up.';
+        }
+    }
 
     return [
-        'ok' => $dryRun ? $processed >= 0 : $failed === 0,
+        'ok' => $dryRun ? $processed >= 0 : ($failed === 0 && $remaining === 0),
         'processed' => $processed,
         'success' => $success,
         'failed' => $failed,
+        'remaining' => $remaining,
+        'batches' => $dryRun ? 0 : $batches,
+        'synced' => $synced,
         'message' => $msg,
         'rows' => $rows,
     ];

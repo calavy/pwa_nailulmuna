@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+if (!function_exists('keuangan_riwayat_pembayaran_url_santri')) {
+    require_once __DIR__ . '/../../helpers/keuangan_cek_pembayaran.php';
+}
+
 /** @var int $totalRows */
 /** @var int $page */
 /** @var int $totalPages */
@@ -143,7 +147,11 @@ declare(strict_types=1);
                             <?php elseif ($punyaTagihan): ?>
                                 <span class="badge text-bg-warning text-dark" title="Isi nomor WA wali di data santri">Tanpa no. WA</span>
                             <?php endif; ?>
-                            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?santri_id=' . (int) $r['id'] . '&bulan=' . (int) $bulanTagihan . '&mode=BULANAN&mulai=1')) ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
+                            <?php if ($punyaTagihan): ?>
+                                <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?santri_id=' . (int) $r['id'] . '&bulan=' . (int) $bulanTagihan . '&mode=BULANAN&mulai=1')) ?>"><i class="fa-solid fa-money-bill-wave me-1"></i> Bayar</a>
+                            <?php else: ?>
+                                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_url_santri((int) $r['id'])) ?>"><i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat</a>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr class="tagihan-row-detail d-none" id="tagihan-detail-<?= (int) $r['id'] ?>" data-parent="<?= (int) $r['id'] ?>">

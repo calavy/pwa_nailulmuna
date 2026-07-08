@@ -12,6 +12,7 @@ require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/keuangan_riwayat_pembayaran.php';
 require_once __DIR__ . '/../helpers/keuangan_pengeluaran_riwayat.php';
 require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
+require_once __DIR__ . '/../helpers/keuangan_cek_pembayaran.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -21,6 +22,10 @@ $filter = keuangan_riwayat_pembayaran_parse_filter($_GET);
 $isSuperAdmin = is_super_admin();
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 $redirectQs = keuangan_riwayat_pembayaran_query_string($filter);
+$filterAktif = $filter['arah'] !== ''
+    || trim((string) $filter['pos']) !== ''
+    || (int) ($filter['santri_id'] ?? 0) > 0
+    || trim((string) ($filter['q'] ?? '')) !== '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSuperAdmin) {
     $action = (string) ($_POST['action'] ?? '');
@@ -29,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSuperAdmin) {
         'sampai' => (string) ($_POST['_filter_sampai'] ?? $filter['sampai']),
         'arah' => (string) ($_POST['_filter_arah'] ?? $filter['arah']),
         'pos' => (string) ($_POST['_filter_pos'] ?? $filter['pos']),
+        'santri_id' => (string) ($_POST['_filter_santri_id'] ?? $filter['santri_id']),
+        'q' => (string) ($_POST['_filter_q'] ?? $filter['q']),
     ]);
     $backQs = keuangan_riwayat_pembayaran_query_string($postFilter);
 
@@ -50,26 +57,70 @@ $data = keuangan_riwayat_pembayaran_fetch($pdo, $filter);
 $rows = $data['rows'];
 $posOptions = keuangan_riwayat_pembayaran_pos_options($pdo);
 $periodeLabel = keuangan_riwayat_pembayaran_label_periode($filter['dari'], $filter['sampai']);
+$filterLabel = keuangan_riwayat_pembayaran_filter_label($filter, $posOptions);
+
+$santriSelected = null;
+if ((int) ($filter['santri_id'] ?? 0) > 0) {
+    ensure_santri_identity_columns($pdo);
+    $stSantri = $pdo->prepare('SELECT id, nis, nama_santri FROM santri WHERE id = :id LIMIT 1');
+    $stSantri->execute(['id' => (int) $filter['santri_id']]);
+    $santriSelected = $stSantri->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (is_array($santriSelected)) {
+        $filterLabel = preg_replace(
+            '/Santri #\d+/',
+            trim((string) ($santriSelected['nis'] ?: '')) . ' — ' . (string) ($santriSelected['nama_santri'] ?? 'Santri'),
+            $filterLabel
+        ) ?? $filterLabel;
+    }
+}
 
 $editKeluarId = $isSuperAdmin ? (int) ($_GET['edit_keluar'] ?? 0) : 0;
 $editKeluarRow = $editKeluarId > 0 ? keuangan_pengeluaran_get($pdo, $editKeluarId) : null;
 $akunRows = keuangan_fetch_akun_aktif($pdo);
 $alokasiPengeluaranOpts = keuangan_pengeluaran_alokasi_options($pdo);
 
-$pageTitle = 'Riwayat Pembayaran';
+$pageTitle = 'Riwayat Masuk & Keluar';
 $bodyClass = keuangan_body_class('keuangan-form-page');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Keuangan · Transaksi</p>
-    <h1 class="h4 mb-1">Riwayat Masuk & Keluar</h1>
+    <h1 class="h4 mb-1">
+        Riwayat Masuk &amp; Keluar
+        <?php if ($filterAktif): ?>
+            <span class="badge bg-primary ms-1"><?= htmlspecialchars($filterLabel !== '' ? $filterLabel : 'Filter aktif') ?></span>
+        <?php endif; ?>
+    </h1>
     <p class="text-muted mb-0 small">
-        Uang <strong>masuk</strong> dari pembayaran santri dan <strong>keluar</strong> dari pengeluaran kas.
-        Filter per rentang tanggal dan pos keuangan.
+        Filter per <strong>pos</strong> (Syahriyah, Makan, Saku, Awal Tahun, atau pos keluar) dan cari berdasarkan <strong>santri</strong>.
+        Ringkasan bulanan:
+        <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">Rekap kas bulanan</a>.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>
         · <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a>
     </p>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <span class="small text-muted align-self-center me-1">Filter cepat:</span>
+    <?php foreach (keuangan_riwayat_pembayaran_kategori_masuk_utama() as $kat): ?>
+        <?php
+        $posKat = (string) ($kat['pos'] ?? '');
+        $aktifChip = $filter['arah'] === 'masuk' && $filter['pos'] === $posKat
+            && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '';
+        ?>
+        <a class="btn btn-sm <?= $aktifChip ? 'btn-primary' : 'btn-outline-primary' ?>"
+           href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $posKat)) ?>">
+            <?= htmlspecialchars((string) ($kat['label'] ?? '')) ?>
+        </a>
+    <?php endforeach; ?>
+    <a class="btn btn-sm <?= $filter['arah'] === 'masuk' && $filter['pos'] === '' && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '' ? 'btn-success' : 'btn-outline-success' ?>"
+       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', '')) ?>">Semua masuk</a>
+    <a class="btn btn-sm <?= $filter['arah'] === 'keluar' && $filter['pos'] === '' ? 'btn-danger' : 'btn-outline-danger' ?>"
+       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'keluar', '')) ?>">Semua keluar</a>
+    <?php if ($filterAktif): ?>
+    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], '', '')) ?>">Reset filter</a>
+    <?php endif; ?>
 </div>
 
 <?php if ($isSuperAdmin): ?>
@@ -80,24 +131,24 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <form method="get" class="row g-2 align-items-end mb-3">
-    <div class="col-md-2">
-        <label class="form-label small fw-semibold">Dari tanggal</label>
+    <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1">Dari tanggal</label>
         <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($filter['dari']) ?>" required>
     </div>
-    <div class="col-md-2">
-        <label class="form-label small fw-semibold">Sampai tanggal</label>
+    <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1">Sampai tanggal</label>
         <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($filter['sampai']) ?>" required>
     </div>
-    <div class="col-md-2">
-        <label class="form-label small fw-semibold">Arah</label>
+    <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1">Arah</label>
         <select name="arah" class="form-select form-select-sm">
-            <option value="" <?= $filter['arah'] === '' ? 'selected' : '' ?>>Semua (masuk & keluar)</option>
+            <option value="" <?= $filter['arah'] === '' ? 'selected' : '' ?>>Semua (masuk &amp; keluar)</option>
             <option value="masuk" <?= $filter['arah'] === 'masuk' ? 'selected' : '' ?>>Masuk saja</option>
             <option value="keluar" <?= $filter['arah'] === 'keluar' ? 'selected' : '' ?>>Keluar saja</option>
         </select>
     </div>
-    <div class="col-md-3">
-        <label class="form-label small fw-semibold text-primary">
+    <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold mb-1 text-primary">
             <i class="fa-solid fa-tags me-1"></i>Pos keuangan
         </label>
         <select name="pos" class="form-select form-select-sm border-primary-subtle">
@@ -125,7 +176,28 @@ require_once __DIR__ . '/../includes/header.php';
             ?>
         </select>
     </div>
-    <div class="col-md-2 d-flex gap-1">
+    <div class="col-12 col-md-3">
+        <label class="form-label small fw-semibold mb-1">Cari nama / NIS</label>
+        <input class="form-control form-control-sm" type="search" name="q"
+               value="<?= htmlspecialchars((string) ($filter['q'] ?? '')) ?>"
+               placeholder="Ketik nama atau NIS…" autocomplete="off">
+    </div>
+    <div class="col-12 col-md-4">
+        <label class="form-label small fw-semibold mb-1">Santri</label>
+        <select class="form-select form-select-sm santri-select-searchable" name="santri_id"
+            data-santri-ajax="1"
+            data-santri-search-url="<?= htmlspecialchars(app_href('/api/keuangan/santri_search.php')) ?>"
+            data-search-placeholder="Ketik nama atau NIS santri…">
+            <option value="0">Semua santri</option>
+            <?php if (is_array($santriSelected)): ?>
+                <option value="<?= (int) $santriSelected['id'] ?>" selected>
+                    <?= htmlspecialchars((string) ($santriSelected['nis'] ?: '-')) ?> — <?= htmlspecialchars((string) ($santriSelected['nama_santri'] ?? '')) ?>
+                </option>
+            <?php endif; ?>
+        </select>
+        <div class="form-text small">Filter santri menampilkan kas masuk saja.</div>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-1">
         <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>" title="Reset"><i class="fa-solid fa-rotate-left"></i></a>
     </div>
@@ -173,6 +245,8 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="_filter_sampai" value="<?= htmlspecialchars($filter['sampai']) ?>">
             <input type="hidden" name="_filter_arah" value="<?= htmlspecialchars($filter['arah']) ?>">
             <input type="hidden" name="_filter_pos" value="<?= htmlspecialchars($filter['pos']) ?>">
+            <input type="hidden" name="_filter_santri_id" value="<?= (int) ($filter['santri_id'] ?? 0) ?>">
+            <input type="hidden" name="_filter_q" value="<?= htmlspecialchars((string) ($filter['q'] ?? '')) ?>">
             <div class="col-md-3">
                 <label class="form-label small">Tanggal</label>
                 <input type="date" class="form-control form-control-sm" name="tanggal" value="<?= htmlspecialchars((string) $editKeluarRow['tanggal']) ?>" required>
@@ -237,6 +311,8 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="_filter_sampai" value="<?= htmlspecialchars($filter['sampai']) ?>">
             <input type="hidden" name="_filter_arah" value="<?= htmlspecialchars($filter['arah']) ?>">
             <input type="hidden" name="_filter_pos" value="<?= htmlspecialchars($filter['pos']) ?>">
+            <input type="hidden" name="_filter_santri_id" value="<?= (int) ($filter['santri_id'] ?? 0) ?>">
+            <input type="hidden" name="_filter_q" value="<?= htmlspecialchars((string) ($filter['q'] ?? '')) ?>">
             <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash-can me-1"></i> Hapus pengeluaran</button>
         </form>
     </div>
@@ -246,8 +322,8 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm">
     <div class="card-header fw-semibold small d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span>Transaksi <?= htmlspecialchars($periodeLabel) ?></span>
-        <?php if ($filter['arah'] !== '' || $filter['pos'] !== ''): ?>
-            <span class="badge text-bg-primary fw-normal">Filter aktif</span>
+        <?php if ($filterAktif): ?>
+            <span class="badge text-bg-primary fw-normal"><?= htmlspecialchars($filterLabel !== '' ? $filterLabel : 'Filter aktif') ?></span>
         <?php endif; ?>
     </div>
     <div class="card-body p-0 app-table-mobile">

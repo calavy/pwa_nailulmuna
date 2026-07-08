@@ -400,6 +400,119 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     return $out;
 }
 
+/**
+ * Peta nama alokasi → kategori kas keluar (syahriyah|makan|saku|awal_tahun).
+ *
+ * @return array<string, string>
+ */
+function keuangan_alokasi_nama_ke_kategori_map(PDO $pdo): array
+{
+    $map = [];
+    $jenisToKat = [
+        KEUNGAN_ALOKASI_JENIS_SYAHRIYAH => 'syahriyah',
+        KEUNGAN_ALOKASI_JENIS_MAKAN => 'makan',
+        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'awal_tahun',
+    ];
+    if (!table_exists($pdo, 'keuangan_alokasi')) {
+        return $map;
+    }
+    ensure_keuangan_alokasi_jenis_dana($pdo);
+    $sql = 'SELECT DISTINCT TRIM(nama_komponen) AS nama, jenis_dana FROM keuangan_alokasi WHERE TRIM(nama_komponen) <> \'\'';
+    $st = $pdo->query($sql);
+    foreach ($st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [] as $row) {
+        $nama = trim((string) ($row['nama'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $jenis = keuangan_alokasi_normalize_jenis((string) ($row['jenis_dana'] ?? KEUNGAN_ALOKASI_JENIS_SYAHRIYAH));
+        $map[$nama] = $jenisToKat[$jenis] ?? 'syahriyah';
+    }
+
+    return $map;
+}
+
+/** Klasifikasi alokasi/pos pengeluaran ke kategori (syahriyah|makan|saku|awal_tahun|lain). */
+function keuangan_pengeluaran_kategori_dari_alokasi(string $alokasiNama, string $pos = '', array $alokasiMap = []): string
+{
+    $alokasiNama = trim($alokasiNama);
+    if ($alokasiNama !== '' && isset($alokasiMap[$alokasiNama])) {
+        return (string) $alokasiMap[$alokasiNama];
+    }
+
+    $hay = strtolower($alokasiNama . ' ' . trim($pos));
+    if ($hay !== '' && (str_contains($hay, 'saku') || str_contains($hay, 'cashless') || str_contains($hay, 'titipan'))) {
+        return 'saku';
+    }
+    if ($hay !== '' && (str_contains($hay, 'makan') || str_contains($hay, 'gizi') || str_contains($hay, 'konsumsi'))) {
+        return 'makan';
+    }
+    if ($hay !== '' && (str_contains($hay, 'awal tahun') || str_contains($hay, 'pendaftaran') || str_contains($hay, 'registrasi'))) {
+        return 'awal_tahun';
+    }
+    if ($hay !== '' && (str_contains($hay, 'syahriyah') || str_contains($hay, 'iuran'))) {
+        return 'syahriyah';
+    }
+    if ($alokasiNama !== '') {
+        // Nama alokasi tidak di peta, tetapi ada — default ke syahriyah (sumber terbesar).
+        return 'syahriyah';
+    }
+
+    return 'lain';
+}
+
+/**
+ * Ringkasan kas keluar per kategori sumber dana dalam periode.
+ *
+ * @return array{syahriyah:int,makan:int,saku:int,awal_tahun:int,lain:int,total:int}
+ */
+function keuangan_pengeluaran_ringkasan_kategori(PDO $pdo, string $dari, string $sampai, bool $operasionalOnly = true): array
+{
+    $out = [
+        'syahriyah' => 0,
+        'makan' => 0,
+        'saku' => 0,
+        'awal_tahun' => 0,
+        'lain' => 0,
+        'total' => 0,
+    ];
+    if (!table_exists($pdo, 'keuangan_pengeluaran')) {
+        return $out;
+    }
+
+    $opsWhere = $operasionalOnly ? ' AND ' . keuangan_sql_pengeluaran_operasional_where() : '';
+    $map = keuangan_alokasi_nama_ke_kategori_map($pdo);
+    $hasAlokasi = column_exists($pdo, 'keuangan_pengeluaran', 'alokasi_nama');
+    $sql = $hasAlokasi
+        ? 'SELECT TRIM(COALESCE(alokasi_nama, \'\')) AS alokasi, TRIM(COALESCE(pos, \'\')) AS pos, COALESCE(SUM(nominal), 0) AS total
+           FROM keuangan_pengeluaran
+           WHERE tanggal BETWEEN :dari AND :sampai' . $opsWhere . '
+           GROUP BY TRIM(COALESCE(alokasi_nama, \'\')), TRIM(COALESCE(pos, \'\'))'
+        : 'SELECT \'\' AS alokasi, TRIM(COALESCE(pos, \'\')) AS pos, COALESCE(SUM(nominal), 0) AS total
+           FROM keuangan_pengeluaran
+           WHERE tanggal BETWEEN :dari AND :sampai' . $opsWhere . '
+           GROUP BY TRIM(COALESCE(pos, \'\'))';
+    $st = $pdo->prepare($sql);
+    $st->execute(['dari' => $dari, 'sampai' => $sampai]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $nom = (int) round((float) ($row['total'] ?? 0));
+        if ($nom === 0) {
+            continue;
+        }
+        $kat = keuangan_pengeluaran_kategori_dari_alokasi(
+            (string) ($row['alokasi'] ?? ''),
+            (string) ($row['pos'] ?? ''),
+            $map
+        );
+        if (!isset($out[$kat])) {
+            $kat = 'lain';
+        }
+        $out[$kat] += $nom;
+        $out['total'] += $nom;
+    }
+
+    return $out;
+}
+
 /** Validasi nama alokasi pengeluaran (wajib; harus dari daftar jika ada opsi). */
 function keuangan_validasi_alokasi_pengeluaran(PDO $pdo, string $alokasiNama): ?string
 {

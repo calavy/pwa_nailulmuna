@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/keuangan_aruskas.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_diagnostik.php';
+require_once __DIR__ . '/../helpers/keuangan_riwayat_pembayaran.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -42,7 +43,9 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Laporan Arus Kas</h1>
-    <p class="text-muted mb-0">Kas masuk &amp; keluar per pos pembayaran/pengeluaran <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.</p>
+    <p class="text-muted mb-0">Kas masuk &amp; keluar per pos pembayaran/pengeluaran <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.
+        <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Detail transaksi per POS</a>
+    </p>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -59,6 +62,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="col-md-6 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
                 <a class="btn btn-outline-secondary" href="/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <a class="btn btn-outline-primary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Rekap masuk &amp; keluar</a>
                 <a class="btn btn-outline-primary" href="/keuangan/rekap-kas-bulan.php">Rekap kas bulanan</a>
                 <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
                 <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
