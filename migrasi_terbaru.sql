@@ -477,6 +477,12 @@ ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL
 ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS kelas_keuangan_id INT UNSIGNED NULL AFTER urutan;
 ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER kelas_keuangan_id;
 ALTER TABLE pkpps_tingkatan MODIFY urutan SMALLINT UNSIGNED NOT NULL;
+
+-- -----------------------------------------------------------------------------
+-- 2026-07-07 | Kegiatan — kategori (TAALIM / JAMAAH / PKPPS) untuk rekap presensi
+-- -----------------------------------------------------------------------------
+ALTER TABLE kegiatan ADD COLUMN IF NOT EXISTS kategori_kegiatan VARCHAR(20) NOT NULL DEFAULT 'TAALIM';
+UPDATE kegiatan SET kategori_kegiatan = 'TAALIM' WHERE COALESCE(kategori_kegiatan, '') = '';
 -- -----------------------------------------------------------------------------
 -- 2026-05-30 | Izin rombongan + urutan tingkatan kajian
 -- -----------------------------------------------------------------------------
@@ -511,3 +517,9 @@ ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL
 ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS kelas_keuangan_id INT UNSIGNED NULL AFTER urutan;
 ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER kelas_keuangan_id;
 ALTER TABLE pkpps_tingkatan MODIFY urutan SMALLINT UNSIGNED NOT NULL;
+
+-- -----------------------------------------------------------------------------
+-- 2026-07-07 | Kegiatan — kategori (TAALIM / JAMAAH / PKPPS) untuk rekap presensi
+-- -----------------------------------------------------------------------------
+ALTER TABLE kegiatan ADD COLUMN IF NOT EXISTS kategori_kegiatan VARCHAR(20) NOT NULL DEFAULT 'TAALIM';
+UPDATE kegiatan SET kategori_kegiatan = 'TAALIM' WHERE COALESCE(kategori_kegiatan, '') = '';

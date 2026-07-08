@@ -81,6 +81,9 @@ CREATE TABLE IF NOT EXISTS kegiatan (
     is_active TINYINT(1) NOT NULL DEFAULT 1
 );
 
+ALTER TABLE kegiatan ADD COLUMN IF NOT EXISTS kategori_kegiatan VARCHAR(20) NOT NULL DEFAULT 'TAALIM';
+UPDATE kegiatan SET kategori_kegiatan = 'TAALIM' WHERE COALESCE(kategori_kegiatan, '') = '';
+
 CREATE TABLE IF NOT EXISTS jadwal_kegiatan (
     id INT AUTO_INCREMENT PRIMARY KEY,
     kegiatan_id INT NOT NULL,

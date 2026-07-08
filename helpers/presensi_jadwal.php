@@ -464,6 +464,8 @@ function presensi_fetch_rows_rekap(
         return [];
     }
 
+    ensure_kegiatan_kategori_column($pdo);
+
     require_once __DIR__ . '/rekap_keaktifan.php';
     $clamped = rekap_keaktifan_clamp_periode($pdo, $startDate, $endDate);
     if ($clamped === null) {
