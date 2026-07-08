@@ -206,36 +206,25 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         : 0.0;
 
     $waEnabled = trim((string) app_setting($pdo, 'wa_tagihan_auto_enabled', '0')) === '1';
-    $waCalendar = strtoupper(trim((string) app_setting($pdo, 'wa_tagihan_calendar', 'HIJRIYAH')));
-    if (!in_array($waCalendar, ['MASEHI', 'HIJRIYAH'], true)) {
-        $waCalendar = 'HIJRIYAH';
+    if (!function_exists('wa_tagihan_jadwal_context')) {
+        require_once __DIR__ . '/wa_tagihan.php';
     }
-    $waDueDay = max(1, min(30, (int) app_setting($pdo, 'wa_tagihan_day', '5')));
-    $waSendTime = trim((string) app_setting($pdo, 'wa_tagihan_send_time', '08:00'));
-    $waLastAt = trim((string) app_setting($pdo, 'wa_tagihan_last_sent_at', ''));
-    $waLastKey = trim((string) app_setting($pdo, 'wa_tagihan_last_period_key', ''));
-
-    $periodKey = date('Y-m');
-    $todayDay = (int) date('j');
-    if ($waCalendar === 'HIJRIYAH') {
-        $periodKey = get_hijri_year_month($today);
-        if (class_exists('IntlDateFormatter')) {
-            $fmtDay = new IntlDateFormatter(
-                islamic_calendar_locale(),
-                IntlDateFormatter::NONE,
-                IntlDateFormatter::NONE,
-                date_default_timezone_get(),
-                IntlDateFormatter::TRADITIONAL,
-                'd'
-            );
-            $hDay = $fmtDay->format(strtotime($today));
-            if (is_string($hDay) && ctype_digit($hDay)) {
-                $todayDay = (int) $hDay;
-            }
-        }
+    $waCtx = wa_tagihan_jadwal_context($pdo, $today);
+    $waCalendar = (string) ($waCtx['calendar'] ?? 'HIJRIYAH');
+    $waDueDay = (int) ($waCtx['due_day'] ?? 5);
+    $waSendTime = (string) ($waCtx['send_time'] ?? '08:00');
+    $waLastAt = (string) ($waCtx['last_sent_at'] ?? '');
+    $waLastKey = (string) ($waCtx['last_period_key'] ?? '');
+    $periodKey = (string) ($waCtx['period_key'] ?? date('Y-m'));
+    $periodSent = (bool) ($waCtx['period_already_sent'] ?? false);
+    $hariIniJadwalKirim = (bool) ($waCtx['is_send_day'] ?? false);
+    $waCronLastRun = trim((string) app_setting($pdo, 'wa_auto_last_run_at', ''));
+    $waHeavyLast = trim((string) app_setting($pdo, 'wa_auto_heavy_last_at', ''));
+    if ($waHeavyLast === '') {
+        $waHeavyLast = trim((string) app_setting($pdo, 'wa_auto_last_heavy_at', ''));
     }
-    $periodSent = $waLastKey === $waCalendar . ':' . $periodKey;
-    $hariIniJadwalKirim = $todayDay === $waDueDay;
+    $waPartialFail = trim((string) app_setting($pdo, 'wa_tagihan_last_partial_fail_at', ''));
+    $waPartialStats = trim((string) app_setting($pdo, 'wa_tagihan_last_partial_fail_stats', ''));
 
     $kasSaldoMode = keuangan_kas_saldo_mode($pdo);
     $kasTotalOpening = keuangan_kas_total_opening_balance($pdo);
@@ -263,7 +252,12 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
 
     $yearStart = date('Y') . '-01-01';
     $lakRingkas = keuangan_build_arus_kas_cached($pdo, $yearStart, $today);
-    $kasBank = keuangan_dashboard_kas_bank_ringkas($pdo, $today);
+    if (!function_exists('keuangan_dashboard_kas_bank_detail')) {
+        require_once __DIR__ . '/keuangan_diagnostik.php';
+    }
+    $bulanAwal = date('Y-m-01', strtotime($today) ?: time());
+    $kasBank = keuangan_dashboard_kas_bank_detail($pdo, $today, $bulanAwal, $today);
+    $mutasiHariIni = keuangan_dashboard_mutasi_hari_ini($pdo, $today);
 
     $rekapKas = keuangan_build_rekap_kas_bulanan($pdo, $tm, $ts, $bulan);
 
@@ -281,9 +275,14 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
         ],
         'kesehatan_neraca' => $kesehatan,
         'rekap_kas' => [
-            'saldo_akhir' => (int) ($rekapKas['saldo_akhir'] ?? 0),
+            'saldo_akhir' => (int) ($rekapKas['saldo_akhir_hitung'] ?? $rekapKas['saldo_akhir'] ?? 0),
+            'saldo_akhir_hitung' => (int) ($rekapKas['saldo_akhir_hitung'] ?? $rekapKas['saldo_akhir'] ?? 0),
             'saldo_akhir_fisik' => (int) ($rekapKas['saldo_akhir_fisik'] ?? 0),
+            'saldo_akhir_uang_nyata' => (int) ($rekapKas['saldo_akhir_uang_nyata'] ?? $rekapKas['saldo_akhir_fisik'] ?? 0),
             'selisih_saldo' => (int) ($rekapKas['selisih_saldo'] ?? 0),
+            'selisih_penjelasan' => abs((int) ($rekapKas['selisih_saldo'] ?? 0)) >= 1000
+                ? 'Selisih hitung vs uang nyata — periksa transaksi tanpa akun di Perbaikan Kas.'
+                : '',
             'masuk_total' => (int) ($rekapKas['total']['masuk_total'] ?? 0),
             'keluar' => (int) ($rekapKas['total']['keluar'] ?? 0),
             'bulan_berjalan_label' => (string) ($rekapKas['bulan_berjalan_label'] ?? ''),
@@ -294,6 +293,7 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'periode_label' => (string) ($lakRingkas['periode_label'] ?? ''),
         ],
         'kas_bank' => $kasBank,
+        'mutasi_hari_ini' => $mutasiHariIni,
         'tagihan_bulan' => [
             'bulan' => $bulan,
             'bulan_label' => (string) ($periode['periode_tampilan'] ?? $periode['bulan_label']),
@@ -315,6 +315,8 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'calendar' => $waCalendar,
             'due_day' => $waDueDay,
             'send_time' => $waSendTime,
+            'send_time_ok' => (bool) ($waCtx['send_time_ok'] ?? false),
+            'today_day' => (int) ($waCtx['today_day'] ?? 0),
             'last_sent_at' => $waLastAt !== '' ? $waLastAt : null,
             'last_period_key' => $waLastKey,
             'period_key' => $periodKey,
@@ -322,6 +324,10 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
             'hari_ini_jadwal_kirim' => $hariIniJadwalKirim,
             'penunggak_dengan_wa' => $penunggakDenganWa,
             'penunggak_tanpa_wa' => $penunggakTanpaWa,
+            'cron_last_run' => $waCronLastRun !== '' ? $waCronLastRun : null,
+            'cron_heavy_last' => $waHeavyLast !== '' ? $waHeavyLast : null,
+            'partial_fail_at' => $waPartialFail !== '' ? $waPartialFail : null,
+            'partial_fail_stats' => $waPartialStats !== '' ? json_decode($waPartialStats, true) : null,
         ],
         'kas_saldo_mode' => $kasSaldoMode,
         'kas_saldo_mode_label' => keuangan_kas_saldo_mode_label($kasSaldoMode),

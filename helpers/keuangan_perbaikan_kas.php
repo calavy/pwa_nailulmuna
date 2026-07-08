@@ -11,6 +11,8 @@ require_once __DIR__ . '/keuangan_pemasukan_riwayat.php';
 require_once __DIR__ . '/keuangan_pengeluaran_riwayat.php';
 require_once __DIR__ . '/pembayaran_edit_token.php';
 require_once __DIR__ . '/operasional_audit.php';
+require_once __DIR__ . '/keuangan_defs.php';
+require_once __DIR__ . '/keuangan_rekap.php';
 
 /**
  * @return array{
@@ -19,7 +21,9 @@ require_once __DIR__ . '/operasional_audit.php';
  *   pembayaran:list<array<string,mixed>>,
  *   pemasukan:list<array<string,mixed>>,
  *   pengeluaran:list<array<string,mixed>>,
- *   duplikat:list<array<string,mixed>>
+ *   duplikat:list<array<string,mixed>>,
+ *   nominal_berlebihan:list<array<string,mixed>>,
+ *   total_detail_selisih:list<array<string,mixed>>
  * }
  */
 function keuangan_perbaikan_kas_ringkas(PDO $pdo, ?string $asOf = null): array
@@ -29,6 +33,8 @@ function keuangan_perbaikan_kas_ringkas(PDO $pdo, ?string $asOf = null): array
     $pemasukan = keuangan_perbaikan_kas_list_tanpa_akun($pdo, 'keuangan_pemasukan', 'tanggal', 'nominal', $asOf);
     $pengeluaran = keuangan_perbaikan_kas_list_tanpa_akun($pdo, 'keuangan_pengeluaran', 'tanggal', 'nominal', $asOf);
     $duplikat = keuangan_perbaikan_kas_list_duplikat_mungkin($pdo);
+    $nominalBerlebihan = keuangan_perbaikan_kas_list_nominal_berlebihan($pdo);
+    $totalDetailSelisih = keuangan_perbaikan_kas_list_total_detail_selisih($pdo);
 
     $nominal = 0;
     foreach ([$pembayaran, $pemasukan, $pengeluaran] as $rows) {
@@ -44,6 +50,8 @@ function keuangan_perbaikan_kas_ringkas(PDO $pdo, ?string $asOf = null): array
         'pemasukan' => $pemasukan,
         'pengeluaran' => $pengeluaran,
         'duplikat' => $duplikat,
+        'nominal_berlebihan' => $nominalBerlebihan,
+        'total_detail_selisih' => $totalDetailSelisih,
     ];
 }
 
@@ -112,6 +120,196 @@ function keuangan_perbaikan_kas_list_duplikat_mungkin(PDO $pdo, int $limit = 30)
     return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }
 
+/**
+ * Pembayaran pos wajib/awal tahun yang total terbayar melebihi tagihan periode (data lama sebelum validasi ketat).
+ *
+ * @return list<array<string,mixed>>
+ */
+function keuangan_perbaikan_kas_list_nominal_berlebihan(PDO $pdo, int $limit = 80): array
+{
+    if (
+        !table_exists($pdo, 'keuangan_pembayaran')
+        || !table_exists($pdo, 'keuangan_pembayaran_detail')
+        || !table_exists($pdo, 'santri')
+    ) {
+        return [];
+    }
+
+    $st = $pdo->query('
+        SELECT p.santri_id, s.nis, s.nama_santri,
+               UPPER(TRIM(p.jenis_periode)) AS jenis_periode,
+               p.bulan_tagihan,
+               p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
+               LOWER(TRIM(d.pos_slug)) AS pos_slug,
+               MAX(d.pos_nama) AS pos_nama,
+               SUM(d.nominal) AS total_paid,
+               MAX(p.tanggal_bayar) AS tanggal_terakhir
+        FROM keuangan_pembayaran p
+        INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
+        INNER JOIN santri s ON s.id = p.santri_id
+        WHERE LOWER(TRIM(d.pos_slug)) <> \'saku\'
+          AND LOWER(TRIM(d.pos_slug)) <> \'\'
+        GROUP BY p.santri_id, s.nis, s.nama_santri,
+                 UPPER(TRIM(p.jenis_periode)), p.bulan_tagihan,
+                 p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
+                 LOWER(TRIM(d.pos_slug))
+        HAVING SUM(d.nominal) > 0
+        ORDER BY MAX(p.tanggal_bayar) DESC, p.santri_id ASC
+        LIMIT 400
+    ');
+    if (!$st) {
+        return [];
+    }
+
+    $biayaDefinitions = keuangan_biaya_definitions();
+    $wajibSlugs = keuangan_tagihan_wajib_slugs();
+    $out = [];
+    $seen = [];
+
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (count($out) >= max(1, min(150, $limit))) {
+            break;
+        }
+
+        $santriId = (int) ($row['santri_id'] ?? 0);
+        $jenisPeriode = strtoupper(trim((string) ($row['jenis_periode'] ?? 'BULANAN')));
+        $bulanTagihan = (int) ($row['bulan_tagihan'] ?? 0);
+        $tm = (int) ($row['tahun_ajaran_mulai'] ?? 0);
+        $ts = (int) ($row['tahun_ajaran_selesai'] ?? 0);
+        $slug = strtolower(trim((string) ($row['pos_slug'] ?? '')));
+        $totalPaid = (int) round((float) ($row['total_paid'] ?? 0));
+        if ($santriId <= 0 || $slug === '' || $totalPaid <= 0 || $tm <= 0) {
+            continue;
+        }
+
+        $isWajibBulanan = $jenisPeriode === 'BULANAN' && in_array($slug, $wajibSlugs, true);
+        if (!$isWajibBulanan && $jenisPeriode !== 'AWAL_TAHUN') {
+            continue;
+        }
+
+        $breakdown = keuangan_tagihan_breakdown_for_santri(
+            $pdo,
+            $santriId,
+            $jenisPeriode,
+            $bulanTagihan,
+            $tm,
+            $ts,
+            $biayaDefinitions
+        );
+        $info = $breakdown[$slug] ?? null;
+        if (!is_array($info)) {
+            continue;
+        }
+        $expected = (int) ($info['expected'] ?? 0);
+        if ($expected <= 0 || $totalPaid <= $expected) {
+            continue;
+        }
+
+        $excess = $totalPaid - $expected;
+        $pembayaranIds = keuangan_perbaikan_kas_pembayaran_ids_for_pos(
+            $pdo,
+            $santriId,
+            $jenisPeriode,
+            $bulanTagihan,
+            $tm,
+            $ts,
+            $slug
+        );
+        $pembayaranId = $pembayaranIds !== [] ? (int) end($pembayaranIds) : 0;
+        $dedupeKey = $santriId . '|' . $jenisPeriode . '|' . $bulanTagihan . '|' . $tm . '|' . $ts . '|' . $slug;
+        if (isset($seen[$dedupeKey])) {
+            continue;
+        }
+        $seen[$dedupeKey] = true;
+
+        $out[] = [
+            'pembayaran_id' => $pembayaranId,
+            'pembayaran_ids' => $pembayaranIds,
+            'santri_id' => $santriId,
+            'nis' => (string) ($row['nis'] ?? ''),
+            'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+            'jenis_periode' => $jenisPeriode,
+            'bulan_tagihan' => $bulanTagihan,
+            'tahun_ajaran_mulai' => $tm,
+            'tahun_ajaran_selesai' => $ts,
+            'pos_slug' => $slug,
+            'pos_nama' => (string) ($row['pos_nama'] ?? $slug),
+            'expected' => $expected,
+            'total_paid' => $totalPaid,
+            'kelebihan' => $excess,
+            'tanggal_terakhir' => (string) ($row['tanggal_terakhir'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @return list<int>
+ */
+function keuangan_perbaikan_kas_pembayaran_ids_for_pos(
+    PDO $pdo,
+    int $santriId,
+    string $jenisPeriode,
+    int $bulanTagihan,
+    int $tahunMulai,
+    int $tahunSelesai,
+    string $posSlug
+): array {
+    $st = $pdo->prepare('
+        SELECT DISTINCT p.id
+        FROM keuangan_pembayaran p
+        INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
+        WHERE p.santri_id = :sid
+          AND UPPER(TRIM(p.jenis_periode)) = :jp
+          AND p.bulan_tagihan = :bln
+          AND p.tahun_ajaran_mulai = :tm
+          AND p.tahun_ajaran_selesai = :ts
+          AND LOWER(TRIM(d.pos_slug)) = :slug
+        ORDER BY p.tanggal_bayar ASC, p.id ASC
+    ');
+    $st->execute([
+        'sid' => $santriId,
+        'jp' => strtoupper(trim($jenisPeriode)),
+        'bln' => $bulanTagihan,
+        'tm' => $tahunMulai,
+        'ts' => $tahunSelesai,
+        'slug' => strtolower(trim($posSlug)),
+    ]);
+
+    return array_map(static fn(array $r): int => (int) ($r['id'] ?? 0), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+}
+
+/**
+ * Pembayaran yang total_nominal tidak sama dengan jumlah baris detail.
+ *
+ * @return list<array<string,mixed>>
+ */
+function keuangan_perbaikan_kas_list_total_detail_selisih(PDO $pdo, int $limit = 50): array
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        return [];
+    }
+
+    $joinSantri = table_exists($pdo, 'santri')
+        ? ' LEFT JOIN santri s ON s.id = p.santri_id'
+        : '';
+    $colsSantri = table_exists($pdo, 'santri') ? ', s.nis, s.nama_santri' : ", '' AS nis, '' AS nama_santri";
+
+    $st = $pdo->query('
+        SELECT p.id, p.tanggal_bayar, p.total_nominal,
+               COALESCE(SUM(d.nominal), 0) AS sum_detail' . $colsSantri . '
+        FROM keuangan_pembayaran p
+        LEFT JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id' . $joinSantri . '
+        GROUP BY p.id, p.tanggal_bayar, p.total_nominal' . (table_exists($pdo, 'santri') ? ', s.nis, s.nama_santri' : '') . '
+        HAVING ABS(p.total_nominal - COALESCE(SUM(d.nominal), 0)) >= 1
+        ORDER BY p.tanggal_bayar DESC, p.id DESC
+        LIMIT ' . max(1, min(100, $limit))
+    );
+
+    return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+}
+
 function keuangan_perbaikan_kas_default_akun_id(PDO $pdo): int
 {
     foreach (keuangan_fetch_akun_aktif($pdo) as $ak) {
@@ -158,6 +356,9 @@ function keuangan_perbaikan_kas_patch_akun(PDO $pdo, string $tipe, int $id, int 
  */
 function keuangan_perbaikan_kas_patch_pembayaran(PDO $pdo, int $id, int $akunId, int $userId): array
 {
+    if (!function_exists('keuangan_pembayaran_pos_slug_normalize')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+    }
     $row = keuangan_pembayaran_fetch($pdo, $id);
     if ($row === null) {
         return ['ok' => false, 'message' => 'Pembayaran #' . $id . ' tidak ditemukan.'];
@@ -171,13 +372,14 @@ function keuangan_perbaikan_kas_patch_pembayaran(PDO $pdo, int $id, int $akunId,
     $detailRows = [];
     foreach ($row['details'] ?? [] as $det) {
         $detailRows[] = [
-            'slug' => (string) ($det['pos_slug'] ?? ''),
+            'slug' => keuangan_pembayaran_pos_slug_normalize((string) ($det['pos_slug'] ?? '')),
             'nama' => (string) ($det['pos_nama'] ?? ''),
             'nominal' => (int) round((float) ($det['nominal'] ?? 0)),
         ];
     }
     $jenisPeriode = strtoupper((string) ($row['jenis_periode'] ?? 'BULANAN'));
     $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
+    $santriId = (int) ($row['santri_id'] ?? 0);
 
     $pdo->beginTransaction();
     try {
@@ -193,6 +395,11 @@ function keuangan_perbaikan_kas_patch_pembayaran(PDO $pdo, int $id, int $akunId,
 
         return ['ok' => false, 'message' => 'Gagal memperbaiki pembayaran: ' . $e->getMessage()];
     }
+
+    if (!function_exists('keuangan_pembayaran_apply_cashless_saku')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+    }
+    keuangan_pembayaran_apply_cashless_saku($pdo, $id, $santriId, $detailRows, $userId);
 
     keuangan_perbaikan_kas_invalidate_cache();
 
@@ -528,7 +735,7 @@ function keuangan_perbaikan_kas_restore_pembayaran(PDO $pdo, array $data, int $u
             continue;
         }
         $detailRows[] = [
-            'slug' => (string) ($det['pos_slug'] ?? ''),
+            'slug' => keuangan_pembayaran_pos_slug_normalize((string) ($det['pos_slug'] ?? '')),
             'nama' => (string) ($det['pos_nama'] ?? ''),
             'nominal' => (int) round((float) ($det['nominal'] ?? 0)),
         ];

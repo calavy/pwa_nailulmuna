@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/keuangan_aruskas.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
+require_once __DIR__ . '/../helpers/keuangan_diagnostik.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -87,8 +88,34 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Kas akhir periode</div>
+            <div class="app-mini-stat-label">Kas akhir periode (uang nyata)</div>
             <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) $lak['kas_akhir'])) ?></div>
+            <?php if ((int) ($lak['selisih_rekonsiliasi'] ?? 0) !== 0): ?>
+                <div class="small text-warning">Hitung arus <?= htmlspecialchars($fmt((int) ($lak['kas_akhir_hitung'] ?? 0))) ?></div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<?php $kasBankArus = keuangan_dashboard_kas_bank_detail($pdo); ?>
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="app-mini-stat border-start border-4 border-success">
+            <div class="app-mini-stat-label">Kas fisik &amp; e-wallet (terkini)</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_kas'] ?? 0))) ?></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="app-mini-stat border-start border-4 border-primary">
+            <div class="app-mini-stat-label">Rekening bank (terkini)</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_bank'] ?? 0))) ?></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="app-mini-stat border-start border-4 border-secondary">
+            <div class="app-mini-stat-label">Total likuid (terkini)</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_likuid'] ?? 0))) ?></div>
+            <div class="small text-muted">Per <?= htmlspecialchars((string) ($kasBankArus['as_of'] ?? '')) ?></div>
         </div>
     </div>
 </div>

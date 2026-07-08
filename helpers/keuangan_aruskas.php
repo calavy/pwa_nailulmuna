@@ -43,6 +43,19 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $kasAwal = keuangan_aruskas_total_kas($pdo, date('Y-m-d', strtotime($dateFrom . ' -1 day')));
     $kasAkhir = keuangan_aruskas_total_kas($pdo, $dateTo);
 
+    $pembayaranAkunWhere = column_exists($pdo, 'keuangan_pembayaran', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where('p')
+        : '';
+    $pembayaranAkunWherePlain = column_exists($pdo, 'keuangan_pembayaran', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+        : '';
+    $pemasukanAkunWhere = column_exists($pdo, 'keuangan_pemasukan', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+        : '';
+    $pengeluaranAkunWhere = column_exists($pdo, 'keuangan_pengeluaran', 'akun_id')
+        ? ' AND ' . keuangan_sql_akun_kas_terisi_where()
+        : '';
+
     // —— Aktivitas operasi (arus kas langsung, detail per pos) ——
     $operasiBaris = [];
     $totalMasukOps = 0;
@@ -55,7 +68,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
                    SUM(d.nominal) AS total
             FROM keuangan_pembayaran_detail d
             INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-            WHERE p.tanggal_bayar BETWEEN :dari AND :sampai
+            WHERE p.tanggal_bayar BETWEEN :dari AND :sampai{$pembayaranAkunWhere}
             GROUP BY d.pos_slug, d.pos_nama
             ORDER BY total DESC, label_pos ASC
         ");
@@ -75,7 +88,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
 
     $penerimaanTotalStmt = $pdo->prepare('
         SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran
-        WHERE tanggal_bayar BETWEEN :dari AND :sampai
+        WHERE tanggal_bayar BETWEEN :dari AND :sampai' . $pembayaranAkunWherePlain . '
     ');
     $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
     $totalPenerimaan = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
@@ -90,7 +103,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
         $pemasukanStmt = $pdo->prepare("
             SELECT sumber, SUM(nominal) AS total
             FROM keuangan_pemasukan
-            WHERE tanggal BETWEEN :dari AND :sampai
+            WHERE tanggal BETWEEN :dari AND :sampai' . $pemasukanAkunWhere . '
             GROUP BY sumber
             ORDER BY total DESC, sumber ASC
         ");
@@ -113,7 +126,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $pengeluaranOpsStmt = $pdo->prepare("
         SELECT COALESCE(pos, 'Beban operasional') AS label_pos, SUM(nominal) AS total
         FROM keuangan_pengeluaran
-        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}
+        WHERE tanggal BETWEEN :dari AND :sampai AND {$opsWhere}{$pengeluaranAkunWhere}
         GROUP BY pos
         ORDER BY total DESC, label_pos ASC
     ");

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca_perbaikan.php';
 require_once __DIR__ . '/../helpers/keuangan_jurnal.php';
 require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+require_once __DIR__ . '/../helpers/keuangan_diagnostik.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
 
 require_login();
@@ -40,6 +41,7 @@ $selisihNeraca = (int) ($neraca['selisih'] ?? 0);
 $seimbang = abs($selisihNeraca) < 1;
 $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
 $saran = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
+$diagnostikRingkas = keuangan_diagnostik_menyeluruh($pdo, (string) $neraca['as_of']);
 $adaBackfill = (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) > 0;
 $perluPerhatian = !$seimbang || $adaBackfill || abs((int) ($kesehatan['selisih_saku_cashless'] ?? 0)) >= 1000;
 
@@ -59,6 +61,14 @@ require_once __DIR__ . '/../includes/header.php';
         per <?= htmlspecialchars((string) $neraca['as_of_label']) ?>.
     </p>
 </div>
+
+<?php if (((int) ($diagnostikRingkas['ringkas']['tinggi'] ?? 0)) > 0 || ((int) ($diagnostikRingkas['ringkas']['sedang'] ?? 0)) > 0): ?>
+<div class="alert alert-info py-2 small mb-3">
+    Ada <?= (int) ($diagnostikRingkas['ringkas']['tinggi'] ?? 0) ?> masalah prioritas tinggi dan
+    <?= (int) ($diagnostikRingkas['ringkas']['sedang'] ?? 0) ?> sedang di diagnostik keuangan menyeluruh.
+    <a href="/keuangan/perbaikan-kas.php">Buka Perbaikan Kas</a> untuk saran terpadu (transaksi, jurnal, cashless, gaji).
+</div>
+<?php endif; ?>
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">

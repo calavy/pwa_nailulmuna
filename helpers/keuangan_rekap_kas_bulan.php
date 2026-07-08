@@ -21,7 +21,9 @@ require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
  *   nama_lembaga:string,
  *   saldo_awal_ta:int,
  *   saldo_akhir:int,
+ *   saldo_akhir_hitung:int,
  *   saldo_akhir_fisik:int,
+ *   saldo_akhir_uang_nyata:int,
  *   selisih_saldo:int,
  *   baris:list<array<string, mixed>>,
  *   total:array<string, int>
@@ -130,13 +132,15 @@ function keuangan_build_rekap_kas_bulanan(
         $saldoBerjalan = $saldoAkhirBulan;
     }
 
-    $saldoAkhirHitung = $saldoAwalTa + (int) $totals['bersih'];
-    $saldoAkhirFisik = $baris !== []
-        ? (int) ($baris[count($baris) - 1]['saldo_fisik'] ?? keuangan_aruskas_total_kas($pdo, $today))
-        : keuangan_aruskas_total_kas($pdo, $today);
+    $mutasiTaPenuh = keuangan_rekap_kas_mutasi_periode($pdo, $taMulaiTanggal, $today);
+    $saldoAkhirHitung = $saldoAwalTa + (int) $mutasiTaPenuh['bersih'];
+    $saldoAkhirFisik = keuangan_aruskas_total_kas($pdo, $today);
 
     $tagihanRekap = keuangan_rekap_tagihan_bulanan_ta($pdo, $tm, $ts, $bulanBerjalan);
     $baris = keuangan_rekap_kas_gabung_tagihan($baris, $tagihanRekap['baris'] ?? []);
+
+    require_once __DIR__ . '/keuangan_diagnostik.php';
+    $kasBank = keuangan_dashboard_kas_bank_detail($pdo);
 
     return [
         'tahun_mulai' => $tm,
@@ -147,11 +151,14 @@ function keuangan_build_rekap_kas_bulanan(
         'nama_lembaga' => $namaLembaga,
         'saldo_awal_ta' => $saldoAwalTa,
         'saldo_akhir' => $saldoAkhirHitung,
+        'saldo_akhir_hitung' => $saldoAkhirHitung,
         'saldo_akhir_fisik' => $saldoAkhirFisik,
+        'saldo_akhir_uang_nyata' => $saldoAkhirFisik,
         'selisih_saldo' => $saldoAkhirFisik - $saldoAkhirHitung,
         'baris' => $baris,
         'total' => $totals,
         'tagihan' => $tagihanRekap,
+        'kas_bank' => $kasBank,
     ];
 }
 
@@ -304,4 +311,17 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo $selisihTa !== 0 ? htmlspecialchars($fmt($selisihTa)) : '—';
     echo '</td>';
     echo '</tr></tfoot></table></div>';
+
+    $kb = $rekap['kas_bank'] ?? [];
+    if ($kb !== []) {
+        echo '<div class="mt-3 p-3 bg-light border rounded small">';
+        echo '<strong>Saldo terkini per jenis akun</strong> (semua akun aktif — ' . htmlspecialchars((string) ($kb['as_of'] ?? '')) . ')';
+        echo '<div class="row g-2 mt-2">';
+        echo '<div class="col-md-4"><span class="text-muted">Kas fisik &amp; e-wallet:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_kas'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-4"><span class="text-muted">Rekening bank:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_bank'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-4"><span class="text-muted">Total likuid:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_likuid'] ?? 0))) . '</strong></div>';
+        echo '</div>';
+        echo '<p class="text-muted mb-0 mt-2">Saldo fisik di kolom verifikasi = jumlah semua akun aktif per tanggal. Kas fisik = tunai &amp; e-wallet operasional; rekening = saldo di bank.</p>';
+        echo '</div>';
+    }
 }

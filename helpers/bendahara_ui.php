@@ -18,6 +18,13 @@ function bendahara_nav_cards(): array
             'color' => 'success',
         ],
         [
+            'href' => '/pembayaran/cek_pembayaran.php',
+            'title' => 'Cek pembayaran',
+            'desc' => 'Status lunas/belum lunas tagihan bulanan & awal tahun, plus saldo kas terkini.',
+            'icon' => 'fa-clipboard-check',
+            'color' => 'primary',
+        ],
+        [
             'href' => '/pembayaran/tagihan_syahriyah.php',
             'title' => 'Status tagihan bulanan',
             'desc' => 'Lihat lunas / belum per santri — pencatatan bayar lewat Input pembayaran.',
@@ -116,6 +123,7 @@ function bendahara_page_icon(string $page): string
 {
     return match ($page) {
         'tagihan' => 'fa-receipt',
+        'cek_pembayaran' => 'fa-clipboard-check',
         'riwayat' => 'fa-clock-rotate-left',
         'laporan' => 'fa-chart-column',
         'rekap_pos' => 'fa-chart-pie',

@@ -35,8 +35,8 @@ if ($print) {
     echo '<p style="text-align:center;color:#64748b;margin:0 0 16px">TA ' . htmlspecialchars((string) $rekap['ta_label']) . ' — bulan 1 s.d. ' . htmlspecialchars((string) $rekap['bulan_berjalan_label']) . '</p>';
     keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt);
     echo '<p style="margin-top:12px;font-size:0.85rem">Saldo awal TA: <strong>' . htmlspecialchars($fmt((int) $rekap['saldo_awal_ta'])) . '</strong>';
-    echo ' · Saldo akhir (hitung): <strong>' . htmlspecialchars($fmt((int) $rekap['saldo_akhir'])) . '</strong>';
-    echo ' · Saldo fisik: <strong>' . htmlspecialchars($fmt((int) $rekap['saldo_akhir_fisik'])) . '</strong></p>';
+    echo ' · Saldo akhir (uang nyata): <strong>' . htmlspecialchars($fmt((int) ($rekap['saldo_akhir_uang_nyata'] ?? $rekap['saldo_akhir_fisik'] ?? 0))) . '</strong>';
+    echo ' · Hitung buku: <strong>' . htmlspecialchars($fmt((int) ($rekap['saldo_akhir_hitung'] ?? $rekap['saldo_akhir'] ?? 0))) . '</strong></p>';
     echo '</body></html>';
     exit;
 }
@@ -97,8 +97,8 @@ $analisisSelisih = abs($selisihRekap) >= 1000
 if (abs($selisihRekap) >= 1000): ?>
 <div class="alert alert-warning mb-3">
     <i class="fa-solid fa-triangle-exclamation me-1"></i>
-    Selisih saldo akhir TA: hitung <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir'])) ?></strong>
-    vs fisik <strong><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir_fisik'])) ?></strong>
+    Selisih saldo akhir TA: uang nyata <strong><?= htmlspecialchars($fmt((int) ($rekap['saldo_akhir_uang_nyata'] ?? $rekap['saldo_akhir_fisik'] ?? 0))) ?></strong>
+    vs hitung buku <strong><?= htmlspecialchars($fmt((int) ($rekap['saldo_akhir_hitung'] ?? $rekap['saldo_akhir'] ?? 0))) ?></strong>
     (selisih <?= htmlspecialchars($fmt(abs($selisihRekap))) ?>).
     <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>" class="alert-link">Perbaiki transaksi kas</a>.
     <?php if ($analisisSelisih !== []): ?>
@@ -195,10 +195,10 @@ $wajibSet = is_array($tagihanTa['pengaturan'] ?? null) ? $tagihanTa['pengaturan'
     </div>
     <div class="col-md-3">
         <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Saldo akhir</div>
-            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) $rekap['saldo_akhir'])) ?></div>
+            <div class="app-mini-stat-label">Saldo akhir (uang nyata)</div>
+            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($rekap['saldo_akhir_uang_nyata'] ?? $rekap['saldo_akhir_fisik'] ?? 0))) ?></div>
             <?php if ((int) ($rekap['selisih_saldo'] ?? 0) !== 0): ?>
-                <div class="small text-warning">Fisik <?= htmlspecialchars($fmt((int) $rekap['saldo_akhir_fisik'])) ?></div>
+                <div class="small text-warning">Hitung buku <?= htmlspecialchars($fmt((int) ($rekap['saldo_akhir_hitung'] ?? $rekap['saldo_akhir'] ?? 0))) ?></div>
             <?php endif; ?>
         </div>
     </div>

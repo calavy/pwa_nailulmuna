@@ -389,6 +389,7 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/kas.php' => $transaksi,
         '/pembayaran/index.php' => $transaksi,
         '/pembayaran/tagihan_syahriyah.php' => $transaksi,
+        '/pembayaran/cek_pembayaran.php' => $transaksi,
         '/pembayaran/riwayat.php' => $transaksi,
         '/pembayaran/riwayat_edit.php' => $transaksi,
         '/pembayaran/riwayat_audit.php' => $transaksi,

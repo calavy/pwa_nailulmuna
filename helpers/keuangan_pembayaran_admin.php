@@ -122,35 +122,202 @@ function keuangan_pembayaran_reverse_cashless(PDO $pdo, int $pembayaranId): void
     }
 }
 
-/**
- * @param list<array{slug:string,nama:string,nominal:int}> $detailRows
- */
-function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, int $santriId, array $detailRows, int $userId): void
+function keuangan_pembayaran_pos_slug_normalize(string $slug): string
 {
-    if ($pembayaranId <= 0 || $santriId <= 0 || !table_exists($pdo, 'cashless_accounts')) {
-        return;
+    return strtolower(trim($slug));
+}
+
+/** @param array{slug?:string,pos_slug?:string,nominal?:int|float|string} $row */
+function keuangan_pembayaran_detail_is_saku(array $row): bool
+{
+    $slug = (string) ($row['slug'] ?? $row['pos_slug'] ?? '');
+
+    return keuangan_pembayaran_pos_slug_normalize($slug) === 'saku' && (int) round((float) ($row['nominal'] ?? 0)) > 0;
+}
+
+/**
+ * @param list<array{slug?:string,pos_slug?:string,nama?:string,pos_nama?:string,nominal?:int|float}> $detailRows
+ * @return list<array{slug:string,nama:string,nominal:int}>
+ */
+function keuangan_pembayaran_detail_rows_normalize(array $detailRows): array
+{
+    $out = [];
+    foreach ($detailRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $slug = keuangan_pembayaran_pos_slug_normalize((string) ($row['slug'] ?? $row['pos_slug'] ?? ''));
+        if ($slug === '') {
+            continue;
+        }
+        $out[] = [
+            'slug' => $slug,
+            'nama' => (string) ($row['nama'] ?? $row['pos_nama'] ?? $slug),
+            'nominal' => (int) round((float) ($row['nominal'] ?? 0)),
+        ];
     }
-    $hasSaku = array_filter($detailRows, static fn(array $r): bool => ($r['slug'] ?? '') === 'saku' && (int) ($r['nominal'] ?? 0) > 0);
+
+    return $out;
+}
+
+/**
+ * Pembayaran pos Saku yang belum punya baris TOPUP cashless.
+ *
+ * @return list<array{pembayaran_id:int,santri_id:int,nama_santri:string,nominal_saku:int,tanggal_bayar:string}>
+ */
+function keuangan_pembayaran_list_saku_tanpa_topup(PDO $pdo, int $limit = 500): array
+{
+    if (!table_exists($pdo, 'keuangan_pembayaran_detail') || !table_exists($pdo, 'keuangan_pembayaran')) {
+        return [];
+    }
+    if (!table_exists($pdo, 'cashless_transactions') || !column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        return [];
+    }
+    $nameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+    $sql = "
+        SELECT p.id AS pembayaran_id, p.santri_id, {$nameExpr} AS nama_santri, p.tanggal_bayar,
+               COALESCE(SUM(d.nominal), 0) AS nominal_saku
+        FROM keuangan_pembayaran_detail d
+        INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
+        INNER JOIN santri s ON s.id = p.santri_id
+        LEFT JOIN cashless_transactions ct ON ct.ref_pembayaran_id = p.id AND UPPER(ct.jenis) = 'TOPUP'
+        WHERE LOWER(TRIM(d.pos_slug)) = 'saku' AND d.nominal > 0 AND ct.id IS NULL
+        GROUP BY p.id, p.santri_id, {$nameExpr}, p.tanggal_bayar
+        ORDER BY p.id ASC
+        LIMIT " . max(1, min(5000, $limit));
+    $st = $pdo->query($sql);
+
+    return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+}
+
+/**
+ * @return array{ok:bool,processed:int,success:int,failed:int,message:string,rows:list<array<string,mixed>>}
+ */
+function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dryRun = true, int $limit = 500): array
+{
+    $orphans = keuangan_pembayaran_list_saku_tanpa_topup($pdo, $limit);
+    $rows = [];
+    $success = 0;
+    $failed = 0;
+
+    foreach ($orphans as $orphan) {
+        $pembayaranId = (int) ($orphan['pembayaran_id'] ?? 0);
+        $santriId = (int) ($orphan['santri_id'] ?? 0);
+        $nominalSaku = (int) round((float) ($orphan['nominal_saku'] ?? 0));
+        $nama = (string) ($orphan['nama_santri'] ?? '');
+        if ($pembayaranId <= 0 || $santriId <= 0) {
+            continue;
+        }
+
+        if ($dryRun) {
+            $rows[] = [
+                'pembayaran_id' => $pembayaranId,
+                'santri_id' => $santriId,
+                'nama_santri' => $nama,
+                'nominal_saku' => $nominalSaku,
+                'status' => 'DRY_RUN',
+            ];
+            $success++;
+            continue;
+        }
+
+        $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
+        $detailRows = keuangan_pembayaran_detail_rows_normalize(is_array($fetch['details'] ?? null) ? $fetch['details'] : []);
+        $applied = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+        $ok = $applied || keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId);
+        if ($ok) {
+            $success++;
+            $status = 'OK';
+        } else {
+            $failed++;
+            $status = 'GAGAL';
+        }
+        $rows[] = [
+            'pembayaran_id' => $pembayaranId,
+            'santri_id' => $santriId,
+            'nama_santri' => $nama,
+            'nominal_saku' => $nominalSaku,
+            'status' => $status,
+        ];
+    }
+
+    $processed = count($rows);
+    $msg = $dryRun
+        ? 'Dry-run: ' . $processed . ' pembayaran saku tanpa top-up ditemukan.'
+        : 'Backfill selesai: ' . $success . ' berhasil, ' . $failed . ' gagal dari ' . $processed . ' pembayaran.';
+
+    return [
+        'ok' => $dryRun ? $processed >= 0 : $failed === 0,
+        'processed' => $processed,
+        'success' => $success,
+        'failed' => $failed,
+        'message' => $msg,
+        'rows' => $rows,
+    ];
+}
+
+function keuangan_pembayaran_cashless_topup_exists(PDO $pdo, int $pembayaranId): bool
+{
+    if ($pembayaranId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+        return false;
+    }
+    if (!column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        return false;
+    }
+    $st = $pdo->prepare("
+        SELECT 1 FROM cashless_transactions
+        WHERE ref_pembayaran_id = :id AND UPPER(jenis) = 'TOPUP'
+        LIMIT 1
+    ");
+    $st->execute(['id' => $pembayaranId]);
+
+    return (bool) $st->fetchColumn();
+}
+
+/**
+ * @param list<array{slug?:string,pos_slug?:string,nama?:string,nominal?:int}> $detailRows
+ */
+function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, int $santriId, array $detailRows, int $userId): bool
+{
+    if ($pembayaranId <= 0 || $santriId <= 0) {
+        return false;
+    }
+    $detailRows = keuangan_pembayaran_detail_rows_normalize($detailRows);
+    $hasSaku = array_filter($detailRows, static fn(array $r): bool => keuangan_pembayaran_detail_is_saku($r));
     if ($hasSaku === []) {
-        return;
+        return true;
+    }
+    if (keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId)) {
+        return true;
+    }
+    if (!table_exists($pdo, 'cashless_accounts')) {
+        return false;
+    }
+    if (!table_exists($pdo, 'cashless_transactions') || !column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        return false;
     }
     $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
-    if (table_exists($pdo, 'cashless_transactions') && column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
-        $pdo->prepare("
-            INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
-            VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
-        ")->execute([
-            'santri_id' => $santriId,
-            'nominal' => $topupNominal,
-            'keterangan' => 'Topup otomatis dari pembayaran pos Saku',
-            'ref_pembayaran_id' => $pembayaranId,
-            'created_by' => $userId > 0 ? $userId : null,
-        ]);
+    $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')
+        ->execute(['santri_id' => $santriId]);
+    $pdo->prepare("
+        INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
+        VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
+    ")->execute([
+        'santri_id' => $santriId,
+        'nominal' => $topupNominal,
+        'keterangan' => 'Topup otomatis dari pembayaran pos Saku',
+        'ref_pembayaran_id' => $pembayaranId,
+        'created_by' => $userId > 0 ? $userId : null,
+    ]);
+    if ((int) $pdo->lastInsertId() <= 0 && !keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId)) {
+        return false;
     }
     require_once __DIR__ . '/cashless_koperasi.php';
     require_once __DIR__ . '/cashless_wa.php';
     cashless_sync_account_balance($pdo, $santriId);
     cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
+
+    return keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId);
 }
 
 /**
@@ -240,7 +407,7 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
             require_once __DIR__ . '/keuangan_kelas_makan.php';
         }
         $detailRows[] = [
-            'slug' => $slug,
+            'slug' => keuangan_pembayaran_pos_slug_normalize($slug),
             'nama' => keuangan_pos_display_nama($pdo, $slug, (string) ($def['nama'] ?? $slug)),
             'nominal' => $nominal,
         ];
@@ -300,7 +467,7 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
         );
         $stillHasSisaWajib = false;
         foreach ($detailRows as $dr) {
-            if ($dr['slug'] === 'saku') {
+            if (keuangan_pembayaran_detail_is_saku($dr)) {
                 continue;
             }
             $info = $tagihanBreakdown[$dr['slug']] ?? null;

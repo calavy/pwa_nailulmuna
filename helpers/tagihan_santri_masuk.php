@@ -142,15 +142,16 @@ function tagihan_santri_masuk_riwayat_sync(PDO $pdo, int $santriId, ?string $tan
         $taSelesai = $taMulai + 1;
     }
 
-    $jenis = tagihan_santri_jenis_ta($pdo, $santriId, $taMulai, $tanggalMasuk);
-    if ($jenis === 'baru') {
+    $baruDiTa = tagihan_santri_baru_di_ta($pdo, $santriId, $taMulai, $tanggalMasuk);
+    if ($baruDiTa) {
         $slot = pondok_slot_untuk_tanggal($pdo, $taMulai, $taSelesai, $tanggalMasuk);
         $bulanMulai = max(1, min(12, (int) ($slot['bulan_tagihan'] ?? 1)));
     } else {
         $bulanMulai = 1;
-        if ($jenis === 'semua') {
-            $jenis = 'lama';
-        }
+    }
+    $jenis = tagihan_santri_jenis_ta($pdo, $santriId, $taMulai, $tanggalMasuk);
+    if ($jenis === 'semua') {
+        $jenis = $baruDiTa ? 'baru' : 'lama';
     }
     $catatan = tagihan_santri_masuk_build_catatan($pdo, $tanggalMasuk, $taMulai, $taSelesai, $bulanMulai, $jenis);
 
@@ -282,8 +283,7 @@ function tagihan_santri_bulan_mulai(
         return 13;
     }
 
-    $jenis = tagihan_santri_jenis_ta($pdo, $santriId, $tahunAjaranMulai, $tgl);
-    if ($jenis !== 'baru') {
+    if (!tagihan_santri_baru_di_ta($pdo, $santriId, $tahunAjaranMulai, $tgl)) {
         return 1;
     }
 
@@ -297,6 +297,47 @@ function tagihan_santri_bulan_mulai(
     return max(1, min(12, (int) ($slot['bulan_tagihan'] ?? 1)));
 }
 
+/**
+ * Santri baru di TA aktif: masuk pada TA ini, belum punya riwayat tingkatan TA sebelumnya.
+ * Tidak bergantung pada pengaturan bedakan awal tahun (khusus aturan bulan masuk bulanan).
+ */
+function tagihan_santri_baru_di_ta(
+    PDO $pdo,
+    int $santriId,
+    int $tahunAjaranMulai,
+    ?string $tanggalMasuk = null
+): bool {
+    if ($tahunAjaranMulai <= 0) {
+        return false;
+    }
+
+    if ($santriId > 0 && table_exists($pdo, 'santri_riwayat_tingkatan')) {
+        $st = $pdo->prepare('
+            SELECT 1 FROM santri_riwayat_tingkatan
+            WHERE santri_id = :sid AND tahun_ajaran_mulai < :tm
+            LIMIT 1
+        ');
+        $st->execute(['sid' => $santriId, 'tm' => $tahunAjaranMulai]);
+        if ($st->fetchColumn()) {
+            return false;
+        }
+    }
+
+    $tgl = $tanggalMasuk;
+    if ($tgl === null && $santriId > 0 && column_exists($pdo, 'santri', 'tanggal_masuk')) {
+        $st = $pdo->prepare('SELECT tanggal_masuk FROM santri WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $santriId]);
+        $tgl = trim((string) ($st->fetchColumn() ?: ''));
+    }
+    if ($tgl === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
+        return false;
+    }
+
+    $taMasuk = pondok_tahun_ajaran_from_date($pdo, $tgl);
+
+    return (int) ($taMasuk['mulai'] ?? 0) === $tahunAjaranMulai;
+}
+
 /** @return 'baru'|'lama'|'semua' */
 function tagihan_santri_jenis_ta(
     PDO $pdo,
@@ -308,31 +349,7 @@ function tagihan_santri_jenis_ta(
         return 'semua';
     }
 
-    if ($santriId > 0 && table_exists($pdo, 'santri_riwayat_tingkatan')) {
-        $st = $pdo->prepare('
-            SELECT 1 FROM santri_riwayat_tingkatan
-            WHERE santri_id = :sid AND tahun_ajaran_mulai < :tm
-            LIMIT 1
-        ');
-        $st->execute(['sid' => $santriId, 'tm' => $tahunAjaranMulai]);
-        if ($st->fetchColumn()) {
-            return 'lama';
-        }
-    }
-
-    $tgl = $tanggalMasuk;
-    if ($tgl === null && $santriId > 0 && column_exists($pdo, 'santri', 'tanggal_masuk')) {
-        $st = $pdo->prepare('SELECT tanggal_masuk FROM santri WHERE id = :id LIMIT 1');
-        $st->execute(['id' => $santriId]);
-        $tgl = trim((string) ($st->fetchColumn() ?: ''));
-    }
-    if ($tgl === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
-        return 'lama';
-    }
-
-    $taMasuk = pondok_tahun_ajaran_from_date($pdo, $tgl);
-
-    return (int) ($taMasuk['mulai'] ?? 0) === $tahunAjaranMulai ? 'baru' : 'lama';
+    return tagihan_santri_baru_di_ta($pdo, $santriId, $tahunAjaranMulai, $tanggalMasuk) ? 'baru' : 'lama';
 }
 
 function tagihan_bulan_dibebankan(
@@ -555,6 +572,43 @@ function keuangan_save_tarif_awal_tahun_jenis_settings(PDO $pdo, array $post): a
     keuangan_rekap_tagihan_cache_invalidate();
 
     return ['ok' => true, 'message' => 'Tarif awal tahun (santri baru & lama) disimpan.'];
+}
+
+/**
+ * Status pengaturan tagihan masuk + santri aktif tanpa tanggal masuk.
+ *
+ * @return array{
+ *   mulai_masuk:bool,
+ *   bedakan_awal_tahun:bool,
+ *   siap:bool,
+ *   santri_tanpa_tanggal_masuk:int
+ * }
+ */
+function keuangan_tagihan_masuk_pengaturan_status(PDO $pdo): array
+{
+    $mulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
+    $bedakanAwal = keuangan_awal_tahun_bedakan_baru_lama($pdo);
+    $tanpaTgl = 0;
+
+    if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tanggal_masuk')) {
+        if (!function_exists('santri_sql_aktif_only')) {
+            require_once __DIR__ . '/santri_operasional.php';
+        }
+        $aktifSql = santri_sql_aktif_only('s');
+        $st = $pdo->query("
+            SELECT COUNT(*) FROM santri s
+            WHERE {$aktifSql}
+              AND (s.tanggal_masuk IS NULL OR TRIM(s.tanggal_masuk) = '' OR s.tanggal_masuk = '0000-00-00')
+        ");
+        $tanpaTgl = (int) ($st ? $st->fetchColumn() : 0);
+    }
+
+    return [
+        'mulai_masuk' => $mulaiMasuk,
+        'bedakan_awal_tahun' => $bedakanAwal,
+        'siap' => $mulaiMasuk && $bedakanAwal && $tanpaTgl === 0,
+        'santri_tanpa_tanggal_masuk' => $tanpaTgl,
+    ];
 }
 
 /**

@@ -158,6 +158,7 @@ return [
         '/keuangan/cashless_setor.php' => 'Setor Cashless Koperasi',
         '/keuangan/cashless_pin.php' => 'Rekap Saldo & PIN Cashless',
         '/pembayaran/tagihan_syahriyah.php' => 'Status Tagihan Bulanan',
+        '/pembayaran/cek_pembayaran.php' => 'Cek Pembayaran',
         '/pembayaran/riwayat.php' => 'Riwayat Pembayaran',
         '/pembayaran/laporan.php' => 'Laporan Syahriyah',
         '/pembayaran/laporan_kopsa_per_santri.php' => 'KOPSA per Santri (per Bulan)',
@@ -241,6 +242,7 @@ return [
             ]],
             ['title' => 'Transaksi', 'paths' => [
                 '/keuangan/transaksi.php',
+                '/pembayaran/cek_pembayaran.php',
                 '/keuangan/kas.php',
                 '/keuangan/riwayat_pembayaran.php',
                 '/keuangan/perbaikan-kas.php',

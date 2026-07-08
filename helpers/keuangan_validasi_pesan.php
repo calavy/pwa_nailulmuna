@@ -75,6 +75,20 @@ function keuangan_kesalahan_kas_def(string $jenis): array
             'dampak' => 'Rekap kas menghitung keluar, tetapi saldo fisik tidak berkurang.',
             'solusi' => 'Buat atau hubungkan baris pengeluaran gaji dengan akun kas yang dipakai bayar.',
         ],
+        'pembayaran_nominal_berlebihan' => [
+            'kode' => 'pembayaran_nominal_berlebihan',
+            'judul' => 'Pembayaran melebihi tagihan periode',
+            'penjelasan' => 'Ada pembayaran pos wajib/awal tahun yang totalnya melebihi tagihan yang seharusnya untuk santri dan periode tersebut.',
+            'dampak' => 'Saldo kas dan tagihan santri bisa lebih besar dari yang seharusnya — selisih dengan uang nyata atau rekap tagihan.',
+            'solusi' => 'Edit pembayaran lewat riwayat: kurangi nominal pos yang berlebih, atau hapus baris jika entri salah (super admin + alasan). Input baru sudah ditolak jika melebihi sisa tagihan.',
+        ],
+        'pembayaran_total_detail_selisih' => [
+            'kode' => 'pembayaran_total_detail_selisih',
+            'judul' => 'Total pembayaran tidak sama jumlah detail',
+            'penjelasan' => 'Kolom total pembayaran berbeda dari jumlah baris detail pos.',
+            'dampak' => 'Jurnal dan rekap kas memakai total header — bisa tidak selaras dengan rincian pos.',
+            'solusi' => 'Edit pembayaran agar total dan detail pos sama, atau hapus jika entri rusak.',
+        ],
     ];
 
     return $defs[$jenis] ?? [
@@ -171,6 +185,23 @@ function keuangan_rekap_kas_analisis_selisih(PDO $pdo, array $rekap): array
             'jumlah' => count($duplikat),
             'nominal' => 0,
             'nominal_fmt' => count($duplikat) . ' pasang',
+        ];
+    }
+
+    $nominalBerlebihan = keuangan_perbaikan_kas_list_nominal_berlebihan($pdo, 10);
+    if ($nominalBerlebihan !== []) {
+        $def = keuangan_kesalahan_kas_def('pembayaran_nominal_berlebihan');
+        $nomExcess = 0;
+        foreach ($nominalBerlebihan as $nb) {
+            $nomExcess += (int) ($nb['kelebihan'] ?? 0);
+        }
+        $penyebab[] = [
+            'jenis' => 'pembayaran_nominal_berlebihan',
+            'judul' => $def['judul'],
+            'keterangan' => $def['penjelasan'] . ' ' . $def['dampak'],
+            'jumlah' => count($nominalBerlebihan),
+            'nominal' => $nomExcess,
+            'nominal_fmt' => $fmt($nomExcess),
         ];
     }
 

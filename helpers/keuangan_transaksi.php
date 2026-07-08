@@ -742,6 +742,9 @@ function keuangan_pembayaran_validasi_urutan_bulan(
 function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
 {
     ensure_keuangan_transaksi_tables($pdo);
+    if (!function_exists('keuangan_pembayaran_pos_slug_normalize')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+    }
     $biayaDefinitions = keuangan_biaya_definitions();
     $periode = keuangan_tahun_ajaran_aktif($pdo);
 
@@ -841,7 +844,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
             }
         }
         $detailRows[] = [
-            'slug' => $slug,
+            'slug' => keuangan_pembayaran_pos_slug_normalize($slug),
             'nama' => keuangan_pos_display_nama($pdo, $slug, (string) ($def['nama'] ?? $slug)),
             'nominal' => $nominal,
         ];
@@ -867,7 +870,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     }
 
     foreach ($detailRows as $dr) {
-        if ($dr['slug'] === 'saku') {
+        if (keuangan_pembayaran_detail_is_saku($dr)) {
             continue;
         }
         $info = $tagihanBreakdown[$dr['slug']] ?? null;
@@ -942,25 +945,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         ]);
     }
 
-    $hasSaku = array_filter($detailRows, static fn(array $r): bool => $r['slug'] === 'saku');
-    if ($hasSaku) {
-        $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
-        $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')->execute(['santri_id' => $santriId]);
-        $pdo->prepare("
-            INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
-            VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
-        ")->execute([
-            'santri_id' => $santriId,
-            'nominal' => $topupNominal,
-            'keterangan' => 'Topup otomatis dari pembayaran pos Saku',
-            'ref_pembayaran_id' => $pembayaranId,
-            'created_by' => $userId > 0 ? $userId : null,
-        ]);
-        require_once __DIR__ . '/cashless_koperasi.php';
-        require_once __DIR__ . '/cashless_wa.php';
-        cashless_sync_account_balance($pdo, $santriId);
-        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
+    if (!function_exists('keuangan_pembayaran_apply_cashless_saku')) {
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
     }
+    keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
 
     keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pembayaran(

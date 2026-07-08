@@ -43,11 +43,42 @@ declare(strict_types=1);
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron otomatis</h2>
-        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1 menit</strong> (paling akurat). Tanpa cron, job terjadwal tetap bisa jalan saat staf login dan membuka aplikasi (throttle ~1 menit ringan / ~5 menit berat).</p>
+        <?php
+        $waCronStale = true;
+        if ($waCronLastRun !== '') {
+            $cronTs = strtotime($waCronLastRun);
+            $waCronStale = $cronTs === false || (time() - $cronTs) > 600;
+        }
+        $waCronActive = $waCronLastRun !== '' && !$waCronStale;
+        ?>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="badge <?= $waCronActive ? 'bg-success' : ($waCronLastRun === '' ? 'bg-secondary' : 'bg-danger') ?>">
+                <?= $waCronActive ? 'Cron aktif' : ($waCronLastRun === '' ? 'Belum pernah jalan' : 'Cron tidak update (&gt;10 menit)') ?>
+            </span>
+            <?php if (!empty($waJadwal['enabled'])): ?>
+                <span class="badge <?= !empty($waJadwal['is_send_day']) ? 'bg-primary' : 'bg-light text-dark border' ?>">
+                    Hari ini: hari ke-<?= (int) ($waJadwal['today_day'] ?? 0) ?> (<?= htmlspecialchars((string) ($waJadwal['calendar'] ?? '')) ?>)
+                </span>
+                <?php if (!empty($waJadwal['is_send_day'])): ?>
+                    <span class="badge <?= !empty($waJadwal['send_time_ok']) ? 'bg-success' : 'bg-warning text-dark' ?>">
+                        <?= !empty($waJadwal['send_time_ok']) ? 'Sudah jam kirim' : 'Menunggu jam ' . htmlspecialchars((string) ($waJadwal['send_time'] ?? '')) ?>
+                    </span>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1 menit</strong> (paling akurat). Di XAMPP/Windows: jalankan <code>setup-cron-wa.bat</code> sebagai Administrator. Tanpa cron, job terjadwal tetap bisa jalan saat staf login dan membuka aplikasi (throttle ~1 menit ringan / ~5 menit berat).</p>
         <ul class="small mb-3 ps-3">
             <li>Terakhir jalan: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
             <li>Tick berat terakhir: <strong><?= $waLastHeavy !== '' ? htmlspecialchars($waLastHeavy) : '—' ?></strong></li>
             <li>Job WA terjadwal terakhir: <strong><?= $waScheduledLastAt !== '' ? htmlspecialchars($waScheduledLastAt) : 'Belum pernah' ?></strong></li>
+            <li>Tagihan terakhir: <strong><?= $waTagihanLastRun !== '' ? htmlspecialchars($waTagihanLastRun) : '—' ?></strong>
+                <?php if (is_array($waLastStats) && ((int) ($waLastStats['sent'] ?? 0) > 0 || (int) ($waLastStats['failed'] ?? 0) > 0)): ?>
+                    — <?= (int) ($waLastStats['sent'] ?? 0) ?> terkirim, <?= (int) ($waLastStats['failed'] ?? 0) ?> gagal
+                <?php endif; ?>
+            </li>
+            <?php if (is_array($waPartialFail)): ?>
+                <li class="text-warning">Partial fail terakhir: <?= (int) ($waPartialFail['sent'] ?? 0) ?> terkirim, <?= (int) ($waPartialFail['failed'] ?? 0) ?> gagal — retry berikutnya melewati santri yang sudah sukses.</li>
+            <?php endif; ?>
             <?php if ($waScheduledLast && !empty($waScheduledLast['skipped'])): ?>
                 <li class="text-warning">Job terjadwal dilewati: <?= htmlspecialchars((string) ($waScheduledLast['gateway_error'] ?? $waScheduledLast['reason'] ?? 'gateway')) ?></li>
             <?php elseif ($waAlpaLast): ?>
@@ -71,6 +102,7 @@ declare(strict_types=1);
             <span class="input-group-text">URL cron</span>
             <input type="text" class="form-control font-monospace" readonly value="<?= htmlspecialchars($cronUrl) ?>" id="wa-cron-url">
             <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('wa-cron-url').value)">Salin</button>
+            <a class="btn btn-outline-primary" href="<?= htmlspecialchars($cronUrl) ?>" target="_blank" rel="noopener">Tes cron</a>
         </div>
         <p class="small text-muted mb-0">Atur kunci cron di tab <a href="?tab=gateway">Gateway</a>. <?= $waCronKey === '' ? '<span class="text-warning">Belum ada kunci.</span>' : '<span class="text-success">Kunci aktif.</span>' ?></p>
     </div>

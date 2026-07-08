@@ -293,6 +293,29 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-header fw-semibold">Tagihan sesuai tanggal masuk santri</div>
             <div class="card-body">
+                <?php if (empty($tagihanMulaiMasuk) || empty($awalTahunBedakan)): ?>
+                <div class="alert alert-warning py-2 small mb-3">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>Pengaturan belum lengkap.</strong>
+                    <?php if (empty($tagihanMulaiMasuk)): ?>
+                        Centang <em>mulai bulan tanggal masuk</em> agar santri baru tidak ditagih sebelum bulan masuk.
+                    <?php endif; ?>
+                    <?php if (empty($awalTahunBedakan)): ?>
+                        <?= empty($tagihanMulaiMasuk) ? ' ' : '' ?>Centang <em>bedakan awal tahun</em> agar tarif/komponen awal tahun berbeda untuk santri baru vs lama.
+                    <?php endif; ?>
+                    Tanpa ini, semua santri dihitung penuh dari bulan 1 dan awal tahun sama.
+                </div>
+                <?php endif; ?>
+                <?php
+                $masukStatus = keuangan_tagihan_masuk_pengaturan_status($pdo);
+                if ((int) ($masukStatus['santri_tanpa_tanggal_masuk'] ?? 0) > 0):
+                ?>
+                <div class="alert alert-info py-2 small mb-3">
+                    <i class="fa-solid fa-circle-info me-1"></i>
+                    <?= (int) $masukStatus['santri_tanpa_tanggal_masuk'] ?> santri aktif belum punya <strong>tanggal masuk</strong> —
+                    diperlakukan sebagai santri lama (tagihan dari bulan 1). Lengkapi di menu Santri.
+                </div>
+                <?php endif; ?>
                 <p class="small text-muted mb-3">
                     <strong>Santri baru</strong> ditagih bulanan mulai <strong>bulan tanggal masuk</strong> pada TA pertama mereka
                     (bulan sebelumnya tidak ditagih). Catatan tersimpan otomatis dan tetap terlihat di TA berikutnya sebagai riwayat.

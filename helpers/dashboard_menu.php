@@ -85,6 +85,7 @@ function dashboard_quick_tile_priority_paths(): array
         '/keuangan/index.php',
         '/keuangan/pembayaran.php',
         '/pembayaran/tagihan_syahriyah.php',
+        '/pembayaran/cek_pembayaran.php',
         '/pembayaran/riwayat.php',
         '/keuangan/neraca.php',
         '/keuangan/neraca-perbaikan.php',

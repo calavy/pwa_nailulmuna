@@ -82,6 +82,10 @@ require_once __DIR__ . '/../includes/header.php';
     $tag = $dashSnap['tagihan_bulan'];
     $wa = $dashSnap['wa_tagihan'];
     $kasBank = $dashSnap['kas_bank'] ?? ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => ''];
+    $mutasiHariIni = $dashSnap['mutasi_hari_ini'] ?? ['masuk' => 0, 'keluar' => 0, 'bersih' => 0];
+    $kesehatanNeraca = $dashSnap['kesehatan_neraca'] ?? [];
+    $selisihSakuCashless = (int) ($kesehatanNeraca['selisih_saku_cashless'] ?? 0);
+    $transaksiTanpaAkun = (int) ($dashSnap['transaksi_tanpa_akun'] ?? 0);
     $seimbang = !empty($ner['seimbang']);
     $neracaSehat = !empty($ner['sehat']);
     $selisihNeraca = abs((int) ($ner['selisih'] ?? 0));
@@ -174,7 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-body">
                     <div class="small text-muted mb-1"><i class="fa-solid fa-money-bill-wave me-1"></i> Kas fisik</div>
                     <div class="h4 mb-0 text-success"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_kas'] ?? 0))) ?></div>
-                    <div class="small text-muted">per <?= htmlspecialchars((string) ($kasBank['as_of_label'] ?? '')) ?></div>
+                    <div class="small text-muted">Uang tunai &amp; e-wallet di pondok · per <?= htmlspecialchars((string) ($kasBank['as_of_label'] ?? '')) ?></div>
                 </div>
             </div>
         </div>
@@ -183,26 +187,66 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="card-body">
                     <div class="small text-muted mb-1"><i class="fa-solid fa-building-columns me-1"></i> Saldo rekening</div>
                     <div class="h4 mb-0 text-primary"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_bank'] ?? 0))) ?></div>
-                    <div class="small text-muted">Total likuid <?= htmlspecialchars($formatRupiah((int) ($kasBank['total'] ?? 0))) ?></div>
+                    <div class="small text-muted">Total likuid <?= htmlspecialchars($formatRupiah((int) ($kasBank['total'] ?? 0))) ?> (kas + bank)</div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body py-2">
-                    <div class="small fw-semibold mb-2">Rincian akun operasional</div>
+                    <div class="small fw-semibold mb-2"><i class="fa-solid fa-arrows-rotate me-1"></i> Mutasi hari ini</div>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Masuk</span>
+                        <span class="text-success fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['masuk'] ?? 0))) ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Keluar</span>
+                        <span class="text-danger fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['keluar'] ?? 0))) ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between small border-top pt-1">
+                        <span class="text-muted">Bersih</span>
+                        <span class="fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['bersih'] ?? 0))) ?></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <?php if ($selisihRekapKas !== 0 || $selisihSakuCashless !== 0 || $transaksiTanpaAkun > 0): ?>
+    <div class="alert alert-warning py-2 small mb-3">
+        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+        <strong>Perlu perhatian:</strong>
+        <?php if ($selisihRekapKas !== 0): ?>
+            Selisih rekap kas <?= htmlspecialchars($formatRupiah(abs($selisihRekapKas))) ?>.
+        <?php endif; ?>
+        <?php if ($selisihSakuCashless !== 0): ?>
+            Selisih saku vs cashless <?= htmlspecialchars($formatRupiah(abs($selisihSakuCashless))) ?>.
+        <?php endif; ?>
+        <?php if ($transaksiTanpaAkun > 0): ?>
+            <?= $transaksiTanpaAkun ?> transaksi tanpa akun kas/bank.
+        <?php endif; ?>
+        <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>" class="alert-link ms-1">Perbaikan Kas →</a>
+    </div>
+    <?php endif; ?>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-2">
+                    <div class="small fw-semibold mb-2">Rincian akun operasional (terkini)</div>
                     <?php if (($kasBank['akun'] ?? []) === []): ?>
-                        <p class="small text-muted mb-0">Belum ada akun kas/rekening aktif.</p>
+                        <p class="small text-muted mb-0">Belum ada akun kas/rekening aktif. <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=akun')) ?>">Buat akun</a></p>
                     <?php else: ?>
                         <ul class="list-unstyled small mb-0">
                             <?php foreach ($kasBank['akun'] as $ak): ?>
-                                <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-light">
+                                <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-light flex-wrap">
                                     <span>
                                         <span class="badge text-bg-<?= strtoupper((string) ($ak['jenis'] ?? '')) === 'BANK' ? 'primary' : 'success' ?> me-1"><?= htmlspecialchars((string) ($ak['jenis'] ?? 'KAS')) ?></span>
                                         <?= htmlspecialchars((string) ($ak['nama'] ?? '-')) ?>
                                         <?php if (trim((string) ($ak['nomor'] ?? '')) !== ''): ?>
                                             <span class="text-muted">· <?= htmlspecialchars((string) $ak['nomor']) ?></span>
                                         <?php endif; ?>
+                                        <span class="text-muted ms-1">(masuk bln <?= htmlspecialchars($formatRupiah((int) ($ak['masuk_bulan'] ?? 0))) ?> · keluar <?= htmlspecialchars($formatRupiah((int) ($ak['keluar_bulan'] ?? 0))) ?>)</span>
                                     </span>
                                     <strong><?= htmlspecialchars($formatRupiah((int) ($ak['saldo'] ?? 0))) ?></strong>
                                 </li>
@@ -262,6 +306,39 @@ require_once __DIR__ . '/../includes/header.php';
                                 <span class="badge text-bg-secondary">Nonaktif</span>
                             <?php endif; ?>
                         </dd>
+                        <dt class="col-5 text-muted">Hari ini</dt>
+                        <dd class="col-7 mb-0">
+                            Hari ke-<?= (int) ($wa['today_day'] ?? 0) ?>
+                            <?php if (!empty($wa['hari_ini_jadwal_kirim'])): ?>
+                                <span class="badge text-bg-warning">Jadwal kirim</span>
+                            <?php endif; ?>
+                            <?php if (!empty($wa['send_time_ok'])): ?>
+                                <span class="text-muted">· jam kirim sudah lewat</span>
+                            <?php elseif (!empty($wa['hari_ini_jadwal_kirim'])): ?>
+                                <span class="text-muted">· menunggu jam <?= htmlspecialchars((string) ($wa['send_time'] ?? '')) ?></span>
+                            <?php endif; ?>
+                        </dd>
+                        <dt class="col-5 text-muted">Cron</dt>
+                        <dd class="col-7 mb-0">
+                            <?php
+                            $cronOk = false;
+                            if (!empty($wa['cron_last_run'])) {
+                                $cronTs = strtotime((string) $wa['cron_last_run']);
+                                $cronOk = $cronTs !== false && (time() - $cronTs) < 600;
+                            }
+                            ?>
+                            <?php if ($cronOk): ?>
+                                <span class="text-success">Aktif</span> (<?= htmlspecialchars((string) $wa['cron_last_run']) ?>)
+                            <?php elseif (!empty($wa['cron_last_run'])): ?>
+                                <span class="text-danger">Lambat</span> (<?= htmlspecialchars((string) $wa['cron_last_run']) ?>)
+                            <?php else: ?>
+                                <span class="text-danger">Belum pernah jalan</span>
+                            <?php endif; ?>
+                        </dd>
+                        <?php if (!empty($wa['partial_fail_at'])): ?>
+                            <dt class="col-5 text-muted">Gagal sebagian</dt>
+                            <dd class="col-7 mb-0 text-warning"><?= htmlspecialchars((string) $wa['partial_fail_at']) ?></dd>
+                        <?php endif; ?>
                         <dt class="col-5 text-muted">Jadwal kirim</dt>
                         <dd class="col-7 mb-0">Tgl <?= (int) $wa['due_day'] ?>
                             <?php if ((string) ($wa['send_time'] ?? '') !== ''): ?>
@@ -320,9 +397,10 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="badge bg-success ms-1" style="font-size:0.65rem">Laporan utama</span>
                 </h2>
                 <p class="small text-muted mb-2">TA <?= htmlspecialchars((string) ($rekapSnap['ta_label'] ?? '')) ?> · s.d. <?= htmlspecialchars((string) ($rekapSnap['bulan_berjalan_label'] ?? '')) ?></p>
-                <p class="mb-1">Saldo akhir: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir'] ?? 0))) ?></strong></p>
+                <p class="mb-1">Saldo akhir (uang nyata): <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_uang_nyata'] ?? $rekapSnap['saldo_akhir_fisik'] ?? 0))) ?></strong></p>
                 <?php if ((int) ($rekapSnap['selisih_saldo'] ?? 0) !== 0): ?>
-                <p class="small text-warning mb-2">Selisih saldo fisik: <?= htmlspecialchars($formatRupiah(abs((int) $rekapSnap['selisih_saldo']))) ?></p>
+                <p class="small text-warning mb-1">Hitung buku <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_hitung'] ?? $rekapSnap['saldo_akhir'] ?? 0))) ?> · selisih <?= htmlspecialchars($formatRupiah(abs((int) $rekapSnap['selisih_saldo']))) ?></p>
+                <p class="small mb-2"><a href="/keuangan/perbaikan-kas.php">Perbaiki transaksi kas</a></p>
                 <?php else: ?>
                 <p class="small text-muted mb-2">Masuk <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['masuk_total'] ?? 0))) ?> · Keluar <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['keluar'] ?? 0))) ?></p>
                 <?php endif; ?>

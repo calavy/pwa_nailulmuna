@@ -248,13 +248,55 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
 
         <div class="accordion-item">
             <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keuPanduanAlurUang">
+                    9. Alur uang masuk &amp; keluar (kas vs rekening)
+                </button>
+            </h2>
+            <div id="keuPanduanAlurUang" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
+                <div class="accordion-body small">
+                    <p class="fw-semibold mb-1">Uang masuk</p>
+                    <ol class="mb-3 ps-3">
+                        <li>Pembayaran santri atau pemasukan lain dicatat di modul keuangan.</li>
+                        <li>Pilih <strong>akun kas/bank</strong> tujuan: tunai/e-wallet (KAS) atau transfer (BANK).</li>
+                        <li>Sistem buat <strong>jurnal otomatis</strong>: debit kas/bank, kredit pendapatan atau titipan saku.</li>
+                        <li>Pos <strong>saku</strong> → otomatis top-up saldo cashless santri.</li>
+                    </ol>
+                    <p class="fw-semibold mb-1">Uang keluar</p>
+                    <ol class="mb-3 ps-3">
+                        <li>Input di <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">pengeluaran</a> (termasuk gaji).</li>
+                        <li>Pilih akun sumber (kas fisik atau rekening bank).</li>
+                        <li>Jurnal: debit beban, kredit kas/bank.</li>
+                    </ol>
+                    <p class="fw-semibold mb-1">Kas fisik vs rekening (dashboard)</p>
+                    <ul class="mb-3 ps-3">
+                        <li><strong>Kas fisik &amp; e-wallet</strong> — uang tunai operasional di pondok.</li>
+                        <li><strong>Rekening bank</strong> — saldo di rekening aktif.</li>
+                        <li><strong>Total likuid</strong> = kas + bank. Mutasi hari ini tampil di <a href="<?= htmlspecialchars(app_href('/keuangan/index.php')) ?>">dashboard keuangan</a>.</li>
+                    </ul>
+                    <p class="fw-semibold mb-1">Jika ada selisih</p>
+                    <ol class="mb-0 ps-3">
+                        <li>Buka <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>">Perbaikan kas</a> — transaksi tanpa akun, dobel, saran jurnal/cashless/gaji.</li>
+                        <li>Cek <a href="<?= htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php')) ?>">Neraca perbaikan</a> bila selisih saku vs cashless.</li>
+                        <li>Verifikasi <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">rekap kas bulanan</a> (kolom fisik vs buku).</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keuPanduanWa">
-                    9. WA tagihan otomatis
+                    10. WA tagihan otomatis
                 </button>
             </h2>
             <div id="keuPanduanWa" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
                 <div class="accordion-body small">
-                    <p class="mb-2">Cron <code>cron/wa_auto.php</code> kirim ke wali santri syahriyah belum lunas (jadwal kalender + pengaturan WA).</p>
+                    <p class="mb-2">Cron <code>cron/wa_auto.php</code> mengirim pengingat ke wali santri syahriyah belum lunas sesuai jadwal kalender Hijriyah/Masehi + jam kirim di pengaturan.</p>
+                    <ul class="mb-2 ps-3">
+                        <li><strong>Wajib di server lokal:</strong> jalankan <code>setup-cron-wa.bat</code> (Task Scheduler setiap 1 menit).</li>
+                        <li>Status cron &amp; hari Hijri terkini: <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php')) ?>">Pengaturan WA</a> dan kartu tagihan di dashboard keuangan.</li>
+                        <li>Jika kirim gagal sebagian, retry berikutnya <em>tidak</em> mengirim ulang ke santri yang sudah sukses.</li>
+                    </ul>
                     <p class="mb-0">
                         Manual: tombol WA di <a href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">tagihan syahriyah</a>
                         · Template: <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">pengaturan pesan WA</a>
@@ -266,7 +308,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
         <div class="accordion-item">
             <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#keuPanduanAkuntansi">
-                    10. Akuntansi &amp; ringkasan
+                    11. Akuntansi &amp; ringkasan
                 </button>
             </h2>
             <div id="keuPanduanAkuntansi" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
