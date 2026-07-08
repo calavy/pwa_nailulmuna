@@ -10,6 +10,7 @@ require_once __DIR__ . '/keuangan_pembayaran_admin.php';
 require_once __DIR__ . '/keuangan_pemasukan_riwayat.php';
 require_once __DIR__ . '/keuangan_pengeluaran_riwayat.php';
 require_once __DIR__ . '/pembayaran_edit_token.php';
+require_once __DIR__ . '/operasional_audit.php';
 
 /**
  * @return array{
@@ -337,14 +338,14 @@ function keuangan_perbaikan_kas_hapus(PDO $pdo, string $tipe, int $id, int $user
             return ['ok' => false, 'message' => 'Hapus pemasukan memerlukan token super admin.'];
         }
 
-        return keuangan_pemasukan_delete($pdo, $id, $userId);
+        return keuangan_pemasukan_delete($pdo, $id, $userId, $alasan);
     }
     if ($tipe === 'pengeluaran') {
         if (!pembayaran_edit_token_user_boleh_edit($pdo)) {
             return ['ok' => false, 'message' => 'Hapus pengeluaran memerlukan token super admin.'];
         }
 
-        return keuangan_pengeluaran_delete($pdo, $id, $userId);
+        return keuangan_pengeluaran_delete($pdo, $id, $userId, $alasan);
     }
 
     return ['ok' => false, 'message' => 'Jenis transaksi tidak dikenali.'];
@@ -366,4 +367,315 @@ function keuangan_perbaikan_kas_edit_url(string $tipe, int $id): string
         'pengeluaran' => app_href('/keuangan/riwayat_pengeluaran.php?edit=' . $id),
         default => app_href('/keuangan/perbaikan-kas.php'),
     };
+}
+
+function keuangan_perbaikan_kas_tipe_from_modul(string $modul): ?string
+{
+    return match ($modul) {
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN => 'pembayaran',
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN => 'pemasukan',
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN => 'pengeluaran',
+        default => null,
+    };
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function keuangan_perbaikan_kas_list_riwayat_hapus(PDO $pdo, int $limit = 50): array
+{
+    $rows = operasional_audit_list_deleted_kas($pdo, $limit);
+    $out = [];
+    foreach ($rows as $log) {
+        if (operasional_audit_is_restored($log)) {
+            continue;
+        }
+        $modul = (string) ($log['modul'] ?? '');
+        $tipe = keuangan_perbaikan_kas_tipe_from_modul($modul);
+        if ($tipe === null) {
+            continue;
+        }
+        $sebelum = json_decode((string) ($log['data_sebelum'] ?? '{}'), true);
+        if (!is_array($sebelum)) {
+            $sebelum = [];
+        }
+        $entityId = (int) ($log['entity_id'] ?? ($sebelum['id'] ?? 0));
+        $out[] = [
+            'audit_id' => (int) ($log['id'] ?? 0),
+            'tipe' => $tipe,
+            'entity_id' => $entityId,
+            'modul' => $modul,
+            'ringkas' => operasional_audit_ringkas_kas($modul, $sebelum),
+            'alasan' => (string) ($log['alasan'] ?? ''),
+            'user_nama' => (string) ($log['user_nama'] ?? ''),
+            'created_at' => (string) ($log['created_at'] ?? ''),
+            'data_sebelum' => $sebelum,
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function keuangan_perbaikan_kas_restore(PDO $pdo, int $auditLogId, int $userId): array
+{
+    if ($auditLogId <= 0) {
+        return ['ok' => false, 'message' => 'Log riwayat tidak valid.'];
+    }
+    ensure_operasional_audit_table($pdo);
+    $st = $pdo->prepare('SELECT * FROM operasional_audit_log WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $auditLogId]);
+    $log = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$log) {
+        return ['ok' => false, 'message' => 'Riwayat hapus tidak ditemukan.'];
+    }
+    if ((string) ($log['aksi'] ?? '') !== 'DELETE') {
+        return ['ok' => false, 'message' => 'Hanya transaksi yang dihapus yang dapat dipulihkan.'];
+    }
+    if (operasional_audit_is_restored($log)) {
+        return ['ok' => false, 'message' => 'Transaksi ini sudah pernah dipulihkan.'];
+    }
+
+    $modul = (string) ($log['modul'] ?? '');
+    $tipe = keuangan_perbaikan_kas_tipe_from_modul($modul);
+    if ($tipe === null) {
+        return ['ok' => false, 'message' => 'Jenis transaksi tidak didukung untuk pemulihan.'];
+    }
+
+    $data = json_decode((string) ($log['data_sebelum'] ?? '{}'), true);
+    if (!is_array($data) || $data === []) {
+        return ['ok' => false, 'message' => 'Data cadangan transaksi kosong — tidak dapat dipulihkan.'];
+    }
+
+    ensure_keuangan_transaksi_tables($pdo);
+    keuangan_transaksi_bootstrap_jurnal();
+
+    if ($tipe === 'pembayaran') {
+        $res = keuangan_perbaikan_kas_restore_pembayaran($pdo, $data, $userId);
+    } elseif ($tipe === 'pemasukan') {
+        $res = keuangan_perbaikan_kas_restore_pemasukan($pdo, $data, $userId);
+    } else {
+        $res = keuangan_perbaikan_kas_restore_pengeluaran($pdo, $data, $userId);
+    }
+
+    if (!$res['ok']) {
+        return $res;
+    }
+
+    $entityId = (int) ($res['entity_id'] ?? ($log['entity_id'] ?? 0));
+    operasional_audit_mark_restored($pdo, $auditLogId, $userId);
+    operasional_audit_log(
+        $pdo,
+        $modul,
+        'CREATE',
+        $entityId,
+        null,
+        $data,
+        $userId,
+        'Pulihkan dari riwayat hapus (log #' . $auditLogId . ')'
+    );
+    keuangan_perbaikan_kas_invalidate_cache();
+
+    return [
+        'ok' => true,
+        'message' => 'Transaksi #' . $entityId . ' (' . $tipe . ') berhasil dipulihkan.',
+    ];
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @return array{ok:bool,message:string,entity_id?:int}
+ */
+function keuangan_perbaikan_kas_restore_pembayaran(PDO $pdo, array $data, int $userId): array
+{
+    $id = (int) ($data['id'] ?? 0);
+    if ($id <= 0) {
+        return ['ok' => false, 'message' => 'ID pembayaran pada cadangan tidak valid.'];
+    }
+    if (keuangan_pembayaran_fetch($pdo, $id) !== null) {
+        return ['ok' => false, 'message' => 'Pembayaran #' . $id . ' sudah ada — tidak dapat dipulihkan ganda.'];
+    }
+
+    $details = is_array($data['details'] ?? null) ? $data['details'] : [];
+    $skip = ['details', 'cashless_tx', 'nis', 'nama_santri', 'kategori_kelas', 'akun_nama'];
+    $cols = [];
+    $vals = [];
+    $params = ['id' => $id];
+    foreach ($data as $key => $value) {
+        if (!is_string($key) || in_array($key, $skip, true) || !column_exists($pdo, 'keuangan_pembayaran', $key)) {
+            continue;
+        }
+        $cols[] = $key;
+        $vals[] = ':' . $key;
+        $params[$key] = $value;
+    }
+    if (!in_array('id', $cols, true)) {
+        array_unshift($cols, 'id');
+        array_unshift($vals, ':id');
+    }
+
+    $santriId = (int) ($data['santri_id'] ?? 0);
+    $akunId = (int) ($data['akun_id'] ?? 0);
+    $tanggal = (string) ($data['tanggal_bayar'] ?? date('Y-m-d'));
+    $total = (int) round((float) ($data['total_nominal'] ?? 0));
+    $jenisPeriode = strtoupper((string) ($data['jenis_periode'] ?? 'BULANAN'));
+    $kategoriFilter = $jenisPeriode === 'BULANAN' ? 'Bulanan' : 'Awal Tahun';
+    $detailRows = [];
+    foreach ($details as $det) {
+        if (!is_array($det)) {
+            continue;
+        }
+        $detailRows[] = [
+            'slug' => (string) ($det['pos_slug'] ?? ''),
+            'nama' => (string) ($det['pos_nama'] ?? ''),
+            'nominal' => (int) round((float) ($det['nominal'] ?? 0)),
+        ];
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('INSERT INTO keuangan_pembayaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')')
+            ->execute($params);
+
+        $insDet = $pdo->prepare('
+            INSERT INTO keuangan_pembayaran_detail (pembayaran_id, pos_slug, pos_nama, nominal)
+            VALUES (:pembayaran_id, :pos_slug, :pos_nama, :nominal)
+        ');
+        foreach ($detailRows as $dr) {
+            $insDet->execute([
+                'pembayaran_id' => $id,
+                'pos_slug' => $dr['slug'],
+                'pos_nama' => $dr['nama'],
+                'nominal' => $dr['nominal'],
+            ]);
+        }
+
+        keuangan_pembayaran_apply_cashless_saku($pdo, $id, $santriId, $detailRows, $userId);
+
+        if ($akunId > 0 && $detailRows !== []) {
+            keuangan_jurnal_pembayaran($pdo, $id, $tanggal, $akunId, $total, $detailRows, $kategoriFilter, $userId);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memulihkan pembayaran: ' . $e->getMessage()];
+    }
+
+    return ['ok' => true, 'message' => 'OK', 'entity_id' => $id];
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @return array{ok:bool,message:string,entity_id?:int}
+ */
+function keuangan_perbaikan_kas_restore_pemasukan(PDO $pdo, array $data, int $userId): array
+{
+    $id = (int) ($data['id'] ?? 0);
+    if ($id <= 0) {
+        return ['ok' => false, 'message' => 'ID pemasukan pada cadangan tidak valid.'];
+    }
+    if (keuangan_pemasukan_get($pdo, $id) !== null) {
+        return ['ok' => false, 'message' => 'Pemasukan #' . $id . ' sudah ada — tidak dapat dipulihkan ganda.'];
+    }
+
+    $skip = ['akun_nama'];
+    $cols = [];
+    $vals = [];
+    $params = ['id' => $id];
+    foreach ($data as $key => $value) {
+        if (!is_string($key) || in_array($key, $skip, true) || !column_exists($pdo, 'keuangan_pemasukan', $key)) {
+            continue;
+        }
+        $cols[] = $key;
+        $vals[] = ':' . $key;
+        $params[$key] = $value;
+    }
+    if (!in_array('id', $cols, true)) {
+        array_unshift($cols, 'id');
+        array_unshift($vals, ':id');
+    }
+
+    $akunId = (int) ($data['akun_id'] ?? 0);
+    $tanggal = (string) ($data['tanggal'] ?? date('Y-m-d'));
+    $nominal = (int) round((float) ($data['nominal'] ?? 0));
+    $sumber = (string) ($data['sumber'] ?? '');
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('INSERT INTO keuangan_pemasukan (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')')
+            ->execute($params);
+        if ($akunId > 0 && $nominal > 0) {
+            keuangan_jurnal_pemasukan($pdo, $id, $tanggal, $akunId, $nominal, $sumber, $userId);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memulihkan pemasukan: ' . $e->getMessage()];
+    }
+
+    return ['ok' => true, 'message' => 'OK', 'entity_id' => $id];
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @return array{ok:bool,message:string,entity_id?:int}
+ */
+function keuangan_perbaikan_kas_restore_pengeluaran(PDO $pdo, array $data, int $userId): array
+{
+    $id = (int) ($data['id'] ?? 0);
+    if ($id <= 0) {
+        return ['ok' => false, 'message' => 'ID pengeluaran pada cadangan tidak valid.'];
+    }
+    if (keuangan_pengeluaran_get($pdo, $id) !== null) {
+        return ['ok' => false, 'message' => 'Pengeluaran #' . $id . ' sudah ada — tidak dapat dipulihkan ganda.'];
+    }
+
+    $skip = ['akun_nama'];
+    $cols = [];
+    $vals = [];
+    $params = ['id' => $id];
+    foreach ($data as $key => $value) {
+        if (!is_string($key) || in_array($key, $skip, true) || !column_exists($pdo, 'keuangan_pengeluaran', $key)) {
+            continue;
+        }
+        $cols[] = $key;
+        $vals[] = ':' . $key;
+        $params[$key] = $value;
+    }
+    if (!in_array('id', $cols, true)) {
+        array_unshift($cols, 'id');
+        array_unshift($vals, ':id');
+    }
+
+    $akunId = (int) ($data['akun_id'] ?? 0);
+    $tanggal = (string) ($data['tanggal'] ?? date('Y-m-d'));
+    $nominal = (int) round((float) ($data['nominal'] ?? 0));
+    $pos = (string) ($data['pos'] ?? '');
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('INSERT INTO keuangan_pengeluaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')')
+            ->execute($params);
+        if ($akunId > 0 && $nominal > 0) {
+            keuangan_jurnal_pengeluaran($pdo, $id, $tanggal, $akunId, $nominal, $pos, $userId);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memulihkan pengeluaran: ' . $e->getMessage()];
+    }
+
+    return ['ok' => true, 'message' => 'OK', 'entity_id' => $id];
 }

@@ -70,6 +70,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'restore') {
+        if (!$isSuperAdmin) {
+            set_flash('error', 'Hanya super admin yang dapat memulihkan transaksi.');
+            header('Location: ' . app_href('/keuangan/perbaikan-kas.php#riwayat-hapus'));
+            exit;
+        }
+        $res = keuangan_perbaikan_kas_restore($pdo, (int) ($_POST['audit_id'] ?? 0), $currentUserId);
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/keuangan/perbaikan-kas.php#riwayat-hapus'));
+        exit;
+    }
+
     if ($action === 'redeem_token') {
         $res = pembayaran_edit_token_redeem($pdo, $currentUserId, (string) ($_POST['token_plain'] ?? ''));
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
@@ -79,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $ringkas = keuangan_perbaikan_kas_ringkas($pdo);
+$riwayatHapus = $isSuperAdmin ? keuangan_perbaikan_kas_list_riwayat_hapus($pdo, 80) : [];
 $tokenRequired = pembayaran_edit_token_required_for_current_user();
 $tokenAktif = pembayaran_edit_token_session_aktif($pdo);
 
@@ -169,7 +182,7 @@ function perbaikan_kas_render_tabel(
     <p class="text-muted mb-0 small">
         Transaksi tanpa akun kas/bank menyebabkan selisih antara saldo hitung dan saldo fisik.
         Input baru <strong>sudah ditolak</strong> jika akun tidak dipilih.
-        Perbaiki data lama di sini, atau hapus jika entri ganda.
+        Perbaiki data lama di sini, hapus jika entri ganda, atau pulihkan dari riwayat hapus di bawah.
     </p>
 </div>
 
@@ -329,6 +342,71 @@ function perbaikan_kas_render_tabel(
             <?= htmlspecialchars((string) $dupDef['penjelasan'] . ' ' . $dupDef['dampak']) ?>
             Input baru sudah ditolak jika pos wajib sudah lunas. Hapus baris duplikat lewat edit pembayaran (super admin + alasan).
         </p>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($isSuperAdmin): ?>
+<div class="card shadow-sm mb-3" id="riwayat-hapus">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <strong><i class="fa-solid fa-clock-rotate-left me-1"></i> Riwayat hapus</strong>
+        <span class="badge bg-secondary"><?= count($riwayatHapus) ?> dapat dipulihkan</span>
+    </div>
+    <div class="card-body p-0">
+        <?php if ($riwayatHapus === []): ?>
+            <p class="text-muted small mb-0 px-3 py-3">Belum ada transaksi kas yang dihapus, atau semua sudah dipulihkan.</p>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Jenis</th>
+                            <th>ID</th>
+                            <th>Ringkasan</th>
+                            <th>Alasan hapus</th>
+                            <th>Petugas</th>
+                            <th class="text-end">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($riwayatHapus as $rh): ?>
+                        <?php
+                        $tipeRh = (string) ($rh['tipe'] ?? '');
+                        $tipeLabel = match ($tipeRh) {
+                            'pembayaran' => 'Pembayaran',
+                            'pemasukan' => 'Pemasukan',
+                            'pengeluaran' => 'Pengeluaran',
+                            default => ucfirst($tipeRh),
+                        };
+                        ?>
+                        <tr>
+                            <td class="small text-nowrap"><?= htmlspecialchars((string) ($rh['created_at'] ?? '')) ?></td>
+                            <td><span class="badge text-bg-light border"><?= htmlspecialchars($tipeLabel) ?></span></td>
+                            <td class="font-monospace">#<?= (int) ($rh['entity_id'] ?? 0) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) ($rh['ringkas'] ?? '—')) ?></td>
+                            <td class="small" style="max-width:14rem;"><?= nl2br(htmlspecialchars((string) ($rh['alasan'] ?? ''))) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) ($rh['user_nama'] ?? '—')) ?></td>
+                            <td class="text-end text-nowrap">
+                                <form method="post" class="d-inline" onsubmit="return confirm('Pulihkan transaksi #<?= (int) ($rh['entity_id'] ?? 0) ?> (<?= htmlspecialchars($tipeLabel) ?>)?');">
+                                    <input type="hidden" name="action" value="restore">
+                                    <input type="hidden" name="audit_id" value="<?= (int) ($rh['audit_id'] ?? 0) ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                        <i class="fa-solid fa-rotate-left me-1"></i> Pulihkan
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted px-3 py-2 mb-0">
+                Transaksi yang dipulihkan kembali ke database dengan ID asli.
+                Jika belum punya akun kas, perbaiki lagi di tabel di atas.
+                Log lengkap: <a href="<?= htmlspecialchars(app_href('/pembayaran/riwayat_audit.php')) ?>">audit operasional</a>.
+            </p>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>

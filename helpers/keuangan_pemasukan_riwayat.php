@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/pembayaran_edit_token.php';
+require_once __DIR__ . '/operasional_audit.php';
 
 /** @return list<array<string, mixed>> */
 function keuangan_pemasukan_list(PDO $pdo, int $limit = 100, int $offset = 0): array
@@ -53,8 +54,7 @@ function keuangan_pemasukan_get(PDO $pdo, int $id): ?array
     $join = table_exists($pdo, 'keuangan_akun') ? 'LEFT JOIN keuangan_akun a ON a.id = p.akun_id' : '';
     $akunCol = table_exists($pdo, 'keuangan_akun') ? ', a.nama_akun AS akun_nama, p.akun_id' : '';
     $st = $pdo->prepare("
-        SELECT p.id, p.tanggal, p.sumber, p.dari_pihak, p.metode_bayar,
-               p.nominal, p.keterangan, p.no_bukti{$akunCol}
+        SELECT p.*
         FROM keuangan_pemasukan p
         {$join}
         WHERE p.id = :id
@@ -153,18 +153,35 @@ function keuangan_pemasukan_update(PDO $pdo, array $post, int $userId): array
 /**
  * @return array{ok:bool,message:string}
  */
-function keuangan_pemasukan_delete(PDO $pdo, int $id, int $userId): array
+function keuangan_pemasukan_delete(PDO $pdo, int $id, int $userId, string $alasan = ''): array
 {
     pembayaran_edit_token_ensure_schema($pdo);
     if (!pembayaran_edit_token_user_boleh_edit($pdo)) {
         return ['ok' => false, 'message' => 'Masukkan token super admin terlebih dahulu.'];
     }
-    if ($id <= 0 || keuangan_pemasukan_get($pdo, $id) === null) {
+    $before = keuangan_pemasukan_get($pdo, $id);
+    if ($id <= 0 || $before === null) {
         return ['ok' => false, 'message' => 'Data pemasukan tidak ditemukan.'];
     }
+    $alasan = trim($alasan);
+    if ($alasan === '') {
+        $alasan = 'Dihapus dari riwayat pemasukan';
+    }
+
+    ensure_operasional_audit_table($pdo);
 
     $pdo->beginTransaction();
     try {
+        operasional_audit_log(
+            $pdo,
+            OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN,
+            'DELETE',
+            $id,
+            $before,
+            null,
+            $userId,
+            $alasan
+        );
         keuangan_transaksi_bootstrap_jurnal();
         keuangan_jurnal_delete_by_ref($pdo, 'pemasukan', $id);
         $pdo->prepare('DELETE FROM keuangan_pemasukan WHERE id = :id')->execute(['id' => $id]);
@@ -182,5 +199,5 @@ function keuangan_pemasukan_delete(PDO $pdo, int $id, int $userId): array
     }
     keuangan_dashboard_cache_invalidate();
 
-    return ['ok' => true, 'message' => 'Pemasukan #' . $id . ' telah dihapus.'];
+    return ['ok' => true, 'message' => 'Pemasukan #' . $id . ' telah dihapus dan dicatat di riwayat.'];
 }

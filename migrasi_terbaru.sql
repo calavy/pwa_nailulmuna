@@ -472,6 +472,12 @@ ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_kembali TINYINT(1) NOT 
 ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL DEFAULT 0;
 
 -- -----------------------------------------------------------------------------
+-- 2026-07-07 | PKPPS — kelas keuangan per tingkatan (tagihan syahriyah PKPPS)
+-- -----------------------------------------------------------------------------
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS kelas_keuangan_id INT UNSIGNED NULL AFTER urutan;
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER kelas_keuangan_id;
+ALTER TABLE pkpps_tingkatan MODIFY urutan SMALLINT UNSIGNED NOT NULL;
+-- -----------------------------------------------------------------------------
 -- 2026-05-30 | Izin rombongan + urutan tingkatan kajian
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS perizinan_rombongan_meta (
@@ -499,3 +505,9 @@ ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_id INT UNSIGNED NULL;
 ALTER TABLE perizinan ADD COLUMN IF NOT EXISTS rombongan_kembali TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE tingkatan ADD COLUMN IF NOT EXISTS urutan SMALLINT UNSIGNED NOT NULL DEFAULT 0;
 
+-- -----------------------------------------------------------------------------
+-- 2026-07-07 | PKPPS — kelas keuangan per tingkatan (tagihan syahriyah PKPPS)
+-- -----------------------------------------------------------------------------
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS kelas_keuangan_id INT UNSIGNED NULL AFTER urutan;
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER kelas_keuangan_id;
+ALTER TABLE pkpps_tingkatan MODIFY urutan SMALLINT UNSIGNED NOT NULL;

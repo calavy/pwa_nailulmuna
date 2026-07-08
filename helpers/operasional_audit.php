@@ -4,7 +4,19 @@ declare(strict_types=1);
 
 /** Modul log audit terpadu (keuangan, jadwal, …). */
 const OPERASIONAL_AUDIT_MODUL_KEUANGAN = 'keuangan_pembayaran';
+const OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN = 'keuangan_pemasukan';
+const OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN = 'keuangan_pengeluaran';
 const OPERASIONAL_AUDIT_MODUL_JADWAL = 'jadwal_kegiatan';
+
+/** @return list<string> */
+function operasional_audit_kas_moduls(): array
+{
+    return [
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN,
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN,
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN,
+    ];
+}
 
 function operasional_audit_user_nama(): string
 {
@@ -116,10 +128,62 @@ function operasional_audit_list(
 function operasional_audit_modul_label(string $modul): string
 {
     return match ($modul) {
-        OPERASIONAL_AUDIT_MODUL_KEUANGAN => 'Koreksi pembayaran',
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN => 'Pembayaran santri',
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN => 'Pemasukan kas',
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN => 'Pengeluaran kas',
         OPERASIONAL_AUDIT_MODUL_JADWAL => 'Jadwal kegiatan',
         default => $modul,
     };
+}
+
+function operasional_audit_is_restored(array $log): bool
+{
+    $sesudah = json_decode((string) ($log['data_sesudah'] ?? 'null'), true);
+
+    return is_array($sesudah) && !empty($sesudah['_restored']);
+}
+
+function operasional_audit_mark_restored(PDO $pdo, int $auditLogId, int $userId): void
+{
+    if ($auditLogId <= 0) {
+        return;
+    }
+    $st = $pdo->prepare('SELECT data_sesudah FROM operasional_audit_log WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $auditLogId]);
+    $raw = $st->fetchColumn();
+    $meta = is_string($raw) && $raw !== '' ? (json_decode($raw, true) ?: []) : [];
+    if (!is_array($meta)) {
+        $meta = [];
+    }
+    $meta['_restored'] = true;
+    $meta['_restored_at'] = date('Y-m-d H:i:s');
+    $meta['_restored_by'] = $userId > 0 ? $userId : null;
+    $pdo->prepare('UPDATE operasional_audit_log SET data_sesudah = :sesudah WHERE id = :id')
+        ->execute([
+            'id' => $auditLogId,
+            'sesudah' => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function operasional_audit_list_deleted_kas(PDO $pdo, int $limit = 50): array
+{
+    ensure_operasional_audit_table($pdo);
+    $limit = max(5, min(200, $limit));
+    $moduls = operasional_audit_kas_moduls();
+    $in = implode(',', array_fill(0, count($moduls), '?'));
+    $st = $pdo->prepare("
+        SELECT *
+        FROM operasional_audit_log
+        WHERE modul IN ({$in}) AND aksi = 'DELETE'
+        ORDER BY id DESC
+        LIMIT {$limit}
+    ");
+    $st->execute($moduls);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
 /** @return array<string, mixed>|null */
@@ -177,4 +241,50 @@ function operasional_audit_ringkas_pembayaran(?array $row): string
     }
 
     return $parts !== [] ? implode(' · ', $parts) : '—';
+}
+
+/** Ringkasan pemasukan untuk tabel audit / riwayat hapus. */
+function operasional_audit_ringkas_pemasukan(?array $row): string
+{
+    if (!is_array($row) || $row === []) {
+        return '—';
+    }
+    $parts = array_filter([
+        trim((string) ($row['sumber'] ?? '')),
+        trim((string) ($row['dari_pihak'] ?? '')),
+    ]);
+    $nominal = (int) round((float) ($row['nominal'] ?? 0));
+    if ($nominal > 0) {
+        $parts[] = 'Rp ' . number_format($nominal, 0, ',', '.');
+    }
+
+    return $parts !== [] ? implode(' · ', $parts) : '—';
+}
+
+/** Ringkasan pengeluaran untuk tabel audit / riwayat hapus. */
+function operasional_audit_ringkas_pengeluaran(?array $row): string
+{
+    if (!is_array($row) || $row === []) {
+        return '—';
+    }
+    $parts = array_filter([
+        trim((string) ($row['pos'] ?? '')),
+        trim((string) ($row['penanggung_jawab'] ?? '')),
+    ]);
+    $nominal = (int) round((float) ($row['nominal'] ?? 0));
+    if ($nominal > 0) {
+        $parts[] = 'Rp ' . number_format($nominal, 0, ',', '.');
+    }
+
+    return $parts !== [] ? implode(' · ', $parts) : '—';
+}
+
+function operasional_audit_ringkas_kas(string $modul, ?array $row): string
+{
+    return match ($modul) {
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN => operasional_audit_ringkas_pembayaran($row),
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN => operasional_audit_ringkas_pemasukan($row),
+        OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN => operasional_audit_ringkas_pengeluaran($row),
+        default => '—',
+    };
 }

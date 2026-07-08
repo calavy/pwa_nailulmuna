@@ -1,11 +1,20 @@
 @echo off
 title Upload ke GitHub - pwa_nailulmuna
 cd /d "%~dp0"
+set "PATH=C:\Program Files\Git\bin;%PATH%"
 
 echo.
 echo === Upload ke GitHub ===
 echo Repo: https://github.com/calavy/pwa_nailulmuna
 echo.
+
+for /f "delims=" %%A in ('git config user.email 2^>nul') do set GIT_EMAIL=%%A
+if "%GIT_EMAIL%"=="" (
+    echo [PERINGATAN] Email Git belum di-set untuk repo ini.
+    echo Jalankan dulu: setup-git-push.bat
+    echo.
+    pause
+)
 
 set /p MSG="Pesan commit (contoh: Update fitur keuangan): "
 if "%MSG%"=="" (
@@ -15,6 +24,8 @@ if "%MSG%"=="" (
 )
 
 git add .
+git status -sb
+echo.
 git commit -m "%MSG%"
 if errorlevel 1 (
     echo.

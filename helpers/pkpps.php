@@ -28,20 +28,21 @@ function pkpps_ensure_schema(PDO $pdo, bool $force = false): void
     $done = true;
 
     if (!$force && !empty($_SESSION['pkpps_schema_ready_v1'])) {
-        return;
+        $sessionOk = table_exists($pdo, 'pkpps_tingkatan')
+            && column_exists($pdo, 'pkpps_tingkatan', 'kelas_keuangan_id')
+            && column_exists($pdo, 'pkpps_tingkatan', 'sub_level');
+        if ($sessionOk) {
+            return;
+        }
+        unset($_SESSION['pkpps_schema_ready_v1']);
     }
 
     $tablesReady = table_exists($pdo, 'pkpps_tingkatan')
         && table_exists($pdo, 'pkpps_santri')
         && table_exists($pdo, 'pkpps_jadwal');
-    if (!$force && $tablesReady) {
-        if (app_setting($pdo, 'pkpps_schema_ready_v1', '') !== '1') {
-            save_setting($pdo, 'pkpps_schema_ready_v1', '1');
-        }
-        $_SESSION['pkpps_schema_ready_v1'] = 1;
-
-        return;
-    }
+    $pkppsSchemaComplete = $tablesReady
+        && column_exists($pdo, 'pkpps_tingkatan', 'kelas_keuangan_id')
+        && column_exists($pdo, 'pkpps_tingkatan', 'sub_level');
 
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS pkpps_tingkatan (
@@ -105,6 +106,15 @@ function pkpps_ensure_schema(PDO $pdo, bool $force = false): void
             KEY idx_pkpps_jadwal_tingkatan (pkpps_tingkatan_id, hari_ke)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ');
+
+    if (!$force && $pkppsSchemaComplete) {
+        if (app_setting($pdo, 'pkpps_schema_ready_v1', '') !== '1') {
+            save_setting($pdo, 'pkpps_schema_ready_v1', '1');
+        }
+        $_SESSION['pkpps_schema_ready_v1'] = 1;
+
+        return;
+    }
 
     $count = (int) $pdo->query('SELECT COUNT(*) FROM pkpps_tingkatan')->fetchColumn();
     if ($count === 0) {

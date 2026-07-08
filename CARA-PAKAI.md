@@ -8,7 +8,8 @@
 3. Login: http://localhost/pwa_nailulmuna/login.php  
    - User: `admin` / Pass: `admin123` (default impor DB)
 
-**Database pertama kali:** phpMyAdmin → impor `impor_lengkap_pwa_nailulmuna.sql` lalu `migrasi_terbaru.sql`
+**Database pertama kali:** phpMyAdmin → impor **`impor_lokal_pwa_nailulmuna.sql`** (cukup sekali; sudah termasuk semua migrasi).  
+Alternatif hosting/lama: `impor_lengkap_pwa_nailulmuna.sql` lalu `migrasi_terbaru.sql`.
 
 Path URL **otomatis** menyesuaikan folder XAMPP — tidak perlu ubah kode saat preview.
 
@@ -48,7 +49,7 @@ Ringkas:
 3. Backup database → jalankan SQL **baru** dari `migrasi_terbaru.sql` saja (bukan impor ulang `impor_lengkap_...sql`)
 4. Buka https://pwa.nailulmuna.id/login.php
 
-Instalasi **pertama kali** saja: impor `impor_lengkap_pwa_nailulmuna.sql` + `migrasi_terbaru.sql`, lalu buat `database.local.php`.
+Instalasi **pertama kali** saja: impor **`impor_lokal_pwa_nailulmuna.sql`** (lokal) atau `impor_lengkap_pwa_nailulmuna.sql` + `migrasi_terbaru.sql` (hosting), lalu buat `database.local.php` jika belum ada.
 
 ---
 

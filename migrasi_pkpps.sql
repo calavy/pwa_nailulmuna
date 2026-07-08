@@ -3,13 +3,19 @@
 
 CREATE TABLE IF NOT EXISTS pkpps_tingkatan (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    urutan TINYINT UNSIGNED NOT NULL,
+    urutan SMALLINT UNSIGNED NOT NULL,
+    kelas_keuangan_id INT UNSIGNED NULL,
+    sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0,
     nama_tingkatan VARCHAR(80) NOT NULL,
     is_aktif TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uniq_pkpps_tingkatan_urutan (urutan),
-    UNIQUE KEY uniq_pkpps_tingkatan_nama (nama_tingkatan)
+    UNIQUE KEY uniq_pkpps_tingkatan_nama (nama_tingkatan),
+    KEY idx_pkpps_kelas_keu (kelas_keuangan_id, sub_level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS kelas_keuangan_id INT UNSIGNED NULL AFTER urutan;
+ALTER TABLE pkpps_tingkatan ADD COLUMN IF NOT EXISTS sub_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER kelas_keuangan_id;
 
 CREATE TABLE IF NOT EXISTS pkpps_santri (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
