@@ -22,13 +22,41 @@ function keuangan_diagnostik_list_gaji_tanpa_pengeluaran(PDO $pdo, int $limit = 
         require_once __DIR__ . '/keuangan_rekonsiliasi.php';
     }
     $where = keuangan_sql_gaji_belum_di_pengeluaran_where($pdo, 'g');
-    $st = $pdo->query("
-        SELECT g.id, g.bulan_tagihan, g.tahun_ajaran_mulai, g.tahun_ajaran_selesai,
-               g.total_bayar, g.keterangan, g.created_at
-        FROM keuangan_gaji_pembimbing g
-        WHERE {$where}
-        ORDER BY g.id DESC
-        LIMIT " . max(1, min(100, $limit)));
+    $cols = ['g.id', 'g.total_bayar', 'g.keterangan', 'g.created_at'];
+    if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'bulan')) {
+        $cols[] = 'g.bulan AS bulan_tagihan';
+    } elseif (column_exists($pdo, 'keuangan_gaji_pembimbing', 'bulan_tagihan')) {
+        $cols[] = 'g.bulan_tagihan';
+    }
+    if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'tahun_ajaran_mulai')) {
+        $cols[] = 'g.tahun_ajaran_mulai';
+        if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'tahun_ajaran_selesai')) {
+            $cols[] = 'g.tahun_ajaran_selesai';
+        }
+    } elseif (column_exists($pdo, 'keuangan_gaji_pembimbing', 'tahun')) {
+        $cols[] = 'g.tahun AS tahun_ajaran_mulai';
+        $cols[] = 'g.tahun AS tahun_ajaran_selesai';
+    }
+    if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'periode_label')) {
+        $cols[] = 'g.periode_label';
+    }
+    if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'tanggal_bayar')) {
+        $cols[] = 'g.tanggal_bayar';
+    }
+    $lim = max(1, min(100, $limit));
+    try {
+        $st = $pdo->query(
+            'SELECT ' . implode(', ', $cols) . "
+            FROM keuangan_gaji_pembimbing g
+            WHERE {$where}
+            ORDER BY g.id DESC
+            LIMIT {$lim}"
+        );
+    } catch (PDOException $e) {
+        error_log('keuangan_diagnostik_list_gaji_tanpa_pengeluaran: ' . $e->getMessage());
+
+        return [];
+    }
 
     return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }
