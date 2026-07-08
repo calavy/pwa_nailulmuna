@@ -46,46 +46,24 @@ function keuangan_sql_gaji_belum_di_pengeluaran_where(PDO $pdo, string $alias = 
     }
     $col = ($alias !== '' ? $alias . '.' : '') . 'pengeluaran_id';
     if (!column_exists($pdo, 'keuangan_gaji_pembimbing', 'pengeluaran_id')) {
-        return '1=1';
+        return '1=0';
     }
 
     return "({$col} IS NULL OR {$col} <= 0)";
 }
 
 /**
- * Total gaji pembimbing yang belum punya baris pengeluaran terkait (hindari double-count).
+ * Gaji pembimbing hanya mempengaruhi kas/neraca lewat keuangan_pengeluaran saat dibayar.
+ * Baris gaji tanpa pengeluaran (data lama) tidak lagi dijumlahkan ke arus keluar.
  */
 function keuangan_sum_gaji_keluar_tambahan(PDO $pdo, string $dateFrom, string $dateTo): int
 {
-    if (!table_exists($pdo, 'keuangan_gaji_pembimbing')) {
-        return 0;
-    }
-    if ($dateFrom > $dateTo) {
-        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
-    }
-    $gajiWhere = keuangan_sql_gaji_belum_di_pengeluaran_where($pdo);
-    $st = $pdo->prepare("
-        SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
-        WHERE tanggal_bayar BETWEEN :dari AND :sampai AND {$gajiWhere}
-    ");
-    $st->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
-
-    return (int) round((float) ($st->fetchColumn() ?: 0));
+    return 0;
 }
 
 function keuangan_sum_gaji_keluar_tambahan_asof(PDO $pdo, string $asOf): int
 {
-    if (!table_exists($pdo, 'keuangan_gaji_pembimbing')) {
-        return 0;
-    }
-    $gajiWhere = keuangan_sql_gaji_belum_di_pengeluaran_where($pdo);
-    $st = $pdo->prepare("
-        SELECT COALESCE(SUM(total_bayar), 0) FROM keuangan_gaji_pembimbing
-        WHERE tanggal_bayar <= :t AND {$gajiWhere}
-    ");
-    $st->execute(['t' => $asOf]);
-
-    return (int) round((float) ($st->fetchColumn() ?: 0));
+    return 0;
 }
 
 /**

@@ -383,6 +383,18 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     if (!function_exists('keuangan_pkpps_alokasi_komponen_nama')) {
         require_once __DIR__ . '/keuangan_pkpps_syahriyah.php';
     }
+    if (!function_exists('payroll_pembimbing_dana_umum_sisa_tersedia')) {
+        require_once __DIR__ . '/payroll_pembimbing.php';
+    }
+    $sisaGajiUmum = payroll_pembimbing_dana_umum_sisa_tersedia($pdo);
+    if ($sisaGajiUmum > 0) {
+        $fmt = function_exists('keuangan_format_rupiah') ? keuangan_format_rupiah($sisaGajiUmum) : (string) $sisaGajiUmum;
+        $out[] = [
+            'value' => payroll_pembimbing_dana_umum_sisa_label(),
+            'label' => payroll_pembimbing_dana_umum_sisa_label() . ' (tersedia ' . $fmt . ')',
+            'group' => 'Dana umum',
+        ];
+    }
     // PKPPS dialokasikan ke komponen gaji — tidak lagi sebagai "Dana Umum" terpisah di dropdown pengeluaran.
 
     return $out;

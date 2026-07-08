@@ -118,6 +118,43 @@ function keuangan_tagihan_bulanan_rows(PDO $pdo, int $santriId, string $kelasKat
     return $rows;
 }
 
+/** Pastikan tabel & kolom cashless untuk top-up saku dari pembayaran. */
+function keuangan_ensure_cashless_schema(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'cashless_accounts')) {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS cashless_accounts (
+                santri_id INT PRIMARY KEY,
+                pin_hash VARCHAR(255) NULL,
+                balance DECIMAL(12,2) NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        ");
+    }
+    if (!table_exists($pdo, 'cashless_transactions')) {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS cashless_transactions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                santri_id INT NOT NULL,
+                tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                jenis ENUM('TOPUP','DEBIT') NOT NULL,
+                nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
+                keterangan VARCHAR(255) NULL,
+                ref_pembayaran_id INT NULL,
+                created_by INT NULL,
+                INDEX idx_cashless_santri_tanggal (santri_id, tanggal)
+            )
+        ");
+    }
+    if (table_exists($pdo, 'cashless_transactions') && !column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')) {
+        try {
+            $pdo->exec('ALTER TABLE cashless_transactions ADD COLUMN ref_pembayaran_id INT NULL');
+        } catch (Throwable $e) {
+            // abaikan jika kolom sudah ada
+        }
+    }
+}
+
 function ensure_keuangan_transaksi_tables(PDO $pdo): void
 {
     if (!empty($_SESSION['keuangan_schema_ready_v1'])) {
@@ -246,6 +283,7 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
         $pdo->exec("ALTER TABLE keuangan_pengeluaran ADD COLUMN IF NOT EXISTS akun_id INT NULL");
         $pdo->exec("ALTER TABLE keuangan_pengeluaran ADD COLUMN IF NOT EXISTS no_bukti VARCHAR(120) NULL");
     }
+    keuangan_ensure_cashless_schema($pdo);
 
     keuangan_seed_akun_default($pdo);
     keuangan_seed_alokasi_default($pdo);
@@ -948,7 +986,18 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     if (!function_exists('keuangan_pembayaran_apply_cashless_saku')) {
         require_once __DIR__ . '/keuangan_pembayaran_admin.php';
     }
-    keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+    $sakuTopupOk = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+    $hasSakuDetail = false;
+    foreach ($detailRows as $dr) {
+        if (keuangan_pembayaran_detail_is_saku($dr)) {
+            $hasSakuDetail = true;
+            break;
+        }
+    }
+    $sakuWarning = '';
+    if ($hasSakuDetail && !$sakuTopupOk) {
+        $sakuWarning = ' Peringatan: top-up saldo cashless (Saku) gagal — jalankan Backfill Saku di Perbaikan Kas atau hubungi admin.';
+    }
 
     keuangan_transaksi_bootstrap_jurnal();
     keuangan_jurnal_pembayaran(
@@ -973,9 +1022,11 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     return [
         'ok' => true,
         'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.'
+            . $sakuWarning
             . keuangan_wa_pembayaran_flash_teks($waPembayaran),
         'id' => $pembayaranId,
         'wa_pembayaran' => $waPembayaran,
+        'saku_topup_ok' => !$hasSakuDetail || $sakuTopupOk,
     ];
 }
 
@@ -1009,6 +1060,19 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
     if ($alokasiErr !== null) {
         return ['ok' => false, 'message' => $alokasiErr];
+    }
+    if (!function_exists('payroll_pembimbing_dana_umum_sisa_label')) {
+        require_once __DIR__ . '/payroll_pembimbing.php';
+    }
+    if ($alokasiNama === payroll_pembimbing_dana_umum_sisa_label()) {
+        $tersedia = payroll_pembimbing_dana_umum_sisa_tersedia($pdo);
+        if ($nominal > $tersedia) {
+            return [
+                'ok' => false,
+                'message' => 'Nominal melebihi sisa jatah gaji pembimbing untuk dana umum (tersedia '
+                    . keuangan_format_rupiah($tersedia) . ').',
+            ];
+        }
     }
     $akunErr = keuangan_validasi_akun_kas_id($pdo, $akunId);
     if ($akunErr !== null) {

@@ -107,7 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $ringkas = keuangan_perbaikan_kas_ringkas($pdo);
-$diagnostik = keuangan_diagnostik_menyeluruh($pdo);
+$diagnostik = ['ringkas' => [], 'items' => [], 'perbaikan_kas' => $ringkas];
+try {
+    $diagnostik = keuangan_diagnostik_menyeluruh($pdo);
+} catch (Throwable $e) {
+    error_log('keuangan/perbaikan-kas.php diagnostik: ' . $e->getMessage());
+}
 $diagRingkas = $diagnostik['ringkas'] ?? [];
 $diagItems = $diagnostik['items'] ?? [];
 $gajiTanpaPengeluaran = $diagnostik['gaji_tanpa_pengeluaran'] ?? [];

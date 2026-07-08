@@ -12,7 +12,6 @@ require_once __DIR__ . '/keuangan_pengeluaran_riwayat.php';
 require_once __DIR__ . '/pembayaran_edit_token.php';
 require_once __DIR__ . '/operasional_audit.php';
 require_once __DIR__ . '/keuangan_defs.php';
-require_once __DIR__ . '/keuangan_rekap.php';
 
 /**
  * @return array{
@@ -33,8 +32,18 @@ function keuangan_perbaikan_kas_ringkas(PDO $pdo, ?string $asOf = null): array
     $pemasukan = keuangan_perbaikan_kas_list_tanpa_akun($pdo, 'keuangan_pemasukan', 'tanggal', 'nominal', $asOf);
     $pengeluaran = keuangan_perbaikan_kas_list_tanpa_akun($pdo, 'keuangan_pengeluaran', 'tanggal', 'nominal', $asOf);
     $duplikat = keuangan_perbaikan_kas_list_duplikat_mungkin($pdo);
-    $nominalBerlebihan = keuangan_perbaikan_kas_list_nominal_berlebihan($pdo);
-    $totalDetailSelisih = keuangan_perbaikan_kas_list_total_detail_selisih($pdo);
+    $nominalBerlebihan = [];
+    $totalDetailSelisih = [];
+    try {
+        $nominalBerlebihan = keuangan_perbaikan_kas_list_nominal_berlebihan($pdo);
+    } catch (Throwable $e) {
+        error_log('keuangan_perbaikan_kas_list_nominal_berlebihan: ' . $e->getMessage());
+    }
+    try {
+        $totalDetailSelisih = keuangan_perbaikan_kas_list_total_detail_selisih($pdo);
+    } catch (Throwable $e) {
+        error_log('keuangan_perbaikan_kas_list_total_detail_selisih: ' . $e->getMessage());
+    }
 
     $nominal = 0;
     foreach ([$pembayaran, $pemasukan, $pengeluaran] as $rows) {
@@ -134,29 +143,44 @@ function keuangan_perbaikan_kas_list_nominal_berlebihan(PDO $pdo, int $limit = 8
     ) {
         return [];
     }
+    foreach (['jenis_periode', 'bulan_tagihan', 'tahun_ajaran_mulai', 'tahun_ajaran_selesai'] as $col) {
+        if (!column_exists($pdo, 'keuangan_pembayaran', $col)) {
+            return [];
+        }
+    }
 
-    $st = $pdo->query('
-        SELECT p.santri_id, s.nis, s.nama_santri,
-               UPPER(TRIM(p.jenis_periode)) AS jenis_periode,
-               p.bulan_tagihan,
-               p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
-               LOWER(TRIM(d.pos_slug)) AS pos_slug,
-               MAX(d.pos_nama) AS pos_nama,
-               SUM(d.nominal) AS total_paid,
-               MAX(p.tanggal_bayar) AS tanggal_terakhir
-        FROM keuangan_pembayaran p
-        INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
-        INNER JOIN santri s ON s.id = p.santri_id
-        WHERE LOWER(TRIM(d.pos_slug)) <> \'saku\'
-          AND LOWER(TRIM(d.pos_slug)) <> \'\'
-        GROUP BY p.santri_id, s.nis, s.nama_santri,
-                 UPPER(TRIM(p.jenis_periode)), p.bulan_tagihan,
-                 p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
-                 LOWER(TRIM(d.pos_slug))
-        HAVING SUM(d.nominal) > 0
-        ORDER BY MAX(p.tanggal_bayar) DESC, p.santri_id ASC
-        LIMIT 400
-    ');
+    if (!function_exists('keuangan_tagihan_breakdown_for_santri')) {
+        require_once __DIR__ . '/keuangan_rekap.php';
+    }
+
+    try {
+        $st = $pdo->query('
+            SELECT p.santri_id, s.nis, s.nama_santri,
+                   UPPER(TRIM(p.jenis_periode)) AS jenis_periode,
+                   p.bulan_tagihan,
+                   p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
+                   LOWER(TRIM(d.pos_slug)) AS pos_slug,
+                   MAX(d.pos_nama) AS pos_nama,
+                   SUM(d.nominal) AS total_paid,
+                   MAX(p.tanggal_bayar) AS tanggal_terakhir
+            FROM keuangan_pembayaran p
+            INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
+            INNER JOIN santri s ON s.id = p.santri_id
+            WHERE LOWER(TRIM(d.pos_slug)) <> \'saku\'
+              AND LOWER(TRIM(d.pos_slug)) <> \'\'
+            GROUP BY p.santri_id, s.nis, s.nama_santri,
+                     UPPER(TRIM(p.jenis_periode)), p.bulan_tagihan,
+                     p.tahun_ajaran_mulai, p.tahun_ajaran_selesai,
+                     LOWER(TRIM(d.pos_slug))
+            HAVING SUM(d.nominal) > 0
+            ORDER BY MAX(p.tanggal_bayar) DESC, p.santri_id ASC
+            LIMIT 150
+        ');
+    } catch (Throwable $e) {
+        error_log('keuangan_perbaikan_kas_list_nominal_berlebihan SQL: ' . $e->getMessage());
+
+        return [];
+    }
     if (!$st) {
         return [];
     }
@@ -165,6 +189,7 @@ function keuangan_perbaikan_kas_list_nominal_berlebihan(PDO $pdo, int $limit = 8
     $wajibSlugs = keuangan_tagihan_wajib_slugs();
     $out = [];
     $seen = [];
+    $breakdownCache = [];
 
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
         if (count($out) >= max(1, min(150, $limit))) {
@@ -187,15 +212,19 @@ function keuangan_perbaikan_kas_list_nominal_berlebihan(PDO $pdo, int $limit = 8
             continue;
         }
 
-        $breakdown = keuangan_tagihan_breakdown_for_santri(
-            $pdo,
-            $santriId,
-            $jenisPeriode,
-            $bulanTagihan,
-            $tm,
-            $ts,
-            $biayaDefinitions
-        );
+        $cacheKey = $santriId . '|' . $jenisPeriode . '|' . $bulanTagihan . '|' . $tm . '|' . $ts;
+        if (!isset($breakdownCache[$cacheKey])) {
+            $breakdownCache[$cacheKey] = keuangan_tagihan_breakdown_for_santri(
+                $pdo,
+                $santriId,
+                $jenisPeriode,
+                $bulanTagihan,
+                $tm,
+                $ts,
+                $biayaDefinitions
+            );
+        }
+        $breakdown = $breakdownCache[$cacheKey];
         $info = $breakdown[$slug] ?? null;
         if (!is_array($info)) {
             continue;
@@ -256,28 +285,47 @@ function keuangan_perbaikan_kas_pembayaran_ids_for_pos(
     int $tahunSelesai,
     string $posSlug
 ): array {
-    $st = $pdo->prepare('
-        SELECT DISTINCT p.id
-        FROM keuangan_pembayaran p
-        INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
-        WHERE p.santri_id = :sid
-          AND UPPER(TRIM(p.jenis_periode)) = :jp
-          AND p.bulan_tagihan = :bln
-          AND p.tahun_ajaran_mulai = :tm
-          AND p.tahun_ajaran_selesai = :ts
-          AND LOWER(TRIM(d.pos_slug)) = :slug
-        ORDER BY p.tanggal_bayar ASC, p.id ASC
-    ');
-    $st->execute([
-        'sid' => $santriId,
-        'jp' => strtoupper(trim($jenisPeriode)),
-        'bln' => $bulanTagihan,
-        'tm' => $tahunMulai,
-        'ts' => $tahunSelesai,
-        'slug' => strtolower(trim($posSlug)),
-    ]);
+    if (
+        $santriId <= 0
+        || !table_exists($pdo, 'keuangan_pembayaran')
+        || !table_exists($pdo, 'keuangan_pembayaran_detail')
+    ) {
+        return [];
+    }
+    foreach (['jenis_periode', 'bulan_tagihan', 'tahun_ajaran_mulai', 'tahun_ajaran_selesai'] as $col) {
+        if (!column_exists($pdo, 'keuangan_pembayaran', $col)) {
+            return [];
+        }
+    }
 
-    return array_map(static fn(array $r): int => (int) ($r['id'] ?? 0), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    try {
+        $st = $pdo->prepare('
+            SELECT DISTINCT p.id
+            FROM keuangan_pembayaran p
+            INNER JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id
+            WHERE p.santri_id = :sid
+              AND UPPER(TRIM(p.jenis_periode)) = :jp
+              AND p.bulan_tagihan = :bln
+              AND p.tahun_ajaran_mulai = :tm
+              AND p.tahun_ajaran_selesai = :ts
+              AND LOWER(TRIM(d.pos_slug)) = :slug
+            ORDER BY p.tanggal_bayar ASC, p.id ASC
+        ');
+        $st->execute([
+            'sid' => $santriId,
+            'jp' => strtoupper(trim($jenisPeriode)),
+            'bln' => $bulanTagihan,
+            'tm' => $tahunMulai,
+            'ts' => $tahunSelesai,
+            'slug' => strtolower(trim($posSlug)),
+        ]);
+
+        return array_map(static fn(array $r): int => (int) ($r['id'] ?? 0), $st->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    } catch (Throwable $e) {
+        error_log('keuangan_perbaikan_kas_pembayaran_ids_for_pos: ' . $e->getMessage());
+
+        return [];
+    }
 }
 
 /**
@@ -290,22 +338,40 @@ function keuangan_perbaikan_kas_list_total_detail_selisih(PDO $pdo, int $limit =
     if (!table_exists($pdo, 'keuangan_pembayaran') || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
         return [];
     }
+    if (!column_exists($pdo, 'keuangan_pembayaran', 'total_nominal')) {
+        return [];
+    }
 
     $joinSantri = table_exists($pdo, 'santri')
         ? ' LEFT JOIN santri s ON s.id = p.santri_id'
         : '';
     $colsSantri = table_exists($pdo, 'santri') ? ', s.nis, s.nama_santri' : ", '' AS nis, '' AS nama_santri";
+    $lim = max(1, min(100, $limit));
 
-    $st = $pdo->query('
-        SELECT p.id, p.tanggal_bayar, p.total_nominal,
-               COALESCE(SUM(d.nominal), 0) AS sum_detail' . $colsSantri . '
-        FROM keuangan_pembayaran p
-        LEFT JOIN keuangan_pembayaran_detail d ON d.pembayaran_id = p.id' . $joinSantri . '
-        GROUP BY p.id, p.tanggal_bayar, p.total_nominal' . (table_exists($pdo, 'santri') ? ', s.nis, s.nama_santri' : '') . '
-        HAVING ABS(p.total_nominal - COALESCE(SUM(d.nominal), 0)) >= 1
-        ORDER BY p.tanggal_bayar DESC, p.id DESC
-        LIMIT ' . max(1, min(100, $limit))
-    );
+    try {
+        $st = $pdo->query('
+            SELECT p.id, p.tanggal_bayar, p.total_nominal' . $colsSantri . ',
+                   (
+                       SELECT COALESCE(SUM(d.nominal), 0)
+                       FROM keuangan_pembayaran_detail d
+                       WHERE d.pembayaran_id = p.id
+                   ) AS sum_detail
+            FROM keuangan_pembayaran p' . $joinSantri . '
+            WHERE ABS(
+                p.total_nominal - (
+                    SELECT COALESCE(SUM(d2.nominal), 0)
+                    FROM keuangan_pembayaran_detail d2
+                    WHERE d2.pembayaran_id = p.id
+                )
+            ) >= 1
+            ORDER BY p.tanggal_bayar DESC, p.id DESC
+            LIMIT ' . $lim
+        );
+    } catch (Throwable $e) {
+        error_log('keuangan_perbaikan_kas_list_total_detail_selisih: ' . $e->getMessage());
+
+        return [];
+    }
 
     return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }

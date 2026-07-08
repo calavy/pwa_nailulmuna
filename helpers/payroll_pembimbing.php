@@ -621,6 +621,18 @@ function payroll_pembimbing_ensure_gaji_table(PDO $pdo): void
             } catch (Throwable $e) {
             }
         }
+        if (!column_exists($pdo, 'keuangan_gaji_pembimbing', 'total_hak')) {
+            try {
+                $pdo->exec('ALTER TABLE keuangan_gaji_pembimbing ADD COLUMN total_hak DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_bayar');
+            } catch (Throwable $e) {
+            }
+        }
+        if (!column_exists($pdo, 'keuangan_gaji_pembimbing', 'sisa_dana_umum')) {
+            try {
+                $pdo->exec('ALTER TABLE keuangan_gaji_pembimbing ADD COLUMN sisa_dana_umum DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER total_hak');
+            } catch (Throwable $e) {
+            }
+        }
 
         return;
     }
@@ -636,6 +648,8 @@ function payroll_pembimbing_ensure_gaji_table(PDO $pdo): void
                 total_jam DECIMAL(8,2) NOT NULL DEFAULT 0,
                 tarif_per_jam DECIMAL(12,2) NOT NULL DEFAULT 0,
                 total_bayar DECIMAL(12,2) NOT NULL DEFAULT 0,
+                total_hak DECIMAL(12,2) NOT NULL DEFAULT 0,
+                sisa_dana_umum DECIMAL(12,2) NOT NULL DEFAULT 0,
                 tanggal_bayar DATE NOT NULL,
                 keterangan VARCHAR(255) NULL,
                 pengeluaran_id INT NULL,
@@ -676,6 +690,43 @@ function payroll_pembimbing_paid_map(PDO $pdo, string $periodeMode, int $bulan, 
     }
 
     return $map;
+}
+
+/** Label alokasi dana umum dari sisa jatah gaji pembimbing (bayar kurang dari hak). */
+function payroll_pembimbing_dana_umum_sisa_label(): string
+{
+    return 'Dana Umum (Sisa Jatah Gaji Pembimbing)';
+}
+
+/** Total sisa jatah gaji yang dialihkan ke dana umum (sudah dibayar sebagian). */
+function payroll_pembimbing_dana_umum_sisa_total(PDO $pdo): int
+{
+    payroll_pembimbing_ensure_gaji_table($pdo);
+    if (!table_exists($pdo, 'keuangan_gaji_pembimbing') || !column_exists($pdo, 'keuangan_gaji_pembimbing', 'sisa_dana_umum')) {
+        return 0;
+    }
+    $st = $pdo->query('SELECT COALESCE(SUM(sisa_dana_umum), 0) FROM keuangan_gaji_pembimbing WHERE sisa_dana_umum > 0');
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+/** Pengeluaran yang memakai alokasi sisa jatah gaji pembimbing. */
+function payroll_pembimbing_dana_umum_sisa_terpakai(PDO $pdo): int
+{
+    if (!table_exists($pdo, 'keuangan_pengeluaran')) {
+        return 0;
+    }
+    $label = payroll_pembimbing_dana_umum_sisa_label();
+    $st = $pdo->prepare('SELECT COALESCE(SUM(nominal), 0) FROM keuangan_pengeluaran WHERE alokasi_nama = :alokasi');
+    $st->execute(['alokasi' => $label]);
+
+    return (int) round((float) ($st->fetchColumn() ?: 0));
+}
+
+/** Sisa jatah gaji yang masih bisa dipakai untuk pengeluaran umum. */
+function payroll_pembimbing_dana_umum_sisa_tersedia(PDO $pdo): int
+{
+    return max(0, payroll_pembimbing_dana_umum_sisa_total($pdo) - payroll_pembimbing_dana_umum_sisa_terpakai($pdo));
 }
 
 /**
@@ -817,6 +868,8 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
         $tarifMap
     );
     $totalBayar = $nominalInput > 0 ? $nominalInput : (int) round($calc['total_gaji']);
+    $totalHak = (int) round($calc['total_gaji']);
+    $sisaDanaUmum = max(0, $totalHak - $totalBayar);
     if ($totalBayar <= 0) {
         return ['ok' => false, 'message' => 'Nominal gaji harus lebih dari 0.'];
     }
@@ -900,6 +953,16 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
             $gajiVals[] = ':pengeluaran_id';
             $gajiParams['pengeluaran_id'] = $pengeluaranId;
         }
+        if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'total_hak')) {
+            $gajiCols[] = 'total_hak';
+            $gajiVals[] = ':total_hak';
+            $gajiParams['total_hak'] = $totalHak;
+        }
+        if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'sisa_dana_umum')) {
+            $gajiCols[] = 'sisa_dana_umum';
+            $gajiVals[] = ':sisa_dana_umum';
+            $gajiParams['sisa_dana_umum'] = $sisaDanaUmum;
+        }
         $gajiSql = 'INSERT INTO keuangan_gaji_pembimbing (' . implode(', ', $gajiCols) . ') VALUES (' . implode(', ', $gajiVals) . ')';
         $pdo->prepare($gajiSql)->execute($gajiParams);
 
@@ -917,8 +980,14 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
     }
     keuangan_dashboard_cache_invalidate();
 
+    $msg = 'Gaji ' . $namaPb . ' periode ' . $periodLabel . ' berhasil dibayar (' . keuangan_format_rupiah($totalBayar) . '). Arus kas telah dikurangi.';
+    if ($sisaDanaUmum > 0) {
+        $msg .= ' Sisa jatah ' . keuangan_format_rupiah($sisaDanaUmum) . ' tersedia untuk dana umum di Input Pengeluaran.';
+    }
+
     return [
         'ok' => true,
-        'message' => 'Gaji ' . $namaPb . ' periode ' . $periodLabel . ' berhasil dibayar (' . keuangan_format_rupiah($totalBayar) . '). Arus kas telah dikurangi.',
+        'message' => $msg,
+        'sisa_dana_umum' => $sisaDanaUmum,
     ];
 }

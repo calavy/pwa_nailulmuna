@@ -282,6 +282,10 @@ function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, in
     if ($pembayaranId <= 0 || $santriId <= 0) {
         return false;
     }
+    if (!function_exists('keuangan_ensure_cashless_schema')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+    }
+    keuangan_ensure_cashless_schema($pdo);
     $detailRows = keuangan_pembayaran_detail_rows_normalize($detailRows);
     $hasSaku = array_filter($detailRows, static fn(array $r): bool => keuangan_pembayaran_detail_is_saku($r));
     if ($hasSaku === []) {

@@ -71,9 +71,9 @@ function keuangan_kesalahan_kas_def(string $jenis): array
         'gaji_tanpa_pengeluaran' => [
             'kode' => 'gaji_tanpa_pengeluaran',
             'judul' => 'Gaji tanpa baris pengeluaran kas',
-            'penjelasan' => 'Gaji pembimbing tercatat tanpa baris pengeluaran terkait di kas.',
-            'dampak' => 'Rekap kas menghitung keluar, tetapi saldo fisik tidak berkurang.',
-            'solusi' => 'Buat atau hubungkan baris pengeluaran gaji dengan akun kas yang dipakai bayar.',
+            'penjelasan' => 'Gaji pembimbing tercatat tanpa baris pengeluaran terkait di kas (data lama).',
+            'dampak' => 'Tidak mempengaruhi neraca/rekap kas (hanya pengeluaran gaji yang sudah dibayar). Tetap perlu dibersihkan agar catatan gaji selaras dengan kas.',
+            'solusi' => 'Buat atau hubungkan baris pengeluaran gaji dengan akun kas yang dipakai bayar, atau hapus baris gaji yatim jika entri salah.',
         ],
         'pembayaran_nominal_berlebihan' => [
             'kode' => 'pembayaran_nominal_berlebihan',

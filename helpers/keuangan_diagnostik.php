@@ -188,36 +188,40 @@ function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
     }
 
     if (table_exists($pdo, 'keuangan_pembayaran')) {
-        if (!function_exists('keuangan_build_neraca_cached')) {
-            require_once __DIR__ . '/keuangan_neraca.php';
-        }
-        if (!function_exists('keuangan_neraca_saran_perbaikan')) {
-            require_once __DIR__ . '/keuangan_neraca_perbaikan.php';
-        }
-        $neraca = keuangan_build_neraca_cached($pdo, $asOf);
-        $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
-        $saranNeraca = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
-        $skipKode = ['pembayaran_tanpa_akun', 'pemasukan_tanpa_akun', 'pengeluaran_tanpa_akun', 'seimbang'];
-        foreach ($saranNeraca as $s) {
-            $kode = (string) ($s['kode'] ?? '');
-            if ($kode === '' || in_array($kode, $skipKode, true)) {
-                continue;
+        try {
+            if (!function_exists('keuangan_build_neraca_cached')) {
+                require_once __DIR__ . '/keuangan_neraca.php';
             }
-            $items[] = [
-                'kode' => $kode,
-                'prioritas' => (string) ($s['prioritas'] ?? 'sedang'),
-                'judul' => (string) ($s['judul'] ?? ''),
-                'penjelasan' => (string) ($s['deskripsi'] ?? ''),
-                'dampak' => '',
-                'solusi' => implode(' ', (array) ($s['langkah'] ?? [])),
-                'jumlah' => (int) ($s['jumlah'] ?? 0),
-                'nominal' => (int) ($s['nominal'] ?? 0),
-                'nominal_fmt' => $fmt((int) ($s['nominal'] ?? 0)),
-                'href_aksi' => (string) ($s['link'] ?? '/keuangan/neraca-perbaikan.php'),
-                'href_label' => (string) ($s['link_label'] ?? 'Detail'),
-                'bisa_perbaiki_otomatis' => ($s['aksi'] ?? '') === 'backfill_jurnal',
-                'aksi' => (string) ($s['aksi'] ?? ''),
-            ];
+            if (!function_exists('keuangan_neraca_saran_perbaikan')) {
+                require_once __DIR__ . '/keuangan_neraca_perbaikan.php';
+            }
+            $neraca = keuangan_build_neraca_cached($pdo, $asOf);
+            $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
+            $saranNeraca = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
+            $skipKode = ['pembayaran_tanpa_akun', 'pemasukan_tanpa_akun', 'pengeluaran_tanpa_akun', 'seimbang'];
+            foreach ($saranNeraca as $s) {
+                $kode = (string) ($s['kode'] ?? '');
+                if ($kode === '' || in_array($kode, $skipKode, true)) {
+                    continue;
+                }
+                $items[] = [
+                    'kode' => $kode,
+                    'prioritas' => (string) ($s['prioritas'] ?? 'sedang'),
+                    'judul' => (string) ($s['judul'] ?? ''),
+                    'penjelasan' => (string) ($s['deskripsi'] ?? ''),
+                    'dampak' => '',
+                    'solusi' => implode(' ', (array) ($s['langkah'] ?? [])),
+                    'jumlah' => (int) ($s['jumlah'] ?? 0),
+                    'nominal' => (int) ($s['nominal'] ?? 0),
+                    'nominal_fmt' => $fmt((int) ($s['nominal'] ?? 0)),
+                    'href_aksi' => (string) ($s['link'] ?? '/keuangan/neraca-perbaikan.php'),
+                    'href_label' => (string) ($s['link_label'] ?? 'Detail'),
+                    'bisa_perbaiki_otomatis' => ($s['aksi'] ?? '') === 'backfill_jurnal',
+                    'aksi' => (string) ($s['aksi'] ?? ''),
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('keuangan_diagnostik_menyeluruh neraca: ' . $e->getMessage());
         }
 
         $kasMode = keuangan_kas_saldo_mode($pdo);
