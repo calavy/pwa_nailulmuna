@@ -174,6 +174,186 @@ function alpa_tier_list(PDO $pdo, bool $activeOnly = true): array
     }, $rows);
 }
 
+/**
+ * Jika belum ada tier, seed kelipatan dari batas_alpa_notif (mis. 5 → 5,10,15,20,25).
+ *
+ * @return list<array{id:int,threshold:int,label:string,wa:string,is_active:int}>
+ */
+function alpa_tier_ensure_kelipatan_defaults(PDO $pdo): array
+{
+    $existing = alpa_tier_list($pdo, false);
+    if ($existing !== []) {
+        return alpa_tier_list($pdo, true);
+    }
+    if (!table_exists($pdo, 'alpa_tier_notif')) {
+        return [];
+    }
+    $step = max(1, (int) app_setting($pdo, 'batas_alpa_notif', '5'));
+    $ins = $pdo->prepare('
+        INSERT INTO alpa_tier_notif (threshold, label, wa, is_active)
+        VALUES (:t, :l, "", 1)
+    ');
+    for ($i = 1; $i <= 5; $i++) {
+        $th = $step * $i;
+        $ins->execute([
+            't' => $th,
+            'l' => 'Kelipatan ' . $th,
+        ]);
+    }
+
+    return alpa_tier_list($pdo, true);
+}
+
+/** Nomor WA tier, atau fallback pengurus. */
+function alpa_tier_resolve_wa(PDO $pdo, string $tierWa): string
+{
+    $tierWa = trim($tierWa);
+    if ($tierWa !== '') {
+        return $tierWa;
+    }
+    if (function_exists('wa_alpa_notif_target')) {
+        return trim(wa_alpa_notif_target($pdo));
+    }
+
+    return trim((string) app_setting($pdo, 'wa_pengurus', ''));
+}
+
+/**
+ * Cron/jam otomatis: kirim hanya santri yang baru mencapai ambang (belum di dispatch log).
+ *
+ * @return array{sent:int,tiers:list<array<string,mixed>>,pending_santri:int,note:string}
+ */
+function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): array
+{
+    $summary = ['sent' => 0, 'tiers' => [], 'pending_santri' => 0, 'note' => ''];
+    ensure_alpa_tier_tables($pdo);
+    $tiers = alpa_tier_ensure_kelipatan_defaults($pdo);
+    if ($tiers === []) {
+        $summary['note'] = 'tidak_ada_tier';
+
+        return $summary;
+    }
+
+    $tanggal = $tanggal !== null && $tanggal !== '' ? $tanggal : date('Y-m-d');
+    $mode = alpa_tier_periode_mode($pdo);
+    $tanggalMulai = alpa_tier_tanggal_mulai($pdo);
+    if ($tanggalMulai !== '' && $tanggal < $tanggalMulai) {
+        $summary['note'] = 'sebelum_tanggal_mulai';
+
+        return $summary;
+    }
+
+    $minTh = min(array_map(static fn(array $t): int => (int) $t['threshold'], $tiers));
+    [$where, $params] = alpa_tier_window_where($mode, $tanggal, $tanggalMulai);
+    $whereFixed = $where;
+    if ($whereFixed !== '') {
+        $whereFixed = str_replace('tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
+        $whereFixed = str_replace('p.p.tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
+    }
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+    $sql = '
+        SELECT s.id, s.nis, ' . $nameCol . ' AS nama_santri, s.tingkatan, COUNT(p.id) AS alpa_count
+        FROM presensi p
+        INNER JOIN santri s ON s.id = p.santri_id
+        WHERE p.status_presensi = "ALPA"' . $whereFixed . '
+        GROUP BY s.id, s.nis, ' . $nameCol . ', s.tingkatan
+        HAVING alpa_count >= :min_th
+        ORDER BY s.tingkatan ASC, alpa_count DESC, nama_santri ASC
+        LIMIT 500
+    ';
+    $st = $pdo->prepare($sql);
+    $bind = array_merge($params, ['min_th' => $minTh]);
+    $st->execute($bind);
+    $santriRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($santriRows === []) {
+        $summary['note'] = 'tidak_ada_kandidat';
+
+        return $summary;
+    }
+
+    $periodeKey = alpa_tier_periode_key($mode, $tanggal);
+    $periodeLabel = alpa_tier_periode_pesan_label($mode, $tanggal, $tanggalMulai);
+    $tanggalIdn = function_exists('wa_laporan_alpa_tanggal_label')
+        ? wa_laporan_alpa_tanggal_label($tanggal)
+        : $tanggal;
+
+    require_once __DIR__ . '/wa_laporan_alpa.php';
+
+    /** @var array<int, list<array{nama_santri:string,nis:string,tingkatan:string,alpa_count:int,santri_id:int}>> $byTier */
+    $byTier = [];
+    foreach ($santriRows as $row) {
+        $sid = (int) ($row['id'] ?? 0);
+        $count = (int) ($row['alpa_count'] ?? 0);
+        if ($sid <= 0 || $count <= 0) {
+            continue;
+        }
+        foreach ($tiers as $tier) {
+            $th = (int) $tier['threshold'];
+            $tid = (int) $tier['id'];
+            if ($count < $th) {
+                continue;
+            }
+            if (alpa_tier_dispatch_exists($pdo, $sid, $tid, $periodeKey)) {
+                continue;
+            }
+            $byTier[$tid][] = [
+                'santri_id' => $sid,
+                'nama_santri' => (string) ($row['nama_santri'] ?? '-'),
+                'nis' => (string) ($row['nis'] ?? ''),
+                'tingkatan' => (string) ($row['tingkatan'] ?? ''),
+                'alpa_count' => $count,
+            ];
+            $summary['pending_santri']++;
+        }
+    }
+
+    foreach ($tiers as $tier) {
+        $tid = (int) $tier['id'];
+        $entries = $byTier[$tid] ?? [];
+        if ($entries === []) {
+            continue;
+        }
+        $wa = alpa_tier_resolve_wa($pdo, (string) $tier['wa']);
+        if ($wa === '') {
+            continue;
+        }
+        $rowsFmt = [];
+        foreach ($entries as $e) {
+            $rowsFmt[] = [
+                'nama_santri' => $e['nama_santri'],
+                'nis' => $e['nis'],
+                'tingkatan' => $e['tingkatan'],
+                'nama_kegiatan' => 'Akumulasi periode',
+                'total_alpha' => $e['alpa_count'],
+            ];
+        }
+        $waMessages = wa_format_rekap_alpa_per_santri_messages(
+            $pdo,
+            $periodeLabel,
+            (int) $tier['threshold'],
+            $rowsFmt
+        );
+        $sent = send_wa_bulk_messages($pdo, $wa, $waMessages);
+        if ($sent <= 0) {
+            continue;
+        }
+        foreach ($entries as $entry) {
+            alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
+        }
+        $summary['sent'] += $sent;
+        $summary['tiers'][] = [
+            'tier_id' => $tid,
+            'threshold' => (int) $tier['threshold'],
+            'label' => (string) $tier['label'],
+            'santri_count' => count($entries),
+            'sent' => $sent,
+        ];
+    }
+    $summary['note'] = $summary['sent'] > 0 ? 'ok' : 'tidak_ada_kiriman_baru';
+
+    return $summary;
+}
+
 /** Hitung total alpa santri pada periode aktif (memperhitungkan tanggal mulai). */
 function alpa_tier_count_alpa(PDO $pdo, int $santriId, string $mode, string $tanggal, string $tanggalMulai = ''): int
 {
@@ -307,7 +487,7 @@ function alpa_tier_dispatch_batch(
     string $namaKegiatan
 ): array {
     ensure_alpa_tier_tables($pdo);
-    $tiers = alpa_tier_list($pdo, true);
+    $tiers = alpa_tier_ensure_kelipatan_defaults($pdo);
     $summary = ['tiers' => [], 'sent_total' => 0];
 
     if ($tiers === [] || $santriRows === []) {
@@ -354,7 +534,8 @@ function alpa_tier_dispatch_batch(
         if ($entries === []) {
             continue;
         }
-        if (trim($tier['wa']) === '') {
+        $waTarget = alpa_tier_resolve_wa($pdo, (string) $tier['wa']);
+        if ($waTarget === '') {
             continue;
         }
 
@@ -369,7 +550,7 @@ function alpa_tier_dispatch_batch(
             $periodeLabel,
             $entries
         );
-        $sent = send_wa_bulk_messages($pdo, $tier['wa'], $waMessages);
+        $sent = send_wa_bulk_messages($pdo, $waTarget, $waMessages);
         if ($sent <= 0) {
             continue;
         }
@@ -382,7 +563,7 @@ function alpa_tier_dispatch_batch(
             'tier_id' => $tid,
             'threshold' => $tier['threshold'],
             'label' => $tier['label'],
-            'wa' => $tier['wa'],
+            'wa' => $waTarget,
             'sent_count' => $sent,
             'santri_count' => count($entries),
         ];

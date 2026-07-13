@@ -5,29 +5,31 @@ declare(strict_types=1);
 ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
-        <h2 class="h6 mb-2">Notifikasi alpa otomatis (fallback)</h2>
+        <h2 class="h6 mb-2">Notifikasi alpa otomatis</h2>
         <p class="small text-muted mb-3">
-            Dipakai saat <strong>generate alpa</strong> atau cron harian jika tier belum diatur di bawah.
-            Terpisah dari notifikasi <strong>permohonan izin</strong> (<a href="?tab=izin">tab Izin</a>).
-            Format laporan mengikuti template <strong>Laporan ALPA kelipatan</strong>
-            (<a href="?tab=template">tab Template</a>) — dikelompokkan per tingkatan.
-            <code>Batas alpa</code> = angka kelipatan (mis. 5).
+            Dilapor <strong>hanya saat santri baru menyentuh/melewati ambang</strong> (mis. 5, lalu 10),
+            termasuk saat <strong>jam kirim otomatis</strong>.
+            Loncatan 3→8 tetap dilapor sekali untuk ambang 5 (total di pesan = 8).
+            Yang sudah dilapor untuk ambang 5 <strong>tidak dikirim ulang</strong> setiap hari hanya karena masih ≥ 5.
+            Format: template <a href="?tab=template">Laporan ALPA kelipatan</a>.
+            <code>Batas alpa</code> dipakai seed kelipatan jika tier di bawah masih kosong (5 → 5,10,15,…).
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">
             <div class="col-md-6">
-                <label class="form-label">No. penerima alpa</label>
+                <label class="form-label">No. penerima alpa (fallback)</label>
                 <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Beberapa nomor: pisah koma.</div>
+                <div class="form-text">Dipakai jika nomor di baris tier kosong. Beberapa nomor: pisah koma.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Jam kirim WA otomatis</label>
                 <input type="time" class="form-control input-time-24" name="jam_kirim_wa_auto" value="<?= htmlspecialchars(app_format_jam($values['jam_kirim_wa_auto'])) ?>">
-                <div class="form-text">Kosong = kirim langsung.</div>
+                <div class="form-text">Setelah jam ini, cron kirim ambang yang belum terlapor. Kosong = cek terus.</div>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Batas alpa (mode lama)</label>
+                <label class="form-label">Langkah kelipatan</label>
                 <input type="number" min="1" class="form-control" name="batas_alpa_notif" value="<?= htmlspecialchars($values['batas_alpa_notif']) ?>">
+                <div class="form-text">Mis. 5 → ambang 5,10,15,… jika tier kosong.</div>
             </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-success btn-sm">Simpan penerima alpa</button>
@@ -69,7 +71,7 @@ declare(strict_types=1);
                 <button class="btn btn-outline-danger btn-sm" type="submit">Reset log (<?= $logTotalAlpa ?>)</button>
             </form>
         </div>
-        <p class="small text-muted">Saat generate alpa: jika jumlah alpa ≥ ambang tier dan belum pernah dikirim di periode ini → WA ke nomor tier.</p>
+        <p class="small text-muted">Ambang silang: WA saat baru ≥ ambang dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor kosong → fallback pengurus di atas.</p>
     </div>
     <?php foreach ($tiers as $t): ?>
         <form method="post" id="wa-tier-form-<?= (int) $t['id'] ?>"><input type="hidden" name="action" value="save_tier"><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"></form>

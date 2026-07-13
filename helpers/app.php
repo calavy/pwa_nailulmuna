@@ -1271,6 +1271,7 @@ function send_wa_bulk_with_result(PDO $pdo, string $phonesRaw, string $message, 
 function trigger_auto_wa_notifications(PDO $pdo): void
 {
     require_once __DIR__ . '/wa_otomatis.php';
+    require_once __DIR__ . '/alpa_tier.php';
     if (!wa_otomatis_should_run($pdo, 'general')) {
         return;
     }
@@ -1282,84 +1283,30 @@ function trigger_auto_wa_notifications(PDO $pdo): void
     }
 
     $pengurusWa = wa_alpa_notif_target($pdo);
-    if ($pengurusWa === '') {
-        return;
-    }
-
+    // Boleh kosong di sini jika tiap tier punya nomor sendiri; cron helper pakai fallback per tier.
     $jamAutoWa = trim((string) app_setting($pdo, 'jam_kirim_wa_auto', ''));
     if ($jamAutoWa !== '' && date('H:i') < $jamAutoWa) {
         return;
     }
 
-    $today = date('Y-m-d');
-    $lastSentDate = trim((string) app_setting($pdo, 'wa_auto_last_sent_date', ''));
-    if ($lastSentDate === $today) {
-        return;
-    }
-
-    $threshold = max(1, (int) app_setting($pdo, 'batas_alpa_notif', '3'));
-    $startMonth = date('Y-m-01');
-    $endMonth = date('Y-m-t');
-
-    // Total ALPA per santri (bulan berjalan) ≥ kelipatan — bukan per kegiatan.
-    $sql = '
-        SELECT
-            "Akumulasi bulan ini" AS nama_kegiatan,
-            s.nama_santri,
-            s.nis,
-            s.tingkatan,
-            COUNT(p.id) AS total_alpha
-        FROM presensi p
-        INNER JOIN santri s ON s.id = p.santri_id
-        WHERE p.status_presensi = "ALPA"
-          AND p.tanggal_presensi BETWEEN :start_date AND :end_date
-        GROUP BY s.id, s.nama_santri, s.nis, s.tingkatan
-        HAVING COUNT(p.id) >= :threshold
-        ORDER BY s.tingkatan ASC, total_alpha DESC, s.nama_santri ASC
-        LIMIT 300
-    ';
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindValue(':start_date', $startMonth);
-    $stmt->bindValue(':end_date', $endMonth);
-    $stmt->bindValue(':threshold', $threshold, PDO::PARAM_INT);
-    $stmt->execute();
-    $rows = $stmt->fetchAll();
-
-    if (!$rows) {
-        save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
-            'sent' => 0,
-            'rows' => 0,
-            'threshold' => $threshold,
-            'at' => date('Y-m-d H:i:s'),
-            'note' => 'tidak_ada_alpa',
-        ], JSON_UNESCAPED_UNICODE));
-
-        return;
-    }
-
-    $tsPeriode = strtotime($startMonth) ?: time();
-    $namaBulanId = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-    $periodeLabel = ($namaBulanId[(int) date('n', $tsPeriode)] ?? date('F', $tsPeriode)) . ' ' . date('Y', $tsPeriode);
-    if (class_exists('IntlDateFormatter')) {
-        $fmt = new IntlDateFormatter('id_ID', IntlDateFormatter::FULL, IntlDateFormatter::NONE, date_default_timezone_get(), IntlDateFormatter::GREGORIAN, 'LLLL yyyy');
-        $periodeLabel = $fmt->format($tsPeriode) ?: $periodeLabel;
-    }
-
+    // Silang ambang: hanya yang belum pernah dilapor untuk ambang tsb (bukan dump harian semua ≥ N).
     require_once __DIR__ . '/wa_laporan_alpa.php';
-    $messages = wa_format_rekap_alpa_per_santri_messages($pdo, $periodeLabel, $threshold, $rows);
-
-    $sent = send_wa_bulk_messages($pdo, $pengurusWa, $messages);
+    $result = alpa_tier_cron_flush_crossings($pdo, date('Y-m-d'));
     save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
-        'sent' => (int) $sent,
-        'rows' => count($rows),
-        'santri' => count(wa_laporan_alpa_group_by_santri($rows)),
-        'messages' => count($messages),
-        'threshold' => $threshold,
+        'sent' => (int) ($result['sent'] ?? 0),
+        'tiers' => $result['tiers'] ?? [],
+        'pending_santri' => (int) ($result['pending_santri'] ?? 0),
+        'note' => (string) ($result['note'] ?? ''),
+        'mode' => 'crossing',
         'at' => date('Y-m-d H:i:s'),
     ], JSON_UNESCAPED_UNICODE));
-    if ($sent > 0) {
-        save_setting($pdo, 'wa_auto_last_sent_date', $today);
+
+    if ((int) ($result['sent'] ?? 0) > 0) {
         save_setting($pdo, 'wa_auto_last_sent_at', date('Y-m-d H:i:s'));
+        // Tetap catat tanggal terakhir ada kiriman (bukan kunci “sekali sehari dump”).
+        save_setting($pdo, 'wa_auto_last_sent_date', date('Y-m-d'));
+    } elseif ($pengurusWa === '' && ($result['note'] ?? '') === 'tidak_ada_kiriman_baru') {
+        // tidak ada yang perlu dikirim
     }
 }
 
