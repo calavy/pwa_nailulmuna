@@ -58,6 +58,7 @@ $rows = $data['rows'];
 $posOptions = keuangan_riwayat_pembayaran_pos_options($pdo);
 $periodeLabel = keuangan_riwayat_pembayaran_label_periode($filter['dari'], $filter['sampai']);
 $filterLabel = keuangan_riwayat_pembayaran_filter_label($filter, $posOptions);
+$ringkasKat = keuangan_riwayat_pembayaran_ringkasan_masuk_kategori($pdo, $filter['dari'], $filter['sampai']);
 
 $santriSelected = null;
 if ((int) ($filter['santri_id'] ?? 0) > 0) {
@@ -84,6 +85,16 @@ $bodyClass = keuangan_body_class('keuangan-form-page');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<div id="keuangan-offline-reader" data-kind="riwayat_ringkas" hidden>
+    <div class="page-intro mb-3">
+        <p class="page-intro-kicker mb-1">Keuangan · Offline</p>
+        <h1 class="h4 mb-1">Riwayat Masuk &amp; Keluar (offline)</h1>
+    </div>
+    <div data-offline-body></div>
+    <p class="small mt-3"><a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Kelola data offline</a></p>
+</div>
+
+<div id="keuangan-online-content">
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">Keuangan · Transaksi</p>
     <h1 class="h4 mb-1">
@@ -98,6 +109,7 @@ require_once __DIR__ . '/../includes/header.php';
         <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">Rekap kas bulanan</a>.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>
         · <a href="<?= htmlspecialchars(app_href('/keuangan/pengeluaran.php')) ?>">Input pengeluaran</a>
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Data offline</a>
     </p>
 </div>
 
@@ -202,6 +214,36 @@ require_once __DIR__ . '/../includes/header.php';
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>" title="Reset"><i class="fa-solid fa-rotate-left"></i></a>
     </div>
 </form>
+
+<?php
+$katCards = [
+    ['key' => 'syahriyah', 'label' => 'Syahriyah', 'pos' => 'kat:syahriyah'],
+    ['key' => 'makan', 'label' => 'Makan', 'pos' => 'kat:makan'],
+    ['key' => 'saku', 'label' => 'Saku', 'pos' => 'kat:saku'],
+    ['key' => 'awal_tahun', 'label' => 'Awal Tahun', 'pos' => 'kat:awal_tahun'],
+];
+?>
+<div class="row g-2 mb-3">
+    <?php foreach ($katCards as $kc):
+        $kKey = (string) $kc['key'];
+        $kPos = (string) $kc['pos'];
+        $kAktif = $filter['arah'] === 'masuk' && $filter['pos'] === $kPos
+            && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '';
+        $kHref = keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $kPos);
+        ?>
+        <div class="col-6 col-md-3">
+            <a href="<?= htmlspecialchars($kHref) ?>" class="text-decoration-none">
+                <div class="card shadow-sm border-0 h-100 <?= $kAktif ? 'border-start border-primary border-3' : 'border-start border-secondary-subtle border-3' ?>">
+                    <div class="card-body py-2">
+                        <div class="small text-muted"><?= htmlspecialchars((string) $kc['label']) ?> · periode</div>
+                        <div class="h6 mb-0 text-success"><?= keuangan_format_rupiah((int) ($ringkasKat[$kKey] ?? 0)) ?></div>
+                        <div class="small <?= $kAktif ? 'text-primary' : 'text-muted' ?>">Filter <?= htmlspecialchars((string) $kc['label']) ?></div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    <?php endforeach; ?>
+</div>
 
 <div class="row g-2 mb-3">
     <div class="col-md-4">
@@ -409,4 +451,5 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+</div><!-- #keuangan-online-content -->
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

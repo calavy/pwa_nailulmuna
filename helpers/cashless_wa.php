@@ -110,7 +110,7 @@ function cashless_santri_saldo_cukup_debit(PDO $pdo, int $santriId, int $nominal
         return 'Akun cashless belum tersedia.';
     }
     require_once __DIR__ . '/cashless_koperasi.php';
-    $tglOps = $tanggal ?? cashless_tanggal_hari_ini();
+    $tglOps = $tanggal ?? cashless_tanggal_hari_ini($pdo);
     // Saldo & batas harian dari ledger transaksi — setor harian tidak memblokir belanja.
     $saldo = cashless_santri_saldo_tampil($pdo, $santriId);
     if ($saldo <= 0) {
@@ -374,7 +374,7 @@ function cashless_wa_ringkasan_harian(PDO $pdo, ?string $tanggal = null): array
     }
 
     require_once __DIR__ . '/cashless_koperasi.php';
-    $range = cashless_tanggal_rentang_harian($tanggal);
+    $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
     $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
     $sql = "
         SELECT " . ($hasKop ? 'COALESCE(ct.koperasi_id, 0)' : '0') . " AS koperasi_id,

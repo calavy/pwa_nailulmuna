@@ -84,31 +84,64 @@ function cashless_koperasi_ensure_schema(PDO $pdo): void
     cashless_reconcile_account_balances_if_needed($pdo);
 }
 
-/** Tanggal operasional hari ini (Asia/Jakarta via PHP). */
-function cashless_tanggal_hari_ini(): string
+/**
+ * Jam reset jatah harian cashless (HH:MM). Default 00:00 (tengah malam).
+ */
+function cashless_daily_reset_jam(?PDO $pdo = null): string
 {
+    $fallback = '00:00';
+    if ($pdo === null) {
+        return $fallback;
+    }
+    $raw = trim((string) app_setting($pdo, 'cashless_daily_reset_jam', $fallback));
+    if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $raw, $m)) {
+        return $fallback;
+    }
+
+    return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+}
+
+/**
+ * Tanggal operasional hari ini (Asia/Jakarta).
+ * Jika jam reset bukan 00:00 dan sekarang masih sebelum jam reset, tanggal operasional = kemarin.
+ */
+function cashless_tanggal_hari_ini(?PDO $pdo = null): string
+{
+    $jam = cashless_daily_reset_jam($pdo);
+    if ($jam === '00:00') {
+        return date('Y-m-d');
+    }
+    $boundaryToday = strtotime(date('Y-m-d') . ' ' . $jam . ':00');
+    if ($boundaryToday === false) {
+        return date('Y-m-d');
+    }
+    if (time() < $boundaryToday) {
+        return date('Y-m-d', strtotime('-1 day') ?: time());
+    }
+
     return date('Y-m-d');
 }
 
 /**
- * Rentang waktu satu hari operasional [start, end) — reset batas harian tiap pergantian tanggal.
+ * Rentang waktu satu hari operasional [start, end) — reset batas harian tiap melewati jam reset.
  *
  * @return array{start:string,end:string}
  */
-function cashless_tanggal_rentang_harian(string $tanggal): array
+function cashless_tanggal_rentang_harian(string $tanggal, ?PDO $pdo = null): array
 {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        $tanggal = cashless_tanggal_hari_ini();
+        $tanggal = cashless_tanggal_hari_ini($pdo);
     }
+    $jam = cashless_daily_reset_jam($pdo);
 
     return [
-        'start' => $tanggal . ' 00:00:00',
-        'end' => date('Y-m-d', strtotime($tanggal . ' +1 day')) . ' 00:00:00',
+        'start' => $tanggal . ' ' . $jam . ':00',
+        'end' => date('Y-m-d', strtotime($tanggal . ' +1 day') ?: time()) . ' ' . $jam . ':00',
     ];
 }
 
 /** Batalkan sesi scan PIN jika sudah berganti tanggal operasional. */
-function cashless_verified_session_normalize(): void
+function cashless_verified_session_normalize(?PDO $pdo = null): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         return;
@@ -116,19 +149,19 @@ function cashless_verified_session_normalize(): void
     if (empty($_SESSION['cashless_verified']) || !is_array($_SESSION['cashless_verified'])) {
         return;
     }
-    $today = cashless_tanggal_hari_ini();
+    $today = cashless_tanggal_hari_ini($pdo);
     $sessDate = (string) ($_SESSION['cashless_verified']['operational_date'] ?? '');
     if ($sessDate === '' || $sessDate !== $today) {
         unset($_SESSION['cashless_verified'], $_SESSION['cashless_auto_nominal_scan']);
     }
 }
 
-function cashless_verified_session_mark(int $santriId): void
+function cashless_verified_session_mark(int $santriId, ?PDO $pdo = null): void
 {
     $_SESSION['cashless_verified'] = [
         'santri_id' => $santriId,
         'verified_at' => time(),
-        'operational_date' => cashless_tanggal_hari_ini(),
+        'operational_date' => cashless_tanggal_hari_ini($pdo),
     ];
 }
 
@@ -202,11 +235,11 @@ function cashless_santri_debit_total_tanggal(PDO $pdo, int $santriId, ?string $t
     if ($santriId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
         return 0;
     }
-    $tgl = $tanggal ?? cashless_tanggal_hari_ini();
+    $tgl = $tanggal ?? cashless_tanggal_hari_ini($pdo);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) {
-        $tgl = cashless_tanggal_hari_ini();
+        $tgl = cashless_tanggal_hari_ini($pdo);
     }
-    $range = cashless_tanggal_rentang_harian($tgl);
+    $range = cashless_tanggal_rentang_harian($tgl, $pdo);
     $st = $pdo->prepare("
         SELECT COALESCE(SUM(nominal), 0)
         FROM cashless_transactions
@@ -224,7 +257,7 @@ function cashless_koperasi_total_debit_tanggal(PDO $pdo, string $tanggal): int
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) || !table_exists($pdo, 'cashless_transactions')) {
         return 0;
     }
-    $range = cashless_tanggal_rentang_harian($tanggal);
+    $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
     $st = $pdo->prepare("
         SELECT COALESCE(SUM(nominal), 0)
         FROM cashless_transactions
@@ -559,7 +592,7 @@ function cashless_koperasi_fetch_debit_hari_ini(PDO $pdo, ?int $koperasiId, int 
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
         WHERE ct.jenis = \'DEBIT\' AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end';
-    $range = cashless_tanggal_rentang_harian(cashless_tanggal_hari_ini());
+    $range = cashless_tanggal_rentang_harian(cashless_tanggal_hari_ini($pdo), $pdo);
     $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop && $koperasiId !== null && $koperasiId > 0) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
@@ -682,7 +715,7 @@ function cashless_koperasi_ringkas_harian_belum_setor(PDO $pdo, ?int $koperasiId
     if ($hasSetor) {
         $sql .= ' AND ct.setor_at IS NULL';
     }
-    $range = cashless_tanggal_rentang_harian($tanggal);
+    $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
     $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop && $koperasiId !== null && $koperasiId > 0) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
@@ -717,7 +750,7 @@ function cashless_santri_pending_debit_total(PDO $pdo, int $santriId, ?string $t
     ";
     $params = ['sid' => $santriId];
     if ($tanggal !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        $range = cashless_tanggal_rentang_harian($tanggal);
+        $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
         $sql .= ' AND tanggal >= :tgl_start AND tanggal < :tgl_end';
         $params['tgl_start'] = $range['start'];
         $params['tgl_end'] = $range['end'];
@@ -820,7 +853,7 @@ function cashless_koperasi_transaksi_harian(PDO $pdo, int $koperasiId, string $t
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
         WHERE ct.jenis = \'DEBIT\' AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end';
-    $range = cashless_tanggal_rentang_harian($tanggal);
+    $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
     $params = ['tgl_start' => $range['start'], 'tgl_end' => $range['end']];
     if ($hasKop) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
@@ -933,9 +966,9 @@ function cashless_rekap_saldo_santri(PDO $pdo, ?string $tanggalHari = null): arr
     cashless_koperasi_ensure_schema($pdo);
 
     $dailyLimit = max(0, (int) app_setting($pdo, 'cashless_daily_limit', '10000'));
-    $tglHari = $tanggalHari ?? cashless_tanggal_hari_ini();
+    $tglHari = $tanggalHari ?? cashless_tanggal_hari_ini($pdo);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tglHari)) {
-        $tglHari = cashless_tanggal_hari_ini();
+        $tglHari = cashless_tanggal_hari_ini($pdo);
     }
     $emptySummary = [
         'total_santri' => 0,
@@ -963,7 +996,7 @@ function cashless_rekap_saldo_santri(PDO $pdo, ?string $tanggalHari = null): arr
     $debitExpr = '0';
     $debitHariExpr = '0';
     if (table_exists($pdo, 'cashless_transactions')) {
-        $rangeHari = cashless_tanggal_rentang_harian($tglHari);
+        $rangeHari = cashless_tanggal_rentang_harian($tglHari, $pdo);
         $txJoin = '
             LEFT JOIN (
                 SELECT santri_id,

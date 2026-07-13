@@ -3250,45 +3250,39 @@ function wa_format_pengajuan_izin_baru(
     string $alasan,
     string $tujuan = ''
 ): string {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
     if (!function_exists('perizinan_jenis_wa_label')) {
         require_once __DIR__ . '/perizinan_jenis.php';
     }
+
     $jenis = perizinan_jenis_wa_label($jenisKode);
     $labelAlasan = perizinan_jenis_wa_label_alasan($jenisKode);
     $nisT = trim($nis);
     $tgT = trim($tingkatan);
     $tujuanT = trim($tujuan);
+    $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
 
-    $body = 'Ada pengajuan izin baru: ' . $namaSantri . ' — ' . $labelAlasan . ': ' . $alasan;
-    if ($tujuanT !== '') {
-        $body .= ' - Tujuan: ' . $tujuanT;
-    }
-    $body .= "\n\n"
-        . wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . "*PEMBERITAHUAN RESMI*\n"
-        . "Perihal: Pengajuan perizinan santri (menunggu persetujuan)\n\n"
-        . "Dengan hormat diinformasikan bahwa telah masuk permohonan izin dengan rincian:\n\n"
-        . '• Nama santri: *' . $namaSantri . "*\n";
-
-    if ($nisT !== '') {
-        $body .= '• NIS: *' . $nisT . "*\n";
-    }
-    if ($tgT !== '') {
-        $body .= '• Tingkatan: *' . $tgT . "*\n";
-    }
-    $body .= '• Jenis izin: *' . $jenis . "*\n"
-        . '• Tanggal: *' . $tanggalMulai . '* s/d *' . $tanggalSelesai . "*\n"
-        . '• Waktu: *' . $jamMulai . '* – *' . $jamSelesai . "*\n"
-        . '• ' . $labelAlasan . ': _' . $alasan . "_\n";
-    if ($tujuanT !== '') {
-        $body .= '• Tujuan: *' . $tujuanT . "*\n";
-    }
-    $body .= "\nMohon segera ditinjau melalui panel perizinan.\n"
-        . "Demikian disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
-
-    return $body;
+    return wa_template_render($pdo, 'pengajuan_izin_baru', [
+        'salam' => '',
+        'kop' => '',
+        'nama_santri' => $namaSantri,
+        'nis' => $nisT,
+        'nis_baris' => $nisT !== '' ? '• NIS: *' . $nisT . "*\n" : '',
+        'tingkatan' => $tgT,
+        'tingkatan_baris' => $tgT !== '' ? '• Tingkatan: *' . $tgT . "*\n" : '',
+        'jenis_izin' => $jenis,
+        'label_alasan' => $labelAlasan,
+        'tanggal_mulai' => $tanggalMulai,
+        'tanggal_selesai' => $tanggalSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'alasan' => $alasan,
+        'tujuan' => $tujuanT,
+        'tujuan_baris' => $tujuanT !== '' ? '• Tujuan: *' . $tujuanT . "*\n" : '',
+        'nama_ponpes' => $namaPonpes !== '' ? $namaPonpes : 'Sistem Informasi',
+    ]);
 }
 
 function wa_format_izin_disetujui_untuk_wali(
@@ -3299,13 +3293,17 @@ function wa_format_izin_disetujui_untuk_wali(
     string $jamSelesai,
     string $alasan,
     string $tanggalMulai = '',
-    string $jamMulai = ''
+    string $jamMulai = '',
+    int $approvedByUserId = 0
 ): string {
     if (!function_exists('wa_template_render')) {
         require_once __DIR__ . '/wa_templates.php';
     }
     if (!function_exists('perizinan_jenis_wa_disetujui_vars')) {
         require_once __DIR__ . '/perizinan_jenis.php';
+    }
+    if (!function_exists('perizinan_wa_vars_disetujui')) {
+        require_once __DIR__ . '/perizinan_approval.php';
     }
     $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
     $periode = $tanggalMulai !== ''
@@ -3315,18 +3313,22 @@ function wa_format_izin_disetujui_untuk_wali(
         ? trim($jamMulai . ' – ' . $jamSelesai, ' –')
         : '';
 
-    $vars = perizinan_jenis_wa_disetujui_vars($jenisRaw);
-    $vars['nama_santri'] = $namaSantri;
-    $vars['tanggal_mulai'] = $tanggalMulai !== '' ? $tanggalMulai : $tanggalSelesai;
-    $vars['tanggal_selesai'] = $tanggalSelesai;
-    $vars['jam_mulai'] = $jamMulai !== '' ? $jamMulai : '-';
-    $vars['jam_selesai'] = $jamSelesai !== '' ? $jamSelesai : '-';
-    $vars['periode'] = $periode;
-    $vars['waktu'] = $waktu !== '' ? $waktu : ($jamSelesai !== '' ? $jamSelesai : '-');
-    $vars['alasan'] = $alasan;
-    $vars['nama_ponpes'] = $namaPonpes;
+    $vars = perizinan_wa_vars_disetujui($jenisRaw, [
+        'nama_santri' => $namaSantri,
+        'tanggal_mulai' => $tanggalMulai !== '' ? $tanggalMulai : $tanggalSelesai,
+        'tanggal_selesai' => $tanggalSelesai,
+        'jam_mulai' => $jamMulai !== '' ? $jamMulai : '-',
+        'jam_selesai' => $jamSelesai !== '' ? $jamSelesai : '-',
+        'periode' => $periode,
+        'waktu' => $waktu !== '' ? $waktu : ($jamSelesai !== '' ? $jamSelesai : '-'),
+        'alasan' => $alasan,
+        'nama_ponpes' => $namaPonpes,
+    ], $pdo, $approvedByUserId);
 
-    return wa_template_render_izin_disetujui($pdo, 'izin_disetujui_wali', $jenisRaw, $vars);
+    $slug = wa_template_slug_izin_disetujui('izin_disetujui_wali', $jenisRaw);
+    $pesan = wa_template_render_izin_disetujui($pdo, 'izin_disetujui_wali', $jenisRaw, $vars);
+
+    return perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $pesan, $approvedByUserId);
 }
 
 function user_has_acl_permission_matrix(PDO $pdo): bool

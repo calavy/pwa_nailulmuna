@@ -73,6 +73,16 @@ $periodeLabel = app_format_tanggal_id($dari) . ' — ' . app_format_tanggal_id($
 $pageTitle = 'Laporan Cashless Koperasi';
 require_once __DIR__ . '/../includes/header.php';
 ?>
+<div id="keuangan-offline-reader" data-kind="cashless_ringkas" hidden>
+    <div class="page-intro mb-3">
+        <p class="page-intro-kicker text-muted mb-1">Keuangan · Offline</p>
+        <h1 class="h4 mb-0">Laporan Cashless (offline)</h1>
+    </div>
+    <div data-offline-body></div>
+    <p class="small mt-3"><a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Kelola data offline</a></p>
+</div>
+
+<div id="keuangan-online-content">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 page-intro">
     <div>
         <p class="page-intro-kicker text-muted mb-1">Keuangan · Cashless</p>
@@ -83,6 +93,9 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
     <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>" class="btn btn-success btn-sm">
         <i class="fa-solid fa-vault me-1"></i> Setor
+    </a>
+    <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>" class="btn btn-outline-secondary btn-sm">
+        <i class="fa-solid fa-download me-1"></i> Offline
     </a>
 </div>
 
@@ -304,4 +317,5 @@ require_once __DIR__ . '/../includes/header.php';
 })();
 </script>
 <?php endif; ?>
+</div><!-- #keuangan-online-content -->
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

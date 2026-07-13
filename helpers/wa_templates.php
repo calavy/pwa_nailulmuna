@@ -43,16 +43,28 @@ function wa_template_definitions(): array
         ],
         'pengajuan_izin_baru' => [
             'label' => 'Pengajuan izin baru ke pengurus',
-            'hint' => 'Notifikasi saat ada permohonan izin santri baru.',
-            'placeholders' => '{nama_santri}, {jenis_izin}, {tanggal_mulai}, {tanggal_selesai}',
-            'default' => 'Assalamu\'alaikum. Ada pengajuan izin baru: *{nama_santri}* — {jenis_izin} ({tanggal_mulai} s/d {tanggal_selesai}). Mohon ditinjau di aplikasi.',
+            'hint' => 'Notifikasi saat ada permohonan izin santri baru (PENDING). Baris opsional: {nis_baris}, {tingkatan_baris}, {tujuan_baris}.',
+            'placeholders' => '{nama_santri}, {nis}, {nis_baris}, {tingkatan}, {tingkatan_baris}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {tujuan}, {tujuan_baris}, {nama_ponpes}',
+            'default' => "*PEMBERITAHUAN RESMI*\n"
+                . "Perihal: Pengajuan perizinan santri (menunggu persetujuan)\n\n"
+                . "Dengan hormat diinformasikan bahwa telah masuk permohonan izin dengan rincian:\n\n"
+                . "• Nama santri: *{nama_santri}*\n"
+                . "{nis_baris}{tingkatan_baris}"
+                . "• Jenis izin: *{jenis_izin}*\n"
+                . "• Tanggal: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Waktu: *{jam_mulai}* – *{jam_selesai}*\n"
+                . "• {label_alasan}: _{alasan}_\n"
+                . "{tujuan_baris}\n"
+                . "Mohon segera ditinjau melalui panel perizinan.\n"
+                . "Demikian disampaikan.\n\n"
+                . "_Hormat kami,_\n"
+                . "_{nama_ponpes}_",
         ],
         'pembayaran_masuk_wali' => [
             'label' => 'Pembayaran tercatat → wali santri',
             'hint' => 'Dikirim otomatis ke wali saat admin input pembayaran. Status: DITERIMA atau BELUM DITERIMA · DI CICIL. Placeholder {sisa_tagihan_baris} otomatis terisi jika masih ada sisa tagihan.',
             'placeholders' => '{nama_santri}, {nominal_total}, {tanggal_bayar}, {metode_bayar}, {periode_tagihan}, {rincian_pembayaran}, {status_lunas}, {sisa_tagihan}, {sisa_tagihan_baris}, {no_kuitansi}, {keterangan}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . 'Kami informasikan bahwa pembayaran putra/putri Anda telah *tercatat* di *{nama_ponpes}*:\n\n'
                 . 'Tanggal: *{tanggal_bayar}*\n'
                 . 'Periode: *{periode_tagihan}*\n'
@@ -64,15 +76,13 @@ function wa_template_definitions(): array
                 . '{keterangan}'
                 . 'No. kuitansi: *{no_kuitansi}*\n\n'
                 . 'Terima kasih atas kepercayaan dan kerja samanya.\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
         'izin_disetujui_pembimbing_sakit' => [
             'label' => 'Izin sakit disetujui → pembimbing',
             'hint' => 'Template khusus izin sakit ke pembimbing. Placeholder {doa} ditambahkan otomatis jika kosong di template.',
-            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {doa}',
-            'default' => "Assalamu'alaikum.\n\n"
-                . '🤒 {judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {doa}',
+            'default' => '🤒 {judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
                 . '{daftar_santri}'
                 . 'Pembimbing: *{nama_pembimbing}*\n'
                 . 'Jenis: *{jenis_izin}*\n'
@@ -80,99 +90,100 @@ function wa_template_definitions(): array
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
                 . '{label_alasan}: {alasan}\n'
                 . 'Mohon pantau kondisi kesehatan santri binaan.'
-                . '{doa}',
+                . '{doa}'
+                . "\n\n_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_disetujui_pembimbing_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → pembimbing',
             'hint' => 'Template keluar, izin, tugas, dll. ke pembimbing. Izin rombongan: {daftar_santri}.',
-            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum.\n\n"
-                . '{judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
+            'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}',
+            'default' => '{judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
                 . '{daftar_santri}'
                 . 'Pembimbing: *{nama_pembimbing}*\n'
                 . 'Jenis: *{jenis_izin}*\n'
                 . 'Periode: {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Waktu: {jam_mulai} – {jam_selesai}\n'
-                . '{label_alasan}: {alasan}',
+                . '{label_alasan}: {alasan}'
+                . "\n\n_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_grup_fonte_sakit' => [
             'label' => 'Izin sakit disetujui → grup WA (Fonte)',
             'hint' => 'Template khusus izin sakit ke grup Fonte. {doa} opsional.',
-            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {doa}',
+            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {doa}',
             'default' => "{judul_grup}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
                 . 'Jenis: *{jenis_izin}* · {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
                 . '{label_alasan}: {alasan}\n'
-                . '— {nama_ponpes}'
+                . '{disetujui_oleh_baris}'
+                . "\n\n_Hormat kami,_\n"
+                . '_{nama_penyetuju}_'
                 . '{doa}',
         ],
         'izin_grup_fonte_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → grup WA (Fonte)',
             'hint' => 'Template keluar, izin, tugas, dll. ke grup Fonte.',
-            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}',
+            'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {disetujui_oleh_baris}',
             'default' => "{judul_grup}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
                 . 'Jenis: *{jenis_izin}* · {tanggal_mulai} s/d {tanggal_selesai}\n'
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
                 . '{label_alasan}: {alasan}\n'
-                . '— {nama_ponpes}',
+                . '{disetujui_oleh_baris}'
+                . "\n\n_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_disetujui_wali_sakit' => [
             'label' => 'Izin sakit disetujui → wali santri',
             'hint' => 'Template khusus izin sakit ke wali. Field alasan ditampilkan sebagai {label_alasan}.',
-            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {instruksi_wali}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {instruksi_wali}',
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . '*PEMBERITAHUAN IZIN SAKIT (digital)*\n\n'
-                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_ponpes}*.\n\n'
+                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_penyetuju}*.\n\n'
                 . 'Periode: *{periode}*\n'
                 . 'Waktu: *{waktu}*\n'
                 . '{label_alasan}: _{alasan}_\n\n'
                 . '{instruksi_wali}\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
-                . '_{nama_ponpes}_',
+                . "_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_disetujui_wali_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → wali santri',
             'hint' => 'Template keluar, izin, tugas, dll. ke wali. Field keperluan ditampilkan sebagai {label_alasan}.',
-            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {instruksi_wali}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'placeholders' => '{nama_santri}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {periode}, {waktu}, {alasan}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {instruksi_wali}',
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . '*SURAT PEMBERITAHUAN (digital)*\n\n'
-                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_ponpes}*.\n\n'
+                . 'Permohonan *{jenis_izin}* atas nama *{nama_santri}* telah *DISETUJUI* oleh pengurus *{nama_penyetuju}*.\n\n'
                 . 'Periode: *{periode}*\n'
                 . 'Waktu: *{waktu}*\n'
                 . '{label_alasan}: _{alasan}_\n\n'
                 . '{instruksi_wali}\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
-                . '_{nama_ponpes}_',
+                . "_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'cashless_saldo_rendah_wali' => [
             'label' => 'Saldo cashless rendah → wali santri',
             'hint' => 'Dikirim otomatis ke wali saat saldo cashless turun ke ambang atau di bawahnya.',
             'placeholders' => '{nama_santri}, {saldo_tersisa}, {ambang}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . 'Saldo *cashless* (saku) putra/putri Anda di *{nama_ponpes}* tersisa *{saldo_tersisa}* '
                 . '(ambang peringatan: {ambang}).\n\n'
                 . 'Mohon segera melakukan top-up agar kegiatan belanja harian tidak terganggu.\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
         'cashless_transaksi_sukses_wali' => [
             'label' => 'Transaksi cashless berhasil → wali santri',
             'hint' => 'Dikirim ke wali setiap transaksi scan cashless berhasil.',
             'placeholders' => '{nama_santri}, {nominal}, {nama_koperasi}, {saldo_keseluruhan}, {sisa_jatah_hari}, {limit_harian}, {terpakai_hari}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . 'Transaksi *cashless* berhasil di *{nama_koperasi}*:\n'
                 . 'Nominal: *{nominal}*\n\n'
                 . 'Saldo keseluruhan: *{saldo_keseluruhan}*\n'
                 . 'Jatah belanja hari ini (sisa): *{sisa_jatah_hari}* dari {limit_harian} (terpakai {terpakai_hari})\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
         'cashless_laporan_harian_pengurus' => [
@@ -189,7 +200,7 @@ function wa_template_definitions(): array
         'izin_disetujui_pengurus_sakit' => [
             'label' => 'Izin sakit disetujui → pengurus (petugas surat)',
             'hint' => 'Template khusus izin sakit ke pengurus — surat siap dicetak.',
-            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
+            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}',
             'default' => "{judul_pengurus}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
@@ -198,12 +209,13 @@ function wa_template_definitions(): array
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
                 . '{label_alasan}: {alasan}\n'
                 . 'Disetujui oleh: *{nama_pengurus}*\n'
-                . '— {nama_ponpes}',
+                . "_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_disetujui_pengurus_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → pengurus (petugas surat)',
             'hint' => 'Template keluar, izin, tugas, dll. ke pengurus. Izin rombongan: {daftar_santri}.',
-            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}',
+            'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}',
             'default' => "{judul_pengurus}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
                 . '{daftar_santri}'
@@ -212,7 +224,8 @@ function wa_template_definitions(): array
                 . 'Jam: {jam_mulai} – {jam_selesai}\n'
                 . '{label_alasan}: {alasan}\n'
                 . 'Disetujui oleh: *{nama_pengurus}*\n'
-                . '— {nama_ponpes}',
+                . "_Hormat kami,_\n"
+                . '_{nama_penyetuju}_',
         ],
         'izin_selesai_pengurus' => [
             'label' => 'Izin selesai → pengurus (laporan kembali)',
@@ -279,23 +292,20 @@ function wa_template_definitions(): array
             'label' => 'Tagihan khusus ke wali (berobat, dll.)',
             'hint' => 'Dikirim saat admin membuat tagihan khusus ke santri (pinjaman dari alokasi syahriyah).',
             'placeholders' => '{nama_santri}, {judul}, {kategori}, {nominal}, {sisa}, {tanggal}, {keterangan}, {alokasi}, {portal_url}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . '*Yth. Wali santri {nama_santri}*\n\n'
+            'default' => '*Yth. Wali santri {nama_santri}*\n\n'
                 . 'Kami informasikan tagihan *{judul}* ({kategori}):\n'
                 . 'Nominal: *{nominal}*\n'
                 . 'Tanggal: {tanggal}\n'
                 . 'Sumber dana: pinjaman alokasi syahriyah ({alokasi})\n'
                 . 'Keterangan: {keterangan}\n\n'
                 . 'Silakan cek detail di portal wali: {portal_url}\n\n'
-                . "Wassalamu'alaikum warahmatullahi wabarakatuh.\n"
                 . '_{nama_ponpes}_',
         ],
         'rapor_terbit_pesantren' => [
             'label' => 'Rapor pesantren diterbitkan → wali santri',
             'hint' => 'Dikirim otomatis ke wali saat rapor pesantren diterbitkan (jika fitur aktif di bawah).',
             'placeholders' => '{nama_santri}, {judul_periode}, {tanggal_terbit}, {nis}, {portal_url}, {jenis_rapor}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . 'Kami informasikan rapor akademik untuk *{nama_santri}* ({judul_periode}).\n'
+            'default' => 'Kami informasikan rapor akademik untuk *{nama_santri}* ({judul_periode}).\n'
                 . 'Silakan cek di portal wali: {portal_url}\n\n'
                 . 'Terima kasih.\n'
                 . '_{nama_ponpes}_',
@@ -304,8 +314,7 @@ function wa_template_definitions(): array
             'label' => 'Rapor PKPPS diterbitkan → wali santri',
             'hint' => 'Dikirim otomatis ke wali saat rapor PKPPS diterbitkan (jika fitur aktif di bawah).',
             'placeholders' => '{nama_santri}, {judul_periode}, {tanggal_terbit}, {nis}, {portal_url}, {jenis_rapor}, {nama_ponpes}',
-            'default' => "Assalamu'alaikum warahmatullahi wabarakatuh.\n\n"
-                . 'Kami informasikan rapor PKPPS untuk *{nama_santri}* ({judul_periode}).\n'
+            'default' => 'Kami informasikan rapor PKPPS untuk *{nama_santri}* ({judul_periode}).\n'
                 . 'Silakan cek di portal wali: {portal_url}\n\n'
                 . 'Terima kasih.\n'
                 . '_{nama_ponpes}_',

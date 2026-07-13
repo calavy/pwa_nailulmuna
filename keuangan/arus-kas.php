@@ -40,11 +40,22 @@ $bodyClass = keuangan_body_class('aruskas-page');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<div id="keuangan-offline-reader" data-kind="arus_kas" hidden>
+    <div class="page-intro mb-3">
+        <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Offline</p>
+        <h1 class="h4 mb-1">Arus Kas (offline)</h1>
+    </div>
+    <div data-offline-body></div>
+    <p class="small mt-3"><a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Kelola data offline</a></p>
+</div>
+
+<div id="keuangan-online-content">
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Laporan Arus Kas</h1>
     <p class="text-muted mb-0">Kas masuk &amp; keluar per pos pembayaran/pengeluaran <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.
         <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Detail transaksi per POS</a>
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Data offline</a>
     </p>
 </div>
 
@@ -131,5 +142,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <style><?= keuangan_aruskas_css() ?></style>
+</div><!-- #keuangan-online-content -->
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -861,15 +861,56 @@ function perizinan_wa_sisipkan_doa(PDO $pdo, string $slug, string $pesan, string
     );
 }
 
+/** Sisipkan tanda tangan penyutuju; append otomatis jika template belum punya placeholder {ttd_penyetuju}. */
+function perizinan_wa_sisipkan_ttd_penyetuju(PDO $pdo, string $slug, string $pesan, int $approvedByUserId = 0): string
+{
+    $penyetuju = perizinan_wa_vars_penyetuju($pdo, $approvedByUserId);
+    $pesan = perizinan_wa_ganti_ttd_nama_ponpes_ke_penyetuju($pesan, $penyetuju['nama_penyetuju']);
+
+    $rawTpl = wa_template_get($pdo, $slug);
+    if (str_contains($rawTpl, '{ttd_penyetuju}') || str_contains($rawTpl, '{nama_penyetuju}')) {
+        return $pesan;
+    }
+
+    return $pesan . $penyetuju['ttd_penyetuju'];
+}
+
+/**
+ * Variabel tanda tangan akun yang menyetujui izin.
+ *
+ * @return array{nama_penyetuju: string, nama_pengurus: string, ttd_penyetuju: string, disetujui_oleh_baris: string}
+ */
+function perizinan_wa_vars_penyetuju(PDO $pdo, int $userId = 0): array
+{
+    $nama = $userId > 0 ? perizinan_nama_pengurus_by_id($pdo, $userId) : 'Pengurus';
+
+    return [
+        'nama_penyetuju' => $nama,
+        'nama_pengurus' => $nama,
+        'ttd_penyetuju' => "\n\n_Hormat kami,_\n_{$nama}_",
+        'disetujui_oleh_baris' => 'Disetujui oleh: *' . $nama . "*\n",
+    ];
+}
+
 /**
  * @param array<string, string> $vars
  * @return array<string, string>
  */
-function perizinan_wa_vars_disetujui(string $jenisRaw, array $vars): array
+function perizinan_wa_vars_disetujui(string $jenisRaw, array $vars, ?PDO $pdo = null, int $approvedByUserId = 0): array
 {
     $waJenis = perizinan_jenis_wa_disetujui_vars($jenisRaw);
     foreach ($waJenis as $key => $value) {
         $vars[$key] = $value;
+    }
+
+    if ($pdo !== null) {
+        $penyetuju = perizinan_wa_vars_penyetuju($pdo, $approvedByUserId);
+        $vars['nama_penyetuju'] = $penyetuju['nama_penyetuju'];
+        $vars['ttd_penyetuju'] = $penyetuju['ttd_penyetuju'];
+        $vars['disetujui_oleh_baris'] = $penyetuju['disetujui_oleh_baris'];
+        if (trim((string) ($vars['nama_pengurus'] ?? '')) === '') {
+            $vars['nama_pengurus'] = $penyetuju['nama_pengurus'];
+        }
     }
 
     return $vars;
@@ -888,7 +929,8 @@ function wa_format_izin_disetujui_pembimbing(
     string $alasan,
     string $namaPembimbing = '',
     string $jenisRaw = '',
-    string $daftarSantri = ''
+    string $daftarSantri = '',
+    int $approvedByUserId = 0
 ): string {
     $jenisCek = $jenisRaw !== '' ? $jenisRaw : $jenisLabel;
     $baseSlug = 'izin_disetujui_pembimbing';
@@ -907,10 +949,11 @@ function wa_format_izin_disetujui_pembimbing(
         'nama_pembimbing' => $namaPembimbing,
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         'doa' => '',
-    ]));
+    ], $pdo, $approvedByUserId));
     $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+    $pesan = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisCek, $namaSantri);
 
-    return perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisCek, $namaSantri);
+    return perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $pesan, $approvedByUserId);
 }
 
 /**
@@ -1012,11 +1055,36 @@ function perizinan_nama_pengurus_by_id(PDO $pdo, int $userId): string
     if ($userId <= 0 || !table_exists($pdo, 'users')) {
         return 'Pengurus';
     }
-    $st = $pdo->prepare('SELECT nama FROM users WHERE id = :id LIMIT 1');
+    $st = $pdo->prepare('SELECT nama, username FROM users WHERE id = :id LIMIT 1');
     $st->execute(['id' => $userId]);
-    $nama = trim((string) ($st->fetchColumn() ?: ''));
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return 'Pengurus';
+    }
+    $nama = trim((string) ($row['nama'] ?? ''));
+    if ($nama !== '') {
+        return $nama;
+    }
+    $username = trim((string) ($row['username'] ?? ''));
 
-    return $nama !== '' ? $nama : 'Pengurus';
+    return $username !== '' ? $username : 'Pengurus';
+}
+
+/** Ganti baris tanda tangan lama (nama pondok) menjadi nama akun penyutuju. */
+function perizinan_wa_ganti_ttd_nama_ponpes_ke_penyetuju(string $pesan, string $namaPenyetuju): string
+{
+    if ($namaPenyetuju === '' || !str_contains($pesan, 'Hormat kami')) {
+        return $pesan;
+    }
+
+    $fixed = preg_replace(
+        '/(_Hormat kami,_\s*\n)_([^_\n]+)_/u',
+        '$1_' . $namaPenyetuju . '_',
+        $pesan,
+        1
+    );
+
+    return is_string($fixed) ? $fixed : $pesan;
 }
 
 function wa_format_izin_disetujui_pengurus(
@@ -1032,7 +1100,8 @@ function wa_format_izin_disetujui_pengurus(
     string $alasan,
     string $namaPengurus = '',
     string $daftarSantri = '',
-    string $jenisRaw = ''
+    string $jenisRaw = '',
+    int $approvedByUserId = 0
 ): string {
     $jenisCek = $jenisRaw !== '' ? $jenisRaw : $jenisLabel;
     $baseSlug = 'izin_disetujui_pengurus';
@@ -1050,9 +1119,11 @@ function wa_format_izin_disetujui_pengurus(
         'alasan' => $alasan,
         'nama_pengurus' => $namaPengurus !== '' ? $namaPengurus : 'Pengurus',
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
-    ]));
+    ], $pdo, $approvedByUserId));
 
-    return perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+    $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
+
+    return perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $pesan, $approvedByUserId);
 }
 
 function wa_format_izin_selesai_pengurus(
@@ -1124,7 +1195,8 @@ function perizinan_kirim_wa_pengurus_disetujui(
         (string) ($izinRow['alasan'] ?? '-'),
         perizinan_nama_pengurus_by_id($pdo, $approvedByUserId),
         $daftarSantri,
-        $jenisRaw
+        $jenisRaw,
+        $approvedByUserId
     );
 
     return send_wa_bulk($pdo, implode(',', $phones), $msg);
@@ -1198,7 +1270,8 @@ function perizinan_kirim_wa_wali_disetujui(
     string $tglMulai,
     string $tglSelesai,
     string $jamMulai,
-    string $jamSelesai
+    string $jamSelesai,
+    int $approvedByUserId = 0
 ): int {
     require_once __DIR__ . '/wa_otomatis.php';
     if (!wa_otomatis_should_run($pdo, 'izin') || !wa_izin_wali_enabled($pdo)) {
@@ -1228,7 +1301,8 @@ function perizinan_kirim_wa_wali_disetujui(
         $jamSelesai,
         (string) ($izinRow['alasan'] ?? '-'),
         $tglMulai,
-        $jamMulai
+        $jamMulai,
+        $approvedByUserId
     );
 
     return send_wa_message($pdo, $waliPhone, $msg) ? 1 : 0;
@@ -1282,7 +1356,9 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                     $jamSelesai,
                     (string) ($izinRow['alasan'] ?? '-'),
                     $namaPb !== '' ? $namaPb : 'Pembimbing',
-                    $jenisRaw
+                    $jenisRaw,
+                    '',
+                    $approvedByUserId
                 );
                 if (send_wa_message($pdo, $phone, $msg)) {
                     $sentPb++;
@@ -1305,13 +1381,15 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                 $jamSelesai,
                 (string) ($izinRow['alasan'] ?? '-'),
                 $namaPb,
-                $jenisRaw
+                $jenisRaw,
+                '',
+                $approvedByUserId
             );
             $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg);
         }
     }
 
-    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, '', $approvedByUserId);
     $sentPg = perizinan_kirim_wa_pengurus_disetujui($pdo, $izinRow, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $approvedByUserId);
 
     return perizinan_wa_kirim_ringkasan($sentPb, $sentGrup, $sentPg);
@@ -1382,7 +1460,8 @@ function perizinan_kirim_wa_rombongan_disetujui(
             $alasan,
             $namaPbAll,
             $jenisRaw,
-            $daftarSantri
+            $daftarSantri,
+            $approvedByUserId
         );
         $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg);
     }
@@ -1396,7 +1475,7 @@ function perizinan_kirim_wa_rombongan_disetujui(
         'daftar_santri' => $daftarSantri,
     ];
 
-    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri);
+    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri, $approvedByUserId);
     $sentPg = perizinan_kirim_wa_pengurus_disetujui(
         $pdo,
         $izinRowGrup,
@@ -1415,7 +1494,7 @@ function perizinan_kirim_wa_rombongan_disetujui(
             'jenis_izin' => $jenisRaw,
             'alasan' => $alasan,
         ];
-        perizinan_kirim_wa_wali_disetujui($pdo, $izinRowWali, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+        perizinan_kirim_wa_wali_disetujui($pdo, $izinRowWali, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $approvedByUserId);
     }
 
     return perizinan_wa_kirim_ringkasan($sentPb, $sentGrup, $sentPg);
@@ -1433,7 +1512,8 @@ function perizinan_kirim_wa_grup_fonte(
     string $tglSelesai,
     string $jamMulai,
     string $jamSelesai,
-    string $daftarSantri = ''
+    string $daftarSantri = '',
+    int $approvedByUserId = 0
 ): int {
     require_once __DIR__ . '/wa_otomatis.php';
     if (!wa_otomatis_should_run($pdo, 'izin')) {
@@ -1471,9 +1551,10 @@ function perizinan_kirim_wa_grup_fonte(
         'alasan' => (string) ($izinRow['alasan'] ?? '-'),
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         'doa' => '',
-    ]));
+    ], $pdo, $approvedByUserId));
     $pesan = perizinan_wa_sisipkan_blok($pdo, $slug, $pesan, 'daftar_santri', $daftarSantri);
     $msg = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisRaw, $namaSantri);
+    $msg = perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $msg, $approvedByUserId);
 
     return send_wa_bulk($pdo, $grupId, $msg);
 }
@@ -1746,7 +1827,7 @@ function perizinan_setujui_izin_satu(
         $tglSelesai,
         $jamSelesai
     );
-    perizinan_kirim_wa_wali_disetujui($pdo, $izinInfo, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai);
+    perizinan_kirim_wa_wali_disetujui($pdo, $izinInfo, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $userId);
     $waRingkasan = perizinan_kirim_wa_pembimbing_disetujui(
         $pdo,
         $izinInfo,

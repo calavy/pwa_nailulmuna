@@ -5,9 +5,11 @@
     'use strict';
 
     var DB_NAME = 'pondok-offline-v1';
-    var DB_VERSION = 1;
+    var DB_VERSION = 2;
     var STORE_QUEUE = 'action_queue';
     var STORE_REKAP = 'rekap_cache';
+    var STORE_KEU_META = 'keuangan_meta';
+    var STORE_KEU_ROWS = 'keuangan_rows';
     var SYNC_HEADER = 'X-PWA-Offline-Sync';
     var syncing = false;
 
@@ -83,6 +85,14 @@
                 }
                 if (!db.objectStoreNames.contains(STORE_REKAP)) {
                     db.createObjectStore(STORE_REKAP, { keyPath: 'key' });
+                }
+                if (!db.objectStoreNames.contains(STORE_KEU_META)) {
+                    db.createObjectStore(STORE_KEU_META, { keyPath: 'key' });
+                }
+                if (!db.objectStoreNames.contains(STORE_KEU_ROWS)) {
+                    var kr = db.createObjectStore(STORE_KEU_ROWS, { keyPath: 'key' });
+                    kr.createIndex('table', 'table', { unique: false });
+                    kr.createIndex('chunk', 'chunk', { unique: false });
                 }
             };
         });

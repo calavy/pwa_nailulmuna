@@ -50,6 +50,13 @@ $deferPwaRegisterJs = $isScanKioskPage;
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
     <?php endif; ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
+    <?php
+    $loadKeuanganOfflineDb = ($loadKeuanganOfflineDb ?? true)
+        && preg_match('#^/keuangan(/|$)#', strtolower(str_replace('\\', '/', $footerRequestPath)));
+    if ($loadKeuanganOfflineDb):
+    ?>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/keuangan-offline-db.js')) ?>" defer></script>
+    <?php endif; ?>
     <?php endif; ?>
     <?php if ($deferPwaRegisterJs): ?>
     <script>

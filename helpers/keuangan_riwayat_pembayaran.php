@@ -305,6 +305,32 @@ function keuangan_riwayat_pembayaran_parse_pos(string $pos): ?array
     return null;
 }
 
+/**
+ * Slug detail yang dipakai untuk nominal baris/total saat filter kat:/pay: (bukan total pembayaran penuh).
+ * Null = tetap pakai p.total_nominal (mis. tanpa filter pos, atau kat:awal_tahun).
+ *
+ * @param array{tipe:string,value:string}|null $posParsed
+ */
+function keuangan_riwayat_pembayaran_detail_slug_filter(?array $posParsed): ?string
+{
+    if ($posParsed === null) {
+        return null;
+    }
+    if ($posParsed['tipe'] === 'pay') {
+        $slug = strtolower(trim((string) $posParsed['value']));
+
+        return $slug !== '' ? $slug : null;
+    }
+    if ($posParsed['tipe'] === 'kat') {
+        $kat = strtolower(trim((string) $posParsed['value']));
+        if (in_array($kat, ['syahriyah', 'makan', 'saku'], true)) {
+            return $kat;
+        }
+    }
+
+    return null;
+}
+
 function keuangan_riwayat_pembayaran_label_periode(string $dari, string $sampai): string
 {
     require_once __DIR__ . '/datetime_display.php';
@@ -735,6 +761,8 @@ function keuangan_riwayat_pembayaran_fetch(PDO $pdo, array $filter, int $limit =
         $where .= $qSql;
         $params = array_merge($params, $qParams);
 
+        $detailSlug = $detailOk ? keuangan_riwayat_pembayaran_detail_slug_filter($posParsed) : null;
+
         $posSelect = $detailOk
             ? ", (
                 SELECT GROUP_CONCAT(DISTINCT d.pos_nama ORDER BY d.id SEPARATOR ', ')
@@ -743,8 +771,19 @@ function keuangan_riwayat_pembayaran_fetch(PDO $pdo, array $filter, int $limit =
             ) AS pos_rincian"
             : ", '' AS pos_rincian";
 
+        if ($detailSlug !== null) {
+            $nominalSelect = "(
+                SELECT COALESCE(SUM(dn.nominal), 0)
+                FROM keuangan_pembayaran_detail dn
+                WHERE dn.pembayaran_id = p.id AND LOWER(TRIM(dn.pos_slug)) = :detail_slug
+            ) AS nominal";
+            $params['detail_slug'] = $detailSlug;
+        } else {
+            $nominalSelect = 'p.total_nominal AS nominal';
+        }
+
         $sql = "
-            SELECT p.id, p.tanggal_bayar AS tanggal, p.total_nominal AS nominal,
+            SELECT p.id, p.tanggal_bayar AS tanggal, {$nominalSelect},
                    p.keterangan, p.metode_bayar, p.jenis_periode, p.santri_id,
                    s.nis, COALESCE(NULLIF(s.nama_santri, ''), s.nama) AS nama_santri
                    {$posSelect}
@@ -775,12 +814,26 @@ function keuangan_riwayat_pembayaran_fetch(PDO $pdo, array $filter, int $limit =
             ];
         }
 
-        $sumSt = $pdo->prepare('
-            SELECT COALESCE(SUM(p.total_nominal), 0), COUNT(*)
-            FROM keuangan_pembayaran p
-            INNER JOIN santri s ON s.id = p.santri_id
-            ' . $where);
-        $sumSt->execute($params);
+        if ($detailSlug !== null) {
+            $sumSt = $pdo->prepare('
+                SELECT COALESCE(SUM(d.nominal), 0), COUNT(DISTINCT p.id)
+                FROM keuangan_pembayaran p
+                INNER JOIN santri s ON s.id = p.santri_id
+                INNER JOIN keuangan_pembayaran_detail d
+                    ON d.pembayaran_id = p.id AND LOWER(TRIM(d.pos_slug)) = :detail_slug_sum
+                ' . $where);
+            $sumParams = $params;
+            $sumParams['detail_slug_sum'] = $detailSlug;
+            unset($sumParams['detail_slug']);
+            $sumSt->execute($sumParams);
+        } else {
+            $sumSt = $pdo->prepare('
+                SELECT COALESCE(SUM(p.total_nominal), 0), COUNT(*)
+                FROM keuangan_pembayaran p
+                INNER JOIN santri s ON s.id = p.santri_id
+                ' . $where);
+            $sumSt->execute($params);
+        }
         $sumRow = $sumSt->fetch(PDO::FETCH_NUM);
         if ($sumRow) {
             $totalMasuk = (int) round((float) ($sumRow[0] ?? 0));

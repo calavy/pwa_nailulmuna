@@ -17,7 +17,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $limitRaw = preg_replace('/[^0-9]/', '', (string) ($_POST['batas_harian'] ?? '10000')) ?? '10000';
         $limit = max(0, (int) $limitRaw);
         save_setting($pdo, 'cashless_daily_limit', (string) $limit);
-        set_flash('success', 'Batas harian cashless berhasil disimpan.');
+        $jamRaw = trim((string) ($_POST['jam_reset_harian'] ?? '00:00'));
+        if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $jamRaw, $m)) {
+            $jamRaw = '00:00';
+        } else {
+            $jamRaw = sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+        }
+        save_setting($pdo, 'cashless_daily_reset_jam', $jamRaw);
+        set_flash('success', 'Batas harian & jam reset cashless berhasil disimpan.');
         header('Location: ' . app_href('/keuangan/cashless_pin.php?tab=pengaturan'));
         exit;
     }
@@ -143,6 +150,7 @@ $rekapSaldo = cashless_rekap_saldo_santri($pdo);
 $santriPinStatusRows = $rekapSaldo['rows'];
 $rekapSummary = $rekapSaldo['summary'];
 $dailyLimit = (int) ($rekapSaldo['daily_limit'] ?? 10000);
+$jamResetHarian = cashless_daily_reset_jam($pdo);
 
 $scanUangEnabled = app_setting($pdo, 'cashless_scan_uang_enabled', '1') === '1';
 $scanUangVoice = app_setting($pdo, 'cashless_scan_uang_voice', '1') === '1';
@@ -238,7 +246,7 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
     </div>
     <div class="alert alert-info small">
         Saldo = top-up pos <em>Saku</em> − belanja cashless (langsung saat scan, tanpa menunggu setor).
-        Batas belanja harian per santri: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong> — reset otomatis setiap hari.
+        Batas belanja harian per santri: <strong>Rp <?= number_format($dailyLimit, 0, ',', '.') ?></strong> — reset otomatis setiap hari pukul <strong><?= htmlspecialchars($jamResetHarian) ?></strong>.
     </div>
     <div class="card shadow-sm">
         <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
@@ -413,12 +421,17 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
                 <form method="post" class="mb-3 border rounded p-3 bg-light-subtle">
                     <input type="hidden" name="action" value="save_cashless_limit">
                     <label class="form-label">Batas belanja harian cashless</label>
-                    <div class="input-group">
+                    <div class="input-group mb-3">
                         <span class="input-group-text">Rp</span>
                         <input type="text" name="batas_harian" class="form-control" value="<?= number_format($dailyLimit, 0, ',', '.') ?>" required>
-                        <button class="btn btn-outline-primary">Simpan</button>
                     </div>
-                    <div class="form-text">Maksimal total belanja cashless per santri per hari (contoh: Rp 10.000). Saldo dari top-up Saku bisa lebih besar, tetapi pemakaian harian tetap dibatasi.</div>
+                    <label class="form-label">Jam reset jatah harian</label>
+                    <input type="time" name="jam_reset_harian" class="form-control mb-2" value="<?= htmlspecialchars($jamResetHarian) ?>" required>
+                    <div class="form-text mb-3">
+                        Jatah belanja (~Rp <?= number_format($dailyLimit, 0, ',', '.') ?>) kembali penuh setiap melewati jam ini.
+                        Contoh: <code>00:00</code> = tengah malam; <code>05:00</code> = reset subuh.
+                    </div>
+                    <button class="btn btn-outline-primary">Simpan batas &amp; jam reset</button>
                 </form>
                 <form method="post" class="mb-3 border rounded p-3">
                     <input type="hidden" name="action" value="save_scan_uang_setting">

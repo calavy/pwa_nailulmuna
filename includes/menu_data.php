@@ -153,6 +153,7 @@ return [
         '/keuangan/inventaris.php' => 'Inventaris Aset',
         '/keuangan/pengaturan.php' => 'Pengaturan Keuangan',
         '/keuangan/panduan.php' => 'Panduan Alur Keuangan',
+        '/keuangan/offline-data.php' => 'Data Offline Keuangan',
         '/keuangan/cashless_scan.php' => 'Top Up Cashless',
         '/keuangan/cashless_laporan.php' => 'Laporan Cashless Koperasi',
         '/keuangan/cashless_setor.php' => 'Setor Cashless Koperasi',
@@ -238,6 +239,7 @@ return [
                 '/keuangan/neraca-perbaikan.php',
                 '/keuangan/arus-kas.php',
                 '/keuangan/rekap-kas-bulan.php',
+                '/keuangan/offline-data.php',
                 '/pembayaran/rekap_pos.php',
             ]],
             ['title' => 'Transaksi', 'paths' => [

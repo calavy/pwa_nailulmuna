@@ -59,10 +59,22 @@ $bodyClass = keuangan_body_class('neraca-page');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<div id="keuangan-offline-reader" data-kind="neraca" hidden>
+    <div class="page-intro mb-3">
+        <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Offline</p>
+        <h1 class="h4 mb-1">Neraca (offline)</h1>
+    </div>
+    <div data-offline-body></div>
+    <p class="small mt-3"><a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Kelola data offline</a></p>
+</div>
+
+<div id="keuangan-online-content">
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Neraca Keuangan</h1>
-    <p class="text-muted mb-0">Laporan posisi keuangan (neraca) <?= htmlspecialchars((string) $neraca['nama_lembaga']) ?> — standar PAP / ISAK 35.</p>
+    <p class="text-muted mb-0">Laporan posisi keuangan (neraca) <?= htmlspecialchars((string) $neraca['nama_lembaga']) ?> — standar PAP / ISAK 35.
+        <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Data offline</a>
+    </p>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -145,5 +157,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <style><?= keuangan_neraca_css_dua_kolom() ?><?= keuangan_neraca_perbaikan_css() ?></style>
+</div><!-- #keuangan-online-content -->
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

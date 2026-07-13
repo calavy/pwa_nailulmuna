@@ -435,6 +435,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
+                    <a href="/keuangan/offline-data.php" class="btn btn-outline-secondary btn-sm" title="Unduh data untuk baca offline">
+                        <i class="fa-solid fa-download me-1"></i> Offline
+                    </a>
                     <?php if (!$neracaSnapSeimbang || (int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
                     <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Analisis</a>
                     <?php endif; ?>

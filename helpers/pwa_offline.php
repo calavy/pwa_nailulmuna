@@ -21,11 +21,17 @@ function pwa_cache_version(): string
         '/assets/js/app-shell.js',
         '/assets/js/pwa-register.js',
         '/assets/js/offline-sync.js',
+        '/assets/js/keuangan-offline-db.js',
         '/assets/js/theme-mode.js',
         '/assets/js/presensi-scan-timer.js',
         '/assets/js/presensi-scan-camera.js',
         '/assets/js/presensi-scan-feedback.js',
         '/keuangan/cashless_scan.php',
+        '/keuangan/offline-data.php',
+        '/keuangan/neraca.php',
+        '/keuangan/arus-kas.php',
+        '/keuangan/riwayat_pembayaran.php',
+        '/keuangan/cashless_laporan.php',
         '/presensi/scan.php',
         '/pembimbing/perizinan.php',
     ] as $rel) {
@@ -90,6 +96,7 @@ function pwa_ui_static_precache_relative_paths(): array
         '/assets/js/app-shell.js',
         '/assets/js/theme-mode.js',
         '/assets/js/offline-sync.js',
+        '/assets/js/keuangan-offline-db.js',
         '/assets/js/pwa-media-cache.js',
         '/assets/js/pwa-register.js',
         '/assets/js/app-datetime-24h.js',
@@ -255,7 +262,14 @@ function pwaIsOfflineNavAllowlist(url) {
   }
   return p.indexOf('/presensi/scan') >= 0
     || p.indexOf('/cashless/scan') >= 0
-    || p.indexOf('/presensi/kiosk') >= 0;
+    || p.indexOf('/keuangan/cashless_scan') >= 0
+    || p.indexOf('/koperasi/scan') >= 0
+    || p.indexOf('/presensi/kiosk') >= 0
+    || p.indexOf('/keuangan/offline-data') >= 0
+    || p.indexOf('/keuangan/neraca') >= 0
+    || p.indexOf('/keuangan/arus-kas') >= 0
+    || p.indexOf('/keuangan/riwayat_pembayaran') >= 0
+    || p.indexOf('/keuangan/cashless_laporan') >= 0;
 }
 
 function pwaNormalizeCacheUrl(request) {

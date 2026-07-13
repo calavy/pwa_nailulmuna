@@ -138,8 +138,8 @@ if ($tablesOk) {
         $params['metode'] = $metode;
     }
     if ($posSlug !== '' && $detailOk) {
-        $sqlWhere .= ' AND EXISTS (SELECT 1 FROM keuangan_pembayaran_detail dx WHERE dx.pembayaran_id = p.id AND dx.pos_slug = :pos_slug)';
-        $params['pos_slug'] = $posSlug;
+        $sqlWhere .= ' AND EXISTS (SELECT 1 FROM keuangan_pembayaran_detail dx WHERE dx.pembayaran_id = p.id AND LOWER(TRIM(dx.pos_slug)) = :pos_slug)';
+        $params['pos_slug'] = strtolower(trim($posSlug));
     }
     [$qSql, $qParams] = keuangan_riwayat_pembayaran_sql_q_filter($pdo, $q);
     if ($qSql !== '') {
@@ -149,8 +149,20 @@ if ($tablesOk) {
 
     $sqlBase = $sqlFromJoins . $sqlWhere;
 
-    $sumStmt = $pdo->prepare('SELECT COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase);
-    $sumStmt->execute($params);
+    if ($posSlug !== '' && $detailOk) {
+        $sumStmt = $pdo->prepare('
+            SELECT COUNT(DISTINCT p.id) AS jml, COALESCE(SUM(d.nominal), 0) AS total
+            ' . $sqlFromJoins . '
+            INNER JOIN keuangan_pembayaran_detail d
+                ON d.pembayaran_id = p.id AND LOWER(TRIM(d.pos_slug)) = :pos_slug_sum
+            ' . $sqlWhere);
+        $sumParams = $params;
+        $sumParams['pos_slug_sum'] = strtolower(trim($posSlug));
+        $sumStmt->execute($sumParams);
+    } else {
+        $sumStmt = $pdo->prepare('SELECT COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase);
+        $sumStmt->execute($params);
+    }
     $sumRow = $sumStmt->fetch(PDO::FETCH_ASSOC);
     if ($sumRow) {
         $ringkasan['jumlah'] = (int) ($sumRow['jml'] ?? 0);
@@ -158,12 +170,31 @@ if ($tablesOk) {
     }
 
     if (column_exists($pdo, 'keuangan_pembayaran', 'metode_bayar')) {
-        $grp = $pdo->prepare('SELECT p.metode_bayar, COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase . ' GROUP BY p.metode_bayar ORDER BY p.metode_bayar ASC');
-        $grp->execute($params);
+        if ($posSlug !== '' && $detailOk) {
+            $grp = $pdo->prepare('
+                SELECT p.metode_bayar, COUNT(DISTINCT p.id) AS jml, COALESCE(SUM(d.nominal), 0) AS total
+                ' . $sqlFromJoins . '
+                INNER JOIN keuangan_pembayaran_detail d
+                    ON d.pembayaran_id = p.id AND LOWER(TRIM(d.pos_slug)) = :pos_slug_met
+                ' . $sqlWhere . '
+                GROUP BY p.metode_bayar ORDER BY p.metode_bayar ASC');
+            $grpParams = $params;
+            $grpParams['pos_slug_met'] = strtolower(trim($posSlug));
+            $grp->execute($grpParams);
+        } else {
+            $grp = $pdo->prepare('SELECT p.metode_bayar, COUNT(*) AS jml, COALESCE(SUM(p.total_nominal), 0) AS total ' . $sqlBase . ' GROUP BY p.metode_bayar ORDER BY p.metode_bayar ASC');
+            $grp->execute($params);
+        }
         $ringkasan['per_metode'] = $grp->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     if ($detailOk) {
+        $posAggExtra = '';
+        $posAggParams = $params;
+        if ($posSlug !== '') {
+            $posAggExtra = ' AND LOWER(TRIM(d.pos_slug)) = :pos_slug_agg';
+            $posAggParams['pos_slug_agg'] = strtolower(trim($posSlug));
+        }
         $posAggSql = '
             SELECT d.pos_slug, d.pos_nama, COUNT(DISTINCT d.pembayaran_id) AS jml_trx, COALESCE(SUM(d.nominal), 0) AS total_nominal
             FROM keuangan_pembayaran_detail d
@@ -171,21 +202,31 @@ if ($tablesOk) {
             INNER JOIN santri s ON s.id = p.santri_id
             ' . $joinUser . '
             ' . $joinAkun . '
-            ' . $sqlWhere . '
+            ' . $sqlWhere . $posAggExtra . '
             GROUP BY d.pos_slug, d.pos_nama
             ORDER BY d.pos_nama ASC';
         $posAgg = $pdo->prepare($posAggSql);
         try {
-            $posAgg->execute($params);
+            $posAgg->execute($posAggParams);
             $ringkasanPos = $posAgg->fetchAll(PDO::FETCH_ASSOC) ?: [];
         } catch (Throwable $e) {
             $ringkasanPos = [];
         }
     }
 
+    $nominalListSelect = 'p.total_nominal';
+    if ($posSlug !== '' && $detailOk) {
+        $nominalListSelect = '(
+            SELECT COALESCE(SUM(dn.nominal), 0)
+            FROM keuangan_pembayaran_detail dn
+            WHERE dn.pembayaran_id = p.id AND LOWER(TRIM(dn.pos_slug)) = :pos_slug_list
+        ) AS total_nominal';
+        $params['pos_slug_list'] = strtolower(trim($posSlug));
+    }
+
     $sqlList = "
         SELECT p.id, p.santri_id, p.jenis_periode, p.tahun_ajaran_mulai, p.tahun_ajaran_selesai, p.bulan_tagihan,
-               p.tanggal_bayar, p.total_nominal, p.metode_bayar, p.keterangan, p.no_referensi, p.created_at,
+               p.tanggal_bayar, {$nominalListSelect}, p.metode_bayar, p.keterangan, p.no_referensi, p.created_at,
                s.nis, s.nama_santri, {$kkCol} AS kategori_kelas, {$namaPetugas}, {$namaAkun}
         " . $sqlBase . ' ORDER BY p.tanggal_bayar DESC, p.id DESC LIMIT ' . (int) $limit;
     $st = $pdo->prepare($sqlList);
@@ -520,7 +561,11 @@ $flashErr = get_flash('error');
                                 <span class="text-muted">Tanpa rincian</span>
                             <?php else: ?>
                                 <ul class="mb-0 ps-3">
-                                    <?php foreach ($dets as $d): ?>
+                                    <?php foreach ($dets as $d):
+                                        if ($posSlug !== '' && strtolower(trim((string) ($d['pos_slug'] ?? ''))) !== strtolower(trim($posSlug))) {
+                                            continue;
+                                        }
+                                        ?>
                                         <li><?= htmlspecialchars((string) ($d['pos_nama'] ?? '')) ?> <span class="text-muted">Rp <?= number_format((int) round((float) ($d['nominal'] ?? 0)), 0, ',', '.') ?></span></li>
                                     <?php endforeach; ?>
                                 </ul>

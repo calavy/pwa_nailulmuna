@@ -12,9 +12,10 @@ app_scan_page_no_cache_headers();
 
 keuangan_ensure_schema_deferred($pdo);
 cashless_koperasi_ensure_schema_deferred($pdo);
-cashless_verified_session_normalize();
+cashless_verified_session_normalize($pdo);
 
-$tglOperasional = cashless_tanggal_hari_ini();
+$tglOperasional = cashless_tanggal_hari_ini($pdo);
+$jamResetHarian = cashless_daily_reset_jam($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && trim((string) ($_GET['action'] ?? '')) === 'lookup_qr') {
     header('Content-Type: application/json; charset=utf-8');
@@ -183,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'nis' => (string) ($santri['nis'] ?? ''),
                             'nama' => $nama,
                         ];
-                        cashless_verified_session_mark($santriId);
+                        cashless_verified_session_mark($santriId, $pdo);
                         $_SESSION['cashless_auto_nominal_scan'] = true;
                         $verifiedSantri = [
                             'id' => $santriId,
@@ -625,7 +626,8 @@ if ($koperasiPortal) {
             pinMinLen: 4,
             pinIdleMs: 1500,
             moneyPhaseTimeoutMs: 30000,
-            operationalDate: <?= json_encode($tglOperasional, JSON_UNESCAPED_UNICODE) ?>
+            operationalDate: <?= json_encode($tglOperasional, JSON_UNESCAPED_UNICODE) ?>,
+            resetJam: <?= json_encode($jamResetHarian, JSON_UNESCAPED_UNICODE) ?>
         };
         const wrap = document.getElementById('cashless_scan_wrap');
         const input = document.getElementById('kode_qr');
@@ -1177,7 +1179,21 @@ if ($koperasiPortal) {
         tickLiveClock();
 
         function currentOperationalDateLocal() {
+            var resetJam = (CFG.resetJam || '00:00');
+            var parts = String(resetJam).split(':');
+            var rh = parseInt(parts[0], 10);
+            var rm = parseInt(parts[1], 10);
+            if (isNaN(rh) || rh < 0 || rh > 23) {
+                rh = 0;
+            }
+            if (isNaN(rm) || rm < 0 || rm > 59) {
+                rm = 0;
+            }
             var d = new Date();
+            var boundary = new Date(d.getFullYear(), d.getMonth(), d.getDate(), rh, rm, 0, 0);
+            if (d.getTime() < boundary.getTime()) {
+                d = new Date(boundary.getTime() - 24 * 60 * 60 * 1000);
+            }
             var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
             return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
         }
@@ -1192,10 +1208,10 @@ if ($koperasiPortal) {
             }
             CFG.operationalDate = today;
             if (moneyPhase) {
-                await cancelMoneyPhaseSession('Hari berganti — scan QR santri & PIN lagi (jatah harian direset).');
+                await cancelMoneyPhaseSession('Batas harian berganti (jam reset ' + (CFG.resetJam || '00:00') + ') — scan QR santri & PIN lagi (jatah harian direset).');
             } else {
                 resetToSantriPhase({ clearFlash: false, clearSantriChip: true, clearStats: true });
-                notifyResult('info', 'Hari operasional berganti. Jatah belanja harian direset.');
+                notifyResult('info', 'Hari operasional berganti (jam reset ' + (CFG.resetJam || '00:00') + '). Jatah belanja harian direset.');
             }
         }
 
