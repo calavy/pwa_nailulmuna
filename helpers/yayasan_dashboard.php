@@ -132,7 +132,16 @@ function yayasan_dashboard_poin_kpi(PDO $pdo, int $month, int $year): array
     $start = sprintf('%04d-%02d-01', $year, $month);
     $end = date('Y-m-t', strtotime($start));
 
-    $st = $pdo->prepare('SELECT COUNT(*) FROM point_ledger WHERE tanggal BETWEEN :a AND :b');
+    if (!function_exists('rekap_poin_presensi_eligible_sql')) {
+        require_once __DIR__ . '/rekap_keaktifan.php';
+    }
+    $eligiblePoinSql = rekap_poin_presensi_eligible_sql($pdo, 'pl');
+
+    $st = $pdo->prepare('
+        SELECT COUNT(*) FROM point_ledger pl
+        WHERE pl.tanggal BETWEEN :a AND :b
+        ' . $eligiblePoinSql . '
+    ');
     $st->execute(['a' => $start, 'b' => $end]);
     $out['entri_bulan'] = (int) $st->fetchColumn();
 
@@ -143,6 +152,7 @@ function yayasan_dashboard_poin_kpi(PDO $pdo, int $month, int $year): array
                COALESCE(SUM(pl.point_delta), 0) AS total_poin
         FROM santri s
         INNER JOIN point_ledger pl ON pl.santri_id = s.id AND pl.tanggal BETWEEN :a AND :b
+            {$eligiblePoinSql}
         WHERE " . santri_sql_aktif_only('s') . "
         GROUP BY s.id
         HAVING total_poin > 0
@@ -157,6 +167,7 @@ function yayasan_dashboard_poin_kpi(PDO $pdo, int $month, int $year): array
         FROM point_ledger pl
         INNER JOIN santri s ON s.id = pl.santri_id AND " . santri_sql_aktif_only('s') . "
         WHERE pl.tanggal BETWEEN :a AND :b AND pl.point_delta > 0
+        {$eligiblePoinSql}
     ");
     $st2->execute(['a' => $start, 'b' => $end]);
     $out['santri_dapat_poin'] = (int) $st2->fetchColumn();

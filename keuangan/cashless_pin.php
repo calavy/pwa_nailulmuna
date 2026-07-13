@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/excel.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
@@ -11,6 +12,45 @@ require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 keuangan_ensure_schema_deferred($pdo);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
+
+if (($_GET['download'] ?? '') === 'xlsx') {
+    $rekapExport = cashless_rekap_saldo_santri($pdo);
+    $rowsExport = $rekapExport['rows'] ?? [];
+    $summaryExport = $rekapExport['summary'] ?? [];
+    $dailyLimitExport = (int) ($rekapExport['daily_limit'] ?? 10000);
+    $jamResetExport = cashless_daily_reset_jam($pdo);
+    $xlsxRows = [
+        ['nis', 'nama_santri', 'tingkatan', 'saldo', 'total_topup', 'total_belanja', 'terpakai_hari_ini', 'sisa_jatah_hari', 'status_pin', 'batas_harian', 'jam_reset_harian'],
+    ];
+    foreach ($rowsExport as $sr) {
+        $pinOk = (int) ($sr['pin_terpasang'] ?? 0) === 1;
+        $xlsxRows[] = [
+            (string) ($sr['nis'] ?? ''),
+            (string) ($sr['nama_santri'] ?? ''),
+            (string) ($sr['tingkatan'] ?? ''),
+            (int) ($sr['saldo'] ?? 0),
+            (int) ($sr['total_topup'] ?? 0),
+            (int) ($sr['total_debit'] ?? 0),
+            (int) ($sr['debit_hari_ini'] ?? 0),
+            (int) ($sr['sisa_jatah_hari'] ?? 0),
+            $pinOk ? 'Sudah' : 'Belum',
+            $dailyLimitExport,
+            $jamResetExport,
+        ];
+    }
+    $xlsxRows[] = [];
+    $xlsxRows[] = [
+        'RINGKASAN',
+        'total_santri=' . (int) ($summaryExport['total_santri'] ?? 0),
+        'bersaldo=' . (int) ($summaryExport['jumlah_bersaldo'] ?? 0),
+        'total_saldo=' . (int) ($summaryExport['total_saldo'] ?? 0),
+        'pin_sudah=' . (int) ($summaryExport['pin_sudah'] ?? 0),
+        'pin_belum=' . (int) ($summaryExport['pin_belum'] ?? 0),
+    ];
+    $fn = 'rekap_saldo_pin_cashless_' . date('Ymd_His') . '.xlsx';
+    send_xlsx_download($fn, $xlsxRows, 'Rekap Saldo PIN');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['action'] ?? '') === 'save_cashless_limit') {
@@ -203,6 +243,9 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
         <p class="small text-muted mb-0">Laporan saldo uang saku per santri, status PIN, dan pengaturan cashless dalam satu halaman.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_pin.php?download=xlsx')) ?>" class="btn btn-success btn-sm">
+            <i class="fa-solid fa-file-excel me-1"></i>Unduh Excel
+        </a>
         <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_scan.php')) ?>" class="btn btn-outline-danger btn-sm">Scan cashless</a>
         <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php')) ?>" class="btn btn-outline-secondary btn-sm">Laporan koperasi</a>
     </div>
@@ -263,6 +306,9 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
                     <option value="kosong">Saldo nol</option>
                 </select>
                 <input type="search" id="rekap-search" class="form-control form-control-sm" placeholder="Cari NIS / nama…" style="max-width:14rem">
+                <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_pin.php?download=xlsx')) ?>" class="btn btn-outline-success btn-sm" title="Unduh Excel rekap saldo & status PIN">
+                    <i class="fa-solid fa-file-excel me-1"></i>Excel
+                </a>
                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="fa-solid fa-print me-1"></i>Cetak</button>
             </div>
         </div>

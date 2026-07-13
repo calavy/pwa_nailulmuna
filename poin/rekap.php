@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
 
 require_roles(['admin', 'pengurus']);
@@ -85,6 +86,8 @@ if ($mode === 'tingkatan') {
 }
 $startDate = sprintf('%04d-%02d-01', $year, $month);
 $endDate = date('Y-m-t', strtotime($startDate));
+$poinEligibleSql = rekap_poin_presensi_eligible_sql($pdo, 'pl');
+$tanggalMulaiScanPoin = rekap_keaktifan_tanggal_mulai_scan($pdo);
 
 if ($mode === 'santri') {
     $tingkatan = '';
@@ -108,6 +111,7 @@ $stmt = $pdo->prepare('
     LEFT JOIN point_ledger pl
         ON pl.santri_id = s.id
        AND pl.tanggal BETWEEN :start_date AND :end_date
+       ' . $poinEligibleSql . '
     GROUP BY s.id, s.nis, s.nama_santri, s.tingkatan
     ORDER BY ' . santri_list_order_sql_with_primary('s', 'total_poin DESC') . '
 ');
@@ -164,6 +168,7 @@ $detailStmt = $pdo->prepare('
         ), 1, 520) AS ringkasan_keterangan
     FROM point_ledger pl
     WHERE pl.tanggal BETWEEN :start_detail AND :end_detail
+    ' . $poinEligibleSql . '
     GROUP BY pl.santri_id
 ');
 $detailStmt->execute([
@@ -241,6 +246,7 @@ $logSql = '
     FROM point_ledger pl
     INNER JOIN santri s ON s.id = pl.santri_id
     WHERE pl.tanggal BETWEEN :start_date AND :end_date
+    ' . $poinEligibleSql . '
 ';
 $logExec = ['start_date' => $startDate, 'end_date' => $endDate];
 if ($mode === 'santri' && $santriIdPick > 0) {
@@ -320,6 +326,13 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </p>
 </div>
+<?php if ($tanggalMulaiScanPoin !== ''): ?>
+<div class="alert alert-info small py-2">
+    Poin auto ALPA/telat dihitung mulai <strong><?= htmlspecialchars(app_format_tanggal_id($tanggalMulaiScanPoin)) ?></strong>.
+    Data sebelumnya tetap tersimpan tetapi tidak masuk total.
+    <a href="<?= htmlspecialchars(app_href('/settings/pesantren.php')) ?>">Ubah di pengaturan</a>
+</div>
+<?php endif; ?>
 <div class="row g-3 mb-3">
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">

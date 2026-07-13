@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 require_once __DIR__ . '/../helpers/surat_nomor.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
 require_once __DIR__ . '/../helpers/surat_cetak_templates.php';
@@ -30,11 +31,13 @@ if (!$santri) {
 
 $startDate = sprintf('%04d-%02d-01', $year, $month);
 $endDate = date('Y-m-t', strtotime($startDate));
+$poinEligibleSql = rekap_poin_presensi_eligible_sql($pdo, 'pl');
 $pointStmt = $pdo->prepare('
-    SELECT COALESCE(SUM(point_delta), 0) AS total_poin
-    FROM point_ledger
-    WHERE santri_id = :santri_id
-      AND tanggal BETWEEN :start_date AND :end_date
+    SELECT COALESCE(SUM(pl.point_delta), 0) AS total_poin
+    FROM point_ledger pl
+    WHERE pl.santri_id = :santri_id
+      AND pl.tanggal BETWEEN :start_date AND :end_date
+      ' . $poinEligibleSql . '
 ');
 $pointStmt->execute([
     'santri_id' => $santriId,

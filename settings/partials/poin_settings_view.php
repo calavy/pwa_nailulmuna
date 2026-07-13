@@ -24,6 +24,10 @@
         </div>
     </div>
 </div>
+<div class="alert alert-info small py-2">
+    WA otomatis ke pengurus saat poin mencapai ambang (5, 10, 15, …) + jam kirim per ambang:
+    <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=poin')) ?>">Pengaturan WA → Poin</a>
+</div>
 <div class="row g-4">
     <div class="col-lg-4">
         <div class="card shadow-sm">

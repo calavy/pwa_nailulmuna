@@ -7,10 +7,12 @@ require_once __DIR__ . '/../../helpers/wa_tagihan.php';
 require_once __DIR__ . '/../../helpers/wa_templates.php';
 require_once __DIR__ . '/../../helpers/wa_pembimbing_scan.php';
 require_once __DIR__ . '/../../helpers/alpa_tier.php';
+require_once __DIR__ . '/../../helpers/poin_wa.php';
 require_once __DIR__ . '/../../helpers/kalender_pengaturan.php';
 require_once __DIR__ . '/../../helpers/push_fcm.php';
 
 ensure_alpa_tier_tables($pdo);
+ensure_poin_tier_tables($pdo);
 pembimbing_ensure_wa_scan_reminder_column($pdo);
 
 ensure_pondok_settings_defaults($pdo);
@@ -56,6 +58,7 @@ $waTabs = [
     'cashless' => ['label' => 'Cashless', 'icon' => 'fa-wallet', 'desc' => 'Saku, transaksi & laporan'],
     'presensi' => ['label' => 'Presensi', 'icon' => 'fa-qrcode', 'desc' => 'Scan, munawib, kelas kosong'],
     'alpa' => ['label' => 'Alpa', 'icon' => 'fa-tower-broadcast', 'desc' => 'Tier penerima'],
+    'poin' => ['label' => 'Poin', 'icon' => 'fa-scale-balanced', 'desc' => 'Ambang & jam kirim'],
     'izin' => ['label' => 'Izin', 'icon' => 'fa-person-walking', 'desc' => 'Permohonan baru & disetujui'],
     'template' => ['label' => 'Template', 'icon' => 'fa-message', 'desc' => 'Teks pesan'],
     'log' => ['label' => 'Riwayat', 'icon' => 'fa-clipboard-list', 'desc' => 'Log pengiriman'],
@@ -300,6 +303,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash('success', 'Log dispatch alpa direset.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
+    } elseif ($action === 'save_poin_wa_enabled') {
+        save_setting($pdo, 'poin_wa_notif_enabled', isset($_POST['poin_wa_notif_enabled']) ? '1' : '0');
+        set_flash('success', 'Status WA ambang poin disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=poin'));
+        exit;
+    } elseif ($action === 'save_poin_tier') {
+        ensure_poin_tier_tables($pdo);
+        $id = (int) ($_POST['id'] ?? 0);
+        $threshold = max(1, (int) ($_POST['threshold'] ?? 0));
+        $label = trim((string) ($_POST['label'] ?? ''));
+        $wa = trim((string) ($_POST['wa'] ?? ''));
+        $jam = poin_tier_normalize_jam((string) ($_POST['jam_kirim'] ?? ''));
+        $isActive = isset($_POST['is_active']) ? 1 : 0;
+        if ($threshold < 1) {
+            set_flash('error', 'Ambang harus angka ≥ 1.');
+        } elseif ($id > 0) {
+            $st = $pdo->prepare('
+                UPDATE poin_tier_notif
+                SET threshold = :t, label = :l, wa = :w, jam_kirim = :j, is_active = :a
+                WHERE id = :id
+            ');
+            $st->execute(['t' => $threshold, 'l' => $label, 'w' => $wa, 'j' => $jam, 'a' => $isActive, 'id' => $id]);
+            set_flash('success', 'Ambang poin diperbarui.');
+        } else {
+            $st = $pdo->prepare('
+                INSERT INTO poin_tier_notif (threshold, label, wa, jam_kirim, is_active)
+                VALUES (:t, :l, :w, :j, :a)
+            ');
+            $st->execute(['t' => $threshold, 'l' => $label, 'w' => $wa, 'j' => $jam, 'a' => $isActive]);
+            set_flash('success', 'Ambang poin ditambahkan.');
+        }
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=poin'));
+        exit;
+    } elseif ($action === 'delete_poin_tier') {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $pdo->prepare('DELETE FROM poin_tier_notif WHERE id = :id')->execute(['id' => $id]);
+            set_flash('success', 'Ambang poin dihapus.');
+        }
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=poin'));
+        exit;
+    } elseif ($action === 'reset_poin_tier_log') {
+        if (table_exists($pdo, 'poin_tier_dispatch_log')) {
+            $pdo->exec('TRUNCATE TABLE poin_tier_dispatch_log');
+        }
+        set_flash('success', 'Log kirim ambang poin direset.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=poin'));
+        exit;
     }
 }
 
@@ -362,6 +413,17 @@ $alpaModeLabel = match ($periodeMode) {
     'default' => 'Akumulatif',
     default => 'Bulanan',
 };
+
+$poinWaEnabled = poin_wa_notif_enabled($pdo);
+$poinTiers = poin_tier_list($pdo, false);
+$poinLogTotal = table_exists($pdo, 'poin_tier_dispatch_log')
+    ? (int) ($pdo->query('SELECT COUNT(*) FROM poin_tier_dispatch_log')->fetchColumn() ?: 0)
+    : 0;
+$poinWaLastCronAt = trim((string) app_setting($pdo, 'poin_wa_last_cron_at', ''));
+$poinWaLastCronStats = json_decode((string) app_setting($pdo, 'poin_wa_last_cron_stats', ''), true);
+if (!is_array($poinWaLastCronStats)) {
+    $poinWaLastCronStats = null;
+}
 
 // Izin WA
 $waIzinEnabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1';

@@ -393,7 +393,16 @@ function push_maybe_pelanggaran_berat_after_point(PDO $pdo, int $santriId): void
         }
     }
 
-    $st = $pdo->prepare('SELECT COALESCE(SUM(point_delta), 0) FROM point_ledger WHERE santri_id = :sid');
+    if (!function_exists('rekap_poin_presensi_eligible_sql')) {
+        require_once __DIR__ . '/rekap_keaktifan.php';
+    }
+    $eligiblePoinSql = rekap_poin_presensi_eligible_sql($pdo, 'pl');
+    $st = $pdo->prepare('
+        SELECT COALESCE(SUM(pl.point_delta), 0)
+        FROM point_ledger pl
+        WHERE pl.santri_id = :sid
+        ' . $eligiblePoinSql . '
+    ');
     $st->execute(['sid' => $santriId]);
     $total = (int) $st->fetchColumn();
     if ($total < $threshold) {

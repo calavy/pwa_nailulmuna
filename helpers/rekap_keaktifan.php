@@ -22,6 +22,25 @@ function rekap_keaktifan_tanggal_mulai_scan(PDO $pdo): string
 }
 
 /**
+ * Klausul AND: abaikan poin auto-presensi (ALPA/telat) sebelum tanggal mulai scan.
+ * Data ledger lama tetap di DB; tidak ikut SUM / daftar hitungan.
+ * Sumber lain (MANUAL, peraturan, dll.) tidak diubah.
+ */
+function rekap_poin_presensi_eligible_sql(PDO $pdo, string $alias = 'pl'): string
+{
+    $mulai = rekap_keaktifan_tanggal_mulai_scan($pdo);
+    if ($mulai === '') {
+        return '';
+    }
+    $a = preg_replace('/[^a-zA-Z0-9_]/', '', $alias) ?: 'pl';
+
+    return " AND (
+        {$a}.sumber_data NOT IN ('PRESENSI_ALPA_AUTO', 'PRESENSI_TELAT_AUTO')
+        OR {$a}.tanggal >= '" . $mulai . "'
+    )";
+}
+
+/**
  * Potong rentang rekap agar tidak memuat presensi sebelum tanggal mulai scan.
  *
  * @return array{0:string,1:string}|null null = periode seluruhnya sebelum mulai scan

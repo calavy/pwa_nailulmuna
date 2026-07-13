@@ -47,6 +47,7 @@ $alamatPonpes = app_setting($pdo, 'alamat_ponpes', '-');
 $logo = app_pondok_logo_href($pdo, false);
 $telpPonpes = app_setting($pdo, 'telp_ponpes', '');
 $websitePonpes = app_setting($pdo, 'website_ponpes', '');
+$tanggalMulaiScanRekap = rekap_keaktifan_tanggal_mulai_scan($pdo);
 $masehiMonths = [
     1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
     7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
@@ -187,6 +188,19 @@ $flashErr = get_flash('error');
         <?php endif; ?>
     </p>
 </div>
+<?php if ($tanggalMulaiScanRekap !== ''): ?>
+<div class="alert alert-info small py-2">
+    Rekap keaktivan &amp; poin auto dihitung mulai <strong><?= htmlspecialchars(app_format_tanggal_id($tanggalMulaiScanRekap)) ?></strong>
+    (data sebelumnya tetap tersimpan, tidak terhitung).
+    <a href="<?= htmlspecialchars(app_href('/settings/pesantren.php')) ?>">Ubah pengaturan</a>
+</div>
+<?php else: ?>
+<div class="alert alert-light border small py-2">
+    Belum ada tanggal mulai scan. Atur di
+    <a href="<?= htmlspecialchars(app_href('/settings/pesantren.php')) ?>">Pengaturan Pesantren</a>
+    agar rekap &amp; poin hanya dihitung sejak tanggal yang Anda tentukan.
+</div>
+<?php endif; ?>
 <?php if ($flashOk): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($flashOk) ?></div><?php endif; ?>
 <?php if ($flashErr): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
 <div class="row g-3 mb-4">

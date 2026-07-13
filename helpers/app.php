@@ -605,6 +605,7 @@ function pondok_settings_defaults(): array
         'stampel_surat_path' => '',
         'stampel_kuitansi_path' => '',
         'cashless_saldo_rendah_wa_enabled' => '1',
+        'poin_wa_notif_enabled' => '1',
         'cashless_saldo_rendah_wa_ambang' => '30000',
         'cashless_transaksi_wa_enabled' => '1',
         'cashless_laporan_harian_wa_enabled' => '0',
@@ -1705,16 +1706,21 @@ function poin_santri_perlu_tindakan(PDO $pdo, int $month, int $year, ?string $ti
     if (!table_exists($pdo, 'point_ledger')) {
         return [];
     }
+    if (!function_exists('rekap_poin_presensi_eligible_sql')) {
+        require_once __DIR__ . '/rekap_keaktifan.php';
+    }
     $ambangMin = poin_ambang_sanksi_minimum($pdo);
     $start = sprintf('%04d-%02d-01', $year, $month);
     $end = date('Y-m-t', strtotime($start));
     $statusMap = poin_latest_followup_status_map($pdo, $month, $year);
+    $eligiblePoinSql = rekap_poin_presensi_eligible_sql($pdo, 'pl');
 
     $stmt = $pdo->prepare('
         SELECT s.id AS santri_id, s.nis, s.nama_santri, s.tingkatan,
             COALESCE(SUM(pl.point_delta), 0) AS total_poin
         FROM santri s
         LEFT JOIN point_ledger pl ON pl.santri_id = s.id AND pl.tanggal BETWEEN :a AND :b
+            ' . $eligiblePoinSql . '
         GROUP BY s.id, s.nis, s.nama_santri, s.tingkatan
         HAVING total_poin >= :ambang
         ORDER BY total_poin DESC, s.nama_santri ASC
@@ -1743,6 +1749,12 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
         return 0;
     }
 
+    if (!function_exists('rekap_keaktifan_tanggal_mulai_scan')) {
+        require_once __DIR__ . '/rekap_keaktifan.php';
+    }
+    $mulaiScan = rekap_keaktifan_tanggal_mulai_scan($pdo);
+    $mulaiSql = $mulaiScan !== '' ? ' AND p.tanggal_presensi >= ' . $pdo->quote($mulaiScan) : '';
+
     $pointAlpa = (int) app_setting($pdo, 'point_auto_alpa', '5');
     $pointTelat = (int) app_setting($pdo, 'point_auto_telat', '1');
     $insert = $pdo->prepare('
@@ -1751,6 +1763,7 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
     ');
 
     $added = 0;
+    $affectedSantri = [];
     if ($pointAlpa > 0) {
         require_once __DIR__ . '/presensi_jadwal.php';
         $alpaRows = $pdo->query('
@@ -1760,6 +1773,7 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
             LEFT JOIN point_ledger pl ON pl.sumber_data = "PRESENSI_ALPA_AUTO" AND pl.reference_presensi_id = p.id
             WHERE p.status_presensi = "ALPA"
               AND pl.id IS NULL
+              ' . $mulaiSql . '
         ')->fetchAll();
         foreach ($alpaRows as $row) {
             if (!presensi_row_eligible_for_hitung($pdo, $row)) {
@@ -1775,6 +1789,7 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
                 'created_by' => $createdBy,
             ]);
             $added++;
+            $affectedSantri[(int) $row['santri_id']] = true;
         }
     }
 
@@ -1785,6 +1800,7 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
             LEFT JOIN point_ledger pl ON pl.sumber_data = "PRESENSI_TELAT_AUTO" AND pl.reference_presensi_id = p.id
             WHERE p.catatan LIKE "%Terlambat%"
               AND pl.id IS NULL
+              ' . $mulaiSql . '
         ')->fetchAll();
         foreach ($telatRows as $row) {
             $insert->execute([
@@ -1797,6 +1813,14 @@ function sync_points_from_presensi(PDO $pdo, int $createdBy): int
                 'created_by' => $createdBy,
             ]);
             $added++;
+            $affectedSantri[(int) $row['santri_id']] = true;
+        }
+    }
+
+    if ($affectedSantri !== []) {
+        require_once __DIR__ . '/poin_wa.php';
+        foreach (array_keys($affectedSantri) as $sid) {
+            poin_wa_maybe_notify_santri($pdo, (int) $sid);
         }
     }
 

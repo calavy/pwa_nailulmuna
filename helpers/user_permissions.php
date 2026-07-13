@@ -399,6 +399,7 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/riwayat_pemasukan.php' => $transaksi,
         '/keuangan/riwayat_pengeluaran.php' => $transaksi,
         '/keuangan/riwayat_pembayaran.php' => $transaksi,
+        '/keuangan/impor-ekspor.php' => $transaksi,
         '/keuangan/potongan_syahriyah.php' => 'keuangan_potongan',
         '/keuangan/talangan.php' => 'keuangan_talangan',
         '/keuangan/inventaris.php' => 'keuangan_inventaris',

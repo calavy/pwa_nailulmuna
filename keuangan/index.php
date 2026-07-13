@@ -485,6 +485,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="keu-modern-link" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar"></i><span>Pemasukan lain</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>
                 <a class="keu-modern-link" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right"></i><span>Dana talangan antar-POS</span></a>
+                <a class="keu-modern-link" href="/keuangan/impor-ekspor.php"><i class="fa-solid fa-file-excel"></i><span>Impor / ekspor Excel</span></a>
                 <a class="keu-modern-link" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode"></i><span>Top up cashless</span></a>
                 <a class="keu-modern-link" href="/keuangan/gaji_pembimbing.php"><i class="fa-solid fa-chalkboard-user"></i><span>Gaji pembimbing</span></a>
             </div>

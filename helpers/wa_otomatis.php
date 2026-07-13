@@ -613,6 +613,7 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
         'tagihan' => ['ran' => false, 'note' => ''],
         'kelas_kosong' => ['ran' => false, 'note' => ''],
         'cashless_laporan' => ['ran' => false, 'note' => ''],
+        'poin_ambang' => ['ran' => false, 'note' => ''],
     ];
 
     if (wa_otomatis_gateway_error($pdo) !== null) {
@@ -648,6 +649,15 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
     if ($results['cashless_laporan']['note'] === '' && is_array($cashlessRes) && (int) ($cashlessRes['sent'] ?? 0) > 0) {
         $results['cashless_laporan']['note'] = 'sent=' . (int) $cashlessRes['sent'];
     }
+
+    if (!function_exists('poin_wa_cron_flush')) {
+        require_once __DIR__ . '/poin_wa.php';
+    }
+    $poinCron = poin_wa_cron_flush($pdo);
+    $results['poin_ambang'] = [
+        'ran' => true,
+        'note' => 'sent=' . (int) ($poinCron['sent'] ?? 0) . ' pending=' . (int) ($poinCron['pending'] ?? 0),
+    ];
 
     save_setting($pdo, 'wa_auto_scheduled_last_at', date('Y-m-d H:i:s'));
     save_setting($pdo, 'wa_auto_scheduled_last_result', json_encode([

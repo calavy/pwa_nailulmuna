@@ -121,7 +121,8 @@
                 <label class="form-label">Tanggal mulai scan keaktivan</label>
                 <input type="date" class="form-control" name="keaktifan_tanggal_mulai_scan" value="<?= htmlspecialchars((string) ($values['keaktifan_tanggal_mulai_scan'] ?? '')) ?>">
                 <div class="form-text">
-                    Rekap keaktivan (portal wali/santri, pembimbing, yayasan, rekap resmi) hanya menghitung presensi dari tanggal ini.
+                    Rekap keaktivan (portal wali/santri, pembimbing, yayasan, rekap resmi) dan poin otomatis ALPA/telat
+                    hanya dihitung mulai tanggal ini. Data sebelum tanggal tetap tersimpan, tetapi tidak terhitung.
                     Kosongkan jika semua riwayat dihitung.
                     <?php if ($keaktifanScanSuggest !== ''): ?>
                         Presensi pertama di database: <strong><?= htmlspecialchars(app_format_tanggal_id($keaktifanScanSuggest)) ?></strong>.

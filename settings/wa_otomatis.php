@@ -22,6 +22,7 @@ $tabPartial = match ($waActiveTab) {
     'cashless' => 'wa_otomatis_tab_cashless.php',
     'presensi' => 'wa_otomatis_tab_presensi.php',
     'alpa' => 'wa_otomatis_tab_alpa.php',
+    'poin' => 'wa_otomatis_tab_poin.php',
     'izin' => 'wa_otomatis_tab_izin.php',
     'template' => 'wa_otomatis_tab_template.php',
     'log' => 'wa_otomatis_tab_log.php',
@@ -75,7 +76,7 @@ $tabPartial = match ($waActiveTab) {
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">WA Otomatis</h1>
-    <p class="text-muted mb-0 small">Semua pengaturan WhatsApp otomatis dalam satu halaman — gateway, jadwal, presensi, alpa, izin, dan template.</p>
+    <p class="text-muted mb-0 small">Semua pengaturan WhatsApp otomatis dalam satu halaman — gateway, jadwal, presensi, alpa, poin, izin, dan template.</p>
 </div>
 
 <?php if ($msg = get_flash('success')): ?>

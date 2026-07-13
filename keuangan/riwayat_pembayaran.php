@@ -212,6 +212,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-12 col-md-2 d-flex gap-1">
         <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>" title="Reset"><i class="fa-solid fa-rotate-left"></i></a>
+        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/impor-ekspor.php')) ?>" title="Impor / Ekspor Excel"><i class="fa-solid fa-file-excel"></i></a>
     </div>
 </form>
 

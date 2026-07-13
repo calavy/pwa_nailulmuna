@@ -41,6 +41,23 @@ function wa_template_definitions(): array
                 . 'Periode data: {periode}\n'
                 . 'Kriteria: jumlah ALPA ≥ *{ambang}* per santri per kegiatan',
         ],
+        'poin_ambang_pengurus' => [
+            'label' => 'Ambang poin kedisiplinan → pengurus',
+            'hint' => 'Dikirim otomatis ke pengurus saat total poin bulan santri mencapai ambang (5, 10, 15, …) sesuai jam kirim tiap ambang.',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {ambang}, {total_poin}, {periode}, {label_tier}, {nama_ponpes}',
+            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
+                . "*NOTIFIKASI POIN KEDISIPLINAN*\n"
+                . "Perihal: Santri mencapai ambang *{ambang}* poin\n"
+                . "Tier: {label_tier}\n"
+                . "Periode: *{periode}*\n\n"
+                . "• Nama: *{nama_santri}*\n"
+                . "• NIS: *{nis}*\n"
+                . "• Tingkatan: *{tingkatan}*\n"
+                . "• Total poin bulan ini: *{total_poin}*\n\n"
+                . "Mohon ditindaklanjuti sesuai kewenangan.\n\n"
+                . "_Hormat kami,_\n"
+                . "_{nama_ponpes}_",
+        ],
         'pengajuan_izin_baru' => [
             'label' => 'Pengajuan izin baru ke pengurus',
             'hint' => 'Notifikasi saat ada permohonan izin santri baru (PENDING). Baris opsional: {nis_baris}, {tingkatan_baris}, {tujuan_baris}.',

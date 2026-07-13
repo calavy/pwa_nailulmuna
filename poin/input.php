@@ -78,7 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
     ]);
 
-    if ($jenis === 'MINUS') {
+    if ($jenis === 'PLUS') {
+        require_once __DIR__ . '/../helpers/poin_wa.php';
+        poin_wa_maybe_notify_santri($pdo, $santriId, $tanggal);
+        require_once __DIR__ . '/../helpers/push_events.php';
         push_maybe_pelanggaran_berat_after_point($pdo, $santriId);
     }
 
