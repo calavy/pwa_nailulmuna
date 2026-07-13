@@ -1301,26 +1301,10 @@ function trigger_auto_wa_notifications(PDO $pdo): void
     $startMonth = date('Y-m-01');
     $endMonth = date('Y-m-t');
 
-    $sqlWithKegiatan = '
+    // Total ALPA per santri (bulan berjalan) ≥ kelipatan — bukan per kegiatan.
+    $sql = '
         SELECT
-            COALESCE(k.nama_kegiatan, "Tanpa kegiatan") AS nama_kegiatan,
-            s.nama_santri,
-            s.nis,
-            s.tingkatan,
-            COUNT(p.id) AS total_alpha
-        FROM presensi p
-        INNER JOIN santri s ON s.id = p.santri_id
-        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
-        WHERE p.status_presensi = "ALPA"
-          AND p.tanggal_presensi BETWEEN :start_date AND :end_date
-        GROUP BY COALESCE(p.kegiatan_id, 0), COALESCE(k.nama_kegiatan, "Tanpa kegiatan"), s.id, s.nama_santri, s.nis, s.tingkatan
-        HAVING COUNT(p.id) >= :threshold
-        ORDER BY s.nama_santri ASC, nama_kegiatan ASC, total_alpha DESC
-        LIMIT 200
-    ';
-    $sqlNoKegiatan = '
-        SELECT
-            "Tanpa kegiatan" AS nama_kegiatan,
+            "Akumulasi bulan ini" AS nama_kegiatan,
             s.nama_santri,
             s.nis,
             s.tingkatan,
@@ -1331,10 +1315,10 @@ function trigger_auto_wa_notifications(PDO $pdo): void
           AND p.tanggal_presensi BETWEEN :start_date AND :end_date
         GROUP BY s.id, s.nama_santri, s.nis, s.tingkatan
         HAVING COUNT(p.id) >= :threshold
-        ORDER BY total_alpha DESC, s.nama_santri ASC
-        LIMIT 80
+        ORDER BY s.tingkatan ASC, total_alpha DESC, s.nama_santri ASC
+        LIMIT 300
     ';
-    $stmt = $pdo->prepare(table_exists($pdo, 'kegiatan') ? $sqlWithKegiatan : $sqlNoKegiatan);
+    $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':start_date', $startMonth);
     $stmt->bindValue(':end_date', $endMonth);
     $stmt->bindValue(':threshold', $threshold, PDO::PARAM_INT);

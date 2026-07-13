@@ -32,14 +32,14 @@ function wa_template_definitions(): array
             'default' => 'Nyuwun pangapunten, {nama_pembimbing} ngemutaken bilih panjenengan dereng scan kehadiran {nama_kegiatan}.',
         ],
         'rekap_alpa' => [
-            'label' => 'Rekap ALPA ke pengurus',
-            'hint' => 'Header pesan rekap bulanan. Daftar santri ditambahkan otomatis: nama santri, lalu kegiatan di bawahnya. Jika panjang, dikirim lanjutan (bagian 2, 3, …).',
-            'placeholders' => '{periode}, {ambang}',
-            'default' => "Assalamu'alaikum Wr. Wb.\n\n"
-                . '*PEMBERITAHUAN RESMI*\n'
-                . "Perihal: Rekapitulasi ketidakhadiran (*ALPA*)\n"
-                . 'Periode data: {periode}\n'
-                . 'Kriteria: jumlah ALPA ≥ *{ambang}* per santri per kegiatan',
+            'label' => 'Laporan ALPA kelipatan → pengurus',
+            'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan hari ALPA. Placeholder {daftar_santri} diisi otomatis (dikelompokkan per tingkatan). Edit teks bebas; jangan hapus {daftar_santri} jika ingin daftar ikut terkirim.',
+            'placeholders' => '{kelipatan}, {ambang}, {tanggal}, {periode}, {daftar_santri}, {nama_ponpes}',
+            'default' => "*LAPORAN SANTRI ALPA (KELIPATAN {kelipatan})*\n"
+                . "Tanggal: {tanggal}\n\n"
+                . "Berikut adalah daftar santri yang telah mencapai akumulasi {kelipatan} hari alpa:\n\n"
+                . "{daftar_santri}\n\n"
+                . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.',
         ],
         'poin_ambang_pengurus' => [
             'label' => 'Ambang poin kedisiplinan → pengurus',

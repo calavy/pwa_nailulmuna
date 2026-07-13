@@ -9,9 +9,9 @@ declare(strict_types=1);
         <p class="small text-muted mb-3">
             Dipakai saat <strong>generate alpa</strong> atau cron harian jika tier belum diatur di bawah.
             Terpisah dari notifikasi <strong>permohonan izin</strong> (<a href="?tab=izin">tab Izin</a>).
-            Format pesan: <strong>nama santri</strong>, lalu daftar <strong>kegiatan</strong> di bawahnya; beberapa santri per kiriman.
-            Jika melebihi batas karakter, otomatis dilanjutkan pesan berikutnya (<em>khusus laporan ALPA</em>).
-            Pesan WA otomatis lainnya (izin, tagihan, cashless, dll.) dikirim <strong>satu pesan utuh</strong> per notifikasi.
+            Format laporan mengikuti template <strong>Laporan ALPA kelipatan</strong>
+            (<a href="?tab=template">tab Template</a>) — dikelompokkan per tingkatan.
+            <code>Batas alpa</code> = angka kelipatan (mis. 5).
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">

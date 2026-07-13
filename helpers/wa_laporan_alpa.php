@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 /**
- * Format & batching pesan WA laporan ALPA: per nama santri, kegiatan di bawahnya.
+ * Format & batching pesan WA laporan ALPA: dikelompokkan per tingkatan (template editable).
  */
 
-/** Batas karakter satu pesan WA laporan ALPA (pecah ke pesan berikutnya, per santri). */
+/** Batas karakter satu pesan WA laporan ALPA (pecah ke pesan berikutnya). */
 function wa_laporan_alpa_message_hard_max(): int
 {
     return 40960;
@@ -18,6 +18,17 @@ function wa_laporan_alpa_message_max_len(PDO $pdo): int
     unset($pdo);
 
     return wa_laporan_alpa_message_hard_max();
+}
+
+/** Tanggal laporan WA: "Senin, 13 Juli 2026". */
+function wa_laporan_alpa_tanggal_label(?string $ymd = null): string
+{
+    $ts = $ymd !== null && $ymd !== '' ? (strtotime($ymd) ?: time()) : time();
+    $hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    $bulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    return ($hari[(int) date('w', $ts)] ?? '') . ', ' . (int) date('j', $ts) . ' '
+        . ($bulan[(int) date('n', $ts)] ?? date('F', $ts)) . ' ' . date('Y', $ts);
 }
 
 /**
@@ -53,6 +64,9 @@ function wa_laporan_alpa_group_by_santri(array $rows): array
         }
         $bySantri[$key]['kegiatan'][$kg] = ($bySantri[$key]['kegiatan'][$kg] ?? 0) + $n;
         $bySantri[$key]['total_alpha'] += $n;
+        if (trim((string) ($bySantri[$key]['tingkatan'] ?? '')) === '' && trim((string) ($row['tingkatan'] ?? '')) !== '') {
+            $bySantri[$key]['tingkatan'] = trim((string) $row['tingkatan']);
+        }
     }
 
     foreach ($bySantri as &$santri) {
@@ -74,70 +88,126 @@ function wa_laporan_alpa_group_by_santri(array $rows): array
 }
 
 /**
- * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>} $santri
+ * Blok teks per tingkatan (untuk packing pesan panjang).
+ *
+ * @param list<array{nama_santri: string, nis?: string, tingkatan?: string, total_alpha: int}> $santriList
+ * @return list<string>
+ */
+function wa_laporan_alpa_tingkatan_blocks(array $santriList): array
+{
+    $byTingkat = [];
+    foreach ($santriList as $s) {
+        $tg = trim((string) ($s['tingkatan'] ?? ''));
+        if ($tg === '') {
+            $tg = 'Tanpa tingkatan';
+        }
+        $byTingkat[$tg][] = $s;
+    }
+    ksort($byTingkat, SORT_NATURAL);
+
+    $blocks = [];
+    foreach ($byTingkat as $tingkat => $list) {
+        usort($list, static function (array $a, array $b): int {
+            $cmp = ((int) ($b['total_alpha'] ?? 0)) <=> ((int) ($a['total_alpha'] ?? 0));
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            return strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
+        });
+        $lines = ['*Tingkatan: ' . $tingkat . '*'];
+        foreach ($list as $s) {
+            $nama = trim((string) ($s['nama_santri'] ?? '-'));
+            $n = (int) ($s['total_alpha'] ?? 0);
+            $lines[] = '• ' . $nama . ' (Total: ' . $n . ' hari)';
+        }
+        $blocks[] = implode("\n", $lines);
+    }
+
+    return $blocks;
+}
+
+/** Teks daftar lengkap (semua tingkatan). */
+function wa_laporan_alpa_format_daftar_santri(array $santriList): string
+{
+    return implode("\n\n", wa_laporan_alpa_tingkatan_blocks($santriList));
+}
+
+/**
+ * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>, total_alpha?: int} $santri
  */
 function wa_laporan_alpa_format_santri_block(array $santri): string
 {
     $nama = (string) ($santri['nama_santri'] ?? '-');
-    $nis = trim((string) ($santri['nis'] ?? ''));
-    $tg = trim((string) ($santri['tingkatan'] ?? ''));
-    $head = '*' . $nama . '*';
-    if ($nis !== '') {
-        $head .= ' (NIS ' . $nis . ')';
-    }
-    if ($tg !== '') {
-        $head .= ' · ' . $tg;
-    }
-    $lines = [$head];
-    foreach ((array) ($santri['kegiatan'] ?? []) as $kg => $n) {
-        $lines[] = '  • ' . $kg . ': *' . (int) $n . '* ALPA';
-    }
-    if (count($lines) === 1) {
-        $lines[] = '  • (tidak ada rincian kegiatan)';
+    $n = (int) ($santri['total_alpha'] ?? 0);
+    if ($n <= 0) {
+        foreach ((array) ($santri['kegiatan'] ?? []) as $cnt) {
+            $n += (int) $cnt;
+        }
     }
 
-    return implode("\n", $lines);
+    return '• ' . $nama . ' (Total: ' . $n . ' hari)';
 }
 
 function wa_laporan_alpa_footer_resmi(): string
 {
-    return "\n\nMohon arahan dan tindak lanjut sesuai peraturan pesantren.\n"
-        . "Demikian disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
+    return "\n\nMohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.";
+}
+
+/**
+ * Render template rekap_alpa (boleh berisi {daftar_santri}).
+ *
+ * @return array{0:string,1:string,2:bool} [prefix sebelum daftar, suffix setelah daftar, punya_placeholder_daftar]
+ */
+function wa_laporan_alpa_template_parts(
+    PDO $pdo,
+    int $kelipatan,
+    string $tanggalLabel,
+    string $periodeLabel
+): array {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
+    $raw = wa_template_render($pdo, 'rekap_alpa', [
+        'kelipatan' => (string) $kelipatan,
+        'ambang' => (string) $kelipatan,
+        'tanggal' => $tanggalLabel,
+        'periode' => $periodeLabel,
+        'daftar_santri' => '{daftar_santri}',
+        'nama_ponpes' => function_exists('app_brand_nama_ponpes') ? app_brand_nama_ponpes($pdo) : '',
+    ]);
+    $raw = trim($raw);
+    if ($raw === '') {
+        $raw = "*LAPORAN SANTRI ALPA (KELIPATAN {$kelipatan})*\n"
+            . "Tanggal: {$tanggalLabel}\n\n"
+            . "Berikut adalah daftar santri yang telah mencapai akumulasi {$kelipatan} hari alpa:\n\n"
+            . "{daftar_santri}\n\n"
+            . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.';
+    }
+    $pos = mb_strpos($raw, '{daftar_santri}');
+    if ($pos === false) {
+        return [$raw . "\n\n", '', false];
+    }
+    $prefix = mb_substr($raw, 0, $pos);
+    $suffix = mb_substr($raw, $pos + mb_strlen('{daftar_santri}'));
+
+    return [$prefix, $suffix, true];
 }
 
 function wa_laporan_alpa_header_rekap_bulanan(PDO $pdo, string $periodeLabel, int $ambang, bool $lanjutan, int $bagian): string
 {
-    $intro = wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n";
+    $tanggalLabel = wa_laporan_alpa_tanggal_label();
     if ($lanjutan) {
-        return $intro
-            . '*LAPORAN ALPA (lanjutan bagian ' . max(1, $bagian) . ")*\n"
-            . 'Periode: *' . $periodeLabel . "*\n\n";
+        return '*LAPORAN SANTRI ALPA (lanjutan bagian ' . max(1, $bagian) . ")*\n"
+            . 'Tanggal: ' . $tanggalLabel . "\n"
+            . 'Kelipatan: *' . $ambang . "*\n\n";
     }
+    [$prefix] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
 
-    $templateBody = '';
-    if (function_exists('wa_template_render')) {
-        $templateBody = trim(wa_template_render($pdo, 'rekap_alpa', [
-            'periode' => $periodeLabel,
-            'ambang' => (string) $ambang,
-        ]));
-    }
-    if ($templateBody !== '') {
-        return $intro . $templateBody . "\n\n*Daftar santri (nama → kegiatan):*\n\n";
-    }
-
-    return $intro
-        . "*PEMBERITAHUAN RESMI*\n"
-        . "Perihal: Rekapitulasi ketidakhadiran (*ALPA*)\n"
-        . 'Periode data: *' . $periodeLabel . "*\n"
-        . 'Kriteria: jumlah ALPA ≥ *' . $ambang . "* per kegiatan\n\n"
-        . "Berikut daftar santri (*nama* → *kegiatan* di bawahnya):\n\n";
+    return $prefix;
 }
 
 /**
- * Pecah daftar blok santri menjadi beberapa pesan WA (tanpa memotong di tengah satu santri).
- *
  * @param list<string> $blocks
  * @return list<string>
  */
@@ -223,13 +293,27 @@ function wa_format_rekap_alpa_per_santri_messages(PDO $pdo, string $periodeLabel
         return [];
     }
 
-    $blocks = array_map('wa_laporan_alpa_format_santri_block', $santriList);
+    $tanggalLabel = wa_laporan_alpa_tanggal_label();
+    $blocks = wa_laporan_alpa_tingkatan_blocks($santriList);
+    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
     $maxLen = wa_laporan_alpa_message_max_len($pdo);
-    $footer = wa_laporan_alpa_footer_resmi();
-    $firstHeader = wa_laporan_alpa_header_rekap_bulanan($pdo, $periodeLabel, $ambang, false, 1);
-    $continuation = static fn (int $part): string => wa_laporan_alpa_header_rekap_bulanan($pdo, $periodeLabel, $ambang, true, $part);
 
-    return wa_laporan_alpa_pack_messages($blocks, $firstHeader, $continuation, $footer, $maxLen);
+    if (!$hasDaftar) {
+        return [rtrim($prefix)];
+    }
+
+    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriList) . $suffix);
+    if (mb_strlen($full) <= $maxLen) {
+        return [$full];
+    }
+
+    $footer = $suffix !== '' ? $suffix : '';
+    $continuation = static function (int $part) use ($ambang, $tanggalLabel): string {
+        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $ambang . ' — lanjutan ' . max(1, $part) . ")*\n"
+            . 'Tanggal: ' . $tanggalLabel . "\n\n";
+    };
+
+    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $footer, $maxLen);
 }
 
 /**
@@ -246,8 +330,6 @@ function wa_format_rekap_alpa_per_kegiatan(PDO $pdo, string $periodeLabel, int $
 }
 
 /**
- * Laporan setelah generate ALPA massal (beberapa santri, satu konteks kegiatan).
- *
  * @param array<int, array{nama_santri: string, nis: string, total_alpha: int}> $santriList
  * @return list<string>
  */
@@ -268,34 +350,43 @@ function wa_format_laporan_alpa_generate_messages(
             'nama_santri' => (string) ($s['nama_santri'] ?? '-'),
             'nis' => (string) ($s['nis'] ?? ''),
             'tingkatan' => $tingkatan,
-            'nama_kegiatan' => $namaKegiatan . ' (kumulatif bulan ini)',
+            'nama_kegiatan' => $namaKegiatan,
             'total_alpha' => (int) ($s['total_alpha'] ?? 0),
         ];
     }
 
-    $blocks = array_map('wa_laporan_alpa_format_santri_block', wa_laporan_alpa_group_by_santri($rows));
-    $maxLen = wa_laporan_alpa_message_max_len($pdo);
-    $footer = "\n\nMohon ditindaklanjuti sesuai ketentuan.\n"
-        . "Demikian laporan ini disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
-    $firstHeader = wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . "*LAPORAN RESMI — PENCATATAN ALPA*\n\n"
-        . 'Tanggal kegiatan: *' . $tanggalIdn . "*\n"
-        . 'Tingkatan: *' . $tingkatan . "*\n"
-        . 'Kegiatan: *' . $namaKegiatan . "*\n"
-        . 'Ambang pemberitahuan bulan berjalan: *≥ ' . $ambang . "* kali ALPA\n\n"
-        . "*Daftar santri (nama → kegiatan):*\n\n";
-    $continuation = static fn (int $part): string => wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . '*LAPORAN ALPA (lanjutan bagian ' . max(1, $part) . ")*\n"
-        . 'Tanggal: *' . $tanggalIdn . "* · Kegiatan: *" . $namaKegiatan . "*\n\n";
+    $ymd = null;
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalIdn)) {
+        $ymd = $tanggalIdn;
+    } else {
+        $ts = strtotime(str_replace('/', '-', $tanggalIdn));
+        if ($ts !== false) {
+            $ymd = date('Y-m-d', $ts);
+        }
+    }
 
-    return wa_laporan_alpa_pack_messages($blocks, $firstHeader, $continuation, $footer, $maxLen);
+    $periodeLabel = $tanggalIdn . ($namaKegiatan !== '' ? (' · ' . $namaKegiatan) : '');
+    $santriGrouped = wa_laporan_alpa_group_by_santri($rows);
+    $tanggalLabel = $ymd !== null ? wa_laporan_alpa_tanggal_label($ymd) : $tanggalIdn;
+    $blocks = wa_laporan_alpa_tingkatan_blocks($santriGrouped);
+    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
+    if (!$hasDaftar) {
+        return [rtrim($prefix)];
+    }
+    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriGrouped) . $suffix);
+    $maxLen = wa_laporan_alpa_message_max_len($pdo);
+    if (mb_strlen($full) <= $maxLen) {
+        return [$full];
+    }
+    $continuation = static function (int $part) use ($ambang, $tanggalLabel): string {
+        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $ambang . ' — lanjutan ' . max(1, $part) . ")*\n"
+            . 'Tanggal: ' . $tanggalLabel . "\n\n";
+    };
+
+    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $suffix, $maxLen);
 }
 
 /**
- * Notifikasi tier ALPA.
- *
  * @param array<int, array{nama_santri:string,nis:string,alpa_count:int}> $entries
  * @return list<string>
  */
@@ -322,25 +413,33 @@ function wa_format_alpa_tier_messages(
             'total_alpha' => (int) ($e['alpa_count'] ?? 0),
         ];
     }
-    $blocks = array_map('wa_laporan_alpa_format_santri_block', wa_laporan_alpa_group_by_santri($rows));
-    $maxLen = wa_laporan_alpa_message_max_len($pdo);
-    $footer = "\n\nMohon ditindaklanjuti sesuai kewenangan.\n"
-        . "Demikian disampaikan.\n\n"
-        . '_Hormat kami,_' . "\n"
-        . '_Sistem Informasi_';
-    $tierLine = trim($tierLabel) !== '' ? 'Penanggung jawab: *' . trim($tierLabel) . "*\n" : '';
-    $firstHeader = wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . '*LAPORAN ALPA — AMBANG ' . $threshold . "*\n"
-        . $tierLine
-        . 'Periode: *' . $periodeLabel . "*\n"
-        . 'Tanggal pencatatan: *' . $tanggalIdn . "*\n"
-        . 'Tingkatan: *' . $tingkatan . "*\n\n"
-        . "*Daftar santri (nama → kegiatan):*\n\n";
-    $continuation = static fn (int $part): string => wa_salam_pembuka() . "\n\n" . wa_kop_instansi($pdo) . "\n\n"
-        . '*LAPORAN ALPA (lanjutan bagian ' . max(1, $part) . ")*\n"
-        . 'Periode: *' . $periodeLabel . "*\n\n";
 
-    return wa_laporan_alpa_pack_messages($blocks, $firstHeader, $continuation, $footer, $maxLen);
+    $labelPeriode = $periodeLabel;
+    if (trim($tierLabel) !== '') {
+        $labelPeriode .= ' · ' . trim($tierLabel);
+    }
+
+    $santriGrouped = wa_laporan_alpa_group_by_santri($rows);
+    $tanggalLabel = wa_laporan_alpa_tanggal_label();
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalIdn)) {
+        $tanggalLabel = wa_laporan_alpa_tanggal_label($tanggalIdn);
+    }
+    $blocks = wa_laporan_alpa_tingkatan_blocks($santriGrouped);
+    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $threshold, $tanggalLabel, $labelPeriode);
+    if (!$hasDaftar) {
+        return [rtrim($prefix)];
+    }
+    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriGrouped) . $suffix);
+    $maxLen = wa_laporan_alpa_message_max_len($pdo);
+    if (mb_strlen($full) <= $maxLen) {
+        return [$full];
+    }
+    $continuation = static function (int $part) use ($threshold, $tanggalLabel): string {
+        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $threshold . ' — lanjutan ' . max(1, $part) . ")*\n"
+            . 'Tanggal: ' . $tanggalLabel . "\n\n";
+    };
+
+    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $suffix, $maxLen);
 }
 
 /**
@@ -356,7 +455,7 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
     }
     require_once __DIR__ . '/wa_otomatis.php';
 
-    // Pesan sudah dipecah per santri di wa_laporan_alpa_pack_messages — jangan pecah lagi di gateway.
+    // Pesan sudah dipecah per blok — jangan pecah lagi di gateway.
     if (!array_key_exists('chunk_max', $opts)) {
         $opts['chunk_max'] = 0;
     }
