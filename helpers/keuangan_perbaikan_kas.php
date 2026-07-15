@@ -465,7 +465,7 @@ function keuangan_perbaikan_kas_patch_pembayaran(PDO $pdo, int $id, int $akunId,
     if (!function_exists('keuangan_pembayaran_apply_cashless_saku')) {
         require_once __DIR__ . '/keuangan_pembayaran_admin.php';
     }
-    keuangan_pembayaran_apply_cashless_saku($pdo, $id, $santriId, $detailRows, $userId);
+    keuangan_pembayaran_apply_cashless_saku($pdo, $id, $santriId, $detailRows, $userId, $tanggal, false);
 
     keuangan_perbaikan_kas_invalidate_cache();
 
@@ -825,7 +825,18 @@ function keuangan_perbaikan_kas_restore_pembayaran(PDO $pdo, array $data, int $u
             ]);
         }
 
-        keuangan_pembayaran_apply_cashless_saku($pdo, $id, $santriId, $detailRows, $userId);
+        $sakuOk = keuangan_pembayaran_apply_cashless_saku(
+            $pdo,
+            $id,
+            $santriId,
+            $detailRows,
+            $userId,
+            $tanggal,
+            false
+        );
+        if (!$sakuOk) {
+            throw new RuntimeException('Top-up saldo cashless (pos Saku) gagal untuk pembayaran #' . $id . '.');
+        }
 
         if ($akunId > 0 && $detailRows !== []) {
             keuangan_jurnal_pembayaran($pdo, $id, $tanggal, $akunId, $total, $detailRows, $kategoriFilter, $userId);

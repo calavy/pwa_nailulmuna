@@ -121,7 +121,8 @@
                 <label class="form-label">Tanggal mulai scan keaktivan</label>
                 <input type="date" class="form-control" name="keaktifan_tanggal_mulai_scan" value="<?= htmlspecialchars((string) ($values['keaktifan_tanggal_mulai_scan'] ?? '')) ?>">
                 <div class="form-text">
-                    Rekap keaktivan (portal wali/santri, pembimbing, yayasan, rekap resmi) dan poin otomatis ALPA/telat
+                    Rekap keaktivan (portal wali/santri, pembimbing, yayasan, rekap resmi), poin otomatis ALPA/telat,
+                    dan hitungan ALPA untuk notifikasi WA (ambang/silang ambang)
                     hanya dihitung mulai tanggal ini. Data sebelum tanggal tetap tersimpan, tetapi tidak terhitung.
                     Kosongkan jika semua riwayat dihitung.
                     <?php if ($keaktifanScanSuggest !== ''): ?>

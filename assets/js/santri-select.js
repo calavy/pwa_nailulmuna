@@ -82,11 +82,15 @@
         }
 
         function pickOption(opt) {
-            if (!opt || sel.value === opt.value) {
+            if (!opt) {
                 return;
             }
-            sel.value = opt.value;
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            if (sel.value !== opt.value) {
+                sel.value = opt.value;
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            // Label lengkap hanya setelah pilih sengaja (Enter/blur), bukan saat mengetik.
+            search.value = (opt.text || '').trim();
         }
 
         function filterOptions() {
@@ -100,10 +104,9 @@
                 o.el.hidden = !show;
             });
 
-            const matches = visibleMatches();
-            if (q !== '' && matches.length === 1) {
-                pickOption(matches[0]);
-            } else if (q !== '' && matches.length === 0 && sel.value !== '') {
+            // Jangan auto-pilih / kosongkan saat mengetik — fokus & teks user tetap.
+            // Kosongkan select hanya jika query kosong (user hapus semua).
+            if (q === '' && sel.value !== '' && sel.value !== '0') {
                 sel.value = '';
                 sel.dispatchEvent(new Event('change', { bubbles: true }));
             }
@@ -154,9 +157,13 @@
                         sel.remove(1);
                     }
                     rebuildOptionsFromSelect();
-                    if (sel.value !== '') {
-                        sel.value = '';
-                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    // Clear pilihan hanya jika sebelumnya ada santri terpilih (bukan placeholder/0).
+                    var prev = sel.value;
+                    if (prev !== '' && prev !== '0') {
+                        sel.value = sel.querySelector('option[value="0"]') ? '0' : '';
+                        if (sel.value !== prev) {
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                     }
                     return;
                 }
@@ -197,7 +204,7 @@
             const picked = options.find(function (o) {
                 return o.value === sel.value;
             });
-            if (picked && picked.value !== '') {
+            if (picked && picked.value !== '' && picked.value !== '0') {
                 search.value = picked.text.trim();
             }
         });

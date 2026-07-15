@@ -151,15 +151,8 @@
     }
 
     if (cari && form) {
-        cari.addEventListener('input', function () {
-            if (debounceTimer) {
-                clearTimeout(debounceTimer);
-            }
-            debounceTimer = setTimeout(function () {
-                debounceTimer = null;
-                loadTagihanPartial({ resetPage: true });
-            }, 400);
-        });
+        // Jangan reload tiap jeda ketik — fokus hilang / teks loncat.
+        // Muat ulang hanya saat Enter (tombol filter / select tetap lewat handler lain).
         cari.addEventListener('keydown', function (ev) {
             if (ev.key === 'Enter') {
                 ev.preventDefault();

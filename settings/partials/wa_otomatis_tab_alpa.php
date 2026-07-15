@@ -51,9 +51,21 @@ declare(strict_types=1);
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label small">Tanggal awal (opsional)</label>
-                <input type="date" name="tanggal_mulai" class="form-control form-control-sm" value="<?= htmlspecialchars($tanggalMulaiAlpa) ?>">
+            <div class="col-md-5">
+                <label class="form-label small">Tanggal mulai hitung</label>
+                <div class="form-control form-control-sm bg-body-secondary" style="min-height:calc(1.5em + .5rem + 2px)">
+                    <?php if ($tanggalMulaiAlpa !== ''): ?>
+                        <?= htmlspecialchars(function_exists('app_format_tanggal_id') ? app_format_tanggal_id($tanggalMulaiAlpa) : $tanggalMulaiAlpa) ?>
+                    <?php else: ?>
+                        <span class="text-muted">Semua riwayat (belum dibatasi)</span>
+                    <?php endif; ?>
+                </div>
+                <div class="form-text">
+                    Sama dengan rekap poin/keaktivan.
+                    Ubah di
+                    <a href="<?= htmlspecialchars(app_href('/settings/pesantren.php')) ?>">Pengaturan pesantren</a>
+                    → Tanggal mulai scan keaktivan.
+                </div>
             </div>
             <div class="col-md-2">
                 <button class="btn btn-primary btn-sm w-100">Simpan</button>

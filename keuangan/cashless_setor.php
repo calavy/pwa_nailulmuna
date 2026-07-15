@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $panels = cashless_koperasi_panel_setor_harian($pdo, $tanggal);
 $rekapTanggal = cashless_koperasi_rekap_tanggal_range($pdo, $rekapDari, $rekapSampai);
+$rekapBelumSetor = cashless_koperasi_rekap_belum_setor_range($pdo, $rekapDari, $rekapSampai);
 $koperasiList = cashless_koperasi_list($pdo);
 $tanggalLabel = app_format_tanggal_id($tanggal);
 $sakuReal = cashless_saku_total_real($pdo);
@@ -338,6 +339,70 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <?php endforeach; ?>
+
+<div class="card shadow-sm border-warning mb-3">
+    <div class="card-header fw-semibold small bg-warning-subtle">
+        Rekap cashless belum disetorkan
+        <span class="text-muted fw-normal">
+            (<?= htmlspecialchars(app_format_tanggal_id($rekapDari)) ?>
+            – <?= htmlspecialchars(app_format_tanggal_id($rekapSampai)) ?>)
+        </span>
+    </div>
+    <div class="card-body">
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <div class="small text-muted">Total nominal belum setor</div>
+                <div class="h5 mb-0 text-warning">Rp <?= number_format((int) ($rekapBelumSetor['total_nominal'] ?? 0), 0, ',', '.') ?></div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Jumlah transaksi</div>
+                <div class="h5 mb-0"><?= (int) ($rekapBelumSetor['total_transaksi'] ?? 0) ?></div>
+            </div>
+            <div class="col-md-4">
+                <div class="small text-muted">Hari × koperasi</div>
+                <div class="h5 mb-0"><?= (int) ($rekapBelumSetor['jumlah_baris'] ?? 0) ?></div>
+            </div>
+        </div>
+        <?php if (($rekapBelumSetor['rows'] ?? []) === []): ?>
+            <p class="small text-success mb-0"><i class="fa-solid fa-circle-check me-1"></i>Tidak ada DEBIT belum disetor pada rentang ini.</p>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Koperasi</th>
+                            <th class="text-end">Tx</th>
+                            <th class="text-end">Nominal</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ((array) $rekapBelumSetor['rows'] as $br):
+                        $tglB = (string) ($br['tanggal'] ?? '');
+                        $setorUrl = app_href('/keuangan/cashless_setor.php?' . http_build_query([
+                            'tanggal' => $tglB,
+                            'rekap_dari' => $rekapDari,
+                            'rekap_sampai' => $rekapSampai,
+                        ]));
+                        ?>
+                        <tr>
+                            <td class="text-nowrap"><?= htmlspecialchars(app_format_tanggal_id($tglB)) ?></td>
+                            <td><?= htmlspecialchars((string) ($br['nama'] ?? '')) ?></td>
+                            <td class="text-end"><?= (int) ($br['jumlah'] ?? 0) ?></td>
+                            <td class="text-end">Rp <?= number_format((int) ($br['total'] ?? 0), 0, ',', '.') ?></td>
+                            <td class="text-end">
+                                <a class="btn btn-outline-warning btn-sm" href="<?= htmlspecialchars($setorUrl) ?>">Setor hari itu</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-muted mt-2 mb-0">Hanya transaksi jajan (DEBIT) dengan status belum setor. Rentang mengikuti filter di bawah.</p>
+        <?php endif; ?>
+    </div>
+</div>
 
 <div class="card shadow-sm">
     <div class="card-header fw-semibold small">Ringkasan per tanggal</div>

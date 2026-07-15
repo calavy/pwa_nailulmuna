@@ -137,7 +137,7 @@ function keuangan_ensure_cashless_schema(PDO $pdo): void
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 santri_id INT NOT NULL,
                 tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                jenis ENUM('TOPUP','DEBIT') NOT NULL,
+                jenis ENUM('TOPUP','DEBIT','PENGELUARAN') NOT NULL,
                 nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
                 keterangan VARCHAR(255) NULL,
                 ref_pembayaran_id INT NULL,
@@ -151,6 +151,17 @@ function keuangan_ensure_cashless_schema(PDO $pdo): void
             $pdo->exec('ALTER TABLE cashless_transactions ADD COLUMN ref_pembayaran_id INT NULL');
         } catch (Throwable $e) {
             // abaikan jika kolom sudah ada
+        }
+    }
+    if (function_exists('cashless_ensure_jenis_pengeluaran')) {
+        cashless_ensure_jenis_pengeluaran($pdo);
+    } elseif (table_exists($pdo, 'cashless_transactions')) {
+        try {
+            $pdo->exec("
+                ALTER TABLE cashless_transactions
+                MODIFY COLUMN jenis ENUM('TOPUP','DEBIT','PENGELUARAN') NOT NULL
+            ");
+        } catch (Throwable $e) {
         }
     }
 }
@@ -263,7 +274,7 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             santri_id INT NOT NULL,
             tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            jenis ENUM('TOPUP','DEBIT') NOT NULL,
+            jenis ENUM('TOPUP','DEBIT','PENGELUARAN') NOT NULL,
             nominal DECIMAL(12,2) NOT NULL DEFAULT 0,
             keterangan VARCHAR(255) NULL,
             ref_pembayaran_id INT NULL,
@@ -271,6 +282,9 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
             INDEX idx_cashless_santri_tanggal (santri_id, tanggal)
         )
     ");
+    if (function_exists('cashless_ensure_jenis_pengeluaran')) {
+        cashless_ensure_jenis_pengeluaran($pdo);
+    }
 
     if (table_exists($pdo, 'keuangan_pembayaran')) {
         $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS metode_bayar ENUM('KAS','TRANSFER') NOT NULL DEFAULT 'KAS'");
@@ -966,50 +980,76 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         $params['status_lunas'] = $statusLunas;
     }
 
-    $sql = 'INSERT INTO keuangan_pembayaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
-    $pdo->prepare($sql)->execute($params);
-    $pembayaranId = (int) $pdo->lastInsertId();
-
-    $insertDetail = $pdo->prepare('
-        INSERT INTO keuangan_pembayaran_detail (pembayaran_id, pos_slug, pos_nama, nominal)
-        VALUES (:pembayaran_id, :pos_slug, :pos_nama, :nominal)
-    ');
-    foreach ($detailRows as $dr) {
-        $insertDetail->execute([
-            'pembayaran_id' => $pembayaranId,
-            'pos_slug' => $dr['slug'],
-            'pos_nama' => $dr['nama'],
-            'nominal' => $dr['nominal'],
-        ]);
+    // Schema/DDL di luar transaksi; insert + cashless + jurnal dalam satu TX.
+    keuangan_ensure_cashless_schema($pdo);
+    keuangan_transaksi_bootstrap_jurnal();
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
     }
 
     if (!function_exists('keuangan_pembayaran_apply_cashless_saku')) {
         require_once __DIR__ . '/keuangan_pembayaran_admin.php';
     }
-    $sakuTopupOk = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
-    $hasSakuDetail = false;
-    foreach ($detailRows as $dr) {
-        if (keuangan_pembayaran_detail_is_saku($dr)) {
-            $hasSakuDetail = true;
-            break;
-        }
-    }
-    $sakuWarning = '';
-    if ($hasSakuDetail && !$sakuTopupOk) {
-        $sakuWarning = ' Peringatan: top-up saldo cashless (Saku) gagal — jalankan Backfill Saku di Perbaikan Kas atau hubungi admin.';
-    }
 
-    keuangan_transaksi_bootstrap_jurnal();
-    keuangan_jurnal_pembayaran(
-        $pdo,
-        $pembayaranId,
-        $tanggalBayar,
-        $akunId,
-        $totalNominal,
-        $detailRows,
-        $kategoriFilter,
-        $userId
-    );
+    try {
+        $pdo->beginTransaction();
+
+        $sql = 'INSERT INTO keuangan_pembayaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
+        $pdo->prepare($sql)->execute($params);
+        $pembayaranId = (int) $pdo->lastInsertId();
+
+        $insertDetail = $pdo->prepare('
+            INSERT INTO keuangan_pembayaran_detail (pembayaran_id, pos_slug, pos_nama, nominal)
+            VALUES (:pembayaran_id, :pos_slug, :pos_nama, :nominal)
+        ');
+        foreach ($detailRows as $dr) {
+            $insertDetail->execute([
+                'pembayaran_id' => $pembayaranId,
+                'pos_slug' => $dr['slug'],
+                'pos_nama' => $dr['nama'],
+                'nominal' => $dr['nominal'],
+            ]);
+        }
+
+        $sakuTopupOk = keuangan_pembayaran_apply_cashless_saku(
+            $pdo,
+            $pembayaranId,
+            $santriId,
+            $detailRows,
+            $userId,
+            $tanggalBayar,
+            true
+        );
+        if (!$sakuTopupOk) {
+            throw new RuntimeException(
+                'Top-up saldo cashless (pos Saku) gagal. Pembayaran tidak disimpan. Periksa skema cashless atau hubungi admin.'
+            );
+        }
+
+        keuangan_jurnal_pembayaran(
+            $pdo,
+            $pembayaranId,
+            $tanggalBayar,
+            $akunId,
+            $totalNominal,
+            $detailRows,
+            $kategoriFilter,
+            $userId
+        );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return [
+            'ok' => false,
+            'message' => $e->getMessage(),
+            'id' => 0,
+            'saku_topup_ok' => false,
+        ];
+    }
 
     if (!function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
@@ -1022,11 +1062,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     return [
         'ok' => true,
         'message' => 'Pembayaran berhasil disimpan. Total ' . keuangan_format_rupiah($totalNominal) . '.'
-            . $sakuWarning
             . keuangan_wa_pembayaran_flash_teks($waPembayaran),
         'id' => $pembayaranId,
         'wa_pembayaran' => $waPembayaran,
-        'saku_topup_ok' => !$hasSakuDetail || $sakuTopupOk,
+        'saku_topup_ok' => true,
     ];
 }
 

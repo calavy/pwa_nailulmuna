@@ -196,7 +196,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                     <p class="mb-0">
                         Pengaturan: <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=alokasi')) ?>">alokasi syahriyah</a>
                         · Laporan: <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan.php')) ?>">laporan syahriyah</a>,
-                        <a href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php')) ?>">kartu syahriyah santri</a>,
+                        <a href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php')) ?>">kartu pembayaran santri</a>,
                         <a href="<?= htmlspecialchars(app_href('/pembayaran/laporan_kopsa_per_santri.php')) ?>">KOPSA</a>.
                         Setelah ubah pembayaran/pengaturan, muat ulang laporan dengan <code>?refresh=1</code>.
                     </p>

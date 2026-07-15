@@ -1,4 +1,30 @@
 .ks-santri-head { border-left: 4px solid #0f766e; }
+
+.kp-table th { white-space: nowrap; font-size: 0.8rem; }
+.kp-table td { font-size: 0.85rem; vertical-align: middle; }
+.kp-table tbody tr.kp-row--lunas { background: #f0fdf4; }
+.kp-table tbody tr.kp-row--sebagian { background: #fffbeb; }
+.kp-table tbody tr.kp-row--nunggak { background: #fef2f2; }
+.kp-table tbody tr.kp-row--future { background: #f8fafc; color: #94a3b8; }
+
+.kp-cell--lunas { color: #047857; font-weight: 600; }
+.kp-cell--sebagian { color: #b45309; font-weight: 600; }
+.kp-cell--nunggak { color: #b91c1c; font-weight: 600; }
+.kp-cell--empty { color: #94a3b8; }
+
+.kp-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #e2e8f0;
+    color: #334155;
+}
+.kp-row--lunas .kp-badge { background: #d1fae5; color: #065f46; }
+.kp-row--sebagian .kp-badge { background: #fef3c7; color: #92400e; }
+.kp-row--nunggak .kp-badge { background: #fee2e2; color: #991b1b; }
+
+.text-teal { color: #0f766e; }
+
+/* legacy month cards (jika dipakai tempat lain) */
 .ks-bulan-grid { margin-bottom: 2rem; }
 .ks-month {
     border-radius: 12px;

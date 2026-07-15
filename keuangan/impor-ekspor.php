@@ -156,8 +156,8 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
     <h1 class="h4 mb-1">Impor / Ekspor Excel Masuk &amp; Keluar</h1>
     <p class="text-muted mb-0">
-        Alur ganti total: unduh Excel → hapus seluruh di sistem → unggah Excel yang sudah diperbarui.
-        Masuk = pembayaran santri; keluar = pengeluaran. Pemasukan lain tidak ikut.
+        Alur ganti total yang disarankan: unduh Excel → hapus seluruh → impor <strong>masuk</strong> → impor <strong>keluar</strong>.
+        Jangan centang “izinkan tambah” kecuali Anda paham risikonya (data ganda).
     </p>
 </div>
 
@@ -166,6 +166,14 @@ require_once __DIR__ . '/../includes/header.php';
     <strong>Unduh dulu</strong> sebelum menghapus. Hapus bersifat permanen.
     Import membuat ID baru (nomor kuitansi lama tidak berlaku lagi).
     Saat ini: <strong><?= $cntPembayaran ?></strong> pembayaran, <strong><?= $cntKeluar ?></strong> pengeluaran.
+</div>
+
+<div class="alert alert-info small">
+    <strong>Setelah hapus + impor Excel, yang tersinkron:</strong>
+    pembayaran &amp; pengeluaran dari file, jurnal otomatis, serta saldo saku dari pos Saku di Excel (tanggal top-up = tanggal bayar).
+    <br>
+    <strong>Tidak ikut Excel (hilang permanen setelah wipe):</strong>
+    pemasukan manual, transaksi jajan cashless (DEBIT), dan log setor — isi ulang di modul masing-masing jika masih diperlukan.
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -191,10 +199,13 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-header fw-semibold text-danger">2. Hapus seluruh masuk &amp; keluar</div>
     <div class="card-body">
         <p class="small text-muted">
-            Menghapus semua pembayaran + detail, semua pengeluaran, jurnal terkait, dan top-up cashless yang terhubung ke pembayaran.
-            Tidak menghapus pemasukan lain, akun, atau master alokasi.
+            Menghapus semua pembayaran, pengeluaran, pemasukan manual,
+            <strong>seluruh transaksi cashless (top-up + jajan)</strong>, log setor, dan jurnal terkait.
+            Saldo saku menjadi <strong>0</strong>. Setelah itu impor Excel masuk mengembalikan pembayaran + jurnal + top-up saku dari pos Saku;
+            jajan/DEBIT, setor, dan pemasukan manual <strong>tidak</strong> kembali dari Excel.
+            Akun kas &amp; alokasi tidak dihapus. PIN / QR nominal cashless tetap.
         </p>
-        <form method="post" class="row g-2" onsubmit="return confirm('Yakin hapus SELURUH masuk & keluar? Pastikan sudah unduh Excel.');">
+        <form method="post" class="row g-2" onsubmit="return confirm('Yakin hapus SELURUH transaksi keuangan & cashless? Saldo saku jadi 0. Pastikan sudah unduh Excel.');">
             <input type="hidden" name="action" value="wipe_all">
             <div class="col-md-5">
                 <label class="form-label small">Ketik <code>HAPUS SEMUA</code></label>
@@ -216,7 +227,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <p class="small text-muted mb-3">
             Lakukan <strong>preview</strong> dulu (dry-run), lalu unggah ulang file yang sama dengan tombol terapkan.
-            Centang “izinkan tambah” hanya jika ingin menambahkan ke data yang sudah ada (bukan ganti total).
+            Urutan ganti total: terapkan masuk dulu, lalu keluar.
+            Centang “izinkan tambah” hanya jika ingin menambahkan ke data yang sudah ada (bukan ganti total) — berisiko dobel.
+            Jika top-up saku gagal saat impor masuk, seluruh batch dibatalkan (bukan sukses parsial).
         </p>
 
         <div class="row g-3">

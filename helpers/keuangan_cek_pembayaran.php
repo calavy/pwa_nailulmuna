@@ -494,8 +494,9 @@ function keuangan_riwayat_pembayaran_resolve_tanggal(
     string $q,
     bool $semuaPeriodeExplicit
 ): array {
-    $autoSemua = $semuaPeriodeExplicit || $santriId > 0 || trim($q) !== '';
-    if (!$autoSemua) {
+    // Hanya perluas ke TA jika user mencentang "Semua periode".
+    // $santriId / $q sengaja diabaikan — pencarian tidak mengubah dari–sampai.
+    if (!$semuaPeriodeExplicit) {
         return [$tanggalDari, $tanggalSampai, false];
     }
     if (!function_exists('pondok_tahun_ajaran_aktif')) {

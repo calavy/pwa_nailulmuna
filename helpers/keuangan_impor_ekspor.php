@@ -305,6 +305,10 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
 
     ensure_keuangan_transaksi_tables($pdo);
     ensure_operasional_audit_table($pdo);
+    require_once __DIR__ . '/cashless_koperasi.php';
+    if (function_exists('cashless_koperasi_ensure_schema')) {
+        cashless_koperasi_ensure_schema($pdo);
+    }
 
     $cntPembayaran = table_exists($pdo, 'keuangan_pembayaran')
         ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pembayaran')->fetchColumn()
@@ -315,35 +319,36 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
     $cntKeluar = table_exists($pdo, 'keuangan_pengeluaran')
         ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pengeluaran')->fetchColumn()
         : 0;
-    $cntCashless = 0;
-    $affectedSantri = [];
+    $cntPemasukan = table_exists($pdo, 'keuangan_pemasukan')
+        ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pemasukan')->fetchColumn()
+        : 0;
+    $cntCashless = table_exists($pdo, 'cashless_transactions')
+        ? (int) $pdo->query('SELECT COUNT(*) FROM cashless_transactions')->fetchColumn()
+        : 0;
+    $cntSetorLog = table_exists($pdo, 'cashless_setor_log')
+        ? (int) $pdo->query('SELECT COUNT(*) FROM cashless_setor_log')->fetchColumn()
+        : 0;
+    $cntJurnal = 0;
 
     try {
         $pdo->beginTransaction();
 
         if (table_exists($pdo, 'akuntansi_jurnal_umum')) {
-            $pdo->exec("DELETE FROM akuntansi_jurnal_umum WHERE ref_type IN ('pembayaran','pengeluaran')");
+            $cntJurnal = (int) $pdo->query("
+                SELECT COUNT(*) FROM akuntansi_jurnal_umum
+                WHERE ref_type IN ('pembayaran','pengeluaran','pemasukan','cashless_setor','cashless_debit')
+            ")->fetchColumn();
+            $pdo->exec("
+                DELETE FROM akuntansi_jurnal_umum
+                WHERE ref_type IN ('pembayaran','pengeluaran','pemasukan','cashless_setor','cashless_debit')
+            ");
         }
 
-        if (
-            table_exists($pdo, 'cashless_transactions')
-            && column_exists($pdo, 'cashless_transactions', 'ref_pembayaran_id')
-        ) {
-            $st = $pdo->query('
-                SELECT id, santri_id FROM cashless_transactions
-                WHERE ref_pembayaran_id IS NOT NULL AND ref_pembayaran_id > 0
-            ');
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $tx) {
-                $cntCashless++;
-                $sid = (int) ($tx['santri_id'] ?? 0);
-                if ($sid > 0) {
-                    $affectedSantri[$sid] = true;
-                }
-            }
-            $pdo->exec('
-                DELETE FROM cashless_transactions
-                WHERE ref_pembayaran_id IS NOT NULL AND ref_pembayaran_id > 0
-            ');
+        if (table_exists($pdo, 'cashless_transactions')) {
+            $pdo->exec('DELETE FROM cashless_transactions');
+        }
+        if (table_exists($pdo, 'cashless_setor_log')) {
+            $pdo->exec('DELETE FROM cashless_setor_log');
         }
 
         if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
@@ -355,6 +360,13 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
         if (table_exists($pdo, 'keuangan_pengeluaran')) {
             $pdo->exec('DELETE FROM keuangan_pengeluaran');
         }
+        if (table_exists($pdo, 'keuangan_pemasukan')) {
+            $pdo->exec('DELETE FROM keuangan_pemasukan');
+        }
+
+        if (table_exists($pdo, 'cashless_accounts')) {
+            $pdo->exec('UPDATE cashless_accounts SET balance = 0');
+        }
 
         operasional_audit_log(
             $pdo,
@@ -362,11 +374,14 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
             'DELETE',
             0,
             [
-                'aksi' => 'wipe_masuk_keluar',
+                'aksi' => 'wipe_masuk_keluar_penuh',
                 'pembayaran' => $cntPembayaran,
                 'detail' => $cntDetail,
                 'pengeluaran' => $cntKeluar,
-                'cashless_topup_ref' => $cntCashless,
+                'pemasukan' => $cntPemasukan,
+                'cashless_transactions' => $cntCashless,
+                'cashless_setor_log' => $cntSetorLog,
+                'jurnal' => $cntJurnal,
             ],
             null,
             $userId,
@@ -382,13 +397,6 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
         return ['ok' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()];
     }
 
-    if ($affectedSantri !== [] && table_exists($pdo, 'cashless_accounts')) {
-        require_once __DIR__ . '/cashless_koperasi.php';
-        foreach (array_keys($affectedSantri) as $sid) {
-            cashless_sync_account_balance($pdo, (int) $sid);
-        }
-    }
-
     if (function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
         keuangan_dashboard_cache_invalidate();
@@ -397,17 +405,23 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
     return [
         'ok' => true,
         'message' => sprintf(
-            'Berhasil dihapus: %d pembayaran (%d detail), %d pengeluaran, %d top-up cashless terkait.',
+            'Berhasil dihapus: %d pembayaran (%d detail), %d pengeluaran, %d pemasukan, %d transaksi cashless, %d log setor, %d baris jurnal. Saldo saku = 0.',
             $cntPembayaran,
             $cntDetail,
             $cntKeluar,
-            $cntCashless
+            $cntPemasukan,
+            $cntCashless,
+            $cntSetorLog,
+            $cntJurnal
         ),
         'counts' => [
             'pembayaran' => $cntPembayaran,
             'detail' => $cntDetail,
             'pengeluaran' => $cntKeluar,
+            'pemasukan' => $cntPemasukan,
             'cashless' => $cntCashless,
+            'cashless_setor_log' => $cntSetorLog,
+            'jurnal' => $cntJurnal,
         ],
     ];
 }
@@ -760,13 +774,21 @@ function keuangan_impor_ekspor_commit_masuk(PDO $pdo, array $validated, int $use
                 ]);
             }
 
-            keuangan_pembayaran_apply_cashless_saku(
+            $sakuOk = keuangan_pembayaran_apply_cashless_saku(
                 $pdo,
                 $pembayaranId,
                 (int) $g['santri_id'],
                 $detailNorm,
-                $userId
+                $userId,
+                (string) $g['tanggal_bayar'],
+                false
             );
+            if (!$sakuOk) {
+                throw new RuntimeException(
+                    'Top-up cashless (pos Saku) gagal untuk grup ' . (string) $grupKey
+                    . ' (NIS ' . (string) ($g['nis'] ?? '') . '). Import dibatalkan.'
+                );
+            }
 
             $kategoriFilter = ((string) $g['jenis_periode'] === 'AWAL_TAHUN') ? 'Awal Tahun' : 'Bulanan';
             keuangan_jurnal_pembayaran(
@@ -796,6 +818,11 @@ function keuangan_impor_ekspor_commit_masuk(PDO $pdo, array $validated, int $use
         ];
     }
 
+    require_once __DIR__ . '/cashless_koperasi.php';
+    if (function_exists('cashless_sync_all_account_balances')) {
+        cashless_sync_all_account_balances($pdo);
+    }
+
     if (function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
         keuangan_dashboard_cache_invalidate();
@@ -803,7 +830,7 @@ function keuangan_impor_ekspor_commit_masuk(PDO $pdo, array $validated, int $use
 
     return [
         'ok' => true,
-        'message' => 'Import masuk selesai: ' . $imported . ' pembayaran.',
+        'message' => 'Import masuk selesai: ' . $imported . ' pembayaran (jurnal + saldo saku tersinkron).',
         'errors' => $errors,
         'imported' => $imported,
     ];
@@ -885,6 +912,7 @@ function keuangan_impor_ekspor_commit_keluar(PDO $pdo, array $validated, int $us
             $sql = 'INSERT INTO keuangan_pengeluaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
             $pdo->prepare($sql)->execute($params);
             $pengeluaranId = (int) $pdo->lastInsertId();
+            $pos = (string) $item['pos'];
 
             keuangan_jurnal_pengeluaran(
                 $pdo,
@@ -892,9 +920,18 @@ function keuangan_impor_ekspor_commit_keluar(PDO $pdo, array $validated, int $us
                 (string) $item['tanggal'],
                 $akunId,
                 (int) $item['nominal'],
-                (string) $item['pos'],
+                $pos,
                 $userId
             );
+            // Belanja Modal sengaja tanpa jurnal operasional; lainnya wajib punya jurnal.
+            if (stripos($pos, 'Belanja Modal') !== 0
+                && !keuangan_jurnal_ref_exists($pdo, 'pengeluaran', $pengeluaranId)
+            ) {
+                throw new RuntimeException(
+                    'Jurnal pengeluaran gagal (pos: ' . $pos . ', tanggal '
+                    . (string) $item['tanggal'] . '). Import dibatalkan.'
+                );
+            }
             $imported++;
         }
 

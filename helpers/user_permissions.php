@@ -213,6 +213,7 @@ function user_permission_path_map_base(): array
         '/presensi/scan.php' => 'presensi_scan',
         '/presensi/kegiatan_khusus.php' => 'presensi_scan',
         '/presensi/rekap_tanpa_scan.php' => 'rekap_keaktifan',
+        '/api/presensi/kegiatan_slot_santri.php' => 'rekap_keaktifan',
         '/jadwal/index.php' => 'jadwal',
         '/jadwal/tambah.php' => 'jadwal',
         '/jadwal/kegiatan.php' => 'jadwal',

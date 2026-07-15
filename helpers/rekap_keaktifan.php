@@ -13,6 +13,18 @@ function rekap_keaktifan_tanggal_mulai_scan(PDO $pdo): string
         return $cached;
     }
     $raw = trim((string) app_setting($pdo, 'keaktifan_tanggal_mulai_scan', ''));
+    $legacy = trim((string) app_setting($pdo, 'alpa_notif_tanggal_mulai', ''));
+    // Migrasi sekali: tanggal lama khusus WA Alpa → setting tunggal keaktivan.
+    if ($raw === '' && $legacy !== '') {
+        $tsLegacy = strtotime($legacy);
+        if ($tsLegacy !== false) {
+            $raw = date('Y-m-d', $tsLegacy);
+            save_setting($pdo, 'keaktifan_tanggal_mulai_scan', $raw);
+        }
+    }
+    if ($legacy !== '') {
+        save_setting($pdo, 'alpa_notif_tanggal_mulai', '');
+    }
     if ($raw === '') {
         return $cached = '';
     }
@@ -1075,6 +1087,12 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
         return [];
     }
 
+    $clamped = rekap_keaktifan_clamp_periode($pdo, $startDate, $endDate);
+    if ($clamped === null) {
+        return [];
+    }
+    [$startDate, $endDate] = $clamped;
+
     $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $startDate, $endDate);
     if ($eligibilitySet === []) {
         return [];
@@ -1382,6 +1400,12 @@ function rekap_keaktifan_santri_tanpa_scan_bulan(
         return [];
     }
 
+    $clamped = rekap_keaktifan_clamp_periode($pdo, $startDate, $endDate);
+    if ($clamped === null) {
+        return [];
+    }
+    [$startDate, $endDate] = $clamped;
+
     $eligibilitySet = presensi_jadwal_eligibility_set($pdo, $startDate, $endDate);
     if ($eligibilitySet === []) {
         return [];
@@ -1506,6 +1530,134 @@ function rekap_keaktifan_santri_tanpa_scan_bulan(
 
         return strcmp((string) $a['nama_santri'], (string) $b['nama_santri']);
     });
+
+    return $out;
+}
+
+/**
+ * Roster santri wajib hadir pada satu slot kegiatan+tanggal (untuk UI rekap tanpa scan).
+ *
+ * @return list<array{santri_id:int,nis:string,nama_santri:string,tingkatan:string,status:string,hadir:bool}>
+ */
+function rekap_keaktifan_slot_santri_roster(
+    PDO $pdo,
+    int $kegiatanId,
+    string $tanggal,
+    ?string $tingkatanFilter = null
+): array {
+    require_once __DIR__ . '/presensi_jadwal.php';
+    require_once __DIR__ . '/santri_operasional.php';
+
+    if ($kegiatanId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return [];
+    }
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+
+    $mulaiScan = rekap_keaktifan_tanggal_mulai_scan($pdo);
+    if ($mulaiScan !== '' && $tanggal < $mulaiScan) {
+        return [];
+    }
+
+    $aktifSql = santri_sql_aktif_only('s');
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time());
+    $params = [
+        'kid' => $kegiatanId,
+        'tgl' => $tanggal,
+        'hari' => $hariKe,
+    ];
+    $tkWhere = '';
+    $tkFilter = trim((string) ($tingkatanFilter ?? ''));
+    if ($tkFilter !== '') {
+        // Filter tampilan: hanya santri tingkatan itu (bukan filter jadwal "Semua Tingkatan").
+        $tkWhere = ' AND s.tingkatan = :tk';
+        $params['tk'] = $tkFilter;
+    }
+
+    $sql = '
+        SELECT DISTINCT
+            s.id AS santri_id,
+            s.nis,
+            s.nama_santri,
+            s.tingkatan,
+            COALESCE(NULLIF(TRIM(p.status_presensi), ""), "") AS status_presensi
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
+        INNER JOIN santri s ON (
+            (
+                (j.tingkatan = "Semua Tingkatan" AND TRIM(COALESCE(s.tingkatan, "")) <> "")
+                OR s.tingkatan = j.tingkatan
+            )
+            AND ' . $aktifSql . '
+        )
+        LEFT JOIN presensi p ON p.santri_id = s.id
+            AND p.kegiatan_id = k.id
+            AND p.tanggal_presensi = :tgl
+        WHERE j.kegiatan_id = :kid
+          AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+          ' . $tkWhere . '
+        ORDER BY s.tingkatan ASC, s.nama_santri ASC
+    ';
+
+    try {
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (PDOException $e) {
+        error_log('[rekap_keaktifan_slot_santri_roster] ' . $e->getMessage());
+
+        return [];
+    }
+
+    if ($rows !== [] && function_exists('presensi_apply_status_efektif_rows')) {
+        $forEfektif = [];
+        foreach ($rows as $r) {
+            $forEfektif[] = [
+                'santri_id' => (int) ($r['santri_id'] ?? 0),
+                'kegiatan_id' => $kegiatanId,
+                'tanggal_presensi' => $tanggal,
+                'tingkatan' => (string) ($r['tingkatan'] ?? ''),
+                'status_presensi' => (string) ($r['status_presensi'] ?? ''),
+                'status_hari_ini' => (string) ($r['status_presensi'] ?? ''),
+            ];
+        }
+        $efektif = presensi_apply_status_efektif_rows($pdo, $forEfektif, $tanggal);
+        $bySid = [];
+        foreach ($efektif as $er) {
+            $sid = (int) ($er['santri_id'] ?? 0);
+            if ($sid > 0) {
+                $status = strtoupper(trim((string) ($er['status_presensi'] ?? $er['status_hari_ini'] ?? '')));
+                $bySid[$sid] = $status;
+            }
+        }
+        foreach ($rows as &$r) {
+            $sid = (int) ($r['santri_id'] ?? 0);
+            if ($sid > 0 && isset($bySid[$sid])) {
+                $r['status_presensi'] = $bySid[$sid];
+            }
+        }
+        unset($r);
+    }
+
+    $out = [];
+    $seen = [];
+    foreach ($rows as $r) {
+        $sid = (int) ($r['santri_id'] ?? 0);
+        if ($sid <= 0 || isset($seen[$sid])) {
+            continue;
+        }
+        $seen[$sid] = true;
+        $status = strtoupper(trim((string) ($r['status_presensi'] ?? '')));
+        $out[] = [
+            'santri_id' => $sid,
+            'nis' => (string) ($r['nis'] ?? ''),
+            'nama_santri' => (string) ($r['nama_santri'] ?? ''),
+            'tingkatan' => (string) ($r['tingkatan'] ?? ''),
+            'status' => $status,
+            'hadir' => $status === 'HADIR',
+        ];
+    }
 
     return $out;
 }

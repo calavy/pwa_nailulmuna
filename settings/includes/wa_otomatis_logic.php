@@ -257,15 +257,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mode = 'monthly';
         }
         save_setting($pdo, 'alpa_notif_periode_mode', $mode);
-        $tglMulaiRaw = trim((string) ($_POST['tanggal_mulai'] ?? ''));
-        $tglMulai = '';
-        if ($tglMulaiRaw !== '') {
-            $ts = strtotime($tglMulaiRaw);
-            if ($ts) {
-                $tglMulai = date('Y-m-d', $ts);
-            }
-        }
-        save_setting($pdo, 'alpa_notif_tanggal_mulai', $tglMulai);
         set_flash('success', 'Periode notifikasi alpa disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;

@@ -357,7 +357,7 @@ $flashErr = get_flash('error');
         <i class="fa-solid fa-calendar-days me-1"></i>
         Rentang tanggal diperluas ke <strong>seluruh periode TA aktif</strong>
         (<?= htmlspecialchars($tanggalDari) ?> s/d <?= htmlspecialchars($tanggalSampai) ?>)
-        karena filter santri atau pencarian nama aktif.
+        karena opsi <strong>Semua periode TA aktif</strong> dicentang.
     </div>
 <?php endif; ?>
 <form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
@@ -419,7 +419,7 @@ $flashErr = get_flash('error');
     </div>
     <div class="col-12 col-md-3 d-flex align-items-end">
         <div class="form-check mb-1">
-            <input class="form-check-input" type="checkbox" name="semua_periode" value="1" id="semua_periode" <?= $semuaPeriode || $semuaPeriodeAktif ? 'checked' : '' ?>>
+            <input class="form-check-input" type="checkbox" name="semua_periode" value="1" id="semua_periode" <?= $semuaPeriode ? 'checked' : '' ?>>
             <label class="form-check-label small" for="semua_periode">Semua periode TA aktif</label>
         </div>
     </div>

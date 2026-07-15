@@ -371,7 +371,16 @@ function keuangan_pembayaran_backfill_saku_santri(PDO $pdo, int $santriId, int $
         }
         $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
         $detailRows = keuangan_pembayaran_detail_rows_normalize(is_array($fetch['details'] ?? null) ? $fetch['details'] : []);
-        $applied = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+        $tglBayar = is_array($fetch) ? (string) ($fetch['tanggal_bayar'] ?? '') : '';
+        $applied = keuangan_pembayaran_apply_cashless_saku(
+            $pdo,
+            $pembayaranId,
+            $santriId,
+            $detailRows,
+            $userId,
+            $tglBayar !== '' ? $tglBayar : null,
+            false
+        );
         if ($applied || keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId)) {
             $success++;
         } else {
@@ -434,7 +443,16 @@ function keuangan_pembayaran_backfill_saku_topup(PDO $pdo, int $userId, bool $dr
 
         $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
         $detailRows = keuangan_pembayaran_detail_rows_normalize(is_array($fetch['details'] ?? null) ? $fetch['details'] : []);
-        $applied = keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+        $tglBayar = is_array($fetch) ? (string) ($fetch['tanggal_bayar'] ?? '') : '';
+        $applied = keuangan_pembayaran_apply_cashless_saku(
+            $pdo,
+            $pembayaranId,
+            $santriId,
+            $detailRows,
+            $userId,
+            $tglBayar !== '' ? $tglBayar : null,
+            false
+        );
         $ok = $applied || keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId);
         if ($ok) {
             $success++;
@@ -531,9 +549,18 @@ function keuangan_pembayaran_cashless_topup_exists(PDO $pdo, int $pembayaranId):
 
 /**
  * @param list<array{slug?:string,pos_slug?:string,nama?:string,nominal?:int}> $detailRows
+ * @param string|null $tanggalBayar Y-m-d — dipakai sebagai tanggal TOPUP (default: sekarang)
+ * @param bool $notifyWa kirim WA saldo rendah (false untuk impor massal)
  */
-function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, int $santriId, array $detailRows, int $userId): bool
-{
+function keuangan_pembayaran_apply_cashless_saku(
+    PDO $pdo,
+    int $pembayaranId,
+    int $santriId,
+    array $detailRows,
+    int $userId,
+    ?string $tanggalBayar = null,
+    bool $notifyWa = true
+): bool {
     if ($pembayaranId <= 0 || $santriId <= 0) {
         return false;
     }
@@ -558,23 +585,42 @@ function keuangan_pembayaran_apply_cashless_saku(PDO $pdo, int $pembayaranId, in
     $topupNominal = (int) array_sum(array_map(static fn(array $r): int => (int) $r['nominal'], $hasSaku));
     $pdo->prepare('INSERT IGNORE INTO cashless_accounts (santri_id, balance) VALUES (:santri_id, 0)')
         ->execute(['santri_id' => $santriId]);
-    $pdo->prepare("
-        INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by)
-        VALUES (:santri_id, 'TOPUP', :nominal, :keterangan, :ref_pembayaran_id, :created_by)
-    ")->execute([
+
+    $tanggalTx = date('Y-m-d H:i:s');
+    if ($tanggalBayar !== null && preg_match('/^\d{4}-\d{2}-\d{2}/', $tanggalBayar)) {
+        $ymd = substr($tanggalBayar, 0, 10);
+        // Tengah hari lokal agar urutan harian stabil di laporan.
+        $tanggalTx = $ymd . ' 12:00:00';
+    }
+
+    $cols = ['santri_id', 'jenis', 'nominal', 'keterangan', 'ref_pembayaran_id', 'created_by'];
+    $vals = [':santri_id', "'TOPUP'", ':nominal', ':keterangan', ':ref_pembayaran_id', ':created_by'];
+    $params = [
         'santri_id' => $santriId,
         'nominal' => $topupNominal,
         'keterangan' => 'Topup otomatis dari pembayaran pos Saku',
         'ref_pembayaran_id' => $pembayaranId,
         'created_by' => $userId > 0 ? $userId : null,
-    ]);
+    ];
+    if (column_exists($pdo, 'cashless_transactions', 'tanggal')) {
+        $cols[] = 'tanggal';
+        $vals[] = ':tanggal';
+        $params['tanggal'] = $tanggalTx;
+    }
+
+    $pdo->prepare('
+        INSERT INTO cashless_transactions (' . implode(', ', $cols) . ')
+        VALUES (' . implode(', ', $vals) . ')
+    ')->execute($params);
     if ((int) $pdo->lastInsertId() <= 0 && !keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId)) {
         return false;
     }
     require_once __DIR__ . '/cashless_koperasi.php';
-    require_once __DIR__ . '/cashless_wa.php';
     cashless_sync_account_balance($pdo, $santriId);
-    cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
+    if ($notifyWa) {
+        require_once __DIR__ . '/cashless_wa.php';
+        cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, (float) cashless_santri_saldo_tampil($pdo, $santriId));
+    }
 
     return keuangan_pembayaran_cashless_topup_exists($pdo, $pembayaranId);
 }
@@ -812,7 +858,20 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
             ]);
         }
 
-        keuangan_pembayaran_apply_cashless_saku($pdo, $pembayaranId, $santriId, $detailRows, $userId);
+        $sakuOk = keuangan_pembayaran_apply_cashless_saku(
+            $pdo,
+            $pembayaranId,
+            $santriId,
+            $detailRows,
+            $userId,
+            $tanggalBayar,
+            true
+        );
+        if (!$sakuOk) {
+            throw new RuntimeException(
+                'Top-up saldo cashless (pos Saku) gagal. Koreksi dibatalkan.'
+            );
+        }
         keuangan_jurnal_pembayaran($pdo, $pembayaranId, $tanggalBayar, $akunId, $totalNominal, $detailRows, $kategoriFilter, $userId);
 
         $after = keuangan_pembayaran_fetch($pdo, $pembayaranId);

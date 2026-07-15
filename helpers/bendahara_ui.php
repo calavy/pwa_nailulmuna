@@ -61,8 +61,8 @@ function bendahara_nav_cards(): array
         ],
         [
             'href' => '/pembayaran/kartu_syahriyah_santri.php',
-            'title' => 'Kartu syahriyah santri',
-            'desc' => 'Pembagian pembayaran ke komponen alokasi (PKPPS → gaji guru).',
+            'title' => 'Kartu pembayaran santri',
+            'desc' => 'Tabel pembayaran bulanan (saku, makan, syahriyah) dan awal tahun per santri.',
             'icon' => 'fa-sitemap',
             'color' => 'info',
         ],

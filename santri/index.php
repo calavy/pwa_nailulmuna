@@ -315,21 +315,7 @@ require_once __DIR__ . '/../includes/header.php';
         });
     }
 
-    if (inp) {
-        var debounce;
-        inp.addEventListener('input', function () {
-            clearTimeout(debounce);
-            debounce = setTimeout(function () {
-                if (inp.form) {
-                    if (inp.form.requestSubmit) {
-                        inp.form.requestSubmit();
-                    } else {
-                        inp.form.submit();
-                    }
-                }
-            }, 400);
-        });
-    }
+    // Cari hanya lewat Enter / tombol Cari — jangan auto-submit saat mengetik.
 
     var chkAll = document.getElementById('chk-all-santri');
     var chks = document.querySelectorAll('.chk-santri-batch');

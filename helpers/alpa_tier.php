@@ -30,17 +30,14 @@ function alpa_tier_periode_mode(PDO $pdo): string
 }
 
 /**
- * Tanggal awal perhitungan alpa untuk WA otomatis (Y-m-d) atau '' jika belum diset.
- * Alpa sebelum tanggal ini diabaikan dalam perhitungan tier.
+ * Tanggal awal perhitungan alpa untuk WA (Y-m-d) atau '' jika belum diset.
+ * Sumber tunggal: keaktifan_tanggal_mulai_scan (sama dengan rekap poin / keaktivan).
  */
 function alpa_tier_tanggal_mulai(PDO $pdo): string
 {
-    $raw = trim((string) app_setting($pdo, 'alpa_notif_tanggal_mulai', ''));
-    if ($raw === '') {
-        return '';
-    }
-    $ts = strtotime($raw);
-    return $ts ? date('Y-m-d', $ts) : '';
+    require_once __DIR__ . '/rekap_keaktifan.php';
+
+    return rekap_keaktifan_tanggal_mulai_scan($pdo);
 }
 
 /** Label periode untuk UI. */

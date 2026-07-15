@@ -165,7 +165,7 @@ return [
         '/pembayaran/laporan.php' => 'Laporan Syahriyah',
         '/pembayaran/laporan_kopsa_per_santri.php' => 'KOPSA per Santri (per Bulan)',
         '/pembayaran/laporan_pkpps_syahriyah.php' => 'Laporan Syahriyah PKPPS',
-        '/pembayaran/kartu_syahriyah_santri.php' => 'Kartu Syahriyah Santri',
+        '/pembayaran/kartu_syahriyah_santri.php' => 'Kartu Pembayaran Santri',
         '/pkpps/santri.php' => 'Santri PKPPS',
         '/pkpps/import_santri.php' => 'Import Santri PKPPS',
         '/pkpps/jadwal.php' => 'Jadwal PKPPS',
