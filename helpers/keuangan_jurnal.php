@@ -53,6 +53,7 @@ function keuangan_seed_chart_of_accounts(PDO $pdo): void
     $defaults = [
         ['1101', 'Kas', 'ASET', 'DEBIT'],
         ['1102', 'Bank', 'ASET', 'DEBIT'],
+        ['1103', 'Kas Titipan Saku Santri', 'ASET', 'DEBIT'],
         ['1201', 'Aset Tetap', 'ASET', 'DEBIT'],
         ['1209', 'Akumulasi Penyusutan Aset Tetap', 'ASET', 'KREDIT'],
         ['2101', 'Titipan Saku Santri (Cashless)', 'LIABILITAS', 'KREDIT'],
@@ -189,8 +190,15 @@ function keuangan_pendapatan_coa_for_pos(string $posSlug, string $kategoriFee): 
     return '4199';
 }
 
+/** Kode COA kas titipan saku (di luar kas pondok). */
+function keuangan_coa_kas_titipan_saku(): string
+{
+    return '1103';
+}
+
 /**
- * Jurnal pembayaran santri: Debit kas, Kredit pendapatan / titipan saku.
+ * Jurnal pembayaran santri: Debit kas pondok (non-saku) / kas titipan saku (pos saku),
+ * Kredit pendapatan / titipan saku (2101).
  *
  * @param list<array{slug:string,nama:string,nominal:int}> $detailRows
  */
@@ -199,21 +207,41 @@ function keuangan_jurnal_pembayaran(PDO $pdo, int $pembayaranId, string $tanggal
     if ($pembayaranId <= 0 || $totalNominal <= 0) {
         return;
     }
-    $kasKode = keuangan_akun_coa_kode($pdo, $akunId);
-    $lines = [['kode_akun' => $kasKode, 'debit' => $totalNominal, 'kredit' => 0]];
+    $kasPondok = keuangan_akun_coa_kode($pdo, $akunId);
+    $kasSaku = keuangan_coa_kas_titipan_saku();
+    $sakuTotal = 0;
+    $nonSakuTotal = 0;
+    $lines = [];
 
     foreach ($detailRows as $dr) {
         $nom = (int) ($dr['nominal'] ?? 0);
         if ($nom <= 0) {
             continue;
         }
-        $slug = (string) ($dr['slug'] ?? '');
+        $slug = strtolower(trim((string) ($dr['slug'] ?? '')));
         if ($slug === 'saku') {
+            $sakuTotal += $nom;
             $lines[] = ['kode_akun' => '2101', 'debit' => 0, 'kredit' => $nom];
         } else {
+            $nonSakuTotal += $nom;
             $coa = keuangan_pendapatan_coa_for_pos($slug, $kategoriFilter);
             $lines[] = ['kode_akun' => $coa, 'debit' => 0, 'kredit' => $nom];
         }
+    }
+
+    // Fallback jika detail kosong / tidak seimbang: pakai totalNominal ke kas pondok.
+    if ($sakuTotal + $nonSakuTotal <= 0) {
+        $nonSakuTotal = $totalNominal;
+    }
+
+    if ($nonSakuTotal > 0) {
+        array_unshift($lines, ['kode_akun' => $kasPondok, 'debit' => $nonSakuTotal, 'kredit' => 0]);
+    }
+    if ($sakuTotal > 0) {
+        array_unshift($lines, ['kode_akun' => $kasSaku, 'debit' => $sakuTotal, 'kredit' => 0]);
+    }
+    if ($lines === []) {
+        return;
     }
 
     $ket = 'Jurnal otomatis pembayaran santri #' . $pembayaranId;

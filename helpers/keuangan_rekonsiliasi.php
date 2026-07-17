@@ -270,16 +270,18 @@ function keuangan_rekap_kas_mutasi_periode(PDO $pdo, string $dateFrom, string $d
     $totalKeluar = (int) round((float) ($stKeluar->fetchColumn() ?: 0));
     $totalKeluar += keuangan_sum_gaji_keluar_tambahan($pdo, $dateFrom, $dateTo);
 
-    $totalMasuk = $totalIuran + $totalSaku + $totalDonasi + $totalPemasukanLain;
+    // Saku = titipan santri, bukan kas pondok — ditampilkan terpisah, tidak masuk masuk_total/bersih.
+    $totalMasukPondok = $totalIuran + $totalDonasi + $totalPemasukanLain;
 
     return [
         'masuk_iuran' => $totalIuran,
         'masuk_saku' => $totalSaku,
         'masuk_donasi' => $totalDonasi,
         'masuk_lain' => $totalPemasukanLain,
-        'masuk_total' => $totalMasuk,
+        'masuk_total' => $totalMasukPondok,
+        'masuk_titipan_saku' => $totalSaku,
         'keluar' => $totalKeluar,
-        'bersih' => $totalMasuk - $totalKeluar,
+        'bersih' => $totalMasukPondok - $totalKeluar,
     ];
 }
 

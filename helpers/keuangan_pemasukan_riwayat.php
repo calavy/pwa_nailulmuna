@@ -109,6 +109,11 @@ function keuangan_pemasukan_update(PDO $pdo, array $post, int $userId): array
         $metodeBayar = 'KAS';
     }
 
+    $alasan = trim((string) ($post['alasan'] ?? ''));
+    if ($alasan === '') {
+        return ['ok' => false, 'message' => 'Alasan koreksi wajib diisi.'];
+    }
+
     $pdo->beginTransaction();
     try {
         $pdo->prepare('
@@ -133,6 +138,19 @@ function keuangan_pemasukan_update(PDO $pdo, array $post, int $userId): array
         keuangan_jurnal_delete_by_ref($pdo, 'pemasukan', $id);
         keuangan_jurnal_pemasukan($pdo, $id, $tanggal, $akunId, $nominal, $sumber, $userId);
 
+        $after = keuangan_pemasukan_get($pdo, $id);
+        ensure_operasional_audit_table($pdo);
+        operasional_audit_log(
+            $pdo,
+            OPERASIONAL_AUDIT_MODUL_KEUANGAN_PEMASUKAN,
+            'UPDATE',
+            $id,
+            $row,
+            $after,
+            $userId,
+            $alasan
+        );
+
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -147,7 +165,7 @@ function keuangan_pemasukan_update(PDO $pdo, array $post, int $userId): array
     }
     keuangan_dashboard_cache_invalidate();
 
-    return ['ok' => true, 'message' => 'Pemasukan #' . $id . ' diperbarui.'];
+    return ['ok' => true, 'message' => 'Pemasukan #' . $id . ' diperbarui (jurnal diganti, audit dicatat).'];
 }
 
 /**

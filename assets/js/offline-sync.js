@@ -443,6 +443,11 @@
         if (route && route.module === 'presensi_scan') {
             fields = stampScanClientAt(fields);
         }
+        if (fields.action === 'process_scan_uang' && !fields.client_token) {
+            fields.client_token = (global.crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : ('c' + Date.now() + '-' + Math.random().toString(36).slice(2, 12));
+        }
         var label = options.label || describeAction(fields, route ? route.label : 'Data');
         var item = {
             url: form.getAttribute('action') || global.location.href,

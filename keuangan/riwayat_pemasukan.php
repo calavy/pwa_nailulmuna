@@ -158,6 +158,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <label class="form-label">Keterangan</label>
                 <textarea class="form-control" name="keterangan" rows="2"><?= htmlspecialchars((string) ($editRow['keterangan'] ?? '')) ?></textarea>
             </div>
+            <div class="col-12">
+                <label class="form-label">Alasan koreksi <span class="text-danger">*</span></label>
+                <input class="form-control" name="alasan" required maxlength="500" placeholder="Mis. salah nominal / sumber keliru">
+            </div>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-warning">Simpan perubahan</button>
                 <a class="btn btn-outline-secondary" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pemasukan.php')) ?>">Batal</a>

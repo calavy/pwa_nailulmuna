@@ -288,57 +288,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         require_once __DIR__ . '/../helpers/keuangan_jurnal.php';
                         ensure_keuangan_jurnal_tables($pdo);
-                        $pdo->beginTransaction();
-                        try {
-                            $txId = cashless_koperasi_insert_debit(
-                                $pdo,
-                                $santriId,
-                                $nominal,
-                                $keterangan,
-                                $createdByUserId,
-                                $koperasiId > 0 ? $koperasiId : null
-                            );
-                            cashless_jurnal_belanja_scan(
-                                $pdo,
-                                $txId,
-                                date('Y-m-d'),
-                                $nominal,
-                                $createdByUserId,
-                                $keterangan
-                            );
-                            if ($pdo->inTransaction()) {
-                                $pdo->commit();
-                            }
-                        } catch (Throwable $e) {
-                            if ($pdo->inTransaction()) {
-                                $pdo->rollBack();
-                            }
-                            $resultType = 'danger';
-                            $errMsg = $e->getMessage();
-                            if (stripos($errMsg, 'no active transaction') !== false) {
-                                $resultMessage = 'Transaksi gagal: kesalahan database. Muat ulang halaman lalu coba lagi.';
-                            } else {
-                                $resultMessage = 'Transaksi gagal: ' . $errMsg;
-                            }
-                            if ($scanUangVoice) {
-                                $cashlessVoiceText = 'Transaksi gagal.';
+                        $clientToken = trim((string) ($_POST['client_token'] ?? $_POST['idempotency_token'] ?? ''));
+                        if ($clientToken !== '' && mb_strlen($clientToken) > 64) {
+                            $clientToken = mb_substr($clientToken, 0, 64);
+                        }
+                        $existing = $clientToken !== ''
+                            ? cashless_koperasi_find_debit_by_client_token($pdo, $clientToken)
+                            : null;
+                        $idempotentHit = false;
+                        if ($existing !== null) {
+                            $idempotentHit = true;
+                            $nominal = (int) round((float) ($existing['nominal'] ?? $nominal));
+                        } else {
+                            $pdo->beginTransaction();
+                            try {
+                                $txId = cashless_koperasi_insert_debit(
+                                    $pdo,
+                                    $santriId,
+                                    $nominal,
+                                    $keterangan,
+                                    $createdByUserId,
+                                    $koperasiId > 0 ? $koperasiId : null,
+                                    $clientToken !== '' ? $clientToken : null
+                                );
+                                cashless_jurnal_belanja_scan(
+                                    $pdo,
+                                    $txId,
+                                    date('Y-m-d'),
+                                    $nominal,
+                                    $createdByUserId,
+                                    $keterangan
+                                );
+                                if ($pdo->inTransaction()) {
+                                    $pdo->commit();
+                                }
+                            } catch (Throwable $e) {
+                                if ($pdo->inTransaction()) {
+                                    $pdo->rollBack();
+                                }
+                                $dup = $clientToken !== '' && (
+                                    stripos($e->getMessage(), 'Duplicate') !== false
+                                    || stripos($e->getMessage(), 'uk_cashless_tx_client_token') !== false
+                                );
+                                if ($dup) {
+                                    $existing = cashless_koperasi_find_debit_by_client_token($pdo, $clientToken);
+                                    if ($existing !== null) {
+                                        $idempotentHit = true;
+                                        $nominal = (int) round((float) ($existing['nominal'] ?? $nominal));
+                                    } else {
+                                        $resultType = 'danger';
+                                        $resultMessage = 'Transaksi gagal: ' . $e->getMessage();
+                                    }
+                                } else {
+                                    $resultType = 'danger';
+                                    $errMsg = $e->getMessage();
+                                    if (stripos($errMsg, 'no active transaction') !== false) {
+                                        $resultMessage = 'Transaksi gagal: kesalahan database. Muat ulang halaman lalu coba lagi.';
+                                    } else {
+                                        $resultMessage = 'Transaksi gagal: ' . $errMsg;
+                                    }
+                                    if ($scanUangVoice) {
+                                        $cashlessVoiceText = 'Transaksi gagal.';
+                                    }
+                                }
                             }
                         }
                         if ($resultType !== 'danger') {
                             require_once __DIR__ . '/../helpers/cashless_koperasi.php';
                             $saldoSetelah = cashless_santri_saldo_tampil($pdo, $santriId);
-                            cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
-                            cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
+                            if (!$idempotentHit) {
+                                cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
+                                cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
+                            }
                             $lastSuccessNominal = $nominal;
                             $lastSaldoSaku = $saldoSetelah;
                             $jatahSetelah = cashless_santri_jatah_harian($pdo, $santriId, (float) $saldoSetelah, $tglOperasional);
                             $lastSisaJatah = (int) ($jatahSetelah['sisa'] ?? 0);
                             $resultType = 'success';
-                            $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp '
-                                . number_format($nominal, 0, ',', '.')
-                                . '. Saldo Saku Rp ' . number_format($saldoSetelah, 0, ',', '.') . '.';
-                            if ($scanUangVoice) {
-                                $cashlessVoiceText = 'Transaksi sebesar ' . number_format($nominal, 0, ',', '.') . ' rupiah berhasil';
+                            if ($idempotentHit) {
+                                $resultMessage = 'Transaksi sudah tercatat (idempoten). ' . (string) $santri['nama_santri']
+                                    . ' — Rp ' . number_format($nominal, 0, ',', '.') . '.';
+                            } else {
+                                $resultMessage = 'Transaksi berhasil untuk ' . (string) $santri['nama_santri'] . '. Nominal Rp '
+                                    . number_format($nominal, 0, ',', '.')
+                                    . '. Saldo Saku Rp ' . number_format($saldoSetelah, 0, ',', '.') . '.';
+                                if ($scanUangVoice) {
+                                    $cashlessVoiceText = 'Transaksi sebesar ' . number_format($nominal, 0, ',', '.') . ' rupiah berhasil';
+                                }
                             }
                             unset($_SESSION['cashless_verified']);
                         }
@@ -531,6 +567,7 @@ if ($koperasiPortal) {
                     <input type="hidden" name="scan_source" value="camera">
                     <input type="hidden" name="nominal_scan" id="nominal_scan" value="">
                     <input type="hidden" name="keterangan" value="Belanja">
+                    <input type="hidden" name="client_token" id="cashless_client_token" value="">
                 </form>
             </div>
 
@@ -1338,6 +1375,12 @@ if ($koperasiPortal) {
             clearMoneyPhaseTimeout();
             await stopMoneyScanner();
             nominalScanInput.value = raw;
+            var tokenInput = document.getElementById('cashless_client_token');
+            if (tokenInput) {
+                tokenInput.value = (window.crypto && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : ('c' + Date.now() + '-' + Math.random().toString(36).slice(2, 12));
+            }
             setFlash('Memproses nominal…', 'info');
 
             if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {

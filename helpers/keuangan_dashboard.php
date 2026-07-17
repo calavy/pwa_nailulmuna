@@ -420,6 +420,9 @@ function keuangan_dashboard_kas_bank_ringkas(PDO $pdo, ?string $asOf = null): ar
         'total' => $totalKas + $totalBank,
         'total_kas' => $totalKas,
         'total_bank' => $totalBank,
+        'kas_titipan_saku' => function_exists('keuangan_kas_titipan_saku_saldo')
+            ? keuangan_kas_titipan_saku_saldo($pdo, $asOf)
+            : 0,
         'akun' => $akun,
         'as_of_label' => $asOfLabel,
     ];

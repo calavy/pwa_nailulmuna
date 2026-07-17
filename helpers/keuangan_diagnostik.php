@@ -417,7 +417,21 @@ function keuangan_dashboard_kas_bank_detail(PDO $pdo, ?string $asOf = null, ?str
         $masukBulan = 0;
         $keluarBulan = 0;
         if (table_exists($pdo, 'keuangan_pembayaran')) {
-            $st = $pdo->prepare('SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran WHERE akun_id = :aid AND tanggal_bayar BETWEEN :aw AND :ak');
+            if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
+                $st = $pdo->prepare("
+                    SELECT COALESCE(SUM(GREATEST(0, p.total_nominal - COALESCE(sk.saku_nom, 0))), 0)
+                    FROM keuangan_pembayaran p
+                    LEFT JOIN (
+                        SELECT pembayaran_id, SUM(nominal) AS saku_nom
+                        FROM keuangan_pembayaran_detail
+                        WHERE LOWER(TRIM(pos_slug)) = 'saku'
+                        GROUP BY pembayaran_id
+                    ) sk ON sk.pembayaran_id = p.id
+                    WHERE p.akun_id = :aid AND p.tanggal_bayar BETWEEN :aw AND :ak
+                ");
+            } else {
+                $st = $pdo->prepare('SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran WHERE akun_id = :aid AND tanggal_bayar BETWEEN :aw AND :ak');
+            }
             $st->execute(['aid' => $aid, 'aw' => $bulanAwal, 'ak' => $bulanAkhir]);
             $masukBulan += (int) round((float) ($st->fetchColumn() ?: 0));
         }
@@ -471,11 +485,13 @@ function keuangan_dashboard_kas_bank_detail(PDO $pdo, ?string $asOf = null, ?str
 
     $bulanId = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     $ts = strtotime($asOf) ?: time();
+    $kasTitipanSaku = keuangan_kas_titipan_saku_saldo($pdo, $asOf);
 
     return [
         'total' => $totalKas + $totalBank,
         'total_kas' => $totalKas,
         'total_bank' => $totalBank,
+        'kas_titipan_saku' => $kasTitipanSaku,
         'akun' => $akunOut,
         'as_of_label' => (int) date('j', $ts) . ' ' . ($bulanId[(int) date('n', $ts)] ?? '') . ' ' . date('Y', $ts),
         'bulan_awal' => $bulanAwal,

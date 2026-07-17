@@ -62,9 +62,12 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $totalKeluarOps = 0;
 
     $penerimaanPerPos = [];
+    $penerimaanTitipanSaku = [];
+    $totalTitipanSakuOps = 0;
     if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
         $penerimaanStmt = $pdo->prepare("
             SELECT COALESCE(d.pos_nama, d.pos_slug, 'Pembayaran') AS label_pos,
+                   LOWER(TRIM(COALESCE(d.pos_slug, ''))) AS slug,
                    SUM(d.nominal) AS total
             FROM keuangan_pembayaran_detail d
             INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
@@ -78,10 +81,16 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             if ($nom === 0) {
                 continue;
             }
-            $penerimaanPerPos[] = [
+            $item = [
                 'label' => (string) ($row['label_pos'] ?? 'Pembayaran'),
                 'nominal' => $nom,
             ];
+            if ((string) ($row['slug'] ?? '') === 'saku') {
+                $penerimaanTitipanSaku[] = $item;
+                $totalTitipanSakuOps += $nom;
+                continue;
+            }
+            $penerimaanPerPos[] = $item;
             $totalMasukOps += $nom;
         }
     }
@@ -93,7 +102,7 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
     $penerimaanTotalStmt->execute(['dari' => $dateFrom, 'sampai' => $dateTo]);
     $totalPenerimaan = (int) round((float) ($penerimaanTotalStmt->fetchColumn() ?: 0));
 
-    if ($penerimaanPerPos === [] && $totalPenerimaan > 0) {
+    if ($penerimaanPerPos === [] && $penerimaanTitipanSaku === [] && $totalPenerimaan > 0) {
         $penerimaanPerPos[] = ['label' => 'Pembayaran santri/wali', 'nominal' => $totalPenerimaan];
         $totalMasukOps += $totalPenerimaan;
     }
@@ -226,6 +235,28 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
 
     $totalOperasi = $totalMasukOps - $totalKeluarOps;
 
+    // —— Dana titipan saku (di luar kas pondok / tidak masuk kenaikan kas operasi) ——
+    $titipanSakuBaris = [];
+    if ($penerimaanTitipanSaku !== []) {
+        $titipanSakuBaris[] = [
+            'label' => 'Penerimaan titipan saku (kas titipan, bukan kas pondok)',
+            'nominal' => 0,
+            'baris_tipe' => 'judul',
+        ];
+        foreach ($penerimaanTitipanSaku as $item) {
+            $titipanSakuBaris[] = [
+                'label' => $item['label'],
+                'nominal' => $item['nominal'],
+                'indent' => true,
+            ];
+        }
+        $titipanSakuBaris[] = [
+            'label' => 'Subtotal dana titipan saku (info)',
+            'nominal' => $totalTitipanSakuOps,
+            'baris_tipe' => 'subtotal_grup',
+        ];
+    }
+
     // —— Aktivitas investasi ——
     $investasiBaris = [];
     $investWhere = keuangan_sql_pengeluaran_investasi_where();
@@ -354,6 +385,10 @@ function keuangan_build_arus_kas(PDO $pdo, ?string $dateFrom = null, ?string $da
             'total' => $totalOperasi,
             'total_masuk' => $totalMasukOps,
             'total_keluar' => $totalKeluarOps,
+        ],
+        'titipan_saku' => [
+            'baris' => $titipanSakuBaris,
+            'total' => $totalTitipanSakuOps,
         ],
         'investasi' => ['baris' => $investasiBaris, 'total' => $totalInvestasi],
         'pendanaan' => ['baris' => $pendanaanBaris, 'total' => $totalPendanaan],
@@ -544,7 +579,11 @@ function keuangan_aruskas_render_html(array $lak, callable $fmt): void
 
     echo '<table class="aruskas-table" role="presentation">';
 
-    keuangan_aruskas_render_bagian($lak['operasi'] ?? [], 'ARUS KAS DARI AKTIVITAS OPERASI', 'section-operasi', $fmt);
+    keuangan_aruskas_render_bagian($lak['operasi'] ?? [], 'ARUS KAS DARI AKTIVITAS OPERASI (KAS PONDOK)', 'section-operasi', $fmt);
+    $titipan = $lak['titipan_saku'] ?? [];
+    if (is_array($titipan) && !empty($titipan['baris'])) {
+        keuangan_aruskas_render_bagian($titipan, 'DANA TITIPAN SAKU (DI LUAR KAS PONDOK)', 'section-pendanaan', $fmt);
+    }
     keuangan_aruskas_render_bagian($lak['investasi'] ?? [], 'ARUS KAS DARI AKTIVITAS INVESTASI', 'section-investasi', $fmt);
     keuangan_aruskas_render_bagian($lak['pendanaan'] ?? [], 'ARUS KAS DARI AKTIVITAS PENDANAAN', 'section-pendanaan', $fmt);
 
@@ -584,24 +623,31 @@ function keuangan_aruskas_render_rekonsiliasi_kas(array $rekon, callable $fmt): 
 {
     $selisihKas = (int) ($rekon['selisih'] ?? 0);
     echo '<div class="aruskas-rekon-box">';
-    echo '<h3>Sinkronisasi Kas Fisik</h3>';
-    echo '<p class="mb-1">(Iuran santri + titipan saku + donasi/infaq + pemasukan lain) − pengeluaran operasional = perubahan kas operasional.</p>';
+    echo '<h3>Sinkronisasi Kas Pondok (tanpa saku)</h3>';
+    echo '<p class="mb-1">(Iuran santri + donasi/infaq + pemasukan lain) − pengeluaran operasional = perubahan kas pondok. Titipan saku dicatat terpisah.</p>';
     echo '<table class="aruskas-table" role="presentation" style="margin-top:0.5rem">';
     echo '<tr><td class="lbl indent">Penerimaan iuran santri</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_iuran'] ?? 0))) . '</td></tr>';
-    echo '<tr><td class="lbl indent">Penerimaan titipan saku</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_titipan_saku'] ?? 0))) . '</td></tr>';
     echo '<tr><td class="lbl indent">Penerimaan donasi/infaq</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_donasi'] ?? 0))) . '</td></tr>';
     echo '<tr><td class="lbl indent">Pemasukan lain-lain</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_pemasukan_lain'] ?? 0))) . '</td></tr>';
-    echo '<tr class="subtotal"><td class="lbl">Total kas masuk operasional</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_masuk'] ?? 0))) . '</td></tr>';
+    echo '<tr class="subtotal"><td class="lbl">Total kas masuk pondok</td><td class="amt pos">' . htmlspecialchars($fmt((int) ($rekon['total_masuk'] ?? 0))) . '</td></tr>';
     echo '<tr><td class="lbl indent">Total pengeluaran operasional</td><td class="amt neg">(' . htmlspecialchars($fmt((int) ($rekon['total_keluar'] ?? 0))) . ')</td></tr>';
-    echo '<tr class="subtotal"><td class="lbl">Kas bersih operasional (formula)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_bersih_operasi'] ?? 0))) . '</td></tr>';
+    echo '<tr class="subtotal"><td class="lbl">Kas bersih pondok (formula)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_bersih_operasi'] ?? 0))) . '</td></tr>';
     echo '<tr><td class="lbl indent">Saldo kas awal periode</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_awal'] ?? 0))) . '</td></tr>';
     echo '<tr><td class="lbl indent">Saldo kas akhir (fisik)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_akhir'] ?? 0))) . '</td></tr>';
     echo '<tr class="subtotal"><td class="lbl">Perubahan kas fisik (akhir − awal)</td><td class="amt">' . htmlspecialchars($fmt((int) ($rekon['kas_delta_fisik'] ?? 0))) . '</td></tr>';
     echo '</table>';
+
+    $titipanSaku = (int) ($rekon['total_titipan_saku'] ?? 0);
+    echo '<h3 class="mt-3">Dana Titipan Saku (di luar kas pondok)</h3>';
+    echo '<p class="mb-1">Penerimaan pos Saku dicatat di Kas Titipan Saku — bukan pendapatan/kas operasional pondok.</p>';
+    echo '<table class="aruskas-table" role="presentation" style="margin-top:0.5rem">';
+    echo '<tr><td class="lbl indent">Penerimaan titipan saku (periode)</td><td class="amt pos">' . htmlspecialchars($fmt($titipanSaku)) . '</td></tr>';
+    echo '</table>';
+
     if ($selisihKas !== 0) {
-        echo '<p class="aruskas-rekon warn mt-2 mb-0">Selisih sinkronisasi kas operasional: <strong>' . htmlspecialchars($fmt($selisihKas)) . '</strong>. Periksa transaksi tanpa jurnal atau mutasi di luar periode.</p>';
+        echo '<p class="aruskas-rekon warn mt-2 mb-0">Selisih sinkronisasi kas pondok: <strong>' . htmlspecialchars($fmt($selisihKas)) . '</strong>. Periksa transaksi tanpa jurnal atau mutasi di luar periode.</p>';
     } else {
-        echo '<p class="aruskas-rekon ok mt-2 mb-0">Formula kas operasional sesuai dengan perubahan saldo kas fisik.</p>';
+        echo '<p class="aruskas-rekon ok mt-2 mb-0">Formula kas pondok sesuai dengan perubahan saldo kas fisik.</p>';
     }
 
     $pending = $rekon['transaksi_tanpa_jurnal'] ?? [];

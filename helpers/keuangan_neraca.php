@@ -137,7 +137,38 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
         ];
     }
 
-    $asetCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'ASET', ['1101', '1102', '1201', '1301', '1309']);
+    $asetCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'ASET', ['1101', '1102', '1103', '1201', '1301', '1309']);
+    $kasTitipanSakuCoa = 0;
+    $asetCoaBarisPondok = [];
+    foreach ($asetCoaBaris as $ab) {
+        $label = (string) ($ab['label'] ?? '');
+        if (str_contains($label, '1103') || str_contains(strtolower($label), 'titipan saku')) {
+            $kasTitipanSakuCoa += (int) ($ab['nominal'] ?? 0);
+            continue;
+        }
+        $asetCoaBarisPondok[] = $ab;
+    }
+    $asetCoaBaris = $asetCoaBarisPondok;
+
+    if (!function_exists('keuangan_kas_titipan_saku_saldo')) {
+        require_once __DIR__ . '/keuangan_akun_mutasi.php';
+    }
+    $kasTitipanSaku = keuangan_kas_titipan_saku_saldo($pdo, $asOf);
+    if ($kasTitipanSakuCoa > 0 && $kasTitipanSaku <= 0) {
+        $kasTitipanSaku = $kasTitipanSakuCoa;
+    }
+    if ($kasTitipanSaku > 0) {
+        $asetSections[] = [
+            'judul' => 'Kas Titipan Saku Santri (di luar kas pondok)',
+            'baris' => [[
+                'label' => 'Kas Titipan Saku (1103)',
+                'nominal' => $kasTitipanSaku,
+                'indent' => true,
+            ]],
+            'subtotal' => $kasTitipanSaku,
+        ];
+    }
+
     if ($asetCoaBaris !== []) {
         $asetSections[] = [
             'judul' => 'Akun Aset (buku besar)',
@@ -147,7 +178,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
 
     $totalAsetCoa = array_sum(array_column($asetCoaBaris, 'nominal'));
-    $totalAset = $totalKasBank + $totalAsetTetapBersih + $totalAsetCoa;
+    $totalAset = $totalKasBank + $totalAsetTetapBersih + $totalAsetCoa + $kasTitipanSaku;
 
     // Liabilitas titipan santri — dari ledger transaksi (top-up − belanja), bukan balance mentah.
     $totalCashless = 0;

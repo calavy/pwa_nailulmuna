@@ -117,6 +117,11 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
         return ['ok' => false, 'message' => $akunErr];
     }
 
+    $alasan = trim((string) ($post['alasan'] ?? ''));
+    if ($alasan === '') {
+        return ['ok' => false, 'message' => 'Alasan koreksi wajib diisi.'];
+    }
+
     $sets = [
         'tanggal = :tanggal',
         'penanggung_jawab = :penanggung_jawab',
@@ -158,6 +163,19 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
             keuangan_jurnal_pengeluaran($pdo, $id, $tanggal, $akunJurnal, $nominal, $pos, $userId);
         }
 
+        $after = keuangan_pengeluaran_get($pdo, $id);
+        ensure_operasional_audit_table($pdo);
+        operasional_audit_log(
+            $pdo,
+            OPERASIONAL_AUDIT_MODUL_KEUANGAN_PENGELUARAN,
+            'UPDATE',
+            $id,
+            $row,
+            $after,
+            $userId,
+            $alasan
+        );
+
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -174,7 +192,7 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
 
     return [
         'ok' => true,
-        'message' => 'Pengeluaran #' . $id . ' diperbarui.',
+        'message' => 'Pengeluaran #' . $id . ' diperbarui (jurnal diganti, audit dicatat).',
     ];
 }
 

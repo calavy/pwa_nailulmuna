@@ -289,9 +289,9 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi kas</th>';
     echo '</tr>';
     echo '<tr class="rekap-kas-head-detail">';
-    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end">Saku</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end" title="Titipan — tidak masuk total kas pondok">Saku*</th>';
     echo '<th class="text-end">Awal Tahun</th><th class="text-end">Donasi</th><th class="text-end">Lain</th><th class="text-end">Total masuk</th>';
-    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end">Saku</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end" title="Info titipan">Saku*</th>';
     echo '<th class="text-end">Awal Tahun</th><th class="text-end">Total keluar</th>';
     echo '<th class="text-end">Terbayar</th>';
     echo '<th class="text-end">Sisa</th><th class="text-end">Capai</th>';
@@ -390,13 +390,14 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     $kb = $rekap['kas_bank'] ?? [];
     if ($kb !== []) {
         echo '<div class="mt-3 p-3 bg-light border rounded small">';
-        echo '<strong>Saldo terkini per jenis akun</strong> (semua akun aktif — ' . htmlspecialchars((string) ($kb['as_of'] ?? '')) . ')';
+        echo '<strong>Saldo terkini per jenis akun</strong> (semua akun aktif — ' . htmlspecialchars((string) ($kb['as_of_label'] ?? $kb['as_of'] ?? '')) . ')';
         echo '<div class="row g-2 mt-2">';
-        echo '<div class="col-md-4"><span class="text-muted">Kas fisik &amp; e-wallet:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_kas'] ?? 0))) . '</strong></div>';
-        echo '<div class="col-md-4"><span class="text-muted">Rekening bank:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_bank'] ?? 0))) . '</strong></div>';
-        echo '<div class="col-md-4"><span class="text-muted">Total likuid:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_likuid'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-3"><span class="text-muted">Kas pondok:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_kas'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-3"><span class="text-muted">Rekening bank:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_bank'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-3"><span class="text-muted">Kas titipan saku*:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['kas_titipan_saku'] ?? 0))) . '</strong></div>';
+        echo '<div class="col-md-3"><span class="text-muted">Total kas pondok:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total'] ?? 0))) . '</strong></div>';
         echo '</div>';
-        echo '<p class="text-muted mb-0 mt-2">Saldo fisik di kolom verifikasi = jumlah semua akun aktif per tanggal. Kas fisik = tunai &amp; e-wallet operasional; rekening = saldo di bank.</p>';
+        echo '<p class="text-muted mb-0 mt-2">*Saku = titipan santri, tidak masuk total kas pondok / Total masuk. Saldo fisik verifikasi = kas+bank pondok (tanpa saku).</p>';
         echo '</div>';
     }
 }

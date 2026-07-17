@@ -64,6 +64,14 @@ function cashless_koperasi_ensure_schema(PDO $pdo): void
         }
     }
 
+    if (table_exists($pdo, 'cashless_transactions') && !column_exists($pdo, 'cashless_transactions', 'client_token')) {
+        try {
+            $pdo->exec('ALTER TABLE cashless_transactions ADD COLUMN client_token VARCHAR(64) NULL AFTER keterangan');
+            $pdo->exec('ALTER TABLE cashless_transactions ADD UNIQUE KEY uk_cashless_tx_client_token (client_token)');
+        } catch (PDOException $e) {
+        }
+    }
+
     cashless_ensure_jenis_pengeluaran($pdo);
 
     $pdo->exec('
@@ -183,6 +191,8 @@ function cashless_insert_pengeluaran_manual(
             return ['ok' => false, 'message' => 'Gagal menyimpan pengeluaran.'];
         }
         cashless_sync_account_balance($pdo, $santriId);
+        $tglJurnal = substr($tanggalTx, 0, 10);
+        cashless_jurnal_pengeluaran_manual($pdo, $txId, $tglJurnal, $nominal, $userId, $ket);
 
         return [
             'ok' => true,
@@ -407,11 +417,11 @@ function cashless_koperasi_total_debit_tanggal(PDO $pdo, string $tanggal): int
 
 function cashless_koperasi_ensure_schema_deferred(PDO $pdo): void
 {
-    if (!empty($_SESSION['cashless_koperasi_schema_ready_v1'])) {
+    if (!empty($_SESSION['cashless_koperasi_schema_ready_v2'])) {
         return;
     }
     cashless_koperasi_ensure_schema($pdo);
-    $_SESSION['cashless_koperasi_schema_ready_v1'] = 1;
+    $_SESSION['cashless_koperasi_schema_ready_v2'] = 1;
 }
 
 /** @return list<array{id:int,kode:string,nama:string,is_aktif:int,label:string}> */
@@ -630,8 +640,15 @@ function cashless_koperasi_resolve_context(PDO $pdo): array
     return ['id' => 0, 'nama' => 'Umum', 'portal' => false, 'admin' => isset($_SESSION['user'])];
 }
 
-function cashless_koperasi_insert_debit(PDO $pdo, int $santriId, int $nominal, string $keterangan, int $createdBy, ?int $koperasiId): int
-{
+function cashless_koperasi_insert_debit(
+    PDO $pdo,
+    int $santriId,
+    int $nominal,
+    string $keterangan,
+    int $createdBy,
+    ?int $koperasiId,
+    ?string $clientToken = null
+): int {
     $cols = ['santri_id', 'jenis', 'nominal', 'keterangan', 'created_by'];
     $vals = [':santri_id', "'DEBIT'", ':nominal', ':keterangan', ':created_by'];
     $params = [
@@ -645,12 +662,37 @@ function cashless_koperasi_insert_debit(PDO $pdo, int $santriId, int $nominal, s
         $vals[] = ':koperasi_id';
         $params['koperasi_id'] = $koperasiId;
     }
+    $token = $clientToken !== null ? trim($clientToken) : '';
+    if ($token !== '' && column_exists($pdo, 'cashless_transactions', 'client_token')) {
+        $cols[] = 'client_token';
+        $vals[] = ':client_token';
+        $params['client_token'] = mb_substr($token, 0, 64);
+    }
     $sql = 'INSERT INTO cashless_transactions (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
     $pdo->prepare($sql)->execute($params);
     $txId = (int) $pdo->lastInsertId();
     cashless_sync_account_balance($pdo, $santriId);
 
     return $txId;
+}
+
+/** Cari transaksi DEBIT by client_token (idempotensi scan offline). */
+function cashless_koperasi_find_debit_by_client_token(PDO $pdo, string $clientToken): ?array
+{
+    $token = trim($clientToken);
+    if ($token === '' || !table_exists($pdo, 'cashless_transactions') || !column_exists($pdo, 'cashless_transactions', 'client_token')) {
+        return null;
+    }
+    $st = $pdo->prepare("
+        SELECT id, santri_id, nominal, keterangan
+        FROM cashless_transactions
+        WHERE client_token = :t AND UPPER(jenis) = 'DEBIT'
+        LIMIT 1
+    ");
+    $st->execute(['t' => mb_substr($token, 0, 64)]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return $row ?: null;
 }
 
 /** Akun kas operasional default untuk setor cashless. */
@@ -691,7 +733,8 @@ function cashless_jurnal_belanja_scan(PDO $pdo, int $txId, string $tanggal, int 
 }
 
 /**
- * Jurnal setor harian: uang fisik keluar dari kas bendahara ke koperasi (2103 sudah terbentuk saat scan).
+ * Jurnal setor harian: uang fisik keluar dari Kas Titipan Saku (1103) ke koperasi
+ * (2103 sudah terbentuk saat scan). Tidak mengurangi kas pondok.
  */
 function cashless_jurnal_setor_koperasi(PDO $pdo, int $setorLogId, string $tanggal, int $nominal, int $akunKasId, int $userId, string $keterangan): void
 {
@@ -702,11 +745,33 @@ function cashless_jurnal_setor_koperasi(PDO $pdo, int $setorLogId, string $tangg
     if (!$pdo->inTransaction()) {
         ensure_keuangan_jurnal_tables($pdo);
     }
-    $kasKode = keuangan_akun_coa_kode($pdo, $akunKasId);
+    // $akunKasId diabaikan: setor selalu dari kas titipan saku, bukan kas pondok.
+    unset($akunKasId);
+    $kasSaku = function_exists('keuangan_coa_kas_titipan_saku') ? keuangan_coa_kas_titipan_saku() : '1103';
     keuangan_jurnal_post($pdo, $tanggal, [
         ['kode_akun' => '2103', 'debit' => $nominal, 'kredit' => 0],
-        ['kode_akun' => $kasKode, 'debit' => 0, 'kredit' => $nominal],
+        ['kode_akun' => $kasSaku, 'debit' => 0, 'kredit' => $nominal],
     ], 'cashless_setor', $setorLogId, $userId, $keterangan);
+}
+
+/**
+ * Jurnal pengeluaran manual saku: turunkan titipan (2101) dan kas titipan saku (1103).
+ */
+function cashless_jurnal_pengeluaran_manual(PDO $pdo, int $txId, string $tanggal, int $nominal, int $userId, string $keterangan = ''): void
+{
+    if ($txId <= 0 || $nominal <= 0) {
+        return;
+    }
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
+    $kasSaku = function_exists('keuangan_coa_kas_titipan_saku') ? keuangan_coa_kas_titipan_saku() : '1103';
+    $ket = $keterangan !== '' ? $keterangan : 'Pengeluaran manual saku';
+    keuangan_jurnal_post($pdo, $tanggal, [
+        ['kode_akun' => '2101', 'debit' => $nominal, 'kredit' => 0],
+        ['kode_akun' => $kasSaku, 'debit' => 0, 'kredit' => $nominal],
+    ], 'cashless_pengeluaran', $txId, $userId, 'Pengeluaran manual saku #' . $txId . ' — ' . $ket);
 }
 
 /**
@@ -1443,7 +1508,7 @@ function cashless_koperasi_setor_harian(PDO $pdo, ?int $koperasiId, string $tang
         return [
             'ok' => true,
             'message' => 'Setor ' . $namaKop . ': Rp ' . number_format($ringkas['total'], 0, ',', '.')
-                . ' (' . $ringkas['jumlah'] . ' transaksi). Kas bendahara berkurang.',
+                . ' (' . $ringkas['jumlah'] . ' transaksi). Kas titipan saku berkurang (bukan kas pondok).',
             'total' => $ringkas['total'],
             'jumlah' => $ringkas['jumlah'],
             'koperasi_id' => $koperasiId,
@@ -1498,7 +1563,7 @@ function cashless_koperasi_setor_multi(PDO $pdo, array $koperasiIds, string $tan
     }
 
     $msg = 'Setor berhasil untuk ' . $sukses . ' koperasi. Total Rp ' . number_format($total, 0, ',', '.')
-        . '. Kas bendahara berkurang.';
+        . '. Kas titipan saku berkurang.';
     if ($gagal > 0) {
         $msg .= ' (' . $gagal . ' koperasi gagal.)';
     }
@@ -1514,18 +1579,78 @@ function cashless_koperasi_setor_multi(PDO $pdo, array $koperasiIds, string $tan
 }
 
 /**
+ * Sesuaikan log+jurnal setor setelah debit yang sudah disetor dihapus/diubah.
+ * $deltaNominal: negatif = hapus/kurangi, positif = naikkan.
+ * $deltaJumlah: biasanya -1 saat hapus, 0 saat ubah nominal.
+ */
+function cashless_koperasi_adjust_setor_after_debit_change(
+    PDO $pdo,
+    int $koperasiId,
+    string $tanggalSetor,
+    int $deltaNominal,
+    int $deltaJumlah,
+    int $userId
+): void {
+    if ($koperasiId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalSetor) || ($deltaNominal === 0 && $deltaJumlah === 0)) {
+        return;
+    }
+    if (!table_exists($pdo, 'cashless_setor_log')) {
+        return;
+    }
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    $log = cashless_koperasi_setor_log_row($pdo, $koperasiId, $tanggalSetor);
+    if ($log === null) {
+        return;
+    }
+    $logId = (int) ($log['id'] ?? 0);
+    $newTotal = max(0, (int) round((float) ($log['total_nominal'] ?? 0)) + $deltaNominal);
+    $newJumlah = max(0, (int) ($log['jumlah_transaksi'] ?? 0) + $deltaJumlah);
+
+    if ($newJumlah <= 0 || $newTotal <= 0) {
+        keuangan_jurnal_delete_by_ref($pdo, 'cashless_setor', $logId);
+        $pdo->prepare('DELETE FROM cashless_setor_log WHERE id = :id')->execute(['id' => $logId]);
+
+        return;
+    }
+
+    $pdo->prepare('
+        UPDATE cashless_setor_log
+        SET total_nominal = :total, jumlah_transaksi = :jumlah
+        WHERE id = :id
+    ')->execute([
+        'total' => $newTotal,
+        'jumlah' => $newJumlah,
+        'id' => $logId,
+    ]);
+    keuangan_jurnal_delete_by_ref($pdo, 'cashless_setor', $logId);
+    $namaKop = (string) (cashless_koperasi_by_id($pdo, $koperasiId)['nama'] ?? 'koperasi');
+    cashless_jurnal_setor_koperasi(
+        $pdo,
+        $logId,
+        $tanggalSetor,
+        $newTotal,
+        0,
+        $userId,
+        'Koreksi setor ' . $namaKop . ' — ' . $newJumlah . ' transaksi'
+    );
+}
+
+/**
  * Hapus satu transaksi debit (super admin). Saldo dikembalikan sesuai transaksi.
+ * Jika sudah disetor: sesuaikan cashless_setor_log + jurnal setor.
  *
  * @return array{ok:bool,message:string}
  */
-function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
+function cashless_koperasi_hapus_debit(PDO $pdo, int $txId, int $userId = 0): array
 {
     cashless_koperasi_ensure_schema($pdo);
     if ($txId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
         return ['ok' => false, 'message' => 'Transaksi tidak valid.'];
     }
+    $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
     $stmt = $pdo->prepare('
-        SELECT id, santri_id, jenis, nominal, setor_at
+        SELECT id, santri_id, jenis, nominal, setor_at'
+        . ($hasKop ? ', koperasi_id' : '') . '
         FROM cashless_transactions
         WHERE id = :id
         LIMIT 1
@@ -1540,16 +1665,27 @@ function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
     if ($santriId <= 0 || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Data transaksi tidak lengkap.'];
     }
+    $setorAt = trim((string) ($row['setor_at'] ?? ''));
+    $koperasiId = $hasKop ? (int) ($row['koperasi_id'] ?? 0) : 0;
+    $tanggalSetor = $setorAt !== '' ? substr($setorAt, 0, 10) : '';
 
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM cashless_transactions WHERE id = :id')->execute(['id' => $txId]);
         require_once __DIR__ . '/keuangan_jurnal.php';
         keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
+        if ($tanggalSetor !== '' && $koperasiId > 0) {
+            cashless_koperasi_adjust_setor_after_debit_change($pdo, $koperasiId, $tanggalSetor, -$nominal, -1, $userId);
+        }
         cashless_sync_account_balance($pdo, $santriId);
         $pdo->commit();
 
-        return ['ok' => true, 'message' => 'Transaksi dihapus. Saldo dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.'];
+        $msg = 'Transaksi dihapus. Saldo dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.';
+        if ($tanggalSetor !== '') {
+            $msg .= ' Log & jurnal setor ikut disesuaikan.';
+        }
+
+        return ['ok' => true, 'message' => $msg];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -1561,6 +1697,7 @@ function cashless_koperasi_hapus_debit(PDO $pdo, int $txId): array
 
 /**
  * Ubah nominal/keterangan transaksi debit (super admin). Sesuaikan saldo santri dan jurnal.
+ * Jika sudah disetor: sesuaikan cashless_setor_log + jurnal setor.
  *
  * @return array{ok:bool,message:string}
  */
@@ -1574,8 +1711,10 @@ function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, stri
         return ['ok' => false, 'message' => 'Nominal harus lebih dari nol.'];
     }
 
+    $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
     $stmt = $pdo->prepare('
-        SELECT id, santri_id, jenis, nominal, keterangan, tanggal, setor_at
+        SELECT id, santri_id, jenis, nominal, keterangan, tanggal, setor_at'
+        . ($hasKop ? ', koperasi_id' : '') . '
         FROM cashless_transactions
         WHERE id = :id
         LIMIT 1
@@ -1609,7 +1748,10 @@ function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, stri
         }
     }
 
-    $tanggalJurnal = date('Y-m-d', strtotime((string) ($row['tanggal'] ?? 'now')));
+    $tanggalJurnal = date('Y-m-d', strtotime((string) ($row['tanggal'] ?? 'now')) ?: time());
+    $setorAt = trim((string) ($row['setor_at'] ?? ''));
+    $koperasiId = $hasKop ? (int) ($row['koperasi_id'] ?? 0) : 0;
+    $tanggalSetor = $setorAt !== '' ? substr($setorAt, 0, 10) : '';
 
     $pdo->beginTransaction();
     try {
@@ -1625,12 +1767,15 @@ function cashless_koperasi_ubah_debit(PDO $pdo, int $txId, int $newNominal, stri
         require_once __DIR__ . '/keuangan_jurnal.php';
         keuangan_jurnal_delete_by_ref($pdo, 'cashless_debit', $txId);
         cashless_jurnal_belanja_scan($pdo, $txId, $tanggalJurnal, $newNominal, $userId, $newKeterangan);
+        if ($tanggalSetor !== '' && $koperasiId > 0 && $diff !== 0) {
+            cashless_koperasi_adjust_setor_after_debit_change($pdo, $koperasiId, $tanggalSetor, $diff, 0, $userId);
+        }
         cashless_sync_account_balance($pdo, $santriId);
         $pdo->commit();
 
         $msg = 'Transaksi diperbarui.';
-        if (!empty($row['setor_at'])) {
-            $msg .= ' Catatan: transaksi sudah pernah disetor — periksa kesesuaian setor harian.';
+        if ($tanggalSetor !== '') {
+            $msg .= ' Log & jurnal setor ikut disesuaikan.';
         }
 
         return ['ok' => true, 'message' => $msg];
@@ -1656,7 +1801,7 @@ function cashless_koperasi_admin_aksi_transaksi(PDO $pdo, string $action, array 
 
     $txId = (int) ($post['tx_id'] ?? 0);
     if ($action === 'delete_debit_tx') {
-        return cashless_koperasi_hapus_debit($pdo, $txId);
+        return cashless_koperasi_hapus_debit($pdo, $txId, $userId);
     }
     if ($action === 'edit_debit_tx') {
         $nominal = (int) ($post['nominal'] ?? 0);

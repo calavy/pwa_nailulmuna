@@ -341,6 +341,10 @@ $katCards = [
                 <label class="form-label small">Keterangan</label>
                 <textarea class="form-control form-control-sm" name="keterangan" rows="2"><?= htmlspecialchars((string) ($editKeluarRow['keterangan'] ?? '')) ?></textarea>
             </div>
+            <div class="col-12">
+                <label class="form-label small">Alasan koreksi <span class="text-danger">*</span></label>
+                <input class="form-control form-control-sm" name="alasan" required maxlength="500" placeholder="Mis. salah nominal / pos keliru">
+            </div>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-warning btn-sm">Simpan perubahan</button>
                 <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php?' . $redirectQs)) ?>">Batal</a>
