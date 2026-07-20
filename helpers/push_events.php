@@ -60,6 +60,32 @@ function perizinan_push_setelah_pengajuan(
     );
 }
 
+/** Notifikasi perpanjangan izin (portal wali / pengurus). */
+function perizinan_push_setelah_perpanjangan(
+    PDO $pdo,
+    string $namaSantri,
+    string $nis,
+    string $jenisKode,
+    string $tanggalMulai,
+    string $tanggalSelesaiLama,
+    string $tanggalSelesaiBaru,
+    string $alasanPerpanjangan
+): void {
+    $label = jenis_izin_label($jenisKode);
+    $title = 'Perpanjangan izin';
+    $body = $namaSantri . ' (' . $nis . ') — ' . $label . ' diperpanjang '
+        . $tanggalSelesaiLama . ' → ' . $tanggalSelesaiBaru . '. Alasan: ' . $alasanPerpanjangan;
+    push_notify_all_staff($pdo, 'izin_perpanjangan', $title, $body, [
+        'nis' => $nis,
+        'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+    ], '/perizinan/index.php');
+    if (perizinan_memerlukan_persetujuan_pengasuh($jenisKode)) {
+        push_notify_all_kiai($pdo, 'izin_perpanjangan', $title, $body, [
+            'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+        ], '/pengasuh/perizinan.php');
+    }
+}
+
 /**
  * Kirim WA permohonan izin baru langsung saat pengajuan (bukan lewat cron).
  *

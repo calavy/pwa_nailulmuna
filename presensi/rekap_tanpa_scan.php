@@ -237,6 +237,8 @@ require_once __DIR__ . '/../includes/header.php';
             <?php
             $ktsSlotRows = $kegiatanTanpaScan;
             $ktsListPrefix = 'rts';
+            require_once __DIR__ . '/../helpers/presensi_tanpa_scan_koreksi.php';
+            $ktsAllowKoreksi = user_can_presensi_tanpa_scan_koreksi();
             require __DIR__ . '/../includes/partials/kegiatan_tanpa_scan_grouped.php';
             ?>
         </div>

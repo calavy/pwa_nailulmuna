@@ -1610,6 +1610,35 @@ function rekap_keaktifan_slot_santri_roster(
         return [];
     }
 
+    $santriIds = array_values(array_unique(array_filter(array_map(
+        static fn(array $r): int => (int) ($r['santri_id'] ?? 0),
+        $rows
+    ), static fn(int $id): bool => $id > 0)));
+
+    require_once __DIR__ . '/presensi_tanpa_scan_koreksi.php';
+    $bebasMap = presensi_alpa_bebas_map($pdo, $kegiatanId, $tanggal, $santriIds);
+
+    /** @var array<int, array{id:int,status_presensi:string}> $presensiBySid */
+    $presensiBySid = [];
+    if ($santriIds !== [] && table_exists($pdo, 'presensi')) {
+        $ph = implode(',', array_fill(0, count($santriIds), '?'));
+        $stP = $pdo->prepare('
+            SELECT id, santri_id, status_presensi FROM presensi
+            WHERE kegiatan_id = ? AND tanggal_presensi = ? AND santri_id IN (' . $ph . ')
+            ORDER BY id DESC
+        ');
+        $stP->execute(array_merge([$kegiatanId, $tanggal], $santriIds));
+        foreach ($stP->fetchAll(PDO::FETCH_ASSOC) ?: [] as $pr) {
+            $sid = (int) ($pr['santri_id'] ?? 0);
+            if ($sid > 0 && !isset($presensiBySid[$sid])) {
+                $presensiBySid[$sid] = [
+                    'id' => (int) ($pr['id'] ?? 0),
+                    'status_presensi' => (string) ($pr['status_presensi'] ?? ''),
+                ];
+            }
+        }
+    }
+
     if ($rows !== [] && function_exists('presensi_apply_status_efektif_rows')) {
         $forEfektif = [];
         foreach ($rows as $r) {
@@ -1649,6 +1678,10 @@ function rekap_keaktifan_slot_santri_roster(
         }
         $seen[$sid] = true;
         $status = strtoupper(trim((string) ($r['status_presensi'] ?? '')));
+        if (!empty($bebasMap[$sid]) && $status !== 'HADIR') {
+            $status = 'BEBAS';
+        }
+        $presensiRow = $presensiBySid[$sid] ?? null;
         $out[] = [
             'santri_id' => $sid,
             'nis' => (string) ($r['nis'] ?? ''),
@@ -1656,6 +1689,8 @@ function rekap_keaktifan_slot_santri_roster(
             'tingkatan' => (string) ($r['tingkatan'] ?? ''),
             'status' => $status,
             'hadir' => $status === 'HADIR',
+            'presensi_id' => $presensiRow['id'] ?? 0,
+            'alpa_bebas' => !empty($bebasMap[$sid]),
         ];
     }
 

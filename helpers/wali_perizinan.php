@@ -8,6 +8,7 @@ require_once __DIR__ . '/wali_portal.php';
 require_once __DIR__ . '/perizinan_jenis.php';
 require_once __DIR__ . '/perizinan_approval.php';
 require_once __DIR__ . '/perizinan_syari_kategori.php';
+require_once __DIR__ . '/perizinan_aktif.php';
 
 function wali_perizinan_ensure_tables(PDO $pdo): void
 {
@@ -221,6 +222,106 @@ function wali_perizinan_ajukan(
 
         return ['ok' => false, 'message' => 'Gagal mengirim permohonan: ' . $e->getMessage()];
     }
+}
+
+/**
+ * @param list<int> $santriIds
+ * @return array<int, array<string, mixed>>
+ */
+function wali_perizinan_izin_aktif_map(PDO $pdo, array $santriIds): array
+{
+    wali_perizinan_ensure_tables($pdo);
+    $map = [];
+    foreach (array_values(array_unique(array_filter(array_map('intval', $santriIds), static fn(int $id): bool => $id > 0))) as $sid) {
+        $row = perizinan_izin_aktif_santri($pdo, $sid);
+        if ($row !== null) {
+            $today = date('Y-m-d');
+            $tglMulai = (string) ($row['tanggal_mulai'] ?? '');
+            $tglSelesai = (string) ($row['tanggal_selesai'] ?? '');
+            if ($today >= $tglMulai) {
+                $map[$sid] = $row;
+            }
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function wali_perizinan_ajukan_perpanjangan(
+    PDO $pdo,
+    int $izinId,
+    array $santriIdsAllowed,
+    string $tanggalSelesaiBaru,
+    string $alasanPerpanjangan
+): array {
+    wali_perizinan_ensure_tables($pdo);
+    if ($izinId <= 0) {
+        return ['ok' => false, 'message' => 'Data izin tidak valid.'];
+    }
+
+    $alasanPerpanjangan = trim($alasanPerpanjangan);
+    if ($alasanPerpanjangan === '') {
+        return ['ok' => false, 'message' => 'Alasan perpanjangan wajib diisi.'];
+    }
+    if (mb_strlen($alasanPerpanjangan) < 10) {
+        return ['ok' => false, 'message' => 'Alasan perpanjangan minimal 10 karakter.'];
+    }
+
+    $st = $pdo->prepare('
+        SELECT id, santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, approval_status, status_izin, waktu_kembali
+        FROM perizinan
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'message' => 'Izin tidak ditemukan.'];
+    }
+
+    $santriId = (int) ($row['santri_id'] ?? 0);
+    if ($santriId <= 0 || !in_array($santriId, $santriIdsAllowed, true)) {
+        return ['ok' => false, 'message' => 'Izin ini bukan milik anak yang terdaftar di akun wali Anda.'];
+    }
+
+    $aktif = perizinan_izin_aktif_santri($pdo, $santriId);
+    if ($aktif === null || (int) ($aktif['id'] ?? 0) !== $izinId) {
+        return ['ok' => false, 'message' => 'Santri tidak sedang dalam masa izin aktif.'];
+    }
+
+    $result = perizinan_perpanjang_izin(
+        $pdo,
+        $izinId,
+        trim($tanggalSelesaiBaru),
+        $alasanPerpanjangan,
+        true,
+        'wali'
+    );
+    if (!$result['ok']) {
+        return $result;
+    }
+
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $stInfo = $pdo->prepare('SELECT ' . $nameCol . ' AS nama_santri, nis FROM santri WHERE id = :id LIMIT 1');
+    $stInfo->execute(['id' => $santriId]);
+    $sInfo = $stInfo->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    require_once __DIR__ . '/push_events.php';
+    perizinan_push_setelah_perpanjangan(
+        $pdo,
+        (string) ($sInfo['nama_santri'] ?? '-'),
+        (string) ($sInfo['nis'] ?? ''),
+        (string) ($row['jenis_izin'] ?? ''),
+        (string) ($row['tanggal_mulai'] ?? ''),
+        (string) ($row['tanggal_selesai'] ?? ''),
+        trim($tanggalSelesaiBaru),
+        $alasanPerpanjangan
+    );
+
+    return $result;
 }
 
 function wali_perizinan_status_badge(string $status): string

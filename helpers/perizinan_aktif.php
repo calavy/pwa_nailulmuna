@@ -207,3 +207,128 @@ function perizinan_selesai_dari_scan_kartu(PDO $pdo, int $santriId, int $userId)
 
     return $res + ['izin_id' => $izinId];
 }
+
+/**
+ * Izin disetujui yang masih berjalan / santri belum kembali (satu baris terbaru per santri).
+ *
+ * @return array<string, mixed>|null
+ */
+function perizinan_izin_aktif_santri(PDO $pdo, int $santriId, ?string $tanggal = null): ?array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'perizinan')) {
+        return null;
+    }
+
+    $tanggal = $tanggal !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($tanggal))
+        ? trim($tanggal)
+        : date('Y-m-d');
+
+    $st = $pdo->prepare('
+        SELECT id, santri_id, jenis_izin, syari_kategori, tanggal_mulai, tanggal_selesai,
+               jam_mulai, jam_selesai, alasan, tujuan, approval_status, status_izin, waktu_kembali
+        FROM perizinan
+        WHERE santri_id = :sid
+          AND status_izin = "IZIN"
+          AND approval_status = "DISETUJUI"
+          AND waktu_kembali IS NULL
+          AND tanggal_mulai <= :tgl
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $st->execute(['sid' => $santriId, 'tgl' => $tanggal]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return $row ?: null;
+}
+
+/** @return list<string> */
+function perizinan_perpanjang_jenis_allowed(PDO $pdo, bool $includeSyari = false): array
+{
+    $jenisAllowed = array_values(array_filter(array_map(
+        'trim',
+        explode(',', strtoupper((string) app_setting($pdo, 'izin_perpanjangan_jenis', 'SAKIT,KELUAR')))
+    )));
+    if ($includeSyari && !in_array('SYARI', $jenisAllowed, true)) {
+        $jenisAllowed[] = 'SYARI';
+    }
+
+    return $jenisAllowed;
+}
+
+/**
+ * Perpanjang tanggal selesai izin yang masih disetujui.
+ *
+ * @return array{ok:bool,message:string}
+ */
+function perizinan_perpanjang_izin(
+    PDO $pdo,
+    int $izinId,
+    string $tglBaru,
+    string $alasanPerpanjangan = '',
+    bool $includeSyariJenis = false,
+    string $sumberCatatan = 'admin'
+): array {
+    if ($izinId <= 0 || $tglBaru === '') {
+        return ['ok' => false, 'message' => 'Data perpanjangan tidak lengkap.'];
+    }
+
+    $maxHari = max(1, (int) app_setting($pdo, 'izin_perpanjangan_max_hari', '7'));
+    $jenisAllowed = perizinan_perpanjang_jenis_allowed($pdo, $includeSyariJenis);
+
+    $st = $pdo->prepare('
+        SELECT id, jenis_izin, tanggal_mulai, tanggal_selesai, approval_status, status_izin, waktu_kembali, alasan
+        FROM perizinan
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return ['ok' => false, 'message' => 'Izin tidak ditemukan.'];
+    }
+
+    if (($row['approval_status'] ?? '') !== 'DISETUJUI') {
+        return ['ok' => false, 'message' => 'Hanya izin yang sudah disetujui dapat diperpanjang.'];
+    }
+    if (($row['status_izin'] ?? '') !== 'IZIN' || ($row['waktu_kembali'] ?? null) !== null) {
+        return ['ok' => false, 'message' => 'Izin sudah selesai — tidak dapat diperpanjang.'];
+    }
+
+    $jenis = strtoupper((string) ($row['jenis_izin'] ?? ''));
+    if (!in_array($jenis, $jenisAllowed, true)) {
+        return ['ok' => false, 'message' => 'Jenis izin ini tidak dapat diperpanjang sesuai pengaturan pondok.'];
+    }
+
+    $tglLama = (string) ($row['tanggal_selesai'] ?? '');
+    $tsLama = strtotime($tglLama);
+    $tsBaru = strtotime($tglBaru);
+    if ($tsBaru === false || $tsLama === false || $tsBaru < $tsLama) {
+        return ['ok' => false, 'message' => 'Tanggal selesai baru harus sama atau setelah tanggal selesai saat ini.'];
+    }
+
+    $selisih = (int) round(($tsBaru - $tsLama) / 86400);
+    if ($selisih > $maxHari) {
+        return ['ok' => false, 'message' => 'Perpanjangan melebihi batas ' . $maxHari . ' hari (pengaturan pondok).'];
+    }
+
+    $alasanPerpanjangan = trim($alasanPerpanjangan);
+    $params = ['tgl' => $tglBaru, 'id' => $izinId];
+    $sql = 'UPDATE perizinan SET tanggal_selesai = :tgl';
+    if ($alasanPerpanjangan !== '') {
+        $labelSumber = $sumberCatatan === 'wali' ? 'portal wali' : 'pengurus';
+        $catatan = "\n[Perpanjangan " . date('d/m/Y H:i') . ' via ' . $labelSumber . ']: ' . $alasanPerpanjangan;
+        $sql .= ', alasan = :alasan';
+        $params['alasan'] = trim((string) ($row['alasan'] ?? '')) . $catatan;
+    }
+    $sql .= ' WHERE id = :id';
+    $pdo->prepare($sql)->execute($params);
+
+    $tglFormatted = function_exists('app_format_tanggal_id')
+        ? app_format_tanggal_id($tglBaru)
+        : $tglBaru;
+
+    return [
+        'ok' => true,
+        'message' => 'Perpanjangan izin disimpan sampai ' . $tglFormatted . '.',
+    ];
+}

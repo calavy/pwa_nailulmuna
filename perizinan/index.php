@@ -153,31 +153,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if ($action === 'perpanjang_izin') {
+        require_once __DIR__ . '/../helpers/perizinan_aktif.php';
         $id = (int) ($_POST['izin_id'] ?? 0);
         $tglBaru = trim((string) ($_POST['tanggal_selesai_baru'] ?? ''));
-        $maxHari = max(1, (int) app_setting($pdo, 'izin_perpanjangan_max_hari', '7'));
-        $jenisAllowed = array_map('trim', explode(',', strtoupper((string) app_setting($pdo, 'izin_perpanjangan_jenis', 'SAKIT,KELUAR'))));
         if ($id > 0 && $tglBaru !== '') {
-            $iz = $pdo->prepare('SELECT id, jenis_izin, tanggal_mulai, tanggal_selesai, approval_status FROM perizinan WHERE id = :id LIMIT 1');
-            $iz->execute(['id' => $id]);
-            $rowIz = $iz->fetch(PDO::FETCH_ASSOC);
-            if ($rowIz && ($rowIz['approval_status'] ?? '') === 'DISETUJUI' && in_array(strtoupper((string) ($rowIz['jenis_izin'] ?? '')), $jenisAllowed, true)) {
-                $tglLama = (string) ($rowIz['tanggal_selesai'] ?? '');
-                $tsLama = strtotime($tglLama);
-                $tsBaru = strtotime($tglBaru);
-                if ($tsBaru !== false && $tsLama !== false && $tsBaru >= $tsLama) {
-                    $selisih = (int) round(($tsBaru - $tsLama) / 86400);
-                    if ($selisih <= $maxHari) {
-                        $pdo->prepare('UPDATE perizinan SET tanggal_selesai = :tgl WHERE id = :id')->execute(['tgl' => $tglBaru, 'id' => $id]);
-                        set_flash('success', 'Perpanjangan izin disimpan sampai ' . $tglBaru . '.');
-                    } else {
-                        set_flash('error', 'Perpanjangan melebihi batas ' . $maxHari . ' hari (pengaturan).');
-                    }
-                } else {
-                    set_flash('error', 'Tanggal selesai baru harus sama atau setelah tanggal selesai saat ini.');
-                }
+            $result = perizinan_perpanjang_izin($pdo, $id, $tglBaru, '', false, 'admin');
+            if ($result['ok']) {
+                set_flash('success', $result['message']);
             } else {
-                set_flash('error', 'Izin tidak dapat diperpanjang (status atau jenis tidak sesuai pengaturan).');
+                set_flash('error', $result['message']);
             }
         }
         header('Location: ' . app_href('/perizinan/index.php'));

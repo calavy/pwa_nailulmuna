@@ -9,14 +9,19 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $ktsSlotRows baris per slot dari rekap_keaktifan_kegiatan_tanpa_scan_bulan()
  * @var string $ktsListPrefix id unik untuk panel detail
  * @var bool $ktsShowHint
+ * @var bool $ktsAllowKoreksi super admin — hapus ALPA / catat hadir manual
  */
 $ktsSlotRows = (array) ($ktsSlotRows ?? []);
 $ktsListPrefix = preg_replace('/[^a-z0-9_-]/i', '', (string) ($ktsListPrefix ?? 'kts')) ?: 'kts';
 $ktsShowHint = !isset($ktsShowHint) || $ktsShowHint;
+$ktsAllowKoreksi = !empty($ktsAllowKoreksi);
 $ktsGrouped = rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($ktsSlotRows);
 $ktsRosterApi = function_exists('app_href')
     ? app_href('/api/presensi/kegiatan_slot_santri.php')
     : '/api/presensi/kegiatan_slot_santri.php';
+$ktsKoreksiApi = function_exists('app_href')
+    ? app_href('/api/presensi/slot_koreksi.php')
+    : '/api/presensi/slot_koreksi.php';
 
 if ($ktsGrouped === []) {
     return;
@@ -26,9 +31,15 @@ if ($ktsGrouped === []) {
 <p class="small text-muted mb-2">
     Ketuk baris kegiatan untuk lihat tanggal &amp; waktu tanpa scan.
     Ketuk tanggal/waktu untuk lihat daftar santri (centang = hadir).
+    <?php if ($ktsAllowKoreksi): ?>
+        <span class="d-block mt-1 text-warning-emphasis"><i class="fa-solid fa-shield-halved me-1"></i>Admin super: centang santri lalu hapus ALPA atau catat hadir manual.</span>
+    <?php endif; ?>
 </p>
 <?php endif; ?>
-<ol class="kts-grouped-list list-unstyled mb-0" data-kts-roster-api="<?= htmlspecialchars($ktsRosterApi) ?>">
+<ol class="kts-grouped-list list-unstyled mb-0"
+    data-kts-roster-api="<?= htmlspecialchars($ktsRosterApi) ?>"
+    data-kts-koreksi-api="<?= htmlspecialchars($ktsKoreksiApi) ?>"
+    data-kts-allow-koreksi="<?= $ktsAllowKoreksi ? '1' : '0' ?>">
     <?php foreach ($ktsGrouped as $idx => $kgRow):
         $jmlTidak = (int) ($kgRow['jumlah_tidak_scan'] ?? 0);
         $detailSlots = (array) ($kgRow['detail'] ?? []);
@@ -122,14 +133,22 @@ if ($ktsGrouped === []) {
     function statusBadge(status) {
         var st = String(status || '').toUpperCase();
         if (st === 'HADIR') return '<span class="badge text-bg-success">HADIR</span>';
+        if (st === 'BEBAS') return '<span class="badge text-bg-secondary">Bebas ALPA</span>';
         if (st === 'IZIN') return '<span class="badge text-bg-info">IZIN</span>';
         if (st === 'SAKIT') return '<span class="badge text-bg-warning">SAKIT</span>';
         if (st === 'ALPA') return '<span class="badge text-bg-danger">ALPA</span>';
         return '<span class="badge text-bg-secondary">Belum</span>';
     }
 
-    function renderRoster(body, data) {
+    function rosterAllowKoreksi(list) {
+        if (!list) return false;
+        if (list.getAttribute('data-kts-allow-koreksi') === '1') return true;
+        return false;
+    }
+
+    function renderRoster(body, data, slotRow) {
         var items = (data && data.items) ? data.items : [];
+        var allowKoreksi = !!(data && data.allow_koreksi) || rosterAllowKoreksi(body.closest('[data-kts-roster-api]'));
         if (!items.length) {
             body.innerHTML = '<div class="small text-muted p-2">Tidak ada santri wajib untuk slot ini.</div>';
             return;
@@ -138,13 +157,29 @@ if ($ktsGrouped === []) {
         var total = Number(data.total || items.length);
         var html = '';
         html += '<div class="kts-slot-roster__meta small text-muted px-2 pt-2">';
-        html += 'Hadir ' + hadir + '/' + total + ' · centang = hadir (lihat saja)';
-        html += '</div><ul class="kts-slot-roster__list list-unstyled mb-0">';
+        html += 'Hadir ' + hadir + '/' + total;
+        if (allowKoreksi) {
+            html += ' · centang santri untuk koreksi';
+        } else {
+            html += ' · centang = hadir (lihat saja)';
+        }
+        html += '</div>';
+        if (allowKoreksi) {
+            html += '<div class="kts-slot-roster__actions d-flex flex-wrap gap-2 px-2 py-2 border-bottom">';
+            html += '<button type="button" class="btn btn-outline-danger btn-sm" data-kts-action="hapus_alpa"><i class="fa-solid fa-eraser me-1"></i>Hapus ALPA</button>';
+            html += '<button type="button" class="btn btn-outline-success btn-sm" data-kts-action="catat_hadir"><i class="fa-solid fa-user-check me-1"></i>Catat hadir manual</button>';
+            html += '</div>';
+        }
+        html += '<ul class="kts-slot-roster__list list-unstyled mb-0">';
         items.forEach(function (it) {
-            var checked = it.hadir ? ' checked' : '';
+            var st = String(it.status || '').toUpperCase();
+            var checked = (!allowKoreksi && it.hadir) ? ' checked' : '';
+            var canSelect = allowKoreksi && st !== 'HADIR';
             html += '<li class="kts-slot-roster__item">';
             html += '<label class="kts-slot-roster__label">';
-            html += '<input type="checkbox" disabled' + checked + '>';
+            html += '<input type="checkbox" class="kts-roster-chk" data-santri-id="' + escapeHtml(String(it.santri_id || '')) + '"'
+                + (canSelect ? '' : ' disabled')
+                + checked + '>';
             html += '<span class="kts-slot-roster__nama">' + escapeHtml(it.nama_santri || '-') + '</span>';
             if (it.nis) {
                 html += '<span class="kts-slot-roster__nis text-muted">' + escapeHtml(it.nis) + '</span>';
@@ -154,9 +189,75 @@ if ($ktsGrouped === []) {
         });
         html += '</ul>';
         body.innerHTML = html;
+        body.setAttribute('data-loaded', '1');
+        body.setAttribute('data-slot-kegiatan-id', slotRow ? (slotRow.getAttribute('data-kegiatan-id') || '') : '');
+        body.setAttribute('data-slot-tanggal', slotRow ? (slotRow.getAttribute('data-tanggal') || '') : '');
+        body.setAttribute('data-slot-tingkatan', slotRow ? (slotRow.getAttribute('data-tingkatan') || '') : '');
     }
 
-    function loadRoster(row) {
+    function selectedSantriIds(body) {
+        var ids = [];
+        body.querySelectorAll('.kts-roster-chk:checked').forEach(function (el) {
+            var sid = parseInt(el.getAttribute('data-santri-id') || '0', 10);
+            if (sid > 0) ids.push(sid);
+        });
+        return ids;
+    }
+
+    function postKoreksi(body, action, slotRow) {
+        var list = body.closest('[data-kts-roster-api]');
+        var api = list ? list.getAttribute('data-kts-koreksi-api') : '';
+        if (!api) return;
+        var ids = selectedSantriIds(body);
+        if (!ids.length) {
+            alert('Pilih minimal satu santri.');
+            return;
+        }
+        var label = action === 'hapus_alpa' ? 'hapus ALPA' : 'catat hadir manual';
+        if (!confirm('Yakin ' + label + ' untuk ' + ids.length + ' santri terpilih?')) {
+            return;
+        }
+        var kid = body.getAttribute('data-slot-kegiatan-id') || (slotRow ? slotRow.getAttribute('data-kegiatan-id') : '') || '';
+        var tgl = body.getAttribute('data-slot-tanggal') || (slotRow ? slotRow.getAttribute('data-tanggal') : '') || '';
+        var tk = body.getAttribute('data-slot-tingkatan') || (slotRow ? slotRow.getAttribute('data-tingkatan') : '') || '';
+        if (tk.indexOf(',') !== -1 || /^semua/i.test(tk)) {
+            tk = '';
+        }
+        body.innerHTML = '<div class="small text-muted p-2"><i class="fa-solid fa-spinner fa-spin me-1"></i>Menyimpan…</div>';
+        fetch(api, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                action: action,
+                kegiatan_id: parseInt(kid, 10),
+                tanggal: tgl,
+                tingkatan: tk,
+                santri_ids: ids
+            })
+        })
+            .then(function (r) { return r.json().then(function (j) { return { okHttp: r.ok, j: j }; }); })
+            .then(function (res) {
+                if (!res.okHttp || !res.j || !res.j.ok) {
+                    body.innerHTML = '<div class="small text-danger p-2">'
+                        + escapeHtml((res.j && res.j.message) ? res.j.message : 'Gagal menyimpan koreksi.')
+                        + '</div>';
+                    body.removeAttribute('data-loaded');
+                    return;
+                }
+                body.removeAttribute('data-loaded');
+                if (slotRow) {
+                    loadRoster(slotRow, true);
+                }
+                alert(res.j.message || 'Berhasil disimpan.');
+            })
+            .catch(function () {
+                body.innerHTML = '<div class="small text-danger p-2">Gagal menyimpan koreksi.</div>';
+                body.removeAttribute('data-loaded');
+            });
+    }
+
+    function loadRoster(row, forceReload) {
         var list = row.closest('[data-kts-roster-api]');
         var api = list ? list.getAttribute('data-kts-roster-api') : '';
         var targetId = row.getAttribute('data-roster-target');
@@ -176,7 +277,7 @@ if ($ktsGrouped === []) {
         }
         row.setAttribute('aria-expanded', 'true');
         rosterRow.hidden = false;
-        if (body.getAttribute('data-loaded') === '1') {
+        if (body.getAttribute('data-loaded') === '1' && !forceReload) {
             return;
         }
         body.innerHTML = '<div class="small text-muted p-2">Memuat daftar santri…</div>';
@@ -201,8 +302,7 @@ if ($ktsGrouped === []) {
                         + '</div>';
                     return;
                 }
-                renderRoster(body, res.j);
-                body.setAttribute('data-loaded', '1');
+                renderRoster(body, res.j, row);
             })
             .catch(function () {
                 body.innerHTML = '<div class="small text-danger p-2">Gagal memuat daftar santri.</div>';
@@ -210,6 +310,17 @@ if ($ktsGrouped === []) {
     }
 
     document.addEventListener('click', function (ev) {
+        var actionBtn = ev.target.closest('[data-kts-action]');
+        if (actionBtn) {
+            ev.preventDefault();
+            var body = actionBtn.closest('[data-kts-roster-body]');
+            var rosterRow = actionBtn.closest('.kts-slot-roster-row');
+            var slotRow = rosterRow && rosterRow.previousElementSibling ? rosterRow.previousElementSibling : null;
+            if (body && slotRow && slotRow.hasAttribute('data-kts-slot')) {
+                postKoreksi(body, actionBtn.getAttribute('data-kts-action') || '', slotRow);
+            }
+            return;
+        }
         var slot = ev.target.closest('[data-kts-slot]');
         if (slot) {
             ev.preventDefault();
@@ -347,6 +458,9 @@ if ($ktsGrouped === []) {
     padding: .45rem .75rem;
     margin: 0;
     cursor: default;
+}
+.kts-slot-roster__actions .btn {
+    font-size: .78rem;
 }
 .kts-slot-roster__nama {
     font-weight: 560;

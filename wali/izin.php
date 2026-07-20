@@ -16,9 +16,29 @@ $syariKategoriOpsi = perizinan_syari_kategori_list_portal($pdo);
 $alpaInfoAwal = wali_perizinan_alpa_info_portal($pdo, $waliSantriId, date('Y-m-d'));
 $pendingAwal = perizinan_santri_pending_row($pdo, $waliSantriId);
 $pendingBlokirAwal = perizinan_pesan_blokir_pending($pendingAwal);
+$izinPerpanjanganMaxHari = max(1, (int) app_setting($pdo, 'izin_perpanjangan_max_hari', '7'));
+$izinAktifMap = wali_perizinan_izin_aktif_map($pdo, $waliAnakIds);
 $apiAlpaUrl = app_href('/wali/api_alpa.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = trim((string) ($_POST['action'] ?? 'ajukan'));
+    if ($action === 'perpanjang_izin') {
+        $result = wali_perizinan_ajukan_perpanjangan(
+            $pdo,
+            (int) ($_POST['izin_id'] ?? 0),
+            $waliAnakIds,
+            trim((string) ($_POST['tanggal_selesai_baru'] ?? '')),
+            trim((string) ($_POST['alasan_perpanjangan'] ?? ''))
+        );
+        if ($result['ok']) {
+            set_flash('success', $result['message']);
+        } else {
+            set_flash('error', $result['message']);
+        }
+        header('Location: ' . app_href('/wali/izin.php'));
+        exit;
+    }
+
     $targetSantriId = (int) ($_POST['santri_id'] ?? $waliSantriId);
     $result = wali_perizinan_ajukan(
         $pdo,
@@ -69,6 +89,29 @@ require __DIR__ . '/partials/anak_switcher.php';
                     <li class="mb-2"><strong>Pengurus</strong> — Dapat mengesahkan atau menganulir keputusan sistem.</li>
                     <li class="mb-0"><strong>Pengasuh</strong> — Dapat menganulir atau mengesahkan keputusan sistem maupun pengurus.</li>
                 </ol>
+            </div>
+        </div>
+
+        <div class="card wali-card shadow-sm mb-3 border-success border-opacity-25 d-none" id="card-perpanjang-izin">
+            <div class="card-body">
+                <h2 class="h6 mb-2"><i class="fa-solid fa-calendar-plus text-success me-1"></i> Perpanjangan izin</h2>
+                <p class="small text-muted mb-3" id="perpanjang-info-izin">Anak Anda sedang izin. Ajukan perpanjangan jika diperlukan.</p>
+                <form method="post" class="row g-2" id="form-perpanjang-izin">
+                    <input type="hidden" name="action" value="perpanjang_izin">
+                    <input type="hidden" name="izin_id" id="perpanjang-izin-id" value="">
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Tanggal selesai baru</label>
+                        <input type="date" name="tanggal_selesai_baru" id="perpanjang-tgl-baru" class="form-control form-control-sm" required>
+                        <div class="form-text">Maks. tambahan <?= (int) $izinPerpanjanganMaxHari ?> hari dari tanggal selesai saat ini.</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Alasan perpanjangan <span class="text-danger">*</span></label>
+                        <textarea name="alasan_perpanjangan" id="perpanjang-alasan" class="form-control form-control-sm" rows="3" minlength="10" maxlength="500" required placeholder="Jelaskan alasan perpanjangan izin…"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-success btn-sm w-100">Ajukan perpanjangan izin</button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -201,6 +244,59 @@ require __DIR__ . '/partials/anak_switcher.php';
 
 <script>
 (function () {
+    var izinAktifMap = <?= json_encode($izinAktifMap, JSON_UNESCAPED_UNICODE) ?>;
+    var perpanjanganMaxHari = <?= (int) $izinPerpanjanganMaxHari ?>;
+    var cardPerpanjang = document.getElementById('card-perpanjang-izin');
+    var formPerpanjang = document.getElementById('form-perpanjang-izin');
+    var perpanjangInfo = document.getElementById('perpanjang-info-izin');
+    var perpanjangIzinId = document.getElementById('perpanjang-izin-id');
+    var perpanjangTglBaru = document.getElementById('perpanjang-tgl-baru');
+    var perpanjangAlasan = document.getElementById('perpanjang-alasan');
+
+    function formatDate(d) {
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+
+    function formatDateId(iso) {
+        if (!iso || iso.length < 10) return iso || '—';
+        var p = iso.split('-');
+        if (p.length !== 3) return iso;
+        return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function renderPerpanjanganCard(sid) {
+        if (!cardPerpanjang || !formPerpanjang) return;
+        var row = izinAktifMap[String(sid)] || izinAktifMap[sid];
+        if (!row) {
+            cardPerpanjang.classList.add('d-none');
+            if (perpanjangIzinId) perpanjangIzinId.value = '';
+            return;
+        }
+        cardPerpanjang.classList.remove('d-none');
+        if (perpanjangIzinId) perpanjangIzinId.value = String(row.id || '');
+        var tglLama = String(row.tanggal_selesai || '');
+        var tglMulai = String(row.tanggal_mulai || '');
+        if (perpanjangInfo) {
+            perpanjangInfo.textContent = 'Izin aktif #' + String(row.id || '') + ' · '
+                + formatDateId(tglMulai) + ' – ' + formatDateId(tglLama)
+                + '. Isi alasan dan tanggal selesai baru jika perlu diperpanjang.';
+        }
+        if (perpanjangTglBaru && tglLama) {
+            var end = new Date(tglLama + 'T00:00:00');
+            var maxEnd = new Date(end);
+            maxEnd.setDate(maxEnd.getDate() + (perpanjanganMaxHari > 0 ? perpanjanganMaxHari : 7));
+            perpanjangTglBaru.min = tglLama;
+            perpanjangTglBaru.max = formatDate(maxEnd);
+            perpanjangTglBaru.value = tglLama;
+        }
+        if (perpanjangAlasan) {
+            perpanjangAlasan.value = '';
+        }
+    }
+
     var form = document.getElementById('form-wali-izin');
     if (!form) return;
     var select = document.getElementById('syari-kategori-select');
@@ -328,8 +424,13 @@ require __DIR__ . '/partials/anak_switcher.php';
         updateSelesai();
     }
     if (santriSelect) {
-        santriSelect.addEventListener('change', refreshAlpa);
+        santriSelect.addEventListener('change', function () {
+            refreshAlpa();
+            renderPerpanjanganCard(parseInt(santriSelect.value || '0', 10));
+        });
     }
+    var sidAwal = form ? form.querySelector('[name="santri_id"]') : null;
+    renderPerpanjanganCard(parseInt((sidAwal && sidAwal.value) ? sidAwal.value : '<?= (int) $waliSantriId ?>', 10));
     renderAlpa(<?= json_encode($alpaInfoAwal, JSON_UNESCAPED_UNICODE) ?>);
     renderPending({
         pending_blocked: <?= $pendingBlokirAwal !== null ? 'true' : 'false' ?>,

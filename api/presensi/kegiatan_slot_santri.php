@@ -43,6 +43,9 @@ $items = rekap_keaktifan_slot_santri_roster(
     $tingkatan !== '' ? $tingkatan : null
 );
 
+require_once __DIR__ . '/../../helpers/presensi_tanpa_scan_koreksi.php';
+$allowKoreksi = user_can_presensi_tanpa_scan_koreksi();
+
 $hadir = 0;
 foreach ($items as $it) {
     if (!empty($it['hadir'])) {
@@ -58,5 +61,6 @@ echo json_encode([
     'tingkatan' => $tingkatan,
     'total' => count($items),
     'hadir' => $hadir,
+    'allow_koreksi' => $allowKoreksi,
     'items' => $items,
 ], JSON_UNESCAPED_UNICODE);

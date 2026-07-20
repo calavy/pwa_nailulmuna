@@ -2927,6 +2927,15 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
                 continue;
             }
 
+            if ($desiredStatus === 'ALPA') {
+                if (!function_exists('presensi_alpa_bebas_is_set')) {
+                    require_once __DIR__ . '/presensi_tanpa_scan_koreksi.php';
+                }
+                if (presensi_alpa_bebas_is_set($activePdo, $santriId, $kegiatanIdInt, $tanggal)) {
+                    continue;
+                }
+            }
+
             $existing = $existingMap[$santriId] ?? null;
             if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
                 continue;
