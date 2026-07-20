@@ -12,6 +12,7 @@ require_once __DIR__ . '/../helpers/keuangan_cek_pembayaran.php';
 
 require_roles(['admin', 'pengurus']);
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+require_once __DIR__ . '/../helpers/keuangan_kuitansi.php';
 keuangan_ensure_schema_deferred($pdo);
 pembayaran_edit_token_ensure_schema($pdo);
 $canKoreksiPembayaran = user_can_koreksi_pembayaran();
@@ -56,7 +57,7 @@ $santriId = (int) ($_GET['santri_id'] ?? 0);
 $q = trim((string) ($_GET['q'] ?? ''));
 $semuaPeriode = (string) ($_GET['semua_periode'] ?? '') === '1';
 $metode = strtoupper(trim((string) ($_GET['metode'] ?? '')));
-if (!in_array($metode, ['', 'KAS', 'TRANSFER'], true)) {
+if (!in_array($metode, ['', 'KAS', 'TRANSFER', 'MIDTRANS'], true)) {
     $metode = '';
 }
 $posSlug = trim((string) ($_GET['pos'] ?? ''));
@@ -383,6 +384,7 @@ $flashErr = get_flash('error');
             <option value="" <?= $metode === '' ? 'selected' : '' ?>>Semua</option>
             <option value="KAS" <?= $metode === 'KAS' ? 'selected' : '' ?>>Kas</option>
             <option value="TRANSFER" <?= $metode === 'TRANSFER' ? 'selected' : '' ?>>Transfer</option>
+            <option value="MIDTRANS" <?= $metode === 'MIDTRANS' ? 'selected' : '' ?>>Midtrans</option>
         </select>
     </div>
     <div class="col-12 col-md-3 col-lg-2">
@@ -572,7 +574,7 @@ $flashErr = get_flash('error');
                             <?php endif; ?>
                         </td>
                         <td class="text-end font-monospace small">Rp <?= number_format((int) round((float) $row['total_nominal']), 0, ',', '.') ?></td>
-                        <td class="small"><?= htmlspecialchars((string) ($row['metode_bayar'] ?? 'KAS')) ?></td>
+                        <td class="small"><?= htmlspecialchars(keuangan_kuitansi_metode_label((string) ($row['metode_bayar'] ?? 'KAS'))) ?></td>
                         <td class="small">
                             <?php
                             $ak = trim((string) ($row['nama_akun'] ?? ''));

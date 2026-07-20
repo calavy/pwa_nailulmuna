@@ -59,6 +59,17 @@ $tunggakan = (array) ($tagihanKumulatif['per_bulan_tunggakan'] ?? []);
             <span class="wali-stat-label">Sisa</span>
             <span class="font-monospace fw-bold <?= $sisaTotal > 0 ? 'text-danger' : 'text-success' ?>">Rp <?= number_format($sisaTotal, 0, ',', '.') ?></span>
         </div>
+        <?php if ($compact && $tunggakan !== []): ?>
+            <div class="small border-top pt-2 mb-2">
+                <div class="text-muted mb-1">Tunggakan:</div>
+                <?php foreach (array_slice($tunggakan, 0, 2) as $tb): ?>
+                    <div class="d-flex justify-content-between py-0">
+                        <span><?= htmlspecialchars((string) ($tb['label'] ?? '')) ?></span>
+                        <span class="font-monospace text-danger">Rp <?= number_format((int) ($tb['sisa_total'] ?? 0), 0, ',', '.') ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
         <?php if (!$compact && $tunggakan !== []): ?>
             <div class="small border-top pt-2 mb-3">
                 <div class="text-muted mb-1">Bulan dengan tunggakan:</div>
@@ -72,14 +83,19 @@ $tunggakan = (array) ($tagihanKumulatif['per_bulan_tunggakan'] ?? []);
                 </ul>
             </div>
         <?php endif; ?>
+        <?php
+        // Selalu coba tampilkan CTA Midtrans (compact = link ke Keuangan; penuh = modal Snap)
+        $sisaTotal = (int) ($tagihanKumulatif['sisa_total'] ?? 0);
+        require __DIR__ . '/midtrans_bayar.php';
+        ?>
         <?php if (!$compact): ?>
-            <a class="btn btn-sm btn-teal w-100" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>">Riwayat Keuangan &amp; bukti</a>
+            <a class="btn btn-sm btn-outline-secondary w-100" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar')) ?>">Riwayat Keuangan &amp; bukti</a>
         <?php endif; ?>
         <?php if (!$hideTagihanLink): ?>
         <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=tagihan')) ?>">Detail per bulan</a>
         <?php endif; ?>
         <?php if (!$compact): ?>
-            <p class="small text-muted mt-2 mb-0">Pembayaran dilakukan melalui pengurus pondok. Bulan setelah periode berjalan belum ditagihkan.</p>
+            <p class="small text-muted mt-2 mb-0">Bayar online lewat popup Midtrans (QRIS / VA), atau melalui pengurus pondok. Bulan setelah periode berjalan belum ditagihkan.</p>
         <?php endif; ?>
     </div>
 </div>

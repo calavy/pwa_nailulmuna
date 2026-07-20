@@ -3852,6 +3852,7 @@ function menu_tile_icon_for_path(string $path): string
         '/settings/admin.php' => 'fa-solid fa-user-shield',
         '/settings/presensi_data.php' => 'fa-solid fa-database',
         '/settings/push.php' => 'fa-solid fa-bell',
+        '/settings/midtrans.php' => 'fa-solid fa-credit-card',
         '/pembayaran/rekap_pos.php' => 'fa-solid fa-chart-pie',
         '/settings/hijri_mappings.php' => 'fa-solid fa-moon',
         '/yayasan/pengurus.php' => 'fa-solid fa-user-tie',

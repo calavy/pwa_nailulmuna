@@ -121,21 +121,34 @@ function zip_archive_read_entry_native(string $zipPath, string $entryName): ?str
         if ($rest === false || strlen($rest) !== 26) {
             break;
         }
-        $meta = unpack('vversion/vflags/vmethod/VmodTime/VmodDate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen', $rest);
-        $name = @fread($handle, (int) $meta['nameLen']);
+        $meta = unpack('vversion/vflags/vmethod/vmodTime/vmodDate/Vcrc/VcompSize/VuncompSize/vnameLen/vextraLen', $rest);
+        if ($meta === false) {
+            break;
+        }
+        $nameLen = (int) ($meta['nameLen'] ?? 0);
+        $extraLen = (int) ($meta['extraLen'] ?? 0);
+        $compSize = (int) ($meta['compSize'] ?? 0);
+        $flags = (int) ($meta['flags'] ?? 0);
+
+        // Bit 3 = data descriptor: ukuran bisa 0 di local header (tidak didukung penuh)
+        if (($flags & 0x08) !== 0 && $compSize === 0) {
+            break;
+        }
+
+        $name = $nameLen > 0 ? @fread($handle, $nameLen) : '';
         if ($name === false) {
             break;
         }
-        if ((int) $meta['extraLen'] > 0) {
-            @fread($handle, (int) $meta['extraLen']);
+        if ($extraLen > 0) {
+            @fread($handle, $extraLen);
         }
-        $name = str_replace('\\', '/', $name);
-        $data = @fread($handle, (int) $meta['compSize']);
+        $name = str_replace('\\', '/', (string) $name);
+        $data = $compSize > 0 ? @fread($handle, $compSize) : '';
         if ($data === false) {
             break;
         }
         if ($name === $entryName) {
-            $result = zip_archive_inflate_entry($data, (int) $meta['method'], (int) $meta['uncompSize']);
+            $result = zip_archive_inflate_entry((string) $data, (int) $meta['method'], (int) $meta['uncompSize']);
             break;
         }
     }
@@ -298,7 +311,7 @@ function parse_xlsx_rows(string $filePath): array
     $sharedStrings = [];
     $sharedXml = zip_archive_read_entry($filePath, 'xl/sharedStrings.xml');
     if ($sharedXml !== null && $sharedXml !== '') {
-        $shared = simplexml_load_string($sharedXml);
+        $shared = @simplexml_load_string(excel_strip_xml_namespaces($sharedXml));
         if ($shared && isset($shared->si)) {
             foreach ($shared->si as $item) {
                 $value = '';
@@ -316,10 +329,38 @@ function parse_xlsx_rows(string $filePath): array
 
     $sheetXml = zip_archive_read_entry($filePath, 'xl/worksheets/sheet1.xml');
     if ($sheetXml === null || $sheetXml === '') {
-        throw new RuntimeException('Sheet1 pada Excel tidak ditemukan.');
+        $relsXml = zip_archive_read_entry($filePath, 'xl/_rels/workbook.xml.rels');
+        if ($relsXml !== null && $relsXml !== '') {
+            $rels = @simplexml_load_string(excel_strip_xml_namespaces($relsXml));
+            if ($rels) {
+                foreach ($rels->Relationship as $rel) {
+                    $type = strtolower((string) ($rel['Type'] ?? ''));
+                    if (!str_contains($type, '/worksheet')) {
+                        continue;
+                    }
+                    $target = str_replace('\\', '/', (string) ($rel['Target'] ?? ''));
+                    if ($target === '') {
+                        continue;
+                    }
+                    if (!str_starts_with($target, 'xl/')) {
+                        $target = 'xl/' . ltrim($target, '/');
+                    }
+                    $sheetXml = zip_archive_read_entry($filePath, $target);
+                    if ($sheetXml !== null && $sheetXml !== '') {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if ($sheetXml === null || $sheetXml === '') {
+        $hint = class_exists('ZipArchive')
+            ? 'Pastikan file .xlsx valid dan berisi minimal 1 sheet.'
+            : 'Aktifkan extension=zip di php.ini lalu restart Apache.';
+        throw new RuntimeException('Sheet Excel tidak ditemukan. ' . $hint);
     }
 
-    $sheet = simplexml_load_string($sheetXml);
+    $sheet = @simplexml_load_string(excel_strip_xml_namespaces($sheetXml));
     if (!$sheet || !isset($sheet->sheetData->row)) {
         return [];
     }
@@ -329,7 +370,10 @@ function parse_xlsx_rows(string $filePath): array
         $rowData = [];
         foreach ($row->c as $cell) {
             $ref = (string) $cell['r'];
-            $column = preg_replace('/\d+/', '', $ref);
+            $column = preg_replace('/\d+/', '', $ref) ?? '';
+            if ($column === '') {
+                continue;
+            }
             $type = (string) $cell['t'];
             $value = '';
             if ($type === 'inlineStr' && isset($cell->is->t)) {
@@ -351,6 +395,15 @@ function parse_xlsx_rows(string $filePath): array
     return $rows;
 }
 
+/** Buang xmlns agar SimpleXML mudah dibaca (OOXML sering memakai default namespace). */
+function excel_strip_xml_namespaces(string $xml): string
+{
+    $xml = preg_replace('/\sxmlns(:\w+)?="[^"]*"/i', '', $xml) ?? $xml;
+    $xml = preg_replace('/\sxmlns(:\w+)?=\'[^\']*\'/i', '', $xml) ?? $xml;
+
+    return $xml;
+}
+
 function normalize_santri_import_rows(array $rows): array
 {
     if (!$rows) {
@@ -367,6 +420,7 @@ function normalize_santri_import_rows(array $rows): array
                 'nama_santri' => trim((string) ($raw['nama_santri'] ?? $raw['nama'] ?? '')),
                 'tingkatan' => trim((string) ($raw['tingkatan'] ?? '')),
                 'no_wa_wali' => trim((string) ($raw['no_wa_wali'] ?? $raw['wa_wali'] ?? $raw['no_wa'] ?? '')),
+                'jenis_kelamin' => trim((string) ($raw['jenis_kelamin'] ?? $raw['jk'] ?? '')),
             ];
             if ($entry['nis'] === '' || $entry['nama_santri'] === '') {
                 continue;

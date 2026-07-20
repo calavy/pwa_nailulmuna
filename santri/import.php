@@ -8,8 +8,8 @@ require_roles(['admin', 'pengurus']);
 
 if (($_GET['template'] ?? '') === 'xlsx') {
     send_xlsx_download('template_import_santri.xlsx', [
-        ['qr', 'nis', 'nama_santri', 'tingkatan', 'no_wa_wali'],
-        ['QR-001', '2024001', 'Contoh Santri', 'SMP', '6281234567890'],
+        ['qr', 'nis', 'nama_santri', 'tingkatan', 'no_wa_wali', 'jenis_kelamin'],
+        ['QR-001', '2024001', 'Contoh Santri', 'SMP', '6281234567890', 'Laki-laki'],
     ], 'Template Santri');
     exit;
 }
@@ -64,10 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $insert = $pdo->prepare('
-            INSERT INTO santri (qr, nis, nama_santri, tingkatan, no_wa_wali, is_aktif)
-            VALUES (:qr, :nis, :nama_santri, :tingkatan, :no_wa_wali, 1)
+            INSERT INTO santri (qr, nis, nama, nama_santri, tingkatan, no_wa_wali, jenis_kelamin, is_aktif)
+            VALUES (:qr, :nis, :nama, :nama_santri, :tingkatan, :no_wa_wali, :jenis_kelamin, 1)
             ON DUPLICATE KEY UPDATE
                 qr = VALUES(qr),
+                nama = VALUES(nama),
                 nama_santri = VALUES(nama_santri),
                 tingkatan = VALUES(tingkatan),
                 no_wa_wali = VALUES(no_wa_wali)
@@ -78,14 +79,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (($row['nis'] ?? '') === '' || ($row['nama_santri'] ?? '') === '') {
                 continue;
             }
+            $nama = trim((string) ($row['nama_santri'] ?? ''));
+            $jkRaw = strtolower(trim((string) ($row['jenis_kelamin'] ?? $row['jk'] ?? '')));
+            $jenisKelamin = in_array($jkRaw, ['p', 'perempuan', 'wanita', 'female'], true)
+                ? 'Perempuan'
+                : 'Laki-laki';
             $insert->execute([
                 'qr' => $row['qr'] ?? '',
                 'nis' => $row['nis'] ?? '',
-                'nama_santri' => $row['nama_santri'] ?? '',
+                'nama' => $nama,
+                'nama_santri' => $nama,
                 'tingkatan' => $row['tingkatan'] ?? '',
                 'no_wa_wali' => $row['no_wa_wali'] ?? '',
+                'jenis_kelamin' => $jenisKelamin,
             ]);
             $total++;
+        }
+
+        if ($total === 0) {
+            throw new RuntimeException('Tidak ada baris valid. Pastikan kolom nis dan nama_santri terisi, dan file .xlsx bisa dibaca.');
         }
 
         set_flash('success', 'Import selesai. Total data diproses: ' . $total);
@@ -106,7 +118,7 @@ require_once __DIR__ . '/../includes/header.php';
         <h1 class="h4 mb-2">Import Data Santri Massal</h1>
         <p class="text-muted">
             Upload file <code>.xlsx</code> atau <code>.csv</code>. Kolom yang dipakai:
-            <code>qr</code>, <code>nis</code>, <code>nama_santri</code>, <code>tingkatan</code>, <code>no_wa_wali</code>.
+            <code>qr</code>, <code>nis</code>, <code>nama_santri</code>, <code>tingkatan</code>, <code>no_wa_wali</code>, <code>jenis_kelamin</code> (opsional).
         </p>
         <form method="post" enctype="multipart/form-data" class="row g-3">
             <div class="col-md-8">
@@ -118,7 +130,7 @@ require_once __DIR__ . '/../includes/header.php';
         </form>
         <hr>
         <h2 class="h6">Template Header Excel/CSV</h2>
-        <code>qr,nis,nama_santri,tingkatan,no_wa_wali</code>
+        <code>qr,nis,nama_santri,tingkatan,no_wa_wali,jenis_kelamin</code>
         <div class="mt-2">
             <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/santri/import.php?template=xlsx')) ?>">
                 <i class="fa-solid fa-file-arrow-down me-1"></i> Download template Excel

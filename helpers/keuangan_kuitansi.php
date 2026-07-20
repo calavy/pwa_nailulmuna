@@ -26,6 +26,7 @@ function keuangan_kuitansi_metode_label(string $metode): string
     return match ($m) {
         'TUNAI', 'KAS' => 'Tunai',
         'TRANSFER', 'BANK' => 'Transfer bank',
+        'MIDTRANS' => 'Midtrans (online)',
         'QRIS' => 'QRIS',
         default => ucwords(strtolower(str_replace('_', ' ', $metode))),
     };

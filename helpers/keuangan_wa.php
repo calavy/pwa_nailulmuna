@@ -90,7 +90,11 @@ function wa_format_pembayaran_masuk_wali(
         'nama_santri' => $namaSantri,
         'nominal_total' => keuangan_format_rupiah($totalNominal),
         'tanggal_bayar' => app_format_tanggal_id($tanggalBayar),
-        'metode_bayar' => $metodeBayar === 'TRANSFER' ? 'Transfer' : 'Tunai/Kas',
+        'metode_bayar' => match (strtoupper(trim($metodeBayar))) {
+            'TRANSFER' => 'Transfer',
+            'MIDTRANS' => 'Midtrans',
+            default => 'Tunai/Kas',
+        },
         'periode_tagihan' => $periodeTagihan !== '' ? $periodeTagihan : '-',
         'rincian_pembayaran' => $rincianBlok,
         'status_lunas' => $statusLabel,

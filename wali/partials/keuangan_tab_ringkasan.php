@@ -113,6 +113,12 @@ $keuRedir = app_href('/wali/keuangan.php?tab=ringkasan' . ($q !== '' ? ('&q=' . 
 </div>
 <?php endif; ?>
 
+<?php
+$sisaTotal = (int) $kurang;
+$compact = false;
+require __DIR__ . '/midtrans_bayar.php';
+?>
+
 <div class="d-grid gap-2">
     <a class="btn btn-sm btn-teal" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=tagihan' . $keuQuerySuffix)) ?>"><i class="fa-solid fa-file-invoice me-1"></i> Lihat tagihan per bulan</a>
     <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/wali/keuangan.php?tab=bayar' . $keuQuerySuffix)) ?>"><i class="fa-solid fa-receipt me-1"></i> Riwayat pembayaran</a>

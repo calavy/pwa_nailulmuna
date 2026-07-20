@@ -287,7 +287,11 @@ function ensure_keuangan_transaksi_tables(PDO $pdo): void
     }
 
     if (table_exists($pdo, 'keuangan_pembayaran')) {
-        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS metode_bayar ENUM('KAS','TRANSFER') NOT NULL DEFAULT 'KAS'");
+        $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS metode_bayar ENUM('KAS','TRANSFER','MIDTRANS') NOT NULL DEFAULT 'KAS'");
+        try {
+            $pdo->exec("ALTER TABLE keuangan_pembayaran MODIFY COLUMN metode_bayar ENUM('KAS','TRANSFER','MIDTRANS') NOT NULL DEFAULT 'KAS'");
+        } catch (PDOException $e) {
+        }
         $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS akun_id INT NULL");
         $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS no_referensi VARCHAR(100) NULL");
         $pdo->exec("ALTER TABLE keuangan_pembayaran ADD COLUMN IF NOT EXISTS status_lunas ENUM('LUNAS','CICILAN') NOT NULL DEFAULT 'LUNAS'");
@@ -826,7 +830,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     $kalenderHijriyahBayar = $jenisPeriode === 'BULANAN'
         ? pondok_kalender_hijriyah_untuk_simpan_pembayaran($pdo, $tahunMulai, $tahunSelesai, $bulanTagihan)
         : null;
-    if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
+    if (!in_array($metodeBayar, ['KAS', 'TRANSFER', 'MIDTRANS'], true)) {
         $metodeBayar = 'KAS';
     }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalBayar)) {
@@ -845,7 +849,7 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     if ($akunErr !== null) {
         return ['ok' => false, 'message' => $akunErr];
     }
-    if ($metodeBayar === 'TRANSFER' && $noReferensi === '') {
+    if (($metodeBayar === 'TRANSFER' || $metodeBayar === 'MIDTRANS') && $noReferensi === '') {
         return ['ok' => false, 'message' => keuangan_validasi_pesan('TRANSFER_TANPA_REF')];
     }
     if ($jenisPeriode === 'BULANAN' && $bulanTagihan > 0) {

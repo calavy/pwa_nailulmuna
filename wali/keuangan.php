@@ -64,6 +64,31 @@ $tablesOk = table_exists($pdo, 'keuangan_pembayaran');
 
 $keuQuerySuffix = $q !== '' ? ('&q=' . rawurlencode($q)) : '';
 
+$midtransFlash = trim((string) ($_GET['midtrans'] ?? ''));
+if (in_array($midtransFlash, ['success', 'pending', 'finish'], true)) {
+    require_once __DIR__ . '/../helpers/midtrans.php';
+    $sync = midtrans_sync_pending_for_santri($pdo, $waliSantriId);
+    // Hapus cache tagihan agar sisa terbaru terlihat
+    foreach (array_keys($_SESSION) as $k) {
+        if (is_string($k) && str_starts_with($k, 'wali_tagihan_kum_' . $waliSantriId)) {
+            unset($_SESSION[$k]);
+        }
+    }
+    if ($sync['synced'] > 0) {
+        set_flash('success', $sync['message']);
+        // Refresh data setelah sync
+        $tagihanKumulatif = wali_portal_tagihan_sampai_bulan_berjalan($pdo, $waliSantriId, $kelasKat);
+        $kurang = (int) ($tagihanKumulatif['sisa_total'] ?? 0);
+        $list = wali_portal_fetch_pembayaran_list($pdo, $waliSantriId, 80);
+    } elseif ($midtransFlash === 'success') {
+        set_flash('success', 'Pembayaran Midtrans berhasil. Jika belum muncul di riwayat, muat ulang halaman sebentar lagi.');
+    } elseif ($midtransFlash === 'pending') {
+        set_flash('success', 'Pembayaran menunggu (mis. VA). Setelah lunas, muat ulang halaman Keuangan — sistem akan sinkron otomatis.');
+    } else {
+        set_flash('success', 'Kembali dari Midtrans. ' . $sync['message']);
+    }
+}
+
 require_once __DIR__ . '/includes/layout.php';
 
 $tabTitles = [
