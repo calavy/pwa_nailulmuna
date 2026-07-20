@@ -19,6 +19,11 @@ $periode = keuangan_periode_berjalan($pdo);
 $tmInput = (int) ($_GET['tm'] ?? $periode['mulai']);
 $tsInput = (int) ($_GET['ts'] ?? $periode['selesai']);
 $bulanInput = (int) ($_GET['bulan'] ?? $periode['bulan']);
+$view = (string) ($_GET['view'] ?? 'pondok');
+if (!in_array($view, ['pondok', 'full'], true)) {
+    $view = 'pondok';
+}
+$showSaku = $view === 'full';
 $print = isset($_GET['print']) && (string) $_GET['print'] === '1';
 
 $rekap = keuangan_build_rekap_kas_bulanan($pdo, $tmInput, $tsInput, $bulanInput);
@@ -33,7 +38,7 @@ if ($print) {
     echo '<h1 style="text-align:center;font-size:1.2rem;margin:0 0 4px">Rekap Kas Masuk &amp; Keluar</h1>';
     echo '<p style="text-align:center;margin:0 0 4px"><strong>' . htmlspecialchars((string) $rekap['nama_lembaga']) . '</strong></p>';
     echo '<p style="text-align:center;color:#64748b;margin:0 0 16px">TA ' . htmlspecialchars((string) $rekap['ta_label']) . ' — bulan 1 s.d. ' . htmlspecialchars((string) $rekap['bulan_berjalan_label']) . '</p>';
-    keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt);
+    keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt, $showSaku);
     echo '<p style="margin-top:12px;font-size:0.85rem">Saldo awal TA: <strong>' . htmlspecialchars($fmt((int) $rekap['saldo_awal_ta'])) . '</strong>';
     echo ' · Saldo akhir (uang nyata): <strong>' . htmlspecialchars($fmt((int) ($rekap['saldo_akhir_uang_nyata'] ?? $rekap['saldo_akhir_fisik'] ?? 0))) . '</strong>';
     echo ' · Hitung buku: <strong>' . htmlspecialchars($fmt((int) ($rekap['saldo_akhir_hitung'] ?? $rekap['saldo_akhir'] ?? 0))) . '</strong></p>';
@@ -50,18 +55,32 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
     <h1 class="h4 mb-1">Rekap Kas Masuk &amp; Keluar</h1>
     <p class="text-muted mb-0">
-        Ringkasan kas per bulan tagihan TA <?= htmlspecialchars((string) $rekap['ta_label']) ?>
+        Ringkasan kas operasional pondok per bulan tagihan TA <?= htmlspecialchars((string) $rekap['ta_label']) ?>
         sampai <strong><?= htmlspecialchars((string) $rekap['bulan_berjalan_label']) ?></strong>.
-        Kas masuk &amp; keluar diperinci <strong>Syahriyah</strong>, <strong>Makan</strong>, <strong>Saku</strong>, <strong>Awal Tahun</strong>.
+        Kas masuk &amp; keluar diperinci <strong>Syahriyah</strong>, <strong>Makan</strong>, <strong>Awal Tahun</strong><?= $showSaku ? ', <strong>Saku</strong> (titipan)' : '' ?>.
         Klik angka untuk melihat detail transaksi.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan keuangan</a>
         · <a href="<?= htmlspecialchars(app_href('/pembayaran/rekap_pos.php')) ?>">Rekap per POS</a>
+        <?php if (!$showSaku): ?>
+        · <a href="<?= htmlspecialchars(app_href('/keuangan/saku.php')) ?>">Modul Saku &amp; Cashless</a>
+        <?php endif; ?>
     </p>
+</div>
+
+<div class="btn-group btn-group-sm mb-3" role="group" aria-label="Tampilan rekap kas">
+    <?php
+    $baseQs = 'tm=' . (int) $rekap['tahun_mulai'] . '&ts=' . (int) $rekap['tahun_selesai'] . '&bulan=' . (int) $rekap['bulan_berjalan'];
+    ?>
+    <a class="btn btn-outline-secondary<?= !$showSaku ? ' active' : '' ?>"
+       href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php?' . $baseQs . '&view=pondok')) ?>">Kas pondok</a>
+    <a class="btn btn-outline-secondary<?= $showSaku ? ' active' : '' ?>"
+       href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php?' . $baseQs . '&view=full')) ?>">Lengkap (+ titipan saku)</a>
 </div>
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">
         <form method="get" class="row g-2 align-items-end">
+            <input type="hidden" name="view" value="<?= htmlspecialchars($view) ?>">
             <div class="col-md-2">
                 <label class="form-label small">TA mulai</label>
                 <input type="number" name="tm" class="form-control" value="<?= (int) $rekap['tahun_mulai'] ?>" min="1300" max="2105">
@@ -82,7 +101,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-6 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Tampilkan</button>
-                <a class="btn btn-outline-secondary" href="/keuangan/rekap-kas-bulan.php?tm=<?= (int) $rekap['tahun_mulai'] ?>&amp;ts=<?= (int) $rekap['tahun_selesai'] ?>&amp;bulan=<?= (int) $rekap['bulan_berjalan'] ?>&amp;print=1" target="_blank">Cetak / PDF</a>
+                <a class="btn btn-outline-secondary" href="/keuangan/rekap-kas-bulan.php?tm=<?= (int) $rekap['tahun_mulai'] ?>&amp;ts=<?= (int) $rekap['tahun_selesai'] ?>&amp;bulan=<?= (int) $rekap['bulan_berjalan'] ?>&amp;view=<?= htmlspecialchars($view) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
                 <a class="btn btn-outline-primary" href="/keuangan/arus-kas.php">Arus kas</a>
                 <a class="btn btn-outline-primary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href()) ?>">Riwayat masuk &amp; keluar</a>
                 <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
@@ -208,7 +227,7 @@ $wajibSet = is_array($tagihanTa['pengaturan'] ?? null) ? $tagihanTa['pengaturan'
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <?php keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt); ?>
+        <?php keuangan_rekap_kas_bulan_render_tabel($rekap, $fmt, $showSaku); ?>
         <p class="small text-muted mt-3 mb-0">
             <strong>Petunjuk:</strong>
             <span class="d-inline-block me-2"><span class="badge" style="background:#dcfce7;color:#166534">Hijau</span> = kas masuk riil</span>

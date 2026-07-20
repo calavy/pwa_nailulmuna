@@ -402,6 +402,8 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/riwayat_pengeluaran.php' => $transaksi,
         '/keuangan/riwayat_pembayaran.php' => $transaksi,
         '/keuangan/impor-ekspor.php' => $transaksi,
+        '/keuangan/perbaikan-kas.php' => $transaksi,
+        '/keuangan/perbaikan-saku.php' => 'keuangan_cashless_scan',
         '/keuangan/potongan_syahriyah.php' => 'keuangan_potongan',
         '/keuangan/talangan.php' => 'keuangan_talangan',
         '/keuangan/inventaris.php' => 'keuangan_inventaris',
@@ -409,6 +411,7 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/panduan.php' => 'keuangan_pengaturan_modul',
         '/keuangan/cashless_scan.php' => 'keuangan_cashless_scan',
         '/keuangan/cashless.php' => 'keuangan_cashless_scan',
+        '/keuangan/saku.php' => 'keuangan_cashless_scan',
         '/keuangan/cashless_laporan.php' => 'keuangan_cashless_laporan',
         '/keuangan/cashless_setor.php' => 'keuangan_cashless_setor',
         '/keuangan/cashless_pin.php' => 'keuangan_cashless_pin',
@@ -490,6 +493,16 @@ function user_permission_alt_keys_for_path(string $requestPath): array
         '/pengasuh/laporan_hari.php' => [
             'rekap_keaktifan',
             'rekap',
+        ],
+        '/keuangan/saku.php' => [
+            'keuangan_cashless_laporan',
+            'keuangan_cashless_setor',
+            'keuangan_cashless_pin',
+        ],
+        '/keuangan/cashless.php' => [
+            'keuangan_cashless_laporan',
+            'keuangan_cashless_setor',
+            'keuangan_cashless_pin',
         ],
         default => [],
     };

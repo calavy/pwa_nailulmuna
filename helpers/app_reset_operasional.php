@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 
 /**
- * Kosongkan data transaksi operasional (pembayaran, pengeluaran, izin, presensi).
- * Data santri, pengaturan, akun kas, dan potongan syahriyah TIDAK dihapus.
+ * Kosongkan data transaksi operasional (pembayaran pondok, pengeluaran, izin, presensi).
+ * Data santri, pengaturan, akun kas, saku/cashless, dan potongan syahriyah TIDAK dihapus.
  *
- * @return array{ok:bool,message:string,deleted:array<string,int>}
+ * @return array{ok:bool,message:string,deleted:array<string,int|array<string,int>>}
  */
 function app_kosongkan_data_operasional(PDO $pdo): array
 {
@@ -25,32 +25,23 @@ function app_kosongkan_data_operasional(PDO $pdo): array
             ');
         }
 
-        if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
-            $deleted['keuangan_pembayaran_detail'] = (int) $pdo->exec('DELETE FROM keuangan_pembayaran_detail');
-        }
-
-        if (table_exists($pdo, 'cashless_transactions')) {
-            $deleted['cashless_transactions'] = (int) $pdo->exec('DELETE FROM cashless_transactions');
-        }
-
-        if (table_exists($pdo, 'keuangan_pembayaran')) {
-            $deleted['keuangan_pembayaran'] = (int) $pdo->exec('DELETE FROM keuangan_pembayaran');
-        }
-
-        if (table_exists($pdo, 'cashless_accounts')) {
-            $deleted['cashless_accounts_reset'] = (int) $pdo->exec('UPDATE cashless_accounts SET balance = 0');
-        }
+        require_once __DIR__ . '/keuangan_impor_ekspor.php';
+        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+        ensure_keuangan_transaksi_tables($pdo);
 
         if (table_exists($pdo, 'keuangan_pengeluaran')) {
             $deleted['keuangan_pengeluaran'] = (int) $pdo->exec('DELETE FROM keuangan_pengeluaran');
         }
-
+        if (table_exists($pdo, 'keuangan_pemasukan')) {
+            $deleted['keuangan_pemasukan'] = (int) $pdo->exec('DELETE FROM keuangan_pemasukan');
+        }
         if (table_exists($pdo, 'akuntansi_jurnal_umum')) {
-            $deleted['akuntansi_jurnal_umum_keuangan'] = (int) $pdo->exec('
+            $deleted['akuntansi_jurnal_umum_pondok'] = (int) $pdo->exec('
                 DELETE FROM akuntansi_jurnal_umum
-                WHERE ref_type IN ("pembayaran", "pengeluaran")
+                WHERE ref_type IN ("pengeluaran", "pemasukan")
             ');
         }
+        $deleted['keuangan_pembayaran_pondok'] = keuangan_wipe_pondok_pembayaran($pdo);
 
         if (table_exists($pdo, 'presensi')) {
             $deleted['presensi'] = (int) $pdo->exec('DELETE FROM presensi');
@@ -72,12 +63,11 @@ function app_kosongkan_data_operasional(PDO $pdo): array
             'keuangan_pembayaran',
             'keuangan_pembayaran_detail',
             'keuangan_pengeluaran',
-            'cashless_transactions',
+            'keuangan_pemasukan',
             'presensi',
             'presensi_pembimbing',
             'perizinan',
             'ehealth_records',
-            'akuntansi_jurnal_umum',
         ];
         foreach ($resetAuto as $tbl) {
             if (table_exists($pdo, $tbl)) {
@@ -91,7 +81,7 @@ function app_kosongkan_data_operasional(PDO $pdo): array
 
         return [
             'ok' => true,
-            'message' => 'Data operasional dikosongkan. Data santri dan pengaturan tetap ada.',
+            'message' => 'Data operasional dikosongkan. Data santri, saku/cashless, dan pengaturan tetap ada.',
             'deleted' => $deleted,
         ];
     } catch (Throwable $e) {

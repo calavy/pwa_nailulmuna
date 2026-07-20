@@ -10,7 +10,7 @@ function app_hub_registry(): array
     return [
         'keuangan_transaksi' => [
             'title' => 'Pembayaran & Tagihan',
-            'landing' => '/keuangan/transaksi.php',
+            'landing' => '/keuangan/pembayaran.php',
             'tabs' => [
                 ['path' => '/keuangan/pembayaran.php', 'label' => 'Input pembayaran'],
                 ['path' => '/pembayaran/cek_pembayaran.php', 'label' => 'Cek pembayaran'],
@@ -21,7 +21,7 @@ function app_hub_registry(): array
         ],
         'keuangan_kas' => [
             'title' => 'Kas umum',
-            'landing' => '/keuangan/kas.php',
+            'landing' => '/keuangan/pemasukan.php',
             'tabs' => [
                 ['path' => '/keuangan/pemasukan.php', 'label' => 'Pemasukan'],
                 ['path' => '/keuangan/pengeluaran.php', 'label' => 'Pengeluaran'],
@@ -30,13 +30,18 @@ function app_hub_registry(): array
             ],
         ],
         'keuangan_cashless' => [
-            'title' => 'Cashless',
-            'landing' => '/keuangan/cashless.php',
+            'title' => 'Keuangan Cashless',
+            'landing' => '/keuangan/saku.php',
+            'match_paths' => [
+                '/keuangan/cashless.php',
+                '/keuangan/saku.php',
+            ],
             'tabs' => [
-                ['path' => '/keuangan/cashless_scan.php', 'label' => 'Top up / scan'],
-                ['path' => '/keuangan/cashless_setor.php', 'label' => 'Setor'],
+                ['path' => '/keuangan/saku.php', 'label' => 'Dashboard'],
                 ['path' => '/keuangan/cashless_laporan.php', 'label' => 'Laporan koperasi'],
-                ['path' => '/keuangan/cashless_pin.php', 'label' => 'Saldo & PIN'],
+                ['path' => '/keuangan/cashless_pin.php', 'label' => 'Rekap saldo & PIN'],
+                ['path' => '/keuangan/cashless_scan.php', 'label' => 'Top up / scan'],
+                ['path' => '/keuangan/cashless_setor.php', 'label' => 'Setor harian'],
             ],
         ],
         'setoran_hafalan' => [
@@ -226,12 +231,92 @@ function app_hub_render_tabs_for_path(PDO $pdo, string $requestPath, array $perm
 
 function app_hub_redirect_landing(string $hubKey): void
 {
+    $target = app_hub_resolve_landing_path($hubKey);
+    if (!function_exists('app_normalize_request_path')) {
+        require_once __DIR__ . '/app_path.php';
+    }
+    if (!function_exists('app_acl_request_paths_equal')) {
+        require_once __DIR__ . '/app.php';
+    }
+    $current = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    if (app_acl_request_paths_equal($current, $target)) {
+        $target = '/dashboard.php';
+    }
+    header('Location: ' . app_href($target), true, 302);
+    exit;
+}
+
+/**
+ * Landing hub atau tab pertama yang boleh diakses user (hindari loop redirect).
+ */
+function app_hub_resolve_landing_path(string $hubKey): string
+{
     $hubs = app_hub_registry();
     if (!isset($hubs[$hubKey])) {
-        header('Location: ' . app_href('/dashboard.php'));
-        exit;
+        return '/dashboard.php';
     }
-    $first = $hubs[$hubKey]['tabs'][0]['path'] ?? '/dashboard.php';
-    header('Location: ' . app_href((string) $first), true, 302);
-    exit;
+
+    $hub = $hubs[$hubKey];
+    $candidates = [];
+    $landing = app_hub_normalize_path((string) ($hub['landing'] ?? ''));
+    if ($landing !== '') {
+        $candidates[] = $landing;
+    }
+    foreach ($hub['tabs'] as $tab) {
+        $path = app_hub_normalize_path((string) ($tab['path'] ?? ''));
+        if ($path !== '' && !in_array($path, $candidates, true)) {
+            $candidates[] = $path;
+        }
+    }
+
+    if (!function_exists('app_acl_is_hub_redirect_stub')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!function_exists('app_normalize_request_path')) {
+        require_once __DIR__ . '/app_path.php';
+    }
+    if (!function_exists('app_acl_request_paths_equal')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    $current = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    $candidates = array_values(array_filter(
+        $candidates,
+        static fn(string $path): bool => !app_acl_is_hub_redirect_stub($path)
+            && !app_acl_request_paths_equal($current, $path)
+    ));
+
+    if ($candidates === []) {
+        return '/dashboard.php';
+    }
+
+    if (!isset($_SESSION['user'])) {
+        return $candidates[0];
+    }
+
+    if (!function_exists('get_allowed_permission_key_map')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!function_exists('user_permission_path_map')) {
+        require_once __DIR__ . '/user_permissions.php';
+    }
+
+    global $pdo;
+    if (!($pdo instanceof PDO)) {
+        return $candidates[0];
+    }
+
+    $allowedMap = get_allowed_permission_key_map($pdo);
+    if ($allowedMap === null) {
+        return $candidates[0];
+    }
+
+    $permissionPathMap = user_permission_path_map();
+    foreach ($candidates as $path) {
+        if (app_hub_tab_allowed($pdo, $path, $permissionPathMap)) {
+            return $path;
+        }
+    }
+
+    return '/dashboard.php';
 }

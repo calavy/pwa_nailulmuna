@@ -58,21 +58,6 @@ if ($santriId > 0 && table_exists($pdo, 'santri')) {
     }
 }
 
-$cariRows = [];
-if ($q !== '' && strlen($q) >= 2) {
-    $aktifSql = santri_sql_aktif_only('s');
-    $stC = $pdo->prepare('
-        SELECT id, ' . $namaCol . ' AS nama_santri, nis, tingkatan
-        FROM santri s
-        WHERE ' . $aktifSql . '
-          AND (s.' . $namaCol . ' LIKE :q OR s.nis LIKE :q OR s.qr LIKE :q)
-        ORDER BY s.' . $namaCol . ' ASC
-        LIMIT 20
-    ');
-    $stC->execute(['q' => '%' . $q . '%']);
-    $cariRows = $stC->fetchAll(PDO::FETCH_ASSOC) ?: [];
-}
-
 $kartuBaseUrl = static function (int $sid, string $j) use ($q): string {
     $params = ['santri_id' => $sid, 'jenis' => $j];
     if ($q !== '') {
@@ -123,36 +108,34 @@ $cellClass = static function (array $cell): string {
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <?php if ($santriId > 0): ?>
-                <input type="hidden" name="santri_id" value="<?= (int) $santriId ?>">
-            <?php endif; ?>
-            <input type="hidden" name="jenis" value="<?= htmlspecialchars($jenis) ?>">
-            <div class="col-md-8">
-                <label class="form-label small mb-0">Cari santri (nama / NIS / QR)</label>
-                <input type="search" name="q" class="form-control" value="<?= htmlspecialchars($q) ?>"
-                       placeholder="Ketik minimal 2 huruf lalu cari" autofocus>
+        <label class="form-label small mb-0" for="kartu-santri-q">Cari santri (nama / NIS)</label>
+        <p class="small text-muted mb-2">Ketik beberapa huruf — daftar santri muncul otomatis.</p>
+        <div class="kartu-santri-search-wrap position-relative">
+            <input type="search" id="kartu-santri-q" class="form-control"
+                   value="<?= $santriPick ? '' : htmlspecialchars($q) ?>"
+                   placeholder="<?= $santriPick ? 'Ketik untuk ganti santri…' : 'Ketik nama atau NIS…' ?>"
+                   autocomplete="off" autofocus
+                   aria-controls="kartu-santri-results" aria-expanded="false">
+            <div id="kartu-santri-results" class="list-group list-group-flush border rounded mt-2 shadow-sm kartu-santri-results d-none" role="listbox"></div>
+        </div>
+        <?php if ($santriPick): ?>
+            <div class="mt-2">
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php?jenis=' . urlencode($jenis))) ?>">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i>Ganti santri
+                </a>
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary w-100">Cari</button>
-            </div>
-        </form>
-        <?php if ($cariRows !== [] && $santriPick === null): ?>
-            <div class="list-group list-group-flush border rounded mt-3">
-                <?php foreach ($cariRows as $cr): ?>
-                    <a class="list-group-item list-group-item-action"
-                       href="<?= htmlspecialchars(app_href('/pembayaran/kartu_syahriyah_santri.php?' . http_build_query([
-                           'santri_id' => (int) ($cr['id'] ?? 0),
-                           'jenis' => $jenis,
-                       ]))) ?>">
-                        <div class="fw-semibold"><?= htmlspecialchars((string) ($cr['nama_santri'] ?? '-')) ?></div>
-                        <div class="small text-muted">NIS <?= htmlspecialchars((string) ($cr['nis'] ?? '-')) ?> · <?= htmlspecialchars((string) ($cr['tingkatan'] ?? '-')) ?></div>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-        <?php elseif ($q !== '' && strlen($q) >= 2 && $cariRows === []): ?>
-            <p class="small text-muted mt-2 mb-0">Santri tidak ditemukan.</p>
         <?php endif; ?>
+        <noscript>
+            <form method="get" class="row g-2 align-items-end mt-2">
+                <input type="hidden" name="jenis" value="<?= htmlspecialchars($jenis) ?>">
+                <div class="col-8">
+                    <input type="search" name="q" class="form-control" value="<?= htmlspecialchars($q) ?>" placeholder="Nama / NIS">
+                </div>
+                <div class="col-4">
+                    <button type="submit" class="btn btn-primary w-100">Cari</button>
+                </div>
+            </form>
+        </noscript>
     </div>
 </div>
 
@@ -306,5 +289,109 @@ $cellClass = static function (array $cell): string {
         <p class="mb-0 small">Cari dan pilih santri untuk menampilkan kartu pembayaran.</p>
     </div>
 <?php endif; ?>
+
+<script>
+(function () {
+    var input = document.getElementById('kartu-santri-q');
+    var results = document.getElementById('kartu-santri-results');
+    if (!input || !results) {
+        return;
+    }
+    var searchUrl = <?= json_encode(app_href('/api/keuangan/santri_search.php'), JSON_UNESCAPED_UNICODE) ?>;
+    var kartuBase = <?= json_encode(app_href('/pembayaran/kartu_syahriyah_santri.php'), JSON_UNESCAPED_UNICODE) ?>;
+    var jenis = <?= json_encode($jenis, JSON_UNESCAPED_UNICODE) ?>;
+    var timer = null;
+    var seq = 0;
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+
+    function kartuUrl(id) {
+        return kartuBase + '?santri_id=' + encodeURIComponent(String(id)) + '&jenis=' + encodeURIComponent(jenis);
+    }
+
+    function setOpen(open) {
+        results.classList.toggle('d-none', !open);
+        input.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function renderItems(items) {
+        results.innerHTML = '';
+        if (!items.length) {
+            if (input.value.trim().length >= 1) {
+                results.innerHTML = '<div class="list-group-item small text-muted">Santri tidak ditemukan.</div>';
+                setOpen(true);
+            } else {
+                setOpen(false);
+            }
+            return;
+        }
+        items.forEach(function (item) {
+            var a = document.createElement('a');
+            a.href = kartuUrl(item.id);
+            a.className = 'list-group-item list-group-item-action';
+            a.setAttribute('role', 'option');
+            a.innerHTML = '<div class="fw-semibold">' + esc(item.nama || item.label || '-') + '</div>'
+                + '<div class="small text-muted">NIS ' + esc(item.nis || '-') + '</div>';
+            results.appendChild(a);
+        });
+        setOpen(true);
+    }
+
+    function fetchSantri(q) {
+        var s = ++seq;
+        fetch(searchUrl + '?q=' + encodeURIComponent(q) + '&limit=15', { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (s !== seq) {
+                    return;
+                }
+                renderItems((data && data.ok) ? (data.items || []) : []);
+            })
+            .catch(function () {
+                if (s === seq) {
+                    setOpen(false);
+                }
+            });
+    }
+
+    input.addEventListener('input', function () {
+        var q = input.value.trim();
+        clearTimeout(timer);
+        if (q.length < 1) {
+            seq++;
+            results.innerHTML = '';
+            setOpen(false);
+            return;
+        }
+        timer = setTimeout(function () {
+            fetchSantri(q);
+        }, 220);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var first = results.querySelector('a.list-group-item-action');
+            if (first) {
+                window.location.href = first.href;
+            }
+        }
+        if (e.key === 'Escape') {
+            results.innerHTML = '';
+            setOpen(false);
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!results.contains(e.target) && e.target !== input) {
+            setOpen(false);
+        }
+    });
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

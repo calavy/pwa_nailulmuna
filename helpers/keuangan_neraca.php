@@ -22,9 +22,14 @@ require_once __DIR__ . '/keuangan_rekonsiliasi.php';
  *   selisih: int
  * }
  */
-function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
+function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null, string $scope = 'full'): array
 {
   ensure_keuangan_neraca_tables($pdo);
+
+    $scope = strtolower(trim($scope));
+    if (!in_array($scope, ['full', 'pondok', 'saku'], true)) {
+        $scope = 'full';
+    }
 
     $asOf = $asOfDate !== null && $asOfDate !== '' ? $asOfDate : date('Y-m-d');
     $ts = strtotime($asOf);
@@ -157,7 +162,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     if ($kasTitipanSakuCoa > 0 && $kasTitipanSaku <= 0) {
         $kasTitipanSaku = $kasTitipanSakuCoa;
     }
-    if ($kasTitipanSaku > 0) {
+    if ($kasTitipanSaku > 0 && $scope !== 'pondok') {
         $asetSections[] = [
             'judul' => 'Kas Titipan Saku Santri (di luar kas pondok)',
             'baris' => [[
@@ -178,7 +183,8 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
 
     $totalAsetCoa = array_sum(array_column($asetCoaBaris, 'nominal'));
-    $totalAset = $totalKasBank + $totalAsetTetapBersih + $totalAsetCoa + $kasTitipanSaku;
+    $titipanUntukTotalAset = $scope === 'pondok' ? 0 : $kasTitipanSaku;
+    $totalAset = $totalKasBank + $totalAsetTetapBersih + $totalAsetCoa + $titipanUntukTotalAset;
 
     // Liabilitas titipan santri — dari ledger transaksi (top-up − belanja), bukan balance mentah.
     $totalCashless = 0;
@@ -189,7 +195,7 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
     $liabSections = [];
     $liabBaris = [];
-    if ($totalCashless > 0) {
+    if ($totalCashless > 0 && $scope !== 'pondok') {
         $liabBaris[] = [
             'label' => 'Saldo titipan santri (cashless / jajan)',
             'nominal' => $totalCashless,
@@ -198,6 +204,9 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
     }
     $liabCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'LIABILITAS');
     foreach ($liabCoaBaris as $lb) {
+        if ($scope === 'pondok' && keuangan_neraca_baris_is_titipan_saku((string) ($lb['label'] ?? ''))) {
+            continue;
+        }
         $liabBaris[] = $lb;
     }
     if ($liabBaris !== []) {
@@ -250,6 +259,80 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null): array
         'selisih' => $totalAset - $totalPasiva,
         'ringkasan' => $ringkasanOperasi,
         'penyesuaian_neraca' => 0,
+        'scope' => $scope,
+    ];
+}
+
+function keuangan_neraca_baris_is_titipan_saku(string $label): bool
+{
+    $l = strtolower(trim($label));
+
+    return str_contains($l, '2101')
+        || str_contains($l, '2103')
+        || str_contains($l, 'titipan')
+        || str_contains($l, 'cashless')
+        || str_contains($l, 'saku santri');
+}
+
+/**
+ * Ringkasan status titipan saku (terpisah dari neraca pondok).
+ *
+ * @return array<string, mixed>
+ */
+function keuangan_build_status_titipan_saku(PDO $pdo, ?string $asOfDate = null): array
+{
+    if (!function_exists('keuangan_kas_titipan_saku_saldo')) {
+        require_once __DIR__ . '/keuangan_akun_mutasi.php';
+    }
+    require_once __DIR__ . '/cashless_koperasi.php';
+    cashless_koperasi_ensure_schema($pdo);
+
+    $asOf = $asOfDate !== null && $asOfDate !== '' ? $asOfDate : date('Y-m-d');
+    $ts = strtotime($asOf);
+    if ($ts === false) {
+        $asOf = date('Y-m-d');
+    } else {
+        $asOf = date('Y-m-d', $ts);
+    }
+    $bulanId = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    $asOfLabel = (int) date('j', $ts) . ' ' . ($bulanId[(int) date('n', $ts)] ?? '') . ' ' . date('Y', $ts);
+
+    $kasTitipan = keuangan_kas_titipan_saku_saldo($pdo, $asOf);
+    $cashless = cashless_saku_total_real($pdo);
+    $saldoCashless = (int) ($cashless['total'] ?? 0);
+    $jumlahSantri = (int) ($cashless['jumlah_santri'] ?? 0);
+
+    $pendingSetor = 0;
+    if (table_exists($pdo, 'akuntansi_jurnal_umum')) {
+        if (!function_exists('ensure_keuangan_jurnal_tables')) {
+            require_once __DIR__ . '/keuangan_jurnal.php';
+        }
+        ensure_keuangan_jurnal_tables($pdo);
+        $coaSaldo = keuangan_neraca_coa_saldo_map($pdo, $asOf);
+        foreach (keuangan_neraca_baris_from_coa($coaSaldo, 'LIABILITAS', ['2103']) as $row) {
+            $pendingSetor += (int) ($row['nominal'] ?? 0);
+        }
+    }
+
+    $kesehatan = keuangan_neraca_kesehatan($pdo, keuangan_build_neraca($pdo, $asOf, 'full'));
+
+    return [
+        'as_of' => $asOf,
+        'as_of_label' => $asOfLabel,
+        'kas_titipan_1103' => $kasTitipan,
+        'saldo_cashless_2101' => $saldoCashless,
+        'pending_setor_2103' => $pendingSetor,
+        'jumlah_santri_aktif' => $jumlahSantri,
+        'selisih_saku_cashless' => (int) ($kesehatan['selisih_saku_cashless'] ?? 0),
+        'saku_audit_santri' => (static function () use ($pdo): int {
+            if (!function_exists('keuangan_saku_cashless_audit_per_santri_count')) {
+                require_once __DIR__ . '/keuangan_pembayaran_admin.php';
+            }
+
+            return function_exists('keuangan_saku_cashless_audit_per_santri_count')
+                ? keuangan_saku_cashless_audit_per_santri_count($pdo)
+                : 0;
+        })(),
     ];
 }
 
@@ -353,7 +436,7 @@ function ensure_keuangan_neraca_tables(PDO $pdo): void
  *
  * @return array<string, mixed>
  */
-function keuangan_build_neraca_cached(PDO $pdo, ?string $asOfDate = null, int $ttlSec = 600): array
+function keuangan_build_neraca_cached(PDO $pdo, ?string $asOfDate = null, int $ttlSec = 600, string $scope = 'full'): array
 {
     $asOf = $asOfDate !== null && $asOfDate !== '' ? $asOfDate : date('Y-m-d');
     $ts = strtotime($asOf);
@@ -362,7 +445,11 @@ function keuangan_build_neraca_cached(PDO $pdo, ?string $asOfDate = null, int $t
     } else {
         $asOf = date('Y-m-d', $ts);
     }
-    $cacheKey = 'neraca_' . $asOf;
+    $scope = strtolower(trim($scope));
+    if (!in_array($scope, ['full', 'pondok', 'saku'], true)) {
+        $scope = 'full';
+    }
+    $cacheKey = 'neraca_' . $scope . '_' . $asOf;
     if (isset($_SESSION['user'])) {
         $bucket = $_SESSION['keuangan_neraca_cache_v1'] ?? null;
         if (is_array($bucket)) {
@@ -372,7 +459,7 @@ function keuangan_build_neraca_cached(PDO $pdo, ?string $asOfDate = null, int $t
             }
         }
     }
-    $data = keuangan_build_neraca($pdo, $asOf);
+    $data = keuangan_build_neraca($pdo, $asOf, $scope);
     if (isset($_SESSION['user'])) {
         if (!isset($_SESSION['keuangan_neraca_cache_v1']) || !is_array($_SESSION['keuangan_neraca_cache_v1'])) {
             $_SESSION['keuangan_neraca_cache_v1'] = [];
@@ -731,7 +818,7 @@ function keuangan_neraca_penyesuaian_threshold(): int
  *   seimbang_formal:bool
  * }
  */
-function keuangan_neraca_kesehatan(PDO $pdo, array $neraca, ?int $penyesuaianThreshold = null): array
+function keuangan_neraca_kesehatan(PDO $pdo, array $neraca, ?int $penyesuaianThreshold = null, bool $includeSaku = true): array
 {
     $asOf = (string) ($neraca['as_of'] ?? date('Y-m-d'));
     $threshold = $penyesuaianThreshold ?? keuangan_neraca_penyesuaian_threshold();
@@ -752,7 +839,7 @@ function keuangan_neraca_kesehatan(PDO $pdo, array $neraca, ?int $penyesuaianThr
     $selisihSaku = $sakuBayar - $cashlessSaldo;
 
     $selisihBesar = $selisihAbs >= $threshold;
-    $selisihSakuBesar = abs($selisihSaku) >= $threshold;
+    $selisihSakuBesar = $includeSaku && abs($selisihSaku) >= $threshold;
 
     $level = 'ok';
     if ($selisihBesar || $jumlahTanpaJurnal > 0 || $selisihSakuBesar) {
@@ -789,7 +876,9 @@ function keuangan_neraca_render_panel_kesehatan(
     array $kesehatan,
     callable $fmt,
     string $asOf,
-    bool $showBackfill = true
+    bool $showBackfill = true,
+    bool $includeSaku = true,
+    string $viewScope = 'pondok'
 ): void {
     $level = (string) ($kesehatan['level'] ?? 'ok');
     $selisihNeraca = (int) ($kesehatan['selisih_neraca'] ?? 0);
@@ -818,7 +907,7 @@ function keuangan_neraca_render_panel_kesehatan(
     echo '<div class="card-body">';
 
     echo '<div class="alert ' . $alertClass . ' py-2 mb-3">';
-    if ($selisihAbs === 0 && $jumlahTanpaJurnal === 0 && abs($selisihSaku) < 1000) {
+    if ($selisihAbs === 0 && $jumlahTanpaJurnal === 0 && (!$includeSaku || abs($selisihSaku) < 1000)) {
         echo '<i class="fa-solid fa-circle-check me-1"></i> Neraca seimbang. Data operasional dan buku besar selaras.';
     } elseif ($selisihAbs > 0) {
         echo '<i class="fa-solid fa-triangle-exclamation me-1"></i> Neraca belum seimbang — selisih '
@@ -841,11 +930,13 @@ function keuangan_neraca_render_panel_kesehatan(
     echo '<div class="fw-semibold ' . ($jumlahTanpaJurnal > 0 ? 'text-warning' : 'text-success') . '">';
     echo (int) $jumlahTanpaJurnal;
     echo '</div></div></div>';
-    echo '<div class="col-md-4"><div class="border rounded p-2 h-100">';
-    echo '<div class="small text-muted">Selisih saku vs cashless</div>';
-    echo '<div class="fw-semibold ' . (abs($selisihSaku) >= 1000 ? 'text-warning' : 'text-success') . '">';
-    echo htmlspecialchars($fmt($selisihSaku));
-    echo '</div></div></div>';
+    if ($includeSaku) {
+        echo '<div class="col-md-4"><div class="border rounded p-2 h-100">';
+        echo '<div class="small text-muted">Selisih saku vs cashless</div>';
+        echo '<div class="fw-semibold ' . (abs($selisihSaku) >= 1000 ? 'text-warning' : 'text-success') . '">';
+        echo htmlspecialchars($fmt($selisihSaku));
+        echo '</div></div></div>';
+    }
     echo '</div>';
 
     echo '<div class="d-flex flex-wrap gap-2">';
@@ -853,6 +944,7 @@ function keuangan_neraca_render_panel_kesehatan(
         echo '<form method="post" class="mb-0" onsubmit="return confirm(\'Buat jurnal otomatis untuk transaksi yang belum punya jurnal?\');">';
         echo '<input type="hidden" name="action" value="backfill_jurnal">';
         echo '<input type="hidden" name="per" value="' . htmlspecialchars($asOf) . '">';
+        echo '<input type="hidden" name="view" value="' . htmlspecialchars($viewScope) . '">';
         echo '<button type="submit" class="btn btn-sm btn-warning"><i class="fa-solid fa-rotate me-1"></i> Sinkronkan jurnal (' . $jumlahTanpaJurnal . ')</button>';
         echo '</form>';
     }

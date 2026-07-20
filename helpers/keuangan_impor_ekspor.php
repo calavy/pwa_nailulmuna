@@ -288,21 +288,12 @@ function keuangan_impor_ekspor_build_keluar_rows(PDO $pdo): array
 }
 
 /**
- * @return array{ok:bool,message:string,counts?:array<string,int>}
+ * Eksekusi hapus data keuangan pondok (syahriyah, pengeluaran, pemasukan) — saku & cashless tetap.
+ *
+ * @return array{ok:bool,message:string,counts?:array<string,int|array<string,int>>}
  */
-function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, string $konfirmasi): array
+function keuangan_wipe_pondok_execute(PDO $pdo, int $userId, string $alasan): array
 {
-    if (!keuangan_impor_ekspor_boleh_destruktif($pdo)) {
-        return ['ok' => false, 'message' => 'Hanya super admin (atau pemegang token koreksi) yang boleh menghapus seluruh data.'];
-    }
-    if (trim($konfirmasi) !== 'HAPUS SEMUA') {
-        return ['ok' => false, 'message' => 'Konfirmasi harus diketik persis: HAPUS SEMUA'];
-    }
-    $alasan = trim($alasan);
-    if ($alasan === '') {
-        return ['ok' => false, 'message' => 'Alasan penghapusan wajib diisi.'];
-    }
-
     ensure_keuangan_transaksi_tables($pdo);
     ensure_operasional_audit_table($pdo);
     require_once __DIR__ . '/cashless_koperasi.php';
@@ -310,53 +301,34 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
         cashless_koperasi_ensure_schema($pdo);
     }
 
-    $cntPembayaran = table_exists($pdo, 'keuangan_pembayaran')
-        ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pembayaran')->fetchColumn()
-        : 0;
-    $cntDetail = table_exists($pdo, 'keuangan_pembayaran_detail')
-        ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pembayaran_detail')->fetchColumn()
-        : 0;
     $cntKeluar = table_exists($pdo, 'keuangan_pengeluaran')
         ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pengeluaran')->fetchColumn()
         : 0;
     $cntPemasukan = table_exists($pdo, 'keuangan_pemasukan')
         ? (int) $pdo->query('SELECT COUNT(*) FROM keuangan_pemasukan')->fetchColumn()
         : 0;
-    $cntCashless = table_exists($pdo, 'cashless_transactions')
-        ? (int) $pdo->query('SELECT COUNT(*) FROM cashless_transactions')->fetchColumn()
-        : 0;
-    $cntSetorLog = table_exists($pdo, 'cashless_setor_log')
-        ? (int) $pdo->query('SELECT COUNT(*) FROM cashless_setor_log')->fetchColumn()
-        : 0;
-    $cntJurnal = 0;
+    $cntJurnalPondok = 0;
+    $pembayaranCounts = [
+        'deleted_headers' => 0,
+        'kept_saku' => 0,
+        'stripped_mixed' => 0,
+        'detail_non_saku' => 0,
+    ];
 
     try {
         $pdo->beginTransaction();
 
         if (table_exists($pdo, 'akuntansi_jurnal_umum')) {
-            $cntJurnal = (int) $pdo->query("
+            $cntJurnalPondok = (int) $pdo->query("
                 SELECT COUNT(*) FROM akuntansi_jurnal_umum
-                WHERE ref_type IN ('pembayaran','pengeluaran','pemasukan','cashless_setor','cashless_debit')
+                WHERE ref_type IN ('pengeluaran','pemasukan')
             ")->fetchColumn();
             $pdo->exec("
                 DELETE FROM akuntansi_jurnal_umum
-                WHERE ref_type IN ('pembayaran','pengeluaran','pemasukan','cashless_setor','cashless_debit')
+                WHERE ref_type IN ('pengeluaran','pemasukan')
             ");
         }
 
-        if (table_exists($pdo, 'cashless_transactions')) {
-            $pdo->exec('DELETE FROM cashless_transactions');
-        }
-        if (table_exists($pdo, 'cashless_setor_log')) {
-            $pdo->exec('DELETE FROM cashless_setor_log');
-        }
-
-        if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
-            $pdo->exec('DELETE FROM keuangan_pembayaran_detail');
-        }
-        if (table_exists($pdo, 'keuangan_pembayaran')) {
-            $pdo->exec('DELETE FROM keuangan_pembayaran');
-        }
         if (table_exists($pdo, 'keuangan_pengeluaran')) {
             $pdo->exec('DELETE FROM keuangan_pengeluaran');
         }
@@ -364,9 +336,7 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
             $pdo->exec('DELETE FROM keuangan_pemasukan');
         }
 
-        if (table_exists($pdo, 'cashless_accounts')) {
-            $pdo->exec('UPDATE cashless_accounts SET balance = 0');
-        }
+        $pembayaranCounts = keuangan_wipe_pondok_pembayaran($pdo);
 
         operasional_audit_log(
             $pdo,
@@ -374,14 +344,11 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
             'DELETE',
             0,
             [
-                'aksi' => 'wipe_masuk_keluar_penuh',
-                'pembayaran' => $cntPembayaran,
-                'detail' => $cntDetail,
+                'aksi' => 'wipe_pondok_tanpa_saku',
                 'pengeluaran' => $cntKeluar,
                 'pemasukan' => $cntPemasukan,
-                'cashless_transactions' => $cntCashless,
-                'cashless_setor_log' => $cntSetorLog,
-                'jurnal' => $cntJurnal,
+                'pembayaran' => $pembayaranCounts,
+                'jurnal_pondok' => $cntJurnalPondok,
             ],
             null,
             $userId,
@@ -402,28 +369,44 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
         keuangan_dashboard_cache_invalidate();
     }
 
+    $pb = $pembayaranCounts;
+
     return [
         'ok' => true,
         'message' => sprintf(
-            'Berhasil dihapus: %d pembayaran (%d detail), %d pengeluaran, %d pemasukan, %d transaksi cashless, %d log setor, %d baris jurnal. Saldo saku = 0.',
-            $cntPembayaran,
-            $cntDetail,
+            'Keuangan pondok dihapus: %d pengeluaran, %d pemasukan, %d pembayaran pondok dihapus, %d pembayaran saku dipertahankan (%d dicampur disesuaikan). Saldo cashless & transaksi saku tidak diubah.',
             $cntKeluar,
             $cntPemasukan,
-            $cntCashless,
-            $cntSetorLog,
-            $cntJurnal
+            (int) ($pb['deleted_headers'] ?? 0),
+            (int) ($pb['kept_saku'] ?? 0) + (int) ($pb['stripped_mixed'] ?? 0),
+            (int) ($pb['stripped_mixed'] ?? 0)
         ),
         'counts' => [
-            'pembayaran' => $cntPembayaran,
-            'detail' => $cntDetail,
             'pengeluaran' => $cntKeluar,
             'pemasukan' => $cntPemasukan,
-            'cashless' => $cntCashless,
-            'cashless_setor_log' => $cntSetorLog,
-            'jurnal' => $cntJurnal,
+            'pembayaran' => $pembayaranCounts,
+            'jurnal_pondok' => $cntJurnalPondok,
         ],
     ];
+}
+
+/**
+ * @return array{ok:bool,message:string,counts?:array<string,int|array<string,int>>}
+ */
+function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, string $konfirmasi): array
+{
+    if (!keuangan_impor_ekspor_boleh_destruktif($pdo)) {
+        return ['ok' => false, 'message' => 'Hanya super admin (atau pemegang token koreksi) yang boleh menghapus seluruh data.'];
+    }
+    if (trim($konfirmasi) !== 'HAPUS SEMUA') {
+        return ['ok' => false, 'message' => 'Konfirmasi harus diketik persis: HAPUS SEMUA'];
+    }
+    $alasan = trim($alasan);
+    if ($alasan === '') {
+        return ['ok' => false, 'message' => 'Alasan penghapusan wajib diisi.'];
+    }
+
+    return keuangan_wipe_pondok_execute($pdo, $userId, $alasan);
 }
 
 /**

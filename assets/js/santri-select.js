@@ -152,7 +152,7 @@
         search.addEventListener('input', function () {
             if (ajaxMode) {
                 var q = norm(search.value);
-                if (q.length < 2) {
+                if (q.length < 1) {
                     while (sel.options.length > 1) {
                         sel.remove(1);
                     }

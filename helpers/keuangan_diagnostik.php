@@ -64,6 +64,11 @@ function keuangan_diagnostik_list_gaji_tanpa_pengeluaran(PDO $pdo, int $limit = 
 /**
  * Diagnostik keuangan menyeluruh untuk Perbaikan Kas & dashboard.
  *
+ * Snapshot/dashboard pondok memakai scope `pondok`; nominal tidak difilter per role.
+ *
+ * @param bool $includeSaku Sertakan item/saran terkait saku & cashless
+ * @param string $neracaScope Scope neraca untuk saran: full|pondok|saku
+ * @param bool $onlySaku Hanya item saku (modul perbaikan-saku)
  * @return array{
  *   as_of:string,
  *   ringkas:array<string,int>,
@@ -71,14 +76,28 @@ function keuangan_diagnostik_list_gaji_tanpa_pengeluaran(PDO $pdo, int $limit = 
  *   perbaikan_kas:array<string,mixed>
  * }
  */
-function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
-{
+function keuangan_diagnostik_menyeluruh(
+    PDO $pdo,
+    ?string $asOf = null,
+    bool $includeSaku = true,
+    string $neracaScope = 'full',
+    bool $onlySaku = false
+): array {
     $asOf = $asOf !== null && $asOf !== '' ? date('Y-m-d', strtotime($asOf) ?: time()) : date('Y-m-d');
+    if (!in_array($neracaScope, ['full', 'pondok', 'saku'], true)) {
+        $neracaScope = 'full';
+    }
     $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 
-    $perbaikan = keuangan_perbaikan_kas_ringkas($pdo, $asOf);
+    $perbaikan = $onlySaku ? ['jumlah' => 0, 'nominal' => 0, 'duplikat' => [], 'nominal_berlebihan' => [], 'total_detail_selisih' => []] : keuangan_perbaikan_kas_ringkas($pdo, $asOf);
     $items = [];
+    $duplikat = [];
+    $nominalBerlebihan = [];
+    $totalDetailSelisih = [];
+    $gajiRows = [];
+    $sakuOrphans = [];
 
+    if (!$onlySaku) {
     foreach (['pembayaran', 'pemasukan', 'pengeluaran'] as $tipe) {
         $rows = $perbaikan[$tipe] ?? [];
         if ($rows === []) {
@@ -188,34 +207,39 @@ function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
             'bisa_perbaiki_otomatis' => false,
         ];
     }
-
-    if (!function_exists('keuangan_pembayaran_list_saku_tanpa_topup')) {
-        require_once __DIR__ . '/keuangan_pembayaran_admin.php';
     }
-    $sakuOrphans = keuangan_pembayaran_list_saku_tanpa_topup($pdo);
-    if ($sakuOrphans !== []) {
-        $nomSakuOrphan = 0;
-        foreach ($sakuOrphans as $so) {
-            $nomSakuOrphan += (int) round((float) ($so['nominal_saku'] ?? 0));
+
+    if ($includeSaku || $onlySaku) {
+        if (!function_exists('keuangan_pembayaran_list_saku_tanpa_topup')) {
+            require_once __DIR__ . '/keuangan_pembayaran_admin.php';
         }
-        $items[] = [
-            'kode' => 'saku_tanpa_topup',
-            'prioritas' => 'tinggi',
-            'judul' => 'Pembayaran Saku tanpa top-up cashless',
-            'penjelasan' => 'Ada pembayaran pos Saku yang tercatat tetapi saldo cashless santri belum bertambah (tidak ada baris TOPUP).',
-            'dampak' => 'Saldo saku santri di aplikasi cashless tidak sesuai dengan pembayaran yang sudah diterima.',
-            'solusi' => 'Jalankan backfill top-up dari halaman Perbaikan Kas. Guard anti-duplikat mencegah top-up ganda.',
-            'jumlah' => count($sakuOrphans),
-            'nominal' => $nomSakuOrphan,
-            'nominal_fmt' => $fmt($nomSakuOrphan),
-            'href_aksi' => '/keuangan/perbaikan-kas.php#saku-topup',
-            'href_label' => 'Perbaiki top-up',
-            'bisa_perbaiki_otomatis' => true,
-            'aksi' => 'backfill_saku_topup',
-        ];
+        $sakuOrphans = keuangan_pembayaran_list_saku_tanpa_topup($pdo);
+        if ($sakuOrphans !== []) {
+            $nomSakuOrphan = 0;
+            foreach ($sakuOrphans as $so) {
+                $nomSakuOrphan += (int) round((float) ($so['nominal_saku'] ?? 0));
+            }
+            $items[] = [
+                'kode' => 'saku_tanpa_topup',
+                'prioritas' => 'tinggi',
+                'judul' => 'Pembayaran Saku tanpa top-up cashless',
+                'penjelasan' => 'Ada pembayaran pos Saku yang tercatat tetapi saldo cashless santri belum bertambah (tidak ada baris TOPUP).',
+                'dampak' => 'Saldo saku santri di aplikasi cashless tidak sesuai dengan pembayaran yang sudah diterima.',
+                'solusi' => 'Jalankan backfill top-up dari halaman Perbaikan Saku. Guard anti-duplikat mencegah top-up ganda.',
+                'jumlah' => count($sakuOrphans),
+                'nominal' => $nomSakuOrphan,
+                'nominal_fmt' => $fmt($nomSakuOrphan),
+                'href_aksi' => '/keuangan/perbaikan-saku.php#saku-topup',
+                'href_label' => 'Perbaiki top-up',
+                'bisa_perbaiki_otomatis' => true,
+                'aksi' => 'backfill_saku_topup',
+            ];
+        }
     }
 
-    if (table_exists($pdo, 'keuangan_pembayaran')) {
+    $sakuItemKodes = ['saku_tanpa_topup', 'saku_cashless'];
+
+    if (!$onlySaku && table_exists($pdo, 'keuangan_pembayaran')) {
         try {
             if (!function_exists('keuangan_build_neraca_cached')) {
                 require_once __DIR__ . '/keuangan_neraca.php';
@@ -223,13 +247,16 @@ function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
             if (!function_exists('keuangan_neraca_saran_perbaikan')) {
                 require_once __DIR__ . '/keuangan_neraca_perbaikan.php';
             }
-            $neraca = keuangan_build_neraca_cached($pdo, $asOf);
+            $neraca = keuangan_build_neraca_cached($pdo, $asOf, 600, $neracaScope);
             $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
-            $saranNeraca = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
+            $saranNeraca = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis, $includeSaku);
             $skipKode = ['pembayaran_tanpa_akun', 'pemasukan_tanpa_akun', 'pengeluaran_tanpa_akun', 'seimbang'];
             foreach ($saranNeraca as $s) {
                 $kode = (string) ($s['kode'] ?? '');
                 if ($kode === '' || in_array($kode, $skipKode, true)) {
+                    continue;
+                }
+                if (!$includeSaku && in_array($kode, $sakuItemKodes, true)) {
                     continue;
                 }
                 $items[] = [
@@ -272,6 +299,7 @@ function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
         }
     }
 
+    if (!$onlySaku) {
     $items[] = [
         'kode' => 'transfer_manual',
         'prioritas' => 'rendah',
@@ -286,6 +314,7 @@ function keuangan_diagnostik_menyeluruh(PDO $pdo, ?string $asOf = null): array
         'href_label' => 'Panduan alur',
         'bisa_perbaiki_otomatis' => false,
     ];
+    }
 
     $prioritasOrder = ['tinggi' => 0, 'sedang' => 1, 'rendah' => 2];
     usort($items, static function (array $a, array $b) use ($prioritasOrder): int {
@@ -349,7 +378,21 @@ function keuangan_dashboard_mutasi_hari_ini(PDO $pdo, ?string $tanggal = null): 
     $keluar = 0;
 
     if (table_exists($pdo, 'keuangan_pembayaran')) {
-        $st = $pdo->prepare('SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran WHERE tanggal_bayar = :t AND akun_id IS NOT NULL AND akun_id > 0');
+        if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
+            $st = $pdo->prepare("
+                SELECT COALESCE(SUM(GREATEST(0, p.total_nominal - COALESCE(sk.saku_nom, 0))), 0)
+                FROM keuangan_pembayaran p
+                LEFT JOIN (
+                    SELECT pembayaran_id, SUM(nominal) AS saku_nom
+                    FROM keuangan_pembayaran_detail
+                    WHERE LOWER(TRIM(pos_slug)) = 'saku'
+                    GROUP BY pembayaran_id
+                ) sk ON sk.pembayaran_id = p.id
+                WHERE p.tanggal_bayar = :t AND p.akun_id IS NOT NULL AND p.akun_id > 0
+            ");
+        } else {
+            $st = $pdo->prepare('SELECT COALESCE(SUM(total_nominal), 0) FROM keuangan_pembayaran WHERE tanggal_bayar = :t AND akun_id IS NOT NULL AND akun_id > 0');
+        }
         $st->execute(['t' => $tanggal]);
         $masuk += (int) round((float) ($st->fetchColumn() ?: 0));
     }

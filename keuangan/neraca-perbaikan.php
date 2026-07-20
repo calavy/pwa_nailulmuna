@@ -34,16 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backf
     exit;
 }
 
-$neraca = keuangan_build_neraca($pdo, $asOfInput);
+$neraca = keuangan_build_neraca($pdo, $asOfInput, 'pondok');
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
-$kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
+$kesehatan = keuangan_neraca_kesehatan($pdo, $neraca, null, false);
 $selisihNeraca = (int) ($neraca['selisih'] ?? 0);
 $seimbang = abs($selisihNeraca) < 1;
 $analisis = keuangan_neraca_analisis_selisih($pdo, $neraca);
-$saran = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis);
-$diagnostikRingkas = keuangan_diagnostik_menyeluruh($pdo, (string) $neraca['as_of']);
+$saran = keuangan_neraca_saran_perbaikan($pdo, $neraca, $analisis, false);
+$diagnostikRingkas = keuangan_diagnostik_menyeluruh($pdo, (string) $neraca['as_of'], false, 'pondok');
 $adaBackfill = (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) > 0;
-$perluPerhatian = !$seimbang || $adaBackfill || abs((int) ($kesehatan['selisih_saku_cashless'] ?? 0)) >= 1000;
+$perluPerhatian = !$seimbang || $adaBackfill;
 
 $pageTitle = 'Saran Perbaikan Neraca';
 $bodyClass = keuangan_body_class('neraca-perbaikan-page');
@@ -66,7 +66,8 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="alert alert-info py-2 small mb-3">
     Ada <?= (int) ($diagnostikRingkas['ringkas']['tinggi'] ?? 0) ?> masalah prioritas tinggi dan
     <?= (int) ($diagnostikRingkas['ringkas']['sedang'] ?? 0) ?> sedang di diagnostik keuangan menyeluruh.
-    <a href="/keuangan/perbaikan-kas.php">Buka Perbaikan Kas</a> untuk saran terpadu (transaksi, jurnal, cashless, gaji).
+    <a href="/keuangan/perbaikan-kas.php">Buka Perbaikan Kas</a> untuk saran terpadu transaksi &amp; jurnal pondok.
+    Audit saku &amp; cashless: <a href="/keuangan/perbaikan-saku.php">Perbaikan saku</a>.
 </div>
 <?php endif; ?>
 
@@ -79,7 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-8 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-primary">Analisis ulang</button>
-                <a class="btn btn-outline-secondary" href="/keuangan/neraca.php?per=<?= urlencode((string) $neraca['as_of']) ?>">Lihat neraca</a>
+                <a class="btn btn-outline-secondary" href="/keuangan/neraca.php?view=pondok&amp;per=<?= urlencode((string) $neraca['as_of']) ?>">Lihat neraca pondok</a>
                 <a class="btn btn-outline-primary" href="/keuangan/rekap-kas-bulan.php">Rekap kas bulanan</a>
                 <a class="btn btn-outline-primary" href="/keuangan/arus-kas.php">Arus kas</a>
             </div>
@@ -133,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($perluPerhatian && $seimbang): ?>
 <div class="row g-3 mb-3">
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="app-mini-stat">
             <div class="app-mini-stat-label">Selisih neraca</div>
             <div class="app-mini-stat-value <?= abs($selisihNeraca) >= keuangan_neraca_penyesuaian_threshold() ? 'text-danger' : 'text-success' ?>">
@@ -141,21 +142,13 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="app-mini-stat">
             <div class="app-mini-stat-label">Tanpa jurnal</div>
             <div class="app-mini-stat-value <?= $adaBackfill ? 'text-warning' : 'text-success' ?>"><?= (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) ?></div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="app-mini-stat">
-            <div class="app-mini-stat-label">Selisih saku/cashless</div>
-            <div class="app-mini-stat-value <?= abs((int) ($kesehatan['selisih_saku_cashless'] ?? 0)) >= 1000 ? 'text-warning' : 'text-success' ?>">
-                <?= htmlspecialchars($fmt((int) ($kesehatan['selisih_saku_cashless'] ?? 0))) ?>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <div class="app-mini-stat">
             <div class="app-mini-stat-label">Saran prioritas tinggi</div>
             <div class="app-mini-stat-value text-danger"><?= count(array_filter($saran, static fn (array $s): bool => ($s['prioritas'] ?? '') === 'tinggi')) ?></div>

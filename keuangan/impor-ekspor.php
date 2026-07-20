@@ -170,10 +170,12 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="alert alert-info small">
     <strong>Setelah hapus + impor Excel, yang tersinkron:</strong>
-    pembayaran &amp; pengeluaran dari file, jurnal otomatis, serta saldo saku dari pos Saku di Excel (tanggal top-up = tanggal bayar).
+    pembayaran pondok &amp; pengeluaran dari file, jurnal otomatis pondok, serta pembayaran pos Saku (top-up cashless tetap dari data saku yang ada).
     <br>
-    <strong>Tidak ikut Excel (hilang permanen setelah wipe):</strong>
-    pemasukan manual, transaksi jajan cashless (DEBIT), dan log setor — isi ulang di modul masing-masing jika masih diperlukan.
+    <strong>Tidak dihapus saat wipe:</strong>
+    saldo cashless santri, riwayat scan/setor, pembayaran pos Saku, dan jurnal titipan saku (1103/2101/2103).
+    <br>
+    <strong>Tidak ikut Excel:</strong> pemasukan manual, transaksi jajan (DEBIT), log setor — isi ulang di modul saku jika perlu.
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -196,16 +198,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php if ($bolehDestruktif): ?>
 <div class="card shadow-sm mb-3 border-danger">
-    <div class="card-header fw-semibold text-danger">2. Hapus seluruh masuk &amp; keluar</div>
+    <div class="card-header fw-semibold text-danger">2. Hapus keuangan pondok (saku tetap)</div>
     <div class="card-body">
         <p class="small text-muted">
-            Menghapus semua pembayaran, pengeluaran, pemasukan manual,
-            <strong>seluruh transaksi cashless (top-up + jajan)</strong>, log setor, dan jurnal terkait.
-            Saldo saku menjadi <strong>0</strong>. Setelah itu impor Excel masuk mengembalikan pembayaran + jurnal + top-up saku dari pos Saku;
-            jajan/DEBIT, setor, dan pemasukan manual <strong>tidak</strong> kembali dari Excel.
-            Akun kas &amp; alokasi tidak dihapus. PIN / QR nominal cashless tetap.
+            Menghapus pembayaran pondok (syahriyah, makan, dll.), pengeluaran, pemasukan, dan jurnal operasional pondok.
+            <strong>Data saku &amp; cashless santri tidak dihapus</strong> — saldo jajan, riwayat scan/setor, pembayaran pos Saku, dan jurnal titipan saku tetap utuh.
+            Setelah itu impor Excel mengembalikan data pondok; saku tidak perlu di-import ulang kecuali ada baris Saku baru di Excel.
         </p>
-        <form method="post" class="row g-2" onsubmit="return confirm('Yakin hapus SELURUH transaksi keuangan & cashless? Saldo saku jadi 0. Pastikan sudah unduh Excel.');">
+        <form method="post" class="row g-2" onsubmit="return confirm('Yakin hapus data keuangan PONDOK? Saku & cashless TIDAK dihapus. Pastikan sudah unduh Excel.');">
             <input type="hidden" name="action" value="wipe_all">
             <div class="col-md-5">
                 <label class="form-label small">Ketik <code>HAPUS SEMUA</code></label>
@@ -216,7 +216,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="text" name="alasan" class="form-control form-control-sm" required maxlength="500" placeholder="Mis. koreksi massal Juli 2026">
             </div>
             <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-danger btn-sm w-100">Hapus seluruh</button>
+                <button type="submit" class="btn btn-danger btn-sm w-100">Hapus keuangan pondok</button>
             </div>
         </form>
     </div>

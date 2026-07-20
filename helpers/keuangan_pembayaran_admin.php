@@ -942,3 +942,150 @@ function keuangan_pembayaran_audit_list(PDO $pdo, int $limit = 300, int $pembaya
 {
     return operasional_audit_list($pdo, $limit, OPERASIONAL_AUDIT_MODUL_KEUANGAN, $pembayaranId);
 }
+
+/** @param list<array<string,mixed>> $details */
+function keuangan_pembayaran_is_saku_only(array $details): bool
+{
+    $hasSaku = false;
+    foreach ($details as $d) {
+        if (!is_array($d)) {
+            continue;
+        }
+        $nom = (int) round((float) ($d['nominal'] ?? 0));
+        if ($nom <= 0) {
+            continue;
+        }
+        if (keuangan_pembayaran_detail_is_saku($d)) {
+            $hasSaku = true;
+        } else {
+            return false;
+        }
+    }
+
+    return $hasSaku;
+}
+
+/** Hapus baris non-saku, sesuaikan total, regenerasi jurnal saku saja. */
+function keuangan_pembayaran_strip_non_saku(PDO $pdo, int $pembayaranId): bool
+{
+    if ($pembayaranId <= 0 || !table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        return false;
+    }
+    $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
+    if ($fetch === null) {
+        return false;
+    }
+
+    $pdo->prepare("
+        DELETE FROM keuangan_pembayaran_detail
+        WHERE pembayaran_id = :id AND LOWER(TRIM(pos_slug)) <> 'saku'
+    ")->execute(['id' => $pembayaranId]);
+
+    $det = $pdo->prepare('SELECT pos_slug, pos_nama, nominal FROM keuangan_pembayaran_detail WHERE pembayaran_id = :id ORDER BY id ASC');
+    $det->execute(['id' => $pembayaranId]);
+    $detailRows = keuangan_pembayaran_detail_rows_normalize($det->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    $sakuTotal = 0;
+    foreach ($detailRows as $dr) {
+        if (($dr['slug'] ?? '') === 'saku') {
+            $sakuTotal += (int) ($dr['nominal'] ?? 0);
+        }
+    }
+    if ($sakuTotal <= 0) {
+        return false;
+    }
+
+    $pdo->prepare('UPDATE keuangan_pembayaran SET total_nominal = :t WHERE id = :id')
+        ->execute(['t' => $sakuTotal, 'id' => $pembayaranId]);
+
+    keuangan_jurnal_delete_by_ref($pdo, 'pembayaran', $pembayaranId);
+
+    $tanggalBayar = (string) ($fetch['tanggal_bayar'] ?? date('Y-m-d'));
+    $akunId = column_exists($pdo, 'keuangan_pembayaran', 'akun_id') ? (int) ($fetch['akun_id'] ?? 0) : 0;
+    $userId = (int) ($fetch['created_by'] ?? 0);
+    $kategoriFilter = (string) ($fetch['kategori_kelas'] ?? '');
+
+    keuangan_jurnal_pembayaran($pdo, $pembayaranId, $tanggalBayar, $akunId, $sakuTotal, $detailRows, $kategoriFilter, $userId);
+
+    return true;
+}
+
+/** Hapus header pembayaran pondok (bukan saku) beserta jurnal; tidak sentuh cashless. */
+function keuangan_pembayaran_delete_pondok_header(PDO $pdo, int $pembayaranId): void
+{
+    if ($pembayaranId <= 0) {
+        return;
+    }
+    keuangan_jurnal_delete_by_ref($pdo, 'pembayaran', $pembayaranId);
+    if (table_exists($pdo, 'keuangan_pembayaran_detail')) {
+        $pdo->prepare('DELETE FROM keuangan_pembayaran_detail WHERE pembayaran_id = :id')->execute(['id' => $pembayaranId]);
+    }
+    if (table_exists($pdo, 'keuangan_pembayaran')) {
+        $pdo->prepare('DELETE FROM keuangan_pembayaran WHERE id = :id')->execute(['id' => $pembayaranId]);
+    }
+}
+
+/**
+ * Hapus pembayaran pondok; pertahankan pembayaran yang punya pos saku.
+ *
+ * @return array{deleted_headers:int,kept_saku:int,stripped_mixed:int,detail_non_saku:int}
+ */
+function keuangan_wipe_pondok_pembayaran(PDO $pdo): array
+{
+    $counts = [
+        'deleted_headers' => 0,
+        'kept_saku' => 0,
+        'stripped_mixed' => 0,
+        'detail_non_saku' => 0,
+    ];
+    if (!table_exists($pdo, 'keuangan_pembayaran')) {
+        return $counts;
+    }
+
+    $ids = $pdo->query('SELECT id FROM keuangan_pembayaran ORDER BY id ASC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    foreach ($ids as $rawId) {
+        $pembayaranId = (int) $rawId;
+        if ($pembayaranId <= 0) {
+            continue;
+        }
+        $fetch = keuangan_pembayaran_fetch($pdo, $pembayaranId);
+        if ($fetch === null) {
+            continue;
+        }
+        $details = is_array($fetch['details'] ?? null) ? $fetch['details'] : [];
+        $hasSaku = false;
+        $hasNonSaku = false;
+        foreach ($details as $d) {
+            if (!is_array($d)) {
+                continue;
+            }
+            $nom = (int) round((float) ($d['nominal'] ?? 0));
+            if ($nom <= 0) {
+                continue;
+            }
+            if (keuangan_pembayaran_detail_is_saku($d)) {
+                $hasSaku = true;
+            } else {
+                $hasNonSaku = true;
+            }
+        }
+
+        if ($hasSaku && $hasNonSaku) {
+            $stDel = $pdo->prepare("
+                DELETE FROM keuangan_pembayaran_detail
+                WHERE pembayaran_id = :id AND LOWER(TRIM(pos_slug)) <> 'saku'
+            ");
+            $stDel->execute(['id' => $pembayaranId]);
+            $counts['detail_non_saku'] += $stDel->rowCount();
+            if (keuangan_pembayaran_strip_non_saku($pdo, $pembayaranId)) {
+                $counts['stripped_mixed']++;
+            }
+        } elseif ($hasSaku) {
+            $counts['kept_saku']++;
+        } else {
+            keuangan_pembayaran_delete_pondok_header($pdo, $pembayaranId);
+            $counts['deleted_headers']++;
+        }
+    }
+
+    return $counts;
+}

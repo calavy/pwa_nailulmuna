@@ -6,6 +6,8 @@ declare(strict_types=1);
 /** @var bool $waIzinSelesaiEnabled */
 /** @var bool $waIzinWaliEnabled */
 /** @var string $waIzinPengurus */
+/** @var string $waIzinPengurusPutra */
+/** @var string $waIzinPengurusPutri */
 /** @var bool $waIzinEnabled */
 /** @var bool $waIzinGrupFonteEnabled */
 /** @var string $waIzinGrupFonte */
@@ -126,7 +128,7 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
             <div class="card-body">
                 <h2 class="h6 mb-2"><i class="fa-solid fa-user-tie text-primary me-1"></i> Pengurus — izin disetujui &amp; selesai</h2>
                 <p class="small text-muted mb-3">
-                    WA ke petugas pengurus yang mencetak/menyetujui surat izin. Nomor yang sama dipakai untuk laporan otomatis saat santri kembali.
+                    WA ke petugas pengurus putra/putri saat izin disetujui atau santri kembali. Penerima ditentukan otomatis dari jenis kelamin santri.
                 </p>
                 <form method="post">
                     <input type="hidden" name="action" value="save_izin_pengurus_wa">
@@ -138,9 +140,13 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
                         <input class="form-check-input" type="checkbox" id="wa_izin_selesai_enabled" name="wa_izin_selesai_enabled" value="1" <?= $waIzinSelesaiEnabled ? 'checked' : '' ?>>
                         <label class="form-check-label" for="wa_izin_selesai_enabled">Kirim laporan WA saat izin selesai (santri kembali)</label>
                     </div>
-                    <label class="form-label" for="wa_izin_pengurus">No. penerima pengurus</label>
+                    <label class="form-label" for="wa_izin_pengurus_putra">No. pengurus santri putra</label>
+                    <input type="text" class="form-control mb-2" id="wa_izin_pengurus_putra" name="wa_izin_pengurus_putra" value="<?= htmlspecialchars($waIzinPengurusPutra ?? '') ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="off">
+                    <label class="form-label" for="wa_izin_pengurus_putri">No. pengurus santri putri</label>
+                    <input type="text" class="form-control mb-2" id="wa_izin_pengurus_putri" name="wa_izin_pengurus_putri" value="<?= htmlspecialchars($waIzinPengurusPutri ?? '') ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="off">
+                    <label class="form-label text-muted small" for="wa_izin_pengurus">Fallback (jika putra/putri kosong atau jenis tidak jelas)</label>
                     <input type="text" class="form-control mb-1" id="wa_izin_pengurus" name="wa_izin_pengurus" value="<?= htmlspecialchars($waIzinPengurus) ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="off">
-                    <div class="form-text mb-3">Beberapa nomor: pisah koma. Kosong = sama dengan nomor permohonan izin di atas. Jika pengurus punya no. WA di profil akun, ikut menerima saat ia yang menyetujui.</div>
+                    <div class="form-text mb-3">Beberapa nomor: pisah koma. Fallback kosong = nomor permohonan izin di atas. Izin rombongan campuran → kirim ke putra &amp; putri. Pengurus penyutuju dengan no. WA di profil ikut menerima.</div>
                     <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan pengurus izin</button>
                 </form>
             </div>

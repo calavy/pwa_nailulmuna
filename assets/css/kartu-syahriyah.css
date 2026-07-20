@@ -1,5 +1,15 @@
 .ks-santri-head { border-left: 4px solid #0f766e; }
 
+.kartu-santri-results {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 16rem;
+    overflow-y: auto;
+    background: #fff;
+}
+
 .kp-table th { white-space: nowrap; font-size: 0.8rem; }
 .kp-table td { font-size: 0.85rem; vertical-align: middle; }
 .kp-table tbody tr.kp-row--lunas { background: #f0fdf4; }

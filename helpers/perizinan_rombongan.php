@@ -227,7 +227,7 @@ function perizinan_rombongan_santri_aktif_grouped(PDO $pdo): array
     $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $aktif = santri_sql_aktif_only('s');
     $st = $pdo->query('
-        SELECT s.id, s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan
+        SELECT s.id, s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin
         FROM santri s
         WHERE ' . $aktif . '
         ORDER BY ' . perizinan_rombongan_order_sql('s', $pdo) . '
@@ -283,7 +283,7 @@ function perizinan_rombongan_anggota(PDO $pdo, int $rombonganId): array
     $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $st = $pdo->prepare('
         SELECT i.id, i.santri_id, i.rombongan_kembali, i.waktu_kembali, i.status_izin, i.approval_status,
-               s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan
+               s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.rombongan_id = :rid

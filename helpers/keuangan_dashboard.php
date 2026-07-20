@@ -140,10 +140,11 @@ function keuangan_dashboard_snapshot(PDO $pdo): ?array
     if (!function_exists('keuangan_build_arus_kas_cached')) {
         require_once __DIR__ . '/keuangan_aruskas.php';
     }
-    $neraca = keuangan_build_neraca_cached($pdo, $today);
+    $neraca = keuangan_build_neraca_cached($pdo, $today, 600, 'pondok');
     $selisih = (int) ($neraca['selisih'] ?? 0);
     $seimbang = abs($selisih) < 1;
-    $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca);
+    // Dashboard pondok: kesehatan tanpa indikator saku/cashless (nominal sama semua role).
+    $kesehatan = keuangan_neraca_kesehatan($pdo, $neraca, null, false);
     $neracaSehat = $seimbang && (int) ($kesehatan['jumlah_tanpa_jurnal'] ?? 0) === 0;
 
     $periode = keuangan_periode_berjalan($pdo, $today);
@@ -622,7 +623,7 @@ function keuangan_dashboard_checklist_kas_toleransi(): int
  *
  * @return array<string, mixed>
  */
-function keuangan_dashboard_checklist_kas(array $dashSnap): array
+function keuangan_dashboard_checklist_kas(array $dashSnap, bool $includeSaku = false): array
 {
     $tol = keuangan_dashboard_checklist_kas_toleransi();
     $kasBank = is_array($dashSnap['kas_bank'] ?? null) ? $dashSnap['kas_bank'] : [];
@@ -651,15 +652,11 @@ function keuangan_dashboard_checklist_kas(array $dashSnap): array
     $semuaCocok = $cocok($angkaDashboard, $angkaRekap)
         && $cocok($angkaDashboard, $angkaNeraca)
         && $cocok($angkaRekap, $angkaNeraca)
-        && $transaksiTanpaAkun === 0
-        && abs($selisihSakuCashless) < $tol
-        && $sakuAuditSantri === 0;
-
-    $sakuAuditLabel = 'Backfill top-up saku (cashless) jika pembayaran saku belum masuk saldo';
-    if ($sakuAuditSantri > 0) {
-        $sakuAuditLabel .= ' — ' . $sakuAuditSantri . ' santri tidak selaras';
-    } elseif ($sakuOrphanCount > 0) {
-        $sakuAuditLabel .= ' — ' . $sakuOrphanCount . ' pembayaran tanpa top-up';
+        && $transaksiTanpaAkun === 0;
+    if ($includeSaku) {
+        $semuaCocok = $semuaCocok
+            && abs($selisihSakuCashless) < $tol
+            && $sakuAuditSantri === 0;
     }
 
     $langkah = [
@@ -668,27 +665,35 @@ function keuangan_dashboard_checklist_kas(array $dashSnap): array
             'href' => app_href('/keuangan/perbaikan-kas.php'),
             'selesai' => $transaksiTanpaAkun === 0 && abs($selisihRekapKas) < $tol,
         ],
-        [
+    ];
+    if ($includeSaku) {
+        $sakuAuditLabel = 'Backfill top-up saku (cashless) jika pembayaran saku belum masuk saldo';
+        if ($sakuAuditSantri > 0) {
+            $sakuAuditLabel .= ' — ' . $sakuAuditSantri . ' santri tidak selaras';
+        } elseif ($sakuOrphanCount > 0) {
+            $sakuAuditLabel .= ' — ' . $sakuOrphanCount . ' pembayaran tanpa top-up';
+        }
+        $langkah[] = [
             'label' => $sakuAuditLabel,
-            'href' => app_href('/keuangan/perbaikan-kas.php#saku-audit-santri'),
+            'href' => app_href('/keuangan/perbaikan-saku.php'),
             'selesai' => abs($selisihSakuCashless) < $tol && $sakuAuditSantri === 0 && $sakuOrphanCount === 0,
-        ],
-        [
+        ];
+    }
+    $langkah[] = [
             'label' => 'Rekap kas bulanan — bandingkan saldo hitung vs uang nyata',
             'href' => app_href('/keuangan/rekap-kas-bulan.php'),
             'selesai' => abs($selisihRekapKas) < $tol,
-        ],
-        [
-            'label' => 'Neraca perbaikan — jika aktiva ≠ pasiva atau selisih saku',
+        ];
+    $langkah[] = [
+            'label' => 'Neraca perbaikan — jika aktiva ≠ pasiva',
             'href' => app_href('/keuangan/neraca-perbaikan.php'),
             'selesai' => $neracaSeimbang && $neracaSehat,
-        ],
-        [
+        ];
+    $langkah[] = [
             'label' => 'Riwayat pembayaran — audit transaksi per santri',
             'href' => app_href('/pembayaran/riwayat.php'),
             'selesai' => null,
-        ],
-    ];
+        ];
 
     return [
         'toleransi' => $tol,

@@ -125,8 +125,9 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         <li>Petugas pilih santri, pos, nominal di <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">input pembayaran</a></li>
                         <li>Validasi: tidak melebihi sisa tagihan per pos</li>
                         <li>Simpan header <code>keuangan_pembayaran</code> + detail per pos</li>
-                        <li>Pos <strong>saku</strong> → otomatis top-up cashless</li>
-                        <li>Jurnal otomatis: debit kas/bank, kredit pendapatan atau titipan saku (2101)</li>
+                        <li>Pos <strong>saku</strong> → otomatis top-up cashless (modul terpisah)</li>
+                        <li>Jurnal saku: debit <strong>1103 Kas Titipan</strong>, kredit titipan saku (<strong>2101</strong>) — bukan kas pondok 1101/1102</li>
+                        <li>Jurnal pos pondok lainnya: debit kas/bank (1101/1102), kredit pendapatan</li>
                         <li>Redirect ke <a href="<?= htmlspecialchars(app_href('/keuangan/kuitansi.php')) ?>">kuitansi</a></li>
                     </ol>
                     <p class="mb-0">
@@ -235,9 +236,10 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
             </h2>
             <div id="keuPanduanCashless" class="accordion-collapse collapse" data-bs-parent="#keuPanduanAccordion">
                 <div class="accordion-body small">
-                    <p class="mb-2">Pembayaran pos Saku → top-up Saldo Saku santri (titipan COA 2101). Scan jajan → Saldo Saku turun, uang fisik masih bendahara (2103). Setor harian → kas keluar ke koperasi.</p>
+                    <p class="mb-2">Pembayaran pos Saku → top-up Saldo Saku santri: jurnal Dr <strong>1103</strong> / Cr <strong>2101</strong>. Scan jajan → Dr 2101 / Cr 2103. Setor harian → Dr 2103 / Cr 1103 (bukan kas pondok).</p>
                     <p class="mb-0">
-                        <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_scan.php')) ?>">Cashless scan</a>
+                        <a href="<?= htmlspecialchars(app_href('/keuangan/saku.php')) ?>">Dashboard Saku &amp; Cashless</a>
+                        · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_scan.php')) ?>">Cashless scan</a>
                         · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>">Setor harian</a>
                         · <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php')) ?>">Laporan cashless</a>
                         · Wali: <a href="<?= htmlspecialchars(app_href('/wali/keuangan.php')) ?>">saldo saku</a>
@@ -258,8 +260,8 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                     <ol class="mb-3 ps-3">
                         <li>Pembayaran santri atau pemasukan lain dicatat di modul keuangan.</li>
                         <li>Pilih <strong>akun kas/bank</strong> tujuan: tunai/e-wallet (KAS) atau transfer (BANK).</li>
-                        <li>Sistem buat <strong>jurnal otomatis</strong>: debit kas/bank, kredit pendapatan atau titipan saku.</li>
-                        <li>Pos <strong>saku</strong> → otomatis top-up saldo cashless santri.</li>
+                        <li>Sistem buat <strong>jurnal otomatis</strong>: debit kas/bank pondok (1101/1102) atau kas titipan (1103) untuk pos saku, kredit pendapatan atau titipan saku (2101).</li>
+                        <li>Pos <strong>saku</strong> → otomatis top-up saldo cashless santri (modul <a href="<?= htmlspecialchars(app_href('/keuangan/saku.php')) ?>">Saku &amp; Cashless</a>).</li>
                     </ol>
                     <p class="fw-semibold mb-1">Uang keluar</p>
                     <ol class="mb-3 ps-3">
@@ -275,8 +277,8 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                     </ul>
                     <p class="fw-semibold mb-1">Jika ada selisih</p>
                     <ol class="mb-0 ps-3">
-                        <li>Buka <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>">Perbaikan kas</a> — transaksi tanpa akun, dobel, saran jurnal/cashless/gaji.</li>
-                        <li>Cek <a href="<?= htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php')) ?>">Neraca perbaikan</a> bila selisih saku vs cashless.</li>
+                        <li>Buka <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-kas.php')) ?>">Perbaikan kas</a> — transaksi tanpa akun, dobel, nominal berlebih.</li>
+                        <li>Audit saku/cashless: <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-saku.php')) ?>">Perbaikan saku</a> atau <a href="<?= htmlspecialchars(app_href('/keuangan/neraca-perbaikan.php')) ?>">Neraca perbaikan</a> (pondok).</li>
                         <li>Verifikasi <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">rekap kas bulanan</a> (kolom fisik vs buku).</li>
                     </ol>
                 </div>
@@ -317,7 +319,7 @@ $umumLabel = keuangan_pkpps_alokasi_komponen_nama($pdo);
                         <thead class="table-light"><tr><th>Transaksi</th><th>Debit</th><th>Kredit</th></tr></thead>
                         <tbody>
                             <tr><td>Pembayaran syahriyah</td><td>Kas/Bank</td><td>Pendapatan syahriyah</td></tr>
-                            <tr><td>Pembayaran saku</td><td>Kas/Bank</td><td>Titipan saku (2101)</td></tr>
+                            <tr><td>Pembayaran saku</td><td>Kas titipan (1103)</td><td>Titipan saku (2101)</td></tr>
                             <tr><td>Pengeluaran</td><td>Beban</td><td>Kas/Bank</td></tr>
                             <tr><td>Pemasukan</td><td>Kas/Bank</td><td>Pendapatan lain</td></tr>
                         </tbody>

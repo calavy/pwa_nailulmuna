@@ -203,6 +203,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (array_key_exists('wa_izin_pengurus', $_POST)) {
             save_setting($pdo, 'wa_izin_pengurus', trim((string) $_POST['wa_izin_pengurus']));
         }
+        if (array_key_exists('wa_izin_pengurus_putra', $_POST)) {
+            save_setting($pdo, 'wa_izin_pengurus_putra', trim((string) $_POST['wa_izin_pengurus_putra']));
+        }
+        if (array_key_exists('wa_izin_pengurus_putri', $_POST)) {
+            save_setting($pdo, 'wa_izin_pengurus_putri', trim((string) $_POST['wa_izin_pengurus_putri']));
+        }
         set_flash('success', 'Pengaturan WA pengurus izin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
         exit;
@@ -430,6 +436,8 @@ $waIzinPengurusEnabled = trim((string) app_setting($pdo, 'wa_izin_pengurus_enabl
 $waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
 $waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
+$waIzinPengurusPutra = trim((string) app_setting($pdo, 'wa_izin_pengurus_putra', ''));
+$waIzinPengurusPutri = trim((string) app_setting($pdo, 'wa_izin_pengurus_putri', ''));
 $waPembayaranWaliEnabled = trim((string) app_setting($pdo, 'wa_pembayaran_wali_enabled', '1')) === '1';
 $waAwalTahunEnabled = trim((string) app_setting($pdo, 'wa_awal_tahun_auto_enabled', '0')) === '1';
 $waAwalTahunJam = trim((string) app_setting($pdo, 'wa_awal_tahun_send_time', '09:00'));

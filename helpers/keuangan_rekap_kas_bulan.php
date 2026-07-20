@@ -270,10 +270,10 @@ function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, strin
 /**
  * @param callable(int): string $fmt
  */
-function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): void
+function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool $showSaku = false): void
 {
-    $colspanMasuk = 7;
-    $colspanKeluar = 5;
+    $colspanMasuk = $showSaku ? 7 : 6;
+    $colspanKeluar = $showSaku ? 5 : 4;
 
     echo '<div class="rekap-kas-table-wrap">';
     echo '<table class="table table-sm rekap-kas-table mb-0">';
@@ -289,9 +289,15 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<th colspan="2" class="rekap-kas-grp-verif">Verifikasi kas</th>';
     echo '</tr>';
     echo '<tr class="rekap-kas-head-detail">';
-    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end" title="Titipan — tidak masuk total kas pondok">Saku*</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th>';
+    if ($showSaku) {
+        echo '<th class="text-end" title="Titipan — tidak masuk total kas pondok">Saku*</th>';
+    }
     echo '<th class="text-end">Awal Tahun</th><th class="text-end">Donasi</th><th class="text-end">Lain</th><th class="text-end">Total masuk</th>';
-    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th><th class="text-end" title="Info titipan">Saku*</th>';
+    echo '<th class="text-end">Syahriyah</th><th class="text-end">Makan</th>';
+    if ($showSaku) {
+        echo '<th class="text-end" title="Info titipan">Saku*</th>';
+    }
     echo '<th class="text-end">Awal Tahun</th><th class="text-end">Total keluar</th>';
     echo '<th class="text-end">Terbayar</th>';
     echo '<th class="text-end">Sisa</th><th class="text-end">Capai</th>';
@@ -326,14 +332,18 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
         echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_awal'] ?? 0), $fmt, 'saldo') . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefSy) . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefMakan) . '</td>';
-        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefSaku) . '</td>';
+        if ($showSaku) {
+            echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefSaku) . '</td>';
+        }
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_awal_tahun'] ?? 0), $fmt, 'masuk', $hrefAwal) . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_donasi'] ?? 0), $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal($lainMasuk, $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_total'] ?? 0), $fmt, 'masuk', $hrefMasuk) . '</td>';
         echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_syahriyah'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
         echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_makan'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
-        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        if ($showSaku) {
+            echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
+        }
         echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_awal_tahun'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
         echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
         echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
@@ -366,14 +376,18 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_awal_ta'] ?? 0), $fmt, 'saldo') . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefTaSy) . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefTaMakan) . '</td>';
-    echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefTaSaku) . '</td>';
+    if ($showSaku) {
+        echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_saku'] ?? 0), $fmt, 'masuk', $hrefTaSaku) . '</td>';
+    }
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_awal_tahun'] ?? 0), $fmt, 'masuk', $hrefTaAwal) . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_donasi'] ?? 0), $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal($lainTa, $fmt) . '</td>';
     echo '<td class="text-end rekap-kas-masuk rekap-kas-masuk-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_total'] ?? 0), $fmt, 'masuk', $hrefTaMasuk) . '</td>';
     echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_syahriyah'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
     echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_makan'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
-    echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    if ($showSaku) {
+        echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
+    }
     echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar_awal_tahun'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
     echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['keluar'] ?? 0), $fmt, 'keluar', $hrefTaKeluar) . '</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
@@ -394,10 +408,16 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt): voi
         echo '<div class="row g-2 mt-2">';
         echo '<div class="col-md-3"><span class="text-muted">Kas pondok:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_kas'] ?? 0))) . '</strong></div>';
         echo '<div class="col-md-3"><span class="text-muted">Rekening bank:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total_bank'] ?? 0))) . '</strong></div>';
-        echo '<div class="col-md-3"><span class="text-muted">Kas titipan saku*:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['kas_titipan_saku'] ?? 0))) . '</strong></div>';
+        if ($showSaku) {
+            echo '<div class="col-md-3"><span class="text-muted">Kas titipan saku*:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['kas_titipan_saku'] ?? 0))) . '</strong></div>';
+        }
         echo '<div class="col-md-3"><span class="text-muted">Total kas pondok:</span> <strong>' . htmlspecialchars($fmt((int) ($kb['total'] ?? 0))) . '</strong></div>';
         echo '</div>';
-        echo '<p class="text-muted mb-0 mt-2">*Saku = titipan santri, tidak masuk total kas pondok / Total masuk. Saldo fisik verifikasi = kas+bank pondok (tanpa saku).</p>';
+        if ($showSaku) {
+            echo '<p class="text-muted mb-0 mt-2">*Saku = titipan santri, tidak masuk total kas pondok / Total masuk. Saldo fisik verifikasi = kas+bank pondok (tanpa saku).</p>';
+        } else {
+            echo '<p class="text-muted mb-0 mt-2">Tampilan kas pondok (1101/1102). Kolom titipan saku: <a href="' . htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php?view=full')) . '">tampilkan rekap lengkap</a> atau <a href="' . htmlspecialchars(app_href('/keuangan/saku.php')) . '">modul Saku &amp; Cashless</a>.</p>';
+        }
         echo '</div>';
     }
 }

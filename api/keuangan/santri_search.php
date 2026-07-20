@@ -40,7 +40,7 @@ if ($id > 0) {
     $match = $st->fetch(PDO::FETCH_ASSOC);
     $rows = $match ? [$match] : [];
 } else {
-    if (mb_strlen($q) < 2) {
+    if (mb_strlen($q) < 1) {
         echo json_encode(['ok' => true, 'items' => []], JSON_UNESCAPED_UNICODE);
         exit;
     }

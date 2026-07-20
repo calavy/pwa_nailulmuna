@@ -85,7 +85,6 @@ require_once __DIR__ . '/../includes/header.php';
     $kasBank = $dashSnap['kas_bank'] ?? ['total' => 0, 'total_kas' => 0, 'total_bank' => 0, 'akun' => [], 'as_of_label' => ''];
     $mutasiHariIni = $dashSnap['mutasi_hari_ini'] ?? ['masuk' => 0, 'keluar' => 0, 'bersih' => 0];
     $kesehatanNeraca = $dashSnap['kesehatan_neraca'] ?? [];
-    $selisihSakuCashless = (int) ($kesehatanNeraca['selisih_saku_cashless'] ?? 0);
     $transaksiTanpaAkun = (int) ($dashSnap['transaksi_tanpa_akun'] ?? 0);
     $seimbang = !empty($ner['seimbang']);
     $neracaSehat = !empty($ner['sehat']);
@@ -221,15 +220,12 @@ require_once __DIR__ . '/../includes/header.php';
     require __DIR__ . '/partials/checklist_kas_bulanan.php';
     ?>
 
-    <?php if ($selisihRekapKas !== 0 || $selisihSakuCashless !== 0 || $transaksiTanpaAkun > 0): ?>
+    <?php if ($selisihRekapKas !== 0 || $transaksiTanpaAkun > 0): ?>
     <div class="alert alert-warning py-2 small mb-3">
         <i class="fa-solid fa-triangle-exclamation me-1"></i>
         <strong>Perlu perhatian:</strong>
         <?php if ($selisihRekapKas !== 0): ?>
             Selisih rekap kas <?= htmlspecialchars($formatRupiah(abs($selisihRekapKas))) ?>.
-        <?php endif; ?>
-        <?php if ($selisihSakuCashless !== 0): ?>
-            Selisih saku vs cashless <?= htmlspecialchars($formatRupiah(abs($selisihSakuCashless))) ?>.
         <?php endif; ?>
         <?php if ($transaksiTanpaAkun > 0): ?>
             <?= $transaksiTanpaAkun ?> transaksi tanpa akun kas/bank.
@@ -486,7 +482,6 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>
                 <a class="keu-modern-link" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right"></i><span>Dana talangan antar-POS</span></a>
                 <a class="keu-modern-link" href="/keuangan/impor-ekspor.php"><i class="fa-solid fa-file-excel"></i><span>Impor / ekspor Excel</span></a>
-                <a class="keu-modern-link" href="/keuangan/cashless_scan.php"><i class="fa-solid fa-qrcode"></i><span>Top up cashless</span></a>
                 <a class="keu-modern-link" href="/keuangan/gaji_pembimbing.php"><i class="fa-solid fa-chalkboard-user"></i><span>Gaji pembimbing</span></a>
             </div>
         </div>
@@ -502,11 +497,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=santri_bulanan"><i class="fa-solid fa-user-gear"></i><span>Override per santri (bulanan)</span></a>
                 <a class="keu-modern-link" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group"></i><span>Kelas keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse"></i><span>Inventaris aset</span></a>
-                <a class="keu-modern-link" href="/keuangan/cashless_pin.php"><i class="fa-solid fa-key"></i><span>Cashless &amp; uang saku</span></a>
             </div>
         </div>
     </div>
 </div>
+
+<p class="text-center text-muted small mt-2 mb-0">
+    <a href="<?= htmlspecialchars(app_href('/keuangan/saku.php')) ?>" class="text-decoration-none">
+        <i class="fa-solid fa-coins me-1"></i>Modul Saku &amp; Cashless →
+    </a>
+</p>
 
 <style>
 .keuangan-hub-page .card-header { font-size: 0.95rem; }

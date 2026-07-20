@@ -598,6 +598,8 @@ function pondok_settings_defaults(): array
         'wa_izin_grup_fonte' => '',
         'wa_izin_grup_fonte_enabled' => '1',
         'wa_izin_pengurus' => '',
+        'wa_izin_pengurus_putra' => '',
+        'wa_izin_pengurus_putri' => '',
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
         'wa_izin_wali_enabled' => '1',
@@ -760,6 +762,25 @@ function wa_izin_pengurus_target(PDO $pdo): string
     }
 
     return wa_permohonan_izin_target($pdo);
+}
+
+/** Nomor pengurus izin per kelompok putra/putri; fallback ke wa_izin_pengurus jika kosong. */
+function wa_izin_pengurus_target_kelompok(PDO $pdo, string $kelompok): string
+{
+    $kelompok = strtolower(trim($kelompok));
+    if ($kelompok === 'putra') {
+        $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus_putra', ''));
+        if ($nomor !== '') {
+            return $nomor;
+        }
+    } elseif ($kelompok === 'putri') {
+        $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus_putri', ''));
+        if ($nomor !== '') {
+            return $nomor;
+        }
+    }
+
+    return wa_izin_pengurus_target($pdo);
 }
 
 function wa_izin_pengurus_enabled(PDO $pdo): bool
@@ -3430,6 +3451,29 @@ function app_acl_is_public_route(string $requestPath): bool
 }
 
 /**
+ * Path yang hanya redirect ke landing hub — jangan pakai sebagai fallback ACL.
+ */
+function app_acl_is_hub_redirect_stub(string $path): bool
+{
+    if (!function_exists('app_normalize_request_path')) {
+        require_once __DIR__ . '/app_path.php';
+    }
+    $path = app_normalize_request_path($path);
+
+    return in_array($path, [
+        '/keuangan/cashless.php',
+        '/keuangan/transaksi.php',
+        '/keuangan/kas.php',
+        '/perizinan/hub.php',
+        '/akademik/setoran.php',
+        '/akademik/ikhtibar.php',
+        '/pkpps/hub.php',
+        '/rekap/presensi.php',
+        '/settings/kalender_ta.php',
+    ], true);
+}
+
+/**
  * Halaman pertama yang boleh diakses (hindari redirect ke dashboard tanpa izin).
  */
 function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap, ?string $skipPath = null): ?string
@@ -3444,6 +3488,9 @@ function app_acl_first_allowed_path(array $permissionPathMap, array $allowedMap,
     }
     foreach ($permissionPathMap as $path => $permissionKey) {
         if ($path !== '' && isset($allowedMap[$permissionKey])) {
+            if (app_acl_is_hub_redirect_stub($path)) {
+                continue;
+            }
             $candidates[] = $path;
         }
     }

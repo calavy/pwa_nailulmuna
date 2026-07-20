@@ -1025,12 +1025,90 @@ function perizinan_wa_flash_kirim_disetujui(array $ringkasan): string
     return ' WA terkirim ke ' . implode(' & ', $parts) . '.';
 }
 
-/** @return list<string> */
-function perizinan_wa_pengurus_phone_list(PDO $pdo, int $approvedByUserId = 0): array
+/** @return 'putra'|'putri'|null */
+function perizinan_santri_kelompok(PDO $pdo, array $izinRow): ?string
+{
+    require_once __DIR__ . '/jadwal_jamaah.php';
+
+    $jk = trim((string) ($izinRow['jenis_kelamin'] ?? ''));
+    if ($jk !== '') {
+        return strcasecmp($jk, 'Perempuan') === 0 ? 'putri' : 'putra';
+    }
+
+    $tingkatan = trim((string) ($izinRow['tingkatan'] ?? ''));
+    if ($tingkatan !== '') {
+        $kel = jadwal_tingkatan_kelompok_dari_nama($tingkatan);
+        if ($kel === 'putra' || $kel === 'putri') {
+            return $kel;
+        }
+    }
+
+    $santriId = (int) ($izinRow['santri_id'] ?? 0);
+    if ($santriId > 0 && table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'jenis_kelamin')) {
+        $st = $pdo->prepare('SELECT jenis_kelamin, tingkatan FROM santri WHERE id = :id LIMIT 1');
+        $st->execute(['id' => $santriId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            return perizinan_santri_kelompok($pdo, $row);
+        }
+    }
+
+    return null;
+}
+
+/** @param list<array<string,mixed>> $anggota @return list<'putra'|'putri'> */
+function perizinan_kelompok_untuk_anggota(PDO $pdo, array $anggota): array
+{
+    $kelompok = [];
+    foreach ($anggota as $ang) {
+        if (!is_array($ang)) {
+            continue;
+        }
+        $k = perizinan_santri_kelompok($pdo, $ang);
+        if ($k === 'putra' || $k === 'putri') {
+            $kelompok[$k] = true;
+        }
+    }
+
+    return array_keys($kelompok);
+}
+
+/**
+ * Daftar kelompok penerima WA pengurus dari data izin atau anggota rombongan.
+ *
+ * @param list<array<string,mixed>>|null $anggota
+ * @return list<'putra'|'putri'|null>
+ */
+function perizinan_wa_pengurus_kelompok_dari_izin(PDO $pdo, array $izinRow, ?array $anggota = null): array
+{
+    if ($anggota !== null && $anggota !== []) {
+        $list = perizinan_kelompok_untuk_anggota($pdo, $anggota);
+
+        return $list !== [] ? $list : [null];
+    }
+
+    $k = perizinan_santri_kelompok($pdo, $izinRow);
+
+    return $k !== null ? [$k] : [null];
+}
+
+/** @param list<'putra'|'putri'|null>|null $kelompokList @return list<string> */
+function perizinan_wa_pengurus_phone_list(PDO $pdo, int $approvedByUserId = 0, ?array $kelompokList = null): array
 {
     $phones = [];
-    $setting = wa_izin_pengurus_target($pdo);
-    if ($setting !== '') {
+    if ($kelompokList === null || $kelompokList === []) {
+        $kelompokList = [null];
+    }
+
+    foreach ($kelompokList as $kelompok) {
+        if ($kelompok === null || $kelompok === '') {
+            $setting = wa_izin_pengurus_target($pdo);
+        } else {
+            $setting = wa_izin_pengurus_target_kelompok($pdo, (string) $kelompok);
+        }
+        if ($setting === '') {
+            continue;
+        }
         foreach (preg_split('/\s*,\s*/', $setting) ?: [] as $ph) {
             $ph = trim((string) $ph);
             if ($ph !== '') {
@@ -1166,7 +1244,8 @@ function perizinan_kirim_wa_pengurus_disetujui(
     string $jamMulai,
     string $jamSelesai,
     int $approvedByUserId = 0,
-    string $daftarSantri = ''
+    string $daftarSantri = '',
+    ?array $anggotaRombongan = null
 ): int {
     require_once __DIR__ . '/wa_otomatis.php';
     if (!wa_otomatis_should_run($pdo, 'izin') || !wa_izin_pengurus_enabled($pdo)) {
@@ -1176,7 +1255,8 @@ function perizinan_kirim_wa_pengurus_disetujui(
         return 0;
     }
 
-    $phones = perizinan_wa_pengurus_phone_list($pdo, $approvedByUserId);
+    $kelompokList = perizinan_wa_pengurus_kelompok_dari_izin($pdo, $izinRow, $anggotaRombongan);
+    $phones = perizinan_wa_pengurus_phone_list($pdo, $approvedByUserId, $kelompokList);
     if ($phones === []) {
         return 0;
     }
@@ -1217,14 +1297,9 @@ function perizinan_kirim_wa_pengurus_izin_selesai(
         return 0;
     }
 
-    $phones = perizinan_wa_pengurus_phone_list($pdo);
-    if ($phones === []) {
-        return 0;
-    }
-
     $st = $pdo->prepare('
-        SELECT i.jenis_izin, i.waktu_kembali, i.approved_by,
-               s.nama_santri, s.nis, s.tingkatan
+        SELECT i.jenis_izin, i.waktu_kembali, i.approved_by, i.santri_id,
+               s.nama_santri, s.nis, s.tingkatan, s.jenis_kelamin
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.id = :id
@@ -1233,6 +1308,12 @@ function perizinan_kirim_wa_pengurus_izin_selesai(
     $st->execute(['id' => $izinId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
+        return 0;
+    }
+
+    $kelompokList = perizinan_wa_pengurus_kelompok_dari_izin($pdo, $row);
+    $phones = perizinan_wa_pengurus_phone_list($pdo, (int) ($row['approved_by'] ?? 0), $kelompokList);
+    if ($phones === []) {
         return 0;
     }
 
@@ -1484,7 +1565,8 @@ function perizinan_kirim_wa_rombongan_disetujui(
         $jamMulai,
         $jamSelesai,
         $approvedByUserId,
-        $daftarSantri
+        $daftarSantri,
+        $anggota
     );
 
     foreach ($anggota as $ang) {
@@ -1872,7 +1954,7 @@ function perizinan_fetch_izin_dengan_santri(PDO $pdo, int $izinId): ?array
         SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai,
                i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, i.tujuan, i.qr_token,
                i.approval_status, i.pengasuh_approved_at,
-               s.' . $nameCol . ' AS nama_santri, s.nis, s.tingkatan, s.no_wa_wali
+               s.' . $nameCol . ' AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin, s.no_wa_wali
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.id = :id
@@ -1917,7 +1999,7 @@ function perizinan_syari_backfill_finalize(PDO $pdo, int $izinId): bool
     }
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $st = $pdo->prepare("
-        SELECT i.*, s.{$nameCol} AS nama_santri, s.nis, s.tingkatan, s.no_wa_wali
+        SELECT i.*, s.{$nameCol} AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin, s.no_wa_wali
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.id = :id
@@ -1963,7 +2045,7 @@ function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $by
     $st = $pdo->prepare("
         SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai,
                i.durasi_jam, i.alasan, i.qr_token, i.approval_status, i.pengasuh_approved_at,
-               s.{$nameCol} AS nama_santri, s.nis, s.tingkatan, s.no_wa_wali
+               s.{$nameCol} AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin, s.no_wa_wali
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
         WHERE i.id = :id

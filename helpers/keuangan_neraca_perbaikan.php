@@ -113,7 +113,7 @@ function keuangan_neraca_hitung_transaksi_tanpa_akun(PDO $pdo, string $table, st
 /**
  * @return list<array<string, mixed>>
  */
-function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analisis = null): array
+function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analisis = null, bool $includeSaku = true): array
 {
     $analisis ??= keuangan_neraca_analisis_selisih($pdo, $neraca);
     $selisih = (int) ($analisis['selisih'] ?? 0);
@@ -209,7 +209,7 @@ function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analis
     }
 
     $selisihSaku = (int) ($analisis['selisih_saku_cashless'] ?? 0);
-    if (abs($selisihSaku) > 0) {
+    if ($includeSaku && abs($selisihSaku) > 0) {
         $saran[] = [
             'kode' => 'saku_cashless',
             'prioritas' => 'sedang',
@@ -221,8 +221,8 @@ function keuangan_neraca_saran_perbaikan(PDO $pdo, array $neraca, ?array $analis
                 'Periksa transaksi cashless koperasi (belanja, koreksi) di laporan cashless.',
                 'Koreksi manual saldo cashless hanya jika ada bukti administratif.',
             ],
-            'link' => '/keuangan/cashless_laporan.php',
-            'link_label' => 'Laporan cashless',
+            'link' => '/keuangan/perbaikan-saku.php',
+            'link_label' => 'Perbaikan saku',
             'jumlah' => 0,
             'nominal' => abs($selisihSaku),
         ];
