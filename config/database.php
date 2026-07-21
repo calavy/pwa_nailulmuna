@@ -1,18 +1,18 @@
 <?php
 
 /**
- * Lokal (XAMPP): biarkan tanpa database.local.php → pakai default di bawah.
- * Hosting (InfinityFree, dll.): buat config/database.local.php
- * (salin dari database.local.example.php) dengan host/user/pass dari panel hosting.
+ * Lokal (XAMPP): config/database.local.php → pwa_nailulmuna / root / pass kosong.
+ * Hosting: config/database.local.hosting.php → u700125577_pwanailulmuna (salin ke
+ * database.local.php di server, atau set env PONDOK_DB_PROFILE=hosting).
  *
- * Prioritas: getenv DB_* → database.local.php → default XAMPP.
+ * Prioritas: getenv DB_* → database.local.php (lokal XAMPP) → default di bawah.
  */
-/** Default XAMPP lokal — production wajib pakai config/database.local.php */
+/** Default fallback — hosting; lokal XAMPP pakai config/database.local.php */
 $host = '127.0.0.1';
 $port = '3306';
-$dbName = 'pwa_nailulmuna';
-$dbUser = 'root';
-$dbPass = '';
+$dbName = 'u700125577_pwanailulmuna';
+$dbUser = 'u700125577_pwanailulmuna';
+$dbPass = 'Pwanailulmuna@1990';
 
 $envHost = getenv('DB_HOST');
 if ($envHost !== false && trim((string) $envHost) !== '') {
@@ -36,6 +36,11 @@ if ($envPass !== false) {
 }
 
 $localFile = __DIR__ . '/database.local.php';
+$hostingFile = __DIR__ . '/database.local.hosting.php';
+$dbProfile = strtolower(trim((string) (getenv('PONDOK_DB_PROFILE') ?: '')));
+if ($dbProfile === 'hosting' && is_file($hostingFile)) {
+    $localFile = $hostingFile;
+}
 $GLOBALS['pondok_env'] = 'production';
 if (is_file($localFile)) {
     $local = require $localFile;

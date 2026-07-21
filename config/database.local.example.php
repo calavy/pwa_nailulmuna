@@ -3,9 +3,15 @@
 /**
  * Salin file ini menjadi: database.local.php
  *
- * Default di bawah = XAMPP di komputer (localhost).
- * Untuk InfinityFree: ganti host, dbname, user, pass dari menu Basis Data MySQL
- * (host biasanya sqlXXX.infinityfree.com, bukan 127.0.0.1).
+ * === Profil LOKAL (XAMPP) — default di bawah ===
+ * Database: pwa_nailulmuna | Impor: impor_lokal_pwa_nailulmuna.sql
+ *
+ * === Profil HOSTING (InfinityFree / live) ===
+ * Salin database.local.hosting.example.php → database.local.hosting.php, isi host MySQL.
+ * dbname/user/pass hosting: u700125577_pwanailulmuna / u700125577_pwanailulmuna
+ * Di server salin database.local.hosting.php → database.local.php
+ * (atau env PONDOK_DB_PROFILE=hosting di server)
+ * Impor: impor_lengkap_pwa_nailulmuna.sql
  */
 return [
     'environment' => 'local',

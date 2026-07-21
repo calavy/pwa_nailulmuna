@@ -1,4 +1,5 @@
 config/database.local.php
+config/database.local.hosting.php
 config/app.local.php
 config/firebase.local.php
 config/midtrans.local.php

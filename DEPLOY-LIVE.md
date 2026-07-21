@@ -2,6 +2,21 @@
 
 Panduan ini untuk memperbarui **kode PHP** dari GitHub ke hosting (mis. `pwa.nailulmuna.id`) sambil **mempertahankan database & upload** yang sudah ada.
 
+## Dua profil database
+
+| Lingkungan | File config (di PC) | File config (di server live) | File impor SQL | Database / user |
+|------------|---------------------|------------------------------|----------------|-----------------|
+| **XAMPP lokal** | `config/database.local.php` | — | `impor_lokal_pwa_nailulmuna.sql` | `pwa_nailulmuna` / `root` |
+| **Hosting live** | `config/database.local.hosting.php` | salin → `config/database.local.php` | `impor_lengkap_pwa_nailulmuna.sql` (hanya DB kosong) | `u700125577_pwanailulmuna` / `u700125577_pwanailulmuna` |
+
+Di PC: **jangan timpa** `database.local.php` lokal saat mengedit profil hosting — kredensial hosting hanya di `database.local.hosting.php` (gitignored). Password hosting ada di file itu; isi juga **MySQL Host Name** dari panel (mis. `sql313.infinityfree.com`).
+
+Alternatif tanpa salin file di server: set env `PONDOK_DB_PROFILE=hosting` agar [`config/database.php`](config/database.php) memuat `database.local.hosting.php`.
+
+Template hosting: `config/database.local.hosting.example.php` → salin jadi `database.local.hosting.php`.
+
+---
+
 ## Yang AMAN vs BERBAHAYA
 
 | Aksi | Aman di live? |
@@ -39,6 +54,7 @@ Atau double-click **`upload-github.bat`** dan isi pesan commit.
 File yang **tidak** ikut GitHub (tetap hanya di PC/server):
 
 - `config/database.local.php`
+- `config/database.local.hosting.php`
 - `config/app.local.php`
 - `config/firebase.local.php` (jika ada)
 
