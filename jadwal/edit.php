@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/operasional_audit.php';
 require_once __DIR__ . '/../helpers/jadwal_ui.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
+require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
 
 require_roles(['admin', 'pengurus']);
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -42,6 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
+    $kegiatanIdEff = $kegiatanId > 0 ? $kegiatanId : (int) ($jadwal['kegiatan_id'] ?? 0);
+    if (kegiatan_kategori_is_extra(kegiatan_kategori_fetch($pdo, $kegiatanIdEff))) {
+        $tingkatanDipilih = ['Semua Tingkatan'];
+    }
+
     $jamMulai = $_POST['jam_mulai'] ?? '00:00';
     $jamSelesai = $_POST['jam_selesai'] ?? '00:00';
     if (jadwal_norm_jam($jamSelesai) <= jadwal_norm_jam($jamMulai)) {

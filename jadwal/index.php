@@ -11,6 +11,7 @@ require_once __DIR__ . '/../helpers/jadwal_jamaah.php';
 require_once __DIR__ . '/../helpers/jadwal_jamaah_pembimbing.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
+require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
 
 jadwal_require_module_access();
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -159,7 +160,7 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
     : [];
 array_unshift($tingkatanList, 'Semua Tingkatan');
 $kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, COALESCE(is_active, 1) AS is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-$kegiatanListAktif = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll();
+$kegiatanListAktif = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll();
 $pembimbingList = (!$jadwalPembimbingScope && table_exists($pdo, 'pembimbing'))
     ? $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll()
     : [];
@@ -196,7 +197,7 @@ unset($jadwalRow);
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
 $filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
-if (!in_array($filterKat, ['JAMAAH', 'TAALIM'], true)) {
+if (!in_array($filterKat, kegiatan_kategori_list(), true)) {
     $filterKat = '';
 }
 $filterKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
@@ -376,6 +377,7 @@ $ok = get_flash('success');
                     <option value="">Semua</option>
                     <option value="TAALIM" <?= $filterKat === 'TAALIM' ? 'selected' : '' ?>>Ta'lim</option>
                     <option value="JAMAAH" <?= $filterKat === 'JAMAAH' ? 'selected' : '' ?>>Jama'ah</option>
+                    <option value="EXTRA" <?= $filterKat === 'EXTRA' ? 'selected' : '' ?>>Extra</option>
                 </select>
             </div>
             <div class="col-6 col-md-3">

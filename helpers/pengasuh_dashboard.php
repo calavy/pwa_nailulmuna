@@ -241,18 +241,14 @@ function pengasuh_dashboard_keaktivan_by_tingkatan_hari_penuh(array $rowsKat): a
     return pengasuh_dashboard_group_keaktivan_by_tingkatan($rowsKat);
 }
 
-/** @return 'TAALIM'|'JAMAAH' */
+/** @return 'TAALIM'|'JAMAAH'|'EXTRA' */
 function pengasuh_dashboard_normalize_kegiatan_kategori(?string $raw): string
 {
-    $k = strtoupper(trim((string) $raw));
-    if ($k === 'TA\'LIM') {
-        $k = 'TAALIM';
-    }
-    if ($k === 'JAMAAH') {
-        return 'JAMAAH';
+    if (!function_exists('kegiatan_kategori_normalize')) {
+        require_once __DIR__ . '/kegiatan_kategori.php';
     }
 
-    return 'TAALIM';
+    return kegiatan_kategori_normalize($raw);
 }
 
 /**

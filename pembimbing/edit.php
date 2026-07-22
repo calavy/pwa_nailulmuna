@@ -72,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'wa' => trim($_POST['no_wa'] ?? ''),
             'is_aktif' => isset($_POST['is_aktif']) && $_POST['is_aktif'] === '1' ? 1 : 0,
             'gaji_pokok' => $gajiPokokNum,
-            'tarif_kriteria' => payroll_pembimbing_normalize_kriteria((string) ($_POST['tarif_kriteria'] ?? '')),
             'wa_scan_reminder' => isset($_POST['wa_scan_reminder']) && $_POST['wa_scan_reminder'] === '1' ? 1 : 0,
             'wa_izin_notif' => isset($_POST['wa_izin_notif']) && $_POST['wa_izin_notif'] === '1' ? 1 : 0,
         ];
@@ -83,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, tarif_kriteria = :tarif_kriteria, wa_scan_reminder = :wa_scan_reminder, wa_izin_notif = :wa_izin_notif WHERE id = :id');
+            $update = $pdo->prepare('UPDATE pembimbing SET qr = :qr, nip = :nip, nama_pembimbing = :nama, no_wa = :wa, is_aktif = :is_aktif, gaji_pokok = :gaji_pokok, wa_scan_reminder = :wa_scan_reminder, wa_izin_notif = :wa_izin_notif WHERE id = :id');
             $update->execute($data);
 
             $renameNote = '';
@@ -299,9 +298,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $payrollTarifMap = payroll_pembimbing_tarif_map($pdo);
-$payrollLabels = payroll_pembimbing_kriteria_labels();
 $pembimbingGajiPokok = (float) ($pembimbing['gaji_pokok'] ?? 0);
-$pembimbingKriteria = payroll_pembimbing_normalize_kriteria((string) ($pembimbing['tarif_kriteria'] ?? ''));
 ?>
 <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-stretch align-items-sm-center mb-3 gap-2">
     <div>
@@ -394,10 +391,12 @@ $pembimbingKriteria = payroll_pembimbing_normalize_kriteria((string) ($pembimbin
                         <hr class="my-2">
                         <p class="page-intro-kicker mb-1 small text-muted"><i class="fa-solid fa-coins me-1"></i> Payroll</p>
                         <p class="small text-muted mb-2">
-                            Gaji pokok adalah tunjangan tetap per bulan. Sistem menambahkan
-                            <em>total jam kerja × tarif per jam</em> sesuai kriteria yang dipilih.
-                            Atur nominal tarif global di
-                            <a href="<?= htmlspecialchars(app_href('/settings/tarif_payroll.php')) ?>">Master Tarif Payroll</a>.
+                            Gaji pokok adalah tunjangan tetap per bulan. Tarif per jam dihitung otomatis dari
+                            presensi mengikuti <strong>beban payroll per kegiatan Ta'lim</strong> (bukan per pembimbing).
+                            Atur tarif Rp/jam di
+                            <a href="<?= htmlspecialchars(app_href('/settings/tarif_payroll.php')) ?>">Tarif Payroll</a>
+                            dan beban per mapel di
+                            <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Beban Payroll Ta'lim</a>.
                         </p>
                     </div>
                     <div class="col-md-6">
@@ -410,19 +409,14 @@ $pembimbingKriteria = payroll_pembimbing_normalize_kriteria((string) ($pembimbin
                         <div class="form-text">Isi 0 jika pembimbing ini hanya dibayar per jam.</div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label d-block">Kriteria tarif per jam</label>
-                        <div class="d-flex flex-wrap gap-2">
-                            <?php foreach (PAYROLL_PEMBIMBING_KRITERIA as $k):
-                                $nominalK = (float) ($payrollTarifMap[$k] ?? 0);
-                                $checked = $pembimbingKriteria === $k;
-                                $inputId = 'tarif_kriteria_' . strtolower($k);
-                            ?>
-                                <input type="radio" class="btn-check" name="tarif_kriteria" id="<?= htmlspecialchars($inputId) ?>" value="<?= htmlspecialchars($k) ?>" <?= $checked ? 'checked' : '' ?> autocomplete="off">
-                                <label class="btn btn-outline-primary btn-sm d-inline-flex flex-column align-items-start" for="<?= htmlspecialchars($inputId) ?>">
-                                    <span class="fw-semibold"><?= htmlspecialchars($payrollLabels[$k] ?? $k) ?></span>
-                                    <small class="text-muted">Rp <?= number_format($nominalK, 0, ',', '.') ?> / jam</small>
-                                </label>
-                            <?php endforeach; ?>
+                        <label class="form-label d-block">Tarif per jam</label>
+                        <div class="small text-muted border rounded-3 p-3 h-100">
+                            Mengikuti kegiatan/jadwal Ta'lim yang discan saat presensi.
+                            <ul class="mb-0 ps-3 mt-2">
+                                <?php foreach (PAYROLL_PEMBIMBING_KRITERIA as $k): ?>
+                                    <li><?= htmlspecialchars(payroll_pembimbing_kriteria_labels()[$k] ?? $k) ?> — Rp <?= number_format((int) round((float) ($payrollTarifMap[$k] ?? 0)), 0, ',', '.') ?>/jam</li>
+                                <?php endforeach; ?>
+                            </ul>
                         </div>
                     </div>
                     <div class="col-12">

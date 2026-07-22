@@ -400,6 +400,84 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     return $out;
 }
 
+/** @return list<string> */
+function keuangan_pengeluaran_pos_default_list(): array
+{
+    return [
+        'Administrasi',
+        'ATK',
+        'Bahan',
+        'Gaji',
+        'Konsumsi',
+        'Operasional',
+        'Pemeliharaan',
+        'Pendidikan',
+        'Perlengkapan',
+        'Sarpras',
+        'Transport',
+        'Utilitas',
+    ];
+}
+
+/**
+ * Daftar pos/jenis beban untuk dropdown input pengeluaran.
+ *
+ * @return list<string>
+ */
+function keuangan_pengeluaran_pos_options(PDO $pdo): array
+{
+    $seen = [];
+    $out = [];
+    $add = static function (string $val) use (&$seen, &$out): void {
+        $val = trim($val);
+        if ($val === '') {
+            return;
+        }
+        $key = strtolower($val);
+        if (isset($seen[$key])) {
+            return;
+        }
+        $seen[$key] = true;
+        $out[] = $val;
+    };
+
+    foreach (keuangan_pengeluaran_pos_default_list() as $pos) {
+        $add($pos);
+    }
+
+    if (table_exists($pdo, 'keuangan_alokasi')) {
+        $rows = $pdo->query("
+            SELECT DISTINCT TRIM(kategori) AS kat
+            FROM keuangan_alokasi
+            WHERE TRIM(COALESCE(kategori, '')) <> ''
+            ORDER BY kat ASC
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $kat) {
+            $add((string) $kat);
+        }
+    }
+
+    if (table_exists($pdo, 'keuangan_pengeluaran')) {
+        if (!function_exists('keuangan_sql_pengeluaran_operasional_where')) {
+            require_once __DIR__ . '/keuangan_rekonsiliasi.php';
+        }
+        $opsWhere = keuangan_sql_pengeluaran_operasional_where();
+        $rows = $pdo->query("
+            SELECT DISTINCT TRIM(pos) AS pos
+            FROM keuangan_pengeluaran
+            WHERE TRIM(COALESCE(pos, '')) <> '' AND {$opsWhere}
+            ORDER BY pos ASC
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $pos) {
+            $add((string) $pos);
+        }
+    }
+
+    sort($out, SORT_NATURAL | SORT_FLAG_CASE);
+
+    return $out;
+}
+
 /**
  * Peta nama alokasi → kategori kas keluar (syahriyah|makan|saku|awal_tahun).
  *

@@ -72,7 +72,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-pengaturan')) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Master Tarif Payroll Pembimbing</h1>
-    <p class="text-muted mb-0">Atur nominal tarif per jam untuk setiap kriteria beban kerja. Tarif ini menjadi acuan global: setiap pembimbing memilih salah satu kriteria di profilnya, lalu sistem otomatis menghitung gaji bulanan dari akumulasi jam presensi.</p>
+    <p class="text-muted mb-0">Atur nominal tarif per jam untuk setiap kriteria beban kerja. Kategori beban per kegiatan Ta'lim diatur terpisah di <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Beban Payroll Ta'lim</a>. Gaji pembimbing = gaji pokok + akumulasi jam presensi × tarif sesuai beban kegiatan.</p>
 </div>
 
 <div class="row g-3 mb-4">
@@ -133,10 +133,11 @@ require_once __DIR__ . '/../includes/header.php';
         <h2 class="h5">Cara kerja</h2>
         <ol class="small text-muted mb-0">
             <li>Atur 4 nominal tarif per jam di atas, lalu klik <strong>Simpan</strong>.</li>
-            <li>Di halaman <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>">Profil Pembimbing</a>, pilih <strong>Kriteria Tarif</strong> dan tentukan <strong>Gaji Pokok</strong> untuk masing-masing pembimbing.</li>
+            <li>Atur beban Berat/Sedang/Ringan per kegiatan Ta'lim di <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Beban Payroll Ta'lim</a> (mengacu kegiatan/jadwal yang sudah dibuat).</li>
+            <li>Di profil pembimbing, tentukan <strong>Gaji Pokok</strong> saja (tunjangan tetap bulanan).</li>
             <li>Sistem mengumpulkan total jam kerja dari presensi setiap bulan.</li>
             <li>Lihat hasil hitung otomatis di <a href="<?= htmlspecialchars(app_href('/rekap/pembimbing.php')) ?>">Rekap Pembimbing</a>:
-                <code>total_gaji = gaji_pokok + (total_jam × tarif_per_jam)</code>.
+                <code>total_gaji = gaji_pokok + Σ(jam × tarif[beban kegiatan])</code>.
             </li>
         </ol>
     </div>

@@ -36,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar
         'cal' => (string) ($_POST['cal'] ?? ''),
         'kegiatan_id' => (int) ($_POST['kegiatan_id'] ?? 0) ?: null,
         'paper' => (string) ($_POST['paper'] ?? ''),
+        'jam_mode' => payroll_pembimbing_normalize_jam_mode((string) ($_POST['jam_mode'] ?? '')) !== 'jadwal'
+            ? payroll_pembimbing_normalize_jam_mode((string) ($_POST['jam_mode'] ?? ''))
+            : null,
         'detail' => (int) ($_POST['detail'] ?? 0) ?: null,
     ]));
     header('Location: ' . app_href($payrollPageBase . '?' . $redirectQs));
@@ -65,6 +68,9 @@ $paper = strtoupper((string) ($_GET['paper'] ?? 'A4'));
 if (!in_array($paper, ['A4', 'F4'], true)) {
     $paper = 'A4';
 }
+$jamMode = payroll_pembimbing_normalize_jam_mode((string) ($_GET['jam_mode'] ?? 'jadwal'));
+$jamModeLabels = payroll_pembimbing_jam_mode_labels();
+$jamModeLabel = $jamModeLabels[$jamMode] ?? 'Durasi jadwal';
 
 $tarifMap = payroll_pembimbing_tarif_map($pdo);
 $kriteriaLabels = payroll_pembimbing_kriteria_labels();
@@ -93,7 +99,8 @@ foreach ($kegiatanList as $kg) {
     $kegiatanMap[(int) ($kg['id'] ?? 0)] = (string) ($kg['nama_kegiatan'] ?? '');
 }
 
-$presensiAgg = payroll_pembimbing_presensi_agg_map($pdo, $startDate, $endDate, $kegiatanFilter);
+$presensiAgg = payroll_pembimbing_presensi_agg_map($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
+$jamKriteriaMap = payroll_pembimbing_jam_kriteria_map($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
 $expectedSlotsMap = payroll_pembimbing_expected_slots_by_pembimbing($pdo, $startDate, $endDate, $kegiatanFilter);
 $hadirSlotMap = payroll_pembimbing_hadir_slot_keys_map($pdo, $startDate, $endDate, $kegiatanFilter);
 $izinDatesMap = payroll_pembimbing_izin_dates_by_pembimbing($pdo, $startDate, $endDate);
@@ -119,17 +126,30 @@ foreach ($rows as &$row) {
         $sakit
     );
 
-    $lateStmt = $pdo->prepare('
+    $lateSql = '
         SELECT COUNT(*)
         FROM presensi_pembimbing p
-        ' . payroll_pembimbing_scan_jadwal_join_sql('p') . '
+        ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
+        WHERE p.pembimbing_id = :pembimbing_id
+          AND p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
+          AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
+          AND TIME_TO_SEC(p.jam) > TIME_TO_SEC(ADDTIME(COALESCE(j.jam_mulai, pj.jam_mulai), SEC_TO_TIME(:late_sec)))
+    ';
+    if (payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        $lateSql = '
+        SELECT COUNT(*)
+        FROM presensi_pembimbing p
+        ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
         WHERE p.pembimbing_id = :pembimbing_id
           AND p.tanggal BETWEEN :start_date AND :end_date
           AND p.jenis_scan = "DATANG"
           AND p.kegiatan_id IS NOT NULL
           AND COALESCE(j.jam_mulai, pj.jam_mulai) IS NOT NULL
           AND TIME_TO_SEC(p.jam) > TIME_TO_SEC(ADDTIME(COALESCE(j.jam_mulai, pj.jam_mulai), SEC_TO_TIME(:late_sec)))
-    ');
+    ';
+    }
+    $lateStmt = $pdo->prepare($lateSql);
     $lateStmt->execute([
         'pembimbing_id' => $pid,
         'start_date' => $startDate,
@@ -157,13 +177,13 @@ foreach ($rows as &$row) {
     $row['kategori'] = $kategori;
 
     $totalJam = (float) ($agg['total_jam'] ?? 0);
-    $calc = payroll_pembimbing_compute(
-        $totalJam,
+    $byKriteria = $jamKriteriaMap[$pid]['by_kriteria'] ?? [];
+    $calc = payroll_pembimbing_compute_mixed(
         (float) ($row['gaji_pokok'] ?? 0),
-        (string) ($row['tarif_kriteria'] ?? ''),
+        $byKriteria,
         $tarifMap
     );
-    $row['total_jam'] = $calc['total_jam'];
+    $row['total_jam'] = $totalJam > 0 ? $totalJam : $calc['total_jam'];
     $row['gaji_pokok_n'] = $calc['gaji_pokok'];
     $row['tarif_per_jam'] = $calc['tarif_per_jam'];
     $row['kriteria'] = $calc['kriteria'];
@@ -188,7 +208,7 @@ if ($detailPembimbingId > 0) {
         $detailPembimbing = $stDet->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     if ($detailPembimbing !== null) {
-        $detailPresensiRows = payroll_pembimbing_presensi_valid_rows($pdo, $detailPembimbingId, $startDate, $endDate, $kegiatanFilter);
+        $detailPresensiRows = payroll_pembimbing_presensi_valid_rows($pdo, $detailPembimbingId, $startDate, $endDate, $kegiatanFilter, $jamMode);
     }
 }
 
@@ -239,6 +259,28 @@ if ($defaultAkunBayar <= 0 && $akunRowsBayar !== []) {
     $defaultAkunBayar = (int) ($akunRowsBayar[0]['id'] ?? 0);
 }
 
+if (($_GET['download'] ?? '') === 'xlsx') {
+    require_once __DIR__ . '/../helpers/excel.php';
+    $exportRekap = [];
+    foreach ($rows as $r) {
+        $pidExport = (int) ($r['pembimbing_id'] ?? 0);
+        $exportRekap[] = array_merge($r, [
+            'status_bayar' => isset($paidGajiMap[$pidExport])
+                ? 'Lunas ' . (string) ($paidGajiMap[$pidExport]['tanggal_bayar'] ?? '')
+                : 'Belum',
+        ]);
+    }
+    $detailExport = payroll_pembimbing_presensi_export_rows($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
+    $rentangExport = (string) ($period['rentang_tampilan'] ?? ($startDate . ' s/d ' . $endDate));
+    $fn = 'presensi_pembimbing_' . sprintf('%04d', $year) . '_' . sprintf('%02d', $month) . '.xlsx';
+    send_xlsx_download(
+        $fn,
+        payroll_pembimbing_build_xlsx_rows($periodLabel, $rentangExport, $exportRekap, $detailExport, $jamMode),
+        'Presensi Pembimbing'
+    );
+    exit;
+}
+
 $pageTitle = (defined('PAYROLL_FROM_KEUANGAN') && PAYROLL_FROM_KEUANGAN) ? 'Payroll Pembimbing' : 'Rekap Pembimbing (Admin)';
 require_once __DIR__ . '/../includes/header.php';
 $payrollQueryBase = http_build_query(array_filter([
@@ -247,6 +289,7 @@ $payrollQueryBase = http_build_query(array_filter([
     'year' => $year,
     'kegiatan_id' => $kegiatanFilter > 0 ? $kegiatanFilter : null,
     'paper' => $paper !== 'A4' ? $paper : null,
+    'jam_mode' => $jamMode !== 'jadwal' ? $jamMode : null,
 ]));
 ?>
 
@@ -258,7 +301,7 @@ $payrollQueryBase = http_build_query(array_filter([
         <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
         <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
     <?php endif; ?>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. <strong>Jam kegiatan</strong> dihitung dari presensi scan <em>DATANG</em> yang cocok jadwal. Klik <strong>Detail</strong> untuk rincian presensi valid per bulan.</p>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Metode hitung jam: <strong><?= htmlspecialchars($jamModeLabel) ?></strong>. Gaji per jam mengikuti <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">beban payroll per kegiatan Ta'lim</a>. Unduh <strong>XLSX</strong> untuk rekap + detail presensi per bulan.</p>
 </div>
 
 <div class="row g-3 mb-3 print-controls">
@@ -349,6 +392,15 @@ $payrollQueryBase = http_build_query(array_filter([
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label">Hitung jam</label>
+                <select class="form-select" name="jam_mode" title="Cara menghitung jam kerja untuk gaji per jam">
+                    <?php foreach ($jamModeLabels as $jmKey => $jmLabel): ?>
+                        <option value="<?= htmlspecialchars($jmKey) ?>" <?= $jamMode === $jmKey ? 'selected' : '' ?>><?= htmlspecialchars($jmLabel) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">Jadwal = durasi slot · Scan = 1 jam/hadir</div>
+            </div>
             <div class="col-6 col-md-2">
                 <label class="form-label">Kertas</label>
                 <select class="form-select" name="paper">
@@ -358,6 +410,12 @@ $payrollQueryBase = http_build_query(array_filter([
             </div>
             <div class="col-6 col-md-2">
                 <button class="btn btn-success w-100">Tampilkan</button>
+            </div>
+            <div class="col-6 col-md-2">
+                <a class="btn btn-outline-success w-100"
+                   href="<?= htmlspecialchars(app_href($payrollPageBase . '?' . ($payrollQueryBase !== '' ? $payrollQueryBase . '&' : '') . 'download=xlsx')) ?>">
+                    <i class="fa-solid fa-file-excel me-1"></i> XLSX
+                </a>
             </div>
             <div class="col-12 col-md-2">
                 <button type="button" class="btn btn-outline-dark w-100" onclick="window.print()">Cetak</button>
@@ -404,9 +462,9 @@ $payrollQueryBase = http_build_query(array_filter([
                     <th class="text-center">Sakit</th>
                     <th class="text-center">Alpa</th>
                     <th class="text-center">Telat</th>
-                    <th class="text-center">Jam Kegiatan</th>
-                    <th class="text-nowrap">Kriteria</th>
-                    <th class="text-end text-nowrap">Tarif/jam</th>
+                    <th class="text-center" title="<?= htmlspecialchars($jamModeLabel) ?>">Jam Kegiatan</th>
+                    <th class="text-nowrap">Kriteria Beban</th>
+                    <th class="text-end text-nowrap">Tarif efektif/jam</th>
                     <th class="text-end text-nowrap">Gaji pokok</th>
                     <th class="text-end text-nowrap">Gaji per jam</th>
                     <th class="text-end text-nowrap">Total gaji</th>
@@ -434,7 +492,7 @@ $payrollQueryBase = http_build_query(array_filter([
                             <td class="text-center"><?= (int) $row['alpa'] ?></td>
                             <td class="text-center"><?= (int) ($row['telat'] ?? 0) ?></td>
                             <td class="text-center"><?= number_format((float) ($row['total_jam'] ?? 0), 2, ',', '.') ?></td>
-                            <td><span class="badge text-bg-light border"><?= htmlspecialchars((string) ($row['kriteria_label'] ?? '-')) ?></span></td>
+                            <td><span class="badge text-bg-light border small"><?= htmlspecialchars((string) ($row['kriteria_label'] ?? '-')) ?></span></td>
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['tarif_per_jam'] ?? 0)))) ?></td>
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_pokok_n'] ?? 0)))) ?></td>
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_per_jam'] ?? 0)))) ?></td>
@@ -495,8 +553,10 @@ $payrollQueryBase = http_build_query(array_filter([
     $validCount = 0;
     $validJam = 0.0;
     foreach ($detailPresensiRows as $dr) {
-        if (!empty($dr['valid_jadwal'])) {
-            $validCount++;
+        if ($jamMode === 'per_scan' || !empty($dr['valid_jadwal'])) {
+            if (!empty($dr['valid_jadwal'])) {
+                $validCount++;
+            }
             $validJam += (float) ($dr['jam_hitung'] ?? 0);
         }
     }
@@ -506,7 +566,7 @@ $payrollQueryBase = http_build_query(array_filter([
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
                     <h2 class="h5 mb-1">Rincian presensi — <?= htmlspecialchars((string) ($detailPembimbing['nama_pembimbing'] ?? '')) ?></h2>
-                    <p class="small text-muted mb-0">Periode <?= htmlspecialchars($periodeLabelP) ?> · <?= count($detailPresensiRows) ?> scan DATANG · <?= $validCount ?> valid jadwal · <?= number_format($validJam, 2, ',', '.') ?> jam dihitung</p>
+                    <p class="small text-muted mb-0">Periode <?= htmlspecialchars($periodeLabelP) ?> · <?= count($detailPresensiRows) ?> scan DATANG · <?= $validCount ?> valid jadwal · <?= number_format($validJam, 2, ',', '.') ?> jam dihitung · metode: <?= htmlspecialchars($jamModeLabel) ?></p>
                 </div>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href($payrollPageBase . ($payrollQueryBase !== '' ? '?' . $payrollQueryBase : ''))) ?>">Tutup detail</a>
             </div>
@@ -517,20 +577,23 @@ $payrollQueryBase = http_build_query(array_filter([
                             <th>Tanggal</th>
                             <th>Jam scan</th>
                             <th>Kegiatan</th>
+                            <th>Kriteria</th>
                             <th>Jadwal</th>
                             <th class="text-center">Jam hitung</th>
+                            <th class="text-end">Gaji baris</th>
                             <th class="text-center">Valid</th>
                         </tr>
                     </thead>
                     <tbody>
                     <?php if ($detailPresensiRows === []): ?>
-                        <tr><td colspan="6" class="text-muted text-center py-3">Tidak ada presensi DATANG pada periode ini.</td></tr>
+                        <tr><td colspan="8" class="text-muted text-center py-3">Tidak ada presensi DATANG pada periode ini.</td></tr>
                     <?php else: ?>
                         <?php foreach ($detailPresensiRows as $dr): ?>
                             <tr class="<?= empty($dr['valid_jadwal']) ? 'table-warning' : '' ?>">
                                 <td><?= htmlspecialchars((string) $dr['tanggal']) ?></td>
                                 <td class="font-monospace small"><?= htmlspecialchars(substr((string) ($dr['jam'] ?? ''), 0, 5) ?: '—') ?></td>
                                 <td><?= htmlspecialchars((string) $dr['nama_kegiatan']) ?></td>
+                                <td><span class="badge text-bg-light border"><?= htmlspecialchars((string) ($dr['payroll_kriteria_label'] ?? '-')) ?></span></td>
                                 <td class="small font-monospace">
                                     <?php if (!empty($dr['jadwal_mulai'])): ?>
                                         <?= htmlspecialchars(substr((string) $dr['jadwal_mulai'], 0, 5)) ?>–<?= htmlspecialchars(substr((string) $dr['jadwal_selesai'], 0, 5)) ?>
@@ -539,6 +602,7 @@ $payrollQueryBase = http_build_query(array_filter([
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center"><?= number_format((float) ($dr['jam_hitung'] ?? 0), 2, ',', '.') ?></td>
+                                <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) ($dr['gaji_baris'] ?? 0))) ?></td>
                                 <td class="text-center">
                                     <?php if (!empty($dr['valid_jadwal'])): ?>
                                         <span class="badge text-bg-success">Ya</span>
@@ -566,6 +630,7 @@ $payrollQueryBase = http_build_query(array_filter([
             <input type="hidden" name="cal" value="<?= htmlspecialchars($calendarMode) ?>">
             <input type="hidden" name="kegiatan_id" value="<?= (int) $kegiatanFilter ?>">
             <input type="hidden" name="paper" value="<?= htmlspecialchars($paper) ?>">
+            <input type="hidden" name="jam_mode" value="<?= htmlspecialchars($jamMode) ?>">
             <input type="hidden" name="detail" value="<?= (int) $detailPembimbingId ?>">
             <div class="modal-header">
                 <h2 class="modal-title h5" id="modalBayarGajiLabel">Bayar gaji pembimbing</h2>

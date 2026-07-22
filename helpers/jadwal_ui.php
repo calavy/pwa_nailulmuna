@@ -672,12 +672,24 @@ function jadwal_kelompokkan_per_hari(array $jadwalList): array
 
 function jadwal_kategori_label(string $kat): string
 {
-    return strtoupper(trim($kat)) === 'JAMAAH' ? "Jama'ah" : "Ta'lim";
+    if (!function_exists('kegiatan_kategori_label')) {
+        require_once __DIR__ . '/kegiatan_kategori.php';
+    }
+
+    return kegiatan_kategori_label($kat);
 }
 
 function jadwal_kategori_dot_class(string $kat): string
 {
-    return strtoupper(trim($kat)) === 'JAMAAH' ? 'jadwal-kat-dot--jamaah' : 'jadwal-kat-dot--taalim';
+    $k = strtoupper(trim($kat));
+    if ($k === 'JAMAAH') {
+        return 'jadwal-kat-dot--jamaah';
+    }
+    if ($k === 'EXTRA') {
+        return 'jadwal-kat-dot--extra';
+    }
+
+    return 'jadwal-kat-dot--taalim';
 }
 
 /** @param array<int,string> $hariLabels */

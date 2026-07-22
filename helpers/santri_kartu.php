@@ -97,6 +97,17 @@ function santri_kartu_fetch_many(PDO $pdo, array $ids): array
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** Label hubungan filiasi: Bin (laki-laki) atau Binti (perempuan). */
+function santri_bin_binti_hubungan(array $row): string
+{
+    $jk = strtoupper(trim((string) ($row['jenis_kelamin'] ?? '')));
+    if (in_array($jk, ['PEREMPUAN', 'P', 'PUTRI', 'WANITA'], true)) {
+        return 'Binti';
+    }
+
+    return 'Bin';
+}
+
 /**
  * @param array<string, mixed> $row
  * @return array<string, mixed>
@@ -110,7 +121,7 @@ function santri_kartu_prepare_row(array $row): array
     $fotoRel = trim((string) ($row['foto_profil'] ?? ''));
     $row['foto_url'] = $fotoRel !== '' ? santri_foto_url($fotoRel) : '';
     $ayah = trim((string) ($row['nama_ayah'] ?? ''));
-    $row['bin_label'] = $ayah !== '' ? 'Bin ' . $ayah : '';
+    $row['bin_label'] = $ayah !== '' ? santri_bin_binti_hubungan($row) . ' ' . $ayah : '';
 
     return $row;
 }

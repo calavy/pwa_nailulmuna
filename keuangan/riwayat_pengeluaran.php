@@ -63,6 +63,7 @@ foreach ($rows as $r) {
 $sumAll = keuangan_pengeluaran_sum_nominal($pdo);
 $akunRows = keuangan_fetch_akun_aktif($pdo);
 $alokasiPengeluaranOpts = keuangan_pengeluaran_alokasi_options($pdo);
+$posPengeluaranOpts = keuangan_pengeluaran_pos_options($pdo);
 $editId = (int) ($_GET['edit'] ?? 0);
 $editRow = $editId > 0 && $canEdit ? keuangan_pengeluaran_get($pdo, $editId) : null;
 
@@ -121,7 +122,12 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="col-md-4">
                 <label class="form-label">Pos</label>
-                <input class="form-control" name="pos" value="<?= htmlspecialchars((string) $editRow['pos']) ?>" required>
+                <?php
+                $posSelected = (string) ($editRow['pos'] ?? '');
+                $posFieldName = 'pos';
+                $posRequired = true;
+                require __DIR__ . '/partials/pos_pengeluaran_select.php';
+                ?>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Alokasi dana <span class="text-danger">*</span></label>

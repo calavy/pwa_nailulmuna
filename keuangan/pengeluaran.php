@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 $akunRows = keuangan_fetch_akun_aktif($pdo);
 $alokasiPengeluaranOpts = keuangan_pengeluaran_alokasi_options($pdo);
+$posPengeluaranOpts = keuangan_pengeluaran_pos_options($pdo);
 $defaultAkunId = 0;
 foreach ($akunRows as $ar) {
     if ((int) ($ar['is_default'] ?? 0) === 1) {
@@ -81,14 +82,12 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Pos / jenis beban <span class="text-danger">*</span></label>
-                        <input class="form-control" name="pos_pengeluaran" list="pos-suggest" placeholder="Contoh: ATK, Transport, Konsumsi" required>
-                        <datalist id="pos-suggest">
-                            <option value="ATK"></option>
-                            <option value="Transport"></option>
-                            <option value="Konsumsi"></option>
-                            <option value="Pemeliharaan"></option>
-                            <option value="Utilitas"></option>
-                        </datalist>
+                        <?php
+                        $posSelected = '';
+                        $posFieldName = 'pos_pengeluaran';
+                        $posRequired = true;
+                        require __DIR__ . '/partials/pos_pengeluaran_select.php';
+                        ?>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Alokasi dana <span class="text-danger">*</span></label>

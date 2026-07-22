@@ -52,6 +52,7 @@ $showJadwal = $panelOpen === 'jadwal';
                     <select class="form-select form-select-sm" name="kategori_kegiatan">
                         <option value="TAALIM">Ta'lim & Ta'alum</option>
                         <option value="JAMAAH">Jama'ah</option>
+                        <option value="EXTRA">Extra (opsional)</option>
                     </select>
                 </div>
                 <div class="col-12">
@@ -62,7 +63,7 @@ $showJadwal = $panelOpen === 'jadwal';
 
         <div id="jadwal-panel-jadwal" class="jadwal-inline-panel mt-3<?= $showJadwal ? '' : ' d-none' ?>">
             <h3 class="h6 mb-2">Form tambah slot jadwal</h3>
-            <p class="text-muted small mb-2">Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Jam berbeda untuk kegiatan yang sama = slot/blok terpisah di daftar jadwal.</p>
+            <p class="text-muted small mb-2">Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Jam berbeda untuk kegiatan yang sama = slot/blok terpisah di daftar jadwal. Kegiatan <strong>Extra</strong> otomatis memakai tingkatan <em>Semua Tingkatan</em> (semua santri boleh ikut scan).</p>
             <?php if ($kegiatanListAktif === []): ?>
                 <p class="text-warning small mb-0">Belum ada kegiatan aktif. Tambah kegiatan dulu.</p>
             <?php else: ?>
@@ -70,10 +71,11 @@ $showJadwal = $panelOpen === 'jadwal';
                 <input type="hidden" name="action" value="tambah_jadwal">
                 <div class="col-md-6">
                     <label class="form-label">Kegiatan</label>
-                    <select class="form-select" name="kegiatan_id" required>
+                    <select class="form-select" name="kegiatan_id" id="jadwal-kegiatan-select" required>
                         <option value="">— Pilih kegiatan —</option>
                         <?php foreach ($kegiatanListAktif as $kegiatan): ?>
-                            <option value="<?= (int) $kegiatan['id'] ?>"<?= $preselectKegiatanId === (int) $kegiatan['id'] ? ' selected' : '' ?>><?= htmlspecialchars((string) $kegiatan['nama_kegiatan']) ?></option>
+                            <?php $kgKat = strtoupper((string) ($kegiatan['kategori_kegiatan'] ?? 'TAALIM')); ?>
+                            <option value="<?= (int) $kegiatan['id'] ?>" data-kategori="<?= htmlspecialchars($kgKat) ?>"<?= $preselectKegiatanId === (int) $kegiatan['id'] ? ' selected' : '' ?>><?= htmlspecialchars((string) $kegiatan['nama_kegiatan']) ?><?= $kgKat === 'EXTRA' ? ' (Extra)' : '' ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -90,6 +92,7 @@ $showJadwal = $panelOpen === 'jadwal';
                 <?php endif; ?>
                 <div class="col-12">
                     <label class="form-label">Tingkatan (boleh banyak)</label>
+                    <div id="jadwal-extra-hint" class="alert alert-info py-2 small d-none mb-2">Kegiatan Extra — otomatis <strong>Semua Tingkatan</strong> (semua santri boleh scan).</div>
                     <?php $selectedTingkatan = []; require __DIR__ . '/jadwal_tingkatan_chips.php'; ?>
                 </div>
                 <div class="col-12">
@@ -149,5 +152,30 @@ $showJadwal = $panelOpen === 'jadwal';
             });
         });
     });
+
+    var kegiatanSelect = document.getElementById('jadwal-kegiatan-select');
+    var extraHint = document.getElementById('jadwal-extra-hint');
+    var tingkatanChips = document.querySelectorAll('#jadwal-panel-jadwal input[name="tingkatan[]"]');
+    function applyExtraTingkatan() {
+        if (!kegiatanSelect) return;
+        var opt = kegiatanSelect.options[kegiatanSelect.selectedIndex];
+        var isExtra = opt && opt.getAttribute('data-kategori') === 'EXTRA';
+        if (extraHint) {
+            extraHint.classList.toggle('d-none', !isExtra);
+        }
+        tingkatanChips.forEach(function (cb) {
+            var isSemua = cb.value === 'Semua Tingkatan';
+            if (isExtra) {
+                cb.checked = isSemua;
+                cb.disabled = !isSemua;
+            } else {
+                cb.disabled = false;
+            }
+        });
+    }
+    if (kegiatanSelect) {
+        kegiatanSelect.addEventListener('change', applyExtraTingkatan);
+        applyExtraTingkatan();
+    }
 })();
 </script>

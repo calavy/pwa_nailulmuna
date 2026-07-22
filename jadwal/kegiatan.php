@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
+require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
 
 jadwal_require_module_access();
 
@@ -19,7 +20,7 @@ ensure_kegiatan_kategori_column($pdo);
 
 $jadwalPembimbingScope = jadwal_is_pembimbing_scope();
 $filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
-if (!in_array($filterKat, ['JAMAAH', 'TAALIM'], true)) {
+if (!in_array($filterKat, kegiatan_kategori_list(), true)) {
     $filterKat = '';
 }
 $searchQ = trim((string) ($_GET['q'] ?? ''));
@@ -71,11 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $namaKegiatan = trim((string) ($_POST['nama_kegiatan'] ?? ''));
-    $kategoriKegiatan = strtoupper(trim((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM')));
+    $kategoriKegiatan = kegiatan_kategori_normalize((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM'));
     $isActive = ((int) ($_POST['is_active'] ?? 1) === 1) ? 1 : 0;
-    if (!in_array($kategoriKegiatan, ['JAMAAH', 'TAALIM'], true)) {
-        $kategoriKegiatan = 'TAALIM';
-    }
     if ($namaKegiatan === '') {
         set_flash('error', 'Nama kegiatan wajib diisi.');
         header('Location: ' . app_href('/jadwal/kegiatan.php' . ($editId > 0 ? '?edit_id=' . $editId : '')));
@@ -91,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $pdo->prepare('UPDATE kegiatan SET nama_kegiatan = :nama, kategori_kegiatan = :kat, is_active = :aktif WHERE id = :id')
             ->execute(['nama' => $namaKegiatan, 'kat' => $kategoriKegiatan, 'aktif' => $isActive, 'id' => $idEditPost]);
-        set_flash('success', 'Kegiatan "' . $namaKegiatan . '" diperbarui (' . jadwal_kegiatan_kategori_label($kategoriKegiatan) . ').');
+        set_flash('success', 'Kegiatan "' . $namaKegiatan . '" diperbarui (' . kegiatan_kategori_label($kategoriKegiatan) . ').');
         header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
@@ -131,10 +129,11 @@ $kegiatanRows = $stList->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $countAll = (int) $pdo->query('SELECT COUNT(*) FROM kegiatan')->fetchColumn();
 $countTaalim = (int) $pdo->query('SELECT COUNT(*) FROM kegiatan WHERE kategori_kegiatan = "TAALIM"')->fetchColumn();
 $countJamaah = (int) $pdo->query('SELECT COUNT(*) FROM kegiatan WHERE kategori_kegiatan = "JAMAAH"')->fetchColumn();
+$countExtra = (int) $pdo->query('SELECT COUNT(*) FROM kegiatan WHERE kategori_kegiatan = "EXTRA"')->fetchColumn();
 
 function jadwal_kegiatan_kategori_label(string $kat): string
 {
-    return strtoupper(trim($kat)) === 'JAMAAH' ? "Jama'ah" : "Ta'lim & Ta'alum";
+    return kegiatan_kategori_label($kat);
 }
 
 function jadwal_kegiatan_filter_qs(array $extra = []): string
@@ -158,7 +157,7 @@ function jadwal_kegiatan_filter_qs(array $extra = []): string
     return $q === [] ? '' : ('?' . http_build_query($q));
 }
 
-$pageTitle = 'Kegiatan — Ta\'lim & Jama\'ah';
+$pageTitle = 'Kegiatan — Ta\'lim, Jama\'ah & Extra';
 $bodyClass = 'jadwal-page jadwal-kegiatan-page';
 require_once __DIR__ . '/../includes/header.php';
 $err = get_flash('error');
@@ -172,8 +171,12 @@ $ok = get_flash('success');
     </p>
     <h1 class="h4 mb-1">Pengaturan kegiatan</h1>
     <p class="text-muted small mb-2">
-        Tentukan setiap kegiatan sebagai <strong>Ta'lim & Ta'alum</strong> atau <strong>Jama'ah</strong>.
+        Tentukan setiap kegiatan sebagai <strong>Ta'lim & Ta'alum</strong>, <strong>Jama'ah</strong>, atau <strong>Extra</strong>.
         Kategori ini dipakai presensi scan, hari libur akademik, dan import jadwal.
+        Kegiatan <strong>Extra</strong> opsional — santri boleh ikut scan tanpa wajib hadir (tidak ALPA otomatis).
+        Gunakan tingkatan <strong>Semua Tingkatan</strong> saat membuat jadwal Extra.
+        Beban payroll (Berat/Sedang/Ringan) diatur di
+        <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Pengaturan → Beban Payroll Ta'lim</a>.
     </p>
     <p class="small mb-0 d-flex flex-wrap gap-2">
         <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>"><i class="fa-solid fa-calendar me-1"></i> Daftar jadwal</a>
@@ -189,7 +192,7 @@ $ok = get_flash('success');
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-4">
+    <div class="col-6 col-md-3">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body py-3 text-center">
                 <div class="display-6 fw-bold text-primary mb-0"><?= (int) $countAll ?></div>
@@ -197,7 +200,7 @@ $ok = get_flash('success');
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-6 col-md-3">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body py-3 text-center">
                 <div class="display-6 fw-bold text-success mb-0"><?= (int) $countTaalim ?></div>
@@ -205,11 +208,19 @@ $ok = get_flash('success');
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-6 col-md-3">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body py-3 text-center">
                 <div class="display-6 fw-bold text-warning mb-0"><?= (int) $countJamaah ?></div>
                 <div class="small text-muted">Jama'ah</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body py-3 text-center">
+                <div class="display-6 fw-bold text-info mb-0"><?= (int) $countExtra ?></div>
+                <div class="small text-muted">Extra (opsional)</div>
             </div>
         </div>
     </div>
@@ -239,8 +250,9 @@ $ok = get_flash('success');
                 <select class="form-select" name="kategori_kegiatan">
                     <option value="TAALIM" <?= strtoupper((string) ($editRow['kategori_kegiatan'] ?? $_POST['kategori_kegiatan'] ?? 'TAALIM')) === 'TAALIM' ? 'selected' : '' ?>>Ta'lim & Ta'alum</option>
                     <option value="JAMAAH" <?= strtoupper((string) ($editRow['kategori_kegiatan'] ?? '')) === 'JAMAAH' ? 'selected' : '' ?>>Jama'ah</option>
+                    <option value="EXTRA" <?= strtoupper((string) ($editRow['kategori_kegiatan'] ?? '')) === 'EXTRA' ? 'selected' : '' ?>>Extra (opsional, semua santri)</option>
                 </select>
-                <div class="form-text">Sholat berjamaah → Jama'ah. Kajian/kelas → Ta'lim.</div>
+                <div class="form-text">Sholat berjamaah → Jama'ah. Kajian/kelas → Ta'lim. Kegiatan sukarela → Extra.</div>
             </div>
             <?php if ($editRow): ?>
             <div class="col-md-3">
@@ -282,6 +294,7 @@ $ok = get_flash('success');
                     <option value="">Semua kategori</option>
                     <option value="TAALIM" <?= $filterKat === 'TAALIM' ? 'selected' : '' ?>>Ta'lim & Ta'alum</option>
                     <option value="JAMAAH" <?= $filterKat === 'JAMAAH' ? 'selected' : '' ?>>Jama'ah</option>
+                    <option value="EXTRA" <?= $filterKat === 'EXTRA' ? 'selected' : '' ?>>Extra</option>
                 </select>
             </div>
             <div class="col-auto">
@@ -293,6 +306,7 @@ $ok = get_flash('success');
             <a href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>" class="btn btn-sm <?= $filterKat === '' ? 'btn-primary' : 'btn-outline-secondary' ?>">Semua</a>
             <a href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php?filter_kat=TAALIM')) ?>" class="btn btn-sm <?= $filterKat === 'TAALIM' ? 'btn-primary' : 'btn-outline-success' ?>">Ta'lim</a>
             <a href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php?filter_kat=JAMAAH')) ?>" class="btn btn-sm <?= $filterKat === 'JAMAAH' ? 'btn-primary' : 'btn-outline-warning' ?>">Jama'ah</a>
+            <a href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php?filter_kat=EXTRA')) ?>" class="btn btn-sm <?= $filterKat === 'EXTRA' ? 'btn-primary' : 'btn-outline-info' ?>">Extra</a>
         </div>
     </div>
     <div class="table-responsive">
@@ -321,6 +335,8 @@ $ok = get_flash('success');
                     <td>
                         <?php if ($kat === 'JAMAAH'): ?>
                             <span class="badge text-bg-warning">Jama'ah</span>
+                        <?php elseif ($kat === 'EXTRA'): ?>
+                            <span class="badge text-bg-info">Extra</span>
                         <?php else: ?>
                             <span class="badge text-bg-success">Ta'lim</span>
                         <?php endif; ?>

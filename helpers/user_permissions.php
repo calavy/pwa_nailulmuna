@@ -285,6 +285,7 @@ function user_permission_path_map_base(): array
         '/settings/kelas_keuangan.php' => 'pengaturan',
         '/settings/kelas_syahriyah.php' => 'pengaturan',
         '/settings/tarif_payroll.php' => 'pengaturan',
+        '/settings/payroll_kegiatan.php' => 'pengaturan',
         '/settings/opsional_santri.php' => 'pengaturan',
         '/settings/kamar_ranjang.php' => 'pengaturan',
         '/settings/index.php' => 'pengaturan',

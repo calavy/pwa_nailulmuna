@@ -3859,6 +3859,11 @@ html {
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
+.jadwal-kat-dot--extra {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
 .jadwal-kat-badge {
     font-size: 0.62rem;
     font-weight: 600;

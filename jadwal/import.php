@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/excel.php';
 require_once __DIR__ . '/../helpers/presensi_admin.php';
+require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -14,6 +15,7 @@ if (($_GET['template'] ?? '') === 'xlsx') {
         ['nama_kegiatan', 'kategori_kegiatan', 'tingkatan', 'hari_ke', 'jam_mulai', 'jam_selesai', 'tempat', 'nip_pembimbing'],
         ['Sholat Subuh', 'JAMAAH', 'SMP', 1, '05:00', '05:30', 'Masjid', ''],
         ['Ngaji Pagi', 'TAALIM', 'SMP', 0, '06:00', '07:00', 'Kelas A', '12345'],
+        ['Lomba Voli', 'EXTRA', 'Semua Tingkatan', 6, '15:00', '17:00', 'Lapangan', ''],
     ], 'Template Jadwal');
     exit;
 }
@@ -63,11 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $skip = 0;
     foreach ($rows as $raw) {
         $namaKeg = trim((string) ($raw['nama_kegiatan'] ?? ''));
-        $kategoriKeg = strtoupper(trim((string) ($raw['kategori_kegiatan'] ?? 'TAALIM')));
-        if (!in_array($kategoriKeg, ['JAMAAH', 'TAALIM'], true)) {
-            $kategoriKeg = 'TAALIM';
-        }
+        $kategoriKeg = kegiatan_kategori_normalize((string) ($raw['kategori_kegiatan'] ?? 'TAALIM'));
         $tingkatan = trim((string) ($raw['tingkatan'] ?? 'Semua Tingkatan')) ?: 'Semua Tingkatan';
+        if (kegiatan_kategori_is_extra($kategoriKeg)) {
+            $tingkatan = 'Semua Tingkatan';
+        }
         $hariKe = (int) ($raw['hari_ke'] ?? 0);
         $jamMulai = trim((string) ($raw['jam_mulai'] ?? ''));
         $jamSelesai = trim((string) ($raw['jam_selesai'] ?? ''));
@@ -121,7 +123,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Jadwal</a></p>
     <h1 class="h4 mb-1">Import jadwal Excel / CSV</h1>
-    <p class="text-muted mb-0 small">Kolom: nama_kegiatan, kategori_kegiatan (JAMAAH/TAALIM), tingkatan, hari_ke (0=setiap hari, 1–7), jam_mulai, jam_selesai, tempat, nip_pembimbing</p>
+    <p class="text-muted mb-0 small">Kolom: nama_kegiatan, kategori_kegiatan (JAMAAH/TAALIM/EXTRA), tingkatan, hari_ke (0=setiap hari, 1–7), jam_mulai, jam_selesai, tempat, nip_pembimbing. Untuk EXTRA gunakan tingkatan <strong>Semua Tingkatan</strong>.</p>
 </div>
 
 <div class="card shadow-sm" style="max-width:32rem">

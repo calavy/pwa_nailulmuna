@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
+require_once __DIR__ . '/kegiatan_kategori.php';
 
 /**
  * Apakah tingkatan santri termasuk slot jadwal (termasuk "Semua Tingkatan").
@@ -28,6 +29,9 @@ function presensi_tingkatan_terjadwal(PDO $pdo, string $tingkatan, int $kegiatan
 {
     $tingkatan = trim($tingkatan);
     if ($tingkatan === '' || $kegiatanId <= 0 || !table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return false;
+    }
+    if (!kegiatan_kategori_wajib_presensi(kegiatan_kategori_fetch($pdo, $kegiatanId))) {
         return false;
     }
 

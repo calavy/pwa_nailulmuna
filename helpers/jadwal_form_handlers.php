@@ -6,6 +6,7 @@ require_once __DIR__ . '/jadwal_ui.php';
 require_once __DIR__ . '/jadwal_jamaah.php';
 require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
 require_once __DIR__ . '/operasional_audit.php';
+require_once __DIR__ . '/kegiatan_kategori.php';
 
 function jadwal_handle_post(PDO $pdo, int $auditUserId, bool $jadwalPembimbingScope, int $pembimbingScopeId): bool
 {
@@ -51,10 +52,7 @@ function jadwal_handle_tambah_kegiatan(PDO $pdo): void
 {
     ensure_kegiatan_kategori_column($pdo);
     $namaKegiatan = trim((string) ($_POST['nama_kegiatan'] ?? ''));
-    $kategoriKegiatan = strtoupper(trim((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM')));
-    if (!in_array($kategoriKegiatan, ['JAMAAH', 'TAALIM'], true)) {
-        $kategoriKegiatan = 'TAALIM';
-    }
+    $kategoriKegiatan = kegiatan_kategori_normalize((string) ($_POST['kategori_kegiatan'] ?? 'TAALIM'));
     if ($namaKegiatan === '') {
         set_flash('error', 'Nama kegiatan wajib diisi.');
         header('Location: ' . app_href('/jadwal/kegiatan.php'));
@@ -116,6 +114,10 @@ function jadwal_handle_tambah_jadwal(PDO $pdo, int $auditUserId, bool $jadwalPem
         set_flash('error', 'Pilih kegiatan.');
         header('Location: ' . app_href('/jadwal/index.php?panel=jadwal'));
         exit;
+    }
+
+    if (kegiatan_kategori_is_extra(kegiatan_kategori_fetch($pdo, $kegiatanId))) {
+        $tingkatanDipilih = ['Semua Tingkatan'];
     }
 
     $jamMulai = (string) ($_POST['jam_mulai'] ?? '00:00');

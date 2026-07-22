@@ -28,11 +28,21 @@ if ($dl !== '') {
         exit;
     }
     if ($dl === 'template_masuk') {
-        send_xlsx_download('template_riwayat_masuk.xlsx', keuangan_impor_ekspor_template_masuk(), 'Template Masuk');
+        send_xlsx_download(
+            'template_riwayat_masuk.xlsx',
+            keuangan_impor_ekspor_template_masuk($pdo),
+            'Template Masuk',
+            ['column_formats' => keuangan_impor_ekspor_template_column_formats_masuk()]
+        );
         exit;
     }
     if ($dl === 'template_keluar') {
-        send_xlsx_download('template_riwayat_keluar.xlsx', keuangan_impor_ekspor_template_keluar(), 'Template Keluar');
+        send_xlsx_download(
+            'template_riwayat_keluar.xlsx',
+            keuangan_impor_ekspor_template_keluar(),
+            'Template Keluar',
+            ['column_formats' => keuangan_impor_ekspor_template_column_formats_keluar()]
+        );
         exit;
     }
     if ($dl === 'keduanya') {
@@ -193,6 +203,10 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
         <a class="btn btn-link btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/impor-ekspor.php?download=template_masuk')) ?>">Template masuk</a>
         <a class="btn btn-link btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/impor-ekspor.php?download=template_keluar')) ?>">Template keluar</a>
+        <p class="small text-muted mb-0 w-100">
+            Template sudah memakai format sel Text/Angka. Baris 2 berisi petunjuk (<code>#</code>) — biarkan saat upload.
+            Isi data nyata mulai baris 3 (10 contoh) atau baris 13 ke bawah. Hapus baris contoh jika tidak dipakai.
+        </p>
     </div>
 </div>
 
@@ -307,8 +321,59 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm mb-4">
     <div class="card-header fw-semibold">Format kolom</div>
     <div class="card-body small">
-        <p class="mb-1"><strong>Masuk:</strong> grup_key, tanggal_bayar, nis, jenis_periode, bulan_tagihan, tahun_ajaran_mulai, tahun_ajaran_selesai, metode_bayar, pos_slug, pos_nama, nominal, keterangan</p>
-        <p class="mb-0"><strong>Keluar:</strong> tanggal, penanggung_jawab, pos, alokasi_nama, nominal, metode_keluar, keterangan, no_bukti</p>
+        <h2 class="h6">Masuk (pembayaran)</h2>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Kolom</th>
+                        <th>Jenis</th>
+                        <th>Format</th>
+                        <th>Wajib</th>
+                        <th>Catatan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>grup_key</td><td>Text</td><td>huruf/angka</td><td>Ya</td><td>Baris sama = 1 kuitansi</td></tr>
+                    <tr><td>tanggal_bayar</td><td>Text</td><td>YYYY-MM-DD</td><td>Ya</td><td>Jangan format Date di Excel</td></tr>
+                    <tr><td>nis</td><td>Text</td><td>NIS atau kode QR</td><td>Ya</td><td>Harus ada di menu Santri</td></tr>
+                    <tr><td>jenis_periode</td><td>Text</td><td>BULANAN / AWAL_TAHUN</td><td>Ya</td><td></td></tr>
+                    <tr><td>bulan_tagihan</td><td>Text</td><td>7 atau 2026-07</td><td>Jika BULANAN</td><td>Kosong jika AWAL_TAHUN</td></tr>
+                    <tr><td>tahun_ajaran_mulai</td><td>Angka</td><td>2025</td><td>Ya</td><td></td></tr>
+                    <tr><td>tahun_ajaran_selesai</td><td>Angka</td><td>2026</td><td>Ya</td><td></td></tr>
+                    <tr><td>metode_bayar</td><td>Text</td><td>KAS / TRANSFER</td><td>Ya</td><td></td></tr>
+                    <tr><td>pos_slug</td><td>Text</td><td>syahriyah, makan, saku</td><td>Ya</td><td>huruf kecil</td></tr>
+                    <tr><td>pos_nama</td><td>Text</td><td>label pos</td><td>Tidak</td><td>Kosong = pakai slug</td></tr>
+                    <tr><td>nominal</td><td>Angka</td><td>350000</td><td>Ya</td><td>Rupiah bulat</td></tr>
+                    <tr><td>keterangan</td><td>Text</td><td>teks bebas</td><td>Tidak</td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 class="h6">Keluar (pengeluaran)</h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Kolom</th>
+                        <th>Jenis</th>
+                        <th>Format</th>
+                        <th>Wajib</th>
+                        <th>Catatan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>tanggal</td><td>Text</td><td>YYYY-MM-DD</td><td>Ya</td><td></td></tr>
+                    <tr><td>penanggung_jawab</td><td>Text</td><td>nama PJ</td><td>Ya</td><td></td></tr>
+                    <tr><td>pos</td><td>Text</td><td>Operasional, dll</td><td>Ya</td><td></td></tr>
+                    <tr><td>alokasi_nama</td><td>Text</td><td>Dana Umum</td><td>Ya</td><td>Harus ada di pengaturan</td></tr>
+                    <tr><td>nominal</td><td>Angka</td><td>100000</td><td>Ya</td><td>&gt; 0</td></tr>
+                    <tr><td>metode_keluar</td><td>Text</td><td>KAS / TRANSFER</td><td>Ya</td><td></td></tr>
+                    <tr><td>keterangan</td><td>Text</td><td>teks bebas</td><td>Tidak</td><td></td></tr>
+                    <tr><td>no_bukti</td><td>Text</td><td>nomor bukti</td><td>Tidak</td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

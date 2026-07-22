@@ -1162,6 +1162,27 @@ function ensure_kegiatan_kategori_column(PDO $pdo): void
     $pdo->exec('UPDATE kegiatan SET kategori_kegiatan = "TAALIM" WHERE COALESCE(kategori_kegiatan, "") = ""');
 }
 
+/** Kategori beban kerja payroll per kegiatan/mata pelajaran (Berat/Sedang/Ringan/Khusus). */
+function ensure_kegiatan_payroll_kriteria_column(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'kegiatan')) {
+        return;
+    }
+    try {
+        $pdo->exec("ALTER TABLE kegiatan ADD COLUMN IF NOT EXISTS payroll_kriteria ENUM('BERAT','SEDANG','RINGAN','KHUSUS') NOT NULL DEFAULT 'RINGAN'");
+    } catch (PDOException $e) {
+        try {
+            $pdo->exec("ALTER TABLE kegiatan ADD COLUMN payroll_kriteria ENUM('BERAT','SEDANG','RINGAN','KHUSUS') NOT NULL DEFAULT 'RINGAN'");
+        } catch (PDOException $e2) {
+            $m2 = $e2->getMessage();
+            if (stripos($m2, 'Duplicate column') === false && strpos($m2, '1060') === false) {
+                throw $e2;
+            }
+        }
+    }
+    $pdo->exec("UPDATE kegiatan SET payroll_kriteria = 'RINGAN' WHERE COALESCE(payroll_kriteria, '') = ''");
+}
+
 function activity_for_tingkatan(PDO $pdo, string $tingkatan, string $date, string $time): ?array
 {
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
@@ -3022,6 +3043,7 @@ function sync_presence_for_active_schedules(PDO $pdo, string $tanggal, string $j
         WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
           AND k.is_active = 1
+          AND UPPER(COALESCE(k.kategori_kegiatan, "TAALIM")) <> "EXTRA"
     ');
     $stmt->execute([
         'hari_ke' => $hariKe,
@@ -3072,6 +3094,7 @@ function sync_presence_for_ended_schedules(PDO $pdo, string $tanggal, string $ja
         WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND :jam_now > j.jam_selesai
           AND k.is_active = 1
+          AND UPPER(COALESCE(k.kategori_kegiatan, "TAALIM")) <> "EXTRA"
     ');
     $stmt->execute([
         'hari_ke' => $hariKe,

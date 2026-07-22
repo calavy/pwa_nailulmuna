@@ -56,25 +56,126 @@ function keuangan_impor_ekspor_boleh_destruktif(PDO $pdo): bool
     return pembayaran_edit_token_user_boleh_edit($pdo);
 }
 
-/** @return list<list<string|int|null>> */
-function keuangan_impor_ekspor_template_masuk(): array
+/** @return array<int, string> */
+function keuangan_impor_ekspor_template_column_formats_masuk(): array
 {
+    return [
+        0 => 'text',
+        1 => 'text',
+        2 => 'text',
+        3 => 'text',
+        4 => 'text',
+        5 => 'integer',
+        6 => 'integer',
+        7 => 'text',
+        8 => 'text',
+        9 => 'text',
+        10 => 'integer',
+        11 => 'text',
+    ];
+}
+
+/** @return array<int, string> */
+function keuangan_impor_ekspor_template_column_formats_keluar(): array
+{
+    return [
+        0 => 'text',
+        1 => 'text',
+        2 => 'text',
+        3 => 'text',
+        4 => 'integer',
+        5 => 'text',
+        6 => 'text',
+        7 => 'text',
+    ];
+}
+
+function keuangan_impor_ekspor_sample_nis(PDO $pdo): string
+{
+    $samples = keuangan_impor_ekspor_sample_santri_ids($pdo, 1);
+
+    return $samples[0] ?? 'GANTI_DENGAN_NIS';
+}
+
+/**
+ * @return list<string>
+ */
+function keuangan_impor_ekspor_sample_santri_ids(?PDO $pdo, int $limit = 10): array
+{
+    $limit = max(1, min(20, $limit));
+    if (!$pdo instanceof PDO || !table_exists($pdo, 'santri')) {
+        $out = [];
+        for ($i = 1; $i <= $limit; $i++) {
+            $out[] = 'GANTI_NIS_' . $i;
+        }
+
+        return $out;
+    }
+
+    ensure_santri_identity_columns($pdo);
+    $hasQr = column_exists($pdo, 'santri', 'qr');
+    $sql = $hasQr
+        ? "SELECT nis, qr FROM santri
+           WHERE TRIM(COALESCE(nis, '')) != '' OR TRIM(COALESCE(qr, '')) != ''
+           ORDER BY id ASC
+           LIMIT {$limit}"
+        : "SELECT nis, '' AS qr FROM santri
+           WHERE TRIM(COALESCE(nis, '')) != ''
+           ORDER BY id ASC
+           LIMIT {$limit}";
+    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $row) {
+        $nis = trim((string) ($row['nis'] ?? ''));
+        $qr = trim((string) ($row['qr'] ?? ''));
+        $out[] = $nis !== '' ? $nis : $qr;
+    }
+    while (count($out) < $limit) {
+        $out[] = 'GANTI_NIS_' . (count($out) + 1);
+    }
+
+    return $out;
+}
+
+/** @return list<list<string|int|null>> */
+function keuangan_impor_ekspor_template_masuk(?PDO $pdo = null): array
+{
+    $s = keuangan_impor_ekspor_sample_santri_ids($pdo, 7);
+    $s0 = $s[0];
+    $s1 = $s[1] ?? $s0;
+    $s2 = $s[2] ?? $s0;
+    $s3 = $s[3] ?? $s0;
+    $s4 = $s[4] ?? $s0;
+    $s5 = $s[5] ?? $s0;
+    $s6 = $s[6] ?? $s0;
+
     return [
         keuangan_impor_ekspor_masuk_headers(),
         [
-            'M1',
-            '2026-07-01',
-            '2024001',
-            'BULANAN',
-            '2026-07',
-            2025,
-            2026,
-            'KAS',
-            'syahriyah',
-            'Syahriyah',
-            350000,
-            '',
+            '# ID grup; baris sama = 1 kuitansi',
+            '# YYYY-MM-DD (format Text)',
+            '# NIS atau kode QR persis dari menu Santri (format Text)',
+            '# BULANAN atau AWAL_TAHUN',
+            '# angka 7 atau kosong (pakai tanggal_bayar)',
+            '# tahun angka, mis. 2025',
+            '# tahun angka, mis. 2026',
+            '# KAS atau TRANSFER',
+            '# syahriyah, makan, saku, dll',
+            '# label pos (boleh kosong)',
+            '# rupiah angka bulat',
+            '# opsional',
         ],
+        // 1 kuitansi, 2 pos (syahriyah + makan)
+        ['M1', '2026-07-01', $s0, 'BULANAN', '7', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, ''],
+        ['M1', '2026-07-01', $s0, 'BULANAN', '7', 2025, 2026, 'KAS', 'makan', 'Uang Makan', 300000, ''],
+        ['M2', '2026-07-05', $s1, 'BULANAN', '7', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, ''],
+        ['M3', '2026-08-01', $s2, 'BULANAN', '8', 2025, 2026, 'TRANSFER', 'syahriyah', 'Syahriyah', 350000, 'Transfer BCA'],
+        ['M4', '2026-07-10', $s3, 'BULANAN', '7', 2025, 2026, 'KAS', 'makan', 'Uang Makan', 300000, ''],
+        ['M5', '2026-07-12', $s4, 'BULANAN', '7', 2025, 2026, 'KAS', 'saku', 'Saku', 100000, 'Top-up jajan'],
+        ['M6', '2026-07-01', $s5, 'AWAL_TAHUN', '', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, 'Bayar awal tahun'],
+        ['M7', '2026-06-15', $s6, 'BULANAN', '6', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, ''],
+        ['M8', '2026-09-01', $s1, 'BULANAN', '9', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, ''],
+        ['M9', '2026-10-05', $s2, 'BULANAN', '', 2025, 2026, 'KAS', 'syahriyah', 'Syahriyah', 350000, 'Bulan dari tanggal'],
     ];
 }
 
@@ -83,6 +184,16 @@ function keuangan_impor_ekspor_template_keluar(): array
 {
     return [
         keuangan_impor_ekspor_keluar_headers(),
+        [
+            '# YYYY-MM-DD (format Text)',
+            '# nama PJ / bendahara',
+            '# kategori pos pengeluaran',
+            '# nama alokasi aktif',
+            '# rupiah angka bulat > 0',
+            '# KAS atau TRANSFER',
+            '# opsional',
+            '# nomor bukti, opsional',
+        ],
         [
             '2026-07-01',
             'Bendahara',
@@ -96,9 +207,142 @@ function keuangan_impor_ekspor_template_keluar(): array
     ];
 }
 
+/**
+ * @param list<array<string, string>> $rows
+ * @return list<array<string, string>>
+ */
+function keuangan_impor_ekspor_filter_petunjuk_rows(array $rows, string $jenis): array
+{
+    $jenis = strtolower(trim($jenis));
+    $out = [];
+    foreach ($rows as $row) {
+        if ($jenis === 'masuk') {
+            if (str_starts_with(trim((string) ($row['grup_key'] ?? '')), '#')) {
+                continue;
+            }
+        } elseif (str_starts_with(trim((string) ($row['tanggal'] ?? '')), '#')) {
+            continue;
+        }
+        $out[] = $row;
+    }
+
+    return $out;
+}
+
+function keuangan_impor_ekspor_normalize_excel_number_string(string $raw): string
+{
+    $raw = trim(str_replace(',', '.', $raw));
+    if ($raw === '') {
+        return '';
+    }
+    if (is_numeric($raw)) {
+        $n = (float) $raw;
+        if (abs($n - round($n)) < 0.0001) {
+            return sprintf('%.0f', round($n));
+        }
+    }
+
+    return $raw;
+}
+
+function keuangan_impor_ekspor_normalize_nis(string $raw): string
+{
+    $raw = keuangan_impor_ekspor_normalize_excel_number_string($raw);
+    if ($raw === '') {
+        return '';
+    }
+    if (preg_match('/^[\d.]+E[\+\-]?\d+$/i', $raw)) {
+        $n = (float) $raw;
+        if ($n >= 0 && $n < 1e15 && abs($n - round($n)) < 0.0001) {
+            return sprintf('%.0f', round($n));
+        }
+    }
+
+    return $raw;
+}
+
+function keuangan_impor_ekspor_lookup_santri_id(PDO $pdo, string $nis, array &$nisCache): int
+{
+    $nis = keuangan_impor_ekspor_normalize_nis($nis);
+    if ($nis === '' || !table_exists($pdo, 'santri')) {
+        return 0;
+    }
+    if (array_key_exists($nis, $nisCache)) {
+        return $nisCache[$nis];
+    }
+
+    ensure_santri_identity_columns($pdo);
+    $stExact = $pdo->prepare('SELECT id FROM santri WHERE nis = :val LIMIT 1');
+    $stQr = $pdo->prepare('SELECT id FROM santri WHERE qr = :val LIMIT 1');
+    $candidates = array_values(array_unique(array_filter([
+        $nis,
+        ltrim($nis, '0') !== '' ? ltrim($nis, '0') : null,
+    ])));
+
+    foreach ($candidates as $candidate) {
+        $stExact->execute(['val' => $candidate]);
+        $id = (int) ($stExact->fetchColumn() ?: 0);
+        if ($id > 0) {
+            $nisCache[$nis] = $id;
+            $nisCache[$candidate] = $id;
+
+            return $id;
+        }
+        if (column_exists($pdo, 'santri', 'qr')) {
+            $stQr->execute(['val' => $candidate]);
+            $id = (int) ($stQr->fetchColumn() ?: 0);
+            if ($id > 0) {
+                $nisCache[$nis] = $id;
+                $nisCache[$candidate] = $id;
+
+                return $id;
+            }
+        }
+    }
+
+    if (ctype_digit($nis)) {
+        $stNumeric = $pdo->prepare(
+            "SELECT id FROM santri
+             WHERE (
+                (nis REGEXP '^[0-9]+(\\\\.[0-9]+)?$' AND CAST(nis AS DECIMAL(20, 4)) = :num)
+                OR (qr REGEXP '^[0-9]+(\\\\.[0-9]+)?$' AND CAST(qr AS DECIMAL(20, 4)) = :num)
+             )
+             LIMIT 2"
+        );
+        $stNumeric->execute(['num' => (float) $nis]);
+        $ids = $stNumeric->fetchAll(PDO::FETCH_COLUMN);
+        if (count($ids) === 1) {
+            $id = (int) $ids[0];
+            $nisCache[$nis] = $id;
+
+            return $id;
+        }
+    }
+
+    $nisCache[$nis] = 0;
+
+    return 0;
+}
+
+function keuangan_impor_ekspor_bulan_from_tanggal(?string $tanggal): array
+{
+    if ($tanggal === null || !preg_match('/^\d{4}-(\d{2})-\d{2}$/', $tanggal, $m)) {
+        return ['bulan' => null, 'label' => ''];
+    }
+    $bulan = (int) $m[1];
+    if ($bulan < 1 || $bulan > 12) {
+        return ['bulan' => null, 'label' => ''];
+    }
+
+    return [
+        'bulan' => $bulan,
+        'label' => sprintf('%04d-%02d', (int) substr($tanggal, 0, 4), $bulan),
+    ];
+}
+
 function keuangan_impor_ekspor_parse_date(string $raw): ?string
 {
-    $raw = trim($raw);
+    $raw = keuangan_impor_ekspor_normalize_excel_number_string(trim($raw));
     if ($raw === '') {
         return null;
     }
@@ -137,7 +381,7 @@ function keuangan_impor_ekspor_parse_date(string $raw): ?string
  */
 function keuangan_impor_ekspor_parse_bulan_tagihan(string $raw): array
 {
-    $raw = trim($raw);
+    $raw = keuangan_impor_ekspor_normalize_excel_number_string(trim($raw));
     if ($raw === '') {
         return ['bulan' => null, 'label' => ''];
     }
@@ -147,10 +391,38 @@ function keuangan_impor_ekspor_parse_bulan_tagihan(string $raw): array
             return ['bulan' => $bulan, 'label' => sprintf('%04d-%02d', (int) $m[1], $bulan)];
         }
     }
+    if (preg_match('/^(\d{1,2})[\/.\-](\d{4})$/', $raw, $m)) {
+        $bulan = (int) $m[1];
+        if ($bulan >= 1 && $bulan <= 12) {
+            return ['bulan' => $bulan, 'label' => sprintf('%04d-%02d', (int) $m[2], $bulan)];
+        }
+    }
+    if (is_numeric($raw)) {
+        $n = (float) $raw;
+        if ($n >= 1 && $n <= 12 && abs($n - round($n)) < 0.0001) {
+            $bulan = (int) round($n);
+
+            return ['bulan' => $bulan, 'label' => (string) $bulan];
+        }
+        if ($n > 20000 && $n < 80000) {
+            $ts = (int) round(($n - 25569) * 86400);
+            $bulan = (int) gmdate('n', $ts);
+            if ($bulan >= 1 && $bulan <= 12) {
+                return ['bulan' => $bulan, 'label' => gmdate('Y-m', $ts)];
+            }
+        }
+    }
     if (ctype_digit($raw)) {
         $bulan = (int) $raw;
         if ($bulan >= 1 && $bulan <= 12) {
             return ['bulan' => $bulan, 'label' => (string) $bulan];
+        }
+    }
+    $tgl = keuangan_impor_ekspor_parse_date($raw);
+    if ($tgl !== null && preg_match('/^(\d{4})-(\d{2})-\d{2}$/', $tgl, $m)) {
+        $bulan = (int) $m[2];
+        if ($bulan >= 1 && $bulan <= 12) {
+            return ['bulan' => $bulan, 'label' => sprintf('%04d-%02d', (int) $m[1], $bulan)];
         }
     }
 
@@ -415,6 +687,7 @@ function keuangan_impor_ekspor_wipe_all(PDO $pdo, int $userId, string $alasan, s
  */
 function keuangan_impor_ekspor_validate_masuk(PDO $pdo, array $rows): array
 {
+    $rows = keuangan_impor_ekspor_filter_petunjuk_rows($rows, 'masuk');
     $errors = [];
     $groups = [];
     $rowOk = 0;
@@ -424,18 +697,22 @@ function keuangan_impor_ekspor_validate_masuk(PDO $pdo, array $rows): array
     $stNis = null;
     if (table_exists($pdo, 'santri')) {
         ensure_santri_identity_columns($pdo);
-        $stNis = $pdo->prepare('SELECT id FROM santri WHERE nis = :nis LIMIT 1');
     }
 
     foreach ($rows as $i => $raw) {
         $line = $i + 2;
         $grup = trim((string) ($raw['grup_key'] ?? ''));
-        $nis = trim((string) ($raw['nis'] ?? ''));
+        $nisRaw = (string) ($raw['nis'] ?? '');
+        $nis = keuangan_impor_ekspor_normalize_nis($nisRaw);
         $tgl = keuangan_impor_ekspor_parse_date((string) ($raw['tanggal_bayar'] ?? ''));
         $jenis = strtoupper(trim((string) ($raw['jenis_periode'] ?? 'BULANAN')));
-        $bulanParsed = keuangan_impor_ekspor_parse_bulan_tagihan((string) ($raw['bulan_tagihan'] ?? ''));
-        $tahunMulai = (int) ($raw['tahun_ajaran_mulai'] ?? 0);
-        $tahunSelesai = (int) ($raw['tahun_ajaran_selesai'] ?? 0);
+        $bulanRaw = keuangan_impor_ekspor_normalize_excel_number_string((string) ($raw['bulan_tagihan'] ?? ''));
+        $bulanParsed = keuangan_impor_ekspor_parse_bulan_tagihan($bulanRaw);
+        if ($jenis === 'BULANAN' && $bulanParsed['bulan'] === null) {
+            $bulanParsed = keuangan_impor_ekspor_bulan_from_tanggal($tgl);
+        }
+        $tahunMulai = (int) keuangan_impor_ekspor_normalize_excel_number_string((string) ($raw['tahun_ajaran_mulai'] ?? '0'));
+        $tahunSelesai = (int) keuangan_impor_ekspor_normalize_excel_number_string((string) ($raw['tahun_ajaran_selesai'] ?? '0'));
         $metode = strtoupper(trim((string) ($raw['metode_bayar'] ?? 'KAS')));
         $posSlug = keuangan_pembayaran_pos_slug_normalize((string) ($raw['pos_slug'] ?? ''));
         $posNama = trim((string) ($raw['pos_nama'] ?? ''));
@@ -455,8 +732,8 @@ function keuangan_impor_ekspor_validate_masuk(PDO $pdo, array $rows): array
         if (!in_array($jenis, ['BULANAN', 'AWAL_TAHUN'], true)) {
             $rowErrors[] = 'jenis_periode harus BULANAN/AWAL_TAHUN';
         }
-        if ($jenis === 'BULANAN' && $bulanParsed['bulan'] === null && trim((string) ($raw['bulan_tagihan'] ?? '')) !== '') {
-            $rowErrors[] = 'bulan_tagihan tidak valid';
+        if ($jenis === 'BULANAN' && $bulanParsed['bulan'] === null) {
+            $rowErrors[] = 'bulan_tagihan tidak valid (isi 1-12 atau kosongkan lalu isi tanggal_bayar)';
         }
         if ($tahunMulai <= 0 || $tahunSelesai <= 0) {
             $rowErrors[] = 'tahun_ajaran wajib';
@@ -472,17 +749,12 @@ function keuangan_impor_ekspor_validate_masuk(PDO $pdo, array $rows): array
         }
 
         $santriId = 0;
-        if ($nis !== '' && $stNis !== null) {
-            if (!array_key_exists($nis, $nisCache)) {
-                $stNis->execute(['nis' => $nis]);
-                $nisCache[$nis] = (int) ($stNis->fetchColumn() ?: 0);
-            }
-            $santriId = $nisCache[$nis];
+        if ($nis !== '') {
+            $santriId = keuangan_impor_ekspor_lookup_santri_id($pdo, $nis, $nisCache);
             if ($santriId <= 0) {
-                $rowErrors[] = 'NIS tidak ditemukan: ' . $nis;
+                $shownNis = $nis !== '' ? $nis : keuangan_impor_ekspor_normalize_nis($nisRaw);
+                $rowErrors[] = 'NIS/QR tidak ditemukan: ' . ($shownNis !== '' ? $shownNis : $nisRaw) . ' (cek menu Santri)';
             }
-        } elseif ($nis !== '') {
-            $rowErrors[] = 'Tabel santri tidak tersedia';
         }
 
         if ($rowErrors !== []) {
@@ -565,6 +837,7 @@ function keuangan_impor_ekspor_validate_masuk(PDO $pdo, array $rows): array
  */
 function keuangan_impor_ekspor_validate_keluar(PDO $pdo, array $rows): array
 {
+    $rows = keuangan_impor_ekspor_filter_petunjuk_rows($rows, 'keluar');
     $errors = [];
     $items = [];
     $rowOk = 0;

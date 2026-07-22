@@ -702,11 +702,67 @@ function xlsx_xml_escape(string $value): string
     return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
 }
 
+/** @return array<string, int> */
+function xlsx_column_format_style_indexes(): array
+{
+    return [
+        'general' => 0,
+        'text' => 1,
+        'integer' => 2,
+    ];
+}
+
+function xlsx_styles_xml(): string
+{
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
+        . '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+        . '<borders count="1"><border/></borders>'
+        . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+        . '<cellXfs count="3">'
+        . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+        . '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+        . '<xf numFmtId="1" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+        . '</cellXfs>'
+        . '</styleSheet>';
+}
+
+/**
+ * @param array<int, string> $columnFormats index kolom => general|text|integer
+ */
+function xlsx_build_cols_xml(array $columnFormats, int $columnCount): string
+{
+    if ($columnFormats === [] || $columnCount <= 0) {
+        return '';
+    }
+    $styles = xlsx_column_format_style_indexes();
+    $cols = '';
+    for ($i = 0; $i < $columnCount; $i++) {
+        $format = $columnFormats[$i] ?? 'general';
+        $styleIdx = $styles[$format] ?? $styles['general'];
+        $width = $format === 'text' ? 18 : 14;
+        $min = $i + 1;
+        $cols .= '<col min="' . $min . '" max="' . $min . '" width="' . $width . '" style="' . $styleIdx . '" customWidth="1"/>';
+    }
+
+    return '<cols>' . $cols . '</cols>';
+}
+
 /**
  * @param list<list<string|int|float|null>> $rows
+ * @param array{column_formats?: array<int, string>} $options
  */
-function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
+function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1', array $options = []): string
 {
+    $columnFormats = $options['column_formats'] ?? [];
+    $useStyles = $columnFormats !== [];
+    $styles = xlsx_column_format_style_indexes();
+    $columnCount = 0;
+    foreach ($rows as $row) {
+        $columnCount = max($columnCount, count(array_values($row)));
+    }
+
     $sheetRows = '';
     foreach ($rows as $rowIndex => $row) {
         $r = $rowIndex + 1;
@@ -717,18 +773,32 @@ function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
             if ($value === null || $value === '') {
                 continue;
             }
-            if (is_int($value) || is_float($value)) {
+            $format = $useStyles ? ($columnFormats[$colIndex] ?? 'general') : 'general';
+            $styleAttr = $useStyles ? ' s="' . ($styles[$format] ?? $styles['general']) . '"' : '';
+            if ($format === 'text') {
+                $text = xlsx_xml_escape((string) $value);
+                $cells .= '<c r="' . $ref . '"' . $styleAttr . ' t="inlineStr"><is><t>' . $text . '</t></is></c>';
+                continue;
+            }
+            if ($format === 'integer' && (is_int($value) || is_float($value) || (is_string($value) && is_numeric($value)))) {
+                $num = is_string($value) ? (int) round((float) $value) : (int) round((float) $value);
+                $cells .= '<c r="' . $ref . '"' . $styleAttr . '><v>' . $num . '</v></c>';
+                continue;
+            }
+            if (!$useStyles && (is_int($value) || is_float($value))) {
                 $cells .= '<c r="' . $ref . '"><v>' . $value . '</v></c>';
                 continue;
             }
             $text = xlsx_xml_escape((string) $value);
-            $cells .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . $text . '</t></is></c>';
+            $cells .= '<c r="' . $ref . '"' . $styleAttr . ' t="inlineStr"><is><t>' . $text . '</t></is></c>';
         }
         $sheetRows .= '<row r="' . $r . '">' . $cells . '</row>';
     }
 
+    $colsXml = $useStyles ? xlsx_build_cols_xml($columnFormats, $columnCount) : '';
     $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . $colsXml
         . '<sheetData>' . $sheetRows . '</sheetData></worksheet>';
 
     $workbookXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -741,8 +811,11 @@ function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
         . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
         . '<Default Extension="xml" ContentType="application/xml"/>'
         . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
-        . '</Types>';
+        . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    if ($useStyles) {
+        $contentTypes .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
+    }
+    $contentTypes .= '</Types>';
 
     $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
@@ -751,27 +824,36 @@ function build_xlsx_bytes(array $rows, string $sheetName = 'Sheet1'): string
 
     $workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-        . '</Relationships>';
+        . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>';
+    if ($useStyles) {
+        $workbookRels .= '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
+    }
+    $workbookRels .= '</Relationships>';
 
-    return zip_archive_build([
+    $archive = [
         '[Content_Types].xml' => $contentTypes,
         '_rels/.rels' => $rootRels,
         'xl/workbook.xml' => $workbookXml,
         'xl/_rels/workbook.xml.rels' => $workbookRels,
         'xl/worksheets/sheet1.xml' => $sheetXml,
-    ]);
+    ];
+    if ($useStyles) {
+        $archive['xl/styles.xml'] = xlsx_styles_xml();
+    }
+
+    return zip_archive_build($archive);
 }
 
 /**
  * @param list<list<string|int|float|null>> $rows
+ * @param array{column_formats?: array<int, string>} $options
  */
-function send_xlsx_download(string $filename, array $rows, string $sheetName = 'Sheet1'): void
+function send_xlsx_download(string $filename, array $rows, string $sheetName = 'Sheet1', array $options = []): void
 {
     if (!str_ends_with(strtolower($filename), '.xlsx')) {
         $filename .= '.xlsx';
     }
-    $bytes = build_xlsx_bytes($rows, $sheetName);
+    $bytes = build_xlsx_bytes($rows, $sheetName, $options);
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Content-Length: ' . (string) strlen($bytes));

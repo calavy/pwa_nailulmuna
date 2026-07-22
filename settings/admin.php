@@ -330,6 +330,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <a href="<?= htmlspecialchars(app_href('/settings/tarif_payroll.php')) ?>" class="btn btn-sm btn-outline-primary">
                     <i class="fa-solid fa-coins me-1"></i> Tarif Payroll
                 </a>
+                <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="fa-solid fa-book-open me-1"></i> Beban Payroll Ta'lim
+                </a>
                 <a href="<?= htmlspecialchars(app_href('/pembayaran/edit_token.php')) ?>" class="btn btn-sm btn-outline-warning" title="Buat & kelola token sekali pakai untuk membuka mode edit pembayaran">
                     <i class="fa-solid fa-key me-1"></i> Token Edit Pembayaran
                 </a>
