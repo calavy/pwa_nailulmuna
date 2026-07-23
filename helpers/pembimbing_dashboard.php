@@ -816,6 +816,165 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
     return $out;
 }
 
+function pembimbing_dashboard_keaktifan_santri_url(int $santriId, int $tahun, string $rekapJenis = ''): string
+{
+    $q = ['santri_id' => max(0, $santriId), 'tahun' => max(2000, $tahun)];
+    $rekapJenis = strtolower(trim($rekapJenis));
+    if (in_array($rekapJenis, ['kajian', 'pkpps'], true)) {
+        $q['rekap_jenis'] = $rekapJenis;
+    }
+
+    return app_href('/pembimbing/keaktifan_santri.php?' . http_build_query($q));
+}
+
+/**
+ * Rekap keaktifan satu santri (scoped kegiatan pembimbing).
+ *
+ * @return array{
+ *   santri: array{santri_id:int,nis:string,nama_santri:string,tingkatan:string,jenis_kelamin:string},
+ *   summary: array{hadir:int,izin:int,sakit:int,alpa:int,total:int,persen_hadir:float,kategori:string,label:string,sumber:string},
+ *   per_kegiatan: list<array{nama_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int,persen_hadir:float,kategori:string}>,
+ *   pres_start: string,
+ *   pres_end: string,
+ *   scope: string
+ * }|null
+ */
+function pembimbing_dashboard_keaktifan_santri_detail(
+    PDO $pdo,
+    int $santriId,
+    int $tahun,
+    int $pembimbingId,
+    bool $bolehSemua,
+    string $scope = 'kajian'
+): ?array {
+    if ($santriId <= 0 || !table_exists($pdo, 'santri')) {
+        return null;
+    }
+    if (!$bolehSemua && !pembimbing_dashboard_santri_dalam_scope($pdo, $santriId, $pembimbingId > 0 ? $pembimbingId : null, false)) {
+        return null;
+    }
+
+    $scope = strtolower(trim($scope));
+    if (!in_array($scope, ['kajian', 'pkpps'], true)) {
+        $scope = 'kajian';
+    }
+
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $hasJk = column_exists($pdo, 'santri', 'jenis_kelamin') ? 's.jenis_kelamin' : '""';
+    require_once __DIR__ . '/santri_operasional.php';
+    $stS = $pdo->prepare('
+        SELECT s.id AS santri_id, s.nis, s.' . $nameCol . ' AS nama_santri,
+               COALESCE(s.tingkatan, "") AS tingkatan,
+               COALESCE(' . $hasJk . ', "") AS jenis_kelamin
+        FROM santri s
+        WHERE s.id = :id AND ' . santri_sql_aktif_only('s') . '
+        LIMIT 1
+    ');
+    $stS->execute(['id' => $santriId]);
+    $santriMeta = $stS->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($santriMeta)) {
+        return null;
+    }
+
+    $kegiatanIds = pembimbing_dashboard_allowed_kegiatan_ids($pdo, $pembimbingId, $bolehSemua, $scope);
+    [$presStart, $presEnd] = pembimbing_dashboard_tahun_presensi_bounds($tahun);
+    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
+    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
+
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    $eligibleRows = rekap_keaktifan_fetch_eligible_rows($pdo, $presStart, $presEnd, [$santriId], 0, false);
+    $eligibleRows = pembimbing_dashboard_filter_eligible_by_kegiatan($eligibleRows, $kegiatanIds);
+    $ranked = rekap_keaktifan_build_per_santri($eligibleRows, $goodMax, $mediumMax);
+    $row = $ranked[0] ?? null;
+
+    $hadir = $row ? (int) ($row['hadir'] ?? 0) : 0;
+    $izin = $row ? (int) ($row['izin'] ?? 0) : 0;
+    $sakit = $row ? (int) ($row['sakit'] ?? 0) : 0;
+    $alpa = $row ? (int) ($row['alpa'] ?? 0) : 0;
+    $total = $row ? (int) ($row['total'] ?? 0) : 0;
+    $persen = $total > 0 ? round($hadir / $total * 100, 1) : 0.0;
+    $kategori = $row ? (string) ($row['kategori'] ?? '') : '';
+    $label = $kategori !== '' ? $kategori : 'Belum ada data';
+    $sumber = 'presensi';
+
+    $tingkatanSantri = trim((string) ($santriMeta['tingkatan'] ?? ''));
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    if ($tingkatanSantri === '' && table_exists($pdo, 'pkpps_santri')) {
+        pkpps_ensure_schema($pdo);
+        $stPk = $pdo->prepare('
+            SELECT t.nama_tingkatan
+            FROM pkpps_santri ps
+            INNER JOIN pkpps_tingkatan t ON t.id = ps.pkpps_tingkatan_id
+            WHERE ps.santri_id = :id AND ps.is_aktif = 1
+            LIMIT 1
+        ');
+        $stPk->execute(['id' => $santriId]);
+        $pkppsNama = trim((string) ($stPk->fetchColumn() ?: ''));
+        if ($pkppsNama !== '') {
+            $tingkatanSantri = pembimbing_pkpps_label($pkppsNama);
+        }
+    }
+    $manualNilai = pembimbing_dashboard_nilai_manual_map_scoped(
+        $pdo,
+        $tahun,
+        $tingkatanSantri !== '' ? [$tingkatanSantri] : pembimbing_dashboard_tingkatan_list($pdo, $pembimbingId > 0 ? $pembimbingId : null, $bolehSemua)
+    );
+    if (isset($manualNilai[$santriId])) {
+        $label = (string) ($manualNilai[$santriId]['label'] ?? $label);
+        $kategori = (string) ($manualNilai[$santriId]['nilai'] ?? $kategori);
+        $sumber = 'pengasuh';
+    } elseif ($total === 0) {
+        $label = 'Belum ada data';
+        $kategori = '';
+        $sumber = 'none';
+    }
+
+    $perKegiatan = [];
+    if ($row !== null) {
+        foreach ($row['per_kegiatan'] ?? [] as $namaKeg => $kgStats) {
+            if (!is_array($kgStats)) {
+                continue;
+            }
+            $perKegiatan[] = [
+                'nama_kegiatan' => (string) $namaKeg,
+                'hadir' => (int) ($kgStats['hadir'] ?? 0),
+                'izin' => (int) ($kgStats['izin'] ?? 0),
+                'sakit' => (int) ($kgStats['sakit'] ?? 0),
+                'alpa' => (int) ($kgStats['alpa'] ?? 0),
+                'total' => (int) ($kgStats['total'] ?? 0),
+                'persen_hadir' => (float) ($kgStats['persen_hadir'] ?? 0),
+                'kategori' => (string) ($kgStats['kategori'] ?? ''),
+            ];
+        }
+    }
+    usort($perKegiatan, static fn (array $a, array $b): int => strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? '')));
+
+    return [
+        'santri' => [
+            'santri_id' => $santriId,
+            'nis' => (string) ($santriMeta['nis'] ?? ($row['nis'] ?? '')),
+            'nama_santri' => (string) ($santriMeta['nama_santri'] ?? ($row['nama_santri'] ?? '')),
+            'tingkatan' => $tingkatanSantri !== '' ? $tingkatanSantri : (string) ($row['tingkatan'] ?? ''),
+            'jenis_kelamin' => (string) ($santriMeta['jenis_kelamin'] ?? ''),
+        ],
+        'summary' => [
+            'hadir' => $hadir,
+            'izin' => $izin,
+            'sakit' => $sakit,
+            'alpa' => $alpa,
+            'total' => $total,
+            'persen_hadir' => $persen,
+            'kategori' => $kategori,
+            'label' => $label,
+            'sumber' => $sumber,
+        ],
+        'per_kegiatan' => $perKegiatan,
+        'pres_start' => $presStart,
+        'pres_end' => $presEnd,
+        'scope' => $scope,
+    ];
+}
+
 /**
  * Hitung distribusi kategori keaktivan (Bagus/Sedang/Buruk) dari array hasil
  * pembimbing_dashboard_keaktivan_santri().

@@ -95,6 +95,9 @@ $pbDashView = strtolower(trim((string) ($_GET['view'] ?? 'home')));
 if (!in_array($pbDashView, ['home', 'keaktivan'], true)) {
     $pbDashView = 'home';
 }
+if ($pbDashView === 'keaktivan' && !array_key_exists('keaktifan_view', $_GET)) {
+    $keaktifanView = 'santri';
+}
 if ($isMunawibPortal && $pbDashView !== 'home' && $pbDashView !== 'keaktivan') {
     $pbDashView = 'home';
 }
@@ -925,10 +928,13 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                                         default => 'secondary',
                                     };
                                     $sumberBadge = ($r['sumber'] ?? '') === 'pengasuh' ? 'info' : '';
+                                    $santriDetailUrl = pembimbing_dashboard_keaktifan_santri_url((int) ($r['santri_id'] ?? 0), (int) $tahun, $rekapJenis);
                                 ?>
                                     <tr>
                                         <td class="ps-3 small text-muted"><?= $no ?></td>
-                                        <td class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
+                                        <td class="fw-semibold">
+                                            <a href="<?= htmlspecialchars($santriDetailUrl) ?>" class="text-decoration-none"><?= htmlspecialchars((string) $r['nama_santri']) ?></a>
+                                        </td>
                                         <td class="small text-muted"><?= htmlspecialchars((string) $r['nis']) ?></td>
                                         <td class="text-center text-success small"><?= (int) $r['hadir'] ?></td>
                                         <td class="text-center text-warning small"><?= (int) $r['izin'] ?></td>

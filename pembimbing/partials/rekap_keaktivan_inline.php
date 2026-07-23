@@ -24,7 +24,7 @@ $rekapJenis = trim((string) ($rekapJenis ?? ''));
             <h3 class="pb-dash-rekap-keaktivan__title h6 mb-0 fw-bold">
                 <i class="fa-solid fa-chart-line me-1"></i> Rekap keaktifan · tahun <?= (int) $tahun ?>
             </h3>
-            <p class="small mb-0 pb-dash-rekap-keaktivan__sub">Kategori keaktifan santri berdasarkan presensi tahun berjalan</p>
+            <p class="small mb-0 pb-dash-rekap-keaktivan__sub">Kategori keaktifan santri berdasarkan presensi tahun berjalan. Klik nama santri untuk detail per kegiatan.</p>
         </div>
         <form method="get" class="d-flex flex-wrap align-items-center gap-2 m-0">
             <?php if ($tingkatanFilter !== ''): ?><input type="hidden" name="tingkatan" value="<?= htmlspecialchars($tingkatanFilter) ?>"><?php endif; ?>
@@ -109,10 +109,11 @@ $rekapJenis = trim((string) ($rekapJenis ?? ''));
                         $kat === 'BURUK' || $kat === 'JELEK' => 'badge-kat-buruk',
                         default => 'text-bg-secondary',
                     };
+                    $santriDetailUrl = pembimbing_dashboard_keaktifan_santri_url((int) ($r['santri_id'] ?? 0), (int) $tahun, $rekapJenis);
                 ?>
                     <tr>
                         <td class="ps-2 small">
-                            <div class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></div>
+                            <a href="<?= htmlspecialchars($santriDetailUrl) ?>" class="text-decoration-none fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></a>
                             <div class="opacity-75" style="font-size:.72rem"><?= htmlspecialchars((string) $r['tingkatan']) ?></div>
                         </td>
                         <td class="text-center small text-success"><?= (int) $r['hadir'] ?></td>

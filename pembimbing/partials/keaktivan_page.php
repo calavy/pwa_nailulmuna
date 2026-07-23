@@ -50,6 +50,7 @@ $rekapJenisLabel = $rekapJenis === 'pkpps' ? 'PKPPS' : "Kajian (Ta'lim & Jama'ah
                 <p class="pb-keaktivan-page__sub text-muted mb-0">
                     Rekap <?= htmlspecialchars($rekapJenisLabel) ?> · tahun Masehi <?= (int) $tahun ?> (s/d hari ini)
                     — <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>.
+                    Tampilan <strong>Per santri</strong>: klik nama untuk detail kegiatan.
                     <?php if ($tingkatanFilter !== ''): ?>
                         · tingkatan <?= htmlspecialchars($tingkatanFilter) ?>
                     <?php elseif ($semuaTingkatanList !== []): ?>

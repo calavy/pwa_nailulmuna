@@ -309,6 +309,7 @@ function user_permission_path_map_base(): array
         '/pembimbing/kartu_batch.php' => 'pembimbing',
         '/pembimbing/munawib_kartu.php' => 'munawib',
         '/pembimbing/dashboard.php' => 'pembimbing_dashboard',
+        '/pembimbing/keaktifan_santri.php' => 'pembimbing_dashboard',
         '/pembimbing/tugas_yayasan.php' => 'pembimbing_dashboard',
         '/pembimbing/pkpps_santri.php' => 'pembimbing_pkpps',
         '/pkpps/tugas/index.php' => 'pembimbing_pkpps',

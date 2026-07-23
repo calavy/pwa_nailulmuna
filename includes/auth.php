@@ -192,6 +192,7 @@ function auth_redirect_access_denied(): void
             || app_acl_request_paths_equal($requestPath, '/pembimbing/perizinan.php')
             || app_acl_request_paths_equal($requestPath, '/pembimbing/presensi.php')
             || str_contains($requestPath, '/pembimbing/nilai_manual')
+            || str_contains($requestPath, '/pembimbing/keaktifan_santri')
             || app_acl_request_paths_equal($requestPath, '/pembimbing/pkpps_santri.php')
         ) {
             return;
