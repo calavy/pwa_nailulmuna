@@ -327,7 +327,7 @@ function pb_jadwal_kirim_notifikasi(PDO $pdo, string $judul, string $isi): void
     }
     $msg = $judul . "\n" . $isi;
     if ($waTujuan !== '' && function_exists('send_wa_bulk')) {
-        send_wa_bulk($pdo, $waTujuan, $msg);
+        send_wa_bulk($pdo, $waTujuan, $msg, ['kind' => 'presensi']);
     }
 }
 

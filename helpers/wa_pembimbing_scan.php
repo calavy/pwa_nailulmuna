@@ -115,7 +115,7 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
             'nama_kegiatan' => (string) ($r['nama_kegiatan'] ?? 'kegiatan'),
         ]);
 
-        if (send_wa_message($pdo, $phone, $pesan)) {
+        if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
             save_setting($pdo, $debounceKey, '1');
         }
     }
@@ -191,7 +191,7 @@ function wa_pembimbing_belum_scan_munawib(PDO $pdo, int $menitSebelum, string $t
             'nama_kegiatan' => (string) ($r['nama_kegiatan'] ?? 'kegiatan'),
         ]);
 
-        if (send_wa_message($pdo, $phone, $pesan)) {
+        if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
             save_setting($pdo, $debounceKey, '1');
         }
     }

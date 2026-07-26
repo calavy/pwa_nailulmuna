@@ -11,7 +11,7 @@ declare(strict_types=1);
  * Per pembimbing hanya `gaji_pokok` (tunjangan tetap bulanan).
  *
  * Formula akhir bulanan:
- *   total_gaji = gaji_pokok + Σ(jam_per_scan × tarif_per_jam[kriteria_kegiatan])
+ *   total_gaji = gaji_pokok + Σ(jam_kitab × tarif_per_jam[kriteria_kegiatan])
  *
  * Kriteria beban per mata pelajaran/kegiatan disimpan di `kegiatan.payroll_kriteria`.
  * total_jam_kerja dihitung dari presensi_pembimbing di-join jadwal (fallback 1 jam/scan).
@@ -321,28 +321,41 @@ function payroll_pembimbing_normalize_kriteria(?string $kriteria): string
     return in_array($k, PAYROLL_PEMBIMBING_KRITERIA, true) ? $k : PAYROLL_PEMBIMBING_DEFAULT_KRITERIA;
 }
 
-/** Ekspresi SQL kriteria beban payroll per baris presensi (hanya kegiatan Ta'lim; Jama'ah = RINGAN). */
-function payroll_pembimbing_scan_kriteria_case_sql(PDO $pdo, string $presensiAlias = 'p'): string
+/** Join kegiatan master efektif (ID dari presensi langsung atau jadwal). */
+function payroll_pembimbing_kegiatan_eff_join_sql(PDO $pdo, string $presensiAlias = 'p', string $kegiatanAlias = 'k_eff'): string
 {
     $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
-    $hasKg = payroll_pembimbing_presensi_has_kegiatan_id($pdo);
-    $directBranch = $hasKg
-        ? '
-            WHEN ' . $p . '.kegiatan_id IS NOT NULL AND ' . $p . '.kegiatan_id > 0
-                 AND k.id IS NOT NULL
-                 AND UPPER(COALESCE(k.kategori_kegiatan, "TAALIM")) = "TAALIM"
-                THEN UPPER(COALESCE(NULLIF(k.payroll_kriteria, ""), "RINGAN"))'
-        : '';
-    $jadwalBranch = '
-            WHEN k_j.id IS NOT NULL
-                 AND UPPER(COALESCE(k_j.kategori_kegiatan, "TAALIM")) = "TAALIM"
-                THEN UPPER(COALESCE(NULLIF(k_j.payroll_kriteria, ""), "RINGAN"))';
+    $k = preg_replace('/[^a-z_]/', '', strtolower($kegiatanAlias)) ?: 'k_eff';
+    $idExpr = payroll_pembimbing_kegiatan_id_expr_sql($pdo, $p);
 
-    return '
-        CASE' . $directBranch . $jadwalBranch . '
-            ELSE "RINGAN"
-        END
-    ';
+    return ' LEFT JOIN kegiatan ' . $k . ' ON ' . $k . '.id = ' . $idExpr . ' AND ' . $idExpr . ' > 0 ';
+}
+
+/** Ekspresi SQL kriteria beban dari master kegiatan efektif (bukan CASE per baris). */
+function payroll_pembimbing_kegiatan_kriteria_expr_sql(PDO $pdo, string $kegiatanAlias = 'k_eff'): string
+{
+    $k = preg_replace('/[^a-z_]/', '', strtolower($kegiatanAlias)) ?: 'k_eff';
+
+    return 'UPPER(COALESCE(NULLIF(' . $k . '.payroll_kriteria, ""), "RINGAN"))';
+}
+
+/** Filter SQL: hanya scan kegiatan Ta'lim (abaikan Jama'ah/EXTRA). */
+function payroll_pembimbing_taalim_filter_sql(string $kegiatanAlias = 'k_eff'): string
+{
+    $k = preg_replace('/[^a-z_]/', '', strtolower($kegiatanAlias)) ?: 'k_eff';
+
+    return ' AND UPPER(COALESCE(' . $k . '.kategori_kegiatan, "TAALIM")) = "TAALIM" ';
+}
+
+/**
+ * Ekspresi SQL kriteria beban payroll per baris presensi.
+ * Prioritas: payroll_kriteria dari kegiatan efektif (master).
+ *
+ * @deprecated Prefer payroll_pembimbing_kegiatan_kriteria_expr_sql() + k_eff join.
+ */
+function payroll_pembimbing_scan_kriteria_case_sql(PDO $pdo, string $presensiAlias = 'p'): string
+{
+    return payroll_pembimbing_kegiatan_kriteria_expr_sql($pdo, 'k_eff');
 }
 
 /** Filter kegiatan pada query presensi_pembimbing (abaikan jika kolom belum ada). */
@@ -354,6 +367,228 @@ function payroll_pembimbing_kegiatan_filter_sql(PDO $pdo, int $kegiatanFilterId,
     $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
 
     return ' AND ' . $p . '.kegiatan_id = :kegiatan_id';
+}
+
+/**
+ * Ekspresi SQL ID kegiatan efektif dari presensi atau jadwal.
+ */
+function payroll_pembimbing_kegiatan_id_expr_sql(PDO $pdo, string $presensiAlias = 'p'): string
+{
+    $p = preg_replace('/[^a-z_]/', '', strtolower($presensiAlias)) ?: 'p';
+    if (payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        return 'COALESCE(NULLIF(' . $p . '.kegiatan_id, 0), COALESCE(j.kegiatan_id, pj.kegiatan_id, 0))';
+    }
+
+    return 'COALESCE(j.kegiatan_id, pj.kegiatan_id, 0)';
+}
+
+/**
+ * Ekspresi SQL nama kegiatan (kitab) efektif.
+ */
+function payroll_pembimbing_nama_kegiatan_expr_sql(PDO $pdo, string $presensiAlias = 'p'): string
+{
+    if (payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        return 'COALESCE(NULLIF(k.nama_kegiatan, ""), k_j.nama_kegiatan, "-")';
+    }
+
+    return 'COALESCE(k_j.nama_kegiatan, "-")';
+}
+
+/**
+ * Gabung baris jam per kegiatan_id (jaga-jaga edge case duplikat).
+ *
+ * @param list<array{kegiatan_id?:int,nama_kegiatan?:string,kriteria?:string,jam?:float}> $rows
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,jam:float}>
+ */
+function payroll_pembimbing_merge_by_kegiatan_rows(array $rows): array
+{
+    /** @var array<int, array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,jam:float}> $merged */
+    $merged = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        $jam = max(0.0, (float) ($row['jam'] ?? 0));
+        if ($jam <= 0) {
+            continue;
+        }
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            $nama = '-';
+        }
+        $kriteria = payroll_pembimbing_normalize_kriteria((string) ($row['kriteria'] ?? ''));
+        if (!isset($merged[$kid])) {
+            $merged[$kid] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => $nama,
+                'kriteria' => $kriteria,
+                'jam' => 0.0,
+            ];
+        }
+        $merged[$kid]['jam'] += $jam;
+    }
+
+    $out = array_values($merged);
+    usort($out, static function (array $a, array $b): int {
+        return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+
+    return $out;
+}
+
+/**
+ * Jam kerja per pembimbing dikelompokkan per kegiatan Ta'lim (kitab).
+ *
+ * @return array<int, array{total_jam: float, by_kegiatan: list<array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,jam:float}>}>
+ */
+function payroll_pembimbing_jam_kegiatan_map(
+    PDO $pdo,
+    string $startDate,
+    string $endDate,
+    int $kegiatanFilterId = 0,
+    string $jamMode = 'jadwal'
+): array {
+    if (!table_exists($pdo, 'presensi_pembimbing')) {
+        return [];
+    }
+    ensure_kegiatan_payroll_kriteria_column($pdo);
+
+    $kegiatanIdExpr = payroll_pembimbing_kegiatan_id_expr_sql($pdo, 'p');
+    $kriteriaExpr = payroll_pembimbing_kegiatan_kriteria_expr_sql($pdo, 'k_eff');
+
+    $sql = '
+        SELECT p.pembimbing_id,
+               ' . $kegiatanIdExpr . ' AS kegiatan_id,
+               COALESCE(NULLIF(k_eff.nama_kegiatan, ""), "-") AS nama_kegiatan,
+               ' . $kriteriaExpr . ' AS kriteria,
+               SUM(' . payroll_pembimbing_scan_jam_expr_sql($jamMode, 'p') . ') AS jam
+        FROM presensi_pembimbing p
+        INNER JOIN pembimbing pb ON pb.id = p.pembimbing_id
+        ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
+        ' . payroll_pembimbing_kegiatan_eff_join_sql($pdo, 'p', 'k_eff') . '
+        WHERE p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
+    ';
+    $sql .= payroll_pembimbing_taalim_filter_sql('k_eff');
+    $params = ['start_date' => $startDate, 'end_date' => $endDate];
+    $sql .= payroll_pembimbing_kegiatan_filter_sql($pdo, $kegiatanFilterId, 'p');
+    if ($kegiatanFilterId > 0 && payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        $params['kegiatan_id'] = $kegiatanFilterId;
+    }
+    $sql .= ' GROUP BY p.pembimbing_id, kegiatan_id';
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    /** @var array<int, list<array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,jam:float}>> $rawByPembimbing */
+    $rawByPembimbing = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $pid = (int) ($row['pembimbing_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $jam = max(0.0, (float) ($row['jam'] ?? 0));
+        if ($jam <= 0) {
+            continue;
+        }
+        $rawByPembimbing[$pid][] = [
+            'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+            'nama_kegiatan' => trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? trim((string) $row['nama_kegiatan']) : '-',
+            'kriteria' => payroll_pembimbing_normalize_kriteria((string) ($row['kriteria'] ?? '')),
+            'jam' => $jam,
+        ];
+    }
+
+    /** @var array<int, array{total_jam: float, by_kegiatan: list<array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,jam:float}>}> $map */
+    $map = [];
+    foreach ($rawByPembimbing as $pid => $rawRows) {
+        $byKegiatan = payroll_pembimbing_merge_by_kegiatan_rows($rawRows);
+        $totalJam = 0.0;
+        foreach ($byKegiatan as $kg) {
+            $totalJam += (float) ($kg['jam'] ?? 0);
+        }
+        if ($totalJam <= 0) {
+            continue;
+        }
+        $map[$pid] = [
+            'total_jam' => $totalJam,
+            'by_kegiatan' => $byKegiatan,
+        ];
+    }
+
+    return $map;
+}
+
+/**
+ * Hitung gaji variabel per kitab (kegiatan Ta'lim) — tanpa tarif rata-rata.
+ *
+ * @param list<array{kegiatan_id?:int,nama_kegiatan?:string,kriteria?:string,jam?:float}> $byKegiatanRows
+ * @param array<string,float> $tarifMap
+ * @return array{
+ *     gaji_pokok: float,
+ *     total_jam: float,
+ *     gaji_variabel: float,
+ *     gaji_per_jam: float,
+ *     total_gaji: float,
+ *     kitab_label: string,
+ *     by_kegiatan: list<array{kegiatan_id:int,nama_kegiatan:string,kriteria:string,kriteria_label:string,jam:float,tarif_per_jam:float,subtotal:float}>
+ * }
+ */
+function payroll_pembimbing_compute_by_kegiatan(float $gajiPokok, array $byKegiatanRows, array $tarifMap): array
+{
+    $labels = payroll_pembimbing_kriteria_labels();
+    $gajiPokok = max(0.0, $gajiPokok);
+    $totalJam = 0.0;
+    $gajiVariabel = 0.0;
+    $kitabLabelParts = [];
+    $computedRows = [];
+
+    foreach ($byKegiatanRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $kriteria = payroll_pembimbing_normalize_kriteria((string) ($row['kriteria'] ?? ''));
+        $jam = max(0.0, (float) ($row['jam'] ?? 0));
+        if ($jam <= 0) {
+            continue;
+        }
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            $nama = '-';
+        }
+        $tarif = (float) ($tarifMap[$kriteria] ?? 0);
+        $subtotal = $jam * $tarif;
+        $totalJam += $jam;
+        $gajiVariabel += $subtotal;
+        $kriteriaLabel = $labels[$kriteria] ?? $kriteria;
+        $computedRows[] = [
+            'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+            'nama_kegiatan' => $nama,
+            'kriteria' => $kriteria,
+            'kriteria_label' => $kriteriaLabel,
+            'jam' => $jam,
+            'tarif_per_jam' => $tarif,
+            'subtotal' => $subtotal,
+        ];
+        $kitabLabelParts[] = $nama . ' · ' . $kriteriaLabel . ' · '
+            . number_format($jam, 2, ',', '.') . 'j · Rp '
+            . number_format((int) round($subtotal), 0, ',', '.');
+    }
+
+    usort($computedRows, static function (array $a, array $b): int {
+        return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+
+    return [
+        'gaji_pokok' => $gajiPokok,
+        'total_jam' => $totalJam,
+        'gaji_variabel' => $gajiVariabel,
+        'gaji_per_jam' => $gajiVariabel,
+        'total_gaji' => $gajiPokok + $gajiVariabel,
+        'kitab_label' => $kitabLabelParts !== [] ? implode("\n", $kitabLabelParts) : '—',
+        'by_kegiatan' => $computedRows,
+    ];
 }
 
 /**
@@ -416,6 +651,7 @@ function payroll_pembimbing_jam_kriteria_map(
 /**
  * Hitung gaji bulanan dengan tarif berbeda per kriteria kegiatan.
  *
+ * @deprecated Tidak dipakai — payroll sekarang per kitab via compute_by_kegiatan().
  * @param array<string,float> $jamByKriteria kriteria => total jam
  * @param array<string,float> $tarifMap
  * @return array{
@@ -1068,6 +1304,12 @@ function payroll_pembimbing_ensure_gaji_table(PDO $pdo): void
             } catch (Throwable $e) {
             }
         }
+        if (!column_exists($pdo, 'keuangan_gaji_pembimbing', 'kitab_breakdown_json')) {
+            try {
+                $pdo->exec('ALTER TABLE keuangan_gaji_pembimbing ADD COLUMN kitab_breakdown_json TEXT NULL AFTER keterangan');
+            } catch (Throwable $e) {
+            }
+        }
 
         return;
     }
@@ -1087,6 +1329,7 @@ function payroll_pembimbing_ensure_gaji_table(PDO $pdo): void
                 sisa_dana_umum DECIMAL(12,2) NOT NULL DEFAULT 0,
                 tanggal_bayar DATE NOT NULL,
                 keterangan VARCHAR(255) NULL,
+                kitab_breakdown_json TEXT NULL,
                 pengeluaran_id INT NULL,
                 created_by INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1184,14 +1427,14 @@ function payroll_pembimbing_presensi_valid_rows(
     ensure_kegiatan_payroll_kriteria_column($pdo);
     $tarifMap = payroll_pembimbing_tarif_map($pdo);
     $labels = payroll_pembimbing_kriteria_labels();
-    $namaKegiatanExpr = payroll_pembimbing_presensi_has_kegiatan_id($pdo)
-        ? 'COALESCE(k.nama_kegiatan, k_j.nama_kegiatan, "-")'
-        : 'COALESCE(k_j.nama_kegiatan, "-")';
+    $kriteriaExpr = payroll_pembimbing_kegiatan_kriteria_expr_sql($pdo, 'k_eff');
+    $isTaalimExpr = 'UPPER(COALESCE(k_eff.kategori_kegiatan, "TAALIM")) = "TAALIM"';
 
     $sql = '
         SELECT p.id, p.tanggal, p.jam, p.jenis_scan,
-               ' . $namaKegiatanExpr . ' AS nama_kegiatan,
-               ' . payroll_pembimbing_scan_kriteria_case_sql($pdo, 'p') . ' AS payroll_kriteria,
+               COALESCE(NULLIF(k_eff.nama_kegiatan, ""), "-") AS nama_kegiatan,
+               ' . $kriteriaExpr . ' AS payroll_kriteria,
+               (' . $isTaalimExpr . ') AS is_taalim,
                j.id AS jadwal_id,
                COALESCE(j.jam_mulai, pj.jam_mulai) AS jadwal_mulai,
                COALESCE(j.jam_selesai, pj.jam_selesai) AS jadwal_selesai,
@@ -1199,7 +1442,7 @@ function payroll_pembimbing_presensi_valid_rows(
         FROM presensi_pembimbing p
         INNER JOIN pembimbing pb ON pb.id = p.pembimbing_id
         ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
-        ' . payroll_pembimbing_kegiatan_join_sql($pdo, 'p') . '
+        ' . payroll_pembimbing_kegiatan_eff_join_sql($pdo, 'p', 'k_eff') . '
         WHERE p.pembimbing_id = :pid
           AND p.tanggal BETWEEN :start_date AND :end_date
           AND p.jenis_scan = "DATANG"
@@ -1224,6 +1467,8 @@ function payroll_pembimbing_presensi_valid_rows(
         $valid = (int) ($row['jadwal_id'] ?? 0) > 0 || ($jadwalMulai !== '' && $jadwalSelesai !== '');
         $kriteria = payroll_pembimbing_normalize_kriteria((string) ($row['payroll_kriteria'] ?? ''));
         $jamHitung = round((float) ($row['jam_hitung'] ?? 0), 2);
+        $isTaalim = (int) ($row['is_taalim'] ?? 0) === 1;
+        $gajiBaris = $isTaalim ? (int) round($jamHitung * (float) ($tarifMap[$kriteria] ?? 0)) : 0;
         $out[] = [
             'id' => (int) ($row['id'] ?? 0),
             'tanggal' => (string) ($row['tanggal'] ?? ''),
@@ -1231,10 +1476,11 @@ function payroll_pembimbing_presensi_valid_rows(
             'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
             'payroll_kriteria' => $kriteria,
             'payroll_kriteria_label' => $labels[$kriteria] ?? $kriteria,
+            'is_taalim' => $isTaalim,
             'jadwal_mulai' => $jadwalMulai,
             'jadwal_selesai' => $jadwalSelesai,
             'jam_hitung' => $jamHitung,
-            'gaji_baris' => (int) round($jamHitung * (float) ($tarifMap[$kriteria] ?? 0)),
+            'gaji_baris' => $gajiBaris,
             'valid_jadwal' => $valid,
         ];
     }
@@ -1260,14 +1506,14 @@ function payroll_pembimbing_presensi_export_rows(
     ensure_kegiatan_payroll_kriteria_column($pdo);
     $tarifMap = payroll_pembimbing_tarif_map($pdo);
     $labels = payroll_pembimbing_kriteria_labels();
-    $namaKegiatanExpr = payroll_pembimbing_presensi_has_kegiatan_id($pdo)
-        ? 'COALESCE(k.nama_kegiatan, k_j.nama_kegiatan, "-")'
-        : 'COALESCE(k_j.nama_kegiatan, "-")';
+    $kriteriaExpr = payroll_pembimbing_kegiatan_kriteria_expr_sql($pdo, 'k_eff');
+    $isTaalimExpr = 'UPPER(COALESCE(k_eff.kategori_kegiatan, "TAALIM")) = "TAALIM"';
 
     $sql = '
         SELECT p.tanggal, p.jam, pb.nip, pb.nama_pembimbing,
-               ' . $namaKegiatanExpr . ' AS nama_kegiatan,
-               ' . payroll_pembimbing_scan_kriteria_case_sql($pdo, 'p') . ' AS payroll_kriteria,
+               COALESCE(NULLIF(k_eff.nama_kegiatan, ""), "-") AS nama_kegiatan,
+               ' . $kriteriaExpr . ' AS payroll_kriteria,
+               (' . $isTaalimExpr . ') AS is_taalim,
                j.id AS jadwal_id,
                COALESCE(j.jam_mulai, pj.jam_mulai) AS jadwal_mulai,
                COALESCE(j.jam_selesai, pj.jam_selesai) AS jadwal_selesai,
@@ -1275,7 +1521,7 @@ function payroll_pembimbing_presensi_export_rows(
         FROM presensi_pembimbing p
         INNER JOIN pembimbing pb ON pb.id = p.pembimbing_id
         ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
-        ' . payroll_pembimbing_kegiatan_join_sql($pdo, 'p') . '
+        ' . payroll_pembimbing_kegiatan_eff_join_sql($pdo, 'p', 'k_eff') . '
         WHERE p.tanggal BETWEEN :start_date AND :end_date
           AND p.jenis_scan = "DATANG"
     ';
@@ -1295,6 +1541,8 @@ function payroll_pembimbing_presensi_export_rows(
         $valid = (int) ($row['jadwal_id'] ?? 0) > 0 || ($jadwalMulai !== '' && $jadwalSelesai !== '');
         $kriteria = payroll_pembimbing_normalize_kriteria((string) ($row['payroll_kriteria'] ?? ''));
         $jamHitung = round((float) ($row['jam_hitung'] ?? 0), 2);
+        $isTaalim = (int) ($row['is_taalim'] ?? 0) === 1;
+        $gajiBaris = $isTaalim ? (int) round($jamHitung * (float) ($tarifMap[$kriteria] ?? 0)) : 0;
         $jadwalLabel = ($jadwalMulai !== '' && $jadwalSelesai !== '')
             ? substr($jadwalMulai, 0, 5) . '–' . substr($jadwalSelesai, 0, 5)
             : '';
@@ -1305,9 +1553,10 @@ function payroll_pembimbing_presensi_export_rows(
             'nama_pembimbing' => (string) ($row['nama_pembimbing'] ?? ''),
             'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
             'payroll_kriteria_label' => $labels[$kriteria] ?? $kriteria,
+            'is_taalim' => $isTaalim ? 'Ya' : 'Tidak',
             'jadwal' => $jadwalLabel,
             'jam_hitung' => $jamHitung,
-            'gaji_baris' => (int) round($jamHitung * (float) ($tarifMap[$kriteria] ?? 0)),
+            'gaji_baris' => $gajiBaris,
             'valid_jadwal' => $valid ? 'Ya' : 'Tidak',
         ];
     }
@@ -1336,7 +1585,7 @@ function payroll_pembimbing_build_xlsx_rows(
         ['Rentang', $rentangTampilan],
         ['Metode hitung jam', $jamModeLabel],
         [],
-        ['NIP', 'Nama', 'Hadir', 'Izin', 'Sakit', 'Alpa', 'Telat', 'Jam Kegiatan', 'Kriteria Beban', 'Tarif efektif/jam', 'Gaji Pokok', 'Gaji Per Jam', 'Total Gaji', 'Status Bayar'],
+        ['NIP', 'Nama', 'Hadir', 'Izin', 'Sakit', 'Alpa', 'Telat', 'Jam Kegiatan', 'Rincian Kitab', 'Gaji Pokok', 'Gaji Variabel', 'Total Gaji', 'Status Bayar'],
     ];
     foreach ($rekapRows as $r) {
         $rows[] = [
@@ -1348,13 +1597,33 @@ function payroll_pembimbing_build_xlsx_rows(
             (int) ($r['alpa'] ?? 0),
             (int) ($r['telat'] ?? 0),
             round((float) ($r['total_jam'] ?? 0), 2),
-            (string) ($r['kriteria_label'] ?? ''),
-            (int) round((float) ($r['tarif_per_jam'] ?? 0)),
+            (string) ($r['kitab_label'] ?? ''),
             (int) round((float) ($r['gaji_pokok_n'] ?? 0)),
-            (int) round((float) ($r['gaji_per_jam'] ?? 0)),
+            (int) round((float) ($r['gaji_variabel'] ?? $r['gaji_per_jam'] ?? 0)),
             (int) ($r['gaji_bulanan'] ?? 0),
             (string) ($r['status_bayar'] ?? ''),
         ];
+    }
+    $rows[] = [];
+    $rows[] = ['Rekap per Kitab'];
+    $rows[] = ['NIP', 'Nama', 'Kitab', 'Kriteria', 'Jam', 'Tarif/jam', 'Subtotal'];
+    foreach ($rekapRows as $r) {
+        $nip = (string) ($r['nip'] ?? '');
+        $nama = (string) ($r['nama_pembimbing'] ?? '');
+        foreach ((array) ($r['by_kegiatan'] ?? []) as $kg) {
+            if (!is_array($kg)) {
+                continue;
+            }
+            $rows[] = [
+                $nip,
+                $nama,
+                (string) ($kg['nama_kegiatan'] ?? '-'),
+                (string) ($kg['kriteria_label'] ?? ''),
+                round((float) ($kg['jam'] ?? 0), 2),
+                (int) round((float) ($kg['tarif_per_jam'] ?? 0)),
+                (int) round((float) ($kg['subtotal'] ?? 0)),
+            ];
+        }
     }
     $rows[] = [];
     $rows[] = ['Detail Presensi DATANG'];
@@ -1375,6 +1644,111 @@ function payroll_pembimbing_build_xlsx_rows(
     }
 
     return $rows;
+}
+
+/**
+ * Backfill presensi_pembimbing.kegiatan_id dari jadwal yang cocok (data lama NULL/0).
+ */
+function payroll_pembimbing_backfill_kegiatan_id(PDO $pdo, string $startDate, string $endDate): int
+{
+    if (!payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        return 0;
+    }
+
+    $kegiatanIdExpr = payroll_pembimbing_kegiatan_id_expr_sql($pdo, 'p');
+    $sql = '
+        SELECT p.id, ' . $kegiatanIdExpr . ' AS kegiatan_efektif
+        FROM presensi_pembimbing p
+        ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
+        WHERE p.tanggal BETWEEN :start_date AND :end_date
+          AND p.jenis_scan = "DATANG"
+          AND (p.kegiatan_id IS NULL OR p.kegiatan_id = 0)
+    ';
+    $st = $pdo->prepare($sql);
+    $st->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+
+    $update = $pdo->prepare('UPDATE presensi_pembimbing SET kegiatan_id = :kid WHERE id = :id AND (kegiatan_id IS NULL OR kegiatan_id = 0)');
+    $updated = 0;
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $kid = (int) ($row['kegiatan_efektif'] ?? 0);
+        $id = (int) ($row['id'] ?? 0);
+        if ($kid <= 0 || $id <= 0) {
+            continue;
+        }
+        $update->execute(['kid' => $kid, 'id' => $id]);
+        $updated += $update->rowCount();
+    }
+
+    return $updated;
+}
+
+/**
+ * Diagnostik payroll periode: presensi tanpa kegiatan & kitab belum diatur beban.
+ *
+ * @return array{
+ *     presensi_tanpa_kegiatan: int,
+ *     kegiatan_default_ringan: list<array{id:int,nama_kegiatan:string}>
+ * }
+ */
+function payroll_pembimbing_diagnostic_issues(PDO $pdo, string $startDate, string $endDate): array
+{
+    $presensiTanpaKegiatan = 0;
+    if (payroll_pembimbing_presensi_has_kegiatan_id($pdo)) {
+        $kegiatanIdExpr = payroll_pembimbing_kegiatan_id_expr_sql($pdo, 'p');
+        $sql = '
+            SELECT COUNT(*) FROM presensi_pembimbing p
+            ' . payroll_pembimbing_scan_jadwal_join_sql($pdo, 'p') . '
+            ' . payroll_pembimbing_kegiatan_eff_join_sql($pdo, 'p', 'k_eff') . '
+            WHERE p.tanggal BETWEEN :start_date AND :end_date
+              AND p.jenis_scan = "DATANG"
+              AND ' . $kegiatanIdExpr . ' = 0
+              AND UPPER(COALESCE(k_eff.kategori_kegiatan, "TAALIM")) = "TAALIM"
+        ';
+        $st = $pdo->prepare($sql);
+        $st->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+        $presensiTanpaKegiatan = (int) ($st->fetchColumn() ?: 0);
+    }
+
+    ensure_kegiatan_payroll_kriteria_column($pdo);
+    $kegiatanDefaultRingan = [];
+    if (table_exists($pdo, 'kegiatan')) {
+        $sqlKg = '
+            SELECT k.id, k.nama_kegiatan
+            FROM kegiatan k
+            WHERE COALESCE(k.kategori_kegiatan, "TAALIM") = "TAALIM"
+              AND COALESCE(k.is_active, 1) = 1
+              AND (
+                    k.payroll_kriteria IS NULL
+                    OR TRIM(k.payroll_kriteria) = ""
+                    OR UPPER(k.payroll_kriteria) = "RINGAN"
+                  )
+              AND EXISTS (
+                    SELECT 1 FROM presensi_pembimbing p
+                    WHERE p.jenis_scan = "DATANG"
+                      AND p.tanggal BETWEEN :start_date AND :end_date
+                      AND (
+                            p.kegiatan_id = k.id
+                            OR p.kegiatan_id IS NULL
+                            OR p.kegiatan_id = 0
+                      )
+                  )
+            ORDER BY k.nama_kegiatan ASC
+            LIMIT 20
+        ';
+        $stKg = $pdo->prepare($sqlKg);
+        $stKg->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+        foreach ($stKg->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $kegiatanDefaultRingan[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+            ];
+        }
+    }
+
+    return [
+        'presensi_tanpa_kegiatan' => $presensiTanpaKegiatan,
+        'kegiatan_default_ringan' => $kegiatanDefaultRingan,
+    ];
 }
 
 /**
@@ -1429,15 +1803,15 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
     $startDate = (string) $period['start_date'];
     $endDate = (string) $period['end_date'];
 
-    $jamKriteriaMap = payroll_pembimbing_jam_kriteria_map($pdo, $startDate, $endDate, 0, $jamMode);
-    $byKriteria = $jamKriteriaMap[$pembimbingId]['by_kriteria'] ?? [];
+    $jamKegiatanMap = payroll_pembimbing_jam_kegiatan_map($pdo, $startDate, $endDate, 0, $jamMode);
+    $byKegiatan = $jamKegiatanMap[$pembimbingId]['by_kegiatan'] ?? [];
 
-    $metaStmt = $pdo->prepare('SELECT gaji_pokok, tarif_kriteria FROM pembimbing WHERE id = :id');
+    $metaStmt = $pdo->prepare('SELECT gaji_pokok FROM pembimbing WHERE id = :id');
     $metaStmt->execute(['id' => $pembimbingId]);
     $meta = $metaStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-    $calc = payroll_pembimbing_compute_mixed(
+    $calc = payroll_pembimbing_compute_by_kegiatan(
         (float) ($meta['gaji_pokok'] ?? 0),
-        $byKriteria,
+        $byKegiatan,
         $tarifMap
     );
     $totalJam = (float) ($calc['total_jam'] ?? 0);
@@ -1516,7 +1890,7 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
             'bulan' => $month,
             'tahun' => $year,
             'total_jam' => round($totalJam, 2),
-            'tarif_per_jam' => round((float) $calc['tarif_per_jam'], 2),
+            'tarif_per_jam' => 0,
             'total_bayar' => $totalBayar,
             'tanggal_bayar' => $tanggalBayar,
             'keterangan' => $keterangan,
@@ -1536,6 +1910,15 @@ function payroll_pembimbing_bayar(PDO $pdo, array $post, int $userId): array
             $gajiCols[] = 'sisa_dana_umum';
             $gajiVals[] = ':sisa_dana_umum';
             $gajiParams['sisa_dana_umum'] = $sisaDanaUmum;
+        }
+        $kitabBreakdownJson = json_encode(
+            ['by_kegiatan' => $calc['by_kegiatan'] ?? [], 'kitab_label' => $calc['kitab_label'] ?? ''],
+            JSON_UNESCAPED_UNICODE
+        );
+        if (column_exists($pdo, 'keuangan_gaji_pembimbing', 'kitab_breakdown_json')) {
+            $gajiCols[] = 'kitab_breakdown_json';
+            $gajiVals[] = ':kitab_breakdown_json';
+            $gajiParams['kitab_breakdown_json'] = $kitabBreakdownJson !== false ? $kitabBreakdownJson : null;
         }
         $gajiSql = 'INSERT INTO keuangan_gaji_pembimbing (' . implode(', ', $gajiCols) . ') VALUES (' . implode(', ', $gajiVals) . ')';
         $pdo->prepare($gajiSql)->execute($gajiParams);

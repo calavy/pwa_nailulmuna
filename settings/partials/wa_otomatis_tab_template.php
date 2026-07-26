@@ -24,6 +24,13 @@ $raporSlugs = ['rapor_terbit_pesantren', 'rapor_terbit_pkpps'];
                 <input class="form-check-input" type="checkbox" name="wa_rapor_pkpps_enabled" id="wa_rapor_pkpps_enabled" value="1" <?= !empty($waRaporPkppsOn) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="wa_rapor_pkpps_enabled">Rapor PKPPS — kirim otomatis</label>
             </div>
+            <div class="row g-3 mt-2">
+                <?php
+                $delayFieldName = 'wa_delay_rapor';
+                $delayFieldValue = (string) ($values['wa_delay_rapor'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
+            </div>
         </div>
     </div>
     <?php foreach ($tplDefs as $slug => $meta): ?>

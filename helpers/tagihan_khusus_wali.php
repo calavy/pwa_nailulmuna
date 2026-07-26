@@ -801,7 +801,7 @@ function tagihan_khusus_kirim_wa(PDO $pdo, int $id, bool $forceResend = false): 
     }
 
     $pesan = tagihan_khusus_wa_pesan($pdo, $row);
-    $result = send_wa_message_with_result($pdo, $phone, $pesan);
+    $result = send_wa_message_with_result($pdo, $phone, $pesan, ['kind' => 'tagihan']);
     if (!empty($result['ok'])) {
         $pdo->prepare('UPDATE keuangan_tagihan_khusus SET wa_notified_at = NOW() WHERE id = :id')->execute(['id' => $id]);
 

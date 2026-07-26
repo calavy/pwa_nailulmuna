@@ -323,7 +323,7 @@ function poin_wa_maybe_notify_santri(PDO $pdo, int $santriId, ?string $tanggalRe
             $periodeLabel,
             (string) $tier['label']
         );
-        $sent = send_wa_bulk($pdo, $targets, $msg);
+        $sent = send_wa_bulk($pdo, $targets, $msg, ['kind' => 'poin']);
         if ($sent > 0) {
             poin_tier_dispatch_record($pdo, $santriId, $tierId, $periodeKey, $total);
             $result['sent'] += $sent;

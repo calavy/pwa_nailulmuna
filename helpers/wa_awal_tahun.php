@@ -158,7 +158,7 @@ function wa_awal_tahun_jalankan_kirim(PDO $pdo, bool $paksa = false): array
             'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
         ]);
 
-        $res = wa_otomatis_send($pdo, $phone, $msg);
+        $res = wa_otomatis_send($pdo, $phone, $msg, ['kind' => 'tagihan']);
         if (!empty($res['success'])) {
             $sent++;
         } else {

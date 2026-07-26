@@ -243,7 +243,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
             $lines[] = 'ID Jadwal: #' . $jadwalId;
             $message = implode("\n", $lines);
 
-            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message);
+            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message, ['kind' => 'presensi']);
             if ((int) ($bulk['sent'] ?? 0) > 0) {
                 save_setting($pdo, (string) $lv['sent_key'], '1');
                 save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));

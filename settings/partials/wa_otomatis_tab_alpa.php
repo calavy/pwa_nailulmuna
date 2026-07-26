@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 ?>
+<?php $delayKind = 'alpa'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Notifikasi alpa otomatis</h2>
@@ -30,6 +31,13 @@ declare(strict_types=1);
                 <label class="form-label">Langkah kelipatan</label>
                 <input type="number" min="1" class="form-control" name="batas_alpa_notif" value="<?= htmlspecialchars($values['batas_alpa_notif']) ?>">
                 <div class="form-text">Mis. 5 → ambang 5,10,15,… jika tier kosong.</div>
+            </div>
+            <div class="col-md-6">
+                <?php
+                $delayFieldName = 'wa_delay_alpa';
+                $delayFieldValue = (string) ($values['wa_delay_alpa'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
             </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-success btn-sm">Simpan penerima alpa</button>

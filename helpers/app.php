@@ -559,6 +559,14 @@ function pondok_settings_defaults(): array
         'wa_gateway_token' => '',
         'wa_sender' => '',
         'wa_fonnte_queue_offline' => '0',
+        'wa_fonnte_api_delay' => '3',
+        'wa_delay_tagihan' => '',
+        'wa_delay_cashless' => '',
+        'wa_delay_presensi' => '',
+        'wa_delay_alpa' => '',
+        'wa_delay_poin' => '',
+        'wa_delay_izin' => '',
+        'wa_delay_rapor' => '',
         'wa_pengurus' => '',
         'wa_permohonan_izin' => '',
         'wa_permohonan_izin_enabled' => '1',
@@ -1256,9 +1264,9 @@ function send_wa_message_with_result(PDO $pdo, string $phone, string $message, a
     return wa_otomatis_send($pdo, $phone, $message, $override);
 }
 
-function send_wa_message(PDO $pdo, string $phone, string $message): bool
+function send_wa_message(PDO $pdo, string $phone, string $message, array $opts = []): bool
 {
-    $result = send_wa_message_with_result($pdo, $phone, $message);
+    $result = send_wa_message_with_result($pdo, $phone, $message, $opts);
     return (bool) ($result['success'] ?? false);
 }
 
@@ -1292,9 +1300,9 @@ function wa_me_chat_url(string $phoneRaw, string $text = ''): ?string
     return $base . '?text=' . rawurlencode($t);
 }
 
-function send_wa_bulk(PDO $pdo, string $phonesRaw, string $message): int
+function send_wa_bulk(PDO $pdo, string $phonesRaw, string $message, array $opts = []): int
 {
-    $result = send_wa_bulk_with_result($pdo, $phonesRaw, $message);
+    $result = send_wa_bulk_with_result($pdo, $phonesRaw, $message, $opts);
 
     return (int) ($result['sent'] ?? 0);
 }
@@ -1490,7 +1498,7 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
     }
     $message = implode("\n", $lines);
 
-    $sent = send_wa_bulk($pdo, $waTujuan, $message);
+    $sent = send_wa_bulk($pdo, $waTujuan, $message, ['kind' => 'presensi']);
     if ($sent > 0) {
         foreach ($missing as $m) {
             $jadwalId = (int) ($m['jadwal_id'] ?? 0);
@@ -2671,7 +2679,7 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
             $skipped++;
             continue;
         }
-        if (send_wa_message($pdo, $phone, $message)) {
+        if (send_wa_message($pdo, $phone, $message, ['kind' => 'tagihan'])) {
             $sent++;
         }
     }

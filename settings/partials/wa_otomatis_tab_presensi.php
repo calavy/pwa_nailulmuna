@@ -7,6 +7,7 @@ declare(strict_types=1);
 $kelasKosongLastAtRaw = trim((string) ($values['wa_kelas_kosong_last_sent_at'] ?? ''));
 $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? ''));
 ?>
+<?php $delayKind = 'presensi'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Pengingat scan pembimbing / munawib</h2>
@@ -122,6 +123,13 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                     <?php endif; ?>
                     · <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=log')) ?>">Lihat riwayat</a>
                 </div>
+            </div>
+            <div class="col-md-6">
+                <?php
+                $delayFieldName = 'wa_delay_presensi';
+                $delayFieldValue = (string) ($values['wa_delay_presensi'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
             </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-success btn-sm">Simpan presensi</button>

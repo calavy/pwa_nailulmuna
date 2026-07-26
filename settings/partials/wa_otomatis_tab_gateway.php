@@ -68,6 +68,17 @@ declare(strict_types=1);
                     <option value="push" <?= $notifyMode === 'push' ? 'selected' : '' ?>>Push saja</option>
                 </select>
             </div>
+            <div class="col-md-6">
+                <label class="form-label" for="wa_fonnte_api_delay">Delay antar kirim Fonnte (detik)</label>
+                <input type="text" class="form-control font-monospace" id="wa_fonnte_api_delay" name="wa_fonnte_api_delay"
+                    value="<?= htmlspecialchars((string) ($values['wa_fonnte_api_delay'] ?? '3')) ?>"
+                    placeholder="3 atau 3-8">
+                <div class="form-text">
+                    Default untuk semua kategori. Override per kategori di tab Tagihan, Cashless, Presensi, Alpa, Poin, Izin, dan Template.
+                    Parameter <code>delay</code> di API Fonnte. Contoh: <code>3</code> (tetap) atau <code>3-8</code> (acak).
+                    Kosongkan untuk menonaktifkan. Disarankan 3–10 detik agar nomor tidak terdeteksi spam.
+                </div>
+            </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-success btn-sm">Simpan gateway</button>
             </div>

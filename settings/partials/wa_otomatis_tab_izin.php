@@ -24,6 +24,7 @@ $waPermohonanIzinJenisAllowed = $waPermohonanIzinJenisAllowed ?? wa_permohonan_i
 $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
 
 ?>
+<?php $delayKind = 'izin'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="row g-3">
     <div class="col-12 col-xl-6">
         <div class="card shadow-sm border-0 h-100">

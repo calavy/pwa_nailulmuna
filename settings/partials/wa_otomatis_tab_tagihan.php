@@ -12,6 +12,7 @@ $waPembayaranSiap = $waMasterOn
     && $waPembayaranWaliEnabled;
 
 ?>
+<?php $delayKind = 'tagihan'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3 border-success-subtle">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-receipt text-success me-1"></i> Pembayaran tercatat → wali santri</h2>
@@ -118,6 +119,13 @@ $waPembayaranSiap = $waMasterOn
                     <label class="form-check-label" for="wa_tagihan_recurring">Kirim pengingat harian (opsional)</label>
                 </div>
                 <div class="form-text">Default: sekali per periode pada hari kirim.</div>
+            </div>
+            <div class="col-md-6">
+                <?php
+                $delayFieldName = 'wa_delay_tagihan';
+                $delayFieldValue = (string) ($values['wa_delay_tagihan'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
             </div>
             <div class="col-12 d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-success btn-sm">Simpan pengaturan</button>

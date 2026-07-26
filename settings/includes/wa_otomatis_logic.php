@@ -19,7 +19,9 @@ ensure_pondok_settings_defaults($pdo);
 $pondokDefaults = pondok_settings_defaults();
 $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
-    'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
+        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay',
+        'wa_delay_tagihan', 'wa_delay_cashless', 'wa_delay_presensi', 'wa_delay_alpa', 'wa_delay_poin', 'wa_delay_izin', 'wa_delay_rapor',
+        'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali',
     'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
@@ -90,6 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         save_setting($pdo, 'wa_otomatis_master_enabled', isset($_POST['wa_otomatis_master_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_fonnte_queue_offline', isset($_POST['wa_fonnte_queue_offline']) ? '1' : '0');
+        $delayRaw = trim((string) ($_POST['wa_fonnte_api_delay'] ?? ''));
+        if ($delayRaw === '' || $delayRaw === '0') {
+            save_setting($pdo, 'wa_fonnte_api_delay', '');
+            $delayInvalid = false;
+        } else {
+            $delayValidated = wa_otomatis_fonnte_api_delay($pdo, ['fonnte_delay' => $delayRaw]);
+            save_setting($pdo, 'wa_fonnte_api_delay', $delayValidated);
+            $delayInvalid = $delayValidated === '';
+        }
         $mode = strtolower(trim((string) ($_POST['fcm_notify_mode'] ?? 'both')));
         if (!in_array($mode, ['push', 'wa', 'both'], true)) {
             $mode = 'both';
@@ -97,7 +108,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'fcm_notify_mode', $mode);
         $cronKey = trim((string) ($_POST['wa_auto_cron_key'] ?? ''));
         save_setting($pdo, 'wa_auto_cron_key', $cronKey);
-        set_flash('success', 'Pengaturan gateway disimpan.');
+        set_flash('success', $delayInvalid ?? false
+            ? 'Pengaturan gateway disimpan. Format delay Fonnte tidak valid — gunakan contoh 3 atau 3-8 (delay dinonaktifkan).'
+            : 'Pengaturan gateway disimpan.');
+        header('Location: ' . $redirectUrl);
+        exit;
+    } elseif ($action === 'save_wa_delay') {
+        $kind = trim((string) ($_POST['delay_kind'] ?? ''));
+        $kinds = wa_otomatis_delay_kinds();
+        if (!isset($kinds[$kind])) {
+            set_flash('error', 'Kategori delay tidak valid.');
+        } else {
+            $invalid = wa_otomatis_save_delay_from_post($pdo, $kind);
+            set_flash($invalid ? 'warning' : 'success', $invalid
+                ? 'Format delay tidak valid — gunakan contoh 3 atau 3-8 (delay dinonaktifkan).'
+                : 'Pengaturan delay disimpan.');
+        }
         header('Location: ' . $redirectUrl);
         exit;
     } elseif ($action === 'save_penerima') {
@@ -115,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 save_setting($pdo, $field, trim((string) $_POST[$field]));
             }
         }
+        wa_otomatis_save_delay_from_post($pdo, 'alpa');
         set_flash('success', 'Penerima notifikasi alpa disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
@@ -135,16 +162,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'wa_yayasan_tugas_enabled', isset($_POST['wa_yayasan_tugas_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_yayasan_tugas_noprogress_enabled', isset($_POST['wa_yayasan_tugas_noprogress_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_yayasan_tugas_noprogress_jam', (string) max(1, min(72, (int) ($_POST['wa_yayasan_tugas_noprogress_jam'] ?? 6))));
+        wa_otomatis_save_delay_from_post($pdo, 'presensi');
         set_flash('success', 'Pengaturan presensi & kelas kosong disimpan.');
         header('Location: ' . $redirectUrl);
         exit;
     } elseif ($action === 'save_tagihan_jadwal') {
+        wa_otomatis_save_delay_from_post($pdo, 'tagihan');
         $res = wa_tagihan_jadwal_simpan($pdo, $_POST);
         set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
         header('Location: ' . $redirectUrl);
         exit;
     } elseif ($action === 'save_pembayaran_wali_wa') {
         save_setting($pdo, 'wa_pembayaran_wali_enabled', isset($_POST['wa_pembayaran_wali_enabled']) ? '1' : '0');
+        wa_otomatis_save_delay_from_post($pdo, 'tagihan');
         set_flash('success', 'Pengaturan WA pembayaran ke wali disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
         exit;
@@ -158,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = wa_template_save_all($pdo, $_POST);
         save_setting($pdo, 'wa_rapor_pesantren_enabled', isset($_POST['wa_rapor_pesantren_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_rapor_pkpps_enabled', isset($_POST['wa_rapor_pkpps_enabled']) ? '1' : '0');
+        wa_otomatis_save_delay_from_post($pdo, 'rapor');
         if (function_exists('app_settings_cache_reset')) {
             app_settings_cache_reset($pdo);
         }
@@ -228,6 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         save_setting($pdo, 'cashless_laporan_harian_wa_jam', $jamRaw);
         save_setting($pdo, 'cashless_laporan_harian_wa_targets', trim((string) ($_POST['cashless_laporan_harian_wa_targets'] ?? '')));
+        wa_otomatis_save_delay_from_post($pdo, 'cashless');
         set_flash('success', 'Pengaturan WA cashless disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=cashless'));
         exit;
@@ -248,6 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $jamRaw = sprintf('%02d:%02d', (int) $jm[1], (int) $jm[2]);
         }
         save_setting($pdo, 'wa_awal_tahun_send_time', $jamRaw);
+        wa_otomatis_save_delay_from_post($pdo, 'tagihan');
         set_flash('success', 'Pengaturan WA pengingat awal tahun disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
         exit;
@@ -302,6 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'save_poin_wa_enabled') {
         save_setting($pdo, 'poin_wa_notif_enabled', isset($_POST['poin_wa_notif_enabled']) ? '1' : '0');
+        wa_otomatis_save_delay_from_post($pdo, 'poin');
         set_flash('success', 'Status WA ambang poin disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=poin'));
         exit;

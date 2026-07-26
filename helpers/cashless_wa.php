@@ -276,7 +276,7 @@ function cashless_wa_maybe_notify_saldo_rendah(PDO $pdo, int $santriId, float|in
     $namaSantri = trim((string) ($st->fetchColumn() ?: 'Santri'));
 
     $msg = wa_format_cashless_saldo_rendah_wali($pdo, $namaSantri, $balanceInt, $threshold);
-    if (!send_wa_message($pdo, $waliPhone, $msg)) {
+    if (!send_wa_message($pdo, $waliPhone, $msg, ['kind' => 'cashless'])) {
         return;
     }
 
@@ -324,7 +324,7 @@ function cashless_wa_notify_transaksi_sukses(
         (int) $jatah['limit'],
         (int) $jatah['terpakai']
     );
-    send_wa_message($pdo, $waliPhone, $msg);
+    send_wa_message($pdo, $waliPhone, $msg, ['kind' => 'cashless']);
 }
 
 /**
@@ -476,7 +476,7 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
     $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $msg = wa_format_cashless_laporan_harian_pengurus($pdo, $ringkasan);
 
-    $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg);
+    $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg, ['kind' => 'cashless']);
     $sent = (int) ($bulk['sent'] ?? 0);
     $failed = (int) ($bulk['failed'] ?? 0);
 

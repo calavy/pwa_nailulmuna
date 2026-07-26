@@ -76,6 +76,133 @@ function wa_otomatis_fonnte_connect_only(PDO $pdo, array $override = []): bool
     return trim((string) app_setting($pdo, 'wa_fonnte_queue_offline', '0')) !== '1';
 }
 
+/**
+ * Kategori delay pesan WA otomatis (sesuai tab pengaturan).
+ *
+ * @return array<string, array{key:string,label:string,tab:string}>
+ */
+function wa_otomatis_delay_kinds(): array
+{
+    return [
+        'tagihan' => ['key' => 'wa_delay_tagihan', 'label' => 'Tagihan & pembayaran', 'tab' => 'tagihan'],
+        'cashless' => ['key' => 'wa_delay_cashless', 'label' => 'Cashless', 'tab' => 'cashless'],
+        'presensi' => ['key' => 'wa_delay_presensi', 'label' => 'Presensi', 'tab' => 'presensi'],
+        'alpa' => ['key' => 'wa_delay_alpa', 'label' => 'Alpa', 'tab' => 'alpa'],
+        'poin' => ['key' => 'wa_delay_poin', 'label' => 'Poin', 'tab' => 'poin'],
+        'izin' => ['key' => 'wa_delay_izin', 'label' => 'Izin', 'tab' => 'izin'],
+        'rapor' => ['key' => 'wa_delay_rapor', 'label' => 'Rapor', 'tab' => 'rapor'],
+    ];
+}
+
+/** Validasi format delay Fonnte: "5" atau "5-10". Kosong/0 = tidak aktif. */
+function wa_otomatis_validate_delay_string(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '' || $raw === '0') {
+        return '';
+    }
+
+    if (!preg_match('/^(\d+)(?:-(\d+))?$/', $raw, $matches)) {
+        return '';
+    }
+
+    $min = (int) $matches[1];
+    $max = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : $min;
+    if ($min < 1 || $min > 300 || $max < $min || $max > 300) {
+        return '';
+    }
+
+    return $max === $min ? (string) $min : ($min . '-' . $max);
+}
+
+/** Ambil nilai minimum delay (detik) dari string delay, atau 0 jika kosong. */
+function wa_otomatis_delay_min_seconds(string $delay): int
+{
+    $delay = wa_otomatis_validate_delay_string($delay);
+    if ($delay === '') {
+        return 0;
+    }
+    if (preg_match('/^(\d+)/', $delay, $matches)) {
+        return (int) $matches[1];
+    }
+
+    return 0;
+}
+
+/**
+ * Simpan delay kategori setelah validasi.
+ *
+ * @return array{value:string,invalid:bool}
+ */
+function wa_otomatis_save_delay_kind(PDO $pdo, string $kind, string $raw): array
+{
+    $kinds = wa_otomatis_delay_kinds();
+    if (!isset($kinds[$kind])) {
+        return ['value' => '', 'invalid' => true];
+    }
+
+    $raw = trim($raw);
+    if ($raw === '' || $raw === '0') {
+        save_setting($pdo, $kinds[$kind]['key'], '');
+
+        return ['value' => '', 'invalid' => false];
+    }
+
+    $validated = wa_otomatis_validate_delay_string($raw);
+    save_setting($pdo, $kinds[$kind]['key'], $validated);
+
+    return ['value' => $validated, 'invalid' => $validated === ''];
+}
+
+/** Simpan delay kategori dari field POST jika ada. */
+function wa_otomatis_save_delay_from_post(PDO $pdo, string $kind): bool
+{
+    $kinds = wa_otomatis_delay_kinds();
+    if (!isset($kinds[$kind])) {
+        return false;
+    }
+    $key = $kinds[$kind]['key'];
+    if (!array_key_exists($key, $_POST)) {
+        return false;
+    }
+    $res = wa_otomatis_save_delay_kind($pdo, $kind, trim((string) $_POST[$key]));
+
+    return $res['invalid'];
+}
+
+/** @return array{kind:string} */
+function wa_otomatis_send_opts_for_kind(string $kind): array
+{
+    return ['kind' => $kind];
+}
+
+/**
+ * Delay antar pengiriman Fonnte (detik, wajib string di API).
+ * Urutan: explicit override → wa_delay_{kind} → wa_fonnte_api_delay global.
+ *
+ * @param array<string, mixed> $override fonnte_delay|delay|kind
+ */
+function wa_otomatis_fonnte_api_delay(PDO $pdo, array $override = []): string
+{
+    if (array_key_exists('fonnte_delay', $override)) {
+        $raw = trim((string) $override['fonnte_delay']);
+    } elseif (array_key_exists('delay', $override)) {
+        $raw = trim((string) $override['delay']);
+    } else {
+        $raw = '';
+        $kind = trim((string) ($override['kind'] ?? ''));
+        $kinds = wa_otomatis_delay_kinds();
+        if ($kind !== '' && isset($kinds[$kind])) {
+            $raw = trim((string) app_setting($pdo, $kinds[$kind]['key'], ''));
+        }
+        if ($raw === '') {
+            $raw = trim((string) app_setting($pdo, 'wa_fonnte_api_delay', '3'));
+        }
+    }
+
+    return wa_otomatis_validate_delay_string($raw);
+}
+
 function wa_otomatis_enrich_api_error(string $error, string $target): string
 {
     if ($error === '') {
@@ -351,6 +478,10 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         if (!wa_otomatis_fonnte_connect_only($pdo, $override)) {
             $payload['connectOnly'] = 'false';
         }
+        $fonnteDelay = wa_otomatis_fonnte_api_delay($pdo, $override);
+        if ($fonnteDelay !== '') {
+            $payload['delay'] = $fonnteDelay;
+        }
     }
 
     curl_setopt_array($ch, [
@@ -510,7 +641,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
     $chunkMax = max(0, (int) ($opts['chunk_max'] ?? 0));
     $chunkDelayMs = max(100, min(3000, (int) ($opts['chunk_delay_ms'] ?? 450)));
     $override = $opts;
-    unset($override['max_retries'], $override['delay_ms'], $override['chunk_max'], $override['chunk_delay_ms']);
+    unset($override['max_retries'], $override['delay_ms'], $override['chunk_max'], $override['chunk_delay_ms'], $override['delay_between_ms'], $override['message_delay_ms']);
 
     $chunks = ($chunkMax > 0) ? wa_otomatis_chunk_message($message, $chunkMax) : [trim($message)];
     if ($chunks === []) {
@@ -557,7 +688,14 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
 function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, array $opts = []): array
 {
     $targets = wa_otomatis_parse_targets($targetsRaw);
-    $delayMs = max(0, min(3000, (int) ($opts['delay_between_ms'] ?? 350)));
+    if (!array_key_exists('delay_between_ms', $opts)) {
+        $fonnteDelay = wa_otomatis_fonnte_api_delay($pdo, $opts);
+        $minSec = wa_otomatis_delay_min_seconds($fonnteDelay);
+        if ($minSec > 0) {
+            $opts['delay_between_ms'] = $minSec * 1000;
+        }
+    }
+    $delayMs = max(0, min(300000, (int) ($opts['delay_between_ms'] ?? 350)));
     $sent = 0;
     $failed = 0;
     $details = [];

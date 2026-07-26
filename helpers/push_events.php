@@ -139,7 +139,7 @@ function perizinan_wa_kirim_permohonan_baru(
     );
 
     return [
-        'sent' => send_wa_bulk($pdo, $target, $msg),
+        'sent' => send_wa_bulk($pdo, $target, $msg, ['kind' => 'izin']),
         'skipped' => false,
         'reason' => '',
     ];

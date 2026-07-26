@@ -129,7 +129,7 @@ function yayasan_tugas_wa_notify_assignees(PDO $pdo, int $taskId, string $jenis 
         if (trim($pesan) === '') {
             continue;
         }
-        if (send_wa_message($pdo, $phone, $pesan)) {
+        if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
             $sent++;
         }
     }
@@ -214,7 +214,7 @@ function trigger_wa_yayasan_tugas_belum_progres(PDO $pdo): void
             if (trim($pesan) === '') {
                 continue;
             }
-            if (send_wa_message($pdo, $phone, $pesan)) {
+            if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
                 save_setting($pdo, $debounceKey, '1');
             }
         }

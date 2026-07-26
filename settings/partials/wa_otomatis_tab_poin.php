@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 ?>
+<?php $delayKind = 'poin'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">WA otomatis ambang poin</h2>
@@ -21,6 +22,13 @@ declare(strict_types=1);
                         <?= $poinWaEnabled ? 'checked' : '' ?>>
                     <label class="form-check-label" for="poinWaOn">Aktifkan notifikasi ambang poin</label>
                 </div>
+            </div>
+            <div class="col-md-6">
+                <?php
+                $delayFieldName = 'wa_delay_poin';
+                $delayFieldValue = (string) ($values['wa_delay_poin'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
             </div>
             <div class="col-md-3">
                 <button type="submit" class="btn btn-success btn-sm">Simpan status</button>

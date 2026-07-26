@@ -459,8 +459,18 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
     if (!array_key_exists('chunk_max', $opts)) {
         $opts['chunk_max'] = 0;
     }
+    if (!array_key_exists('kind', $opts)) {
+        $opts['kind'] = 'alpa';
+    }
+    if (!array_key_exists('message_delay_ms', $opts)) {
+        $fonnteDelay = wa_otomatis_fonnte_api_delay($pdo, $opts);
+        $minSec = wa_otomatis_delay_min_seconds($fonnteDelay);
+        if ($minSec > 0) {
+            $opts['message_delay_ms'] = $minSec * 1000;
+        }
+    }
 
-    $delayMs = max(200, min(5000, (int) ($opts['message_delay_ms'] ?? 650)));
+    $delayMs = max(200, min(300000, (int) ($opts['message_delay_ms'] ?? 650)));
     $sent = 0;
     foreach ($messages as $idx => $message) {
         if ($idx > 0) {

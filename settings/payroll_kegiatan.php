@@ -46,9 +46,10 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-pengaturan')) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1">Beban Payroll per Kegiatan Ta'lim</h1>
     <p class="text-muted mb-0">
-        Tentukan kategori beban kerja (<strong>Berat / Sedang / Ringan / Khusus</strong>) untuk setiap kegiatan Ta'lim & Ta'alum
-        yang sudah ada di jadwal. Presensi scan mengikuti kategori kegiatan ini saat menghitung gaji pembimbing.
-        Kegiatan <strong>Jama'ah</strong> tidak ditampilkan di sini (dihitung tarif Ringan).
+        Tentukan kategori beban kerja (<strong>Berat / Sedang / Ringan / Khusus</strong>) untuk setiap kitab / kegiatan Ta'lim & Ta'alum
+        yang sudah ada di jadwal. <strong>Wajib atur beban per kitab</strong> agar tarif gaji variabel tidak seragam (default = Ringan).
+        Gaji variabel dihitung per kitab sesuai presensi scan (jam × tarif beban), bukan tarif rata-rata.
+        Kegiatan <strong>Jama'ah</strong> tidak ditampilkan di sini (tidak masuk gaji variabel payroll).
     </p>
 </div>
 

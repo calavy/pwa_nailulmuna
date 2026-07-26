@@ -1279,7 +1279,7 @@ function perizinan_kirim_wa_pengurus_disetujui(
         $approvedByUserId
     );
 
-    return send_wa_bulk($pdo, implode(',', $phones), $msg);
+    return send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
 }
 
 /** Kirim laporan WA ke pengurus saat santri tercatat kembali / izin selesai. */
@@ -1337,7 +1337,7 @@ function perizinan_kirim_wa_pengurus_izin_selesai(
         $latePoint
     );
 
-    return send_wa_bulk($pdo, implode(',', $phones), $msg);
+    return send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
 }
 
 /**
@@ -1386,7 +1386,7 @@ function perizinan_kirim_wa_wali_disetujui(
         $approvedByUserId
     );
 
-    return send_wa_message($pdo, $waliPhone, $msg) ? 1 : 0;
+    return send_wa_message($pdo, $waliPhone, $msg, ['kind' => 'izin']) ? 1 : 0;
 }
 
 /**
@@ -1441,7 +1441,7 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                     '',
                     $approvedByUserId
                 );
-                if (send_wa_message($pdo, $phone, $msg)) {
+                if (send_wa_message($pdo, $phone, $msg, ['kind' => 'izin'])) {
                     $sentPb++;
                 }
             }
@@ -1466,7 +1466,7 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                 '',
                 $approvedByUserId
             );
-            $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg);
+            $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
         }
     }
 
@@ -1544,7 +1544,7 @@ function perizinan_kirim_wa_rombongan_disetujui(
             $daftarSantri,
             $approvedByUserId
         );
-        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg);
+        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg, ['kind' => 'izin']);
     }
 
     $izinRowGrup = [
@@ -1638,7 +1638,7 @@ function perizinan_kirim_wa_grup_fonte(
     $msg = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisRaw, $namaSantri);
     $msg = perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $msg, $approvedByUserId);
 
-    return send_wa_bulk($pdo, $grupId, $msg);
+    return send_wa_bulk($pdo, $grupId, $msg, ['kind' => 'izin']);
 }
 
 /**

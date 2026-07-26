@@ -571,7 +571,7 @@ function akademik_rapor_wa_kirim_saat_terbit(PDO $pdo, int $raporId, string $jen
         return '';
     }
 
-    $result = send_wa_message_with_result($pdo, $phone, $pesan);
+    $result = send_wa_message_with_result($pdo, $phone, $pesan, ['kind' => 'rapor']);
     if (!empty($result['ok'])) {
         $pdo->prepare('UPDATE akademik_rapor SET wa_terbit_sent_at = NOW() WHERE id = :id AND jenis_rapor = :j')->execute([
             'id' => $raporId,

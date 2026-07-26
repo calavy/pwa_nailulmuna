@@ -27,6 +27,31 @@ $payrollPageBase = (defined('PAYROLL_FROM_KEUANGAN') && PAYROLL_FROM_KEUANGAN)
     ? '/keuangan/gaji_pembimbing.php'
     : '/rekap/pembimbing.php';
 
+$period = payroll_pembimbing_resolve_period($pdo, $_GET);
+$month = (int) $period['month'];
+$year = (int) $period['year'];
+$calendarMode = (string) $period['calendar_mode'];
+$startDate = (string) $period['start_date'];
+$endDate = (string) $period['end_date'];
+
+if (isset($_GET['backfill_presensi']) && (string) $_GET['backfill_presensi'] === '1') {
+    $backfillCount = payroll_pembimbing_backfill_kegiatan_id($pdo, $startDate, $endDate);
+    set_flash('success', 'Backfill kegiatan_id: ' . $backfillCount . ' baris presensi diperbarui.');
+    $redirectQs = http_build_query(array_filter([
+        'month' => $month,
+        'year' => $year,
+        'cal' => $calendarMode,
+        'kegiatan_id' => (int) ($_GET['kegiatan_id'] ?? 0) ?: null,
+        'paper' => (string) ($_GET['paper'] ?? ''),
+        'jam_mode' => payroll_pembimbing_normalize_jam_mode((string) ($_GET['jam_mode'] ?? '')) !== 'jadwal'
+            ? payroll_pembimbing_normalize_jam_mode((string) ($_GET['jam_mode'] ?? ''))
+            : null,
+        'detail' => (int) ($_GET['detail'] ?? 0) ?: null,
+    ]));
+    header('Location: ' . app_href($payrollPageBase . '?' . $redirectQs));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar_gaji') {
     $res = payroll_pembimbing_bayar($pdo, $_POST, (int) ($_SESSION['user']['id'] ?? 0));
     set_flash($res['ok'] ? 'success' : 'error', $res['message']);
@@ -45,12 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'bayar
     exit;
 }
 
-$period = payroll_pembimbing_resolve_period($pdo, $_GET);
-$month = (int) $period['month'];
-$year = (int) $period['year'];
-$calendarMode = (string) $period['calendar_mode'];
-$startDate = (string) $period['start_date'];
-$endDate = (string) $period['end_date'];
 $totalDays = (int) $period['total_days'];
 $periodLabel = (string) $period['period_label'];
 $periodBridge = (string) $period['period_bridge'];
@@ -84,8 +103,7 @@ $stmt = $pdo->prepare('
         b.id AS pembimbing_id,
         b.nip,
         b.nama_pembimbing,
-        b.gaji_pokok,
-        b.tarif_kriteria
+        b.gaji_pokok
     FROM pembimbing b
     ORDER BY ' . pembimbing_list_order_sql('b') . '
 ');
@@ -100,7 +118,8 @@ foreach ($kegiatanList as $kg) {
 }
 
 $presensiAgg = payroll_pembimbing_presensi_agg_map($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
-$jamKriteriaMap = payroll_pembimbing_jam_kriteria_map($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
+$jamKegiatanMap = payroll_pembimbing_jam_kegiatan_map($pdo, $startDate, $endDate, $kegiatanFilter, $jamMode);
+$payrollDiagnostics = payroll_pembimbing_diagnostic_issues($pdo, $startDate, $endDate);
 $expectedSlotsMap = payroll_pembimbing_expected_slots_by_pembimbing($pdo, $startDate, $endDate, $kegiatanFilter);
 $hadirSlotMap = payroll_pembimbing_hadir_slot_keys_map($pdo, $startDate, $endDate, $kegiatanFilter);
 $izinDatesMap = payroll_pembimbing_izin_dates_by_pembimbing($pdo, $startDate, $endDate);
@@ -176,19 +195,18 @@ foreach ($rows as &$row) {
     $row['alpa'] = $alpa;
     $row['kategori'] = $kategori;
 
-    $totalJam = (float) ($agg['total_jam'] ?? 0);
-    $byKriteria = $jamKriteriaMap[$pid]['by_kriteria'] ?? [];
-    $calc = payroll_pembimbing_compute_mixed(
+    $byKegiatan = $jamKegiatanMap[$pid]['by_kegiatan'] ?? [];
+    $calc = payroll_pembimbing_compute_by_kegiatan(
         (float) ($row['gaji_pokok'] ?? 0),
-        $byKriteria,
+        $byKegiatan,
         $tarifMap
     );
-    $row['total_jam'] = $totalJam > 0 ? $totalJam : $calc['total_jam'];
+    $row['total_jam'] = $calc['total_jam'];
     $row['gaji_pokok_n'] = $calc['gaji_pokok'];
-    $row['tarif_per_jam'] = $calc['tarif_per_jam'];
-    $row['kriteria'] = $calc['kriteria'];
-    $row['kriteria_label'] = $calc['kriteria_label'];
-    $row['gaji_per_jam'] = $calc['gaji_per_jam'];
+    $row['kitab_label'] = $calc['kitab_label'];
+    $row['by_kegiatan'] = $calc['by_kegiatan'];
+    $row['gaji_variabel'] = $calc['gaji_variabel'];
+    $row['gaji_per_jam'] = $calc['gaji_variabel'];
     $row['gaji_bulanan'] = (int) round($calc['total_gaji']);
 }
 unset($row);
@@ -203,12 +221,25 @@ if ($detailPembimbingId > 0) {
         }
     }
     if ($detailPembimbing === null) {
-        $stDet = $pdo->prepare('SELECT id AS pembimbing_id, nip, nama_pembimbing, gaji_pokok, tarif_kriteria FROM pembimbing WHERE id = :id LIMIT 1');
+        $stDet = $pdo->prepare('SELECT id AS pembimbing_id, nip, nama_pembimbing, gaji_pokok FROM pembimbing WHERE id = :id LIMIT 1');
         $stDet->execute(['id' => $detailPembimbingId]);
         $detailPembimbing = $stDet->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     if ($detailPembimbing !== null) {
         $detailPresensiRows = payroll_pembimbing_presensi_valid_rows($pdo, $detailPembimbingId, $startDate, $endDate, $kegiatanFilter, $jamMode);
+        if (!isset($detailPembimbing['by_kegiatan'])) {
+            $byKegDet = $jamKegiatanMap[$detailPembimbingId]['by_kegiatan'] ?? [];
+            $calcDet = payroll_pembimbing_compute_by_kegiatan(
+                (float) ($detailPembimbing['gaji_pokok'] ?? 0),
+                $byKegDet,
+                $tarifMap
+            );
+            $detailPembimbing['by_kegiatan'] = $calcDet['by_kegiatan'];
+            $detailPembimbing['kitab_label'] = $calcDet['kitab_label'];
+            $detailPembimbing['gaji_variabel'] = $calcDet['gaji_variabel'];
+            $detailPembimbing['gaji_per_jam'] = $calcDet['gaji_variabel'];
+            $detailPembimbing['total_jam'] = $calcDet['total_jam'];
+        }
     }
 }
 
@@ -301,8 +332,35 @@ $payrollQueryBase = http_build_query(array_filter([
         <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/rekap/presensi.php')) ?>">Rekap Presensi</a></p>
         <h1 class="h4 mb-1">Rekap kehadiran pembimbing</h1>
     <?php endif; ?>
-    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Metode hitung jam: <strong><?= htmlspecialchars($jamModeLabel) ?></strong>. Gaji per jam mengikuti <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">beban payroll per kegiatan Ta'lim</a>. Unduh <strong>XLSX</strong> untuk rekap + detail presensi per bulan.</p>
+    <p class="text-muted mb-0">Rekap bulanan kehadiran pembimbing — periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong> (<?= htmlspecialchars($periodBridge) ?>), toleransi telat <?= (int) $lateTolerance ?> menit. Metode hitung jam: <strong><?= htmlspecialchars($jamModeLabel) ?></strong>. Gaji variabel dihitung <strong>per kitab (kegiatan Ta'lim)</strong> sesuai presensi scan — tanpa tarif rata-rata. Beban per kitab: <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Pengaturan payroll kegiatan</a>. Unduh <strong>XLSX</strong> untuk rekap + detail presensi per bulan.</p>
 </div>
+
+<?php
+$diagPresensiTanpaKg = (int) ($payrollDiagnostics['presensi_tanpa_kegiatan'] ?? 0);
+$diagKegiatanRingan = (array) ($payrollDiagnostics['kegiatan_default_ringan'] ?? []);
+$backfillQs = $payrollQueryBase !== '' ? ($payrollQueryBase . '&backfill_presensi=1') : 'backfill_presensi=1';
+?>
+<?php if ($diagPresensiTanpaKg > 0 || $diagKegiatanRingan !== []): ?>
+<div class="alert alert-warning py-2 small mb-3 print-controls">
+    <div class="fw-semibold mb-1"><i class="fa-solid fa-triangle-exclamation me-1"></i> Diagnostik payroll periode ini</div>
+    <ul class="mb-0 ps-3">
+        <?php if ($diagPresensiTanpaKg > 0): ?>
+            <li><?= $diagPresensiTanpaKg ?> scan Ta'lim belum terhubung ke kitab (kegiatan_id kosong). <a href="<?= htmlspecialchars(app_href($payrollPageBase . '?' . $backfillQs)) ?>" onclick="return confirm('Backfill kegiatan_id dari jadwal untuk periode ini?')">Jalankan backfill</a></li>
+        <?php endif; ?>
+        <?php if ($diagKegiatanRingan !== []): ?>
+            <li><?= count($diagKegiatanRingan) ?> kitab Ta'lim masih memakai beban default <strong>Ringan</strong> — atur di <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>">Pengaturan Beban Payroll Ta'lim</a>:
+                <?php
+                $namaList = array_map(static fn(array $k): string => (string) ($k['nama_kegiatan'] ?? ''), $diagKegiatanRingan);
+                echo htmlspecialchars(implode(', ', array_slice($namaList, 0, 5)));
+                if (count($namaList) > 5) {
+                    echo ' …';
+                }
+                ?>
+            </li>
+        <?php endif; ?>
+    </ul>
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-3 print-controls">
     <div class="col-6 col-md-3">
@@ -463,10 +521,9 @@ $payrollQueryBase = http_build_query(array_filter([
                     <th class="text-center">Alpa</th>
                     <th class="text-center">Telat</th>
                     <th class="text-center" title="<?= htmlspecialchars($jamModeLabel) ?>">Jam Kegiatan</th>
-                    <th class="text-nowrap">Kriteria Beban</th>
-                    <th class="text-end text-nowrap">Tarif efektif/jam</th>
+                    <th class="text-nowrap" style="min-width:12rem">Rincian kitab</th>
                     <th class="text-end text-nowrap">Gaji pokok</th>
-                    <th class="text-end text-nowrap">Gaji per jam</th>
+                    <th class="text-end text-nowrap">Gaji variabel</th>
                     <th class="text-end text-nowrap">Total gaji</th>
                     <th class="text-end">Aksi</th>
                     <th>Kategori</th>
@@ -492,10 +549,9 @@ $payrollQueryBase = http_build_query(array_filter([
                             <td class="text-center"><?= (int) $row['alpa'] ?></td>
                             <td class="text-center"><?= (int) ($row['telat'] ?? 0) ?></td>
                             <td class="text-center"><?= number_format((float) ($row['total_jam'] ?? 0), 2, ',', '.') ?></td>
-                            <td><span class="badge text-bg-light border small"><?= htmlspecialchars((string) ($row['kriteria_label'] ?? '-')) ?></span></td>
-                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['tarif_per_jam'] ?? 0)))) ?></td>
+                            <td class="small" style="white-space:pre-line;line-height:1.35"><?= htmlspecialchars((string) ($row['kitab_label'] ?? '—')) ?></td>
                             <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_pokok_n'] ?? 0)))) ?></td>
-                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_per_jam'] ?? 0)))) ?></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($row['gaji_variabel'] ?? $row['gaji_per_jam'] ?? 0)))) ?></td>
                             <td class="text-end fw-semibold"><?= htmlspecialchars(keuangan_format_rupiah((int) ($row['gaji_bulanan'] ?? 0))) ?></td>
                             <td class="text-end text-nowrap">
                                 <?php
@@ -512,7 +568,10 @@ $payrollQueryBase = http_build_query(array_filter([
                                             data-bs-toggle="modal" data-bs-target="#modalBayarGaji"
                                             data-pembimbing-id="<?= $pidRow ?>"
                                             data-nama="<?= htmlspecialchars((string) ($row['nama_pembimbing'] ?? ''), ENT_QUOTES) ?>"
-                                            data-nominal="<?= (int) ($row['gaji_bulanan'] ?? 0) ?>">
+                                            data-nominal="<?= (int) ($row['gaji_bulanan'] ?? 0) ?>"
+                                            data-kitab="<?= htmlspecialchars((string) ($row['kitab_label'] ?? '—'), ENT_QUOTES) ?>"
+                                            data-gaji-pokok="<?= (int) round((float) ($row['gaji_pokok_n'] ?? 0)) ?>"
+                                            data-gaji-variabel="<?= (int) round((float) ($row['gaji_variabel'] ?? $row['gaji_per_jam'] ?? 0)) ?>">
                                         Bayar
                                     </button>
                                 <?php else: ?>
@@ -523,7 +582,7 @@ $payrollQueryBase = http_build_query(array_filter([
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <tr><td colspan="15" class="text-center text-muted">Belum ada data pembimbing pada periode ini.</td></tr>
+                    <tr><td colspan="14" class="text-center text-muted">Belum ada data pembimbing pada periode ini.</td></tr>
                 <?php endif; ?>
                 </tbody>
                 <?php if ($rows): ?>
@@ -533,7 +592,8 @@ $payrollQueryBase = http_build_query(array_filter([
                         <td class="text-center"><?= $totalHadirRekap ?></td>
                         <td colspan="3"></td>
                         <td class="text-center"><?= $totalTelatRekap ?></td>
-                        <td colspan="4"></td>
+                        <td colspan="2"></td>
+                        <td colspan="2"></td>
                         <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah($totalGajiKeseluruhan)) ?></td>
                         <td class="text-end small text-muted">
                             Lunas: <?= htmlspecialchars(keuangan_format_rupiah($totalGajiSudahBayar)) ?><br>
@@ -560,6 +620,7 @@ $payrollQueryBase = http_build_query(array_filter([
             $validJam += (float) ($dr['jam_hitung'] ?? 0);
         }
     }
+    $detailByKegiatan = (array) ($detailPembimbing['by_kegiatan'] ?? []);
     ?>
     <div class="card shadow-sm mb-4 print-controls" id="payroll-detail">
         <div class="card-body">
@@ -570,6 +631,44 @@ $payrollQueryBase = http_build_query(array_filter([
                 </div>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href($payrollPageBase . ($payrollQueryBase !== '' ? '?' . $payrollQueryBase : ''))) ?>">Tutup detail</a>
             </div>
+
+            <?php if ($detailByKegiatan !== []): ?>
+            <h3 class="h6 fw-bold mb-2"><i class="fa-solid fa-book me-1"></i> Rekap per kitab</h3>
+            <div class="table-responsive mb-4">
+                <table class="table table-sm table-striped align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Kitab / Kegiatan</th>
+                            <th>Kriteria</th>
+                            <th class="text-center">Jam</th>
+                            <th class="text-end">Tarif/jam</th>
+                            <th class="text-end">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($detailByKegiatan as $kgRow): ?>
+                        <tr>
+                            <td class="fw-semibold"><?= htmlspecialchars((string) ($kgRow['nama_kegiatan'] ?? '-')) ?></td>
+                            <td><span class="badge text-bg-light border"><?= htmlspecialchars((string) ($kgRow['kriteria_label'] ?? '-')) ?></span></td>
+                            <td class="text-center"><?= number_format((float) ($kgRow['jam'] ?? 0), 2, ',', '.') ?></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($kgRow['tarif_per_jam'] ?? 0)))) ?></td>
+                            <td class="text-end fw-semibold"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($kgRow['subtotal'] ?? 0)))) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                    <tfoot class="table-light fw-semibold">
+                        <tr>
+                            <td colspan="2">Total variabel (Σ per kitab)</td>
+                            <td class="text-center"><?= number_format((float) ($detailPembimbing['total_jam'] ?? 0), 2, ',', '.') ?></td>
+                            <td></td>
+                            <td class="text-end"><?= htmlspecialchars(keuangan_format_rupiah((int) round((float) ($detailPembimbing['gaji_variabel'] ?? $detailPembimbing['gaji_per_jam'] ?? 0)))) ?></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <?php endif; ?>
+
+            <h3 class="h6 fw-bold mb-2"><i class="fa-solid fa-list me-1"></i> Detail scan harian</h3>
             <div class="table-responsive">
                 <table class="table table-sm table-striped align-middle mb-0">
                     <thead>
@@ -638,7 +737,23 @@ $payrollQueryBase = http_build_query(array_filter([
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-2">Periode <strong><?= htmlspecialchars($periodeLabelP) ?></strong>. Pembayaran otomatis tercatat sebagai pengeluaran kas (arus kas berkurang).</p>
-                <p class="mb-3 fw-semibold" id="bayar-pembimbing-nama">—</p>
+                <p class="mb-2 fw-semibold" id="bayar-pembimbing-nama">—</p>
+                <div class="border rounded p-2 mb-3 bg-light small" id="bayar-kitab-breakdown" style="display:none">
+                    <div class="fw-semibold mb-1">Rincian gaji variabel per kitab</div>
+                    <pre class="mb-2 small" id="bayar-kitab-label" style="white-space:pre-line;font-family:inherit;margin:0"></pre>
+                    <div class="d-flex justify-content-between">
+                        <span>Gaji pokok</span>
+                        <span id="bayar-gaji-pokok">—</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Gaji variabel (Σ kitab)</span>
+                        <span id="bayar-gaji-variabel">—</span>
+                    </div>
+                    <div class="d-flex justify-content-between fw-semibold border-top pt-1 mt-1">
+                        <span>Total</span>
+                        <span id="bayar-gaji-total">—</span>
+                    </div>
+                </div>
                 <div class="mb-2">
                     <label class="form-label">Tanggal bayar</label>
                     <input type="date" class="form-control" name="tanggal_bayar" value="<?= htmlspecialchars(date('Y-m-d')) ?>" required>
@@ -674,9 +789,29 @@ document.querySelectorAll('.btn-bayar-gaji').forEach(function (btn) {
         var idEl = document.getElementById('bayar-pembimbing-id');
         var namaEl = document.getElementById('bayar-pembimbing-nama');
         var nominalEl = document.getElementById('bayar-nominal');
+        var breakdownEl = document.getElementById('bayar-kitab-breakdown');
+        var kitabLabelEl = document.getElementById('bayar-kitab-label');
+        var gajiPokokEl = document.getElementById('bayar-gaji-pokok');
+        var gajiVariabelEl = document.getElementById('bayar-gaji-variabel');
+        var gajiTotalEl = document.getElementById('bayar-gaji-total');
         if (idEl) { idEl.value = btn.getAttribute('data-pembimbing-id') || ''; }
         if (namaEl) { namaEl.textContent = btn.getAttribute('data-nama') || '—'; }
-        if (nominalEl) { nominalEl.value = btn.getAttribute('data-nominal') || ''; }
+        var nominal = parseInt(btn.getAttribute('data-nominal') || '0', 10);
+        if (nominalEl) { nominalEl.value = nominal > 0 ? String(nominal) : ''; }
+        var kitabLabel = btn.getAttribute('data-kitab') || '';
+        var gajiPokok = parseInt(btn.getAttribute('data-gaji-pokok') || '0', 10);
+        var gajiVariabel = parseInt(btn.getAttribute('data-gaji-variabel') || '0', 10);
+        if (breakdownEl && kitabLabelEl) {
+            if (kitabLabel && kitabLabel !== '—') {
+                breakdownEl.style.display = '';
+                kitabLabelEl.textContent = kitabLabel;
+                if (gajiPokokEl) { gajiPokokEl.textContent = 'Rp ' + gajiPokok.toLocaleString('id-ID'); }
+                if (gajiVariabelEl) { gajiVariabelEl.textContent = 'Rp ' + gajiVariabel.toLocaleString('id-ID'); }
+                if (gajiTotalEl) { gajiTotalEl.textContent = 'Rp ' + (gajiPokok + gajiVariabel).toLocaleString('id-ID'); }
+            } else {
+                breakdownEl.style.display = 'none';
+            }
+        }
     });
 });
 (function () {

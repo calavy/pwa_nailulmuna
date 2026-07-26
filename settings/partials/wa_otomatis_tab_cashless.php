@@ -14,6 +14,7 @@ $cashlessRingkasanHariIni = $cashlessLaporanStatus['ringkasan'] ?? [];
 $cashlessLaporanTanggalLabel = (string) ($cashlessRingkasanHariIni['tanggal_label'] ?? 'hari kemarin');
 $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_laporan_tanggal'] ?? '') === ($cashlessLaporanStatus['laporan_tanggal'] ?? ''));
 ?>
+<?php $delayKind = 'cashless'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-wallet text-warning me-1"></i> Pengaturan WA cashless</h2>
@@ -59,6 +60,13 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_laporan_tanggal'] 
                 <label class="form-label" for="cashless_laporan_harian_wa_targets">Nomor penerima</label>
                 <input type="text" class="form-control" id="cashless_laporan_harian_wa_targets" name="cashless_laporan_harian_wa_targets" value="<?= htmlspecialchars($cashlessLaporanHarianWaTargets) ?>" placeholder="Kosongkan = nomor pengurus (tab Alpa)">
                 <div class="form-text">Pisahkan dengan koma atau baris baru. Jangan kosongkan jika tab Alpa belum diisi nomor pengurus.</div>
+            </div>
+            <div class="col-md-6">
+                <?php
+                $delayFieldName = 'wa_delay_cashless';
+                $delayFieldValue = (string) ($values['wa_delay_cashless'] ?? '');
+                require __DIR__ . '/wa_otomatis_delay_field.php';
+                ?>
             </div>
 
             <div class="col-12">

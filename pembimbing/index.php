@@ -148,18 +148,15 @@ $selectUserCols = $usersHasPwdPlain
 if ($hasUsersTable) {
     $rows = $pdo->query("
         SELECT p.id, p.qr, p.nip, p.nama_pembimbing, p.no_wa, p.is_aktif,
-               p.gaji_pokok, p.tarif_kriteria,
+               p.gaji_pokok,
                {$selectUserCols}
         FROM pembimbing p
         LEFT JOIN users u ON TRIM(u.username) = TRIM(p.nip)
         ORDER BY " . pembimbing_list_order_sql('p') . "
     ")->fetchAll();
 } else {
-    $rows = $pdo->query('SELECT id, qr, nip, nama_pembimbing, no_wa, is_aktif, gaji_pokok, tarif_kriteria, NULL AS user_id, NULL AS user_username, NULL AS user_password_plain, NULL AS user_role FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll();
+    $rows = $pdo->query('SELECT id, qr, nip, nama_pembimbing, no_wa, is_aktif, gaji_pokok, NULL AS user_id, NULL AS user_username, NULL AS user_password_plain, NULL AS user_role FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll();
 }
-
-$payrollTarifMap = payroll_pembimbing_tarif_map($pdo);
-$payrollLabels = payroll_pembimbing_kriteria_labels();
 
 $kelasMap = pembimbing_kelas_map_all($pdo);
 $jadwalCountMap = pembimbing_kelas_jadwal_count_map($pdo);
@@ -328,7 +325,7 @@ $showFormOnLoad = $flashErr !== null && stripos((string) $flashErr, 'NIP') !== f
         <div class="d-flex flex-column flex-sm-row justify-content-sm-between align-items-sm-center gap-2">
             <div>
                 <h2 class="h5 mb-0">Daftar pengurus</h2>
-                <p class="small text-muted mb-0"><?= $totalPembimbing ?> akun terdaftar · cari cepat di kanan.</p>
+                <p class="small text-muted mb-0"><?= $totalPembimbing ?> akun terdaftar · cari cepat di kanan. Tarif gaji variabel per kitab diatur di <a href="<?= htmlspecialchars(app_href('/settings/payroll_kegiatan.php')) ?>" class="text-decoration-none">Pengaturan Beban Payroll Ta'lim</a>.</p>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <button type="button" class="btn btn-outline-success btn-sm" id="btn-cetak-kartu-batch" disabled>

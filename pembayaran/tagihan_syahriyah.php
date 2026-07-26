@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'kirim
     $santriIdWa = (int) ($_POST['santri_id'] ?? 0);
     $preview = wa_tagihan_preview_santri($pdo, $santriIdWa, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai);
     if ($preview && ($preview['ok'] ?? false) && !empty($preview['phone'])) {
-        if (send_wa_message($pdo, (string) $preview['phone'], (string) ($preview['message'] ?? ''))) {
+        if (send_wa_message($pdo, (string) $preview['phone'], (string) ($preview['message'] ?? ''), ['kind' => 'tagihan'])) {
             set_flash('success', 'WA tagihan terkirim ke wali ' . (string) ($preview['nama'] ?? 'santri') . '.');
         } else {
             set_flash('error', 'Gagal mengirim WA (periksa gateway).');
