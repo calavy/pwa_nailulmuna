@@ -1279,7 +1279,13 @@ function perizinan_kirim_wa_pengurus_disetujui(
         $approvedByUserId
     );
 
-    return send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
+    $izinId = (int) ($izinRow['id'] ?? $izinRow['izin_id'] ?? 0);
+
+    return send_wa_bulk($pdo, implode(',', $phones), $msg, [
+        'kind' => 'izin',
+        'dedup_key' => 'izin:' . $izinId . ':pengurus:approved',
+        'dedup_key_per_target' => true,
+    ]);
 }
 
 /** Kirim laporan WA ke pengurus saat santri tercatat kembali / izin selesai. */
@@ -1337,7 +1343,11 @@ function perizinan_kirim_wa_pengurus_izin_selesai(
         $latePoint
     );
 
-    return send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
+    return send_wa_bulk($pdo, implode(',', $phones), $msg, [
+        'kind' => 'izin',
+        'dedup_key' => 'izin:' . $izinId . ':pengurus:selesai',
+        'dedup_key_per_target' => true,
+    ]);
 }
 
 /**
@@ -1386,7 +1396,12 @@ function perizinan_kirim_wa_wali_disetujui(
         $approvedByUserId
     );
 
-    return send_wa_message($pdo, $waliPhone, $msg, ['kind' => 'izin']) ? 1 : 0;
+    $izinId = (int) ($izinRow['id'] ?? $izinRow['izin_id'] ?? 0);
+
+    return send_wa_message($pdo, $waliPhone, $msg, [
+        'kind' => 'izin',
+        'dedup_key' => 'izin:' . $izinId . ':wali:approved',
+    ]) ? 1 : 0;
 }
 
 /**
@@ -1412,6 +1427,7 @@ function perizinan_kirim_wa_pembimbing_disetujui(
 
     $sentPb = 0;
     $santriId = (int) ($izinRow['santri_id'] ?? 0);
+    $izinId = (int) ($izinRow['id'] ?? $izinRow['izin_id'] ?? 0);
     $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'KELUAR'));
 
     if ($pembimbingOverrides !== null) {
@@ -1441,7 +1457,10 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                     '',
                     $approvedByUserId
                 );
-                if (send_wa_message($pdo, $phone, $msg, ['kind' => 'izin'])) {
+                if (send_wa_message($pdo, $phone, $msg, [
+                    'kind' => 'izin',
+                    'dedup_key' => 'izin:' . $izinId . ':pembimbing:approved:t:' . $phone,
+                ])) {
                     $sentPb++;
                 }
             }
@@ -1466,7 +1485,11 @@ function perizinan_kirim_wa_pembimbing_disetujui(
                 '',
                 $approvedByUserId
             );
-            $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg, ['kind' => 'izin']);
+            $sentPb = send_wa_bulk($pdo, implode(',', $phones), $msg, [
+                'kind' => 'izin',
+                'dedup_key' => 'izin:' . $izinId . ':pembimbing:approved',
+                'dedup_key_per_target' => true,
+            ]);
         }
     }
 
@@ -1544,7 +1567,11 @@ function perizinan_kirim_wa_rombongan_disetujui(
             $daftarSantri,
             $approvedByUserId
         );
-        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg, ['kind' => 'izin']);
+        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg, [
+            'kind' => 'izin',
+            'dedup_key' => 'izin_rombongan:' . md5($tglMulai . '|' . $tglSelesai . '|' . $daftarSantri) . ':pembimbing',
+            'dedup_key_per_target' => true,
+        ]);
     }
 
     $izinRowGrup = [
@@ -1638,7 +1665,12 @@ function perizinan_kirim_wa_grup_fonte(
     $msg = perizinan_wa_sisipkan_doa($pdo, $slug, $pesan, $jenisRaw, $namaSantri);
     $msg = perizinan_wa_sisipkan_ttd_penyetuju($pdo, $slug, $msg, $approvedByUserId);
 
-    return send_wa_bulk($pdo, $grupId, $msg, ['kind' => 'izin']);
+    $izinId = (int) ($izinRow['id'] ?? $izinRow['izin_id'] ?? 0);
+
+    return send_wa_bulk($pdo, $grupId, $msg, [
+        'kind' => 'izin',
+        'dedup_key' => 'izin:' . $izinId . ':grup:approved',
+    ]);
 }
 
 /**

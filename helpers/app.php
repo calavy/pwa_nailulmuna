@@ -560,6 +560,7 @@ function pondok_settings_defaults(): array
         'wa_sender' => '',
         'wa_fonnte_queue_offline' => '0',
         'wa_fonnte_api_delay' => '3',
+        'wa_dispatch_strict_mode' => '1',
         'wa_delay_tagihan' => '',
         'wa_delay_cashless' => '',
         'wa_delay_presensi' => '',
@@ -1498,7 +1499,11 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
     }
     $message = implode("\n", $lines);
 
-    $sent = send_wa_bulk($pdo, $waTujuan, $message, ['kind' => 'presensi']);
+    $sent = send_wa_bulk($pdo, $waTujuan, $message, [
+        'kind' => 'presensi',
+        'dedup_key' => 'mudabir_missing:' . $debounceDate . ':summary',
+        'dedup_key_once' => true,
+    ]);
     if ($sent > 0) {
         foreach ($missing as $m) {
             $jadwalId = (int) ($m['jadwal_id'] ?? 0);
@@ -2679,7 +2684,10 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
             $skipped++;
             continue;
         }
-        if (send_wa_message($pdo, $phone, $message, ['kind' => 'tagihan'])) {
+        if (send_wa_message($pdo, $phone, $message, [
+            'kind' => 'tagihan',
+            'dedup_key' => 'tagihan:manual:' . $bulanTagihan . ':' . $tahunAjaranMulai . '-' . $tahunAjaranSelesai . ':santri:' . $santriId,
+        ])) {
             $sent++;
         }
     }

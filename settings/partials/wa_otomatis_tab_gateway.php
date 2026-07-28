@@ -79,6 +79,14 @@ declare(strict_types=1);
                     Kosongkan untuk menonaktifkan. Disarankan 3–10 detik agar nomor tidak terdeteksi spam.
                 </div>
             </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="wa_dispatch_strict_mode" name="wa_dispatch_strict_mode" value="1"
+                        <?= ($values['wa_dispatch_strict_mode'] ?? '1') === '1' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_dispatch_strict_mode">Cegah duplikat WA otomatis (1x per kejadian)</label>
+                </div>
+                <div class="form-text">Ledger <code>wa_dispatch_log</code> — nonaktifkan hanya untuk debug.</div>
+            </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-success btn-sm">Simpan gateway</button>
             </div>

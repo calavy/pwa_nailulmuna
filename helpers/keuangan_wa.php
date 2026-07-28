@@ -204,7 +204,10 @@ function keuangan_kirim_wa_pembayaran_wali(PDO $pdo, int $pembayaranId): array
         $sisaTagihan
     );
 
-    $ok = send_wa_message($pdo, $waliPhone, $msg, ['kind' => 'tagihan']);
+    $ok = send_wa_message($pdo, $waliPhone, $msg, [
+        'kind' => 'tagihan',
+        'dedup_key' => 'pembayaran:' . $pembayaranId,
+    ]);
 
     return ['sent' => $ok ? 1 : 0, 'reason' => $ok ? 'ok' : 'failed'];
 }

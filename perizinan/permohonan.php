@@ -183,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $waDetail = [
+        'izin_id' => $izinId,
         'tingkatan' => (string) ($sInfoRow['tingkatan'] ?? ''),
         'jam_mulai' => substr((string) $data['jam_mulai'], 0, 5),
         'jam_selesai' => substr((string) $data['jam_selesai'], 0, 5),

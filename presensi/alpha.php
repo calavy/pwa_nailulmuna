@@ -208,7 +208,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $threshold,
             $waLaporanSantri
         );
-        send_wa_bulk_messages($pdo, $pengurusWa, $pesanLaporan, ['kind' => 'alpa']);
+        send_wa_bulk_messages($pdo, $pengurusWa, $pesanLaporan, [
+            'kind' => 'alpa',
+            'dedup_key' => 'alpa_laporan:' . $tanggal . ':keg:' . $kegiatanId . ':ting:' . md5($tingkatan),
+        ]);
     }
 
     $msg = 'Generate alpa selesai. Total tersimpan: ' . $created . '.';

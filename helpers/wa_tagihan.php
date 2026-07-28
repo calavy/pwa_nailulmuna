@@ -421,7 +421,10 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             $failed++;
             continue;
         }
-        $result = send_wa_message_with_result($pdo, $phone, $message, ['kind' => 'tagihan']);
+        $result = send_wa_message_with_result($pdo, $phone, $message, [
+            'kind' => 'tagihan',
+            'dedup_key' => 'tagihan:' . $sendKey . ':santri:' . $santriId,
+        ]);
         if ($result['success'] ?? false) {
             $sent++;
             if (!$paksaTanpaJadwal && $sendKey !== '') {

@@ -416,6 +416,153 @@ function wa_otomatis_is_retryable(int $httpCode, string $curlError): bool
     return $httpCode === 0 || $httpCode >= 500;
 }
 
+/** Idempotensi WA otomatis aktif (default: ya). */
+function wa_dispatch_strict_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_dispatch_strict_mode', '1')) === '1';
+}
+
+/** Pastikan tabel ledger idempotensi WA ada. */
+function wa_dispatch_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    if (!function_exists('table_exists')) {
+        return;
+    }
+    try {
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS wa_dispatch_log (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                dedup_key VARCHAR(191) NOT NULL,
+                kind VARCHAR(40) NOT NULL DEFAULT "general",
+                target_phone VARCHAR(40) NOT NULL DEFAULT "",
+                message_hash CHAR(64) NOT NULL DEFAULT "",
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                http_ok TINYINT(1) NOT NULL DEFAULT 1,
+                UNIQUE KEY uk_wa_dispatch (dedup_key),
+                INDEX idx_wa_dispatch_sent (sent_at),
+                INDEX idx_wa_dispatch_kind (kind)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ');
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch] ensure_schema: ' . $e->getMessage());
+    }
+    $done = true;
+}
+
+function wa_dispatch_normalize_key(string $dedupKey): string
+{
+    $dedupKey = trim($dedupKey);
+    if ($dedupKey === '') {
+        return '';
+    }
+    if (strlen($dedupKey) <= 191) {
+        return $dedupKey;
+    }
+
+    return substr($dedupKey, 0, 120) . ':' . sha1($dedupKey);
+}
+
+/**
+ * Klaim slot kirim — return false jika kunci sudah pernah sukses dikirim.
+ */
+function wa_dispatch_claim(PDO $pdo, string $dedupKey, string $kind, string $target, string $message = ''): bool
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return true;
+    }
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return true;
+    }
+    $kind = substr(trim($kind), 0, 40);
+    if ($kind === '') {
+        $kind = 'general';
+    }
+    $target = substr(wa_otomatis_normalize_target($target), 0, 40);
+    $hash = hash('sha256', $message);
+    try {
+        $st = $pdo->prepare('
+            INSERT IGNORE INTO wa_dispatch_log (dedup_key, kind, target_phone, message_hash, http_ok)
+            VALUES (:dedup_key, :kind, :target, :hash, 0)
+        ');
+        $st->execute([
+            'dedup_key' => $dedupKey,
+            'kind' => $kind,
+            'target' => $target,
+            'hash' => $hash,
+        ]);
+
+        return $st->rowCount() > 0;
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch] claim: ' . $e->getMessage());
+
+        return true;
+    }
+}
+
+function wa_dispatch_confirm(PDO $pdo, string $dedupKey): void
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return;
+    }
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return;
+    }
+    try {
+        $pdo->prepare('UPDATE wa_dispatch_log SET http_ok = 1 WHERE dedup_key = :k')->execute(['k' => $dedupKey]);
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch] confirm: ' . $e->getMessage());
+    }
+}
+
+function wa_dispatch_release(PDO $pdo, string $dedupKey): void
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return;
+    }
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return;
+    }
+    try {
+        $pdo->prepare('DELETE FROM wa_dispatch_log WHERE dedup_key = :k AND http_ok = 0')->execute(['k' => $dedupKey]);
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch] release: ' . $e->getMessage());
+    }
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function wa_dispatch_recent_rows(PDO $pdo, int $limit = 30): array
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return [];
+    }
+    $limit = max(1, min(100, $limit));
+    try {
+        $st = $pdo->query('
+            SELECT dedup_key, kind, target_phone, http_ok, sent_at
+            FROM wa_dispatch_log
+            ORDER BY id DESC
+            LIMIT ' . $limit . '
+        ');
+
+        return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
 /**
  * Satu kali kirim ke gateway (tanpa retry).
  *
@@ -640,8 +787,40 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
     // Default: satu kiriman penuh. Hanya laporan ALPA yang mengisi chunk_max (lihat send_wa_bulk_messages).
     $chunkMax = max(0, (int) ($opts['chunk_max'] ?? 0));
     $chunkDelayMs = max(100, min(3000, (int) ($opts['chunk_delay_ms'] ?? 450)));
+    $dedupKey = trim((string) ($opts['dedup_key'] ?? ''));
+    $kind = trim((string) ($opts['kind'] ?? 'general'));
+    $skipDedup = !empty($opts['skip_dedup']);
     $override = $opts;
-    unset($override['max_retries'], $override['delay_ms'], $override['chunk_max'], $override['chunk_delay_ms'], $override['delay_between_ms'], $override['message_delay_ms']);
+    unset(
+        $override['max_retries'],
+        $override['delay_ms'],
+        $override['chunk_max'],
+        $override['chunk_delay_ms'],
+        $override['delay_between_ms'],
+        $override['message_delay_ms'],
+        $override['dedup_key'],
+        $override['dedup_key_once'],
+        $override['dedup_key_per_target'],
+        $override['skip_dedup']
+    );
+
+    $targetNorm = wa_otomatis_normalize_target($targetRaw);
+    $claimedDedup = false;
+    if ($dedupKey !== '' && wa_dispatch_strict_enabled($pdo) && !$skipDedup) {
+        if (!wa_dispatch_claim($pdo, $dedupKey, $kind, $targetNorm, $message)) {
+            return [
+                'success' => true,
+                'skipped' => true,
+                'skipped_reason' => 'duplicate',
+                'http_code' => 0,
+                'error' => '',
+                'response' => 'skipped_duplicate',
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+        $claimedDedup = true;
+    }
 
     $chunks = ($chunkMax > 0) ? wa_otomatis_chunk_message($message, $chunkMax) : [trim($message)];
     if ($chunks === []) {
@@ -676,6 +855,14 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
         $last['chunks'] = count($chunks);
     }
 
+    if ($dedupKey !== '' && $claimedDedup) {
+        if ($last['success'] ?? false) {
+            wa_dispatch_confirm($pdo, $dedupKey);
+        } else {
+            wa_dispatch_release($pdo, $dedupKey);
+        }
+    }
+
     return $last;
 }
 
@@ -698,14 +885,53 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
     $delayMs = max(0, min(300000, (int) ($opts['delay_between_ms'] ?? 350)));
     $sent = 0;
     $failed = 0;
+    $skipped = 0;
     $details = [];
+    $dedupKeyBase = trim((string) ($opts['dedup_key'] ?? ''));
+    $dedupOnce = !empty($opts['dedup_key_once']);
+    $dedupPerTarget = array_key_exists('dedup_key_per_target', $opts)
+        ? (bool) $opts['dedup_key_per_target']
+        : ($dedupKeyBase !== '' && !$dedupOnce);
+    $kind = trim((string) ($opts['kind'] ?? 'general'));
+    $claimedBulk = false;
+
+    if ($dedupKeyBase !== '' && $dedupOnce && wa_dispatch_strict_enabled($pdo) && empty($opts['skip_dedup'])) {
+        if (!wa_dispatch_claim($pdo, $dedupKeyBase, $kind, 'bulk', $message)) {
+            return [
+                'sent' => 0,
+                'failed' => 0,
+                'skipped' => count($targets),
+                'total' => count($targets),
+                'details' => [[
+                    'success' => true,
+                    'skipped' => true,
+                    'skipped_reason' => 'duplicate',
+                    'target' => 'bulk',
+                ]],
+            ];
+        }
+        $claimedBulk = true;
+    }
 
     foreach ($targets as $idx => $target) {
         if ($idx > 0 && $delayMs > 0) {
             usleep($delayMs * 1000);
         }
-        $result = wa_otomatis_send($pdo, $target, $message, $opts);
-        if ($result['success'] ?? false) {
+        $targetOpts = $opts;
+        if ($dedupKeyBase !== '' && !$dedupOnce) {
+            if ($dedupPerTarget) {
+                $targetOpts['dedup_key'] = $dedupKeyBase . ':t:' . wa_otomatis_normalize_target($target);
+            } else {
+                $targetOpts['dedup_key'] = $dedupKeyBase;
+            }
+        } elseif ($dedupOnce) {
+            unset($targetOpts['dedup_key']);
+            $targetOpts['skip_dedup'] = true;
+        }
+        $result = wa_otomatis_send($pdo, $target, $message, $targetOpts);
+        if (!empty($result['skipped'])) {
+            $skipped++;
+        } elseif ($result['success'] ?? false) {
             $sent++;
         } else {
             $failed++;
@@ -713,9 +939,18 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         $details[] = $result;
     }
 
+    if ($claimedBulk) {
+        if ($sent > 0) {
+            wa_dispatch_confirm($pdo, $dedupKeyBase);
+        } else {
+            wa_dispatch_release($pdo, $dedupKeyBase);
+        }
+    }
+
     return [
         'sent' => $sent,
         'failed' => $failed,
+        'skipped' => $skipped,
         'total' => count($targets),
         'details' => $details,
     ];
@@ -840,14 +1075,6 @@ function wa_auto_run_tick(PDO $pdo): array
                 require_once __DIR__ . '/wa_yayasan_tugas.php';
             }
             trigger_wa_yayasan_tugas_belum_progres($pdo);
-            if (!function_exists('trigger_wa_kelas_kosong_bertahap')) {
-                require_once __DIR__ . '/wa_kegiatan_kosong.php';
-            }
-            trigger_wa_kelas_kosong_bertahap($pdo);
-            if (!function_exists('cashless_wa_cron_laporan_harian')) {
-                require_once __DIR__ . '/cashless_wa.php';
-            }
-            cashless_wa_cron_laporan_harian($pdo);
             save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
         }
 

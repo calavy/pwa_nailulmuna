@@ -801,8 +801,14 @@ function tagihan_khusus_kirim_wa(PDO $pdo, int $id, bool $forceResend = false): 
     }
 
     $pesan = tagihan_khusus_wa_pesan($pdo, $row);
-    $result = send_wa_message_with_result($pdo, $phone, $pesan, ['kind' => 'tagihan']);
-    if (!empty($result['ok'])) {
+    $waOpts = ['kind' => 'tagihan'];
+    if (!$forceResend) {
+        $waOpts['dedup_key'] = 'tagihan_khusus:' . $id;
+    } else {
+        $waOpts['skip_dedup'] = true;
+    }
+    $result = send_wa_message_with_result($pdo, $phone, $pesan, $waOpts);
+    if (!empty($result['success'])) {
         $pdo->prepare('UPDATE keuangan_tagihan_khusus SET wa_notified_at = NOW() WHERE id = :id')->execute(['id' => $id]);
 
         return 'Notifikasi WA ke wali terkirim.';

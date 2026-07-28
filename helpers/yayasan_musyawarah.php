@@ -538,8 +538,12 @@ function yayasan_musyawarah_kirim_wa_laporan(PDO $pdo, int $rapatId): array
     $sent = 0;
     $errors = [];
     foreach ($targets as $target) {
-        $res = send_wa_message_with_result($pdo, $target, $pesan, ['kind' => 'presensi']);
-        if (!empty($res['ok'])) {
+        $res = send_wa_message_with_result($pdo, $target, $pesan, [
+            'kind' => 'presensi',
+            'dedup_key' => 'musyawarah:' . $rapatId,
+            'dedup_key_per_target' => true,
+        ]);
+        if (!empty($res['success'])) {
             $sent++;
         } else {
             $errors[] = (string) ($res['error'] ?? 'gagal');

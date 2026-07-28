@@ -358,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $saldoSetelah = cashless_santri_saldo_tampil($pdo, $santriId);
                             if (!$idempotentHit) {
                                 cashless_wa_maybe_notify_saldo_rendah($pdo, $santriId, $saldoSetelah);
-                                cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah);
+                                cashless_wa_notify_transaksi_sukses($pdo, $santriId, $nominal, $koperasiId, $saldoSetelah, $clientToken);
                             }
                             $lastSuccessNominal = $nominal;
                             $lastSaldoSaku = $saldoSetelah;

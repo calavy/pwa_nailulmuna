@@ -740,7 +740,10 @@ function yayasan_rapat_kirim_undangan_wa(PDO $pdo, int $rapatId): array
             $msg .= "\n*Agenda:*\n" . $agenda . "\n";
         }
         $msg .= "\nTerima kasih. Wassalamu'alaikum wr. wb.";
-        if (send_wa_message($pdo, $phone, $msg)) {
+        if (send_wa_message($pdo, $phone, $msg, [
+            'kind' => 'presensi',
+            'dedup_key' => 'rapat_undangan:' . $rapatId . ':t:' . $phone,
+        ])) {
             $sent++;
         }
     }

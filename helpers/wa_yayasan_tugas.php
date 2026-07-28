@@ -129,7 +129,10 @@ function yayasan_tugas_wa_notify_assignees(PDO $pdo, int $taskId, string $jenis 
         if (trim($pesan) === '') {
             continue;
         }
-        if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
+        if (send_wa_message($pdo, $phone, $pesan, [
+            'kind' => 'presensi',
+            'dedup_key' => 'yayasan_tugas:' . $taskId . ':' . $jenis . ':u:' . $uid,
+        ])) {
             $sent++;
         }
     }
@@ -214,7 +217,10 @@ function trigger_wa_yayasan_tugas_belum_progres(PDO $pdo): void
             if (trim($pesan) === '') {
                 continue;
             }
-            if (send_wa_message($pdo, $phone, $pesan, ['kind' => 'presensi'])) {
+            if (send_wa_message($pdo, $phone, $pesan, [
+                'kind' => 'presensi',
+                'dedup_key' => 'yayasan_tugas:noprogress:' . $today . ':' . $taskId . ':u:' . $uid,
+            ])) {
                 save_setting($pdo, $debounceKey, '1');
             }
         }

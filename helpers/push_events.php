@@ -56,7 +56,8 @@ function perizinan_push_setelah_pengajuan(
         (string) ($waDetail['jam_mulai'] ?? ''),
         (string) ($waDetail['jam_selesai'] ?? ''),
         (string) ($waDetail['alasan'] ?? ''),
-        (string) ($waDetail['tujuan'] ?? '')
+        (string) ($waDetail['tujuan'] ?? ''),
+        (int) ($waDetail['izin_id'] ?? 0)
     );
 }
 
@@ -102,7 +103,8 @@ function perizinan_wa_kirim_permohonan_baru(
     string $jamMulai = '',
     string $jamSelesai = '',
     string $alasan = '',
-    string $tujuan = ''
+    string $tujuan = '',
+    int $izinId = 0
 ): array {
     if (!function_exists('wa_permohonan_izin_should_notify')) {
         require_once __DIR__ . '/app.php';
@@ -138,8 +140,17 @@ function perizinan_wa_kirim_permohonan_baru(
         $tujuan
     );
 
+    $waOpts = ['kind' => 'izin'];
+    if ($izinId > 0) {
+        $waOpts['dedup_key'] = 'izin:' . $izinId . ':submit';
+        $waOpts['dedup_key_once'] = true;
+    } else {
+        $waOpts['dedup_key'] = 'izin:submit:' . md5($nis . '|' . $tanggalMulai . '|' . perizinan_jenis_izin_normalize($jenisIzin));
+        $waOpts['dedup_key_once'] = true;
+    }
+
     return [
-        'sent' => send_wa_bulk($pdo, $target, $msg, ['kind' => 'izin']),
+        'sent' => send_wa_bulk($pdo, $target, $msg, $waOpts),
         'skipped' => false,
         'reason' => '',
     ];

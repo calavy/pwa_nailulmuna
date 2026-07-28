@@ -19,7 +19,7 @@ ensure_pondok_settings_defaults($pdo);
 $pondokDefaults = pondok_settings_defaults();
 $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
-        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay',
+        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode',
         'wa_delay_tagihan', 'wa_delay_cashless', 'wa_delay_presensi', 'wa_delay_alpa', 'wa_delay_poin', 'wa_delay_izin', 'wa_delay_rapor',
         'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
@@ -36,6 +36,7 @@ $values['wa_tagihan_auto_enabled'] = ($values['wa_tagihan_auto_enabled'] ?? '') 
 $values['wa_notif_mudabir_enabled'] = ($values['wa_notif_mudabir_enabled'] ?? '') === '1' ? '1' : '0';
 $values['wa_kelas_kosong_enabled'] = ($values['wa_kelas_kosong_enabled'] ?? '') === '1' ? '1' : '0';
 $values['wa_fonnte_queue_offline'] = ($values['wa_fonnte_queue_offline'] ?? '') === '1' ? '1' : '0';
+$values['wa_dispatch_strict_mode'] = ($values['wa_dispatch_strict_mode'] ?? '1') === '1' ? '1' : '0';
 $pengurusWaCount = trim((string) ($values['wa_pengurus'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
@@ -81,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'endpoint' => trim((string) ($_POST['wa_gateway_url'] ?? app_setting($pdo, 'wa_gateway_url', ''))),
             'token' => trim((string) ($_POST['wa_gateway_token'] ?? app_setting($pdo, 'wa_gateway_token', ''))),
             'sender' => trim((string) ($_POST['wa_sender'] ?? app_setting($pdo, 'wa_sender', ''))),
+            'skip_dedup' => true,
         ];
         $waTestResult = send_wa_message_with_result($pdo, $testTarget, $testMessage, $override);
         $waActiveTab = 'gateway';
@@ -108,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'fcm_notify_mode', $mode);
         $cronKey = trim((string) ($_POST['wa_auto_cron_key'] ?? ''));
         save_setting($pdo, 'wa_auto_cron_key', $cronKey);
+        save_setting($pdo, 'wa_dispatch_strict_mode', isset($_POST['wa_dispatch_strict_mode']) ? '1' : '0');
         set_flash('success', $delayInvalid ?? false
             ? 'Pengaturan gateway disimpan. Format delay Fonnte tidak valid — gunakan contoh 3 atau 3-8 (delay dinonaktifkan).'
             : 'Pengaturan gateway disimpan.');
@@ -502,3 +505,4 @@ if (table_exists($pdo, 'wa_logs')) {
     $stLog = $pdo->query('SELECT id, target_phone, LEFT(message, 80) AS message_short, is_success, created_at FROM wa_logs ORDER BY id DESC LIMIT 30');
     $waLogRecent = $stLog ? ($stLog->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }
+$waDispatchRecent = function_exists('wa_dispatch_recent_rows') ? wa_dispatch_recent_rows($pdo, 30) : [];

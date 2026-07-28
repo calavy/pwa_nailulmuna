@@ -330,7 +330,10 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
             (int) $tier['threshold'],
             $rowsFmt
         );
-        $sent = send_wa_bulk_messages($pdo, $wa, $waMessages, ['kind' => 'alpa']);
+        $sent = send_wa_bulk_messages($pdo, $wa, $waMessages, [
+            'kind' => 'alpa',
+            'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':rekap',
+        ]);
         if ($sent <= 0) {
             continue;
         }
@@ -547,7 +550,10 @@ function alpa_tier_dispatch_batch(
             $periodeLabel,
             $entries
         );
-        $sent = send_wa_bulk_messages($pdo, $waTarget, $waMessages, ['kind' => 'alpa']);
+        $sent = send_wa_bulk_messages($pdo, $waTarget, $waMessages, [
+            'kind' => 'alpa',
+            'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':notify',
+        ]);
         if ($sent <= 0) {
             continue;
         }

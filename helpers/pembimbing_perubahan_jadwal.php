@@ -316,7 +316,7 @@ function pb_jadwal_cek_bentrok_pindah_waktu(PDO $pdo, int $pembimbingId, array $
     return ['bentrok' => $items !== [], 'items' => $items];
 }
 
-function pb_jadwal_kirim_notifikasi(PDO $pdo, string $judul, string $isi): void
+function pb_jadwal_kirim_notifikasi(PDO $pdo, string $judul, string $isi, string $dedupKey = ''): void
 {
     $waTujuan = trim((string) app_setting($pdo, 'wa_pembimbing_izin', ''));
     if ($waTujuan === '') {
@@ -327,7 +327,12 @@ function pb_jadwal_kirim_notifikasi(PDO $pdo, string $judul, string $isi): void
     }
     $msg = $judul . "\n" . $isi;
     if ($waTujuan !== '' && function_exists('send_wa_bulk')) {
-        send_wa_bulk($pdo, $waTujuan, $msg, ['kind' => 'presensi']);
+        $opts = ['kind' => 'presensi'];
+        if ($dedupKey !== '') {
+            $opts['dedup_key'] = $dedupKey;
+            $opts['dedup_key_once'] = true;
+        }
+        send_wa_bulk($pdo, $waTujuan, $msg, $opts);
     }
 }
 
@@ -396,7 +401,8 @@ function pb_jadwal_simpan_pindah_waktu(PDO $pdo, int $pembimbingId, array $slot,
         '🕐 Pindah waktu kegiatan',
         (string) ($slot['nama_kegiatan'] ?? '') . ' · ' . $tanggal . "\n"
         . 'Asli: ' . substr((string) $slot['jam_mulai'], 0, 5) . ' → Baru: ' . substr(jadwal_norm_jam($jamMulaiBaru), 0, 5) . "\n"
-        . 'Alasan: ' . $alasan
+        . 'Alasan: ' . $alasan,
+        'pb_jadwal:' . $pembimbingId . ':' . $jadwalId . ':' . $tanggal . ':pindah_waktu'
     );
 
     return ['ok' => true, 'pesan' => 'Pergeseran waktu disimpan. Bisa diubah lagi sebelum ' . PB_JADWAL_BATAS_JAM_SEBELUM . ' jam sebelum jadwal asli.'];
@@ -451,7 +457,8 @@ function pb_jadwal_simpan_ganti_materi(PDO $pdo, int $pembimbingId, array $slot,
         $pdo,
         '📚 Ganti tugas/materi',
         (string) ($slot['nama_kegiatan'] ?? '') . ' · ' . $tanggal . "\n"
-        . 'Materi: ' . $materi . "\nAlasan: " . $alasan
+        . 'Materi: ' . $materi . "\nAlasan: " . $alasan,
+        'pb_jadwal:' . $pembimbingId . ':' . $jadwalId . ':' . $tanggal . ':ganti_materi'
     );
 
     return ['ok' => true, 'pesan' => 'Perubahan materi disimpan.'];
@@ -532,7 +539,8 @@ function pb_jadwal_simpan_cari_munawib(PDO $pdo, int $pembimbingId, array $slot,
         '👤 Permintaan munawib',
         (string) ($slot['nama_kegiatan'] ?? '') . ' · ' . $tanggal . "\n"
         . 'Munawib: ' . (string) ($mw['nama'] ?? '') . "\n"
-        . 'Tugas: ' . pb_jadwal_materi_ringkas($materiJson) . "\nAlasan: " . $alasan
+        . 'Tugas: ' . pb_jadwal_materi_ringkas($materiJson) . "\nAlasan: " . $alasan,
+        'pb_jadwal:' . $pembimbingId . ':' . $jadwalId . ':' . $tanggal . ':cari_munawib'
     );
 
     return ['ok' => true, 'pesan' => 'Penugasan munawib dicatat untuk hari ini.'];

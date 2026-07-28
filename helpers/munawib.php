@@ -473,7 +473,11 @@ function munawib_kirim_notif_kelas_terisi(PDO $pdo, int $munawibId, int $kegiata
         . "Tingkatan: " . (string) ($izinRow['tingkatan'] ?? '-') . "\n"
         . "Pembimbing izin: " . (string) ($izinRow['nama_pembimbing'] ?? '-') . "\n"
         . "Pengganti masuk: " . $munawibNama . " (" . substr($jam, 0, 5) . ")";
-    send_wa_bulk($pdo, $targetWa, $msg, ['kind' => 'presensi']);
+    send_wa_bulk($pdo, $targetWa, $msg, [
+        'kind' => 'presensi',
+        'dedup_key' => 'munawib_terisi:' . $kegiatanId . ':' . $tanggal . ':' . substr($jam, 0, 5),
+        'dedup_key_once' => true,
+    ]);
 }
 
 /**

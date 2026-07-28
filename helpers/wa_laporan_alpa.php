@@ -480,7 +480,11 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
         if ($message === '') {
             continue;
         }
-        $bulk = send_wa_bulk_with_result($pdo, $phonesRaw, $message, $opts);
+        $msgOpts = $opts;
+        if (!empty($opts['dedup_key'])) {
+            $msgOpts['dedup_key'] = (string) $opts['dedup_key'] . ':part:' . $idx;
+        }
+        $bulk = send_wa_bulk_with_result($pdo, $phonesRaw, $message, $msgOpts);
         $sent += (int) ($bulk['sent'] ?? 0);
     }
 

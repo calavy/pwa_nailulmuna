@@ -112,6 +112,123 @@ function wa_kegiatan_kosong_slot_status(PDO $pdo, array $jadwalRow, string $tang
     ];
 }
 
+/** Kunci slot: satu kegiatan + rentang jam = satu laporan WA (gabung semua tingkatan). */
+function wa_kegiatan_kosong_slot_key(int $kegiatanId, string $jamMulai, string $jamSelesai): string
+{
+    return $kegiatanId . '_' . substr($jamMulai, 0, 5) . '_' . substr($jamSelesai, 0, 5);
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return list<array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,jadwal_id:int}>}>
+ */
+function wa_kegiatan_kosong_group_slots(PDO $pdo, array $rows, string $tanggal): array
+{
+    $groups = [];
+    foreach ($rows as $r) {
+        $kegiatanId = (int) ($r['kegiatan_id'] ?? 0);
+        if ($kegiatanId <= 0) {
+            continue;
+        }
+        $jamMulai = (string) ($r['jam_mulai'] ?? '00:00:00');
+        $jamSelesai = (string) ($r['jam_selesai'] ?? '00:00:00');
+        $slotKey = wa_kegiatan_kosong_slot_key($kegiatanId, $jamMulai, $jamSelesai);
+
+        if (!isset($groups[$slotKey])) {
+            $groups[$slotKey] = [
+                'slot_key' => $slotKey,
+                'kegiatan_id' => $kegiatanId,
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'nama_kegiatan' => (string) ($r['nama_kegiatan'] ?? 'Kegiatan'),
+                'tempat' => trim((string) ($r['tempat'] ?? '')),
+                'empty' => [],
+            ];
+        }
+
+        $status = wa_kegiatan_kosong_slot_status($pdo, $r, $tanggal);
+        if (!$status['kosong']) {
+            continue;
+        }
+
+        $tingkatan = trim((string) ($r['tingkatan'] ?? ''));
+        $groups[$slotKey]['empty'][] = [
+            'tingkatan' => $tingkatan !== '' ? $tingkatan : '-',
+            'reasons' => $status['reasons'],
+            'nama_pembimbing' => (string) ($r['nama_pembimbing'] ?? '-'),
+            'jadwal_id' => (int) ($r['jadwal_id'] ?? 0),
+        ];
+        if (trim((string) ($groups[$slotKey]['tempat'] ?? '')) === '') {
+            $tempat = trim((string) ($r['tempat'] ?? ''));
+            if ($tempat !== '') {
+                $groups[$slotKey]['tempat'] = $tempat;
+            }
+        }
+    }
+
+    $out = [];
+    foreach ($groups as $group) {
+        if (($group['empty'] ?? []) === []) {
+            continue;
+        }
+        $out[] = $group;
+    }
+
+    return $out;
+}
+
+/**
+ * @param array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,jadwal_id:int}>} $group
+ */
+function wa_kegiatan_kosong_format_message(array $group, int $counter, int $batasKali, string $levelLabel): string
+{
+    $jamMulai = substr((string) ($group['jam_mulai'] ?? '00:00:00'), 0, 5);
+    $jamSelesai = substr((string) ($group['jam_selesai'] ?? '00:00:00'), 0, 5);
+    $lines = [];
+    $lines[] = '⚠️ Laporan kegiatan kosong (deteksi ke-' . $counter . ')';
+    if ($levelLabel === 'eskalasi') {
+        $lines[] = 'Eskalasi ke pengurus — batas ' . $batasKali . 'x deteksi berturut-turut.';
+    }
+    $lines[] = 'Tanggal: ' . date('d/m/Y');
+    $lines[] = 'Kegiatan: ' . (string) ($group['nama_kegiatan'] ?? 'Kegiatan');
+    $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
+
+    $empty = $group['empty'] ?? [];
+    if (count($empty) === 1) {
+        $lines[] = 'Kelas/Tingkatan: ' . (string) ($empty[0]['tingkatan'] ?? '-');
+    } else {
+        $tingkatanList = array_map(static fn(array $e): string => (string) ($e['tingkatan'] ?? '-'), $empty);
+        $lines[] = 'Tingkatan kosong (' . count($empty) . '): ' . implode(', ', $tingkatanList);
+    }
+
+    $tempat = trim((string) ($group['tempat'] ?? ''));
+    if ($tempat !== '') {
+        $lines[] = 'Tempat: ' . $tempat;
+    }
+
+    if (count($empty) === 1) {
+        $lines[] = 'Pembimbing jadwal: ' . (string) ($empty[0]['nama_pembimbing'] ?? '-');
+        $lines[] = 'Alasan: ' . implode('; ', (array) ($empty[0]['reasons'] ?? []));
+        $jadwalId = (int) ($empty[0]['jadwal_id'] ?? 0);
+        if ($jadwalId > 0) {
+            $lines[] = 'ID Jadwal: #' . $jadwalId;
+        }
+    } else {
+        $lines[] = 'Detail per tingkatan:';
+        foreach ($empty as $entry) {
+            $lines[] = '• ' . (string) ($entry['tingkatan'] ?? '-')
+                . ' — ' . (string) ($entry['nama_pembimbing'] ?? '-')
+                . ': ' . implode('; ', (array) ($entry['reasons'] ?? []));
+        }
+        $jadwalIds = array_values(array_filter(array_map(static fn(array $e): int => (int) ($e['jadwal_id'] ?? 0), $empty)));
+        if ($jadwalIds !== []) {
+            $lines[] = 'ID Jadwal: #' . implode(', #', $jadwalIds);
+        }
+    }
+
+    return implode("\n", $lines);
+}
+
 /**
  * Notifikasi kegiatan/kelas kosong bertahap:
  * - deteksi ke-1 → petugas pendidikan (atau override)
@@ -181,29 +298,21 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
         return;
     }
 
-    foreach ($rows as $r) {
-        $jadwalId = (int) ($r['jadwal_id'] ?? 0);
-        if ($jadwalId <= 0) {
+    $groups = wa_kegiatan_kosong_group_slots($pdo, $rows, $tanggal);
+    foreach ($groups as $group) {
+        $slotKey = (string) ($group['slot_key'] ?? '');
+        $kegiatanId = (int) ($group['kegiatan_id'] ?? 0);
+        if ($slotKey === '' || $kegiatanId <= 0) {
             continue;
         }
 
-        $status = wa_kegiatan_kosong_slot_status($pdo, $r, $tanggal);
-        if (!$status['kosong']) {
-            continue;
-        }
-
-        $counterKey = 'wa_kelas_kosong_counter_' . $tanggal . '_' . $jadwalId;
+        $counterKey = 'wa_kelas_kosong_counter_' . $tanggal . '_' . $slotKey;
         $counter = (int) app_setting($pdo, $counterKey, '0');
         $counter++;
         save_setting($pdo, $counterKey, (string) $counter);
 
-        $sentKeyAwal = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_1';
-        $sentKeyEskalasi = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $jadwalId . '_' . $batasKali;
-
-        $jamMulai = substr((string) ($r['jam_mulai'] ?? '00:00:00'), 0, 5);
-        $jamSelesai = substr((string) ($r['jam_selesai'] ?? '00:00:00'), 0, 5);
-        $tingkatan = trim((string) ($r['tingkatan'] ?? ''));
-        $tempat = trim((string) ($r['tempat'] ?? ''));
+        $sentKeyAwal = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $slotKey . '_1';
+        $sentKeyEskalasi = 'wa_kelas_kosong_ok_' . $tanggal . '_' . $slotKey . '_' . $batasKali;
 
         $levels = [];
         if ($counter >= 1
@@ -225,26 +334,23 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
             continue;
         }
 
-        foreach ($levels as $lv) {
-            $lines = [];
-            $lines[] = '⚠️ Laporan kegiatan kosong (deteksi ke-' . $counter . ')';
-            if (($lv['label'] ?? '') === 'eskalasi') {
-                $lines[] = 'Eskalasi ke pengurus — batas ' . $batasKali . 'x deteksi berturut-turut.';
-            }
-            $lines[] = 'Tanggal: ' . date('d/m/Y');
-            $lines[] = 'Kegiatan: ' . (string) ($r['nama_kegiatan'] ?? 'Kegiatan');
-            $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
-            $lines[] = 'Kelas/Tingkatan: ' . ($tingkatan !== '' ? $tingkatan : '-');
-            if ($tempat !== '') {
-                $lines[] = 'Tempat: ' . $tempat;
-            }
-            $lines[] = 'Pembimbing jadwal: ' . (string) ($r['nama_pembimbing'] ?? '-');
-            $lines[] = 'Alasan: ' . implode('; ', $status['reasons']);
-            $lines[] = 'ID Jadwal: #' . $jadwalId;
-            $message = implode("\n", $lines);
+        $jamMulai = substr((string) ($group['jam_mulai'] ?? '00:00:00'), 0, 5);
+        $jamSelesai = substr((string) ($group['jam_selesai'] ?? '00:00:00'), 0, 5);
 
-            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message, ['kind' => 'presensi']);
-            if ((int) ($bulk['sent'] ?? 0) > 0) {
+        foreach ($levels as $lv) {
+            $message = wa_kegiatan_kosong_format_message(
+                $group,
+                $counter,
+                $batasKali,
+                (string) ($lv['label'] ?? '')
+            );
+
+            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message, [
+                'kind' => 'presensi',
+                'dedup_key' => 'kelas_kosong:' . $tanggal . ':kegiatan:' . $kegiatanId . ':slot:' . $jamMulai . '-' . $jamSelesai . ':level:' . (int) ($lv['level'] ?? 0),
+                'dedup_key_once' => true,
+            ]);
+            if ((int) ($bulk['sent'] ?? 0) > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
                 save_setting($pdo, (string) $lv['sent_key'], '1');
                 save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
                 save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);
