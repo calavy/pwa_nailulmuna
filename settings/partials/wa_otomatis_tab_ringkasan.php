@@ -66,7 +66,13 @@ declare(strict_types=1);
                 <?php endif; ?>
             <?php endif; ?>
         </div>
-        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1 menit</strong> (paling akurat). Di XAMPP/Windows: jalankan <code>setup-cron-wa.bat</code> sebagai Administrator. Tanpa cron, job terjadwal tetap bisa jalan saat staf login dan membuka aplikasi (throttle ~1 menit ringan / ~5 menit berat).</p>
+        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1–5 menit</strong>. Setelah cron aktif, nonaktifkan <strong>Fallback cron</strong> di tab Gateway agar navigasi tidak menjalankan job di background.</p>
+        <div class="small mb-3">
+            <div class="fw-semibold mb-1">Perintah cron</div>
+            <div class="font-monospace bg-light border rounded p-2 mb-1 user-select-all">php <?= htmlspecialchars($waCronCliPath ?? (str_replace('\\', '/', dirname(__DIR__, 3) . '/cron/wa_auto.php'))) ?></div>
+            <div class="text-muted mb-1">HTTP (jika CLI tidak tersedia):</div>
+            <div class="font-monospace bg-light border rounded p-2 user-select-all">curl "<?= htmlspecialchars($cronUrl) ?>"</div>
+        </div>
         <ul class="small mb-3 ps-3">
             <li>Terakhir jalan: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
             <li>Tick berat terakhir: <strong><?= $waLastHeavy !== '' ? htmlspecialchars($waLastHeavy) : '—' ?></strong></li>
@@ -96,7 +102,7 @@ declare(strict_types=1);
             <li>Kelas kosong: <?= trim((string) app_setting($pdo, 'wa_kelas_kosong_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Cashless laporan: <?= $cashlessLaporanHarianWaEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Cashless transaksi → wali: <?= $cashlessTransaksiWaEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
-            <li>Fallback tanpa cron: <?= trim((string) app_setting($pdo, 'wa_auto_web_fallback_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span> (saat staf buka app)' : '<span class="text-muted">Nonaktif</span>' ?></li>
+            <li>Fallback tanpa cron: <?= ($values['wa_auto_web_fallback_enabled'] ?? '1') === '1' ? '<span class="text-success">Aktif</span> (saat staf buka app)' : '<span class="text-muted">Nonaktif</span>' ?></li>
         </ul>
         <div class="input-group input-group-sm mb-2" style="max-width:36rem">
             <span class="input-group-text">URL cron</span>

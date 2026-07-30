@@ -441,6 +441,85 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
 }
 
 /**
+ * Tolak izin rombongan (meta + semua anggota).
+ *
+ * @return array{ok:bool,message:string,jumlah:int}
+ */
+function perizinan_rombongan_tolak(PDO $pdo, int $rombonganId, int $userId, string $actor = 'pengurus'): array
+{
+    require_once __DIR__ . '/perizinan_approval.php';
+    perizinan_approval_ensure_schema($pdo);
+    perizinan_rombongan_ensure_schema($pdo);
+
+    if ($rombonganId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'message' => 'Data tidak valid.', 'jumlah' => 0];
+    }
+
+    $meta = perizinan_rombongan_meta($pdo, $rombonganId);
+    if (!$meta) {
+        return ['ok' => false, 'message' => 'Data rombongan tidak ditemukan.', 'jumlah' => 0];
+    }
+    if (strtoupper((string) ($meta['approval_status'] ?? '')) !== 'PENDING') {
+        return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat ditolak.', 'jumlah' => 0];
+    }
+
+    $actorNorm = strtolower(trim($actor)) === 'pengasuh' ? 'pengasuh' : 'pengurus';
+    $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
+    if ($actorNorm === 'pengasuh' && !perizinan_memerlukan_persetujuan_pengasuh($jenisIzin)) {
+        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang dapat ditolak pengasuh.', 'jumlah' => 0];
+    }
+
+    $reason = $actorNorm === 'pengasuh' ? 'Ditolak pengasuh' : 'Ditolak pengurus';
+    $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
+    $jumlah = count($anggota);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('
+            UPDATE perizinan_rombongan_meta
+               SET approval_status = "DITOLAK",
+                   rejected_reason = :reason,
+                   approved_by = :uid,
+                   approved_at = NOW()
+             WHERE id = :id
+               AND approval_status = "PENDING"
+        ')->execute([
+            'reason' => $reason,
+            'uid' => $userId,
+            'id' => $rombonganId,
+        ]);
+        $pdo->prepare('
+            UPDATE perizinan
+               SET approval_status = "DITOLAK",
+                   rejected_reason = :reason,
+                   approved_by = :uid,
+                   approved_at = NOW(),
+                   status_izin = "KEMBALI",
+                   waktu_kembali = NOW()
+             WHERE rombongan_id = :rid
+               AND approval_status = "PENDING"
+        ')->execute([
+            'reason' => $reason,
+            'uid' => $userId,
+            'rid' => $rombonganId,
+        ]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menolak izin rombongan.', 'jumlah' => 0];
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'Izin rombongan ditolak (' . $jumlah . ' santri).',
+        'jumlah' => $jumlah,
+    ];
+}
+
+/**
  * Centang santri yang sudah kembali; jika semua kembali, tutup rombongan.
  *
  * @param list<int> $santriKembaliIds

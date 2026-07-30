@@ -95,8 +95,10 @@ if (isset($_SESSION['user'])) {
         $_SESSION['acl_keuangan_split_checked'] = 1;
     }
     try {
-        require_once __DIR__ . '/../helpers/wa_otomatis.php';
-        wa_auto_web_fallback_tick($pdo);
+        if (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip()) {
+            require_once __DIR__ . '/../helpers/wa_otomatis.php';
+            wa_auto_web_fallback_tick($pdo);
+        }
     } catch (Throwable $e) {
         error_log('[wa_auto_web_fallback_tick] ' . $e->getMessage());
     }

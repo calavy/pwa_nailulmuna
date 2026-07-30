@@ -86,6 +86,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
         exit;
     }
+    if ($action === 'reject_rombongan') {
+        $rid = (int) ($_POST['rombongan_id'] ?? 0);
+        $res = perizinan_rombongan_tolak($pdo, $rid, $userId, 'pengurus');
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
+        exit;
+    }
 }
 
 $rombonganSantriGrouped = perizinan_rombongan_santri_aktif_grouped($pdo);
@@ -295,7 +302,8 @@ require_once __DIR__ . '/../includes/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end text-nowrap">
-                                    <?php if ($st === 'PENDING' && !$rombonganSyari): ?>
+                                    <?php if ($st === 'PENDING'): ?>
+                                    <?php if (!$rombonganSyari): ?>
                                     <form method="post" class="d-inline">
                                         <input type="hidden" name="action" value="approve_rombongan">
                                         <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
@@ -307,6 +315,12 @@ require_once __DIR__ . '/../includes/header.php';
                                             <label class="small me-1"><input type="checkbox" name="bypass_alpa" value="1"> Lewati ALPA</label>
                                         <?php endif; ?>
                                         <button type="submit" class="btn btn-sm btn-success">Setujui</button>
+                                    </form>
+                                    <?php endif; ?>
+                                    <form method="post" class="d-inline" onsubmit="return confirm('Tolak izin rombongan ini?');">
+                                        <input type="hidden" name="action" value="reject_rombongan">
+                                        <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
                                     </form>
                                     <?php endif; ?>
                                     <?php if (!$hideCetakSurat && ($st === 'DISETUJUI' || ($rombonganSyari && !$rombonganTungguPengasuh && $st === 'PENDING'))): ?>

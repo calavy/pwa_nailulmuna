@@ -2062,6 +2062,71 @@ function perizinan_syari_backfill_finalize(PDO $pdo, int $izinId): bool
 }
 
 /**
+ * Tolak satu permohonan izin (pengurus atau pengasuh).
+ *
+ * @return array{ok:bool,message:string}
+ */
+function perizinan_tolak_izin_satu(PDO $pdo, int $izinId, int $userId, string $actor = 'pengurus'): array
+{
+    perizinan_approval_ensure_schema($pdo);
+    if ($izinId <= 0 || $userId <= 0) {
+        return ['ok' => false, 'message' => 'Data tidak valid.'];
+    }
+    if (!table_exists($pdo, 'perizinan')) {
+        return ['ok' => false, 'message' => 'Modul perizinan belum siap.'];
+    }
+
+    $st = $pdo->prepare('
+        SELECT id, jenis_izin, approval_status, pengasuh_approved_at
+        FROM perizinan
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $st->execute(['id' => $izinId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return ['ok' => false, 'message' => 'Permohonan izin tidak ditemukan.'];
+    }
+    if (strtoupper((string) ($row['approval_status'] ?? '')) !== 'PENDING') {
+        return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat ditolak.'];
+    }
+
+    $actorNorm = strtolower(trim($actor)) === 'pengasuh' ? 'pengasuh' : 'pengurus';
+    if ($actorNorm === 'pengasuh') {
+        if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($row['jenis_izin'] ?? ''))) {
+            return ['ok' => false, 'message' => 'Hanya izin syar\'i yang dapat ditolak pengasuh di menu ini.'];
+        }
+        if (trim((string) ($row['pengasuh_approved_at'] ?? '')) !== '') {
+            return ['ok' => false, 'message' => 'Permohonan ini sudah disetujui pengasuh.'];
+        }
+    }
+
+    $reason = $actorNorm === 'pengasuh' ? 'Ditolak pengasuh' : 'Ditolak pengurus';
+    $upd = $pdo->prepare('
+        UPDATE perizinan
+           SET approval_status = "DITOLAK",
+               rejected_reason = :reason,
+               approved_by = :uid,
+               approved_at = NOW(),
+               status_izin = "KEMBALI",
+               waktu_kembali = NOW()
+         WHERE id = :id
+           AND approval_status = "PENDING"
+    ');
+    $upd->execute([
+        'reason' => $reason,
+        'uid' => $userId,
+        'id' => $izinId,
+    ]);
+
+    if ($upd->rowCount() <= 0) {
+        return ['ok' => false, 'message' => 'Gagal menolak permohonan — status mungkin sudah berubah.'];
+    }
+
+    return ['ok' => true, 'message' => 'Izin ditolak.'];
+}
+
+/**
  * @return array{ok:bool,message:string}
  */
 function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $bypassAlpa = false): array

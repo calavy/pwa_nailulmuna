@@ -81,6 +81,14 @@ declare(strict_types=1);
             </div>
             <div class="col-md-6">
                 <div class="form-check form-switch mt-4">
+                    <input class="form-check-input" type="checkbox" id="wa_auto_web_fallback_enabled" name="wa_auto_web_fallback_enabled" value="1"
+                        <?= ($values['wa_auto_web_fallback_enabled'] ?? '1') === '1' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="wa_auto_web_fallback_enabled">Fallback cron saat staf buka app</label>
+                </div>
+                <div class="form-text">Nonaktifkan setelah cron server aktif — navigasi lebih ringan. Job tetap jalan via <code>cron/wa_auto.php</code>.</div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-4">
                     <input class="form-check-input" type="checkbox" id="wa_dispatch_strict_mode" name="wa_dispatch_strict_mode" value="1"
                         <?= ($values['wa_dispatch_strict_mode'] ?? '1') === '1' ? 'checked' : '' ?>>
                     <label class="form-check-label" for="wa_dispatch_strict_mode">Cegah duplikat WA otomatis (1x per kejadian)</label>

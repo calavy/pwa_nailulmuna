@@ -82,10 +82,31 @@ function app_request_path_is_lightweight(string $requestPath): bool
     if (preg_match('#^/(keuangan|pembayaran)/#', $requestPath)) {
         return true;
     }
-    if (preg_match('#^/(santri|settings|presensi|pembimbing|akademik|rekap|perizinan|poin|jadwal|data|admin|yayasan|menu|santri_portal|wali)/#', $requestPath)) {
+    if (preg_match('#^/(santri|settings|presensi|pembimbing|akademik|rekap|perizinan|poin|jadwal|data|admin|yayasan|menu|santri_portal|wali|pengasuh|kegiatan|login|logout|cron)/#', $requestPath)) {
+        return true;
+    }
+    if (preg_match('#/(login|logout)\.php$#i', $requestPath)) {
         return true;
     }
     if ($requestPath === '/dashboard.php' || str_ends_with($requestPath, '/dashboard.php')) {
+        return true;
+    }
+
+    return false;
+}
+
+/** Lewati cron/fallback WA untuk AJAX, JSON API, atau CLI. */
+function app_request_is_background_job_skip(): bool
+{
+    if (PHP_SAPI === 'cli') {
+        return true;
+    }
+    $xhr = strtolower(trim((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')));
+    if ($xhr === 'xmlhttprequest') {
+        return true;
+    }
+    $accept = strtolower(trim((string) ($_SERVER['HTTP_ACCEPT'] ?? '')));
+    if ($accept !== '' && str_contains($accept, 'application/json') && !str_contains($accept, 'text/html')) {
         return true;
     }
 

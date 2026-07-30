@@ -139,16 +139,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($action === 'reject_izin') {
         $id = (int) ($_POST['izin_id'] ?? 0);
-        $reason = trim((string) ($_POST['rejected_reason'] ?? ''));
-        if ($id > 0) {
-            $rp = $pdo->prepare('UPDATE perizinan SET approval_status = "DITOLAK", rejected_reason = :reason, approved_by = :uid, approved_at = NOW(), status_izin = "KEMBALI", waktu_kembali = NOW() WHERE id = :id');
-            $rp->execute([
-                'id' => $id,
-                'reason' => $reason !== '' ? $reason : 'Ditolak pengurus',
-                'uid' => (int) ($_SESSION['user']['id'] ?? 1),
-            ]);
-            set_flash('success', 'Izin ditolak.');
-        }
+        $res = perizinan_tolak_izin_satu($pdo, $id, (int) ($_SESSION['user']['id'] ?? 0), 'pengurus');
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/perizinan/index.php'));
+        exit;
+    }
+    if ($action === 'reject_rombongan') {
+        $rid = (int) ($_POST['rombongan_id'] ?? 0);
+        $res = perizinan_rombongan_tolak($pdo, $rid, (int) ($_SESSION['user']['id'] ?? 0), 'pengurus');
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
         header('Location: ' . app_href('/perizinan/index.php'));
         exit;
     }
@@ -388,6 +387,11 @@ require_once __DIR__ . '/../includes/header.php';
                                     <button type="submit" class="btn btn-sm btn-success">Setujui</button>
                                 </form>
                                 <?php endif; ?>
+                                <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak izin rombongan ini?');">
+                                    <input type="hidden" name="action" value="reject_rombongan">
+                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
+                                </form>
                                     <?php if (!$hideCetakSurat): ?>
                                     <a class="btn btn-sm btn-outline-dark" target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . (int) $rm['id'])) ?>">Cetak A4</a>
                                     <?php endif; ?>
@@ -555,7 +559,6 @@ require_once __DIR__ . '/../includes/header.php';
                                     <form method="post" class="d-inline" onsubmit="return confirm('Tolak permohonan izin ini?');">
                                         <input type="hidden" name="action" value="reject_izin">
                                         <input type="hidden" name="izin_id" value="<?= (int) $i['id'] ?>">
-                                        <input type="hidden" name="rejected_reason" value="Ditolak pengurus">
                                         <button class="btn btn-sm btn-outline-danger">Tolak</button>
                                     </form>
                                 <?php endif; ?>

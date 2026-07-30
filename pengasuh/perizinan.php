@@ -58,9 +58,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     }
 
+    if ($action === 'tolak_pengasuh') {
+
+        $res = perizinan_tolak_izin_satu($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, 'pengasuh');
+
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+
+        header('Location: ' . app_href('/pengasuh/perizinan.php'));
+
+        exit;
+
+    }
+
     if ($action === 'setujui_rombongan_pengasuh') {
 
         $res = perizinan_pengasuh_setujui_rombongan($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, $bypassAlpa);
+
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+
+        header('Location: ' . app_href('/pengasuh/perizinan.php'));
+
+        exit;
+
+    }
+
+    if ($action === 'tolak_rombongan_pengasuh') {
+
+        $res = perizinan_rombongan_tolak($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, 'pengasuh');
 
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
 
@@ -341,6 +365,16 @@ require_once __DIR__ . '/../includes/header.php';
 
                             </form>
 
+                            <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak izin rombongan ini?');">
+
+                                <input type="hidden" name="action" value="tolak_rombongan_pengasuh">
+
+                                <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
+
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
+
+                            </form>
+
                         </td>
 
                     </tr>
@@ -493,6 +527,16 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
 
                                 <button type="submit" class="btn btn-sm btn-success pg-pengasuh-submit" <?= ($blokirAlpa && !$bolehBypassAlpaPengasuh) ? 'disabled title="Tidak memenuhi syarat ALPA"' : '' ?>>Setujui</button>
+
+                            </form>
+
+                            <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak permohonan izin ini?');">
+
+                                <input type="hidden" name="action" value="tolak_pengasuh">
+
+                                <input type="hidden" name="izin_id" value="<?= (int) $iz['id'] ?>">
+
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
 
                             </form>
 

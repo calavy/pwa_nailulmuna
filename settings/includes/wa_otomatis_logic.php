@@ -19,7 +19,7 @@ ensure_pondok_settings_defaults($pdo);
 $pondokDefaults = pondok_settings_defaults();
 $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
-        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode',
+        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode', 'wa_auto_web_fallback_enabled',
         'wa_delay_tagihan', 'wa_delay_cashless', 'wa_delay_presensi', 'wa_delay_alpa', 'wa_delay_poin', 'wa_delay_izin', 'wa_delay_rapor',
         'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
@@ -37,6 +37,7 @@ $values['wa_notif_mudabir_enabled'] = ($values['wa_notif_mudabir_enabled'] ?? ''
 $values['wa_kelas_kosong_enabled'] = ($values['wa_kelas_kosong_enabled'] ?? '') === '1' ? '1' : '0';
 $values['wa_fonnte_queue_offline'] = ($values['wa_fonnte_queue_offline'] ?? '') === '1' ? '1' : '0';
 $values['wa_dispatch_strict_mode'] = ($values['wa_dispatch_strict_mode'] ?? '1') === '1' ? '1' : '0';
+$values['wa_auto_web_fallback_enabled'] = ($values['wa_auto_web_fallback_enabled'] ?? '1') === '1' ? '1' : '0';
 $pengurusWaCount = trim((string) ($values['wa_pengurus'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);
@@ -111,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cronKey = trim((string) ($_POST['wa_auto_cron_key'] ?? ''));
         save_setting($pdo, 'wa_auto_cron_key', $cronKey);
         save_setting($pdo, 'wa_dispatch_strict_mode', isset($_POST['wa_dispatch_strict_mode']) ? '1' : '0');
+        save_setting($pdo, 'wa_auto_web_fallback_enabled', isset($_POST['wa_auto_web_fallback_enabled']) ? '1' : '0');
         set_flash('success', $delayInvalid ?? false
             ? 'Pengaturan gateway disimpan. Format delay Fonnte tidak valid — gunakan contoh 3 atau 3-8 (delay dinonaktifkan).'
             : 'Pengaturan gateway disimpan.');
@@ -411,6 +413,7 @@ if (!is_array($waAlpaLast)) {
 $waTagihanLastRun = trim((string) app_setting($pdo, 'wa_tagihan_last_run_at', ''));
 $waCronKey = trim((string) app_setting($pdo, 'wa_auto_cron_key', ''));
 $cronUrl = app_href('/cron/wa_auto.php') . ($waCronKey !== '' ? ('?key=' . rawurlencode($waCronKey)) : '');
+$waCronCliPath = str_replace('\\', '/', dirname(__DIR__, 2) . '/cron/wa_auto.php');
 $waLastStatsRaw = trim((string) app_setting($pdo, 'wa_tagihan_last_run_stats', ''));
 $waLastStats = $waLastStatsRaw !== '' ? json_decode($waLastStatsRaw, true) : null;
 if (!is_array($waLastStats)) {

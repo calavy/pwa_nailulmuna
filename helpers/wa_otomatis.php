@@ -1112,6 +1112,7 @@ function wa_auto_run_tick(PDO $pdo): array
 
 /**
  * Fallback bila cron tidak jalan: tick WA saat staf buka aplikasi (throttle sama dengan cron).
+ * Job dijadwalkan setelah response terkirim agar navigasi tidak terasa hang.
  */
 function wa_auto_web_fallback_tick(PDO $pdo): void
 {
@@ -1125,10 +1126,34 @@ function wa_auto_web_fallback_tick(PDO $pdo): void
         return;
     }
 
+    if (function_exists('app_request_is_background_job_skip') && app_request_is_background_job_skip()) {
+        return;
+    }
+
     $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
     if ($requestPath !== '' && (app_request_path_is_lightweight($requestPath) || str_contains($requestPath, '/cron/wa_auto.php'))) {
         return;
     }
 
-    wa_auto_run_tick($pdo);
+    wa_auto_web_fallback_schedule_tick($pdo);
+}
+
+function wa_auto_web_fallback_schedule_tick(PDO $pdo): void
+{
+    static $scheduled = false;
+    if ($scheduled) {
+        return;
+    }
+    $scheduled = true;
+
+    register_shutdown_function(static function () use ($pdo): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        try {
+            wa_auto_run_tick($pdo);
+        } catch (Throwable $e) {
+            error_log('[wa_auto_web_fallback_tick] ' . $e->getMessage());
+        }
+    });
 }
