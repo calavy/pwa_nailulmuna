@@ -270,7 +270,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'jalankan_cashless_laporan_harian') {
         require_once __DIR__ . '/../../helpers/cashless_wa.php';
-        $res = cashless_wa_jalankan_laporan_harian($pdo, true);
+        $tanggalLaporan = trim((string) ($_POST['cashless_laporan_tanggal'] ?? ''));
+        $res = cashless_wa_jalankan_laporan_harian(
+            $pdo,
+            true,
+            $tanggalLaporan !== '' ? $tanggalLaporan : null
+        );
         set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
         $cashlessRedirect = trim((string) ($_POST['redirect_tab'] ?? 'cashless'));
         if (!isset($waTabs[$cashlessRedirect])) {

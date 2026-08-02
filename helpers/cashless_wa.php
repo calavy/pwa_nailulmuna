@@ -430,9 +430,9 @@ function cashless_wa_ringkasan_harian(PDO $pdo, ?string $tanggal = null): array
 }
 
 /**
- * @return array{ok:bool,message:string,sent:int,skipped?:bool}
+ * @return array{ok:bool,message:string,sent:int,skipped?:bool,failed?:int}
  */
-function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): array
+function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false, ?string $tanggalLaporan = null): array
 {
     if (!$paksa && !cashless_wa_laporan_harian_enabled($pdo)) {
         return ['ok' => false, 'message' => 'Laporan harian cashless nonaktif.', 'sent' => 0, 'skipped' => true];
@@ -453,7 +453,18 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
     }
 
     $today = date('Y-m-d');
-    $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
+    $tanggalLaporan = $tanggalLaporan !== null ? trim($tanggalLaporan) : '';
+    if ($tanggalLaporan !== '') {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalLaporan)) {
+            return ['ok' => false, 'message' => 'Format tanggal laporan tidak valid.', 'sent' => 0];
+        }
+        if ($tanggalLaporan >= $today) {
+            return ['ok' => false, 'message' => 'Laporan hanya bisa dikirim untuk tanggal sebelum hari ini.', 'sent' => 0];
+        }
+        $laporanTanggal = $tanggalLaporan;
+    } else {
+        $laporanTanggal = cashless_wa_laporan_tanggal_data($today);
+    }
     if (!$paksa) {
         $lastLaporan = trim((string) app_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', ''));
         if ($lastLaporan === $laporanTanggal) {
@@ -485,17 +496,23 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false): arr
     $ringkasan = cashless_wa_ringkasan_harian($pdo, $laporanTanggal);
     $msg = wa_format_cashless_laporan_harian_pengurus($pdo, $ringkasan);
 
-    $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg, [
+    $bulkOpts = [
         'kind' => 'cashless',
         'dedup_key' => 'cashless_laporan:' . $laporanTanggal,
         'dedup_key_once' => true,
-    ]);
+    ];
+    if ($paksa) {
+        $bulkOpts['skip_dedup'] = true;
+    }
+    $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg, $bulkOpts);
     $sent = (int) ($bulk['sent'] ?? 0);
     $failed = (int) ($bulk['failed'] ?? 0);
 
     if ($sent > 0) {
         save_setting($pdo, 'cashless_laporan_harian_last_date', $today);
-        save_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', $laporanTanggal);
+        if ($laporanTanggal === cashless_wa_laporan_tanggal_data($today)) {
+            save_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', $laporanTanggal);
+        }
         save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
         save_setting($pdo, 'cashless_laporan_harian_last_error', '');
         save_setting($pdo, 'cashless_laporan_harian_last_stats', json_encode([

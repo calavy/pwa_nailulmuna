@@ -13,6 +13,8 @@ declare(strict_types=1);
 $cashlessRingkasanHariIni = $cashlessLaporanStatus['ringkasan'] ?? [];
 $cashlessLaporanTanggalLabel = (string) ($cashlessRingkasanHariIni['tanggal_label'] ?? 'hari kemarin');
 $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_laporan_tanggal'] ?? '') === ($cashlessLaporanStatus['laporan_tanggal'] ?? ''));
+$cashlessLaporanTanggalDefault = cashless_wa_laporan_tanggal_data(date('Y-m-d'));
+$cashlessLaporanTanggalMax = $cashlessLaporanTanggalDefault;
 ?>
 <?php $delayKind = 'cashless'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="card shadow-sm border-0 mb-3 border-warning-subtle">
@@ -107,11 +109,30 @@ $cashlessSudahDikirimHariIni = (($cashlessLaporanStatus['last_laporan_tanggal'] 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Kirim laporan manual</h2>
-        <p class="small text-muted mb-2">Kirim rekap transaksi debit <strong>hari kemarin</strong> (total + rincian per koperasi) ke nomor penerima laporan.</p>
-        <form method="post" class="d-inline" onsubmit="return confirm('Kirim laporan cashless hari kemarin sekarang?');">
+        <p class="small text-muted mb-2">Kirim rekap transaksi debit (total + rincian per koperasi) ke nomor penerima laporan. Pilih tanggal transaksi — default hari kemarin.</p>
+        <form method="post" class="row g-2 align-items-end" id="cashless-laporan-manual-form">
             <input type="hidden" name="action" value="jalankan_cashless_laporan_harian">
             <input type="hidden" name="redirect_tab" value="cashless">
-            <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i> Kirim laporan sekarang</button>
+            <div class="col-auto">
+                <label class="form-label small mb-1" for="cashless_laporan_tanggal">Tanggal laporan</label>
+                <input type="date" class="form-control form-control-sm" id="cashless_laporan_tanggal" name="cashless_laporan_tanggal" value="<?= htmlspecialchars($cashlessLaporanTanggalDefault) ?>" max="<?= htmlspecialchars($cashlessLaporanTanggalMax) ?>" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i> Kirim laporan</button>
+            </div>
         </form>
+        <script>
+        (function () {
+            var form = document.getElementById('cashless-laporan-manual-form');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                var input = document.getElementById('cashless_laporan_tanggal');
+                var tgl = input && input.value ? input.value : 'hari kemarin';
+                if (!confirm('Kirim laporan cashless tanggal ' + tgl + ' sekarang?')) {
+                    e.preventDefault();
+                }
+            });
+        })();
+        </script>
     </div>
 </div>
