@@ -20,7 +20,7 @@ declare(strict_types=1);
             <div class="col-md-6">
                 <label class="form-label">No. penerima alpa (fallback)</label>
                 <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Dipakai jika nomor di baris tier kosong. Beberapa nomor: pisah koma.</div>
+                <div class="form-text">Dipakai jika nomor di baris tier kosong. Beberapa nomor: pisah koma. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=pengurus')) ?>">Nomor WhatsApp</a>.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Jam kirim WA otomatis</label>

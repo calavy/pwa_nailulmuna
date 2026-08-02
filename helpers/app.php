@@ -726,12 +726,24 @@ function akademik_libur_presensi_filter_sql_by_mode(string $mode, string $katego
 /** Nomor penerima notifikasi alpa otomatis (mode lama / fallback tanpa tier). */
 function wa_alpa_notif_target(PDO $pdo): string
 {
+    require_once __DIR__ . '/wa_nomor.php';
+    $fromTable = wa_nomor_targets($pdo, 'pengurus');
+    if ($fromTable !== '') {
+        return $fromTable;
+    }
+
     return trim((string) app_setting($pdo, 'wa_pengurus', ''));
 }
 
 /** Nomor penerima permohonan izin baru (PENDING). Fallback ke wa_pengurus jika belum diisi. */
 function wa_permohonan_izin_target(PDO $pdo): string
 {
+    require_once __DIR__ . '/wa_nomor.php';
+    $fromTable = wa_nomor_targets($pdo, 'izin_baru');
+    if ($fromTable !== '') {
+        return $fromTable;
+    }
+
     $izin = trim((string) app_setting($pdo, 'wa_permohonan_izin', ''));
     if ($izin !== '') {
         return $izin;
@@ -786,6 +798,12 @@ function wa_permohonan_izin_should_notify(PDO $pdo, string $jenisIzin): bool
 /** Nomor penerima laporan izin disetujui & izin selesai untuk pengurus/petugas surat. */
 function wa_izin_pengurus_target(PDO $pdo): string
 {
+    require_once __DIR__ . '/wa_nomor.php';
+    $fromTable = wa_nomor_targets($pdo, 'izin_pengurus');
+    if ($fromTable !== '') {
+        return $fromTable;
+    }
+
     $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
     if ($nomor !== '') {
         return $nomor;
@@ -797,13 +815,22 @@ function wa_izin_pengurus_target(PDO $pdo): string
 /** Nomor pengurus izin per kelompok putra/putri; fallback ke wa_izin_pengurus jika kosong. */
 function wa_izin_pengurus_target_kelompok(PDO $pdo, string $kelompok): string
 {
+    require_once __DIR__ . '/wa_nomor.php';
     $kelompok = strtolower(trim($kelompok));
     if ($kelompok === 'putra') {
+        $fromTable = wa_nomor_targets($pdo, 'izin_putra');
+        if ($fromTable !== '') {
+            return $fromTable;
+        }
         $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus_putra', ''));
         if ($nomor !== '') {
             return $nomor;
         }
     } elseif ($kelompok === 'putri') {
+        $fromTable = wa_nomor_targets($pdo, 'izin_putri');
+        if ($fromTable !== '') {
+            return $fromTable;
+        }
         $nomor = trim((string) app_setting($pdo, 'wa_izin_pengurus_putri', ''));
         if ($nomor !== '') {
             return $nomor;
@@ -833,6 +860,12 @@ function wa_izin_wali_enabled(PDO $pdo): bool
  */
 function wa_petugas_pendidikan_target(PDO $pdo): string
 {
+    require_once __DIR__ . '/wa_nomor.php';
+    $fromTable = wa_nomor_targets($pdo, 'petugas_pendidikan');
+    if ($fromTable !== '') {
+        return $fromTable;
+    }
+
     $petugas = trim((string) app_setting($pdo, 'wa_petugas_pendidikan', ''));
     if ($petugas !== '') {
         return $petugas;
@@ -3955,6 +3988,7 @@ function menu_tile_icon_for_path(string $path): string
 {
     $exactIcons = [
         '/settings/wa_otomatis.php' => 'fa-solid fa-comments',
+        '/settings/wa_akun.php' => 'fa-solid fa-address-book',
         '/settings/wa_gateway.php' => 'fa-solid fa-gears',
         '/settings/pesantren.php' => 'fa-solid fa-mosque',
         '/settings/surat_cetak.php' => 'fa-solid fa-file-lines',

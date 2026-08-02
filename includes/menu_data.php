@@ -106,6 +106,7 @@ return [
         '/settings/pesantren.php' => 'Pesantren',
         '/settings/surat_cetak.php' => 'Kop & Template Surat',
         '/settings/wa_otomatis.php' => 'WA Otomatis',
+        '/settings/wa_akun.php' => 'Nomor WhatsApp',
         '/settings/wa_laporan_kelas_kosong.php' => 'Laporan WA Kelas Kosong',
         '/settings/peraturan.php' => 'Peraturan Poin',
         '/settings/perizinan.php' => 'Pengaturan alur izin',
@@ -340,6 +341,7 @@ return [
                 '/settings/perizinan.php',
             ]],
             ['title' => 'WhatsApp Otomatis', 'paths' => [
+                '/settings/wa_akun.php',
                 '/settings/wa_otomatis.php',
             ]],
             ['title' => 'Master Data', 'paths' => [
@@ -368,6 +370,7 @@ return [
         ['path' => '/settings/kalender_ta.php', 'label' => 'Kalender & Tagihan TA', 'icon' => 'fa-solid fa-calendar-days', 'group' => 'Umum'],
         ['path' => '/settings/peraturan.php', 'label' => 'Peraturan Poin', 'icon' => 'fa-solid fa-scale-balanced', 'group' => 'Umum'],
         ['path' => '/settings/perizinan.php', 'label' => 'Pengaturan alur izin', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'group' => 'Umum'],
+        ['path' => '/settings/wa_akun.php', 'label' => 'Nomor WhatsApp', 'icon' => 'fa-solid fa-address-book', 'group' => 'WhatsApp'],
         ['path' => '/settings/wa_otomatis.php', 'label' => 'WA Otomatis', 'icon' => 'fa-solid fa-comments', 'group' => 'WhatsApp'],
         ['path' => '/settings/tingkatan.php', 'label' => 'Tingkatan & PKPPS', 'icon' => 'fa-solid fa-layer-group', 'group' => 'Master Data'],
         ['path' => '/settings/kelas_keuangan.php', 'label' => 'Kelas Keuangan', 'icon' => 'fa-solid fa-coins', 'group' => 'Master Data'],

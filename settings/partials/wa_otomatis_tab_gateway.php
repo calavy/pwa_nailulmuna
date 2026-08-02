@@ -24,6 +24,8 @@ declare(strict_types=1);
         <h2 class="h6 mb-2">1. Koneksi gateway (Fonnte)</h2>
         <p class="small text-muted mb-3">
             Token dari dashboard Fonnte. URL kosong = otomatis <code>api.fonnte.com/send</code>.
+            Atur <strong>nomor penerima</strong> notifikasi di
+            <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php')) ?>">Nomor WhatsApp</a>.
             Jika tes gagal <em>disconnected device</em>, hubungkan ulang perangkat WA di
             <a href="https://md.fonnte.com" target="_blank" rel="noopener">dashboard Fonnte</a> (scan QR).
         </p>
@@ -142,7 +144,7 @@ declare(strict_types=1);
             <div class="col-md-6">
                 <label class="form-label">No. petugas pendidikan</label>
                 <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
-                <div class="form-text">Munawib belum hadir, kelas kosong. Kosong = fallback nomor alpa (tab Alpa).</div>
+                <div class="form-text">Munawib belum hadir, kelas kosong. Kosong = fallback nomor alpa (tab Alpa). Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=petugas_pendidikan')) ?>">Nomor WhatsApp</a>.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Batas telat presensi (menit)</label>

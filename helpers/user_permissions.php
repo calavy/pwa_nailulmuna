@@ -273,6 +273,7 @@ function user_permission_path_map_base(): array
         '/settings/ikhtibar_kriteria.php' => 'akademik_ikhtibar',
         '/settings/pusat.php' => 'pengaturan',
         '/settings/wa_otomatis.php' => 'pengaturan',
+        '/settings/wa_akun.php' => 'pengaturan',
         '/settings/wa_gateway.php' => 'pengaturan',
         '/settings/wa_pesan.php' => 'pengaturan',
         '/settings/wa_laporan_kelas_kosong.php' => 'pengaturan',
