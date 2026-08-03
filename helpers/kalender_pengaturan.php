@@ -71,7 +71,9 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
 
     $dueDay = max(1, min(30, (int) ($post['wa_tagihan_day'] ?? 5)));
     save_setting($pdo, 'wa_tagihan_day', (string) $dueDay);
-    save_setting($pdo, 'wa_tagihan_send_time', trim((string) ($post['wa_tagihan_send_time'] ?? '08:00')));
+    require_once __DIR__ . '/datetime_display.php';
+    $sendTime = app_normalize_jam_hm(trim((string) ($post['wa_tagihan_send_time'] ?? '08:00')));
+    save_setting($pdo, 'wa_tagihan_send_time', $sendTime !== '' ? $sendTime : '08:00');
     save_setting($pdo, 'wa_tagihan_custom_masehi_dates', trim((string) ($post['wa_tagihan_custom_masehi_dates'] ?? '')));
 
     $dv = strtolower(trim((string) ($post['akademik_kalender_default_view'] ?? 'bulan')));

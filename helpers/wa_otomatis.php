@@ -969,7 +969,7 @@ function wa_otomatis_santri_wali_phone(PDO $pdo, int|array $santriRow): string
 
 /**
  * Job WA terjadwal untuk cron (tanpa throttle navigasi web).
- * Dipanggil dari cron/wa_auto.php pada tick berat (~5 menit).
+ * Dipanggil dari light tick (~60s) di wa_auto_run_tick().
  */
 function wa_auto_run_scheduled_wa(PDO $pdo): void
 {
@@ -1075,6 +1075,7 @@ function wa_auto_run_tick(PDO $pdo): array
                 require_once __DIR__ . '/wa_yayasan_tugas.php';
             }
             trigger_wa_yayasan_tugas_belum_progres($pdo);
+            wa_auto_run_scheduled_wa($pdo);
             save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
         }
 
@@ -1082,7 +1083,6 @@ function wa_auto_run_tick(PDO $pdo): array
         $lastHeavy = (int) app_setting($pdo, 'wa_auto_heavy_last_at', '0');
         $runHeavy = $lastHeavy <= 0 || ($now - $lastHeavy) >= $heavyInterval;
         if ($runHeavy) {
-            wa_auto_run_scheduled_wa($pdo);
             if (!function_exists('trigger_push_tagihan_wali_from_cron')) {
                 require_once __DIR__ . '/push_events.php';
             }
@@ -1131,7 +1131,10 @@ function wa_auto_web_fallback_tick(PDO $pdo): void
     }
 
     $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-    if ($requestPath !== '' && (app_request_path_is_lightweight($requestPath) || str_contains($requestPath, '/cron/wa_auto.php'))) {
+    if ($requestPath !== '' && (
+        preg_match('#\.(css|js|map|woff2?|png|jpe?g|gif|webp|ico)$#i', $requestPath)
+        || str_contains($requestPath, '/cron/wa_auto.php')
+    )) {
         return;
     }
 

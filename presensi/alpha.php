@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/presensi_jadwal.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
 require_once __DIR__ . '/../helpers/alpa_tier.php';
+require_once __DIR__ . '/../helpers/datetime_display.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_alpa_tier_tables($pdo);
@@ -133,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $threshold = (int) app_setting($pdo, 'batas_alpa_notif', '3');
     $pengurusWa = wa_alpa_notif_target($pdo);
     $jamAutoWa = trim((string) app_setting($pdo, 'jam_kirim_wa_auto', ''));
-    $canSendNow = $jamAutoWa === '' || date('H:i') >= $jamAutoWa;
+    $canSendNow = $jamAutoWa === '' || app_jam_sudah_lewat($jamAutoWa);
     $created = 0;
     $newlyAlpaSantri = [];
 

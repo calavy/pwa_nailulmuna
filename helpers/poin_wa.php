@@ -130,9 +130,9 @@ function poin_tier_jam_ok(string $jamKirim, ?string $nowHi = null): bool
     if ($jam === '') {
         return true;
     }
-    $now = $nowHi ?? date('H:i');
+    require_once __DIR__ . '/datetime_display.php';
 
-    return $now >= $jam;
+    return app_jam_sudah_lewat($jam, $nowHi);
 }
 
 function poin_tier_periode_key(?string $tanggal = null): string

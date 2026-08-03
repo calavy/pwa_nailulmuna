@@ -141,9 +141,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $redirectUrl);
         exit;
     } elseif ($action === 'save_alpa_penerima') {
+        require_once __DIR__ . '/../../helpers/datetime_display.php';
         foreach (['wa_pengurus', 'jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
             if (array_key_exists($field, $_POST)) {
-                save_setting($pdo, $field, trim((string) $_POST[$field]));
+                $value = trim((string) $_POST[$field]);
+                if ($field === 'jam_kirim_wa_auto') {
+                    $value = app_normalize_jam_hm($value);
+                }
+                save_setting($pdo, $field, $value);
             }
         }
         wa_otomatis_save_delay_from_post($pdo, 'alpa');

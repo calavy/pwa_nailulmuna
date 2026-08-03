@@ -37,6 +37,43 @@ function app_format_jam(?string $time, bool $withSeconds = false): string
     return $withSeconds ? date('H:i:s', $ts) : date('H:i', $ts);
 }
 
+/** Normalisasi jam ke HH:MM (24 jam). Kosong jika tidak valid. */
+function app_normalize_jam_hm(string $raw): string
+{
+    $formatted = app_format_jam($raw);
+    if ($formatted === '—' || !preg_match('/^(\d{2}):(\d{2})$/', $formatted, $m)) {
+        return '';
+    }
+
+    return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+}
+
+/** Konversi HH:MM ke total menit sejak tengah malam. Null jika tidak valid. */
+function app_jam_to_minutes(string $jamHm): ?int
+{
+    $jam = app_normalize_jam_hm($jamHm);
+    if ($jam === '' || !preg_match('/^(\d{2}):(\d{2})$/', $jam, $m)) {
+        return null;
+    }
+
+    return ((int) $m[1]) * 60 + (int) $m[2];
+}
+
+/** Apakah waktu sekarang sudah melewati jam kirim (kosong = langsung). */
+function app_jam_sudah_lewat(string $jamKirim, ?string $nowHm = null): bool
+{
+    $jamMinutes = app_jam_to_minutes($jamKirim);
+    if ($jamMinutes === null) {
+        return true;
+    }
+    $nowMinutes = app_jam_to_minutes($nowHm ?? date('H:i'));
+    if ($nowMinutes === null) {
+        return false;
+    }
+
+    return $nowMinutes >= $jamMinutes;
+}
+
 /** Tanggal + jam 24 jam: dd/mm/yyyy HH:MM */
 function app_format_datetime_id(?string $datetime): string
 {

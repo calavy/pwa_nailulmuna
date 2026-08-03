@@ -38,11 +38,12 @@ function wa_tagihan_jadwal_context(PDO $pdo, ?string $tanggal = null): array
         $calendar = 'HIJRIYAH';
     }
     $dueDay = max(1, min(30, (int) app_setting($pdo, 'wa_tagihan_day', '5')));
-    $sendTime = trim((string) app_setting($pdo, 'wa_tagihan_send_time', '08:00'));
-    $sendTimeOk = true;
-    if ($sendTime !== '' && preg_match('/^\d{2}:\d{2}$/', $sendTime)) {
-        $sendTimeOk = date('H:i') >= $sendTime;
+    require_once __DIR__ . '/datetime_display.php';
+    $sendTime = app_normalize_jam_hm(trim((string) app_setting($pdo, 'wa_tagihan_send_time', '08:00')));
+    if ($sendTime === '') {
+        $sendTime = '08:00';
     }
+    $sendTimeOk = app_jam_sudah_lewat($sendTime);
     $customRaw = trim((string) app_setting($pdo, 'wa_tagihan_custom_masehi_dates', ''));
 
     $todayDay = wa_tagihan_tanggal_hari($pdo, $today, $calendar);
@@ -453,12 +454,6 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         }
     }
     if (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0 && empty($ctx['recurring']) && count($santriRows) < $batchSize) {
-        save_setting($pdo, 'wa_tagihan_last_period_key', (string) $ctx['send_key']);
-        save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
-        if ($sendKey !== '') {
-            wa_tagihan_sent_ids_clear($pdo, $sendKey);
-        }
-    } elseif (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0 && empty($ctx['recurring']) && count($santriRows) >= $batchSize && (int) app_setting($pdo, $offsetKey, '0') === 0) {
         save_setting($pdo, 'wa_tagihan_last_period_key', (string) $ctx['send_key']);
         save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
         if ($sendKey !== '') {

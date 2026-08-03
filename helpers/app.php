@@ -1389,8 +1389,9 @@ function trigger_auto_wa_notifications(PDO $pdo): void
 
     $pengurusWa = wa_alpa_notif_target($pdo);
     // Boleh kosong di sini jika tiap tier punya nomor sendiri; cron helper pakai fallback per tier.
+    require_once __DIR__ . '/datetime_display.php';
     $jamAutoWa = trim((string) app_setting($pdo, 'jam_kirim_wa_auto', ''));
-    if ($jamAutoWa !== '' && date('H:i') < $jamAutoWa) {
+    if ($jamAutoWa !== '' && !app_jam_sudah_lewat($jamAutoWa)) {
         return;
     }
 
