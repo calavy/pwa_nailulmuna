@@ -22,10 +22,12 @@ Template hosting: `config/database.local.hosting.example.php` → salin jadi `da
 | Aksi | Aman di live? |
 |------|----------------|
 | `git pull` / upload file PHP, CSS, JS baru | ✅ Ya |
+| `git pull` memperbarui `cron/wa_auto.php` (kode cron WA) | ✅ Ya |
 | Menyimpan `config/database.local.php` di server (tidak ditimpa) | ✅ Ya |
 | Menjalankan **hanya** perintah SQL baru di `migrasi_terbaru.sql` (bagian belum pernah dijalankan) | ✅ Ya, setelah backup |
 | Impor ulang `impor_lengkap_pwa_nailulmuna.sql` | ❌ **HAPUS semua data** |
 | Menghapus folder `uploads/` di server | ❌ Logo & berkas hilang |
+| Menghapus/mengubah jadwal cron di panel hosting | ❌ WA otomatis (tagihan, pengingat) berhenti |
 
 ---
 
@@ -120,6 +122,31 @@ Contoh bagian terbaru (Yayasan + kalender):
 
 ---
 
+## Langkah 5 — Verifikasi cron WA otomatis
+
+Deploy memperbarui **kode** cron (`cron/wa_auto.php` + helper), tetapi **jadwal** di panel hosting dan **setting** di database (kunci cron, jam kirim) tidak berubah otomatis.
+
+### A. Deploy pertama kali (belum pernah setup cron di hosting)
+
+1. Login admin → **Pengaturan → WA Otomatis → Gateway** → isi **Kunci cron** (opsional tapi disarankan) → Simpan.
+2. Salin URL cron dari tab **Ringkasan** (format: `https://pwa.nailulmuna.id/cron/wa_auto.php?key=...`).
+3. Di panel hosting (cPanel / InfinityFree / sejenisnya), buat cron job:
+   - **Frekuensi:** setiap 1 menit (`* * * * *`)
+   - **Perintah:** `curl -s "URL_CRON"` (atau perintah `wget` setara)
+4. Klik **Tes cron** di tab Ringkasan → respons harus `OK wa_auto ...`.
+5. Tunggu 1–2 menit → badge **Cron aktif** (hijau) dan *Terakhir jalan* terupdate.
+6. Nonaktifkan **Fallback cron saat staf buka app** di tab Gateway (navigasi lebih ringan).
+
+### B. Deploy rutin (cron sudah pernah jalan)
+
+1. Setelah `git pull` / upload, buka tab **Ringkasan** → pastikan *Terakhir jalan* masih terupdate (< 10 menit).
+2. Klik **Tes cron** sekali — memastikan kode `cron/wa_auto.php` terbaru jalan.
+3. Jika hosting pakai OPcache dan respons aneh, jalankan **Admin → Cek update → Bersihkan cache** (centang OPcache).
+
+**Catatan XAMPP lokal:** deploy live tidak menyentuh Task Scheduler PC. Untuk lokal, tetap pakai [`setup-cron-wa.bat`](setup-cron-wa.bat) (sekali, Run as Administrator). Detail: [CARA-PAKAI.md](CARA-PAKAI.md#cron-wa-otomatis-xampp--windows).
+
+---
+
 ## Troubleshooting
 
 | Gejala | Solusi |
@@ -128,9 +155,12 @@ Contoh bagian terbaru (Yayasan + kalender):
 | Menu hilang untuk pengurus | Settings → Admin → centang izin modul yang diperlukan |
 | Bulan masih «Mei» bukan Muharram | Aktifkan kalender Hijriyah + backfill (langkah 4) |
 | Logo hilang | Restore folder `uploads/` dari backup |
+| WA tagihan/pengingat tidak terkirim | Cek **Pengaturan → WA → Ringkasan** — badge merah = cron mati; periksa jadwal di panel hosting |
+| Tes cron → `Forbidden` | Kunci cron di URL tidak cocok dengan setting Gateway |
+| Tes cron OK tapi badge tetap merah | Hosting membatasi frekuensi cron; naikkan interval panel atau hubungi support hosting |
 
 ---
 
 ## Ringkasan satu baris
 
-**Pull/upload kode → backup DB → jalankan SQL baru di `migrasi_terbaru.sql` → jangan impor ulang database lengkap → jangan hapus `uploads/` dan `database.local.php`.**
+**Pull/upload kode → backup DB → jalankan SQL baru di `migrasi_terbaru.sql` → jangan impor ulang database lengkap → jangan hapus `uploads/` dan `database.local.php` → verifikasi cron WA di Pengaturan → Ringkasan.**
