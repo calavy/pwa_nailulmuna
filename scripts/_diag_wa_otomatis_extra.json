@@ -1,0 +1,27 @@
+{
+    "santri_wa_wali": {
+        "with_phone": 99,
+        "without_phone": 28,
+        "samples": [
+            {
+                "id": 2,
+                "nama": "Test Import Fail",
+                "phone": "62811"
+            },
+            {
+                "id": 4,
+                "nama": "Muhamad Yohan Nurrochim",
+                "phone": "628895771339"
+            },
+            {
+                "id": 5,
+                "nama": "Adrik Abdarrohman",
+                "phone": "628221144122112"
+            }
+        ]
+    },
+    "recent_cashless_trx": [],
+    "alpa_candidates": [],
+    "pengurus_wa_empty": true,
+    "all_tier_wa_empty": true
+}

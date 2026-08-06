@@ -131,3 +131,56 @@ declare(strict_types=1);
     </div>
 </div>
 <p class="small text-muted">Tanpa tier aktif, sistem memakai mode fallback di atas: alpa ≥ batas → kirim ke <strong>No. penerima alpa</strong>.</p>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h2 class="h6 mb-2">Kirim laporan manual</h2>
+        <p class="small text-muted mb-2">
+            Kirim rekap santri alpa (semua yang ≥ ambang tier) untuk periode aktif pada tanggal referensi.
+            Pesan panjang otomatis dipecah ke beberapa WA berurutan.
+            Kirim manual <strong>tidak</strong> memblokir notifikasi crossing otomatis.
+        </p>
+        <ul class="small mb-3">
+            <li>Periode aktif (<?= htmlspecialchars($alpaModeLabel) ?>): <strong><?= htmlspecialchars((string) ($alpaManualPreview['periode_label'] ?? '-')) ?></strong></li>
+            <?php if ($tiers !== []): ?>
+                <?php foreach (($alpaManualPreview['tiers'] ?? []) as $tp): ?>
+                    <li>Ambang <?= (int) ($tp['threshold'] ?? 0) ?> (<?= htmlspecialchars((string) ($tp['label'] ?? '')) ?>): <strong><?= (int) ($tp['santri_count'] ?? 0) ?></strong> santri
+                        <?php if (trim((string) ($tp['wa'] ?? '')) === ''): ?>
+                            <span class="text-warning">· nomor kosong</span>
+                        <?php endif; ?>
+                    </li>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <li>Mode fallback (≥ <?= (int) ($values['batas_alpa_notif'] ?? 5) ?>): <strong><?= (int) ($alpaManualPreview['fallback_count'] ?? 0) ?></strong> santri</li>
+            <?php endif; ?>
+            <li>Terakhir kirim manual: <strong><?= $alpaManualLastAt !== '' ? htmlspecialchars($alpaManualLastAt) : 'Belum pernah' ?></strong>
+                <?php if (is_array($alpaManualLastStats) && (int) ($alpaManualLastStats['sent'] ?? 0) > 0): ?>
+                    · <?= (int) ($alpaManualLastStats['sent'] ?? 0) ?> pesan
+                <?php endif; ?>
+            </li>
+        </ul>
+        <form method="post" class="row g-2 align-items-end" id="alpa-laporan-manual-form">
+            <input type="hidden" name="action" value="jalankan_alpa_laporan_manual">
+            <div class="col-auto">
+                <label class="form-label small mb-1" for="alpa_laporan_tanggal">Tanggal referensi</label>
+                <input type="date" class="form-control form-control-sm" id="alpa_laporan_tanggal" name="alpa_laporan_tanggal" value="<?= htmlspecialchars($alpaLaporanTanggalDefault) ?>" max="<?= htmlspecialchars($alpaLaporanTanggalMax) ?>" required>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-success btn-sm"><i class="fa-brands fa-whatsapp me-1"></i> Kirim laporan</button>
+            </div>
+        </form>
+        <script>
+        (function () {
+            var form = document.getElementById('alpa-laporan-manual-form');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                var input = document.getElementById('alpa_laporan_tanggal');
+                var tgl = input && input.value ? input.value : 'hari ini';
+                if (!confirm('Kirim laporan alpa untuk periode tanggal ' + tgl + ' sekarang?')) {
+                    e.preventDefault();
+                }
+            });
+        })();
+        </script>
+    </div>
+</div>

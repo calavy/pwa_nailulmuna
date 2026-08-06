@@ -69,5 +69,5 @@ function keuangan_should_load_typography_css(?string $bodyClass, string $request
         }
     }
 
-    return (bool) preg_match('#/(keuangan|pembayaran)(/|$)#', $requestPath);
+    return (bool) preg_match('#/(keuangan|keuangan-bos|pembayaran)(/|$)#', $requestPath);
 }

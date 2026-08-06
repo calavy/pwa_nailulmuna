@@ -1,0 +1,93 @@
+{
+    "settings": {
+        "wa_otomatis_master_enabled": "1",
+        "wa_gateway_token": "[SET len=20]",
+        "wa_gateway_url": "https:\/\/api.fonnte.com\/send",
+        "wa_auto_last_run_at": "2026-08-06 16:14:25",
+        "wa_auto_last_gateway_ok": "1",
+        "wa_auto_last_gateway_error": "",
+        "wa_auto_scheduled_last_at": "2026-08-06 16:14:26",
+        "wa_auto_alpa_last_result": "{\"sent\":0,\"tiers\":[],\"pending_santri\":0,\"note\":\"tidak_ada_kandidat\",\"mode\":\"crossing\",\"at\":\"2026-08-06 16:14:26\"}",
+        "cashless_transaksi_wa_enabled": "1",
+        "cashless_saldo_rendah_wa_enabled": "1",
+        "cashless_laporan_harian_wa_enabled": "0",
+        "cashless_laporan_harian_wa_jam": "20:00",
+        "cashless_laporan_harian_wa_targets": "",
+        "cashless_laporan_harian_last_sent_at": "",
+        "cashless_laporan_harian_last_error": "",
+        "wa_pengurus": "",
+        "jam_kirim_wa_auto": "",
+        "batas_alpa_notif": "3"
+    },
+    "gateway_error": null,
+    "should_run_general": true,
+    "cron_stale": false,
+    "cron_age_sec": 39,
+    "alpa_last": {
+        "sent": 0,
+        "tiers": [],
+        "pending_santri": 0,
+        "note": "tidak_ada_kandidat",
+        "mode": "crossing",
+        "at": "2026-08-06 16:14:26"
+    },
+    "alpa_tiers": [
+        {
+            "id": 1,
+            "threshold": 3,
+            "label": "Kelipatan 3",
+            "wa": "",
+            "is_active": 1
+        },
+        {
+            "id": 2,
+            "threshold": 6,
+            "label": "Kelipatan 6",
+            "wa": "",
+            "is_active": 1
+        },
+        {
+            "id": 3,
+            "threshold": 9,
+            "label": "Kelipatan 9",
+            "wa": "",
+            "is_active": 1
+        },
+        {
+            "id": 4,
+            "threshold": 12,
+            "label": "Kelipatan 12",
+            "wa": "",
+            "is_active": 1
+        },
+        {
+            "id": 5,
+            "threshold": 15,
+            "label": "Kelipatan 15",
+            "wa": "",
+            "is_active": 1
+        }
+    ],
+    "cashless_status": {
+        "ringkasan": {
+            "tanggal": "2026-08-05",
+            "tanggal_label": "05\/08\/2026",
+            "total_transaksi": 0,
+            "total_nominal": 0,
+            "per_koperasi": [],
+            "rincian_koperasi": "Tidak ada transaksi."
+        },
+        "laporan_tanggal": "2026-08-05",
+        "enabled": false,
+        "jam": "20:00",
+        "last_date": "",
+        "last_laporan_tanggal": "",
+        "last_sent_at": "",
+        "last_error": "",
+        "last_stats": null,
+        "send_time_ok": false,
+        "targets_count": 0
+    },
+    "recent_dispatch": [],
+    "recent_cashless_logs": []
+}

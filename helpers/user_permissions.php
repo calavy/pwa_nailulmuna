@@ -25,7 +25,23 @@ function user_permission_keuangan_keys(): array
 
 function user_permission_is_keuangan_key(string $key): bool
 {
-    return in_array($key, user_permission_keuangan_keys(), true);
+    return in_array($key, user_permission_keuangan_keys(), true)
+        || in_array($key, user_permission_keuangan_bos_keys(), true);
+}
+
+/** @return list<string> */
+function user_permission_keuangan_bos_keys(): array
+{
+    return [
+        'keuangan_bos_laporan',
+        'keuangan_bos_transaksi',
+        'keuangan_bos_pengaturan',
+    ];
+}
+
+function user_permission_is_keuangan_bos_key(string $key): bool
+{
+    return in_array($key, user_permission_keuangan_bos_keys(), true);
 }
 
 /** @return list<string> */
@@ -73,6 +89,14 @@ function user_permission_groups(): array
                 'keuangan_cashless_laporan' => 'Laporan Cashless Koperasi',
                 'keuangan_cashless_setor' => 'Setor Cashless Koperasi',
                 'keuangan_cashless_pin' => 'Rekap Saldo & PIN Cashless',
+            ],
+        ],
+        'keuangan_bos' => [
+            'label' => 'Keuangan BOS (PKPPS — terpisah dari keuangan pondok)',
+            'permissions' => [
+                'keuangan_bos_laporan' => 'Dashboard & laporan BOS (BKU, LRA)',
+                'keuangan_bos_transaksi' => 'Input penerimaan satu klik & pengeluaran BOS',
+                'keuangan_bos_pengaturan' => 'Pengaturan nominal BOS & akun kas/bank',
             ],
         ],
         'santri' => [
@@ -428,9 +452,27 @@ function user_permission_path_map_keuangan(): array
 }
 
 /** @return array<string, string> */
+function user_permission_path_map_keuangan_bos(): array
+{
+    return [
+        '/keuangan-bos/index.php' => 'keuangan_bos_laporan',
+        '/keuangan-bos/laporan-bku.php' => 'keuangan_bos_laporan',
+        '/keuangan-bos/laporan-lra.php' => 'keuangan_bos_laporan',
+        '/keuangan-bos/riwayat.php' => 'keuangan_bos_laporan',
+        '/keuangan-bos/pengeluaran.php' => 'keuangan_bos_transaksi',
+        '/keuangan-bos/pengaturan.php' => 'keuangan_bos_pengaturan',
+        '/keuangan-bos/pengaturan-pos.php' => 'keuangan_bos_pengaturan',
+    ];
+}
+
+/** @return array<string, string> */
 function user_permission_path_map(): array
 {
-    return array_merge(user_permission_path_map_base(), user_permission_path_map_keuangan());
+    return array_merge(
+        user_permission_path_map_base(),
+        user_permission_path_map_keuangan(),
+        user_permission_path_map_keuangan_bos()
+    );
 }
 
 function user_permission_key_for_path(string $requestPath): ?string
@@ -552,6 +594,11 @@ function user_permission_expand_allowed_map(array $map): array
 {
     if (isset($map['keuangan'])) {
         foreach (user_permission_keuangan_keys() as $k) {
+            $map[$k] = 1;
+        }
+    }
+    if (isset($map['keuangan_bos'])) {
+        foreach (user_permission_keuangan_bos_keys() as $k) {
             $map[$k] = 1;
         }
     }
@@ -678,6 +725,7 @@ function user_permission_preset_keys(string $presetId): array
             'keuangan_cashless_setor',
         ],
         'keuangan_laporan_saja' => ['keuangan_laporan'],
+        'keuangan_bos_semua' => user_permission_keuangan_bos_keys(),
         'pkpps_semua' => user_permission_pkpps_keys(),
         'kajian_semua' => [
             'jadwal',

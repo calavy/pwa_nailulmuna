@@ -1,0 +1,11 @@
+{
+    "master_wa": true,
+    "gateway_ok": true,
+    "transaksi_wa_enabled": true,
+    "saldo_rendah_enabled": true,
+    "sample_santri_id": 4,
+    "sample_wali_phone": "628895771339",
+    "ready_for_realtime": true,
+    "total_debit_transactions": 0,
+    "cashless_dispatch_log_count": 0
+}

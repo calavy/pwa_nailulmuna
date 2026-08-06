@@ -6,18 +6,22 @@ declare(strict_types=1);
  * Format & batching pesan WA laporan ALPA: dikelompokkan per tingkatan (template editable).
  */
 
-/** Batas karakter satu pesan WA laporan ALPA (pecah ke pesan berikutnya). */
+/** Batas karakter absolut WhatsApp (satu pesan). */
 function wa_laporan_alpa_message_hard_max(): int
 {
-    return 40960;
+    return 4096;
 }
 
-/** Batas karakter satu pesan logis laporan ALPA. */
+/** Batas karakter satu pesan logis laporan ALPA (margin untuk header/footer). */
 function wa_laporan_alpa_message_max_len(PDO $pdo): int
 {
-    unset($pdo);
+    $hardMax = wa_laporan_alpa_message_hard_max();
+    $configured = 3800;
+    if (function_exists('app_setting')) {
+        $configured = (int) app_setting($pdo, 'wa_alpa_message_max_len', '3800');
+    }
 
-    return wa_laporan_alpa_message_hard_max();
+    return max(500, min($hardMax, $configured > 0 ? $configured : 3800));
 }
 
 /** Tanggal laporan WA: "Senin, 13 Juli 2026". */
@@ -154,8 +158,74 @@ function wa_laporan_alpa_footer_resmi(): string
     return "\n\nMohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.";
 }
 
+/** Token placeholder daftar santri di template rekap_alpa (alias didukung). */
+function wa_laporan_alpa_daftar_tokens(): array
+{
+    return ['{daftar_santri}', '{daftar_santri_alpa}'];
+}
+
+/** @return array{token:string,pos:int}|null */
+function wa_laporan_alpa_find_daftar_token(string $raw): ?array
+{
+    foreach (wa_laporan_alpa_daftar_tokens() as $token) {
+        $pos = mb_strpos($raw, $token);
+        if ($pos !== false) {
+            return ['token' => $token, 'pos' => $pos];
+        }
+    }
+
+    return null;
+}
+
 /**
- * Render template rekap_alpa (boleh berisi {daftar_santri}).
+ * Susun pesan WA alpa dari prefix/suffix template + daftar santri (dengan fallback).
+ *
+ * @param list<array{nama_santri: string, nis: string, tingkatan: string, kegiatan?: array<string, int>, total_alpha: int}> $santriList
+ * @return list<string>
+ */
+function wa_laporan_alpa_compose_messages(
+    PDO $pdo,
+    int $ambang,
+    string $tanggalLabel,
+    string $periodeLabel,
+    array $santriList
+): array {
+    if ($santriList === []) {
+        return [];
+    }
+
+    $blocks = wa_laporan_alpa_tingkatan_blocks($santriList);
+    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
+    $daftar = wa_laporan_alpa_format_daftar_santri($santriList);
+    $maxLen = wa_laporan_alpa_message_max_len($pdo);
+
+    $continuation = static function (int $part) use ($ambang, $tanggalLabel): string {
+        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $ambang . ' — lanjutan ' . max(1, $part) . ")*\n"
+            . 'Tanggal: ' . $tanggalLabel . "\n\n";
+    };
+
+    if (!$hasDaftar) {
+        $bodyPrefix = rtrim($prefix) . "\n\n";
+        $full = rtrim($bodyPrefix . $daftar);
+        if (mb_strlen($full) <= $maxLen) {
+            return [$full];
+        }
+
+        return wa_laporan_alpa_pack_messages($blocks, $bodyPrefix, $continuation, '', $maxLen);
+    }
+
+    $full = rtrim($prefix . $daftar . $suffix);
+    if (mb_strlen($full) <= $maxLen) {
+        return [$full];
+    }
+
+    $footer = $suffix !== '' ? $suffix : '';
+
+    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $footer, $maxLen);
+}
+
+/**
+ * Render template rekap_alpa (boleh berisi {daftar_santri} atau alias {daftar_santri_alpa}).
  *
  * @return array{0:string,1:string,2:bool} [prefix sebelum daftar, suffix setelah daftar, punya_placeholder_daftar]
  */
@@ -174,6 +244,7 @@ function wa_laporan_alpa_template_parts(
         'tanggal' => $tanggalLabel,
         'periode' => $periodeLabel,
         'daftar_santri' => '{daftar_santri}',
+        'daftar_santri_alpa' => '{daftar_santri}',
         'nama_ponpes' => function_exists('app_brand_nama_ponpes') ? app_brand_nama_ponpes($pdo) : '',
     ]);
     $raw = trim($raw);
@@ -184,12 +255,14 @@ function wa_laporan_alpa_template_parts(
             . "{daftar_santri}\n\n"
             . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.';
     }
-    $pos = mb_strpos($raw, '{daftar_santri}');
-    if ($pos === false) {
+    $match = wa_laporan_alpa_find_daftar_token($raw);
+    if ($match === null) {
         return [$raw . "\n\n", '', false];
     }
+    $token = (string) $match['token'];
+    $pos = (int) $match['pos'];
     $prefix = mb_substr($raw, 0, $pos);
-    $suffix = mb_substr($raw, $pos + mb_strlen('{daftar_santri}'));
+    $suffix = mb_substr($raw, $pos + mb_strlen($token));
 
     return [$prefix, $suffix, true];
 }
@@ -205,6 +278,53 @@ function wa_laporan_alpa_header_rekap_bulanan(PDO $pdo, string $periodeLabel, in
     [$prefix] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
 
     return $prefix;
+}
+
+/**
+ * Pecah blok tingkatan besar menjadi sub-blok per baris santri.
+ *
+ * @return list<string>
+ */
+function wa_laporan_alpa_split_oversized_block(string $block, int $maxLineBudget): array
+{
+    $block = trim($block);
+    if ($block === '' || mb_strlen($block) <= $maxLineBudget) {
+        return $block === '' ? [] : [$block];
+    }
+
+    $lines = preg_split("/\r\n|\n|\r/", $block) ?: [$block];
+    $subBlocks = [];
+    $current = '';
+
+    $flush = static function () use (&$current, &$subBlocks): void {
+        $buf = trim($current);
+        if ($buf !== '') {
+            $subBlocks[] = $buf;
+        }
+        $current = '';
+    };
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '') {
+            continue;
+        }
+        $candidate = $current === '' ? $line : ($current . "\n" . $line);
+        if (mb_strlen($candidate) <= $maxLineBudget) {
+            $current = $candidate;
+            continue;
+        }
+        $flush();
+        if (mb_strlen($line) > $maxLineBudget) {
+            $subBlocks[] = mb_substr($line, 0, $maxLineBudget);
+            $current = '';
+            continue;
+        }
+        $current = $line;
+    }
+    $flush();
+
+    return $subBlocks !== [] ? $subBlocks : [$block];
 }
 
 /**
@@ -249,14 +369,20 @@ function wa_laporan_alpa_pack_messages(
         $body = '';
     };
 
-    foreach ($blocks as $idx => $block) {
-        $blockText = $block . "\n\n";
-        $isLast = ($idx === count($blocks) - 1);
+    $appendBlock = static function (string $blockText, bool $isLast) use (
+        &$body,
+        &$header,
+        &$part,
+        $continuationHeader,
+        $maxLen,
+        $footerLen,
+        $flush
+    ): void {
         $budget = $maxLen - ($isLast ? $footerLen : 0);
 
         if (mb_strlen($body . $blockText) <= $budget) {
             $body .= $blockText;
-            continue;
+            return;
         }
 
         if (rtrim($body) !== rtrim($header)) {
@@ -267,14 +393,35 @@ function wa_laporan_alpa_pack_messages(
             $budget = $maxLen - ($isLast ? $footerLen : 0);
         }
 
-        if (mb_strlen($body . $blockText) > $budget && rtrim($body) !== rtrim($header)) {
-            $flush(false);
-            $part++;
-            $header = (string) $continuationHeader($part);
-            $body = $header;
+        if (mb_strlen($body . $blockText) > $budget) {
+            $lineBudget = max(80, $budget - mb_strlen($body));
+            $subBlocks = wa_laporan_alpa_split_oversized_block(rtrim($blockText), $lineBudget);
+            $count = count($subBlocks);
+            foreach ($subBlocks as $si => $sub) {
+                $subText = $sub . ($si < $count - 1 ? "\n\n" : "\n\n");
+                $subLast = $isLast && ($si === $count - 1);
+                if (mb_strlen($body . $subText) <= ($maxLen - ($subLast ? $footerLen : 0))) {
+                    $body .= $subText;
+                    continue;
+                }
+                if (rtrim($body) !== rtrim($header)) {
+                    $flush(false);
+                    $part++;
+                    $header = (string) $continuationHeader($part);
+                    $body = $header;
+                }
+                $body .= $subText;
+            }
+            return;
         }
 
         $body .= $blockText;
+    };
+
+    foreach ($blocks as $idx => $block) {
+        $blockText = $block . "\n\n";
+        $isLast = ($idx === count($blocks) - 1);
+        $appendBlock($blockText, $isLast);
     }
 
     $flush(true);
@@ -286,34 +433,27 @@ function wa_laporan_alpa_pack_messages(
  * @param array<int, array{nama_kegiatan?: string, nama_santri?: string, tingkatan?: string, nis?: string, total_alpha?: int|string, alpa_count?: int|string}> $rows
  * @return list<string>
  */
-function wa_format_rekap_alpa_per_santri_messages(PDO $pdo, string $periodeLabel, int $ambang, array $rows): array
-{
+function wa_format_rekap_alpa_per_santri_messages(
+    PDO $pdo,
+    string $periodeLabel,
+    int $ambang,
+    array $rows,
+    ?string $tanggalYmd = null
+): array {
     $santriList = wa_laporan_alpa_group_by_santri($rows);
     if ($santriList === []) {
         return [];
     }
 
-    $tanggalLabel = wa_laporan_alpa_tanggal_label();
-    $blocks = wa_laporan_alpa_tingkatan_blocks($santriList);
-    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
-    $maxLen = wa_laporan_alpa_message_max_len($pdo);
+    $tanggalLabel = wa_laporan_alpa_tanggal_label($tanggalYmd);
 
-    if (!$hasDaftar) {
-        return [rtrim($prefix)];
-    }
-
-    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriList) . $suffix);
-    if (mb_strlen($full) <= $maxLen) {
-        return [$full];
-    }
-
-    $footer = $suffix !== '' ? $suffix : '';
-    $continuation = static function (int $part) use ($ambang, $tanggalLabel): string {
-        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $ambang . ' — lanjutan ' . max(1, $part) . ")*\n"
-            . 'Tanggal: ' . $tanggalLabel . "\n\n";
-    };
-
-    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $footer, $maxLen);
+    return wa_laporan_alpa_compose_messages(
+        $pdo,
+        $ambang,
+        $tanggalLabel,
+        $periodeLabel,
+        $santriList
+    );
 }
 
 /**
@@ -368,22 +508,8 @@ function wa_format_laporan_alpa_generate_messages(
     $periodeLabel = $tanggalIdn . ($namaKegiatan !== '' ? (' · ' . $namaKegiatan) : '');
     $santriGrouped = wa_laporan_alpa_group_by_santri($rows);
     $tanggalLabel = $ymd !== null ? wa_laporan_alpa_tanggal_label($ymd) : $tanggalIdn;
-    $blocks = wa_laporan_alpa_tingkatan_blocks($santriGrouped);
-    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $ambang, $tanggalLabel, $periodeLabel);
-    if (!$hasDaftar) {
-        return [rtrim($prefix)];
-    }
-    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriGrouped) . $suffix);
-    $maxLen = wa_laporan_alpa_message_max_len($pdo);
-    if (mb_strlen($full) <= $maxLen) {
-        return [$full];
-    }
-    $continuation = static function (int $part) use ($ambang, $tanggalLabel): string {
-        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $ambang . ' — lanjutan ' . max(1, $part) . ")*\n"
-            . 'Tanggal: ' . $tanggalLabel . "\n\n";
-    };
 
-    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $suffix, $maxLen);
+    return wa_laporan_alpa_compose_messages($pdo, $ambang, $tanggalLabel, $periodeLabel, $santriGrouped);
 }
 
 /**
@@ -424,22 +550,8 @@ function wa_format_alpa_tier_messages(
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalIdn)) {
         $tanggalLabel = wa_laporan_alpa_tanggal_label($tanggalIdn);
     }
-    $blocks = wa_laporan_alpa_tingkatan_blocks($santriGrouped);
-    [$prefix, $suffix, $hasDaftar] = wa_laporan_alpa_template_parts($pdo, $threshold, $tanggalLabel, $labelPeriode);
-    if (!$hasDaftar) {
-        return [rtrim($prefix)];
-    }
-    $full = rtrim($prefix . wa_laporan_alpa_format_daftar_santri($santriGrouped) . $suffix);
-    $maxLen = wa_laporan_alpa_message_max_len($pdo);
-    if (mb_strlen($full) <= $maxLen) {
-        return [$full];
-    }
-    $continuation = static function (int $part) use ($threshold, $tanggalLabel): string {
-        return '*LAPORAN SANTRI ALPA (KELIPATAN ' . $threshold . ' — lanjutan ' . max(1, $part) . ")*\n"
-            . 'Tanggal: ' . $tanggalLabel . "\n\n";
-    };
 
-    return wa_laporan_alpa_pack_messages($blocks, $prefix, $continuation, $suffix, $maxLen);
+    return wa_laporan_alpa_compose_messages($pdo, $threshold, $tanggalLabel, $labelPeriode, $santriGrouped);
 }
 
 /**
@@ -471,21 +583,33 @@ function send_wa_bulk_messages(PDO $pdo, string $phonesRaw, array $messages, arr
     }
 
     $delayMs = max(200, min(300000, (int) ($opts['message_delay_ms'] ?? 650)));
+    $maxLen = wa_laporan_alpa_message_max_len($pdo);
     $sent = 0;
-    foreach ($messages as $idx => $message) {
-        if ($idx > 0) {
-            usleep($delayMs * 1000);
-        }
+    $partIdx = 0;
+    foreach ($messages as $message) {
         $message = trim((string) $message);
         if ($message === '') {
             continue;
         }
-        $msgOpts = $opts;
-        if (!empty($opts['dedup_key'])) {
-            $msgOpts['dedup_key'] = (string) $opts['dedup_key'] . ':part:' . $idx;
+        $parts = mb_strlen($message) > $maxLen
+            ? wa_otomatis_chunk_message($message, $maxLen)
+            : [$message];
+        foreach ($parts as $part) {
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+            if ($partIdx > 0) {
+                usleep($delayMs * 1000);
+            }
+            $msgOpts = $opts;
+            if (!empty($opts['dedup_key'])) {
+                $msgOpts['dedup_key'] = (string) $opts['dedup_key'] . ':part:' . $partIdx;
+            }
+            $bulk = send_wa_bulk_with_result($pdo, $phonesRaw, $part, $msgOpts);
+            $sent += (int) ($bulk['sent'] ?? 0);
+            $partIdx++;
         }
-        $bulk = send_wa_bulk_with_result($pdo, $phonesRaw, $message, $msgOpts);
-        $sent += (int) ($bulk['sent'] ?? 0);
     }
 
     return $sent;

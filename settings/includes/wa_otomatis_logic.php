@@ -305,6 +305,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
         exit;
+    } elseif ($action === 'jalankan_alpa_laporan_manual') {
+        require_once __DIR__ . '/../../helpers/alpa_wa.php';
+        $tanggalLaporan = trim((string) ($_POST['alpa_laporan_tanggal'] ?? ''));
+        $res = alpa_wa_jalankan_laporan_manual(
+            $pdo,
+            true,
+            $tanggalLaporan !== '' ? $tanggalLaporan : null
+        );
+        set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
+        exit;
     } elseif ($action === 'save_periode') {
         $mode = strtolower(trim((string) ($_POST['periode_mode'] ?? 'monthly')));
         if (!in_array($mode, ['weekly', 'monthly', 'default'], true)) {
@@ -460,6 +471,13 @@ $alpaModeLabel = match ($periodeMode) {
     'default' => 'Akumulatif',
     default => 'Bulanan',
 };
+require_once __DIR__ . '/../../helpers/alpa_wa.php';
+$alpaManualStatus = alpa_wa_manual_status($pdo);
+$alpaManualPreview = $alpaManualStatus['preview'] ?? [];
+$alpaLaporanTanggalDefault = (string) ($alpaManualStatus['tanggal_default'] ?? date('Y-m-d'));
+$alpaLaporanTanggalMax = (string) ($alpaManualStatus['tanggal_max'] ?? date('Y-m-d'));
+$alpaManualLastAt = (string) ($alpaManualStatus['last_sent_at'] ?? '');
+$alpaManualLastStats = $alpaManualStatus['last_stats'] ?? null;
 
 $poinWaEnabled = poin_wa_notif_enabled($pdo);
 $poinTiers = poin_tier_list($pdo, false);

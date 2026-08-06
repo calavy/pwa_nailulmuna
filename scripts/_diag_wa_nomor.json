@@ -1,0 +1,16 @@
+{
+    "wa_pengurus_setting": "",
+    "wa_nomor_pengurus": "",
+    "wa_alpa_notif_target": "",
+    "wa_nomor_counts": {
+        "pengurus": 0,
+        "petugas_pendidikan": 0,
+        "kelas_kosong": 0,
+        "izin_baru": 0,
+        "izin_pengurus": 0,
+        "izin_putra": 0,
+        "izin_putri": 0,
+        "cashless": 0,
+        "musyawarah": 0
+    }
+}

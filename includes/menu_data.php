@@ -162,6 +162,13 @@ return [
         '/keuangan/cashless_laporan.php' => 'Laporan Koperasi',
         '/keuangan/cashless_setor.php' => 'Setor Harian',
         '/keuangan/cashless_pin.php' => 'Rekap Saldo & PIN',
+        '/keuangan-bos/index.php' => 'Dashboard Keuangan BOS',
+        '/keuangan-bos/pengeluaran.php' => 'Input Pengeluaran BOS',
+        '/keuangan-bos/riwayat.php' => 'Riwayat Transaksi BOS',
+        '/keuangan-bos/laporan-bku.php' => 'Laporan BKU BOS',
+        '/keuangan-bos/laporan-lra.php' => 'Laporan LRA BOS',
+        '/keuangan-bos/pengaturan.php' => 'Pengaturan Keuangan BOS',
+        '/keuangan-bos/pengaturan-pos.php' => 'Pos Pengeluaran BOS',
         '/pembayaran/tagihan_syahriyah.php' => 'Status Tagihan Bulanan',
         '/pembayaran/cek_pembayaran.php' => 'Cek Pembayaran',
         '/pembayaran/riwayat.php' => 'Riwayat Pembayaran',
@@ -283,6 +290,17 @@ return [
             ['title' => 'Status & Audit', 'paths' => [
                 '/keuangan/neraca.php?view=saku',
                 '/keuangan/perbaikan-saku.php',
+            ]],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-keuangan-bos', 'label' => 'Keuangan BOS', 'icon' => 'fa-solid fa-landmark', 'sections' => [
+            ['title' => 'Modul BOS PKPPS', 'paths' => [
+                '/keuangan-bos/index.php',
+                '/keuangan-bos/pengeluaran.php',
+                '/keuangan-bos/riwayat.php',
+                '/keuangan-bos/laporan-bku.php',
+                '/keuangan-bos/laporan-lra.php',
+                '/keuangan-bos/pengaturan.php',
+                '/keuangan-bos/pengaturan-pos.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-pkpps', 'label' => 'PKPPS', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
