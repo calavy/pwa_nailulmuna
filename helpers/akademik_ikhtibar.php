@@ -25,21 +25,21 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
     $done = true;
 
     if (!empty($_SESSION['ikhtibar_schema_ready_v1'])) {
-        return;
+        $sessionOk = table_exists($pdo, 'ikhtibar_tugas')
+            && column_exists($pdo, 'ikhtibar_tugas', 'sumber');
+        if ($sessionOk) {
+            return;
+        }
+        unset($_SESSION['ikhtibar_schema_ready_v1']);
     }
 
-    $tablesReady = table_exists($pdo, 'ikhtibar_tugas')
+    require_once __DIR__ . '/akademik.php';
+
+    $schemaComplete = table_exists($pdo, 'ikhtibar_tugas')
         && table_exists($pdo, 'ikhtibar_soal')
         && table_exists($pdo, 'ikhtibar_sesi')
-        && table_exists($pdo, 'ikhtibar_jawaban');
-    if ($tablesReady) {
-        if (app_setting($pdo, 'ikhtibar_schema_ready_v1', '') !== '1') {
-            save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
-        }
-        $_SESSION['ikhtibar_schema_ready_v1'] = 1;
-
-        return;
-    }
+        && table_exists($pdo, 'ikhtibar_jawaban')
+        && column_exists($pdo, 'ikhtibar_tugas', 'sumber');
 
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS ikhtibar_tugas (
@@ -56,6 +56,7 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
             jumlah_esai INT NOT NULL DEFAULT 0,
             filter_tingkatan VARCHAR(80) NULL,
             catatan TEXT NULL,
+            sumber VARCHAR(20) NOT NULL DEFAULT "IKHTIBAR",
             created_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -114,18 +115,26 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ');
 
-    if (function_exists('akademik_add_column')) {
-        require_once __DIR__ . '/akademik.php';
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'kegiatan_id', 'INT NULL');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'jadwal_kegiatan_id', 'INT NULL');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'mapel_label', 'VARCHAR(200) NULL');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'tanggal_selesai', 'DATE NULL');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'sumber', 'VARCHAR(20) NOT NULL DEFAULT "IKHTIBAR"');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_jadwal_id', 'INT NULL');
-        akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_tingkatan_id', 'INT NULL');
-    }
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'kegiatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'jadwal_kegiatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'mapel_label', 'VARCHAR(200) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'tanggal_selesai', 'DATE NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'sumber', 'VARCHAR(20) NOT NULL DEFAULT "IKHTIBAR"');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_jadwal_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_tingkatan_id', 'INT NULL');
+
     require_once __DIR__ . '/ikhtibar_kriteria.php';
     ikhtibar_kriteria_ensure_schema($pdo);
+
+    if ($schemaComplete) {
+        if (app_setting($pdo, 'ikhtibar_schema_ready_v1', '') !== '1') {
+            save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
+        }
+        $_SESSION['ikhtibar_schema_ready_v1'] = 1;
+
+        return;
+    }
+
     save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
     $_SESSION['ikhtibar_schema_ready_v1'] = 1;
 }
@@ -707,6 +716,7 @@ function ikhtibar_selesai_sesi(PDO $pdo, int $sesiId): array
 function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, int $userId): array
 {
     ensure_akademik_ikhtibar_tables($pdo);
+    require_once __DIR__ . '/ikhtibar_import.php';
 
     $id = (int) ($post['id'] ?? 0);
     $judul = trim((string) ($post['judul'] ?? ''));
@@ -748,8 +758,16 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     if (!in_array($jumlahEsai, ikhtibar_kuota_esai(), true)) {
         $jumlahEsai = 0;
     }
-    if ($jumlahPg + $jumlahEsai < 1) {
-        return ['ok' => false, 'message' => 'Pilih minimal satu jenis soal (PG atau Esai).'];
+    $publish = isset($post['publish']);
+    if ($publish && $jumlahPg + $jumlahEsai < 1) {
+        return ['ok' => false, 'message' => 'Publikasikan membutuhkan kuota PG atau Esai.'];
+    }
+
+    if ($id > 0 && !$publish && ikhtibar_tugas_has_active_sesi($pdo, $id)) {
+        $existing = ikhtibar_tugas_by_id($pdo, $id);
+        if (is_array($existing) && (string) ($existing['status'] ?? '') === 'published') {
+            return ['ok' => false, 'message' => 'Tugas sudah dipublikasikan dan santri mulai mengerjakan. Tidak bisa dikembalikan ke draf.'];
+        }
     }
 
     $mapel = ikhtibar_resolve_mapel_dari_post($pdo, $post, $userId);
@@ -784,6 +802,12 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     }
 
     $status = $publish ? 'published' : 'draft';
+    if ($id > 0 && ikhtibar_tugas_has_active_sesi($pdo, $id) && !$publish) {
+        $cur = ikhtibar_tugas_by_id($pdo, $id);
+        if (is_array($cur) && (string) ($cur['status'] ?? '') === 'published') {
+            $status = 'published';
+        }
+    }
     if ($id > 0) {
         $pdo->prepare('
             UPDATE ikhtibar_tugas SET judul=:j, tanggal=:t, tanggal_selesai=:ts, hari_ke=:h, durasi_menit=:d, pakai_token=:pt,
@@ -800,7 +824,6 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
             'ptid' => $sumber === 'PKPPS' ? ($mapel['pkpps_tingkatan_id'] ?? null) : null,
             'ml' => $mapel['mapel_label'] ?? null,
         ]);
-        $pdo->prepare('DELETE FROM ikhtibar_soal WHERE tugas_id = :id')->execute(['id' => $id]);
         $tugasId = $id;
     } else {
         $pdo->prepare('
@@ -824,81 +847,66 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
         ikhtibar_set_token($pdo, $tugasId);
     }
 
-    $ins = $pdo->prepare('
-        INSERT INTO ikhtibar_soal (tugas_id, jenis, nomor, teks_soal, opsi_a, opsi_b, opsi_c, opsi_d, opsi_e, kunci_jawaban, bobot_nilai)
-        VALUES (:tid,:jenis,:nom,:teks,:a,:b,:c,:d,:e,:kunci,:bobot)
-    ');
+    $soal = ikhtibar_kumpulkan_soal_dari_post($post, $jumlahPg, $jumlahEsai);
+    $importErrors = [];
 
-    for ($i = 1; $i <= $jumlahPg; $i++) {
-        $teks = trim((string) ($post['pg_teks'][$i] ?? ''));
-        if ($teks === '') {
-            continue;
-        }
-        $ins->execute([
-            'tid' => $tugasId, 'jenis' => 'PG', 'nom' => $i, 'teks' => $teks,
-            'a' => trim((string) ($post['pg_a'][$i] ?? '')) ?: null,
-            'b' => trim((string) ($post['pg_b'][$i] ?? '')) ?: null,
-            'c' => trim((string) ($post['pg_c'][$i] ?? '')) ?: null,
-            'd' => trim((string) ($post['pg_d'][$i] ?? '')) ?: null,
-            'e' => trim((string) ($post['pg_e'][$i] ?? '')) ?: null,
-            'kunci' => strtoupper(trim((string) ($post['pg_kunci'][$i] ?? ''))) ?: null,
-            'bobot' => 100,
-        ]);
-    }
-    for ($i = 1; $i <= $jumlahEsai; $i++) {
-        $teks = trim((string) ($post['esai_teks'][$i] ?? ''));
-        if ($teks === '') {
-            continue;
-        }
-        $ins->execute([
-            'tid' => $tugasId, 'jenis' => 'ESAI', 'nom' => $i, 'teks' => $teks,
-            'a' => null, 'b' => null, 'c' => null, 'd' => null, 'e' => null,
-            'kunci' => trim((string) ($post['esai_kunci'][$i] ?? '')) ?: null,
-            'bobot' => max(1, min(100, (float) ($post['esai_bobot'][$i] ?? 100))),
-        ]);
-    }
-
-    require_once __DIR__ . '/ikhtibar_docx.php';
     if (isset($files['import_docx']) && (int) ($files['import_docx']['error'] ?? 1) === UPLOAD_ERR_OK) {
-        $tmp = (string) $files['import_docx']['tmp_name'];
-        $text = ikhtibar_docx_extract_text($tmp);
-        if ($text !== '' && $jumlahPg > 0) {
-            $parsed = ikhtibar_parse_teks_soal_pg($text, $jumlahPg);
-            foreach ($parsed as $idx => $p) {
-                $nom = $idx + 1;
-                if ($nom > $jumlahPg) {
-                    break;
-                }
-                $pdo->prepare('UPDATE ikhtibar_soal SET teks_soal=:t, opsi_a=:a, opsi_b=:b, opsi_c=:c, opsi_d=:d, kunci_jawaban=:k WHERE tugas_id=:tid AND jenis="PG" AND nomor=:n')
-                    ->execute([
-                        't' => $p['teks'], 'a' => $p['opsi']['A'] ?? null, 'b' => $p['opsi']['B'] ?? null,
-                        'c' => $p['opsi']['C'] ?? null, 'd' => $p['opsi']['D'] ?? null, 'k' => $p['kunci'] ?: null,
-                        'tid' => $tugasId, 'n' => $nom,
-                    ]);
-            }
-        }
+        $docxImport = ikhtibar_import_soal_dari_docx((string) $files['import_docx']['tmp_name'], $jumlahPg, $jumlahEsai);
+        $soal = ikhtibar_merge_soal_import($soal, $docxImport);
+        $importErrors = array_merge($importErrors, $docxImport['errors'] ?? []);
+    }
+    if (isset($files['import_xlsx']) && (int) ($files['import_xlsx']['error'] ?? 1) === UPLOAD_ERR_OK) {
+        $xlsxImport = ikhtibar_import_soal_dari_xlsx((string) $files['import_xlsx']['tmp_name'], $jumlahPg, $jumlahEsai);
+        $soal = ikhtibar_merge_soal_import($soal, $xlsxImport);
+        $importErrors = array_merge($importErrors, $xlsxImport['errors'] ?? []);
     }
 
     $ocrText = trim((string) ($post['ocr_teks_import'] ?? ''));
     if ($ocrText !== '' && $jumlahPg > 0) {
         $parsed = ikhtibar_parse_teks_soal_pg($ocrText, $jumlahPg);
+        $ocrPg = ['pg' => [], 'esai' => []];
         foreach ($parsed as $idx => $p) {
             $nom = $idx + 1;
             if ($nom > $jumlahPg) {
                 break;
             }
-            $pdo->prepare('UPDATE ikhtibar_soal SET teks_soal=:t, kunci_jawaban=:k WHERE tugas_id=:tid AND jenis="PG" AND nomor=:n')
-                ->execute(['t' => $p['teks'], 'k' => $p['kunci'] ?: null, 'tid' => $tugasId, 'n' => $nom]);
+            $ocrPg['pg'][$nom] = [
+                'teks' => (string) ($p['teks'] ?? ''),
+                'a' => $p['opsi']['A'] ?? null,
+                'b' => $p['opsi']['B'] ?? null,
+                'c' => $p['opsi']['C'] ?? null,
+                'd' => $p['opsi']['D'] ?? null,
+                'e' => $p['opsi']['E'] ?? null,
+                'kunci' => ($p['kunci'] ?? '') !== '' ? strtoupper((string) $p['kunci']) : null,
+                'bobot' => 100.0,
+            ];
         }
+        $soal = ikhtibar_merge_soal_import($soal, $ocrPg);
     }
 
-    $cnt = $pdo->prepare('SELECT COUNT(*) FROM ikhtibar_soal WHERE tugas_id = :id');
-    $cnt->execute(['id' => $tugasId]);
-    if ((int) $cnt->fetchColumn() < 1) {
-        return ['ok' => false, 'message' => 'Minimal satu soal harus diisi (teks soal tidak boleh kosong).', 'id' => $tugasId];
+    ikhtibar_persist_soal_rows($pdo, $tugasId, $soal);
+
+    $cnt = count($soal['pg']) + count($soal['esai']);
+    if ($publish) {
+        $val = ikhtibar_validasi_soal_publish($soal);
+        if (!$val['ok']) {
+            return ['ok' => false, 'message' => $val['message'], 'id' => $tugasId];
+        }
+    } elseif ($cnt < 1) {
+        $msg = 'Tugas disimpan sebagai draf (belum ada soal).';
+        if ($importErrors !== []) {
+            $msg .= ' Import: ' . implode(' ', $importErrors);
+        }
+
+        return ['ok' => true, 'message' => $msg, 'id' => $tugasId];
     }
 
-    return ['ok' => true, 'message' => $publish ? 'Tugas dipublikasikan.' : 'Tugas disimpan sebagai draf.', 'id' => $tugasId];
+    $msg = $publish ? 'Tugas dipublikasikan.' : 'Tugas disimpan sebagai draf.';
+    if ($importErrors !== []) {
+        $msg .= ' Peringatan import: ' . implode(' ', $importErrors);
+    }
+
+    return ['ok' => true, 'message' => $msg, 'id' => $tugasId];
 }
 
 /**

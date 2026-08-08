@@ -7,10 +7,17 @@ require_once __DIR__ . '/../../helpers/app.php';
 require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
+require_once __DIR__ . '/../../helpers/ikhtibar_import.php';
+require_once __DIR__ . '/../../helpers/excel.php';
 
 ikhtibar_require_pembimbing_access();
 ensure_akademik_ikhtibar_tables($pdo);
 ensure_santri_identity_columns($pdo);
+
+if (($_GET['template'] ?? '') === 'xlsx') {
+    send_xlsx_download('template_soal_ikhtibar.xlsx', ikhtibar_import_template_xlsx_rows(), 'Template Soal Ikhtibar');
+    exit;
+}
 
 $userId = (int) ($_SESSION['user']['id'] ?? 0);
 $jadwalOptions = ikhtibar_jadwal_options($pdo, $userId);
@@ -68,6 +75,8 @@ if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) 
 }
 
 $selSumber = IKHTIBAR_TUGAS_SUMBER;
+$statusTugas = (string) ($tugas['status'] ?? 'draft');
+$hasActiveSesi = $tugas ? ikhtibar_tugas_has_active_sesi($pdo, $id) : false;
 $pageTitle = $tugas ? 'Edit Tugas Ikhtibar' : 'Buat Tugas Ikhtibar';
 require_once __DIR__ . '/../../includes/header.php';
 $err = get_flash('error');
@@ -76,6 +85,19 @@ $ok = get_flash('success');
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>">Tugas Ikhtibar</a></p>
     <h1 class="h4 mb-0"><?= $tugas ? 'Edit' : 'Buat' ?> Tugas (Ikhtibar)</h1>
+    <?php if ($tugas): ?>
+        <?php if ($statusTugas === 'published'): ?>
+            <span class="badge text-bg-success">Published</span>
+        <?php else: ?>
+            <span class="badge text-bg-secondary">Draf</span>
+        <?php endif; ?>
+        <?php if ($statusTugas === 'draft'): ?>
+            <p class="small text-muted mb-0 mt-1">Soal dapat disimpan sebelum dipublikasikan. Santri belum bisa mengakses tugas ini.</p>
+        <?php endif; ?>
+        <?php if ($hasActiveSesi): ?>
+            <p class="small text-warning mb-0 mt-1">Santri sudah mulai mengerjakan — tugas tidak bisa dikembalikan ke draf.</p>
+        <?php endif; ?>
+    <?php endif; ?>
 </div>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
@@ -184,16 +206,22 @@ $ok = get_flash('success');
 
             <div class="border rounded p-3 mb-3 bg-light-subtle">
                 <h3 class="h6">Metode input cerdas</h3>
+                <p class="small text-muted mb-2">Import soal dari Word (.docx) atau Excel (.xlsx). Format Word: nomor soal, opsi A–D, baris <code>kunci: A</code>. Excel: unduh template.</p>
                 <div class="row g-2">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label small">Kamera / foto soal (OCR Arab)</label>
                         <input type="file" id="ocr_file" accept="image/*" capture="environment" class="form-control form-control-sm">
                         <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btn-ocr-run"><i class="fa-solid fa-camera me-1"></i> Scan teks Arab</button>
                         <div id="ocr_status" class="small text-muted mt-1"></div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label small">Upload Word (.docx)</label>
                         <input type="file" name="import_docx" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Upload Excel (.xlsx)</label>
+                        <input type="file" name="import_xlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control form-control-sm">
+                        <a class="small d-inline-block mt-1" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php?template=xlsx')) ?>">Unduh template Excel</a>
                     </div>
                 </div>
                 <label class="form-label small mt-2">Hasil OCR / tempel teks (opsional)</label>
@@ -216,7 +244,7 @@ $ok = get_flash('success');
     </div>
 
     <div class="d-flex flex-wrap gap-2">
-        <button type="submit" name="action" value="simpan" class="btn btn-outline-secondary">Simpan draf</button>
+        <button type="submit" name="action" value="simpan" class="btn btn-outline-secondary"<?= $hasActiveSesi && $statusTugas === 'published' ? ' disabled title="Tugas sudah aktif"' : '' ?>>Simpan draf</button>
         <button type="submit" name="publish" value="1" class="btn btn-primary">Publikasikan tugas</button>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="btn btn-link">Batal</a>
     </div>
@@ -244,13 +272,13 @@ $ok = get_flash('success');
         for (var i = 1; i <= n; i++) {
             var row = pgData[i] || {};
             html += '<div class="border rounded p-2 mb-2"><div class="fw-semibold small text-muted mb-1">Soal ' + i + '</div>';
-            html += '<textarea name="pg_teks[' + i + ']" class="form-control form-control-sm mb-1" rows="2" required>' + esc(row.teks_soal || '') + '</textarea>';
+            html += '<textarea name="pg_teks[' + i + ']" class="form-control form-control-sm mb-1" rows="2">' + esc(row.teks_soal || '') + '</textarea>';
             html += '<div class="row g-1 small">';
             ['a','b','c','d','e'].forEach(function (L) {
                 var U = L.toUpperCase();
                 html += '<div class="col"><input name="pg_' + L + '[' + i + ']" class="form-control form-control-sm" placeholder="' + U + '" value="' + esc(row['opsi_' + L] || '') + '"></div>';
             });
-            html += '</div><div class="mt-1"><select name="pg_kunci[' + i + ']" class="form-select form-select-sm" style="max-width:100px" required>';
+            html += '</div><div class="mt-1"><select name="pg_kunci[' + i + ']" class="form-select form-select-sm" style="max-width:100px">';
             html += '<option value="">Kunci</option>';
             ['A','B','C','D','E'].forEach(function (K) {
                 html += '<option value="' + K + '"' + ((row.kunci_jawaban || '') === K ? ' selected' : '') + '>' + K + '</option>';
