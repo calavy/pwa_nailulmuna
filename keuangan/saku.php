@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/keuangan_neraca.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+require_once __DIR__ . '/../helpers/cashless_wa.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -21,6 +22,16 @@ $status = keuangan_build_status_titipan_saku($pdo, $asOf);
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 $selisih = (int) ($status['selisih_saku_cashless'] ?? 0);
 $auditSantri = (int) ($status['saku_audit_santri'] ?? 0);
+
+$laporanWaStatus = cashless_wa_laporan_status_hari_ini($pdo);
+$rekapKemarin = $laporanWaStatus['ringkasan'] ?? [];
+$laporanTanggal = (string) ($laporanWaStatus['laporan_tanggal'] ?? cashless_wa_laporan_tanggal_data());
+$waSudahDikirim = (($laporanWaStatus['last_laporan_tanggal'] ?? '') === $laporanTanggal);
+$resetHint = cashless_operational_reset_hint($pdo);
+$laporanKemarinUrl = app_href('/keuangan/cashless_laporan.php?' . http_build_query([
+    'dari' => $laporanTanggal,
+    'sampai' => $laporanTanggal,
+]));
 
 $pageTitle = 'Keuangan Cashless';
 $bodyClass = keuangan_body_class('keuangan-saku-page');
@@ -93,6 +104,48 @@ require_once __DIR__ . '/../includes/header.php';
                 </a>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+        <div>
+            <span class="fw-semibold"><i class="fa-brands fa-whatsapp text-success me-1"></i> Rekap transaksi kemarin</span>
+            <span class="small text-muted ms-1">(sama dengan laporan WA harian)</span>
+        </div>
+        <span class="badge <?= $waSudahDikirim ? 'bg-success' : 'bg-warning text-dark' ?>">
+            <?= $waSudahDikirim ? 'WA sudah dikirim' : 'WA belum dikirim' ?>
+        </span>
+    </div>
+    <div class="card-body">
+        <?php if ($resetHint !== ''): ?>
+            <p class="small text-muted mb-2"><i class="fa-solid fa-clock me-1"></i><?= htmlspecialchars($resetHint) ?></p>
+        <?php endif; ?>
+        <p class="small mb-2">
+            Tanggal operasional: <strong><?= htmlspecialchars((string) ($rekapKemarin['tanggal_label'] ?? '')) ?></strong>
+            · <?= (int) ($rekapKemarin['total_transaksi'] ?? 0) ?> transaksi
+            · <strong><?= htmlspecialchars($fmt((int) ($rekapKemarin['total_nominal'] ?? 0))) ?></strong>
+        </p>
+        <?php if (($rekapKemarin['per_koperasi'] ?? []) !== []): ?>
+            <ul class="small mb-3 ps-3">
+                <?php foreach ($rekapKemarin['per_koperasi'] as $pk): ?>
+                    <li><?= htmlspecialchars((string) ($pk['nama'] ?? '')) ?>: <?= (int) ($pk['jumlah'] ?? 0) ?> transaksi · <?= htmlspecialchars($fmt((int) ($pk['nominal'] ?? 0))) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php elseif ((int) ($rekapKemarin['total_transaksi'] ?? 0) === 0): ?>
+            <p class="small text-muted mb-3">Tidak ada transaksi debit pada tanggal tersebut.</p>
+        <?php endif; ?>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="<?= htmlspecialchars($laporanKemarinUrl) ?>" class="btn btn-sm btn-outline-primary">
+                <i class="fa-solid fa-receipt me-1"></i> Lihat rincian di Laporan Koperasi
+            </a>
+            <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=cashless')) ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="fa-solid fa-gear me-1"></i> Pengaturan WA cashless
+            </a>
+        </div>
+        <?php if (($laporanWaStatus['last_sent_at'] ?? '') !== ''): ?>
+            <p class="small text-muted mb-0 mt-2">Terakhir WA terkirim: <?= htmlspecialchars((string) $laporanWaStatus['last_sent_at']) ?></p>
+        <?php endif; ?>
     </div>
 </div>
 

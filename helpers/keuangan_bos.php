@@ -14,6 +14,90 @@ const BOS_SUMBER_BOS_ULYA = 'bos_ulya';
 const BOS_SUMBER_SPP = 'spp';
 const BOS_SUMBER_INFAQ = 'infaq';
 
+const BOS_KELOMPOK_PROSES = 'Pengembangan Proses';
+const BOS_KELOMPOK_SARANA = 'Pengembangan Sarana dan Prasarana';
+const BOS_KELOMPOK_PENGELOLAAN = 'Pengembangan Pengelolaan';
+const BOS_KELOMPOK_PEMBIAYAAN = 'Pengembangan Pembiayaan';
+const BOS_KELOMPOK_PENILAIAN = 'Pengembangan dan Implementasi Sistem Penilaian';
+const BOS_KELOMPOK_LAIN = 'Pengeluaran Lain-lain';
+
+/** @return list<string> */
+function bos_kelompok_pengembangan_options(): array
+{
+    return [
+        BOS_KELOMPOK_PROSES,
+        BOS_KELOMPOK_SARANA,
+        BOS_KELOMPOK_PENGELOLAAN,
+        BOS_KELOMPOK_PEMBIAYAAN,
+        BOS_KELOMPOK_PENILAIAN,
+        BOS_KELOMPOK_LAIN,
+    ];
+}
+
+/** Label bagian jenjang di laporan / dropdown (format RAB BOS PKPPS). */
+function bos_label_jenjang_section(string $jenjang): string
+{
+    return match ($jenjang) {
+        BOS_JENJANG_WUSTHO => '2. PKPPS Wustho',
+        BOS_JENJANG_ULYA => '3. PKPPS Ulya',
+        default => '1. Bersama / Operasional Umum',
+    };
+}
+
+/** Urutan tampilan jenjang: umum dulu, lalu wustho, ulya. */
+function bos_jenjang_sort_key(string $jenjang): int
+{
+    return match ($jenjang) {
+        BOS_JENJANG_WUSTHO => 2,
+        BOS_JENJANG_ULYA => 3,
+        default => 1,
+    };
+}
+
+/**
+ * Katalog pos pengeluaran BOS standar (RAB PKPPS).
+ *
+ * @return list<array{kode_pos:string,nama_pos:string,tag_jenjang:string,kelompok_pengembangan:string,urutan:int}>
+ */
+function bos_pos_catalog_defaults(): array
+{
+    $rows = [];
+    $add = static function (string $kode, string $nama, string $jenjang, string $kelompok, int $urutan) use (&$rows): void {
+        $rows[] = [
+            'kode_pos' => $kode,
+            'nama_pos' => $nama,
+            'tag_jenjang' => $jenjang,
+            'kelompok_pengembangan' => $kelompok,
+            'urutan' => $urutan,
+        ];
+    };
+
+    $add('umum_proses_atk', 'ATK untuk Kegiatan Pembelajaran (1 Paket)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PROSES, 110);
+    $add('umum_proses_rebana', 'Ekstrakurikuler Rebana (4 Orang)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PROSES, 120);
+    $add('umum_sarana_internet', 'Langganan Jaringan Internet/Speedy (3 Bulan)', BOS_JENJANG_UMUM, BOS_KELOMPOK_SARANA, 210);
+    $add('umum_sarana_cctv', 'Pembelian Perangkat CCTV (1 Paket)', BOS_JENJANG_UMUM, BOS_KELOMPOK_SARANA, 220);
+    $add('umum_sarana_perbaikan', 'Perbaikan Ringan (1 Paket)', BOS_JENJANG_UMUM, BOS_KELOMPOK_SARANA, 230);
+    $add('umum_pengelola_transport_kepala', 'Transport Pengambilan Dana BOS ke Bank - Kepala Pesantren', BOS_JENJANG_UMUM, BOS_KELOMPOK_PENGELOLAAN, 310);
+    $add('umum_pengelola_transport_bendahara', 'Transport Pengambilan Dana BOS ke Bank - Bendahara', BOS_JENJANG_UMUM, BOS_KELOMPOK_PENGELOLAAN, 320);
+    $add('umum_pembiayaan_honor', 'Honor Guru dan Pegawai (3 Bulan)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PEMBIAYAAN, 410);
+    $add('umum_pembiayaan_insentif', 'Insentif Operator Pesantren (1 Orang)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PEMBIAYAAN, 420);
+    $add('umum_penilaian_sampul', 'Cetak Sampul Raport (160 Pcs)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PENILAIAN, 510);
+    $add('umum_penilaian_pts', 'Pelaksanaan Penilaian Tengah Semester (PTS) (1 Paket)', BOS_JENJANG_UMUM, BOS_KELOMPOK_PENILAIAN, 520);
+
+    $add('wustho_sarana_proyektor', 'Pembelian Proyektor (1 Set)', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_SARANA, 1210);
+    $add('wustho_pengelola_transport_kepala', 'Transport Pengambilan Dana BOS ke Bank - Kepala Pesantren', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_PENGELOLAAN, 1310);
+    $add('wustho_pengelola_transport_bendahara', 'Transport Pengambilan Dana BOS ke Bank - Bendahara', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_PENGELOLAAN, 1320);
+    $add('wustho_pengelola_bahan_tu', 'Pembelian Bahan-Bahan Habis Pakai Tata Usaha (1 Paket)', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_PENGELOLAAN, 1330);
+    $add('wustho_pembiayaan_honor', 'Honor Guru dan Pegawai (3 Bulan)', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_PEMBIAYAAN, 1410);
+    $add('wustho_penilaian_pts', 'Pelaksanaan Penilaian Tengah Semester (PTS) (1 Paket)', BOS_JENJANG_WUSTHO, BOS_KELOMPOK_PENILAIAN, 1510);
+
+    $add('lain_atk', 'ATK & Alat Tulis', BOS_JENJANG_UMUM, BOS_KELOMPOK_LAIN, 910);
+    $add('lain_transport', 'Transport & Perjalanan Dinas', BOS_JENJANG_UMUM, BOS_KELOMPOK_LAIN, 920);
+    $add('lain_konsumsi', 'Konsumsi Kegiatan', BOS_JENJANG_UMUM, BOS_KELOMPOK_LAIN, 930);
+
+    return $rows;
+}
+
 /** @return array<int, string> */
 function bos_bulan_masehi_map(): array
 {
@@ -189,15 +273,35 @@ function bos_migrate_pos_saldo_schema(PDO $pdo): void
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS bos_pos_pengeluaran (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            nama_pos VARCHAR(120) NOT NULL,
+            kode_pos VARCHAR(80) NULL,
+            nama_pos VARCHAR(180) NOT NULL,
+            kelompok_pengembangan VARCHAR(120) NOT NULL DEFAULT 'Pengeluaran Lain-lain',
             tag_jenjang ENUM('wustho','ulya','umum') NOT NULL DEFAULT 'umum',
             kode_coa VARCHAR(30) NOT NULL DEFAULT '5199',
             urutan INT NOT NULL DEFAULT 0,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_bos_pos_kode (kode_pos),
             KEY idx_bos_pos_aktif (is_active, urutan)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+
+    try {
+        $pdo->exec('ALTER TABLE bos_pos_pengeluaran ADD COLUMN IF NOT EXISTS kode_pos VARCHAR(80) NULL AFTER id');
+    } catch (Throwable $e) {
+    }
+    try {
+        $pdo->exec('ALTER TABLE bos_pos_pengeluaran ADD COLUMN IF NOT EXISTS kelompok_pengembangan VARCHAR(120) NOT NULL DEFAULT \'Pengeluaran Lain-lain\' AFTER nama_pos');
+    } catch (Throwable $e) {
+    }
+    try {
+        $pdo->exec('ALTER TABLE bos_pos_pengeluaran MODIFY COLUMN nama_pos VARCHAR(180) NOT NULL');
+    } catch (Throwable $e) {
+    }
+    try {
+        $pdo->exec('ALTER TABLE bos_pos_pengeluaran ADD UNIQUE KEY uq_bos_pos_kode (kode_pos)');
+    } catch (Throwable $e) {
+    }
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS bos_saldo_awal (
@@ -347,24 +451,44 @@ function bos_seed_default_akun(PDO $pdo): void
 
 function bos_seed_default_pos(PDO $pdo): void
 {
+    bos_migrate_pos_catalog($pdo);
+}
+
+/** Sinkronkan katalog pos BOS standar (upsert by kode_pos, tidak menghapus pos kustom). */
+function bos_migrate_pos_catalog(PDO $pdo): void
+{
     if (!table_exists($pdo, 'bos_pos_pengeluaran')) {
         return;
     }
-    $count = (int) $pdo->query('SELECT COUNT(*) FROM bos_pos_pengeluaran')->fetchColumn();
-    if ($count > 0) {
-        return;
-    }
-    $defaults = [
-        ['ATK & Alat Tulis', BOS_JENJANG_UMUM, 1],
-        ['Transport & Perjalanan Dinas', BOS_JENJANG_UMUM, 2],
-        ['Konsumsi Kegiatan', BOS_JENJANG_UMUM, 3],
-    ];
-    $ins = $pdo->prepare('
-        INSERT INTO bos_pos_pengeluaran (nama_pos, tag_jenjang, kode_coa, urutan, is_active)
-        VALUES (:nama, :j, \'5199\', :u, 1)
+
+    $upsert = $pdo->prepare('
+        INSERT INTO bos_pos_pengeluaran (kode_pos, nama_pos, kelompok_pengembangan, tag_jenjang, kode_coa, urutan, is_active)
+        VALUES (:kode, :nama, :kelompok, :j, \'5199\', :u, 1)
+        ON DUPLICATE KEY UPDATE
+            nama_pos = VALUES(nama_pos),
+            kelompok_pengembangan = VALUES(kelompok_pengembangan),
+            tag_jenjang = VALUES(tag_jenjang),
+            urutan = VALUES(urutan),
+            is_active = 1
     ');
-    foreach ($defaults as [$nama, $j, $u]) {
-        $ins->execute(['nama' => $nama, 'j' => $j, 'u' => $u]);
+    foreach (bos_pos_catalog_defaults() as $row) {
+        $upsert->execute([
+            'kode' => $row['kode_pos'],
+            'nama' => $row['nama_pos'],
+            'kelompok' => $row['kelompok_pengembangan'],
+            'j' => $row['tag_jenjang'],
+            'u' => $row['urutan'],
+        ]);
+    }
+
+    try {
+        $pdo->exec('
+            UPDATE bos_pos_pengeluaran
+            SET kelompok_pengembangan = \'Pengeluaran Lain-lain\'
+            WHERE (kode_pos IS NULL OR kode_pos = \'\')
+              AND (kelompok_pengembangan IS NULL OR kelompok_pengembangan = \'\')
+        ');
+    } catch (Throwable $e) {
     }
 }
 
@@ -874,9 +998,63 @@ function bos_fetch_pos_pengeluaran(PDO $pdo, bool $aktifOnly = true): array
     if ($aktifOnly) {
         $sql .= ' WHERE is_active = 1';
     }
-    $sql .= ' ORDER BY urutan ASC, nama_pos ASC';
+    $sql .= ' ORDER BY tag_jenjang ASC, urutan ASC, nama_pos ASC';
+    $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    usort($rows, static function (array $a, array $b): int {
+        $j = bos_jenjang_sort_key((string) ($a['tag_jenjang'] ?? '')) <=> bos_jenjang_sort_key((string) ($b['tag_jenjang'] ?? ''));
+        if ($j !== 0) {
+            return $j;
+        }
+        $u = ((int) ($a['urutan'] ?? 0)) <=> ((int) ($b['urutan'] ?? 0));
+        if ($u !== 0) {
+            return $u;
+        }
 
-    return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return strcmp((string) ($a['nama_pos'] ?? ''), (string) ($b['nama_pos'] ?? ''));
+    });
+
+    return $rows;
+}
+
+/**
+ * Pos pengeluaran dikelompokkan: jenjang → kelompok pengembangan → item.
+ *
+ * @return array<string, array<string, list<array<string,mixed>>>>
+ */
+function bos_pos_grouped_by_jenjang_kelompok(PDO $pdo, bool $aktifOnly = true): array
+{
+    $grouped = [];
+    foreach (bos_fetch_pos_pengeluaran($pdo, $aktifOnly) as $row) {
+        $jenjang = (string) ($row['tag_jenjang'] ?? BOS_JENJANG_UMUM);
+        $kelompok = trim((string) ($row['kelompok_pengembangan'] ?? BOS_KELOMPOK_LAIN));
+        if ($kelompok === '') {
+            $kelompok = BOS_KELOMPOK_LAIN;
+        }
+        $grouped[$jenjang][$kelompok][] = $row;
+    }
+
+    $sorted = [];
+    $jenjangKeys = array_keys($grouped);
+    usort($jenjangKeys, static fn(string $a, string $b): int => bos_jenjang_sort_key($a) <=> bos_jenjang_sort_key($b));
+    foreach ($jenjangKeys as $jenjang) {
+        $kelompokMap = $grouped[$jenjang];
+        $kelompokKeys = array_keys($kelompokMap);
+        usort($kelompokKeys, static function (string $a, string $b): int {
+            $order = array_flip(bos_kelompok_pengembangan_options());
+            $ia = $order[$a] ?? 99;
+            $ib = $order[$b] ?? 99;
+            if ($ia !== $ib) {
+                return $ia <=> $ib;
+            }
+
+            return strcmp($a, $b);
+        });
+        foreach ($kelompokKeys as $kelompok) {
+            $sorted[$jenjang][$kelompok] = $kelompokMap[$kelompok];
+        }
+    }
+
+    return $sorted;
 }
 
 function bos_pos_by_id(PDO $pdo, int $id): ?array
@@ -907,6 +1085,7 @@ function bos_save_pos_pengeluaran_form(PDO $pdo, array $post): array
 
     $nama = trim((string) ($post['nama_pos'] ?? ''));
     $jenjang = strtolower(trim((string) ($post['tag_jenjang'] ?? BOS_JENJANG_UMUM)));
+    $kelompok = trim((string) ($post['kelompok_pengembangan'] ?? BOS_KELOMPOK_LAIN));
     $urutan = max(0, (int) ($post['urutan'] ?? 0));
     if ($nama === '') {
         return ['ok' => false, 'message' => 'Nama pos wajib diisi.'];
@@ -914,18 +1093,23 @@ function bos_save_pos_pengeluaran_form(PDO $pdo, array $post): array
     if (!in_array($jenjang, bos_jenjang_options(), true)) {
         $jenjang = BOS_JENJANG_UMUM;
     }
+    if (!in_array($kelompok, bos_kelompok_pengembangan_options(), true)) {
+        $kelompok = BOS_KELOMPOK_LAIN;
+    }
 
     if ($id > 0) {
         $st = $pdo->prepare('
-            UPDATE bos_pos_pengeluaran SET nama_pos = :n, tag_jenjang = :j, urutan = :u, is_active = 1 WHERE id = :id
+            UPDATE bos_pos_pengeluaran
+            SET nama_pos = :n, tag_jenjang = :j, kelompok_pengembangan = :k, urutan = :u, is_active = 1
+            WHERE id = :id
         ');
-        $st->execute(['n' => $nama, 'j' => $jenjang, 'u' => $urutan, 'id' => $id]);
+        $st->execute(['n' => $nama, 'j' => $jenjang, 'k' => $kelompok, 'u' => $urutan, 'id' => $id]);
     } else {
         $st = $pdo->prepare('
-            INSERT INTO bos_pos_pengeluaran (nama_pos, tag_jenjang, kode_coa, urutan, is_active)
-            VALUES (:n, :j, \'5199\', :u, 1)
+            INSERT INTO bos_pos_pengeluaran (nama_pos, kelompok_pengembangan, tag_jenjang, kode_coa, urutan, is_active)
+            VALUES (:n, :k, :j, \'5199\', :u, 1)
         ');
-        $st->execute(['n' => $nama, 'j' => $jenjang, 'u' => $urutan]);
+        $st->execute(['n' => $nama, 'k' => $kelompok, 'j' => $jenjang, 'u' => $urutan]);
     }
 
     return ['ok' => true, 'message' => 'Pos pengeluaran disimpan.'];
@@ -1132,9 +1316,17 @@ function bos_dashboard_keuangan(PDO $pdo, array $periodeRange): array
     $stKat->execute(['d1' => $tglMulai, 'd2' => $tglSelesai]);
     foreach ($stKat->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
         $posId = (int) ($r['pos_pengeluaran_id'] ?? 0);
-        $nama = $posId > 0
-            ? (string) ($r['nama_pos'] ?? 'Pos lain')
-            : (string) (($r['kode_akun_beban'] ?? '') . ' — ' . ($r['nama_akun'] ?? ''));
+        if ($posId > 0) {
+            $stPos = $pdo->prepare('SELECT nama_pos, kelompok_pengembangan, tag_jenjang FROM bos_pos_pengeluaran WHERE id = :id LIMIT 1');
+            $stPos->execute(['id' => $posId]);
+            $posRow = $stPos->fetch(PDO::FETCH_ASSOC) ?: [];
+            $namaPos = (string) ($posRow['nama_pos'] ?? 'Pos lain');
+            $kelompok = (string) ($posRow['kelompok_pengembangan'] ?? '');
+            $jenjangLabel = bos_label_jenjang_section((string) ($posRow['tag_jenjang'] ?? BOS_JENJANG_UMUM));
+            $nama = $jenjangLabel . ' › ' . ($kelompok !== '' ? $kelompok . ' › ' : '') . $namaPos;
+        } else {
+            $nama = (string) (($r['kode_akun_beban'] ?? '') . ' — ' . ($r['nama_akun'] ?? ''));
+        }
         $perKategori[] = [
             'nama' => $nama,
             'jenis' => $posId > 0 ? 'Pos lain' : 'Standar COA',
@@ -1223,6 +1415,7 @@ function bos_laporan_lra_range(PDO $pdo, string $tglMulai, string $tglSelesai): 
     if (!table_exists($pdo, 'bos_jurnal')) {
         return [
             'sections' => $emptySections,
+            'pos_breakdown' => bos_laporan_pos_breakdown_range($pdo, $tglMulai, $tglSelesai),
             'saldo_awal_periode' => 0,
             'total_pendapatan' => 0,
             'subtotal_wustho' => 0,
@@ -1305,6 +1498,7 @@ function bos_laporan_lra_range(PDO $pdo, string $tglMulai, string $tglSelesai): 
 
     return [
         'sections' => $sections,
+        'pos_breakdown' => bos_laporan_pos_breakdown_range($pdo, $tglMulai, $tglSelesai),
         'saldo_awal_periode' => $saldoAwal,
         'total_pendapatan' => $totals['pendapatan'],
         'subtotal_wustho' => $totals['wustho'],
@@ -1314,6 +1508,53 @@ function bos_laporan_lra_range(PDO $pdo, string $tglMulai, string $tglSelesai): 
         'total_pengeluaran' => $totalPengeluaran,
         'surplus' => $saldoAwal + $totals['pendapatan'] - $totalPengeluaran,
     ];
+}
+
+/**
+ * Rincian pengeluaran pos (COA 5199) per jenjang & kelompok pengembangan.
+ *
+ * @return array<string, array<string, list<array{id:int,nama:string,nilai:int}>>>
+ */
+function bos_laporan_pos_breakdown_range(PDO $pdo, string $tglMulai, string $tglSelesai): array
+{
+    if (!table_exists($pdo, 'bos_transaksi') || !table_exists($pdo, 'bos_pos_pengeluaran')) {
+        return [];
+    }
+
+    $actual = [];
+    $st = $pdo->prepare('
+        SELECT t.pos_pengeluaran_id, COALESCE(SUM(t.nominal), 0) AS total
+        FROM bos_transaksi t
+        WHERE t.jenis = \'PENGELUARAN\'
+          AND t.pos_pengeluaran_id IS NOT NULL
+          AND t.pos_pengeluaran_id > 0
+          AND t.tanggal BETWEEN :d1 AND :d2
+        GROUP BY t.pos_pengeluaran_id
+    ');
+    $st->execute(['d1' => $tglMulai, 'd2' => $tglSelesai]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $pid = (int) ($r['pos_pengeluaran_id'] ?? 0);
+        if ($pid > 0) {
+            $actual[$pid] = (int) round((float) ($r['total'] ?? 0));
+        }
+    }
+
+    $breakdown = [];
+    foreach (bos_pos_grouped_by_jenjang_kelompok($pdo, true) as $jenjang => $kelompokMap) {
+        foreach ($kelompokMap as $kelompok => $items) {
+            foreach ($items as $item) {
+                $id = (int) ($item['id'] ?? 0);
+                $nilai = (int) ($actual[$id] ?? 0);
+                $breakdown[$jenjang][$kelompok][] = [
+                    'id' => $id,
+                    'nama' => (string) ($item['nama_pos'] ?? ''),
+                    'nilai' => $nilai,
+                ];
+            }
+        }
+    }
+
+    return $breakdown;
 }
 
 /** @return array{ok:bool,message:string} */

@@ -1042,65 +1042,224 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
     ], JSON_UNESCAPED_UNICODE));
 }
 
+/** Nama lock MySQL agar cron hosting + fallback web tidak jalan bersamaan. */
+const WA_AUTO_TICK_LOCK_NAME = 'pwa_wa_auto_run_tick';
+
+/** Cron dianggap aktif bila tick terakhir tidak lebih tua dari batas ini (detik). */
+function wa_auto_cron_stale_after_sec(): int
+{
+    return 600;
+}
+
+/** Cron hosting / CLI sudah jalan baru-baru ini (untuk skip fallback ganda). */
+function wa_auto_cron_recently_active(PDO $pdo, ?int $maxAgeSec = null): bool
+{
+    $maxAgeSec ??= wa_auto_cron_stale_after_sec();
+    $last = trim((string) app_setting($pdo, 'wa_auto_last_run_at', ''));
+    if ($last === '') {
+        return false;
+    }
+    $ts = strtotime($last);
+
+    return $ts !== false && (time() - $ts) <= $maxAgeSec;
+}
+
+/** Cron stale = tidak update lebih lama dari batas stale. */
+function wa_auto_cron_is_stale(PDO $pdo, ?int $maxAgeSec = null): bool
+{
+    return !wa_auto_cron_recently_active($pdo, $maxAgeSec);
+}
+
+/**
+ * Klaim slot interval secara atomik — cegah dua proses concurrent menjalankan job yang sama.
+ */
+function wa_auto_try_claim_interval(PDO $pdo, string $settingKey, int $now, int $intervalSec): bool
+{
+    $threshold = max(0, $now - $intervalSec);
+    try {
+        $pdo->prepare('
+            INSERT INTO app_settings (setting_key, setting_value)
+            VALUES (:k, "0")
+            ON DUPLICATE KEY UPDATE setting_key = setting_key
+        ')->execute(['k' => $settingKey]);
+
+        $st = $pdo->prepare('
+            UPDATE app_settings
+            SET setting_value = :now
+            WHERE setting_key = :k
+            AND CAST(setting_value AS UNSIGNED) <= :threshold
+        ');
+        $st->execute([
+            'now' => (string) $now,
+            'k' => $settingKey,
+            'threshold' => (string) $threshold,
+        ]);
+        if ($st->rowCount() > 0) {
+            if (function_exists('app_settings_cache_reset')) {
+                app_settings_cache_reset($pdo);
+            }
+
+            return true;
+        }
+
+        return false;
+    } catch (Throwable $e) {
+        error_log('[wa_auto_try_claim_interval] ' . $e->getMessage());
+        $last = (int) app_setting($pdo, $settingKey, '0');
+        if ($last > 0 && ($now - $last) < $intervalSec) {
+            return false;
+        }
+        save_setting($pdo, $settingKey, (string) $now);
+
+        return true;
+    }
+}
+
+function wa_auto_acquire_tick_lock(PDO $pdo, int $timeoutSec = 0): bool
+{
+    try {
+        $st = $pdo->prepare('SELECT GET_LOCK(:name, :timeout)');
+        $st->execute(['name' => WA_AUTO_TICK_LOCK_NAME, 'timeout' => max(0, $timeoutSec)]);
+
+        return (int) $st->fetchColumn() === 1;
+    } catch (Throwable $e) {
+        error_log('[wa_auto_acquire_tick_lock] ' . $e->getMessage());
+
+        return true;
+    }
+}
+
+function wa_auto_release_tick_lock(PDO $pdo): void
+{
+    try {
+        $pdo->prepare('SELECT RELEASE_LOCK(:name)')->execute(['name' => WA_AUTO_TICK_LOCK_NAME]);
+    } catch (Throwable $e) {
+        error_log('[wa_auto_release_tick_lock] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Nonaktifkan fallback web (cegah kirim dobel saat cron hosting sudah jalan).
+ */
+function wa_auto_disable_web_fallback(PDO $pdo, string $reason = 'manual'): bool
+{
+    if (trim((string) app_setting($pdo, 'wa_auto_web_fallback_enabled', '0')) !== '1') {
+        return false;
+    }
+    save_setting($pdo, 'wa_auto_web_fallback_enabled', '0');
+    save_setting($pdo, 'wa_auto_fallback_auto_disabled_at', date('Y-m-d H:i:s'));
+    save_setting($pdo, 'wa_auto_fallback_auto_disabled_reason', $reason);
+
+    return true;
+}
+
+/** @deprecated Use wa_auto_disable_web_fallback() */
+function wa_auto_disable_web_fallback_if_cron_http(PDO $pdo): bool
+{
+    return wa_auto_disable_web_fallback($pdo, 'hosting_cron_http');
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function wa_logs_recent_duplicates(PDO $pdo, int $hours = 24, int $limit = 20): array
+{
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_logs')) {
+        return [];
+    }
+    $hours = max(1, min(168, $hours));
+    $limit = max(1, min(50, $limit));
+    try {
+        $st = $pdo->query('
+            SELECT target_phone, kind,
+                   DATE_FORMAT(sent_at, "%Y-%m-%d %H:%i") AS minute_bucket,
+                   COUNT(*) AS cnt
+            FROM wa_logs
+            WHERE sent_at >= DATE_SUB(NOW(), INTERVAL ' . $hours . ' HOUR)
+            GROUP BY target_phone, kind, minute_bucket
+            HAVING cnt > 1
+            ORDER BY cnt DESC, minute_bucket DESC
+            LIMIT ' . $limit . '
+        ');
+
+        return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    } catch (Throwable $e) {
+        error_log('[wa_logs_recent_duplicates] ' . $e->getMessage());
+
+        return [];
+    }
+}
+
 /**
  * Satu tick WA otomatis (ringan + berat). Dipakai cron dan fallback navigasi web.
  *
- * @return array{light:bool,heavy:bool,gateway_ok:bool}
+ * @return array{light:bool,heavy:bool,gateway_ok:bool,skipped_lock?:bool}
  */
 function wa_auto_run_tick(PDO $pdo): array
 {
     $now = time();
     save_setting($pdo, 'wa_auto_last_run_at', date('Y-m-d H:i:s'));
-    $gwErr = wa_otomatis_gateway_error($pdo);
-    save_setting($pdo, 'wa_auto_last_gateway_ok', $gwErr === null ? '1' : '0');
-    if ($gwErr !== null) {
-        save_setting($pdo, 'wa_auto_last_gateway_error', $gwErr);
+
+    if (!wa_auto_acquire_tick_lock($pdo)) {
+        return [
+            'light' => false,
+            'heavy' => false,
+            'gateway_ok' => wa_otomatis_gateway_error($pdo) === null,
+            'skipped_lock' => true,
+        ];
     }
 
     $runLight = false;
     $runHeavy = false;
+    $gwErr = null;
 
-    if ($gwErr === null) {
-        if (!function_exists('trigger_wa_pembimbing_belum_scan')) {
-            require_once __DIR__ . '/wa_pembimbing_scan.php';
+    try {
+        $gwErr = wa_otomatis_gateway_error($pdo);
+        save_setting($pdo, 'wa_auto_last_gateway_ok', $gwErr === null ? '1' : '0');
+        if ($gwErr !== null) {
+            save_setting($pdo, 'wa_auto_last_gateway_error', $gwErr);
         }
 
-        $lightInterval = max(45, (int) app_setting($pdo, 'wa_auto_light_interval_sec', '60'));
-        $lastLight = (int) app_setting($pdo, 'wa_auto_light_last_at', '0');
-        $runLight = $lastLight <= 0 || ($now - $lastLight) >= $lightInterval;
-        if ($runLight) {
-            trigger_wa_pembimbing_belum_scan($pdo);
-            trigger_wa_mudabir_belum_hadir($pdo);
-            if (!function_exists('trigger_wa_yayasan_tugas_belum_progres')) {
-                require_once __DIR__ . '/wa_yayasan_tugas.php';
+        if ($gwErr === null) {
+            if (!function_exists('trigger_wa_pembimbing_belum_scan')) {
+                require_once __DIR__ . '/wa_pembimbing_scan.php';
             }
-            trigger_wa_yayasan_tugas_belum_progres($pdo);
-            wa_auto_run_scheduled_wa($pdo);
-            save_setting($pdo, 'wa_auto_light_last_at', (string) $now);
-        }
 
-        $heavyInterval = max(300, (int) app_setting($pdo, 'wa_auto_heavy_interval_sec', '300'));
-        $lastHeavy = (int) app_setting($pdo, 'wa_auto_heavy_last_at', '0');
-        $runHeavy = $lastHeavy <= 0 || ($now - $lastHeavy) >= $heavyInterval;
-        if ($runHeavy) {
-            if (!function_exists('trigger_push_tagihan_wali_from_cron')) {
-                require_once __DIR__ . '/push_events.php';
-            }
-            trigger_push_tagihan_wali_from_cron($pdo);
-            trigger_push_daily_kiai($pdo);
-
-            $cleanupLast = trim((string) app_setting($pdo, 'wa_debounce_cleanup_last_date', ''));
-            if ($cleanupLast !== date('Y-m-d')) {
-                $removed = wa_cleanup_old_debounce_keys($pdo, 30);
-                save_setting($pdo, 'wa_debounce_cleanup_last_date', date('Y-m-d'));
-                if ($removed > 0) {
-                    save_setting($pdo, 'wa_debounce_cleanup_last_count', (string) $removed);
+            $lightInterval = max(45, (int) app_setting($pdo, 'wa_auto_light_interval_sec', '60'));
+            $runLight = wa_auto_try_claim_interval($pdo, 'wa_auto_light_last_at', $now, $lightInterval);
+            if ($runLight) {
+                trigger_wa_pembimbing_belum_scan($pdo);
+                trigger_wa_mudabir_belum_hadir($pdo);
+                if (!function_exists('trigger_wa_yayasan_tugas_belum_progres')) {
+                    require_once __DIR__ . '/wa_yayasan_tugas.php';
                 }
+                trigger_wa_yayasan_tugas_belum_progres($pdo);
+                wa_auto_run_scheduled_wa($pdo);
             }
 
-            save_setting($pdo, 'wa_auto_heavy_last_at', (string) $now);
-            save_setting($pdo, 'wa_auto_last_heavy_at', date('Y-m-d H:i:s'));
+            $heavyInterval = max(300, (int) app_setting($pdo, 'wa_auto_heavy_interval_sec', '300'));
+            $runHeavy = wa_auto_try_claim_interval($pdo, 'wa_auto_heavy_last_at', $now, $heavyInterval);
+            if ($runHeavy) {
+                if (!function_exists('trigger_push_tagihan_wali_from_cron')) {
+                    require_once __DIR__ . '/push_events.php';
+                }
+                trigger_push_tagihan_wali_from_cron($pdo);
+                trigger_push_daily_kiai($pdo);
+
+                $cleanupLast = trim((string) app_setting($pdo, 'wa_debounce_cleanup_last_date', ''));
+                if ($cleanupLast !== date('Y-m-d')) {
+                    $removed = wa_cleanup_old_debounce_keys($pdo, 30);
+                    save_setting($pdo, 'wa_debounce_cleanup_last_date', date('Y-m-d'));
+                    if ($removed > 0) {
+                        save_setting($pdo, 'wa_debounce_cleanup_last_count', (string) $removed);
+                    }
+                }
+
+                save_setting($pdo, 'wa_auto_last_heavy_at', date('Y-m-d H:i:s'));
+            }
         }
+    } finally {
+        wa_auto_release_tick_lock($pdo);
     }
 
     return [
@@ -1122,7 +1281,11 @@ function wa_auto_web_fallback_tick(PDO $pdo): void
     }
     $ranThisRequest = true;
 
-    if (trim((string) app_setting($pdo, 'wa_auto_web_fallback_enabled', '1')) !== '1') {
+    if (trim((string) app_setting($pdo, 'wa_auto_web_fallback_enabled', '0')) !== '1') {
+        return;
+    }
+
+    if (wa_auto_cron_recently_active($pdo)) {
         return;
     }
 

@@ -44,12 +44,12 @@ declare(strict_types=1);
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron otomatis</h2>
         <?php
-        $waCronStale = true;
-        if ($waCronLastRun !== '') {
-            $cronTs = strtotime($waCronLastRun);
-            $waCronStale = $cronTs === false || (time() - $cronTs) > 600;
-        }
+        $waCronStale = wa_auto_cron_is_stale($pdo);
         $waCronActive = $waCronLastRun !== '' && !$waCronStale;
+        $waFallbackOn = ($values['wa_auto_web_fallback_enabled'] ?? '0') === '1';
+        $waDoubleSendRisk = $waCronActive && $waFallbackOn;
+        $waDispatchStrict = ($values['wa_dispatch_strict_mode'] ?? '1') === '1';
+        $waFallbackAutoOff = trim((string) app_setting($pdo, 'wa_auto_fallback_auto_disabled_at', ''));
         ?>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <span class="badge <?= $waCronActive ? 'bg-success' : ($waCronLastRun === '' ? 'bg-secondary' : 'bg-danger') ?>">
@@ -66,7 +66,26 @@ declare(strict_types=1);
                 <?php endif; ?>
             <?php endif; ?>
         </div>
-        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1–5 menit</strong>. Setelah cron aktif, nonaktifkan <strong>Fallback cron</strong> di tab Gateway agar navigasi tidak menjalankan job di background.</p>
+        <?php if ($waDoubleSendRisk): ?>
+            <div class="alert alert-danger py-2 small mb-2">
+                <strong>Risiko kirim dobel:</strong> Cron hosting sudah aktif, tetapi <strong>Fallback cron</strong> masih ON.
+                Nonaktifkan di tab <a href="?tab=gateway">Gateway</a> — atau biarkan cron HTTP menonaktifkannya otomatis pada hit berikutnya.
+            </div>
+        <?php elseif ($waCronStale && $waFallbackOn): ?>
+            <div class="alert alert-info py-2 small mb-2">
+                Cron belum terdeteksi aktif; fallback web saat staf buka app masih berjalan sebagai cadangan.
+            </div>
+        <?php endif; ?>
+        <?php if (!$waDispatchStrict): ?>
+            <div class="alert alert-warning py-2 small mb-2">
+                <strong>Dedup nonaktif:</strong> Aktifkan "Cegah duplikat WA otomatis" di tab <a href="?tab=gateway">Gateway</a>.
+            </div>
+        <?php endif; ?>
+        <?php if ($waFallbackAutoOff !== ''): ?>
+            <p class="small text-muted mb-2">Fallback otomatis dimatikan: <strong><?= htmlspecialchars($waFallbackAutoOff) ?></strong>
+                (<?= htmlspecialchars((string) app_setting($pdo, 'wa_auto_fallback_auto_disabled_reason', 'hosting_cron_http')) ?>)</p>
+        <?php endif; ?>
+        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1–5 menit</strong>. Pastikan hanya <strong>satu baris</strong> crontab di panel hosting (hindari duplikat cPanel + manual). Setelah cron aktif, nonaktifkan <strong>Fallback cron</strong> di tab Gateway.</p>
         <div class="small mb-3">
             <div class="fw-semibold mb-1">Perintah cron</div>
             <div class="font-monospace bg-light border rounded p-2 mb-1 user-select-all">php <?= htmlspecialchars($waCronCliPath ?? (str_replace('\\', '/', dirname(__DIR__, 3) . '/cron/wa_auto.php'))) ?></div>
@@ -102,7 +121,8 @@ declare(strict_types=1);
             <li>Kelas kosong: <?= trim((string) app_setting($pdo, 'wa_kelas_kosong_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Cashless laporan: <?= $cashlessLaporanHarianWaEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Cashless transaksi → wali: <?= $cashlessTransaksiWaEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
-            <li>Fallback tanpa cron: <?= ($values['wa_auto_web_fallback_enabled'] ?? '1') === '1' ? '<span class="text-success">Aktif</span> (saat staf buka app)' : '<span class="text-muted">Nonaktif</span>' ?></li>
+            <li>Fallback tanpa cron: <?= $waFallbackOn ? '<span class="text-warning">Aktif</span> (saat staf buka app)' : '<span class="text-muted">Nonaktif</span>' ?></li>
+            <li>Cegah duplikat (ledger): <?= $waDispatchStrict ? '<span class="text-success">Aktif</span>' : '<span class="text-danger">Nonaktif</span>' ?></li>
         </ul>
         <div class="input-group input-group-sm mb-2" style="max-width:36rem">
             <span class="input-group-text">URL cron</span>

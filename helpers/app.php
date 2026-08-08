@@ -582,6 +582,7 @@ function pondok_settings_defaults(): array
         'wa_fonnte_queue_offline' => '0',
         'wa_fonnte_api_delay' => '3',
         'wa_dispatch_strict_mode' => '1',
+        'wa_auto_web_fallback_enabled' => '0',
         'wa_delay_tagihan' => '',
         'wa_delay_cashless' => '',
         'wa_delay_presensi' => '',

@@ -808,6 +808,49 @@ function cashless_koperasi_fetch_debit_hari_ini(PDO $pdo, ?int $koperasiId, int 
 }
 
 /**
+ * Filter periode debit laporan — jika satu hari, selaras dengan WA (hari operasional + jam reset).
+ *
+ * @return array{sql:string,params:array<string,mixed>,operational:bool,hint:string}
+ */
+function cashless_laporan_debit_period_filter(PDO $pdo, string $dari, string $sampai, string $tanggalCol = 'ct.tanggal'): array
+{
+    if ($dari === $sampai && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari)) {
+        $range = cashless_tanggal_rentang_harian($dari, $pdo);
+        $jam = cashless_daily_reset_jam($pdo);
+        $hint = '';
+        if ($jam !== '00:00') {
+            $hint = 'Hari operasional ' . app_format_tanggal_id($dari)
+                . ' (reset jam ' . $jam . ', sampai ' . substr((string) $range['end'], 0, 16) . ')';
+        }
+
+        return [
+            'sql' => $tanggalCol . ' >= :tgl_start AND ' . $tanggalCol . ' < :tgl_end',
+            'params' => ['tgl_start' => $range['start'], 'tgl_end' => $range['end']],
+            'operational' => true,
+            'hint' => $hint,
+        ];
+    }
+
+    return [
+        'sql' => 'DATE(' . $tanggalCol . ') BETWEEN :dari AND :sampai',
+        'params' => ['dari' => $dari, 'sampai' => $sampai],
+        'operational' => false,
+        'hint' => '',
+    ];
+}
+
+/** Label singkat jam reset operasional (kosong jika 00:00). */
+function cashless_operational_reset_hint(PDO $pdo): string
+{
+    $jam = cashless_daily_reset_jam($pdo);
+    if ($jam === '00:00') {
+        return '';
+    }
+
+    return 'Hari operasional cashless reset jam ' . $jam . ' (bukan tengah malai).';
+}
+
+/**
  * @return array{rows:list<array<string,mixed>>,total_debit:int,total_transaksi:int,jumlah_santri:int}
  */
 function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $dari, string $sampai): array
@@ -816,6 +859,7 @@ function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $d
         return ['rows' => [], 'total_debit' => 0, 'total_transaksi' => 0, 'jumlah_santri' => 0];
     }
     $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
+    $period = cashless_laporan_debit_period_filter($pdo, $dari, $sampai, 'ct.tanggal');
     $sql = '
         SELECT ct.id, ct.tanggal, ct.nominal, ct.keterangan, ct.setor_at, s.nis,
                COALESCE(NULLIF(s.nama_santri,\'\'), s.nama) AS nama_santri,
@@ -827,8 +871,8 @@ function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $d
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
         WHERE ct.jenis = \'DEBIT\'
-          AND DATE(ct.tanggal) BETWEEN :dari AND :sampai';
-    $params = ['dari' => $dari, 'sampai' => $sampai];
+          AND ' . $period['sql'];
+    $params = $period['params'];
     if ($hasKop && $koperasiId !== null && $koperasiId > 0) {
         $sql .= ' AND ct.koperasi_id = :koperasi_id';
         $params['koperasi_id'] = $koperasiId;
@@ -838,16 +882,15 @@ function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $d
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $total = 0;
-    $santriIds = [];
     foreach ($rows as $r) {
         $total += (int) round((float) ($r['nominal'] ?? 0));
     }
     if ($rows !== []) {
-        $agg = $pdo->prepare('
+        $aggSql = '
             SELECT COUNT(DISTINCT ct.santri_id) FROM cashless_transactions ct
-            WHERE ct.jenis = \'DEBIT\' AND DATE(ct.tanggal) BETWEEN :dari AND :sampai'
-            . ($hasKop && $koperasiId !== null && $koperasiId > 0 ? ' AND ct.koperasi_id = :koperasi_id' : '')
-        );
+            WHERE ct.jenis = \'DEBIT\' AND ' . $period['sql']
+            . ($hasKop && $koperasiId !== null && $koperasiId > 0 ? ' AND ct.koperasi_id = :koperasi_id' : '');
+        $agg = $pdo->prepare($aggSql);
         $agg->execute($params);
         $jumlahSantri = (int) $agg->fetchColumn();
     } else {
@@ -859,6 +902,8 @@ function cashless_koperasi_laporan_ringkas(PDO $pdo, ?int $koperasiId, string $d
         'total_debit' => $total,
         'total_transaksi' => count($rows),
         'jumlah_santri' => $jumlahSantri,
+        'period_hint' => $period['hint'],
+        'period_operational' => $period['operational'],
     ];
 }
 
@@ -871,6 +916,7 @@ function cashless_koperasi_laporan_per_koperasi(PDO $pdo, string $dari, string $
     if (!table_exists($pdo, 'cashless_transactions') || !column_exists($pdo, 'cashless_transactions', 'koperasi_id')) {
         return [];
     }
+    $period = cashless_laporan_debit_period_filter($pdo, $dari, $sampai, 'tanggal');
     $out = [];
     foreach (cashless_koperasi_list($pdo) as $kop) {
         $id = (int) $kop['id'];
@@ -878,9 +924,9 @@ function cashless_koperasi_laporan_per_koperasi(PDO $pdo, string $dari, string $
             SELECT COALESCE(SUM(nominal),0) AS total, COUNT(*) AS cnt, COUNT(DISTINCT santri_id) AS santri_cnt
             FROM cashless_transactions
             WHERE jenis = \'DEBIT\' AND koperasi_id = :kid
-              AND DATE(tanggal) BETWEEN :dari AND :sampai
+              AND ' . $period['sql'] . '
         ');
-        $stmt->execute(['kid' => $id, 'dari' => $dari, 'sampai' => $sampai]);
+        $stmt->execute(array_merge(['kid' => $id], $period['params']));
         $agg = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         $out[] = [
             'koperasi_id' => $id,

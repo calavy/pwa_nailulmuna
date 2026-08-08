@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 $posRows = bos_fetch_pos_pengeluaran($pdo, false);
+$posGrouped = bos_pos_grouped_by_jenjang_kelompok($pdo, false);
+$kelompokOptions = bos_kelompok_pengembangan_options();
 $editId = max(0, (int) ($_GET['edit'] ?? 0));
 $editRow = null;
 foreach ($posRows as $pr) {
@@ -38,7 +40,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/keuangan-bos/index.php')) ?>">Keuangan BOS</a></p>
     <h1 class="h4 mb-1">Pos Pengeluaran Lain</h1>
-    <p class="text-muted mb-0">Kategori pengeluaran kustom (ATK, Transport, dll.) — terpisah dari alokasi beban COA standar.</p>
+    <p class="text-muted mb-0">Katalog pengeluaran BOS format RAB PKPPS — dikelompokkan per jenjang dan kelompok pengembangan.</p>
 </div>
 
 <ul class="nav nav-tabs mb-3">
@@ -67,6 +69,16 @@ require_once __DIR__ . '/../includes/header.php';
                            placeholder="Contoh: ATK &amp; Alat Tulis">
                 </div>
                 <div class="col-md-6">
+                    <label class="form-label">Kelompok pengembangan</label>
+                    <select name="kelompok_pengembangan" class="form-select">
+                        <?php foreach ($kelompokOptions as $k): ?>
+                            <option value="<?= htmlspecialchars($k) ?>" <?= ($editRow['kelompok_pengembangan'] ?? BOS_KELOMPOK_LAIN) === $k ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($k) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Jenjang default</label>
                     <select name="tag_jenjang" class="form-select">
                         <?php foreach (bos_jenjang_options() as $j): ?>
@@ -81,7 +93,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <input type="number" name="urutan" class="form-control" min="0" value="<?= (int) ($editRow['urutan'] ?? 0) ?>">
                 </div>
                 <div class="col-12">
-                    <p class="small text-muted mb-0">Semua pos lain diposting ke COA <strong>5199</strong> — Beban Operasional Lain-lain.</p>
+                    <p class="small text-muted mb-0">Pos standar disinkronkan otomatis dari katalog RAB. Pos kustom masuk <strong>Pengeluaran Lain-lain</strong>. Semua diposting ke COA <strong>5199</strong>.</p>
                 </div>
             </div>
             <div class="card-footer d-flex gap-2">
@@ -94,12 +106,13 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <div class="col-lg-7">
         <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Daftar pos</div>
+            <div class="card-header fw-semibold">Daftar pos (format RAB)</div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Nama</th>
+                            <th>Nama pos</th>
+                            <th>Kelompok</th>
                             <th>Jenjang</th>
                             <th class="text-center">Urutan</th>
                             <th class="text-center">Status</th>
@@ -107,33 +120,46 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($posRows === []): ?>
-                            <tr><td colspan="5" class="text-muted text-center py-4">Belum ada pos. Tambahkan di form kiri.</td></tr>
+                        <?php if ($posGrouped === []): ?>
+                            <tr><td colspan="6" class="text-muted text-center py-4">Belum ada pos.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($posRows as $pr): ?>
-                                <tr class="<?= (int) ($pr['is_active'] ?? 0) !== 1 ? 'text-muted' : '' ?>">
-                                    <td><?= htmlspecialchars((string) ($pr['nama_pos'] ?? '')) ?></td>
-                                    <td><?= htmlspecialchars(bos_label_jenjang((string) ($pr['tag_jenjang'] ?? ''))) ?></td>
-                                    <td class="text-center"><?= (int) ($pr['urutan'] ?? 0) ?></td>
-                                    <td class="text-center">
-                                        <?php if ((int) ($pr['is_active'] ?? 0) === 1): ?>
-                                            <span class="badge bg-success">Aktif</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-secondary">Nonaktif</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-end">
-                                        <?php if ((int) ($pr['is_active'] ?? 0) === 1): ?>
-                                            <a href="<?= htmlspecialchars(app_href('/keuangan-bos/pengaturan-pos.php?edit=' . (int) $pr['id'])) ?>" class="btn btn-sm btn-outline-primary">Edit</a>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Nonaktifkan pos ini?');">
-                                                <input type="hidden" name="action" value="save_pos_bos">
-                                                <input type="hidden" name="pos_action" value="delete">
-                                                <input type="hidden" name="pos_id" value="<?= (int) $pr['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger">Nonaktifkan</button>
-                                            </form>
-                                        <?php endif; ?>
-                                    </td>
+                            <?php foreach ($posGrouped as $jenjangKey => $kelompokMap): ?>
+                                <tr class="table-secondary">
+                                    <td colspan="6" class="fw-semibold"><?= htmlspecialchars(bos_label_jenjang_section($jenjangKey)) ?></td>
                                 </tr>
+                                <?php foreach ($kelompokMap as $kelompokNama => $items): ?>
+                                    <tr class="table-light">
+                                        <td colspan="6" class="ps-4 small fw-semibold text-muted"><?= htmlspecialchars($kelompokNama) ?></td>
+                                    </tr>
+                                    <?php foreach ($items as $pr): ?>
+                                        <tr class="<?= (int) ($pr['is_active'] ?? 0) !== 1 ? 'text-muted' : '' ?>">
+                                            <td class="ps-5"><?= htmlspecialchars((string) ($pr['nama_pos'] ?? '')) ?></td>
+                                            <td><?= htmlspecialchars((string) ($pr['kelompok_pengembangan'] ?? '')) ?></td>
+                                            <td><?= htmlspecialchars(bos_label_jenjang((string) ($pr['tag_jenjang'] ?? ''))) ?></td>
+                                            <td class="text-center"><?= (int) ($pr['urutan'] ?? 0) ?></td>
+                                            <td class="text-center">
+                                                <?php if ((int) ($pr['is_active'] ?? 0) === 1): ?>
+                                                    <span class="badge bg-success">Aktif</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary">Nonaktif</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="text-end">
+                                                <?php if ((int) ($pr['is_active'] ?? 0) === 1): ?>
+                                                    <a href="<?= htmlspecialchars(app_href('/keuangan-bos/pengaturan-pos.php?edit=' . (int) $pr['id'])) ?>" class="btn btn-sm btn-outline-primary">Edit</a>
+                                                    <?php if (trim((string) ($pr['kode_pos'] ?? '')) === ''): ?>
+                                                        <form method="post" class="d-inline" onsubmit="return confirm('Nonaktifkan pos ini?');">
+                                                            <input type="hidden" name="action" value="save_pos_bos">
+                                                            <input type="hidden" name="pos_action" value="delete">
+                                                            <input type="hidden" name="pos_id" value="<?= (int) $pr['id'] ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger">Nonaktifkan</button>
+                                                        </form>
+                                                    <?php endif; ?>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endforeach; ?>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>

@@ -37,7 +37,11 @@ $values['wa_notif_mudabir_enabled'] = ($values['wa_notif_mudabir_enabled'] ?? ''
 $values['wa_kelas_kosong_enabled'] = ($values['wa_kelas_kosong_enabled'] ?? '') === '1' ? '1' : '0';
 $values['wa_fonnte_queue_offline'] = ($values['wa_fonnte_queue_offline'] ?? '') === '1' ? '1' : '0';
 $values['wa_dispatch_strict_mode'] = ($values['wa_dispatch_strict_mode'] ?? '1') === '1' ? '1' : '0';
-$values['wa_auto_web_fallback_enabled'] = ($values['wa_auto_web_fallback_enabled'] ?? '1') === '1' ? '1' : '0';
+$values['wa_auto_web_fallback_enabled'] = ($values['wa_auto_web_fallback_enabled'] ?? '0') === '1' ? '1' : '0';
+if ($values['wa_auto_web_fallback_enabled'] === '1' && wa_auto_cron_recently_active($pdo)) {
+    wa_auto_disable_web_fallback($pdo, 'cron_detected_active');
+    $values['wa_auto_web_fallback_enabled'] = '0';
+}
 $pengurusWaCount = trim((string) ($values['wa_pengurus'] ?? '')) === ''
     ? 0
     : count(preg_split('/[\s,;]+/', (string) $values['wa_pengurus'], -1, PREG_SPLIT_NO_EMPTY) ?: []);

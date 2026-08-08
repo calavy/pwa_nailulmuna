@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+require_once __DIR__ . '/../helpers/cashless_wa.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -68,7 +69,20 @@ $filterNama = $filterKoperasiId > 0
     ? (cashless_koperasi_by_id($pdo, $filterKoperasiId)['nama'] ?? ('Koperasi ' . $filterKoperasiId))
     : 'Semua koperasi';
 
-$periodeLabel = app_format_tanggal_id($dari) . ' — ' . app_format_tanggal_id($sampai);
+$periodeLabel = $dari === $sampai
+    ? app_format_tanggal_id($dari)
+    : app_format_tanggal_id($dari) . ' — ' . app_format_tanggal_id($sampai);
+$periodHint = (string) ($laporan['period_hint'] ?? '');
+$resetHint = cashless_operational_reset_hint($pdo);
+$tanggalHariIniOps = cashless_tanggal_hari_ini($pdo);
+$tanggalKemarinOps = cashless_wa_laporan_tanggal_data(date('Y-m-d'));
+$presetBaseQs = static function (string $d, string $s) use ($filterKoperasiId): string {
+    return http_build_query([
+        'koperasi_id' => $filterKoperasiId,
+        'dari' => $d,
+        'sampai' => $s,
+    ]);
+};
 
 $pageTitle = 'Laporan Cashless Koperasi';
 require_once __DIR__ . '/../includes/header.php';
@@ -99,7 +113,7 @@ require_once __DIR__ . '/../includes/header.php';
     </a>
 </div>
 
-<form method="get" class="row g-2 align-items-end mb-3">
+<form method="get" class="row g-2 align-items-end mb-2">
     <div class="col-md-3">
         <label class="form-label small">Koperasi</label>
         <select name="koperasi_id" class="form-select">
@@ -121,6 +135,17 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
     </div>
 </form>
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?' . $presetBaseQs($tanggalHariIniOps, $tanggalHariIniOps))) ?>">Hari ini operasional</a>
+    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?' . $presetBaseQs($tanggalKemarinOps, $tanggalKemarinOps))) ?>">Hari kemarin (WA)</a>
+    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/keuangan/cashless_laporan.php?' . $presetBaseQs(date('Y-m-01'), date('Y-m-d')))) ?>">Bulan ini</a>
+</div>
+<?php if ($resetHint !== '' && $dari === $sampai): ?>
+    <p class="small text-muted mb-2"><i class="fa-solid fa-clock me-1"></i><?= htmlspecialchars($resetHint) ?></p>
+<?php endif; ?>
+<?php if ($periodHint !== ''): ?>
+    <p class="small text-info mb-2"><i class="fa-solid fa-circle-info me-1"></i><?= htmlspecialchars($periodHint) ?></p>
+<?php endif; ?>
 
 <?php if ($ringkasPerKop !== []): ?>
     <p class="cashless-laporan-period mb-2"><i class="fa-regular fa-calendar me-1"></i> Periode: <strong><?= htmlspecialchars($periodeLabel) ?></strong></p>

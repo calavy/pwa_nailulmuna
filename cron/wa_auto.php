@@ -20,6 +20,10 @@ if (!$isCli && $configuredKey !== '' && !hash_equals($configuredKey, $providedKe
 
 $tick = wa_auto_run_tick($pdo);
 
+if (!$isCli) {
+    wa_auto_disable_web_fallback($pdo, 'hosting_cron_http');
+}
+
 $timestamp = date('Y-m-d H:i:s');
 if (!$isCli) {
     header('Content-Type: text/plain; charset=utf-8');
