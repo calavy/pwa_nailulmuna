@@ -8,7 +8,7 @@ $tab = trim((string) ($_GET['tab'] ?? 'rapor_pesantren'));
 if ($tab === 'rapor') {
     $tab = 'rapor_pesantren';
 }
-if (!in_array($tab, ['rapor_pesantren', 'rapor_pkpps', 'hafalan'], true)) {
+if (!in_array($tab, ['rapor_pesantren', 'rapor_pkpps', 'nilai_tugas', 'hafalan'], true)) {
     $tab = 'rapor_pesantren';
 }
 
@@ -22,6 +22,7 @@ require_once __DIR__ . '/includes/layout.php';
 $tabTitles = [
     'rapor_pesantren' => 'Rapor Pesantren',
     'rapor_pkpps' => 'Rapor PKPPS',
+    'nilai_tugas' => 'Nilai Tugas',
     'hafalan' => 'Setoran hafalan',
 ];
 wali_layout_head(($tabTitles[$tab] ?? 'Akademik') . ' — Portal Wali', true, 'akademik');
@@ -35,6 +36,8 @@ wali_layout_head(($tabTitles[$tab] ?? 'Akademik') . ' — Portal Wali', true, 'a
 
         <?php if ($tab === 'hafalan'): ?>
             <?php require __DIR__ . '/partials/akademik_tab_hafalan.php'; ?>
+        <?php elseif ($tab === 'nilai_tugas'): ?>
+            <?php require __DIR__ . '/partials/akademik_tab_tugas.php'; ?>
         <?php else: ?>
             <?php
             $raporJenisFilter = $tab === 'rapor_pkpps' ? 'pkpps' : 'pesantren';

@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../inc_portal.php';
 require_once __DIR__ . '/../../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../../helpers/akademik_pkpps_tugas.php';
-require_once __DIR__ . '/../../../helpers/app_path.php';
+require_once __DIR__ . '/../../../helpers/ikhtibar_preview.php';
 
 santri_portal_pkpps_tugas_guard($pdo);
 ensure_akademik_ikhtibar_tables($pdo);
@@ -33,6 +33,7 @@ require_once __DIR__ . '/../../includes/layout.php';
 santri_portal_layout_head('Detail Hasil PKPPS — ' . (string) ($sesi['judul'] ?? ''), 'tugas_pkpps');
 ?>
 <link href="<?= htmlspecialchars(app_href('/assets/css/ikhtibar-hasil.css')) ?>" rel="stylesheet">
+<?php ikhtibar_soal_typography_head(); ?>
 
 <h1 class="h5 fw-bold mb-1"><?= htmlspecialchars((string) ($sesi['judul'] ?? 'Tugas')) ?></h1>
 <p class="small text-muted mb-3"><?= htmlspecialchars(ikhtibar_hari_label((int) ($sesi['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) ($sesi['tanggal'] ?? '')) ?></p>
@@ -95,10 +96,8 @@ santri_portal_layout_head('Detail Hasil PKPPS — ' . (string) ($sesi['judul'] ?
                     <span class="fw-semibold small">Soal <?= (int) ($j['nomor'] ?? 0) ?></span>
                     <span class="badge text-bg-<?= $benar ? 'success' : 'danger' ?>"><?= $benar ? 'Benar' : 'Salah' ?></span>
                 </div>
-                <p class="small mb-1 text-muted"><?= nl2br(htmlspecialchars(mb_strimwidth((string) ($j['teks_soal'] ?? ''), 0, 200, '…'))) ?></p>
-                <p class="small mb-0">Jawaban Anda: <strong><?= htmlspecialchars((string) ($j['jawaban_santri'] ?? '-')) ?></strong>
-                    <?php if (!$benar): ?> · Kunci: <strong><?= htmlspecialchars((string) ($j['kunci_jawaban'] ?? '-')) ?></strong><?php endif; ?>
-                </p>
+                <div class="mb-1"><?= ikhtibar_soal_teks_html(mb_strimwidth((string) ($j['teks_soal'] ?? ''), 0, 200, '…'), true) ?></div>
+                <p class="small mb-0 ikhtibar-soal-text" dir="auto">Jawaban Anda: <strong><?= htmlspecialchars((string) ($j['jawaban_santri'] ?? '-')) ?></strong></p>
             </div>
         <?php endforeach;
         if (!$adaPg): ?>
@@ -128,8 +127,8 @@ santri_portal_layout_head('Detail Hasil PKPPS — ' . (string) ($sesi['judul'] ?
                         <span class="badge text-bg-warning text-dark">Belum dinilai</span>
                     <?php endif; ?>
                 </div>
-                <p class="small text-muted mb-1"><?= nl2br(htmlspecialchars(mb_strimwidth((string) ($j['teks_soal'] ?? ''), 0, 180, '…'))) ?></p>
-                <p class="small mb-0"><?= nl2br(htmlspecialchars((string) ($j['jawaban_santri'] ?? '-'))) ?></p>
+                <div class="mb-1"><?= ikhtibar_soal_teks_html(mb_strimwidth((string) ($j['teks_soal'] ?? ''), 0, 180, '…'), true) ?></div>
+                <div class="mb-0"><?= ikhtibar_soal_teks_html((string) ($j['jawaban_santri'] ?? '-'), true) ?></div>
                 <?php if ($dinilai && trim((string) ($j['catatan_pembimbing'] ?? '')) !== ''): ?>
                     <p class="small text-info mb-0 mt-2"><i class="fa-solid fa-comment me-1"></i><?= htmlspecialchars((string) $j['catatan_pembimbing']) ?></p>
                 <?php endif; ?>

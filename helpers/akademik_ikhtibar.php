@@ -16,30 +16,97 @@ function ikhtibar_kuota_esai(): array
     return [5, 10, 15];
 }
 
+/** @return list<string> */
+function ikhtibar_tugas_required_columns(): array
+{
+    return [
+        'sumber',
+        'tanggal_selesai',
+        'mapel_label',
+        'jadwal_kegiatan_id',
+        'kegiatan_id',
+        'pkpps_jadwal_id',
+        'pkpps_tingkatan_id',
+        'pembimbing_nama',
+        'nilai_dipublikasikan',
+    ];
+}
+
+function ikhtibar_schema_columns_ready(PDO $pdo): bool
+{
+    if (!table_exists($pdo, 'ikhtibar_tugas')
+        || !table_exists($pdo, 'ikhtibar_soal')
+        || !table_exists($pdo, 'ikhtibar_sesi')
+        || !table_exists($pdo, 'ikhtibar_jawaban')) {
+        return false;
+    }
+    foreach (ikhtibar_tugas_required_columns() as $col) {
+        if (!column_exists($pdo, 'ikhtibar_tugas', $col)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/** Tambah kolom ikhtibar yang mungkin belum ada (jalan setiap request). */
+function ikhtibar_apply_pending_schema_columns(PDO $pdo): void
+{
+    static $applied = false;
+    if ($applied || !table_exists($pdo, 'ikhtibar_tugas')) {
+        return;
+    }
+    $applied = true;
+
+    require_once __DIR__ . '/akademik.php';
+
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'kegiatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'jadwal_kegiatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'mapel_label', 'VARCHAR(200) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'tanggal_selesai', 'DATE NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'sumber', 'VARCHAR(20) NOT NULL DEFAULT "IKHTIBAR"');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_jadwal_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_tingkatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pembimbing_nama', 'VARCHAR(200) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan', 'TINYINT(1) NOT NULL DEFAULT 0');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan_at', 'DATETIME NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan_by', 'INT NULL');
+
+    if (table_exists($pdo, 'ikhtibar_sesi')) {
+        akademik_add_column($pdo, 'ikhtibar_sesi', 'draf_pin_hash', 'VARCHAR(255) NULL');
+        akademik_add_column($pdo, 'ikhtibar_sesi', 'draf_disimpan_at', 'DATETIME NULL');
+    }
+
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'draf_akses_pin_hash', 'VARCHAR(255) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'draf_akses_pin_plain', 'VARCHAR(20) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'kelompok_label', 'VARCHAR(200) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'urutan_kelompok', 'SMALLINT NULL DEFAULT 0');
+
+    require_once __DIR__ . '/ikhtibar_kriteria.php';
+    ikhtibar_kriteria_ensure_schema($pdo);
+}
+
 function ensure_akademik_ikhtibar_tables(PDO $pdo): void
 {
     static $done = false;
+
+    unset($_SESSION['ikhtibar_schema_ready_v1']);
+
+    if (!empty($_SESSION['ikhtibar_schema_ready_v2']) && ikhtibar_schema_columns_ready($pdo)) {
+        ikhtibar_apply_pending_schema_columns($pdo);
+
+        return;
+    }
+    unset($_SESSION['ikhtibar_schema_ready_v2']);
+
     if ($done) {
+        ikhtibar_apply_pending_schema_columns($pdo);
+
         return;
     }
     $done = true;
 
-    if (!empty($_SESSION['ikhtibar_schema_ready_v1'])) {
-        $sessionOk = table_exists($pdo, 'ikhtibar_tugas')
-            && column_exists($pdo, 'ikhtibar_tugas', 'sumber');
-        if ($sessionOk) {
-            return;
-        }
-        unset($_SESSION['ikhtibar_schema_ready_v1']);
-    }
-
     require_once __DIR__ . '/akademik.php';
-
-    $schemaComplete = table_exists($pdo, 'ikhtibar_tugas')
-        && table_exists($pdo, 'ikhtibar_soal')
-        && table_exists($pdo, 'ikhtibar_sesi')
-        && table_exists($pdo, 'ikhtibar_jawaban')
-        && column_exists($pdo, 'ikhtibar_tugas', 'sumber');
 
     $pdo->exec('
         CREATE TABLE IF NOT EXISTS ikhtibar_tugas (
@@ -122,21 +189,30 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
     akademik_add_column($pdo, 'ikhtibar_tugas', 'sumber', 'VARCHAR(20) NOT NULL DEFAULT "IKHTIBAR"');
     akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_jadwal_id', 'INT NULL');
     akademik_add_column($pdo, 'ikhtibar_tugas', 'pkpps_tingkatan_id', 'INT NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'pembimbing_nama', 'VARCHAR(200) NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan', 'TINYINT(1) NOT NULL DEFAULT 0');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan_at', 'DATETIME NULL');
+    akademik_add_column($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan_by', 'INT NULL');
+
+    if (column_exists($pdo, 'ikhtibar_tugas', 'pembimbing_nama') && table_exists($pdo, 'users')) {
+        $pdo->exec('
+            UPDATE ikhtibar_tugas t
+            INNER JOIN users u ON u.id = t.created_by
+            SET t.pembimbing_nama = u.nama
+            WHERE (t.pembimbing_nama IS NULL OR t.pembimbing_nama = "")
+              AND u.nama IS NOT NULL AND u.nama <> ""
+        ');
+    }
 
     require_once __DIR__ . '/ikhtibar_kriteria.php';
     ikhtibar_kriteria_ensure_schema($pdo);
 
-    if ($schemaComplete) {
-        if (app_setting($pdo, 'ikhtibar_schema_ready_v1', '') !== '1') {
-            save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
+    if (ikhtibar_schema_columns_ready($pdo)) {
+        if (app_setting($pdo, 'ikhtibar_schema_ready_v2', '') !== '1') {
+            save_setting($pdo, 'ikhtibar_schema_ready_v2', '1');
         }
-        $_SESSION['ikhtibar_schema_ready_v1'] = 1;
-
-        return;
+        $_SESSION['ikhtibar_schema_ready_v2'] = 1;
     }
-
-    save_setting($pdo, 'ikhtibar_schema_ready_v1', '1');
-    $_SESSION['ikhtibar_schema_ready_v1'] = 1;
 }
 
 /** ID baris pembimbing (SDM) dari akun login users (cocokkan NIP = username). */
@@ -471,6 +547,21 @@ function ikhtibar_soal_by_tugas(PDO $pdo, int $tugasId): array
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** Hapus kunci jawaban dari baris soal (portal santri). */
+function ikhtibar_soal_sanitize_for_santri(array $soalList): array
+{
+    $out = [];
+    foreach ($soalList as $soal) {
+        if (!is_array($soal)) {
+            continue;
+        }
+        unset($soal['kunci_jawaban']);
+        $out[] = $soal;
+    }
+
+    return $out;
+}
+
 /**
  * @return list<array<string,mixed>>
  */
@@ -492,7 +583,7 @@ function ikhtibar_tugas_list_pembimbing(PDO $pdo, int $userId, ?string $sumber =
             $params['uid'] = $userId;
         }
     }
-    $sql .= ' ORDER BY t.tanggal DESC, t.id DESC';
+    $sql .= ' ORDER BY COALESCE(NULLIF(t.kelompok_label, ""), "ZZZ") ASC, t.urutan_kelompok ASC, t.tanggal DESC, t.id DESC';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
@@ -513,7 +604,7 @@ function ikhtibar_tugas_tersedia_santri(PDO $pdo, int $santriId, string $tingkat
           AND COALESCE(t.sumber, "IKHTIBAR") = :sumber
           AND t.tanggal <= :today
           AND (t.filter_tingkatan IS NULL OR t.filter_tingkatan = "" OR t.filter_tingkatan = :tingkat)
-        ORDER BY t.tanggal DESC, t.id DESC
+        ORDER BY COALESCE(NULLIF(t.kelompok_label, ""), "ZZZ") ASC, t.urutan_kelompok ASC, t.tanggal ASC, t.id ASC
     ');
     $stmt->execute(['sumber' => $sumber, 'today' => $today, 'tingkat' => $tingkatan]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -540,6 +631,30 @@ function ikhtibar_tugas_tersedia_santri(PDO $pdo, int $santriId, string $tingkat
 }
 
 /**
+ * Kelompokkan daftar tugas berdasarkan label kelompok (urutan input dipertahankan).
+ *
+ * @param list<array<string,mixed>> $tugasList
+ * @return list<array{label:string,items:list<array<string,mixed>>}>
+ */
+function ikhtibar_tugas_kelompok_sections(array $tugasList): array
+{
+    $sections = [];
+    foreach ($tugasList as $t) {
+        if (!is_array($t)) {
+            continue;
+        }
+        $label = trim((string) ($t['kelompok_label'] ?? ''));
+        $key = $label !== '' ? $label : '__default__';
+        if (!isset($sections[$key])) {
+            $sections[$key] = ['label' => $label, 'items' => []];
+        }
+        $sections[$key]['items'][] = $t;
+    }
+
+    return array_values($sections);
+}
+
+/**
  * @return array<string,mixed>|null
  */
 function ikhtibar_sesi_get(PDO $pdo, int $tugasId, int $santriId): ?array
@@ -550,6 +665,113 @@ function ikhtibar_sesi_get(PDO $pdo, int $tugasId, int $santriId): ?array
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     return is_array($row) ? $row : null;
+}
+
+/** Sisa waktu sesi berjalan (detik); 0 jika sudah habis atau belum mulai. */
+function ikhtibar_sesi_sisa_detik(array $sesi): int
+{
+    if ((string) ($sesi['status'] ?? '') !== 'berjalan' || empty($sesi['waktu_mulai'])) {
+        return 0;
+    }
+    $waktuMulai = strtotime((string) $sesi['waktu_mulai']);
+    if ($waktuMulai === false) {
+        return 0;
+    }
+    $durasiDetik = max(0, (int) ($sesi['durasi_menit'] ?? 60)) * 60;
+
+    return max(0, $durasiDetik - (time() - $waktuMulai));
+}
+
+/** Simpan sementara tidak diizinkan jika masih ada waktu namun ≤ 5 menit. */
+function ikhtibar_simpan_sementara_diblokir(int $sisaDetik): bool
+{
+    return $sisaDetik > 0 && $sisaDetik <= 300;
+}
+
+function ikhtibar_draf_pin_normalize(string $pin): string
+{
+    return preg_replace('/\D+/', '', $pin) ?? '';
+}
+
+/** @return string|null pesan error */
+function ikhtibar_draf_pin_validasi(string $pin, ?string $konfirmasi = null): ?string
+{
+    $pin = ikhtibar_draf_pin_normalize($pin);
+    if (strlen($pin) < 4 || strlen($pin) > 6) {
+        return 'PIN draf harus 4–6 digit angka.';
+    }
+    if ($konfirmasi !== null && $pin !== ikhtibar_draf_pin_normalize($konfirmasi)) {
+        return 'Konfirmasi PIN tidak sama.';
+    }
+
+    return null;
+}
+
+function ikhtibar_sesi_punya_pin_draf(array $sesi): bool
+{
+    return trim((string) ($sesi['draf_pin_hash'] ?? '')) !== '';
+}
+
+function ikhtibar_sesi_ada_draf_disimpan(array $sesi): bool
+{
+    return !empty($sesi['draf_disimpan_at']) && ikhtibar_sesi_punya_pin_draf($sesi);
+}
+
+function ikhtibar_sesi_draf_terbuka(int $sesiId): bool
+{
+    return !empty($_SESSION['ikhtibar_draf_unlock'][$sesiId]);
+}
+
+function ikhtibar_sesi_buka_draf(int $sesiId): void
+{
+    if (!isset($_SESSION['ikhtibar_draf_unlock']) || !is_array($_SESSION['ikhtibar_draf_unlock'])) {
+        $_SESSION['ikhtibar_draf_unlock'] = [];
+    }
+    $_SESSION['ikhtibar_draf_unlock'][$sesiId] = time();
+}
+
+function ikhtibar_sesi_tutup_draf(int $sesiId): void
+{
+    unset($_SESSION['ikhtibar_draf_unlock'][$sesiId]);
+}
+
+/** Draf tersimpan & belum dibuka dengan PIN pada sesi login ini. */
+function ikhtibar_sesi_draf_terkunci(array $sesi): bool
+{
+    if ((string) ($sesi['status'] ?? '') !== 'berjalan' || !ikhtibar_sesi_ada_draf_disimpan($sesi)) {
+        return false;
+    }
+
+    return !ikhtibar_sesi_draf_terbuka((int) ($sesi['id'] ?? 0));
+}
+
+function ikhtibar_sesi_set_pin_draf(PDO $pdo, int $sesiId, string $pin): array
+{
+    $err = ikhtibar_draf_pin_validasi($pin);
+    if ($err !== null) {
+        return ['ok' => false, 'message' => $err];
+    }
+    $hash = password_hash(ikhtibar_draf_pin_normalize($pin), PASSWORD_DEFAULT);
+    $pdo->prepare('UPDATE ikhtibar_sesi SET draf_pin_hash = :h WHERE id = :id')
+        ->execute(['h' => $hash, 'id' => $sesiId]);
+
+    return ['ok' => true, 'message' => 'PIN draf disimpan.'];
+}
+
+function ikhtibar_sesi_verifikasi_pin_draf(array $sesi, string $pin): bool
+{
+    $hash = trim((string) ($sesi['draf_pin_hash'] ?? ''));
+    if ($hash === '') {
+        return true;
+    }
+
+    return password_verify(ikhtibar_draf_pin_normalize($pin), $hash);
+}
+
+function ikhtibar_sesi_tandai_draf_disimpan(PDO $pdo, int $sesiId): void
+{
+    $pdo->prepare('UPDATE ikhtibar_sesi SET draf_disimpan_at = NOW() WHERE id = :id')
+        ->execute(['id' => $sesiId]);
 }
 
 /** Acak urutan soal per santri. */
@@ -731,6 +953,8 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     $pakaiToken = isset($post['pakai_token']) ? 1 : 0;
     $filterTingkat = trim((string) ($post['filter_tingkatan'] ?? ''));
     $catatan = trim((string) ($post['catatan'] ?? ''));
+    $kelompokLabel = trim((string) ($post['kelompok_label'] ?? ''));
+    $urutanKelompok = max(0, (int) ($post['urutan_kelompok'] ?? 0));
     $publish = isset($post['publish']);
     $hariKe = (int) ($post['hari_ke'] ?? 0);
     if ($hariKe < 1 || $hariKe > 7) {
@@ -758,7 +982,6 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
     if (!in_array($jumlahEsai, ikhtibar_kuota_esai(), true)) {
         $jumlahEsai = 0;
     }
-    $publish = isset($post['publish']);
     if ($publish && $jumlahPg + $jumlahEsai < 1) {
         return ['ok' => false, 'message' => 'Publikasikan membutuhkan kuota PG atau Esai.'];
     }
@@ -770,13 +993,30 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
         }
     }
 
+    require_once __DIR__ . '/ikhtibar_tugas_draf_pin.php';
+    $pinBaruUntukSet = '';
+    if (!$publish) {
+        $existingPin = $id > 0 ? ikhtibar_tugas_by_id($pdo, $id) : null;
+        if (is_array($existingPin) && ikhtibar_tugas_akses_pin_terkunci($existingPin)) {
+            return ['ok' => false, 'message' => 'Masukkan PIN draf tugas untuk mengedit.'];
+        }
+        if (!is_array($existingPin) || !ikhtibar_tugas_punya_akses_pin($existingPin)) {
+            $pinBaru = (string) ($post['pin_draf_tugas_baru'] ?? '');
+            $pinKonfirm = (string) ($post['pin_draf_tugas_konfirmasi'] ?? '');
+            $errPin = ikhtibar_draf_pin_validasi($pinBaru, $pinKonfirm);
+            if ($errPin !== null) {
+                return ['ok' => false, 'message' => $errPin];
+            }
+            $pinBaruUntukSet = $pinBaru;
+        }
+    }
+
     $mapel = ikhtibar_resolve_mapel_dari_post($pdo, $post, $userId);
     $jadwalPost = (int) ($post['jadwal_kegiatan_id'] ?? 0);
     $sumber = strtoupper(trim((string) ($post['sumber'] ?? 'IKHTIBAR')));
     if (!in_array($sumber, ['IKHTIBAR', 'PKPPS'], true)) {
         $sumber = 'IKHTIBAR';
     }
-    $pkppsMeta = null;
     if ($sumber === 'PKPPS') {
         $pkppsMeta = ikhtibar_resolve_pkpps_dari_post($pdo, $post, $userId);
         $pkppsPost = (int) ($post['pkpps_jadwal_id'] ?? 0);
@@ -785,10 +1025,8 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
         }
         $mapel = $pkppsMeta;
         $jadwalPost = 0;
-    } else {
-        if ($jadwalPost > 0 && $mapel === null) {
-            return ['ok' => false, 'message' => 'Kelas/mapel tidak valid atau bukan jadwal Anda.'];
-        }
+    } elseif ($jadwalPost > 0 && $mapel === null) {
+        return ['ok' => false, 'message' => 'Kelas/mapel tidak valid atau bukan jadwal Anda.'];
     }
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     $wajibMapel = !is_super_admin() && !in_array($role, ['admin', 'pengurus'], true);
@@ -801,98 +1039,102 @@ function ikhtibar_simpan_tugas_dari_post(PDO $pdo, array $post, array $files, in
         }
     }
 
-    $status = $publish ? 'published' : 'draft';
-    if ($id > 0 && ikhtibar_tugas_has_active_sesi($pdo, $id) && !$publish) {
+    $soal = ikhtibar_kumpulkan_soal_dari_post($post, $jumlahPg, $jumlahEsai);
+    $importBundle = ikhtibar_kumpulkan_import_dari_request($pdo, $post, $files, $jumlahPg, $jumlahEsai);
+    $soal = ikhtibar_merge_soal_import($soal, $importBundle);
+    $importErrors = $importBundle['errors'] ?? [];
+
+    if ($id > 0) {
+        $soal = ikhtibar_merge_soal_existing($soal, ikhtibar_soal_by_tugas($pdo, $id), $jumlahPg, $jumlahEsai);
+    }
+
+    if ($publish) {
+        $val = ikhtibar_validasi_soal_publish($soal);
+        if (!$val['ok']) {
+            return ['ok' => false, 'message' => $val['message'], 'id' => $id > 0 ? $id : null];
+        }
+    }
+
+    $status = 'draft';
+    if ($publish) {
+        $status = 'published';
+    } elseif ($id > 0 && ikhtibar_tugas_has_active_sesi($pdo, $id)) {
         $cur = ikhtibar_tugas_by_id($pdo, $id);
         if (is_array($cur) && (string) ($cur['status'] ?? '') === 'published') {
             $status = 'published';
         }
     }
-    if ($id > 0) {
-        $pdo->prepare('
-            UPDATE ikhtibar_tugas SET judul=:j, tanggal=:t, tanggal_selesai=:ts, hari_ke=:h, durasi_menit=:d, pakai_token=:pt,
-                jumlah_pg=:jpg, jumlah_esai=:je, filter_tingkatan=:ft, catatan=:c, status=:st, sumber=:sum,
-                kegiatan_id=:kid, jadwal_kegiatan_id=:jid, pkpps_jadwal_id=:pjid, pkpps_tingkatan_id=:ptid, mapel_label=:ml, updated_at=NOW()
-            WHERE id=:id
-        ')->execute([
-            'j' => $judul, 't' => $tanggal, 'ts' => $tanggalSelesai, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
-            'jpg' => $jumlahPg, 'je' => $jumlahEsai, 'ft' => $filterTingkat !== '' ? $filterTingkat : null,
-            'c' => $catatan !== '' ? $catatan : null, 'st' => $status, 'sum' => $sumber, 'id' => $id,
-            'kid' => $mapel['kegiatan_id'] ?? null,
-            'jid' => $sumber === 'IKHTIBAR' ? ($mapel['jadwal_kegiatan_id'] ?? null) : null,
-            'pjid' => $sumber === 'PKPPS' ? ($mapel['pkpps_jadwal_id'] ?? null) : null,
-            'ptid' => $sumber === 'PKPPS' ? ($mapel['pkpps_tingkatan_id'] ?? null) : null,
-            'ml' => $mapel['mapel_label'] ?? null,
-        ]);
-        $tugasId = $id;
-    } else {
-        $pdo->prepare('
-            INSERT INTO ikhtibar_tugas (judul, tanggal, tanggal_selesai, hari_ke, durasi_menit, pakai_token, jumlah_pg, jumlah_esai,
-                filter_tingkatan, catatan, status, created_by, sumber, kegiatan_id, jadwal_kegiatan_id, pkpps_jadwal_id, pkpps_tingkatan_id, mapel_label)
-            VALUES (:j,:t,:ts,:h,:d,:pt,:jpg,:je,:ft,:c,:st,:uid,:sum,:kid,:jid,:pjid,:ptid,:ml)
-        ')->execute([
-            'j' => $judul, 't' => $tanggal, 'ts' => $tanggalSelesai, 'h' => $hariKe, 'd' => $durasi, 'pt' => $pakaiToken,
-            'jpg' => $jumlahPg, 'je' => $jumlahEsai, 'ft' => $filterTingkat !== '' ? $filterTingkat : null,
-            'c' => $catatan !== '' ? $catatan : null, 'st' => $status, 'uid' => $userId > 0 ? $userId : null, 'sum' => $sumber,
-            'kid' => $mapel['kegiatan_id'] ?? null,
-            'jid' => $sumber === 'IKHTIBAR' ? ($mapel['jadwal_kegiatan_id'] ?? null) : null,
-            'pjid' => $sumber === 'PKPPS' ? ($mapel['pkpps_jadwal_id'] ?? null) : null,
-            'ptid' => $sumber === 'PKPPS' ? ($mapel['pkpps_tingkatan_id'] ?? null) : null,
-            'ml' => $mapel['mapel_label'] ?? null,
-        ]);
-        $tugasId = (int) $pdo->lastInsertId();
-    }
 
-    if ($pakaiToken === 1) {
-        ikhtibar_set_token($pdo, $tugasId);
-    }
+    $tugasParams = [
+        'j' => $judul,
+        't' => $tanggal,
+        'ts' => $tanggalSelesai,
+        'h' => $hariKe,
+        'd' => $durasi,
+        'pt' => $pakaiToken,
+        'jpg' => $jumlahPg,
+        'je' => $jumlahEsai,
+        'ft' => $filterTingkat !== '' ? $filterTingkat : null,
+        'c' => $catatan !== '' ? $catatan : null,
+        'st' => $status,
+        'sum' => $sumber,
+        'kid' => $mapel['kegiatan_id'] ?? null,
+        'jid' => $sumber === 'IKHTIBAR' ? ($mapel['jadwal_kegiatan_id'] ?? null) : null,
+        'pjid' => $sumber === 'PKPPS' ? ($mapel['pkpps_jadwal_id'] ?? null) : null,
+        'ptid' => $sumber === 'PKPPS' ? ($mapel['pkpps_tingkatan_id'] ?? null) : null,
+        'ml' => $mapel['mapel_label'] ?? null,
+        'pn' => ikhtibar_pembimbing_nama_dari_user($pdo, $userId),
+        'kl' => $kelompokLabel !== '' ? $kelompokLabel : null,
+        'uk' => $urutanKelompok,
+    ];
 
-    $soal = ikhtibar_kumpulkan_soal_dari_post($post, $jumlahPg, $jumlahEsai);
-    $importErrors = [];
+    try {
+        $pdo->beginTransaction();
 
-    if (isset($files['import_docx']) && (int) ($files['import_docx']['error'] ?? 1) === UPLOAD_ERR_OK) {
-        $docxImport = ikhtibar_import_soal_dari_docx((string) $files['import_docx']['tmp_name'], $jumlahPg, $jumlahEsai);
-        $soal = ikhtibar_merge_soal_import($soal, $docxImport);
-        $importErrors = array_merge($importErrors, $docxImport['errors'] ?? []);
-    }
-    if (isset($files['import_xlsx']) && (int) ($files['import_xlsx']['error'] ?? 1) === UPLOAD_ERR_OK) {
-        $xlsxImport = ikhtibar_import_soal_dari_xlsx((string) $files['import_xlsx']['tmp_name'], $jumlahPg, $jumlahEsai);
-        $soal = ikhtibar_merge_soal_import($soal, $xlsxImport);
-        $importErrors = array_merge($importErrors, $xlsxImport['errors'] ?? []);
-    }
-
-    $ocrText = trim((string) ($post['ocr_teks_import'] ?? ''));
-    if ($ocrText !== '' && $jumlahPg > 0) {
-        $parsed = ikhtibar_parse_teks_soal_pg($ocrText, $jumlahPg);
-        $ocrPg = ['pg' => [], 'esai' => []];
-        foreach ($parsed as $idx => $p) {
-            $nom = $idx + 1;
-            if ($nom > $jumlahPg) {
-                break;
-            }
-            $ocrPg['pg'][$nom] = [
-                'teks' => (string) ($p['teks'] ?? ''),
-                'a' => $p['opsi']['A'] ?? null,
-                'b' => $p['opsi']['B'] ?? null,
-                'c' => $p['opsi']['C'] ?? null,
-                'd' => $p['opsi']['D'] ?? null,
-                'e' => $p['opsi']['E'] ?? null,
-                'kunci' => ($p['kunci'] ?? '') !== '' ? strtoupper((string) $p['kunci']) : null,
-                'bobot' => 100.0,
-            ];
+        if ($id > 0) {
+            $tugasParams['id'] = $id;
+            $pdo->prepare('
+                UPDATE ikhtibar_tugas SET judul=:j, tanggal=:t, tanggal_selesai=:ts, hari_ke=:h, durasi_menit=:d, pakai_token=:pt,
+                    jumlah_pg=:jpg, jumlah_esai=:je, filter_tingkatan=:ft, catatan=:c, status=:st, sumber=:sum,
+                    kegiatan_id=:kid, jadwal_kegiatan_id=:jid, pkpps_jadwal_id=:pjid, pkpps_tingkatan_id=:ptid, mapel_label=:ml,
+                    pembimbing_nama=:pn, kelompok_label=:kl, urutan_kelompok=:uk, updated_at=NOW()
+                WHERE id=:id
+            ')->execute($tugasParams);
+            $tugasId = $id;
+        } else {
+            $tugasParams['uid'] = $userId > 0 ? $userId : null;
+            $pdo->prepare('
+                INSERT INTO ikhtibar_tugas (judul, tanggal, tanggal_selesai, hari_ke, durasi_menit, pakai_token, jumlah_pg, jumlah_esai,
+                    filter_tingkatan, catatan, status, created_by, sumber, kegiatan_id, jadwal_kegiatan_id, pkpps_jadwal_id, pkpps_tingkatan_id, mapel_label, pembimbing_nama, kelompok_label, urutan_kelompok)
+                VALUES (:j,:t,:ts,:h,:d,:pt,:jpg,:je,:ft,:c,:st,:uid,:sum,:kid,:jid,:pjid,:ptid,:ml,:pn,:kl,:uk)
+            ')->execute($tugasParams);
+            $tugasId = (int) $pdo->lastInsertId();
         }
-        $soal = ikhtibar_merge_soal_import($soal, $ocrPg);
-    }
 
-    ikhtibar_persist_soal_rows($pdo, $tugasId, $soal);
+        if ($pakaiToken === 1) {
+            ikhtibar_set_token($pdo, $tugasId);
+        }
+
+        if ($pinBaruUntukSet !== '') {
+            $setPin = ikhtibar_tugas_set_akses_pin($pdo, $tugasId, $pinBaruUntukSet);
+            if (!$setPin['ok']) {
+                throw new RuntimeException((string) ($setPin['message'] ?? 'Gagal menyimpan PIN draf.'));
+            }
+        }
+
+        ikhtibar_persist_soal_rows($pdo, $tugasId, $soal);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menyimpan tugas: ' . $e->getMessage(), 'id' => $id > 0 ? $id : null];
+    }
 
     $cnt = count($soal['pg']) + count($soal['esai']);
-    if ($publish) {
-        $val = ikhtibar_validasi_soal_publish($soal);
-        if (!$val['ok']) {
-            return ['ok' => false, 'message' => $val['message'], 'id' => $tugasId];
-        }
-    } elseif ($cnt < 1) {
+    if (!$publish && $cnt < 1) {
         $msg = 'Tugas disimpan sebagai draf (belum ada soal).';
         if ($importErrors !== []) {
             $msg .= ' Import: ' . implode(' ', $importErrors);
@@ -916,14 +1158,14 @@ function ikhtibar_laporan_nilai(PDO $pdo, int $tugasId): array
 {
     ensure_akademik_ikhtibar_tables($pdo);
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $stmt = $pdo->prepare("
+    $stmt = $pdo->prepare('
         SELECT s.id AS sesi_id, s.status, s.skor_pg, s.skor_esai, s.nilai_total, s.waktu_mulai, s.waktu_selesai,
-               st.nis, st.{$nameCol} AS nama_santri, st.tingkatan
+               st.nis, st.' . $nameCol . ' AS nama_santri, st.tingkatan
         FROM ikhtibar_sesi s
         INNER JOIN santri st ON st.id = s.santri_id
         WHERE s.tugas_id = :tid
         ORDER BY ' . santri_list_order_sql('st') . '
-    ");
+    ');
     $stmt->execute(['tid' => $tugasId]);
 
     return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -1094,7 +1336,7 @@ function ikhtibar_riwayat_hasil_santri(PDO $pdo, int $santriId, ?string $sumber 
  *
  * @return array<string,mixed>|null
  */
-function ikhtibar_hasil_detail_santri(PDO $pdo, int $sesiId, int $santriId): ?array
+function ikhtibar_hasil_detail_santri(PDO $pdo, int $sesiId, int $santriId, bool $includeKunci = false): ?array
 {
     ensure_akademik_ikhtibar_tables($pdo);
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
@@ -1129,6 +1371,12 @@ function ikhtibar_hasil_detail_santri(PDO $pdo, int $sesiId, int $santriId): ?ar
     ');
     $jStmt->execute(['s' => $sesiId]);
     $jawaban = $jStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (!$includeKunci) {
+        foreach ($jawaban as &$jRow) {
+            unset($jRow['kunci_jawaban']);
+        }
+        unset($jRow);
+    }
 
     $pgBenar = 0;
     $pgTotal = 0;
@@ -1265,4 +1513,295 @@ function ikhtibar_hari_label(int $hariKe): string
     $map = [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
     return $map[$hariKe] ?? '-';
+}
+
+function ikhtibar_pembimbing_nama_dari_user(PDO $pdo, int $userId): ?string
+{
+    if ($userId <= 0 || !table_exists($pdo, 'users')) {
+        return null;
+    }
+    $cols = [];
+    if (column_exists($pdo, 'users', 'nama')) {
+        $cols[] = 'nama';
+    }
+    if ($cols === []) {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM users WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $userId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return null;
+    }
+    $nama = trim((string) ($row['nama'] ?? ''));
+
+    return $nama !== '' ? $nama : null;
+}
+
+function ikhtibar_tugas_pembimbing_nama(PDO $pdo, array $tugas): string
+{
+    $stored = trim((string) ($tugas['pembimbing_nama'] ?? ''));
+    if ($stored !== '') {
+        return $stored;
+    }
+    $uid = (int) ($tugas['created_by'] ?? 0);
+    $fromUser = $uid > 0 ? ikhtibar_pembimbing_nama_dari_user($pdo, $uid) : null;
+
+    return $fromUser !== null && $fromUser !== '' ? $fromUser : 'Pembimbing';
+}
+
+/**
+ * @return list<array<string,mixed>>
+ */
+function ikhtibar_rekap_nilai_per_tingkatan(PDO $pdo, int $tugasId): array
+{
+    ensure_akademik_ikhtibar_tables($pdo);
+    if ($tugasId <= 0) {
+        return [];
+    }
+    $stmt = $pdo->prepare('
+        SELECT COALESCE(NULLIF(TRIM(st.tingkatan), ""), "—") AS tingkatan,
+               COUNT(*) AS jumlah_peserta,
+               SUM(CASE WHEN s.status IN ("selesai", "habis_waktu") THEN 1 ELSE 0 END) AS jumlah_selesai,
+               AVG(CASE WHEN s.nilai_total IS NOT NULL THEN s.nilai_total END) AS rata_nilai,
+               MIN(s.nilai_total) AS nilai_min,
+               MAX(s.nilai_total) AS nilai_max
+        FROM ikhtibar_sesi s
+        INNER JOIN santri st ON st.id = s.santri_id
+        WHERE s.tugas_id = :tid
+        GROUP BY COALESCE(NULLIF(TRIM(st.tingkatan), ""), "—")
+        ORDER BY tingkatan ASC
+    ');
+    $stmt->execute(['tid' => $tugasId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as &$r) {
+        $r['rata_nilai'] = $r['rata_nilai'] !== null ? round((float) $r['rata_nilai'], 1) : null;
+        $r['nilai_min'] = $r['nilai_min'] !== null ? round((float) $r['nilai_min'], 1) : null;
+        $r['nilai_max'] = $r['nilai_max'] !== null ? round((float) $r['nilai_max'], 1) : null;
+    }
+    unset($r);
+
+    return $rows;
+}
+
+/** @return array{ok:bool,message:string} */
+function ikhtibar_set_nilai_dipublikasikan(PDO $pdo, int $tugasId, int $userId, bool $publish): array
+{
+    ensure_akademik_ikhtibar_tables($pdo);
+    if ($tugasId <= 0) {
+        return ['ok' => false, 'message' => 'Tugas tidak valid.'];
+    }
+    if (!column_exists($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan')) {
+        return ['ok' => false, 'message' => 'Fitur publikasi nilai belum tersedia.'];
+    }
+    $tugas = ikhtibar_tugas_by_id($pdo, $tugasId);
+    if (!$tugas) {
+        return ['ok' => false, 'message' => 'Tugas tidak ditemukan.'];
+    }
+    if ($publish) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM ikhtibar_sesi WHERE tugas_id = :tid AND status IN ("selesai", "habis_waktu")');
+        $st->execute(['tid' => $tugasId]);
+        if ((int) ($st->fetchColumn() ?: 0) < 1) {
+            return ['ok' => false, 'message' => 'Belum ada santri yang menyelesaikan tugas.'];
+        }
+        $pdo->prepare('
+            UPDATE ikhtibar_tugas
+            SET nilai_dipublikasikan = 1, nilai_dipublikasikan_at = NOW(), nilai_dipublikasikan_by = :uid
+            WHERE id = :id
+        ')->execute(['uid' => $userId > 0 ? $userId : null, 'id' => $tugasId]);
+
+        return ['ok' => true, 'message' => 'Nilai tugas dipublikasikan ke portal wali.'];
+    }
+    $pdo->prepare('
+        UPDATE ikhtibar_tugas
+        SET nilai_dipublikasikan = 0, nilai_dipublikasikan_at = NULL, nilai_dipublikasikan_by = NULL
+        WHERE id = :id
+    ')->execute(['id' => $tugasId]);
+
+    return ['ok' => true, 'message' => 'Publikasi nilai dibatalkan.'];
+}
+
+/**
+ * Nilai tugas yang sudah dipublikasikan untuk portal wali (dikelompokkan mapel/pembimbing).
+ *
+ * @return list<array{pembimbing_nama:string,mapel_label:string,tugas:list<array<string,mixed>>}>
+ */
+function ikhtibar_nilai_tugas_wali(PDO $pdo, int $santriId, ?string $sumberFilter = null): array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'ikhtibar_tugas')) {
+        return [];
+    }
+    ensure_akademik_ikhtibar_tables($pdo);
+    if (!column_exists($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan')) {
+        return [];
+    }
+
+    $sumberSql = '';
+    $params = ['sid' => $santriId];
+    if ($sumberFilter !== null && $sumberFilter !== '' && column_exists($pdo, 'ikhtibar_tugas', 'sumber')) {
+        $sumberSql = ' AND UPPER(COALESCE(t.sumber, "IKHTIBAR")) = :sumber';
+        $params['sumber'] = strtoupper($sumberFilter);
+    } elseif ($sumberFilter === null && column_exists($pdo, 'ikhtibar_tugas', 'sumber')) {
+        $sumberSql = ' AND UPPER(COALESCE(t.sumber, "IKHTIBAR")) <> "PKPPS"';
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT
+            t.id AS tugas_id,
+            t.judul,
+            t.tanggal,
+            t.mapel_label,
+            t.filter_tingkatan,
+            t.pembimbing_nama,
+            k.nama_kegiatan,
+            u.nama AS pembimbing_user_nama,
+            ses.status AS sesi_status,
+            ses.skor_pg,
+            ses.skor_esai,
+            ses.nilai_total,
+            ses.waktu_mulai,
+            ses.waktu_selesai
+        FROM ikhtibar_sesi ses
+        INNER JOIN ikhtibar_tugas t ON t.id = ses.tugas_id
+        LEFT JOIN users u ON u.id = t.created_by
+        LEFT JOIN kegiatan k ON k.id = t.kegiatan_id
+        WHERE ses.santri_id = :sid
+          AND ses.status IN ("selesai", "habis_waktu")
+          AND COALESCE(t.nilai_dipublikasikan, 0) = 1
+          ' . $sumberSql . '
+        ORDER BY t.tanggal DESC, t.id DESC
+    ');
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $groups = [];
+    foreach ($rows as $r) {
+        $mapel = trim((string) ($r['mapel_label'] ?? ''));
+        if ($mapel === '') {
+            $kg = trim((string) ($r['nama_kegiatan'] ?? ''));
+            $tk = trim((string) ($r['filter_tingkatan'] ?? ''));
+            $mapel = $kg !== '' ? $kg . ($tk !== '' ? ' — ' . $tk : '') : ($tk !== '' ? $tk : 'Umum');
+        }
+        $pem = trim((string) ($r['pembimbing_nama'] ?? ''));
+        if ($pem === '') {
+            $pem = trim((string) ($r['pembimbing_user_nama'] ?? ''));
+        }
+        if ($pem === '') {
+            $pem = 'Pembimbing';
+        }
+        $key = $pem . "\0" . $mapel;
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'pembimbing_nama' => $pem,
+                'mapel_label' => $mapel,
+                'tugas' => [],
+            ];
+        }
+        $nt = $r['nilai_total'] !== null ? (float) $r['nilai_total'] : null;
+        $pred = ikhtibar_predikat_nilai($nt);
+        $groups[$key]['tugas'][] = [
+            'judul' => (string) ($r['judul'] ?? ''),
+            'tanggal' => (string) ($r['tanggal'] ?? ''),
+            'sesi_status' => (string) ($r['sesi_status'] ?? ''),
+            'skor_pg' => $r['skor_pg'],
+            'skor_esai' => $r['skor_esai'],
+            'nilai_total' => $r['nilai_total'],
+            'predikat' => $pred['label'],
+            'predikat_class' => $pred['class'],
+            'waktu_mulai' => $r['waktu_mulai'],
+            'waktu_selesai' => $r['waktu_selesai'],
+        ];
+    }
+
+    return array_values($groups);
+}
+
+/**
+ * Pratinjau import + form manual (JSON untuk AJAX modal).
+ *
+ * @return array{ok:bool,html:string,errors:list<string>,soal:array<string,mixed>,count_pg:int,count_esai:int}
+ */
+function ikhtibar_preview_import_dari_post(PDO $pdo, array $post, array $files): array
+{
+    require_once __DIR__ . '/ikhtibar_import.php';
+    require_once __DIR__ . '/ikhtibar_preview.php';
+
+    $jumlahPg = (int) ($post['jumlah_pg'] ?? 0);
+    $jumlahEsai = (int) ($post['jumlah_esai'] ?? 0);
+    if (!in_array($jumlahPg, ikhtibar_kuota_pg(), true)) {
+        $jumlahPg = 0;
+    }
+    if (!in_array($jumlahEsai, ikhtibar_kuota_esai(), true)) {
+        $jumlahEsai = 0;
+    }
+
+    $manual = ikhtibar_kumpulkan_soal_dari_post($post, $jumlahPg, $jumlahEsai);
+    $imported = ikhtibar_kumpulkan_import_dari_request($pdo, $post, $files, $jumlahPg, $jumlahEsai);
+    $soal = ikhtibar_merge_soal_import($manual, $imported);
+    $rows = ikhtibar_soal_preview_rows_dari_struct($soal);
+    $html = ikhtibar_render_soal_cards_html($rows, [
+        'readonly' => true,
+        'show_kunci' => true,
+        'preview_badge' => true,
+    ]);
+
+    return [
+        'ok' => true,
+        'html' => $html,
+        'errors' => array_values(array_unique($imported['errors'] ?? [])),
+        'soal' => $soal,
+        'count_pg' => count($soal['pg']),
+        'count_esai' => count($soal['esai']),
+    ];
+}
+
+/**
+ * Hasil nilai tugas dikelompokkan per mapel (untuk admin/pembimbing).
+ *
+ * @return list<array{mapel:string,tugas:list<array<string,mixed>>,total_selesai:int,rata_nilai:?float}>
+ */
+function ikhtibar_nilai_hasil_per_mapel(PDO $pdo, int $userId, ?string $sumber = null): array
+{
+    $rows = ikhtibar_rekap_tugas_pembimbing($pdo, $userId, $sumber);
+    $grouped = [];
+    foreach ($rows as $r) {
+        $mapel = trim((string) ($r['mapel_label'] ?? ''));
+        if ($mapel === '') {
+            $mapel = 'Tanpa label mapel';
+        }
+        if (!isset($grouped[$mapel])) {
+            $grouped[$mapel] = [
+                'mapel' => $mapel,
+                'tugas' => [],
+                'total_selesai' => 0,
+                'rata_sum' => 0.0,
+                'rata_cnt' => 0,
+            ];
+        }
+        $grouped[$mapel]['tugas'][] = $r;
+        $grouped[$mapel]['total_selesai'] += (int) ($r['jumlah_selesai'] ?? 0);
+        if ($r['rata_nilai'] !== null) {
+            $grouped[$mapel]['rata_sum'] += (float) $r['rata_nilai'];
+            $grouped[$mapel]['rata_cnt']++;
+        }
+    }
+    $out = [];
+    foreach ($grouped as $g) {
+        $g['rata_nilai'] = $g['rata_cnt'] > 0 ? round($g['rata_sum'] / $g['rata_cnt'], 1) : null;
+        unset($g['rata_sum'], $g['rata_cnt']);
+        usort($g['tugas'], static function (array $a, array $b): int {
+            $ka = (string) ($a['kelompok_label'] ?? '');
+            $kb = (string) ($b['kelompok_label'] ?? '');
+            if ($ka !== $kb) {
+                return strcmp($ka, $kb);
+            }
+
+            return ((int) ($a['urutan_kelompok'] ?? 0)) <=> ((int) ($b['urutan_kelompok'] ?? 0))
+                ?: strcmp((string) ($a['tanggal'] ?? ''), (string) ($b['tanggal'] ?? ''));
+        });
+        $out[] = $g;
+    }
+    usort($out, static fn (array $a, array $b): int => strcmp($a['mapel'], $b['mapel']));
+
+    return $out;
 }

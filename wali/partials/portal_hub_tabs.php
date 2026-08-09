@@ -41,6 +41,7 @@ function wali_akademik_hub_tabs(string $activeTab): array
     return [
         ['key' => 'rapor_pesantren', 'label' => 'Rapor Pesantren', 'href' => $base . '?tab=rapor_pesantren'],
         ['key' => 'rapor_pkpps', 'label' => 'Rapor PKPPS', 'href' => $base . '?tab=rapor_pkpps'],
+        ['key' => 'nilai_tugas', 'label' => 'Nilai Tugas', 'href' => $base . '?tab=nilai_tugas'],
         ['key' => 'hafalan', 'label' => 'Hafalan', 'href' => $base . '?tab=hafalan'],
     ];
 }

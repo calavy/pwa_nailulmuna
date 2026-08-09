@@ -49,6 +49,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <div class="d-flex flex-wrap gap-2">
             <a href="<?= htmlspecialchars(app_href('/pembimbing/dashboard.php')) ?>" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-gauge me-1"></i> Dashboard</a>
             <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/rekap.php')) ?>" class="btn btn-outline-primary btn-sm"><i class="fa-solid fa-chart-pie me-1"></i> Rekap nilai</a>
+            <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/hasil_nilai.php')) ?>" class="btn btn-outline-info btn-sm"><i class="fa-solid fa-chart-column me-1"></i> Hasil per mapel</a>
             <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php')) ?>" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Buat tugas baru</a>
         </div>
     </div>
@@ -80,7 +81,9 @@ if ($flashOk): ?>
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead class="table-light">
                     <tr>
+                        <th>Kelompok</th>
                         <th>Judul</th>
+                        <th>Pembimbing</th>
                         <th>Kelas / mapel</th>
                         <th>Tanggal</th>
                         <th>Durasi</th>
@@ -93,14 +96,16 @@ if ($flashOk): ?>
                 </thead>
                 <tbody>
                 <?php if ($rows === []): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-4">Belum ada tugas. Klik <strong>Buat tugas baru</strong>.</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted py-4">Belum ada tugas. Klik <strong>Buat tugas baru</strong>.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($rows as $r):
                     $id = (int) $r['id'];
                     $st = (string) ($r['status'] ?? 'draft');
                     ?>
                     <tr>
+                        <td class="small"><?= htmlspecialchars(trim((string) ($r['kelompok_label'] ?? '')) ?: '—') ?></td>
                         <td class="fw-semibold"><?= htmlspecialchars((string) $r['judul']) ?></td>
+                        <td class="small"><?= htmlspecialchars(ikhtibar_tugas_pembimbing_nama($pdo, $r)) ?></td>
                         <td class="small"><?= htmlspecialchars(trim((string) ($r['mapel_label'] ?? '')) !== '' ? (string) $r['mapel_label'] : '—') ?></td>
                         <td class="small text-nowrap">
                             <?= htmlspecialchars(ikhtibar_hari_label((int) ($r['hari_ke'] ?? 0))) ?><br>
@@ -139,6 +144,7 @@ if ($flashOk): ?>
                         <td><?= (int) ($r['jumlah_selesai'] ?? 0) ?></td>
                         <td class="text-end text-nowrap">
                             <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php?id=' . $id)) ?>">Edit</a>
+                            <a class="btn btn-sm btn-outline-info" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/pratinjau.php?tugas_id=' . $id)) ?>" target="_blank" rel="noopener">Pratinjau</a>
                             <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/nilai.php?tugas_id=' . $id)) ?>">Nilai</a>
                             <form method="post" class="d-inline" onsubmit="return confirm('Hapus tugas ini?');">
                                 <input type="hidden" name="action" value="hapus">

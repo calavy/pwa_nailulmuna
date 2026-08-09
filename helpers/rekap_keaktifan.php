@@ -489,11 +489,9 @@ function rekap_keaktifan_prepare_periode_presensi(PDO $pdo, string $startDate, s
     require_once __DIR__ . '/presensi_jadwal.php';
     $today = date('Y-m-d');
     $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
-    if ($endDate < $today) {
-        return;
-    }
-    if ($startDate <= $today) {
-        presensi_finalize_today_throttled($pdo, $auditUserId > 0 ? $auditUserId : 1, 300);
+    $finalizeEnd = $endDate > $today ? $today : $endDate;
+    if ($startDate <= $finalizeEnd) {
+        presensi_finalize_date_range($pdo, $startDate, $finalizeEnd, $auditUserId > 0 ? $auditUserId : 1);
     }
 }
 

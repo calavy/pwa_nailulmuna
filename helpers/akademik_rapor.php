@@ -716,8 +716,9 @@ function rapor_tugas_bulan(PDO $pdo, int $santriId, array $periode, ?string $sum
             t.tanggal,
             t.mapel_label,
             t.filter_tingkatan,
+            t.pembimbing_nama,
             k.nama_kegiatan,
-            u.nama AS pembimbing_nama,
+            u.nama AS pembimbing_user_nama,
             ses.status AS sesi_status,
             ses.skor_pg,
             ses.skor_esai,
@@ -731,6 +732,8 @@ function rapor_tugas_bulan(PDO $pdo, int $santriId, array $periode, ?string $sum
         WHERE ses.santri_id = :sid
           AND t.tanggal BETWEEN :start AND :end
           ' . $sumberSql . '
+          ' . (column_exists($pdo, 'ikhtibar_tugas', 'nilai_dipublikasikan') ? ' AND COALESCE(t.nilai_dipublikasikan, 0) = 1' : '') . '
+          AND ses.status IN ("selesai", "habis_waktu")
         ORDER BY u.nama ASC, t.mapel_label ASC, t.tanggal DESC, t.id DESC
     ');
     $stmt->execute($params);
@@ -745,6 +748,9 @@ function rapor_tugas_bulan(PDO $pdo, int $santriId, array $periode, ?string $sum
             $mapel = $kg !== '' ? $kg . ($tk !== '' ? ' — ' . $tk : '') : ($tk !== '' ? $tk : 'Umum');
         }
         $pem = trim((string) ($r['pembimbing_nama'] ?? ''));
+        if ($pem === '') {
+            $pem = trim((string) ($r['pembimbing_user_nama'] ?? ''));
+        }
         if ($pem === '') {
             $pem = 'Pembimbing';
         }

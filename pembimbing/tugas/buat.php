@@ -8,6 +8,10 @@ require_once __DIR__ . '/../../helpers/app_path.php';
 require_once __DIR__ . '/../../helpers/akademik_ikhtibar.php';
 require_once __DIR__ . '/../../helpers/akademik_pkpps_tugas.php';
 require_once __DIR__ . '/../../helpers/ikhtibar_import.php';
+require_once __DIR__ . '/../../helpers/ikhtibar_google_import.php';
+require_once __DIR__ . '/../../helpers/ikhtibar_ai_parse.php';
+require_once __DIR__ . '/../../helpers/ikhtibar_preview.php';
+require_once __DIR__ . '/../../helpers/ikhtibar_tugas_draf_pin.php';
 require_once __DIR__ . '/../../helpers/excel.php';
 
 ikhtibar_require_pembimbing_access();
@@ -31,6 +35,11 @@ if (is_array($tugas)) {
     ikhtibar_tugas_redirect_jika_pkpps($tugas);
 }
 $soalExisting = $tugas ? ikhtibar_soal_by_tugas($pdo, $id) : [];
+
+if ($tugas) {
+    ikhtibar_tugas_process_akses_pin_verify_post($pdo, $tugas, app_href('/pembimbing/tugas/buat.php?id=' . $id));
+    $tugas = ikhtibar_tugas_by_id($pdo, $id) ?? $tugas;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? 'simpan'));
@@ -77,7 +86,29 @@ if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'tingkatan')) 
 $selSumber = IKHTIBAR_TUGAS_SUMBER;
 $statusTugas = (string) ($tugas['status'] ?? 'draft');
 $hasActiveSesi = $tugas ? ikhtibar_tugas_has_active_sesi($pdo, $id) : false;
+$googleTemplateUrl = ikhtibar_google_sheets_template_url($pdo);
+$aiOcrEnabled = ikhtibar_ai_ocr_enabled($pdo);
 $pageTitle = $tugas ? 'Edit Tugas Ikhtibar' : 'Buat Tugas Ikhtibar';
+$pembimbingNamaForm = $tugas
+    ? ikhtibar_tugas_pembimbing_nama($pdo, $tugas)
+    : (ikhtibar_pembimbing_nama_dari_user($pdo, $userId) ?? '—');
+$perluBuatPinTugas = ikhtibar_tugas_perlu_buat_akses_pin($tugas);
+$drafPinTerkunci = $tugas && ikhtibar_tugas_akses_pin_terkunci($tugas);
+$bolehPratinjau = $tugas && (!ikhtibar_tugas_status_draf($tugas) || !$drafPinTerkunci);
+
+if ($drafPinTerkunci) {
+    $pageTitle = 'PIN Draf — Edit Tugas';
+    require_once __DIR__ . '/../../includes/header.php';
+    echo ikhtibar_tugas_render_akses_pin_gate_html(
+        $tugas,
+        app_href('/pembimbing/tugas/index.php'),
+        'Daftar tugas',
+        'mengedit tugas draf'
+    );
+    require_once __DIR__ . '/../../includes/footer.php';
+    exit;
+}
+
 require_once __DIR__ . '/../../includes/header.php';
 $err = get_flash('error');
 $ok = get_flash('success');
@@ -101,17 +132,39 @@ $ok = get_flash('success');
 </div>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+<?php if ($wajibPilihMapel && $jadwalOptions === []): ?>
+<div class="alert alert-danger py-2 small">
+    <strong>Jadwal kajian belum tersedia.</strong> Hubungkan akun login Anda dengan NIP pembimbing di menu Jadwal,
+    atau minta admin/pengurus mengisi jadwal kegiatan. Tanpa jadwal, tugas tidak dapat disimpan.
+</div>
+<?php endif; ?>
 
-<form method="post" enctype="multipart/form-data" id="form-ikhtibar">
+<?php if ($tugas && ikhtibar_tugas_akses_pin_plain($tugas) !== ''): ?>
+    <div class="alert alert-warning py-2 small mb-3">
+        <strong>Super admin — PIN draf tugas:</strong>
+        <code class="user-select-all"><?= htmlspecialchars(ikhtibar_tugas_akses_pin_plain($tugas)) ?></code>
+    </div>
+<?php endif; ?>
+
+<form method="post" enctype="multipart/form-data" id="form-ikhtibar" novalidate>
     <?php if ($tugas): ?><input type="hidden" name="id" value="<?= (int) $tugas['id'] ?>"><?php endif; ?>
+
+    <?php if ($perluBuatPinTugas && $statusTugas === 'draft'): ?>
+        <?= ikhtibar_tugas_render_akses_pin_buat_html() ?>
+    <?php endif; ?>
 
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold small">1. Jadwal &amp; periode</div>
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-6">
+                    <label class="form-label">Pembimbing / pengampu</label>
+                    <input type="text" class="form-control bg-light" readonly value="<?= htmlspecialchars($pembimbingNamaForm) ?>">
+                    <div class="form-text">Nama tersimpan otomatis dan dipakai di laporan nilai serta portal wali (per mapel/kegiatan).</div>
+                </div>
+                <div class="col-md-6">
                     <label class="form-label">Kelas / mapel (jadwal Anda)</label>
-                    <select name="jadwal_kegiatan_id" class="form-select"<?= $wajibPilihMapel ? ' required' : '' ?>>
+                    <select name="jadwal_kegiatan_id" class="form-select">
                         <option value="">— Pilih jadwal kajian —</option>
                         <?php
                         $selJadwal = (int) ($tugas['jadwal_kegiatan_id'] ?? 0);
@@ -129,6 +182,15 @@ $ok = get_flash('success');
                 <div class="col-md-6">
                     <label class="form-label">Judul tugas</label>
                     <input type="text" name="judul" class="form-control" required maxlength="200" value="<?= htmlspecialchars((string) ($tugas['judul'] ?? '')) ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Kelompok / bab</label>
+                    <input type="text" name="kelompok_label" class="form-control" maxlength="200" placeholder="Contoh: Bab 1" value="<?= htmlspecialchars((string) ($tugas['kelompok_label'] ?? '')) ?>">
+                    <div class="form-text">Tugas periode sama (mis. tgl 1–10) dikelompokkan berurutan.</div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Urutan</label>
+                    <input type="number" name="urutan_kelompok" class="form-control" min="0" max="999" value="<?= (int) ($tugas['urutan_kelompok'] ?? 0) ?>">
                 </div>
                 <div class="col-md-3" id="wrap-tgl-mulai">
                     <label class="form-label">Tanggal mulai</label>
@@ -206,7 +268,14 @@ $ok = get_flash('success');
 
             <div class="border rounded p-3 mb-3 bg-light-subtle">
                 <h3 class="h6">Metode input cerdas</h3>
-                <p class="small text-muted mb-2">Import soal dari Word (.docx) atau Excel (.xlsx). Format Word: nomor soal, opsi A–D, baris <code>kunci: A</code>. Excel: unduh template.</p>
+                <p class="small text-muted mb-2">
+                    Import dari Word, Excel, Google Sheets/Docs, atau foto (OCR).
+                    Format Word/Docs: nomor soal, opsi A–E (sesuai jumlah pilihan), baris <code>kunci: A</code>.
+                    Sheets/Excel: gunakan template kolom yang sama. Teks Arab didukung.
+                    <?php if ($aiOcrEnabled): ?>
+                        <span class="badge text-bg-info ms-1">AI OCR aktif</span>
+                    <?php endif; ?>
+                </p>
                 <div class="row g-2">
                     <div class="col-md-4">
                         <label class="form-label small">Kamera / foto soal (OCR Arab)</label>
@@ -223,9 +292,25 @@ $ok = get_flash('success');
                         <input type="file" name="import_xlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control form-control-sm">
                         <a class="small d-inline-block mt-1" href="<?= htmlspecialchars(app_href('/pembimbing/tugas/buat.php?template=xlsx')) ?>">Unduh template Excel</a>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Link Google Sheets (dibagikan publik)</label>
+                        <input type="url" name="import_google_sheet" class="form-control form-control-sm" placeholder="https://docs.google.com/spreadsheets/d/...">
+                        <?php if ($googleTemplateUrl !== ''): ?>
+                            <a class="small d-inline-block mt-1" href="<?= htmlspecialchars($googleTemplateUrl) ?>" target="_blank" rel="noopener">Salin template Google Sheets</a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Link Google Docs (dibagikan publik)</label>
+                        <input type="url" name="import_google_doc" class="form-control form-control-sm" placeholder="https://docs.google.com/document/d/...">
+                    </div>
                 </div>
                 <label class="form-label small mt-2">Hasil OCR / tempel teks (opsional)</label>
                 <textarea name="ocr_teks_import" id="ocr_teks_import" class="form-control font-monospace small" rows="4" placeholder="Teks hasil scan atau tempel manual…"></textarea>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-info" id="btn-preview-import">
+                        <i class="fa-solid fa-eye me-1"></i> Pratinjau import (seperti portal santri)
+                    </button>
+                </div>
             </div>
 
             <div id="wrap-pg"></div>
@@ -244,11 +329,39 @@ $ok = get_flash('success');
     </div>
 
     <div class="d-flex flex-wrap gap-2">
+        <?php if ($bolehPratinjau): ?>
+            <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/pratinjau.php?tugas_id=' . (int) $tugas['id'])) ?>" class="btn btn-outline-info" target="_blank" rel="noopener">
+                <i class="fa-solid fa-eye me-1"></i> Pratinjau tersimpan
+            </a>
+        <?php elseif ($tugas && ikhtibar_tugas_status_draf($tugas)): ?>
+            <span class="small text-muted align-self-center">Pratinjau membutuhkan PIN draf — buka halaman edit dan masukkan PIN.</span>
+        <?php endif; ?>
         <button type="submit" name="action" value="simpan" class="btn btn-outline-secondary"<?= $hasActiveSesi && $statusTugas === 'published' ? ' disabled title="Tugas sudah aktif"' : '' ?>>Simpan draf</button>
         <button type="submit" name="publish" value="1" class="btn btn-primary">Publikasikan tugas</button>
         <a href="<?= htmlspecialchars(app_href('/pembimbing/tugas/index.php')) ?>" class="btn btn-link">Batal</a>
     </div>
 </form>
+
+<div class="modal fade" id="modal-preview-import" tabindex="-1" aria-labelledby="modalPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h2 class="modal-title h6" id="modalPreviewLabel">Pratinjau soal (tampilan portal santri)</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body p-2" id="preview-import-body" style="background:#f1f5f9;max-height:70vh;overflow-y:auto;">
+                <p class="text-muted small mb-0">Memuat…</p>
+            </div>
+            <div class="modal-footer py-2 flex-wrap">
+                <div id="preview-import-errors" class="small text-danger me-auto"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-apply-preview" disabled>Terapkan ke form</button>
+            </div>
+        </div>
+    </div>
+</div>
+<link rel="stylesheet" href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>">
+<?php ikhtibar_soal_typography_head(); ?>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
@@ -259,6 +372,8 @@ $ok = get_flash('success');
     var wrapEsai = document.getElementById('wrap-esai');
     var selPg = document.getElementById('jumlah_pg');
     var selEsai = document.getElementById('jumlah_esai');
+    var OPSI_LABELS = {2: 'A–B', 3: 'A–C', 4: 'A–D', 5: 'A–E'};
+    var OPSI_COLS = ['a', 'b', 'c', 'd', 'e'];
 
     function esc(s) {
         var d = document.createElement('div');
@@ -266,26 +381,73 @@ $ok = get_flash('success');
         return d.innerHTML;
     }
 
+    function getPgJumlahOpsi(row) {
+        var j = parseInt(row.pg_jumlah_opsi || row.jumlah_opsi || 0, 10);
+        if (j >= 2 && j <= 5) return j;
+        if ((row.opsi_e || '').trim() !== '' || (row.kunci_jawaban || '') === 'E') return 5;
+        return 4;
+    }
+
+    function syncPgOpsiUi(soalIdx, jOpsi) {
+        if (!wrapPg) return;
+        OPSI_COLS.forEach(function (L, idx) {
+            var wrap = wrapPg.querySelector('.pg-opsi-' + L + '-' + soalIdx);
+            if (wrap) wrap.classList.toggle('d-none', idx >= jOpsi);
+        });
+        var kunciSel = wrapPg.querySelector('.pg-kunci-select[data-soal="' + soalIdx + '"]');
+        if (!kunciSel) return;
+        var cur = kunciSel.value;
+        var html = '<option value="">Kunci</option>';
+        for (var k = 0; k < jOpsi; k++) {
+            var K = ['A', 'B', 'C', 'D', 'E'][k];
+            html += '<option value="' + K + '"' + (cur === K ? ' selected' : '') + '>' + K + '</option>';
+        }
+        kunciSel.innerHTML = html;
+    }
+
+    function bindPgOpsiToggle() {
+        if (!wrapPg) return;
+        wrapPg.querySelectorAll('.pg-jumlah-opsi').forEach(function (sel) {
+            sel.addEventListener('change', function () {
+                syncPgOpsiUi(sel.getAttribute('data-soal'), parseInt(sel.value, 10) || 4);
+            });
+        });
+    }
+
     function renderPg(n) {
         if (!wrapPg) return;
         var html = '<h3 class="h6 border-bottom pb-2">Soal Pilihan Ganda (' + n + ')</h3>';
+        html += '<p class="small text-muted">Pilih jumlah opsi per soal (A–D atau A–E). Teks Arab/Latin didukung — arah tulisan mengikuti isi otomatis.</p>';
         for (var i = 1; i <= n; i++) {
             var row = pgData[i] || {};
+            var jOpsi = getPgJumlahOpsi(row);
             html += '<div class="border rounded p-2 mb-2"><div class="fw-semibold small text-muted mb-1">Soal ' + i + '</div>';
-            html += '<textarea name="pg_teks[' + i + ']" class="form-control form-control-sm mb-1" rows="2">' + esc(row.teks_soal || '') + '</textarea>';
+            html += '<div class="d-flex flex-wrap align-items-center gap-2 mb-1">';
+            html += '<label class="small text-muted mb-0">Pilihan sampai</label>';
+            html += '<select name="pg_jumlah_opsi[' + i + ']" class="form-select form-select-sm pg-jumlah-opsi" data-soal="' + i + '" style="max-width:130px">';
+            [2, 3, 4, 5].forEach(function (v) {
+                html += '<option value="' + v + '"' + (jOpsi === v ? ' selected' : '') + '>' + OPSI_LABELS[v] + '</option>';
+            });
+            html += '</select></div>';
+            html += '<textarea name="pg_teks[' + i + ']" class="form-control form-control-sm mb-1 ikhtibar-soal-input" dir="auto" rows="2">' + esc(row.teks_soal || '') + '</textarea>';
             html += '<div class="row g-1 small">';
-            ['a','b','c','d','e'].forEach(function (L) {
+            OPSI_COLS.forEach(function (L, idx) {
                 var U = L.toUpperCase();
-                html += '<div class="col"><input name="pg_' + L + '[' + i + ']" class="form-control form-control-sm" placeholder="' + U + '" value="' + esc(row['opsi_' + L] || '') + '"></div>';
+                var hidden = idx >= jOpsi ? ' d-none' : '';
+                html += '<div class="col pg-opsi-wrap pg-opsi-' + L + '-' + i + hidden + '">';
+                html += '<input name="pg_' + L + '[' + i + ']" class="form-control form-control-sm ikhtibar-soal-input" dir="auto" placeholder="' + U + '" value="' + esc(row['opsi_' + L] || '') + '">';
+                html += '</div>';
             });
-            html += '</div><div class="mt-1"><select name="pg_kunci[' + i + ']" class="form-select form-select-sm" style="max-width:100px">';
+            html += '</div><div class="mt-1"><select name="pg_kunci[' + i + ']" class="form-select form-select-sm pg-kunci-select" data-soal="' + i + '" style="max-width:100px">';
             html += '<option value="">Kunci</option>';
-            ['A','B','C','D','E'].forEach(function (K) {
+            for (var k = 0; k < jOpsi; k++) {
+                var K = ['A', 'B', 'C', 'D', 'E'][k];
                 html += '<option value="' + K + '"' + ((row.kunci_jawaban || '') === K ? ' selected' : '') + '>' + K + '</option>';
-            });
+            }
             html += '</select></div></div>';
         }
         wrapPg.innerHTML = html;
+        bindPgOpsiToggle();
     }
 
     function renderEsai(n) {
@@ -295,8 +457,8 @@ $ok = get_flash('success');
         for (var i = 1; i <= n; i++) {
             var row = esaiData[i] || {};
             html += '<div class="border rounded p-2 mb-2"><div class="fw-semibold small text-muted mb-1">Esai ' + i + '</div>';
-            html += '<textarea name="esai_teks[' + i + ']" class="form-control form-control-sm mb-1" rows="2">' + esc(row.teks_soal || '') + '</textarea>';
-            html += '<textarea name="esai_kunci[' + i + ']" class="form-control form-control-sm mb-1" rows="3" placeholder="Kunci per kriteria, contoh: [KELENGKAPAN] poin1, poin2">' + esc(row.kunci_jawaban || '') + '</textarea>';
+            html += '<textarea name="esai_teks[' + i + ']" class="form-control form-control-sm mb-1 ikhtibar-soal-input" dir="auto" rows="2">' + esc(row.teks_soal || '') + '</textarea>';
+            html += '<textarea name="esai_kunci[' + i + ']" class="form-control form-control-sm mb-1 ikhtibar-soal-input" dir="auto" rows="3" placeholder="Kunci per kriteria, contoh: [KELENGKAPAN] poin1, poin2">' + esc(row.kunci_jawaban || '') + '</textarea>';
             html += '<div class="input-group input-group-sm"><span class="input-group-text">Bobot</span><input name="esai_bobot[' + i + ']" type="number" min="1" max="100" class="form-control" value="' + esc(String(row.bobot_nilai || '100')) + '"></div>';
             html += '</div>';
         }
@@ -330,6 +492,80 @@ $ok = get_flash('success');
     var ocrFile = document.getElementById('ocr_file');
     var ocrStatus = document.getElementById('ocr_status');
     var ocrTa = document.getElementById('ocr_teks_import');
+    var formIkhtibar = document.getElementById('form-ikhtibar');
+    var btnPreview = document.getElementById('btn-preview-import');
+    var previewModalEl = document.getElementById('modal-preview-import');
+    var previewBody = document.getElementById('preview-import-body');
+    var previewErrors = document.getElementById('preview-import-errors');
+    var btnApplyPreview = document.getElementById('btn-apply-preview');
+    var previewModal = previewModalEl && typeof bootstrap !== 'undefined' ? new bootstrap.Modal(previewModalEl) : null;
+    var lastPreviewSoal = null;
+    var previewUrl = <?= json_encode(app_href('/pembimbing/tugas/preview_import.php'), JSON_UNESCAPED_UNICODE) ?>;
+
+    function structToFormData(soal) {
+        if (!soal) return;
+        pgData = {};
+        esaiData = {};
+        Object.keys(soal.pg || {}).forEach(function (nom) {
+            var r = soal.pg[nom];
+            pgData[nom] = {
+                teks_soal: r.teks || '',
+                opsi_a: r.a || '',
+                opsi_b: r.b || '',
+                opsi_c: r.c || '',
+                opsi_d: r.d || '',
+                opsi_e: r.e || '',
+                pg_jumlah_opsi: r.jumlah_opsi || (r.e ? 5 : 4),
+                kunci_jawaban: r.kunci || ''
+            };
+        });
+        Object.keys(soal.esai || {}).forEach(function (nom) {
+            var r = soal.esai[nom];
+            esaiData[nom] = {
+                teks_soal: r.teks || '',
+                kunci_jawaban: r.kunci || '',
+                bobot_nilai: r.bobot || 100
+            };
+        });
+        refresh();
+    }
+
+    function runPreviewImport() {
+        if (!formIkhtibar || !previewBody) return;
+        previewBody.innerHTML = '<p class="text-muted small mb-0">Memuat pratinjau…</p>';
+        if (previewErrors) previewErrors.textContent = '';
+        if (btnApplyPreview) btnApplyPreview.disabled = true;
+        lastPreviewSoal = null;
+        if (previewModal) previewModal.show();
+
+        var fd = new FormData(formIkhtibar);
+        fetch(previewUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                previewBody.innerHTML = data.html || '<p class="text-muted small">Tidak ada soal.</p>';
+                if (previewErrors && data.errors && data.errors.length) {
+                    previewErrors.textContent = data.errors.join(' · ');
+                }
+                if (data.soal && ((data.count_pg || 0) + (data.count_esai || 0)) > 0) {
+                    lastPreviewSoal = data.soal;
+                    if (btnApplyPreview) btnApplyPreview.disabled = false;
+                }
+            })
+            .catch(function () {
+                previewBody.innerHTML = '<p class="text-danger small">Gagal memuat pratinjau.</p>';
+            });
+    }
+
+    if (btnPreview) {
+        btnPreview.addEventListener('click', runPreviewImport);
+    }
+    if (btnApplyPreview) {
+        btnApplyPreview.addEventListener('click', function () {
+            structToFormData(lastPreviewSoal);
+            if (previewModal) previewModal.hide();
+        });
+    }
+
     if (btnOcr && ocrFile) {
         btnOcr.addEventListener('click', function () {
             if (!ocrFile.files || !ocrFile.files[0]) {
@@ -346,8 +582,9 @@ $ok = get_flash('success');
                 if (m.status === 'recognizing text' && ocrStatus) ocrStatus.textContent = 'OCR: ' + Math.round((m.progress || 0) * 100) + '%';
             }}).then(function (res) {
                 if (ocrTa) ocrTa.value = (res.data && res.data.text) ? res.data.text.trim() : '';
-                if (ocrStatus) ocrStatus.textContent = 'OCR selesai. Teks dimasukkan ke kotak hasil.';
+                if (ocrStatus) ocrStatus.textContent = 'OCR selesai. Membuka pratinjau…';
                 btnOcr.disabled = false;
+                runPreviewImport();
             }).catch(function () {
                 if (ocrStatus) ocrStatus.textContent = 'OCR gagal. Coba foto lebih jelas atau input manual.';
                 btnOcr.disabled = false;

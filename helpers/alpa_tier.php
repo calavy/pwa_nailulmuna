@@ -97,6 +97,41 @@ function alpa_tier_window_where(string $mode, string $tanggal, string $tanggalMu
     return [$where, $params];
 }
 
+/**
+ * Rentang tanggal (Y-m-d) untuk window periode notifikasi alpa.
+ *
+ * @return array{start:string,end:string}
+ */
+function alpa_tier_window_range(string $mode, string $tanggal, string $tanggalMulai = ''): array
+{
+    $ts = strtotime($tanggal) ?: time();
+    $today = date('Y-m-d');
+
+    if ($mode === 'weekly') {
+        $dow = (int) date('N', $ts);
+        $start = date('Y-m-d', strtotime('-' . ($dow - 1) . ' day', $ts));
+        $end = date('Y-m-d', strtotime('+' . (7 - $dow) . ' day', $ts));
+    } elseif ($mode === 'monthly') {
+        $start = date('Y-m-01', $ts);
+        $end = date('Y-m-t', $ts);
+    } else {
+        $start = $tanggalMulai !== '' ? $tanggalMulai : '1970-01-01';
+        $end = $tanggal;
+    }
+
+    if ($end > $today) {
+        $end = $today;
+    }
+    if ($tanggalMulai !== '' && $start < $tanggalMulai) {
+        $start = $tanggalMulai;
+    }
+    if ($start > $end) {
+        return ['start' => $end, 'end' => $end];
+    }
+
+    return ['start' => $start, 'end' => $end];
+}
+
 /** Buat / pastikan tabel skema ada. Aman dipanggil berulang — gagal tidak fatal. */
 function ensure_alpa_tier_tables(PDO $pdo): void
 {
@@ -241,27 +276,8 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
     }
 
     $minTh = min(array_map(static fn(array $t): int => (int) $t['threshold'], $tiers));
-    [$where, $params] = alpa_tier_window_where($mode, $tanggal, $tanggalMulai);
-    $whereFixed = $where;
-    if ($whereFixed !== '') {
-        $whereFixed = str_replace('tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
-        $whereFixed = str_replace('p.p.tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
-    }
-    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
-    $sql = '
-        SELECT s.id, s.nis, ' . $nameCol . ' AS nama_santri, s.tingkatan, COUNT(p.id) AS alpa_count
-        FROM presensi p
-        INNER JOIN santri s ON s.id = p.santri_id
-        WHERE p.status_presensi = "ALPA"' . $whereFixed . '
-        GROUP BY s.id, s.nis, ' . $nameCol . ', s.tingkatan
-        HAVING alpa_count >= :min_th
-        ORDER BY s.tingkatan ASC, alpa_count DESC, nama_santri ASC
-        LIMIT 500
-    ';
-    $st = $pdo->prepare($sql);
-    $bind = array_merge($params, ['min_th' => $minTh]);
-    $st->execute($bind);
-    $santriRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    require_once __DIR__ . '/alpa_wa.php';
+    $santriRows = alpa_wa_query_santri_rows($pdo, $tanggal, $minTh);
     if ($santriRows === []) {
         $summary['note'] = 'tidak_ada_kandidat';
 
@@ -354,16 +370,22 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
     return $summary;
 }
 
-/** Hitung total alpa santri pada periode aktif (memperhitungkan tanggal mulai). */
+/** Hitung total alpa santri pada periode aktif (selaras rekap + laporan WA). */
 function alpa_tier_count_alpa(PDO $pdo, int $santriId, string $mode, string $tanggal, string $tanggalMulai = ''): int
 {
-    [$where, $params] = alpa_tier_window_where($mode, $tanggal, $tanggalMulai);
-    $stmt = $pdo->prepare('
-        SELECT COUNT(*) FROM presensi
-        WHERE santri_id = :sid AND status_presensi = "ALPA"' . $where
-    );
-    $stmt->execute(array_merge(['sid' => $santriId], $params));
-    return (int) $stmt->fetchColumn();
+    if ($santriId <= 0) {
+        return 0;
+    }
+    if ($tanggalMulai === '') {
+        $tanggalMulai = alpa_tier_tanggal_mulai($pdo);
+    }
+    if ($tanggalMulai !== '' && $tanggal < $tanggalMulai) {
+        return 0;
+    }
+
+    require_once __DIR__ . '/alpa_wa.php';
+
+    return (int) (alpa_wa_santri_alpa_count_map($pdo, $tanggal)[$santriId] ?? 0);
 }
 
 /** Apakah tier untuk (santri, tier, periode_key) sudah pernah dikirim? */

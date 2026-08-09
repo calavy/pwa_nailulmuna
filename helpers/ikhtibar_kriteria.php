@@ -29,6 +29,7 @@ function ikhtibar_kriteria_ensure_schema(PDO $pdo): void
     if (function_exists('akademik_add_column')) {
         require_once __DIR__ . '/akademik.php';
         akademik_add_column($pdo, 'ikhtibar_soal', 'bobot_nilai', 'DECIMAL(6,2) NOT NULL DEFAULT 100.00');
+        akademik_add_column($pdo, 'ikhtibar_soal', 'pg_jumlah_opsi', 'TINYINT NULL DEFAULT 4');
         akademik_add_column($pdo, 'ikhtibar_jawaban', 'nilai_otomatis', 'DECIMAL(6,2) NULL');
         akademik_add_column($pdo, 'ikhtibar_jawaban', 'detail_kriteria_json', 'TEXT NULL');
     }

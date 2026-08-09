@@ -8,7 +8,7 @@ require_once __DIR__ . '/keuangan_rekonsiliasi.php';
 
 /**
  * @param array<string, mixed> $get
- * @return array{dari:string,sampai:string,arah:string,pos:string,santri_id:int,q:string}
+ * @return array{dari:string,sampai:string,arah:string,pos:string,santri_id:int,q:string,bulan_tagihan:int,ta_mulai:int,ta_selesai:int}
  */
 function keuangan_riwayat_pembayaran_parse_filter(array $get): array
 {
@@ -45,6 +45,10 @@ function keuangan_riwayat_pembayaran_parse_filter(array $get): array
         $q = mb_substr($q, 0, 80);
     }
 
+    $bulanTagihan = max(0, min(12, (int) ($get['bulan_tagihan'] ?? 0)));
+    $taMulai = max(0, (int) ($get['ta_mulai'] ?? 0));
+    $taSelesai = max(0, (int) ($get['ta_selesai'] ?? 0));
+
     // Filter santri hanya relevan untuk kas masuk.
     if ($santriId > 0 || $q !== '') {
         if ($arah === 'keluar') {
@@ -62,7 +66,77 @@ function keuangan_riwayat_pembayaran_parse_filter(array $get): array
         'pos' => $pos,
         'santri_id' => $santriId,
         'q' => $q,
+        'bulan_tagihan' => $bulanTagihan,
+        'ta_mulai' => $taMulai,
+        'ta_selesai' => $taSelesai,
     ];
+}
+
+/** Lengkapi TA filter bulan tagihan jika belum diisi. */
+function keuangan_riwayat_pembayaran_filter_resolve_ta(PDO $pdo, array $filter): array
+{
+    if ((int) ($filter['bulan_tagihan'] ?? 0) <= 0) {
+        return $filter;
+    }
+    if ((int) ($filter['ta_mulai'] ?? 0) > 0 && (int) ($filter['ta_selesai'] ?? 0) > 0) {
+        return $filter;
+    }
+    if (!function_exists('keuangan_ta_resolve')) {
+        require_once __DIR__ . '/keuangan_ta_context.php';
+    }
+    $ta = keuangan_ta_resolve($pdo);
+    $filter['ta_mulai'] = (int) ($ta['mulai'] ?? 0);
+    $filter['ta_selesai'] = (int) ($ta['selesai'] ?? 0);
+
+    return $filter;
+}
+
+function keuangan_riwayat_pembayaran_append_bulan_tagihan_sql(
+    PDO $pdo,
+    string &$where,
+    array &$params,
+    array $filter,
+    string $alias = 'p'
+): void {
+    $bulanTagihan = (int) ($filter['bulan_tagihan'] ?? 0);
+    if ($bulanTagihan < 1 || $bulanTagihan > 12) {
+        return;
+    }
+
+    $taMulai = (int) ($filter['ta_mulai'] ?? 0);
+    $taSelesai = (int) ($filter['ta_selesai'] ?? 0);
+    if ($taMulai > 0 && $taSelesai > 0) {
+        $where .= ' AND ' . $alias . '.tahun_ajaran_mulai = :ta_mulai AND ' . $alias . '.tahun_ajaran_selesai = :ta_selesai';
+        $params['ta_mulai'] = $taMulai;
+        $params['ta_selesai'] = $taSelesai;
+    }
+
+    if (!function_exists('pondok_sql_match_bulan_tagihan')) {
+        require_once __DIR__ . '/pondok_kalender.php';
+    }
+    $bulanMatch = pondok_sql_match_bulan_tagihan($pdo, $taMulai, $taSelesai, $bulanTagihan, $alias);
+    $where .= ' AND (' . $bulanMatch['sql'] . ')';
+    foreach ($bulanMatch['params'] as $k => $v) {
+        $params[$k] = $v;
+    }
+}
+
+function keuangan_riwayat_pembayaran_bulan_tagihan_label(PDO $pdo, array $filter): string
+{
+    $bulanTagihan = (int) ($filter['bulan_tagihan'] ?? 0);
+    if ($bulanTagihan < 1 || $bulanTagihan > 12) {
+        return '';
+    }
+    if (!function_exists('keuangan_bulan_tagihan_label_tampilan')) {
+        require_once __DIR__ . '/keuangan_transaksi.php';
+    }
+
+    return keuangan_bulan_tagihan_label_tampilan(
+        $pdo,
+        $bulanTagihan,
+        (int) ($filter['ta_mulai'] ?? 0),
+        (int) ($filter['ta_selesai'] ?? 0)
+    );
 }
 
 /**
@@ -166,7 +240,7 @@ function keuangan_riwayat_pembayaran_append_pos_sql(
  *   total:int
  * }
  */
-function keuangan_riwayat_pembayaran_ringkasan_masuk_kategori(PDO $pdo, string $dari, string $sampai): array
+function keuangan_riwayat_pembayaran_ringkasan_masuk_kategori(PDO $pdo, string $dari, string $sampai, array $filter = []): array
 {
     $out = [
         'syahriyah' => 0,
@@ -181,14 +255,19 @@ function keuangan_riwayat_pembayaran_ringkasan_masuk_kategori(PDO $pdo, string $
     }
 
     $awalSlugs = array_flip(keuangan_riwayat_pembayaran_awal_tahun_slugs());
+    $params = ['dari' => $dari, 'sampai' => $sampai];
+    $where = 'WHERE p.tanggal_bayar BETWEEN :dari AND :sampai';
+    if ($filter !== []) {
+        keuangan_riwayat_pembayaran_append_bulan_tagihan_sql($pdo, $where, $params, $filter, 'p');
+    }
     $st = $pdo->prepare('
         SELECT LOWER(TRIM(d.pos_slug)) AS slug, COALESCE(SUM(d.nominal), 0) AS total
         FROM keuangan_pembayaran_detail d
         INNER JOIN keuangan_pembayaran p ON p.id = d.pembayaran_id
-        WHERE p.tanggal_bayar BETWEEN :dari AND :sampai
+        ' . $where . '
         GROUP BY LOWER(TRIM(d.pos_slug))
     ');
-    $st->execute(['dari' => $dari, 'sampai' => $sampai]);
+    $st->execute($params);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $nom = (int) round((float) ($row['total'] ?? 0));
         if ($nom === 0) {
@@ -665,7 +744,7 @@ body.riwayat-rekap-page .app-main .container-fluid { max-width: none; }
 }
 
 /** Label filter aktif untuk tampilan (satu baris). */
-function keuangan_riwayat_pembayaran_filter_label(array $filter, array $posOptions): string
+function keuangan_riwayat_pembayaran_filter_label(PDO $pdo, array $filter, array $posOptions): string
 {
     $parts = [];
     if ((string) ($filter['arah'] ?? '') === 'masuk') {
@@ -696,6 +775,11 @@ function keuangan_riwayat_pembayaran_filter_label(array $filter, array $posOptio
         $parts[] = 'Santri #' . $santriId;
     } elseif ($q !== '') {
         $parts[] = 'Cari: ' . $q;
+    }
+
+    $bulanLabel = keuangan_riwayat_pembayaran_bulan_tagihan_label($pdo, $filter);
+    if ($bulanLabel !== '') {
+        $parts[] = 'Bulan: ' . $bulanLabel;
     }
 
     return $parts === [] ? '' : implode(' · ', $parts);
@@ -757,6 +841,7 @@ function keuangan_riwayat_pembayaran_fetch(PDO $pdo, array $filter, int $limit =
             $where .= ' AND p.santri_id = :santri_id';
             $params['santri_id'] = $santriId;
         }
+        keuangan_riwayat_pembayaran_append_bulan_tagihan_sql($pdo, $where, $params, $filter, 'p');
         [$qSql, $qParams] = keuangan_riwayat_pembayaran_sql_q_filter($pdo, $q, 's');
         $where .= $qSql;
         $params = array_merge($params, $qParams);
@@ -925,6 +1010,9 @@ function keuangan_riwayat_pembayaran_query_string(array $filter, array $extra = 
         'pos' => $filter['pos'] ?? '',
         'santri_id' => (int) ($filter['santri_id'] ?? 0) > 0 ? (string) (int) $filter['santri_id'] : '',
         'q' => trim((string) ($filter['q'] ?? '')),
+        'bulan_tagihan' => (int) ($filter['bulan_tagihan'] ?? 0) > 0 ? (string) (int) $filter['bulan_tagihan'] : '',
+        'ta_mulai' => (int) ($filter['ta_mulai'] ?? 0) > 0 ? (string) (int) $filter['ta_mulai'] : '',
+        'ta_selesai' => (int) ($filter['ta_selesai'] ?? 0) > 0 ? (string) (int) $filter['ta_selesai'] : '',
     ], $extra);
     $qs = array_filter($qs, static fn ($v): bool => $v !== null && $v !== '' && $v !== '0');
 
@@ -936,14 +1024,16 @@ function keuangan_riwayat_pembayaran_href(
     ?string $dari = null,
     ?string $sampai = null,
     string $arah = '',
-    string $pos = ''
+    string $pos = '',
+    ?array $preserve = null
 ): string {
-    $filter = keuangan_riwayat_pembayaran_parse_filter([
-        'dari' => $dari ?? date('Y-m-01'),
-        'sampai' => $sampai ?? date('Y-m-d'),
+    $preserve = is_array($preserve) ? $preserve : [];
+    $filter = keuangan_riwayat_pembayaran_parse_filter(array_merge($preserve, [
+        'dari' => $dari ?? ($preserve['dari'] ?? date('Y-m-01')),
+        'sampai' => $sampai ?? ($preserve['sampai'] ?? date('Y-m-d')),
         'arah' => $arah,
         'pos' => $pos,
-    ]);
+    ]));
 
     return app_href('/keuangan/riwayat_pembayaran.php?' . keuangan_riwayat_pembayaran_query_string($filter));
 }

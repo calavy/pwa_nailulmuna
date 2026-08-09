@@ -39,9 +39,14 @@ santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
             <li>Soal belum diisi saat tugas dibuat</li>
         </ul>
     </div>
-<?php else: ?>
-    <div class="d-grid gap-2">
-        <?php foreach ($tugasList as $t):
+<?php else:
+    $sections = ikhtibar_tugas_kelompok_sections($tugasList);
+    foreach ($sections as $section):
+        if ($section['label'] !== ''): ?>
+            <h2 class="h6 text-muted text-uppercase small fw-semibold mt-3 mb-2"><?= htmlspecialchars($section['label']) ?></h2>
+        <?php endif; ?>
+        <div class="d-grid gap-2 mb-2">
+        <?php foreach ($section['items'] as $t):
             $tid = (int) $t['id'];
             $st = (string) ($t['sesi_status'] ?? 'menunggu');
             $label = match ($st) {
@@ -54,10 +59,14 @@ santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
             <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/kerjakan.php?id=' . $tid)) ?>" class="btn <?= $btnClass ?> text-start py-3">
                 <strong><?= htmlspecialchars((string) $t['judul']) ?></strong>
                 <span class="d-block small opacity-75"><?= htmlspecialchars(ikhtibar_hari_label((int) ($t['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) $t['tanggal']) ?> · <?= (int) ($t['durasi_menit'] ?? 0) ?> menit</span>
+                <?php if (trim((string) ($t['filter_tingkatan'] ?? '')) !== ''): ?>
+                    <span class="d-block small opacity-75">Tingkatan: <?= htmlspecialchars((string) $t['filter_tingkatan']) ?></span>
+                <?php endif; ?>
                 <span class="badge bg-light text-dark mt-1"><?= htmlspecialchars($label) ?></span>
             </a>
         <?php endforeach; ?>
-    </div>
+        </div>
+    <?php endforeach; ?>
 <?php endif; ?>
 
 <?php

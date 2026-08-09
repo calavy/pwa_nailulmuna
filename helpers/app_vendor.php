@@ -77,6 +77,7 @@ function app_vendor_precache_relative_paths(): array
         'fontawesome/6.5.2/webfonts/fa-solid-900.woff2',
         'fontawesome/6.5.2/webfonts/fa-regular-400.woff2',
         'fontawesome/6.5.2/webfonts/fa-brands-400.woff2',
+        'fonts/noto-naskh-arabic/NotoNaskhArabic-Regular.woff2',
     ] as $rel) {
         if (app_vendor_file_exists($rel)) {
             $list[] = '/assets/vendor/' . $rel;

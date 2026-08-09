@@ -5,6 +5,91 @@ declare(strict_types=1);
 require_once __DIR__ . '/alpa_tier.php';
 require_once __DIR__ . '/wa_laporan_alpa.php';
 
+function alpa_wa_row_status_is_alpa(string $status): bool
+{
+    $st = strtoupper(trim($status));
+
+    return $st === 'ALPA' || $st === 'ISTIRAHAT';
+}
+
+/**
+ * Agregasi jumlah alpa per santri (slot terjadwal, selaras rekap presensi).
+ *
+ * @return list<array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int}>
+ */
+function alpa_wa_fetch_santri_alpa_rows(PDO $pdo, string $tanggal): array
+{
+    static $cache = [];
+    if (isset($cache[$tanggal])) {
+        return $cache[$tanggal];
+    }
+
+    ensure_alpa_tier_tables($pdo);
+    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
+        return $cache[$tanggal] = [];
+    }
+
+    $mode = alpa_tier_periode_mode($pdo);
+    $tanggalMulai = alpa_tier_tanggal_mulai($pdo);
+    if ($tanggalMulai !== '' && $tanggal < $tanggalMulai) {
+        return $cache[$tanggal] = [];
+    }
+
+    $range = alpa_tier_window_range($mode, $tanggal, $tanggalMulai);
+    $start = (string) $range['start'];
+    $end = (string) $range['end'];
+    if ($start === '' || $end === '' || $start > $end) {
+        return $cache[$tanggal] = [];
+    }
+
+    require_once __DIR__ . '/presensi_jadwal.php';
+    $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
+    presensi_finalize_date_range($pdo, $start, $end, $auditUserId > 0 ? $auditUserId : 1);
+
+    $rows = presensi_fetch_rows_rekap($pdo, $start, $end, 0, null, false);
+
+    /** @var array<int, array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int}> $bySantri */
+    $bySantri = [];
+    foreach ($rows as $row) {
+        if (!alpa_wa_row_status_is_alpa((string) ($row['status_presensi'] ?? ''))) {
+            continue;
+        }
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        if (!isset($bySantri[$sid])) {
+            $bySantri[$sid] = [
+                'id' => $sid,
+                'nis' => (string) ($row['nis'] ?? ''),
+                'nama_santri' => (string) ($row['nama_santri'] ?? '-'),
+                'tingkatan' => (string) ($row['tingkatan'] ?? ''),
+                'alpa_count' => 0,
+            ];
+        }
+        $bySantri[$sid]['alpa_count']++;
+    }
+
+    $cache[$tanggal] = array_values($bySantri);
+
+    return $cache[$tanggal];
+}
+
+/**
+ * Peta santri_id → jumlah alpa pada periode aktif.
+ *
+ * @return array<int, int>
+ */
+function alpa_wa_santri_alpa_count_map(PDO $pdo, string $tanggal): array
+{
+    $map = [];
+    foreach (alpa_wa_fetch_santri_alpa_rows($pdo, $tanggal) as $row) {
+        $map[(int) ($row['id'] ?? 0)] = (int) ($row['alpa_count'] ?? 0);
+    }
+
+    return $map;
+}
+
 /**
  * Query santri dengan jumlah alpa pada periode aktif (sampai tanggal referensi).
  *
@@ -12,47 +97,31 @@ require_once __DIR__ . '/wa_laporan_alpa.php';
  */
 function alpa_wa_query_santri_rows(PDO $pdo, string $tanggal, int $minThreshold = 1): array
 {
-    ensure_alpa_tier_tables($pdo);
-    if (!table_exists($pdo, 'presensi') || !table_exists($pdo, 'santri')) {
-        return [];
+    $minThreshold = max(1, $minThreshold);
+    $rows = alpa_wa_fetch_santri_alpa_rows($pdo, $tanggal);
+    $rows = array_values(array_filter(
+        $rows,
+        static fn (array $row): bool => (int) ($row['alpa_count'] ?? 0) >= $minThreshold
+    ));
+
+    usort($rows, static function (array $a, array $b): int {
+        $cmp = strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+        $cmpAlpa = ((int) ($b['alpa_count'] ?? 0)) <=> ((int) ($a['alpa_count'] ?? 0));
+        if ($cmpAlpa !== 0) {
+            return $cmpAlpa;
+        }
+
+        return strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
+    });
+
+    if (count($rows) > 500) {
+        $rows = array_slice($rows, 0, 500);
     }
 
-    $mode = alpa_tier_periode_mode($pdo);
-    $tanggalMulai = alpa_tier_tanggal_mulai($pdo);
-    if ($tanggalMulai !== '' && $tanggal < $tanggalMulai) {
-        return [];
-    }
-
-    [$where, $params] = alpa_tier_window_where($mode, $tanggal, $tanggalMulai);
-    $whereFixed = $where;
-    if ($whereFixed !== '') {
-        $whereFixed = str_replace('tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
-        $whereFixed = str_replace('p.p.tanggal_presensi', 'p.tanggal_presensi', $whereFixed);
-    }
-    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
-    $sql = '
-        SELECT s.id, s.nis, ' . $nameCol . ' AS nama_santri, s.tingkatan, COUNT(p.id) AS alpa_count
-        FROM presensi p
-        INNER JOIN santri s ON s.id = p.santri_id
-        WHERE p.status_presensi = "ALPA"' . $whereFixed . '
-        GROUP BY s.id, s.nis, ' . $nameCol . ', s.tingkatan
-        HAVING alpa_count >= :min_th
-        ORDER BY s.tingkatan ASC, alpa_count DESC, nama_santri ASC
-        LIMIT 500
-    ';
-    $st = $pdo->prepare($sql);
-    $st->execute(array_merge($params, ['min_th' => max(1, $minThreshold)]));
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    return array_map(static function (array $row): array {
-        return [
-            'id' => (int) ($row['id'] ?? 0),
-            'nis' => (string) ($row['nis'] ?? ''),
-            'nama_santri' => (string) ($row['nama_santri'] ?? '-'),
-            'tingkatan' => (string) ($row['tingkatan'] ?? ''),
-            'alpa_count' => (int) ($row['alpa_count'] ?? 0),
-        ];
-    }, $rows);
+    return $rows;
 }
 
 /**

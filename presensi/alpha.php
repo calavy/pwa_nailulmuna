@@ -165,17 +165,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'nis' => (string) ($santri['nis'] ?? ''),
         ];
 
-        $countStmt = $pdo->prepare('
-            SELECT COUNT(*) FROM presensi
-            WHERE santri_id = :santri_id
-              AND status_presensi = "ALPA"
-              AND DATE_FORMAT(tanggal_presensi, "%Y-%m") = DATE_FORMAT(:tanggal_now, "%Y-%m")
-        ');
-        $countStmt->execute([
-            'santri_id' => $santriId,
-            'tanggal_now' => $tanggal,
-        ]);
-        $alphaCount = (int) $countStmt->fetchColumn();
+        $alphaCount = alpa_tier_count_alpa(
+            $pdo,
+            $santriId,
+            alpa_tier_periode_mode($pdo),
+            $tanggal,
+            alpa_tier_tanggal_mulai($pdo)
+        );
 
         if ($alphaCount >= $threshold) {
             $waLaporanSantri[] = [

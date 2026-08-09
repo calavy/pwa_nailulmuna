@@ -14,6 +14,21 @@ ensure_akademik_ikhtibar_tables($pdo);
 
 $filterSantri = (int) ($_GET['santri_id'] ?? 0);
 $filterTugas = (int) ($_GET['tugas_id'] ?? 0);
+$userId = (int) ($_SESSION['user']['id'] ?? 0);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $filterTugas > 0) {
+    $postAction = trim((string) ($_POST['action'] ?? ''));
+    if (in_array($postAction, ['publish_nilai', 'unpublish_nilai'], true)) {
+        if (!is_super_admin()) {
+            set_flash('error', 'Hanya super admin yang dapat mempublikasikan nilai ke portal wali.');
+        } else {
+            $res = ikhtibar_set_nilai_dipublikasikan($pdo, $filterTugas, $userId, $postAction === 'publish_nilai');
+            set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        }
+        header('Location: ' . app_href('/akademik/ikhtibar_rekap.php?tugas_id=' . $filterTugas));
+        exit;
+    }
+}
 
 if (isset($_GET['export']) && $_GET['export'] === 'csv' && $filterTugas > 0) {
     header('Content-Type: text/csv; charset=UTF-8');
@@ -43,6 +58,10 @@ if ($filterSantri > 0) {
 } elseif ($filterTugas > 0) {
     $rows = ikhtibar_laporan_nilai_enriched($pdo, $filterTugas);
 }
+
+$tugasTerpilih = $filterTugas > 0 ? ikhtibar_tugas_by_id($pdo, $filterTugas) : null;
+$rekapTingkatan = $filterTugas > 0 ? ikhtibar_rekap_nilai_per_tingkatan($pdo, $filterTugas) : [];
+$nilaiDipublikasikan = is_array($tugasTerpilih) && (int) ($tugasTerpilih['nilai_dipublikasikan'] ?? 0) === 1;
 
 $pageTitle = 'Rekap Nilai Ikhtibar';
 $bodyClass = 'ikhtibar-rekap-admin-page';
@@ -130,6 +149,63 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
     </div>
 <?php else: ?>
+    <?php if (is_array($tugasTerpilih)): ?>
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="small">
+                    <strong><?= htmlspecialchars((string) ($tugasTerpilih['judul'] ?? '')) ?></strong>
+                    · Mapel: <?= htmlspecialchars(trim((string) ($tugasTerpilih['mapel_label'] ?? '')) ?: '—') ?>
+                    · Pembimbing: <?= htmlspecialchars(ikhtibar_tugas_pembimbing_nama($pdo, $tugasTerpilih)) ?>
+                    <?php if ($nilaiDipublikasikan): ?>
+                        <span class="badge text-bg-success ms-1">Nilai dipublikasikan ke wali</span>
+                    <?php endif; ?>
+                </div>
+                <?php if (is_super_admin()): ?>
+                    <div class="d-flex gap-2">
+                        <?php if ($nilaiDipublikasikan): ?>
+                            <form method="post" onsubmit="return confirm('Batalkan publikasi nilai ke portal wali?');">
+                                <input type="hidden" name="action" value="unpublish_nilai">
+                                <button type="submit" class="btn btn-sm btn-outline-warning">Batalkan publikasi wali</button>
+                            </form>
+                        <?php else: ?>
+                            <form method="post" onsubmit="return confirm('Publikasikan nilai tugas ini ke portal wali?');">
+                                <input type="hidden" name="action" value="publish_nilai">
+                                <button type="submit" class="btn btn-sm btn-success">Publish nilai ke wali</button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($rekapTingkatan !== []): ?>
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white fw-semibold">Rekap per tingkatan</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Tingkatan</th><th class="text-center">Peserta</th><th class="text-center">Selesai</th><th class="text-center">Rata</th><th class="text-center">Min</th><th class="text-center">Max</th></tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($rekapTingkatan as $rt): ?>
+                        <tr>
+                            <td><?= htmlspecialchars((string) ($rt['tingkatan'] ?? '—')) ?></td>
+                            <td class="text-center"><?= (int) ($rt['jumlah_peserta'] ?? 0) ?></td>
+                            <td class="text-center"><?= (int) ($rt['jumlah_selesai'] ?? 0) ?></td>
+                            <td class="text-center fw-semibold"><?= $rt['rata_nilai'] !== null ? htmlspecialchars((string) $rt['rata_nilai']) : '—' ?></td>
+                            <td class="text-center"><?= $rt['nilai_min'] !== null ? htmlspecialchars((string) $rt['nilai_min']) : '—' ?></td>
+                            <td class="text-center"><?= $rt['nilai_max'] !== null ? htmlspecialchars((string) $rt['nilai_max']) : '—' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <span class="fw-semibold">Peserta tugas</span>

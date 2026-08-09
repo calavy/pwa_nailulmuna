@@ -91,6 +91,9 @@ function skbt_santri_profil(PDO $pdo, int $santriId, bool $full = false): ?array
     $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $cols = ['id', 'nis', $namaCol . ' AS nama_santri', 'tingkatan', 'tanggal_masuk', 'nama_ayah',
         'dusun', 'rt_rw', 'desa_kelurahan', 'kecamatan', 'kabupaten', 'propinsi', 'nama_kamar'];
+    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+        $cols[] = 'wali_santri_id';
+    }
     $st = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM santri WHERE id = :id LIMIT 1');
     $st->execute(['id' => $santriId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
@@ -675,6 +678,184 @@ function skbt_format_bulan_presensi_line(array $bulanRow): string
     );
 }
 
+/** Baris kontak kop SKBT (alamat, telp, website/email). */
+function skbt_kop_kontak_baris(array $kop): array
+{
+    $lines = [];
+    $alamat = trim((string) ($kop['alamat_ponpes'] ?? ''));
+    if ($alamat !== '') {
+        $lines[] = $alamat;
+    }
+    $telp = trim((string) ($kop['telp_ponpes'] ?? ''));
+    if ($telp !== '') {
+        $lines[] = $telp;
+    }
+    $web = trim((string) ($kop['website_ponpes'] ?? ''));
+    if ($web !== '') {
+        $lines[] = $web;
+    }
+
+    return $lines;
+}
+
+/** Label periode cetak dari bulan aktif kegiatan (contoh: ZULKAIDAH 1445 - RABIUL AWAL 1446). */
+function skbt_kegiatan_periode_label_cetak(array $kg, string $fallbackPeriode = ''): string
+{
+    $bulanAktif = $kg['bulan_aktif'] ?? [];
+    if ($bulanAktif === []) {
+        return $fallbackPeriode !== '' ? strtoupper($fallbackPeriode) : '';
+    }
+    $keys = array_keys($bulanAktif);
+    sort($keys, SORT_STRING);
+    $first = strtoupper(trim((string) ($bulanAktif[$keys[0]]['label'] ?? '')));
+    $last = strtoupper(trim((string) ($bulanAktif[$keys[count($keys) - 1]]['label'] ?? '')));
+    if ($first === '' && $last === '') {
+        return $fallbackPeriode !== '' ? strtoupper($fallbackPeriode) : '';
+    }
+    if ($first === $last || $last === '') {
+        return $first;
+    }
+
+    return $first . ' - ' . $last;
+}
+
+/** Ringkasan presensi satu kegiatan untuk cetak formal (gaya laporan SKBT). */
+function skbt_kegiatan_ringkasan_line_cetak(array $kg): string
+{
+    return sprintf(
+        'jumlah hari %d, HADIR %d, IJIN %d, SAKIT %d, GHOIB %d, NILAI %s.',
+        (int) ($kg['jml_hari_aktiv'] ?? $kg['total'] ?? 0),
+        (int) ($kg['total_hadir'] ?? 0),
+        (int) ($kg['total_izin'] ?? 0),
+        (int) ($kg['total_sakit'] ?? 0),
+        (int) ($kg['total_ghoib'] ?? 0),
+        strtoupper((string) ($kg['nilai_keseluruhan'] ?? 'BAIK'))
+    );
+}
+
+/** HTML blok presensi gaya prosa (Disiplin Kelas / Presensi Kegiatan). */
+function skbt_presensi_prose_html(array $items, string $fallbackPeriode = ''): string
+{
+    if ($items === []) {
+        return '<p class="skbt-section-placeholder">—</p>';
+    }
+
+    ob_start();
+    foreach ($items as $kg) {
+        if ((int) ($kg['total'] ?? 0) <= 0 && ($kg['bulan_aktif'] ?? []) === []) {
+            continue;
+        }
+        $nama = trim((string) ($kg['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $periode = skbt_kegiatan_periode_label_cetak($kg, $fallbackPeriode);
+        $judul = $periode !== '' ? $nama . ' - ' . $periode : $nama;
+        ?>
+        <div class="skbt-prose-entry">
+            <p class="skbt-prose-title"><strong><?= htmlspecialchars($judul) ?></strong></p>
+            <p class="skbt-prose-meta"><em><?= htmlspecialchars(skbt_kegiatan_ringkasan_line_cetak($kg)) ?></em></p>
+        </div>
+        <?php
+    }
+    $html = (string) ob_get_clean();
+
+    return $html !== '' ? $html : '<p class="skbt-section-placeholder">—</p>';
+}
+
+/** HTML identitas santri (JATIDIRI) dua kolom. */
+function skbt_jatidiri_cetak_html(array $santri): string
+{
+    $tahunMasuk = $santri['tahun_masuk'] ?? null;
+    $tahunMasukTampil = $tahunMasuk !== null && (int) $tahunMasuk > 0 ? (string) (int) $tahunMasuk : '—';
+    $tahunKe = (int) ($santri['tahun_ke'] ?? 0);
+    $alamat = trim((string) ($santri['alamat_gabung'] ?? ''));
+
+    ob_start();
+    ?>
+    <table class="skbt-jatidiri-table">
+        <tbody>
+            <tr>
+                <td class="skbt-jatidiri-label">NIS</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars((string) ($santri['nis'] ?? '—')) ?></td>
+                <td class="skbt-jatidiri-gap" aria-hidden="true"></td>
+                <td class="skbt-jatidiri-label">Tahun masuk</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars($tahunMasukTampil) ?></td>
+            </tr>
+            <tr>
+                <td class="skbt-jatidiri-label">Nama</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars((string) ($santri['nama_santri'] ?? '—')) ?></td>
+                <td class="skbt-jatidiri-gap" aria-hidden="true"></td>
+                <td class="skbt-jatidiri-label">Tahun ke</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars($tahunKe > 0 ? (string) $tahunKe : '—') ?></td>
+            </tr>
+            <tr>
+                <td class="skbt-jatidiri-label">Bin</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars((string) ($santri['nama_ayah'] ?? '—')) ?></td>
+                <td class="skbt-jatidiri-gap" aria-hidden="true"></td>
+                <td class="skbt-jatidiri-label">Tingkatan saat ini</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td><?= htmlspecialchars((string) ($santri['tingkatan'] ?? '—')) ?></td>
+            </tr>
+            <?php if ($alamat !== ''): ?>
+            <tr>
+                <td class="skbt-jatidiri-label">Alamat</td>
+                <td class="skbt-jatidiri-sep">:</td>
+                <td colspan="5"><?= htmlspecialchars($alamat) ?></td>
+            </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+/** HTML blok tanda tangan SKBT (2×2 + Mengetahui). */
+function skbt_ttd_cetak_html(
+    string $waliKamar,
+    string $namaPengasuh,
+    string $namaKepalaPondok
+): string {
+    ob_start();
+    ?>
+    <div class="skbt-ttd">
+        <div class="skbt-ttd-row">
+            <div class="skbt-ttd-box">
+                <div class="role">Wali Kamar</div>
+                <div class="sign-space" aria-hidden="true"></div>
+                <div class="name"><?= htmlspecialchars($waliKamar !== '' ? $waliKamar : '…………………………') ?></div>
+            </div>
+            <div class="skbt-ttd-box">
+                <div class="role">Wali Santri</div>
+                <div class="sign-space" aria-hidden="true"></div>
+                <div class="name skbt-ttd-line">...................................</div>
+            </div>
+        </div>
+        <p class="skbt-ttd-mengetahui">Mengetahui;</p>
+        <div class="skbt-ttd-row">
+            <div class="skbt-ttd-box">
+                <div class="role">Pengasuh</div>
+                <div class="sign-space" aria-hidden="true"></div>
+                <div class="name"><?= htmlspecialchars($namaPengasuh !== '' ? $namaPengasuh : '…………………………') ?></div>
+            </div>
+            <div class="skbt-ttd-box">
+                <div class="role">Kepala Pondok</div>
+                <div class="sign-space" aria-hidden="true"></div>
+                <div class="name"><?= htmlspecialchars($namaKepalaPondok !== '' ? $namaKepalaPondok : '…………………………') ?></div>
+            </div>
+        </div>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 /** Tahun Syawal default: tahun hijri bulan Syawal dari hari ini. */
 function skbt_tahun_syawal_default(PDO $pdo): int
 {
@@ -777,18 +958,14 @@ function skbt_logo_abs_url(PDO $pdo, ?array $kop = null): string
     return $logo;
 }
 
-/** HTML kop formal khusus SKBT (F4) — logo kiri, identitas pondok, garis bawah, judul dokumen. */
-function skbt_kop_surat_html(PDO $pdo, array $kop, string $nomor, string $periodeLabel): string
+/** HTML kop formal khusus SKBT (F4) — logo kiri, judul SKBT, kontak, nomor, label JATIDIRI. */
+function skbt_kop_surat_html(PDO $pdo, array $kop, string $nomor, string $periodeLabel = ''): string
 {
     $accent = trim((string) ($kop['kop_accent_color'] ?? '#15803d')) ?: '#15803d';
     $logo = skbt_logo_abs_url($pdo, $kop);
-    $jenisLabel = trim((string) ($kop['jenis_label'] ?? ''));
-    if ($jenisLabel === '') {
-        $jenis = trim((string) ($kop['jenis_pendidikan'] ?? ''));
-        $jenisLabel = $jenis !== '' ? $jenis : 'Lembaga Pondok Pesantren';
-    }
     $nama = trim((string) ($kop['nama_ponpes'] ?? 'Pondok Pesantren'));
-    $alamat = trim((string) ($kop['alamat_ponpes'] ?? ''));
+    $judulUtama = 'SKBT ' . strtoupper($nama);
+    $kontakBaris = skbt_kop_kontak_baris($kop);
 
     ob_start();
     ?>
@@ -800,22 +977,14 @@ function skbt_kop_surat_html(PDO $pdo, array $kop, string $nomor, string $period
                 <?php endif; ?>
             </div>
             <div class="skbt-kop-formal__brand">
-                <p class="skbt-kop-formal__jenis"><?= htmlspecialchars($jenisLabel) ?></p>
-                <h2 class="skbt-kop-formal__nama"><?= htmlspecialchars($nama) ?></h2>
-                <?php if ($alamat !== ''): ?>
-                    <p class="skbt-kop-formal__alamat"><?= htmlspecialchars($alamat) ?></p>
-                <?php endif; ?>
+                <h1 class="skbt-kop-formal__judul"><?= htmlspecialchars($judulUtama) ?></h1>
+                <p class="skbt-kop-formal__subtitle">Surat Keterangan Belajar dan Tingkatan</p>
+                <?php foreach ($kontakBaris as $baris): ?>
+                    <p class="skbt-kop-formal__kontak"><?= htmlspecialchars($baris) ?></p>
+                <?php endforeach; ?>
+                <p class="skbt-kop-formal__nomor">NOMOR: <?= htmlspecialchars($nomor) ?></p>
+                <p class="skbt-kop-formal__section-label">JATIDIRI</p>
             </div>
-            <div class="skbt-kop-formal__logo-col skbt-kop-formal__logo-col--spacer" aria-hidden="true"></div>
-        </div>
-        <div class="skbt-kop-formal__bar"></div>
-        <div class="skbt-kop-formal__doc">
-            <h1>SKBT</h1>
-            <p class="skbt-kop-formal__subtitle">Surat Keterangan Belajar dan Tingkatan</p>
-            <p class="skbt-kop-formal__nomor">Nomor: <?= htmlspecialchars($nomor) ?></p>
-            <?php if ($periodeLabel !== ''): ?>
-                <p class="skbt-kop-formal__periode">Periode: <?= htmlspecialchars($periodeLabel) ?></p>
-            <?php endif; ?>
         </div>
     </div>
     <?php

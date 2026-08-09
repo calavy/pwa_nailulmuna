@@ -36,9 +36,14 @@ santri_portal_layout_head('Tugas PKPPS — Portal Santri', 'tugas_pkpps');
             <li>Anda belum terdaftar di tingkatan PKPPS jadwal tugas tersebut</li>
         </ul>
     </div>
-<?php else: ?>
-    <div class="d-grid gap-2">
-        <?php foreach ($tugasList as $t):
+<?php else:
+    $sections = ikhtibar_tugas_kelompok_sections($tugasList);
+    foreach ($sections as $section):
+        if ($section['label'] !== ''): ?>
+            <h2 class="h6 text-muted text-uppercase small fw-semibold mt-3 mb-2"><?= htmlspecialchars($section['label']) ?></h2>
+        <?php endif; ?>
+        <div class="d-grid gap-2 mb-2">
+        <?php foreach ($section['items'] as $t):
             $tid = (int) $t['id'];
             $st = (string) ($t['sesi_status'] ?? 'menunggu');
             $label = match ($st) {
@@ -55,7 +60,8 @@ santri_portal_layout_head('Tugas PKPPS — Portal Santri', 'tugas_pkpps');
                 <span class="badge bg-light text-dark mt-1"><?= htmlspecialchars($label) ?></span>
             </a>
         <?php endforeach; ?>
-    </div>
+        </div>
+    <?php endforeach; ?>
 <?php endif; ?>
 
 <?php santri_portal_layout_foot('tugas_pkpps'); ?>

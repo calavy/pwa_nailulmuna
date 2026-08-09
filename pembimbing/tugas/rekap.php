@@ -65,6 +65,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 <thead class="table-light">
                     <tr>
                         <th>Judul</th>
+                        <th>Pembimbing</th>
                         <th>Mapel</th>
                         <th>Tanggal</th>
                         <th>Status</th>
@@ -76,7 +77,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 </thead>
                 <tbody>
                 <?php if ($rows === []): ?>
-                    <tr><td colspan="8" class="text-center text-muted py-4">Belum ada tugas.</td></tr>
+                    <tr><td colspan="9" class="text-center text-muted py-4">Belum ada tugas.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($rows as $r):
                     $id = (int) $r['id'];
@@ -90,6 +91,7 @@ require_once __DIR__ . '/../../includes/header.php';
                     ?>
                     <tr>
                         <td class="fw-semibold"><?= htmlspecialchars((string) $r['judul']) ?></td>
+                        <td class="small"><?= htmlspecialchars(ikhtibar_tugas_pembimbing_nama($pdo, $r)) ?></td>
                         <td class="small"><?= htmlspecialchars(trim((string) ($r['mapel_label'] ?? '')) ?: '—') ?></td>
                         <td class="small text-nowrap"><?= htmlspecialchars((string) $r['tanggal']) ?></td>
                         <td><span class="badge text-bg-<?= $badge ?>"><?= htmlspecialchars($st) ?></span></td>

@@ -1,0 +1,44 @@
+/**
+ * Tipografi soal Ikhtibar — Arab mudah dibaca (Traditional Arabic + Noto Naskh self-host).
+ */
+@font-face {
+    font-family: "Noto Naskh Arabic";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../vendor/fonts/noto-naskh-arabic/NotoNaskhArabic-Regular.woff2") format("woff2");
+    unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+@font-face {
+    font-family: "Noto Naskh Arabic";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("../vendor/fonts/noto-naskh-arabic/NotoNaskhArabic-Medium.woff2") format("woff2");
+    unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+.ikhtibar-soal-text,
+.ikhtibar-soal-input {
+    font-family: "Traditional Arabic", "Noto Naskh Arabic", "Arial", sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.85;
+    unicode-bidi: plaintext;
+    text-align: start;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.ikhtibar-soal-input {
+    line-height: 1.75;
+}
+
+.form-check.ikhtibar-soal-text .form-check-label {
+    unicode-bidi: plaintext;
+}
+
+.ikhtibar-soal-text--small {
+    font-size: 0.9375rem;
+    line-height: 1.75;
+}

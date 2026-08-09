@@ -22,11 +22,10 @@ function santri_portal_bottom_nav_items(): array
     return $items;
 }
 
-function santri_portal_layout_head(string $title, ?string $navActive = null): void
+function santri_portal_layout_head(string $title, ?string $navActive = null, string $extraHeadHtml = '', string $bodyClass = ''): void
 {
     $showNav = $navActive !== null && $navActive !== '';
-    $flashOk = $showNav ? get_flash('success') : null;
-    $flashErr = $showNav ? get_flash('error') : null;
+    $bodyClass = trim('santri-portal py-3 py-md-4 ' . $bodyClass);
     ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -45,21 +44,33 @@ function santri_portal_layout_head(string $title, ?string $navActive = null): vo
     <?php require __DIR__ . '/../../includes/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
+    <?= $extraHeadHtml ?>
 </head>
-<body class="santri-portal py-3 py-md-4">
+<body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="container wali-shell px-3">
-    <?php if ($showNav): ?>
-        <?php if ($flashOk): ?>
-            <div class="alert alert-success py-2 small mb-2 shadow-sm" role="status"><?= htmlspecialchars($flashOk) ?></div>
+    <?php
+    $flashOkAny = get_flash('success');
+    $flashErrAny = get_flash('error');
+    if ($showNav):
+    ?>
+        <?php if ($flashOkAny): ?>
+            <div class="alert alert-success py-2 small mb-2 shadow-sm" role="status"><?= htmlspecialchars($flashOkAny) ?></div>
         <?php endif; ?>
-        <?php if ($flashErr): ?>
-            <div class="alert alert-danger py-2 small mb-2 shadow-sm" role="alert"><?= htmlspecialchars($flashErr) ?></div>
+        <?php if ($flashErrAny): ?>
+            <div class="alert alert-danger py-2 small mb-2 shadow-sm" role="alert"><?= htmlspecialchars($flashErrAny) ?></div>
         <?php endif; ?>
         <nav class="wali-nav-scroll wali-nav-scroll--desktop-only mb-2" aria-label="Menu portal santri">
             <?php foreach (santri_portal_bottom_nav_items() as $item): ?>
                 <a href="<?= htmlspecialchars($item['href']) ?>" class="btn btn-sm btn-outline-secondary <?= $navActive === $item['key'] ? 'active' : '' ?>"><?= htmlspecialchars($item['label']) ?></a>
             <?php endforeach; ?>
         </nav>
+    <?php elseif ($flashOkAny || $flashErrAny): ?>
+        <?php if ($flashOkAny): ?>
+            <div class="alert alert-success py-2 small mb-2 shadow-sm" role="status"><?= htmlspecialchars($flashOkAny) ?></div>
+        <?php endif; ?>
+        <?php if ($flashErrAny): ?>
+            <div class="alert alert-danger py-2 small mb-2 shadow-sm" role="alert"><?= htmlspecialchars($flashErrAny) ?></div>
+        <?php endif; ?>
     <?php endif; ?>
     <?php
 }

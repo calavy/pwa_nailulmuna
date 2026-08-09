@@ -6,12 +6,30 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/ikhtibar_kriteria.php';
+require_once __DIR__ . '/../helpers/ikhtibar_ai_parse.php';
+require_once __DIR__ . '/../helpers/ikhtibar_google_import.php';
 
 require_roles(['admin', 'pengurus']);
 ikhtibar_kriteria_ensure_schema($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'simpan_ai_import') {
+        save_setting($pdo, 'ikhtibar_ai_ocr_enabled', isset($_POST['ikhtibar_ai_ocr_enabled']) ? '1' : '0');
+        $apiKey = trim((string) ($_POST['ikhtibar_ai_api_key'] ?? ''));
+        if ($apiKey !== '') {
+            save_setting($pdo, 'ikhtibar_ai_api_key', $apiKey);
+        }
+        save_setting($pdo, 'ikhtibar_ai_model', trim((string) ($_POST['ikhtibar_ai_model'] ?? 'gpt-4o-mini')));
+        save_setting($pdo, 'ikhtibar_ai_base_url', trim((string) ($_POST['ikhtibar_ai_base_url'] ?? '')));
+        save_setting($pdo, 'ikhtibar_google_sheets_template_url', trim((string) ($_POST['ikhtibar_google_sheets_template_url'] ?? '')));
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
+        }
+        set_flash('success', 'Pengaturan import & AI OCR disimpan.');
+        header('Location: ' . app_href('/settings/ikhtibar_kriteria.php'));
+        exit;
+    }
     if ($action === 'simpan_kriteria') {
         $kodes = (array) ($_POST['kode'] ?? []);
         $rows = [];
@@ -37,6 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $rows = ikhtibar_kriteria_list($pdo, false);
+$aiOcrEnabled = (string) app_setting($pdo, 'ikhtibar_ai_ocr_enabled', '0') === '1';
+$aiModel = ikhtibar_ai_model($pdo);
+$aiBaseUrl = trim((string) app_setting($pdo, 'ikhtibar_ai_base_url', ''));
+$googleTemplateUrl = ikhtibar_google_sheets_template_url($pdo);
 $pageTitle = 'Kriteria Penilaian Ikhtibar';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -61,6 +83,41 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="mb-0">Sistem menghitung kecocokan kata kunci di jawaban santri × bobot kriteria → nilai otomatis (0–100). Pembimbing dapat menyesuaikan manual jika perlu.</p>
     </div>
 </div>
+
+<form method="post" class="card shadow-sm mb-3">
+    <input type="hidden" name="action" value="simpan_ai_import">
+    <div class="card-header py-2"><strong>Import soal &amp; AI OCR (opsional)</strong></div>
+    <div class="card-body small">
+        <p class="text-muted">Excel, Word, dan Google Sheets/Docs <strong>tidak membutuhkan AI</strong> jika format template diikuti.
+            AI hanya membantu merapikan teks hasil foto/OCR yang berantakan.</p>
+        <div class="mb-3">
+            <label class="form-label">Link template Google Sheets (opsional)</label>
+            <input type="url" class="form-control form-control-sm" name="ikhtibar_google_sheets_template_url" value="<?= htmlspecialchars($googleTemplateUrl) ?>" placeholder="https://docs.google.com/spreadsheets/d/...">
+            <div class="form-text">Tampil di form buat tugas sebagai tautan salin template. Sheet harus dibagikan: Anyone with the link can view.</div>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="ikhtibar_ai_ocr_enabled" id="ikhtibar_ai_ocr_enabled" value="1" <?= $aiOcrEnabled ? 'checked' : '' ?>>
+            <label class="form-check-label" for="ikhtibar_ai_ocr_enabled">Aktifkan rapikan soal OCR dengan AI</label>
+        </div>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label class="form-label">API key (OpenAI-compatible)</label>
+                <input type="password" class="form-control form-control-sm" name="ikhtibar_ai_api_key" autocomplete="new-password" placeholder="<?= ikhtibar_ai_api_key($pdo) !== '' ? '•••••••• (kosongkan jika tidak ganti)' : 'sk-...' ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Model</label>
+                <input type="text" class="form-control form-control-sm" name="ikhtibar_ai_model" value="<?= htmlspecialchars($aiModel) ?>" placeholder="gpt-4o-mini">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Base URL API</label>
+                <input type="url" class="form-control form-control-sm" name="ikhtibar_ai_base_url" value="<?= htmlspecialchars($aiBaseUrl) ?>" placeholder="https://api.openai.com/v1">
+            </div>
+        </div>
+    </div>
+    <div class="card-footer py-2">
+        <button type="submit" class="btn btn-sm btn-primary">Simpan pengaturan import</button>
+    </div>
+</form>
 
 <form method="post" class="card shadow-sm">
     <input type="hidden" name="action" value="simpan_kriteria">

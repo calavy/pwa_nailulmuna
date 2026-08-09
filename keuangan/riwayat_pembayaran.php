@@ -13,19 +13,24 @@ require_once __DIR__ . '/../helpers/keuangan_riwayat_pembayaran.php';
 require_once __DIR__ . '/../helpers/keuangan_pengeluaran_riwayat.php';
 require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
 require_once __DIR__ . '/../helpers/keuangan_cek_pembayaran.php';
+require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 
 require_roles(['admin', 'pengurus']);
 
 keuangan_ensure_schema_deferred($pdo);
 
 $filter = keuangan_riwayat_pembayaran_parse_filter($_GET);
+$filter = keuangan_riwayat_pembayaran_filter_resolve_ta($pdo, $filter);
+$keuanganTa = keuangan_ta_resolve($pdo);
+$bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, (int) $filter['ta_mulai'], (int) $filter['ta_selesai']);
 $isSuperAdmin = is_super_admin();
 $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
 $redirectQs = keuangan_riwayat_pembayaran_query_string($filter);
 $filterAktif = $filter['arah'] !== ''
     || trim((string) $filter['pos']) !== ''
     || (int) ($filter['santri_id'] ?? 0) > 0
-    || trim((string) ($filter['q'] ?? '')) !== '';
+    || trim((string) ($filter['q'] ?? '')) !== ''
+    || (int) ($filter['bulan_tagihan'] ?? 0) > 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSuperAdmin) {
     $action = (string) ($_POST['action'] ?? '');
@@ -36,7 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSuperAdmin) {
         'pos' => (string) ($_POST['_filter_pos'] ?? $filter['pos']),
         'santri_id' => (string) ($_POST['_filter_santri_id'] ?? $filter['santri_id']),
         'q' => (string) ($_POST['_filter_q'] ?? $filter['q']),
+        'bulan_tagihan' => (string) ($_POST['_filter_bulan_tagihan'] ?? $filter['bulan_tagihan']),
+        'ta_mulai' => (string) ($_POST['_filter_ta_mulai'] ?? $filter['ta_mulai']),
+        'ta_selesai' => (string) ($_POST['_filter_ta_selesai'] ?? $filter['ta_selesai']),
     ]);
+    $postFilter = keuangan_riwayat_pembayaran_filter_resolve_ta($pdo, $postFilter);
     $backQs = keuangan_riwayat_pembayaran_query_string($postFilter);
 
     if ($action === 'update_pengeluaran') {
@@ -57,8 +66,8 @@ $data = keuangan_riwayat_pembayaran_fetch($pdo, $filter);
 $rows = $data['rows'];
 $posOptions = keuangan_riwayat_pembayaran_pos_options($pdo);
 $periodeLabel = keuangan_riwayat_pembayaran_label_periode($filter['dari'], $filter['sampai']);
-$filterLabel = keuangan_riwayat_pembayaran_filter_label($filter, $posOptions);
-$ringkasKat = keuangan_riwayat_pembayaran_ringkasan_masuk_kategori($pdo, $filter['dari'], $filter['sampai']);
+$filterLabel = keuangan_riwayat_pembayaran_filter_label($pdo, $filter, $posOptions);
+$ringkasKat = keuangan_riwayat_pembayaran_ringkasan_masuk_kategori($pdo, $filter['dari'], $filter['sampai'], $filter);
 
 $santriSelected = null;
 if ((int) ($filter['santri_id'] ?? 0) > 0) {
@@ -104,7 +113,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </h1>
     <p class="text-muted mb-0 small">
-        Filter per <strong>pos</strong> (Syahriyah, Makan, Saku, Awal Tahun, atau pos keluar) dan cari berdasarkan <strong>santri</strong>.
+        Filter per <strong>pos</strong> (Syahriyah, Makan, Saku, Awal Tahun, atau pos keluar), <strong>bulan pembayaran</strong> (tagihan TA), dan cari berdasarkan <strong>santri</strong>.
         Ringkasan bulanan:
         <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">Rekap kas bulanan</a>.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">Input pembayaran</a>
@@ -122,16 +131,16 @@ require_once __DIR__ . '/../includes/header.php';
             && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '';
         ?>
         <a class="btn btn-sm <?= $aktifChip ? 'btn-primary' : 'btn-outline-primary' ?>"
-           href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $posKat)) ?>">
+           href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $posKat, $filter)) ?>">
             <?= htmlspecialchars((string) ($kat['label'] ?? '')) ?>
         </a>
     <?php endforeach; ?>
     <a class="btn btn-sm <?= $filter['arah'] === 'masuk' && $filter['pos'] === '' && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '' ? 'btn-success' : 'btn-outline-success' ?>"
-       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', '')) ?>">Semua masuk</a>
+       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', '', $filter)) ?>">Semua masuk</a>
     <a class="btn btn-sm <?= $filter['arah'] === 'keluar' && $filter['pos'] === '' ? 'btn-danger' : 'btn-outline-danger' ?>"
-       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'keluar', '')) ?>">Semua keluar</a>
+       href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'keluar', '', $filter)) ?>">Semua keluar</a>
     <?php if ($filterAktif): ?>
-    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], '', '')) ?>">Reset filter</a>
+    <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], '', '', [])) ?>">Reset filter</a>
     <?php endif; ?>
 </div>
 
@@ -150,6 +159,24 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-6 col-md-2">
         <label class="form-label small fw-semibold mb-1">Sampai tanggal</label>
         <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($filter['sampai']) ?>" required>
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label small fw-semibold mb-1">Bulan pembayaran</label>
+        <select name="bulan_tagihan" class="form-select form-select-sm">
+            <option value="0" <?= (int) ($filter['bulan_tagihan'] ?? 0) === 0 ? 'selected' : '' ?>>Semua bulan</option>
+            <?php foreach ($bulanSlots as $slot):
+                $m = (int) ($slot['bulan_tagihan'] ?? 0);
+                if ($m < 1) {
+                    continue;
+                }
+                ?>
+                <option value="<?= $m ?>" <?= (int) ($filter['bulan_tagihan'] ?? 0) === $m ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(pondok_bulan_slot_label_tampilan($pdo, $slot)) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <input type="hidden" name="ta_mulai" value="<?= (int) ($filter['ta_mulai'] ?: $keuanganTa['mulai']) ?>">
+        <input type="hidden" name="ta_selesai" value="<?= (int) ($filter['ta_selesai'] ?: $keuanganTa['selesai']) ?>">
     </div>
     <div class="col-6 col-md-2">
         <label class="form-label small fw-semibold mb-1">Arah</label>
@@ -230,7 +257,7 @@ $katCards = [
         $kPos = (string) $kc['pos'];
         $kAktif = $filter['arah'] === 'masuk' && $filter['pos'] === $kPos
             && (int) ($filter['santri_id'] ?? 0) === 0 && trim((string) ($filter['q'] ?? '')) === '';
-        $kHref = keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $kPos);
+        $kHref = keuangan_riwayat_pembayaran_href($filter['dari'], $filter['sampai'], 'masuk', $kPos, $filter);
         ?>
         <div class="col-6 col-md-3">
             <a href="<?= htmlspecialchars($kHref) ?>" class="text-decoration-none">
@@ -290,6 +317,9 @@ $katCards = [
             <input type="hidden" name="_filter_pos" value="<?= htmlspecialchars($filter['pos']) ?>">
             <input type="hidden" name="_filter_santri_id" value="<?= (int) ($filter['santri_id'] ?? 0) ?>">
             <input type="hidden" name="_filter_q" value="<?= htmlspecialchars((string) ($filter['q'] ?? '')) ?>">
+            <input type="hidden" name="_filter_bulan_tagihan" value="<?= (int) ($filter['bulan_tagihan'] ?? 0) ?>">
+            <input type="hidden" name="_filter_ta_mulai" value="<?= (int) ($filter['ta_mulai'] ?? 0) ?>">
+            <input type="hidden" name="_filter_ta_selesai" value="<?= (int) ($filter['ta_selesai'] ?? 0) ?>">
             <div class="col-md-3">
                 <label class="form-label small">Tanggal</label>
                 <input type="date" class="form-control form-control-sm" name="tanggal" value="<?= htmlspecialchars((string) $editKeluarRow['tanggal']) ?>" required>
@@ -360,6 +390,9 @@ $katCards = [
             <input type="hidden" name="_filter_pos" value="<?= htmlspecialchars($filter['pos']) ?>">
             <input type="hidden" name="_filter_santri_id" value="<?= (int) ($filter['santri_id'] ?? 0) ?>">
             <input type="hidden" name="_filter_q" value="<?= htmlspecialchars((string) ($filter['q'] ?? '')) ?>">
+            <input type="hidden" name="_filter_bulan_tagihan" value="<?= (int) ($filter['bulan_tagihan'] ?? 0) ?>">
+            <input type="hidden" name="_filter_ta_mulai" value="<?= (int) ($filter['ta_mulai'] ?? 0) ?>">
+            <input type="hidden" name="_filter_ta_selesai" value="<?= (int) ($filter['ta_selesai'] ?? 0) ?>">
             <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-trash-can me-1"></i> Hapus pengeluaran</button>
         </form>
     </div>
