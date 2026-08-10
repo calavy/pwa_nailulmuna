@@ -80,6 +80,8 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
                         title="Edit cepat"
                         data-edit-id="<?= $editId ?>"
                         data-kegiatan-id="<?= (int) ($item['kegiatan_id'] ?? 0) ?>"
+                        data-kegiatan-nama="<?= htmlspecialchars((string) ($item['nama_kegiatan'] ?? '')) ?>"
+                        data-kategori="<?= htmlspecialchars(strtolower((string) ($item['kategori_kegiatan'] ?? 'taalim'))) ?>"
                         data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($item['jam_mulai'] ?? ''))) ?>"
                         data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($item['jam_selesai'] ?? ''))) ?>"
                         data-pembimbing-id="<?= (int) ($item['pembimbing_id'] ?? 0) ?>"

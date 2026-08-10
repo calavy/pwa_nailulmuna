@@ -277,7 +277,11 @@ $bodyClass = 'jadwal-page' . ($viewRingkas ? ' jadwal-page--ringkas' : '');
 $pageScripts = [app_asset_href('/assets/js/jadwal-ui.js')];
 $showJadwalAksi = !$jadwalPembimbingScope;
 $kegiatanListEdit = array_map(
-    static fn (array $row): array => ['id' => (int) ($row['id'] ?? 0), 'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '')],
+    static fn (array $row): array => [
+        'id' => (int) ($row['id'] ?? 0),
+        'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+        'kategori_kegiatan' => (string) ($row['kategori_kegiatan'] ?? 'TAALIM'),
+    ],
     $kegiatanRows
 );
 $jadwalTabQs = static function (string $tab, array $extra = []) use ($viewRingkas, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId): string {

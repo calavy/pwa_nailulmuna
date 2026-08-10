@@ -43,7 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $kegiatanId = (int) ($_POST['kegiatan_id'] ?? 0);
-    $kegiatanIdEff = $kegiatanId > 0 ? $kegiatanId : (int) ($jadwal['kegiatan_id'] ?? 0);
+    if ($kegiatanId <= 0) {
+        $kegiatanId = (int) ($jadwal['kegiatan_id'] ?? 0);
+    }
+    $kegiatanIdEff = $kegiatanId;
     if (kegiatan_kategori_is_extra(kegiatan_kategori_fetch($pdo, $kegiatanIdEff))) {
         $tingkatanDipilih = ['Semua Tingkatan'];
     }
@@ -58,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pembimbingId = (int) ($_POST['pembimbing_id'] ?? 0) ?: null;
     ensure_kegiatan_kategori_column($pdo);
     $stKat = $pdo->prepare('SELECT COALESCE(kategori_kegiatan, "TAALIM") FROM kegiatan WHERE id = :id LIMIT 1');
-    $stKat->execute(['id' => $kegiatanId > 0 ? $kegiatanId : (int) ($jadwal['kegiatan_id'] ?? 0)]);
+    $stKat->execute(['id' => $kegiatanId]);
     if (strtoupper((string) ($stKat->fetchColumn() ?: 'TAALIM')) === 'JAMAAH') {
         $pembimbingId = null;
     }
@@ -90,7 +93,7 @@ array_unshift($tingkatanList, 'Semua Tingkatan');
 $pembimbingList = table_exists($pdo, 'pembimbing')
     ? $pdo->query('SELECT id, nama_pembimbing, nip FROM pembimbing ORDER BY ' . pembimbing_list_order_sql(''))->fetchAll()
     : [];
-$kegiatanList = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
+$kegiatanList = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll();
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 $siblingSlots = jadwal_slot_sejenis($pdo, $id);
 $selectedTingkatan = [];
@@ -150,7 +153,7 @@ require_once __DIR__ . '/../includes/header.php';
         <form method="post" class="row g-3">
             <div class="col-12"><h2 class="h6 text-muted mb-0">Kegiatan & kelas</h2></div>
             <div class="col-md-6">
-                <label class="form-label">Kegiatan</label>
+                <label class="form-label">Nama kegiatan</label>
                 <?php if ($isJadwalJamaah):
                     $namaKegEdit = '';
                     foreach ($kegiatanList as $kegiatan) {

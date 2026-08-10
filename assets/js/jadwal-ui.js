@@ -133,12 +133,17 @@
         form.action = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id);
 
         var keg = document.getElementById('jq-kegiatan');
+        var kat = (btn.getAttribute('data-kategori') || '').toLowerCase();
         if (keg) {
             keg.value = btn.getAttribute('data-kegiatan-id') || '';
+            if (kat === 'jamaah') {
+                keg.disabled = true;
+            } else {
+                keg.disabled = false;
+            }
         }
         var pb = document.getElementById('jq-pembimbing');
         var pbNote = document.getElementById('jq-pembimbing-jamaah-note');
-        var kat = (btn.getAttribute('data-kategori') || '').toLowerCase();
         if (pb) {
             if (kat === 'jamaah') {
                 pb.value = '0';

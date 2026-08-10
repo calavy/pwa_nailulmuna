@@ -93,6 +93,7 @@ $tkRingkas = jadwal_tingkatan_tampilan_ringkas($tingkatanList, $compact ? 1 : 2)
                 title="Edit cepat"
                 data-edit-id="<?= $editId ?>"
                 data-kegiatan-id="<?= (int) ($slot['kegiatan_id'] ?? 0) ?>"
+                data-kegiatan-nama="<?= htmlspecialchars((string) ($slot['nama_kegiatan'] ?? '')) ?>"
                 data-kategori="<?= htmlspecialchars(strtolower($kat)) ?>"
                 data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_mulai'] ?? ''))) ?>"
                 data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_selesai'] ?? ''))) ?>"

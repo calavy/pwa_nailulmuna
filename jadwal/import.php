@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/excel.php';
 require_once __DIR__ . '/../helpers/presensi_admin.php';
 require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
+require_once __DIR__ . '/../helpers/kegiatan_resolve.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -85,15 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($jamSelesai) === 5) {
             $jamSelesai .= ':00';
         }
-        $stK = $pdo->prepare('SELECT id FROM kegiatan WHERE nama_kegiatan = :n LIMIT 1');
-        $stK->execute(['n' => $namaKeg]);
-        $kegId = (int) ($stK->fetchColumn() ?: 0);
+        $kegResolved = kegiatan_resolve_or_create($pdo, $namaKeg, $kategoriKeg);
+        $kegId = (int) ($kegResolved['id'] ?? 0);
         if ($kegId <= 0) {
-            $pdo->prepare('INSERT INTO kegiatan (nama_kegiatan, kategori_kegiatan, is_active) VALUES (:n, :kat, 1)')
-                ->execute(['n' => $namaKeg, 'kat' => $kategoriKeg]);
-            $kegId = (int) $pdo->lastInsertId();
-        } else {
-            $pdo->prepare('UPDATE kegiatan SET kategori_kegiatan = :kat WHERE id = :id')->execute(['kat' => $kategoriKeg, 'id' => $kegId]);
+            $skip++;
+            continue;
         }
         $pbId = null;
         if ($nipPb !== '') {

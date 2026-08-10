@@ -63,14 +63,14 @@ $showJadwal = $panelOpen === 'jadwal';
 
         <div id="jadwal-panel-jadwal" class="jadwal-inline-panel mt-3<?= $showJadwal ? '' : ' d-none' ?>">
             <h3 class="h6 mb-2">Form tambah slot jadwal</h3>
-            <p class="text-muted small mb-2">Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Jam berbeda untuk kegiatan yang sama = slot/blok terpisah di daftar jadwal. Kegiatan <strong>Extra</strong> otomatis memakai tingkatan <em>Semua Tingkatan</em> (semua santri boleh ikut scan).</p>
+            <p class="text-muted small mb-2">Pilih <strong>nama kegiatan</strong> yang sudah ada — buat kegiatan baru dulu lewat tombol di atas atau halaman Kegiatan. Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Kegiatan <strong>Extra</strong> otomatis memakai tingkatan <em>Semua Tingkatan</em>.</p>
             <?php if ($kegiatanListAktif === []): ?>
                 <p class="text-warning small mb-0">Belum ada kegiatan aktif. Tambah kegiatan dulu.</p>
             <?php else: ?>
             <form method="post" class="row g-3">
                 <input type="hidden" name="action" value="tambah_jadwal">
                 <div class="col-md-6">
-                    <label class="form-label">Kegiatan</label>
+                    <label class="form-label">Nama kegiatan</label>
                     <select class="form-select" name="kegiatan_id" id="jadwal-kegiatan-select" required>
                         <option value="">— Pilih kegiatan —</option>
                         <?php foreach ($kegiatanListAktif as $kegiatan): ?>

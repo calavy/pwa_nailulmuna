@@ -87,6 +87,8 @@ $prevKg = '';
                                     title="Edit cepat"
                                     data-edit-id="<?= $editId ?>"
                                     data-kegiatan-id="<?= (int) ($row['kegiatan_id'] ?? 0) ?>"
+                                    data-kegiatan-nama="<?= htmlspecialchars($namaKg) ?>"
+                                    data-kategori="<?= htmlspecialchars(strtolower($kat)) ?>"
                                     data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($row['jam_mulai'] ?? ''))) ?>"
                                     data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($row['jam_selesai'] ?? ''))) ?>"
                                     data-pembimbing-id="<?= (int) ($row['pembimbing_id'] ?? 0) ?>"
