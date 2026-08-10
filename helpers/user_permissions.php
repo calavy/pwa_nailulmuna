@@ -356,6 +356,7 @@ function user_permission_path_map_base(): array
         '/rekap/presensi.php' => 'rekap',
         '/rekap/panduan.php' => 'rekap',
         '/rekap/alpa_santri.php' => 'rekap',
+        '/rekap/pembimbing_kehadiran.php' => 'rekap',
         '/rekap/izin_telat.php' => 'rekap_telat',
         '/rekap/pembimbing.php' => 'rekap_pembimbing',
         '/keuangan/gaji_pembimbing.php' => 'rekap_pembimbing',

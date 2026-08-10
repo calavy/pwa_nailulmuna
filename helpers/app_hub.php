@@ -92,6 +92,7 @@ function app_hub_registry(): array
                 ['path' => '/rekap/keaktifan_hari.php', 'label' => 'Harian'],
                 ['path' => '/yayasan/operasional.php', 'label' => 'Keaktifan bulanan'],
                 ['path' => '/rekap/keaktivan_sdm.php', 'label' => 'SDM'],
+                ['path' => '/rekap/pembimbing_kehadiran.php', 'label' => 'Kehadiran pembimbing'],
                 ['path' => '/rekap/munawib.php', 'label' => 'Munawib'],
                 ['path' => '/rekap/pembimbing.php', 'label' => 'Pembimbing'],
                 ['path' => '/rekap/izin_telat.php', 'label' => 'Telat'],

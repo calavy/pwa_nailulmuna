@@ -78,6 +78,7 @@ return [
         '/jadwal/import.php' => 'Import Jadwal',
         '/jadwal/edit.php' => 'Edit Jadwal',
         '/rekap/keaktivan_sdm.php' => 'Keaktivan SDM (Pembimbing & Munawib)',
+        '/rekap/pembimbing_kehadiran.php' => 'Rekap Kehadiran Pembimbing',
         '/rekap/keaktifan_hari.php' => 'Keaktifan Hari Ini',
         '/rekap/munawib.php' => 'Laporan Munawib',
         '/rekap/kegiatan_khusus.php' => 'Rekap Kegiatan Khusus',
