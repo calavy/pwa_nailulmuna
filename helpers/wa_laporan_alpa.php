@@ -121,9 +121,7 @@ function wa_laporan_alpa_tingkatan_blocks(array $santriList): array
         });
         $lines = ['*Tingkatan: ' . $tingkat . '*'];
         foreach ($list as $s) {
-            $nama = trim((string) ($s['nama_santri'] ?? '-'));
-            $n = (int) ($s['total_alpha'] ?? 0);
-            $lines[] = '• ' . $nama . ' (Total: ' . $n . ' hari)';
+            $lines[] = wa_laporan_alpa_format_santri_line($s);
         }
         $blocks[] = implode("\n", $lines);
     }
@@ -138,11 +136,17 @@ function wa_laporan_alpa_format_daftar_santri(array $santriList): string
 }
 
 /**
+ * Satu baris santri: legacy style "Nama (NIS xxx): *N* kali ALPA".
+ *
  * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>, total_alpha?: int} $santri
  */
-function wa_laporan_alpa_format_santri_block(array $santri): string
+function wa_laporan_alpa_format_santri_line(array $santri): string
 {
-    $nama = (string) ($santri['nama_santri'] ?? '-');
+    $nama = trim((string) ($santri['nama_santri'] ?? '-'));
+    if ($nama === '') {
+        $nama = '-';
+    }
+    $nis = trim((string) ($santri['nis'] ?? ''));
     $n = (int) ($santri['total_alpha'] ?? 0);
     if ($n <= 0) {
         foreach ((array) ($santri['kegiatan'] ?? []) as $cnt) {
@@ -150,7 +154,20 @@ function wa_laporan_alpa_format_santri_block(array $santri): string
         }
     }
 
-    return '• ' . $nama . ' (Total: ' . $n . ' hari)';
+    $line = '• ' . $nama;
+    if ($nis !== '') {
+        $line .= ' (NIS ' . $nis . ')';
+    }
+
+    return $line . ': *' . $n . '* kali ALPA';
+}
+
+/**
+ * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>, total_alpha?: int} $santri
+ */
+function wa_laporan_alpa_format_santri_block(array $santri): string
+{
+    return wa_laporan_alpa_format_santri_line($santri);
 }
 
 function wa_laporan_alpa_footer_resmi(): string
@@ -251,7 +268,7 @@ function wa_laporan_alpa_template_parts(
     if ($raw === '') {
         $raw = "*LAPORAN SANTRI ALPA (KELIPATAN {$kelipatan})*\n"
             . "Tanggal: {$tanggalLabel}\n\n"
-            . "Berikut adalah daftar santri yang telah mencapai akumulasi {$kelipatan} hari alpa:\n\n"
+            . "Berikut adalah daftar santri yang telah mencapai akumulasi {$kelipatan} kali ALPA:\n\n"
             . "{daftar_santri}\n\n"
             . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.';
     }

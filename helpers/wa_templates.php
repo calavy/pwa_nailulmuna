@@ -33,11 +33,11 @@ function wa_template_definitions(): array
         ],
         'rekap_alpa' => [
             'label' => 'Laporan ALPA kelipatan → pengurus',
-            'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan hari ALPA. Placeholder {daftar_santri} atau alias {daftar_santri_alpa} diisi otomatis (dikelompokkan per tingkatan). Jangan hapus salah satu placeholder jika ingin daftar ikut terkirim.',
+            'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan kali ALPA. Placeholder {daftar_santri} atau alias {daftar_santri_alpa} diisi otomatis (dikelompokkan per tingkatan). Jangan hapus salah satu placeholder jika ingin daftar ikut terkirim.',
             'placeholders' => '{kelipatan}, {ambang}, {tanggal}, {periode}, {daftar_santri}, {daftar_santri_alpa}, {nama_ponpes}',
             'default' => "*LAPORAN SANTRI ALPA (KELIPATAN {kelipatan})*\n"
                 . "Tanggal: {tanggal}\n\n"
-                . "Berikut adalah daftar santri yang telah mencapai akumulasi {kelipatan} hari alpa:\n\n"
+                . "Berikut adalah daftar santri yang telah mencapai akumulasi {kelipatan} kali ALPA:\n\n"
                 . "{daftar_santri}\n\n"
                 . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.',
         ],
