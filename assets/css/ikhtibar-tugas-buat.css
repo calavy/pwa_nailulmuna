@@ -1,0 +1,213 @@
+/* Wizard buat tugas ikhtibar */
+
+.ikhtibar-wizard-steps {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.ikhtibar-wizard-steps-list {
+    display: flex;
+    gap: 0.5rem;
+    min-width: min-content;
+}
+
+.ikhtibar-wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background: var(--bs-light, #f8f9fa);
+    color: var(--bs-secondary, #6c757d);
+    font-size: 0.875rem;
+}
+
+.ikhtibar-wizard-step.is-active {
+    background: var(--bs-primary-bg-subtle, #cfe2ff);
+    color: var(--bs-primary, #0d6efd);
+    font-weight: 600;
+}
+
+.ikhtibar-wizard-step.is-done {
+    background: var(--bs-success-bg-subtle, #d1e7dd);
+    color: var(--bs-success, #198754);
+}
+
+.ikhtibar-wizard-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.08);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.ikhtibar-wizard-step.is-active .ikhtibar-wizard-step-num {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+}
+
+.ikhtibar-wizard-step.is-done .ikhtibar-wizard-step-num {
+    background: var(--bs-success, #198754);
+    color: #fff;
+}
+
+.ikhtibar-wizard-step-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ikhtibar-wizard-footer {
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    z-index: 100;
+}
+
+/* Metode card */
+.ikhtibar-metode-card {
+    cursor: pointer;
+    margin: 0;
+}
+
+.ikhtibar-metode-card-inner {
+    border: 2px solid var(--bs-border-color, #dee2e6);
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    height: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ikhtibar-metode-card:hover .ikhtibar-metode-card-inner,
+.ikhtibar-metode-card.is-selected .ikhtibar-metode-card-inner {
+    border-color: var(--bs-primary, #0d6efd);
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.15);
+}
+
+.ikhtibar-metode-icon {
+    margin-bottom: 0.5rem;
+}
+
+.ikhtibar-metode-title {
+    margin-bottom: 0.25rem;
+}
+
+/* Import tabs */
+.ikhtibar-import-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+}
+
+.ikhtibar-import-nav .nav-link {
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.ikhtibar-import-tab-content .tab-pane {
+    min-height: 120px;
+}
+
+/* PG opsi grid */
+.pg-opsi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+@media (max-width: 575.98px) {
+    .pg-opsi-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pg-opsi-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pg-opsi-label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    min-width: 1.25rem;
+    text-align: center;
+    color: var(--bs-secondary, #6c757d);
+}
+
+.pg-opsi-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.pg-kunci-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 2px solid var(--bs-border-color, #dee2e6);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--bs-secondary, #6c757d);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+
+.pg-kunci-pill:hover {
+    border-color: var(--bs-primary, #0d6efd);
+    color: var(--bs-primary, #0d6efd);
+}
+
+.pg-kunci-pill.is-active {
+    border-color: var(--bs-success, #198754);
+    background: var(--bs-success, #198754);
+    color: #fff;
+}
+
+/* Accordion soal */
+.ikhtibar-soal-accordion .accordion-button {
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+}
+
+.ikhtibar-soal-accordion .soal-accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ikhtibar-soal-accordion .soal-accordion-num {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.ikhtibar-soal-accordion .soal-snippet {
+    font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.ikhtibar-soal-accordion .accordion-item {
+    border-left: none;
+    border-right: none;
+}
+
+.ikhtibar-soal-accordion .accordion-item:first-of-type {
+    border-top: none;
+}

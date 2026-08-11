@@ -30,7 +30,7 @@ $todayCol = (int) date('N');
         </button>
     </div>
 <?php else: ?>
-    <div class="jadwal-minggu-grid">
+    <div class="jadwal-minggu-grid jadwal-minggu-grid--desktop">
         <?php foreach ($kolom as $hk):
             $rawItems = $byHari[$hk] ?? [];
             $items = jadwal_gabung_baris_serupa($rawItems);
@@ -86,7 +86,8 @@ $todayCol = (int) date('N');
             </section>
         <?php endforeach; ?>
     </div>
-    <p class="small text-muted mt-2 mb-0">
+    <?php require __DIR__ . '/jadwal_hari_tabs.php'; ?>
+    <p class="small text-muted mt-2 mb-0 d-none d-lg-block">
         <i class="fa-solid fa-circle-info me-1"></i>
         Jadwal <strong>setiap hari</strong> (mis. jamaah) tampil di semua kolom Senin–Minggu. Geser kiri/kanan di layar kecil.
     </p>

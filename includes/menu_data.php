@@ -98,6 +98,7 @@ return [
         '/settings/hijri_mappings.php' => 'Kalender Hijriyah & Masehi',
         '/akademik/rapor.php' => 'Rapor Pesantren',
         '/akademik/skbt.php' => 'SKBT',
+        '/settings/skbt.php' => 'Pengaturan SKBT',
         '/pembimbing/tugas/index.php' => 'Tugas Ikhtibar (Pembimbing)',
         '/akademik/ikhtibar.php' => 'Tugas Ikhtibar (Hub)',
         '/pembimbing/tugas/buat.php' => 'Buat Tugas Ikhtibar',

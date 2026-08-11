@@ -34,7 +34,7 @@ santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
         <p class="mb-1"><strong>Penyebab umum:</strong></p>
         <ul class="mb-0 ps-3">
             <li>Pembimbing belum menekan <em>Publikasikan tugas</em></li>
-            <li>Tanggal tugas belum tiba (hanya tampil mulai hari H)</li>
+            <li>Tanggal tugas belum tiba atau sudah lewat (hanya tampil pada tanggal pelaksanaan)</li>
             <li>Filter tingkatan tidak sesuai profil Anda</li>
             <li>Soal belum diisi saat tugas dibuat</li>
         </ul>
@@ -58,10 +58,15 @@ santri_portal_layout_head('Tugas Ikhtibar — Portal Santri', 'tugas');
             ?>
             <a href="<?= htmlspecialchars(app_href('/santri_portal/tugas/kerjakan.php?id=' . $tid)) ?>" class="btn <?= $btnClass ?> text-start py-3">
                 <strong><?= htmlspecialchars((string) $t['judul']) ?></strong>
-                <span class="d-block small opacity-75"><?= htmlspecialchars(ikhtibar_hari_label((int) ($t['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) $t['tanggal']) ?> · <?= (int) ($t['durasi_menit'] ?? 0) ?> menit</span>
-                <?php if (trim((string) ($t['filter_tingkatan'] ?? '')) !== ''): ?>
-                    <span class="d-block small opacity-75">Tingkatan: <?= htmlspecialchars((string) $t['filter_tingkatan']) ?></span>
-                <?php endif; ?>
+                <?php
+                $mapelLabel = trim((string) ($t['mapel_label'] ?? ''));
+                $metaParts = array_filter([
+                    $mapelLabel !== '' ? $mapelLabel : null,
+                    ikhtibar_tugas_tanggal_tampilan($t),
+                    ((int) ($t['durasi_menit'] ?? 0) > 0 ? (int) $t['durasi_menit'] . ' menit' : null),
+                ]);
+                ?>
+                <span class="d-block small opacity-75"><?= htmlspecialchars(implode(' · ', $metaParts)) ?></span>
                 <span class="badge bg-light text-dark mt-1"><?= htmlspecialchars($label) ?></span>
             </a>
         <?php endforeach; ?>

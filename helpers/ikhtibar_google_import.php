@@ -21,22 +21,28 @@ function ikhtibar_google_sanitize_url(string $url): string
     return mb_substr($url, 0, 500);
 }
 
-/** @return array{id:string,gid:string}|null */
+/** @return array{id:string,gid:string,published:bool}|null */
 function ikhtibar_google_sheet_parts(string $url): ?array
 {
     $url = ikhtibar_google_sanitize_url($url);
-    if ($url === '') {
+    if ($url === '' || stripos($url, 'docs.google.com/spreadsheets/') === false) {
         return null;
     }
-    if (!preg_match('#docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)#', $url, $m)) {
-        return null;
-    }
+
     $gid = '0';
-    if (preg_match('#[?&]gid=(\d+)#', $url, $gm)) {
+    if (preg_match('/(?:[?&#])gid=(\d+)/', $url, $gm)) {
         $gid = $gm[1];
     }
 
-    return ['id' => $m[1], 'gid' => $gid];
+    if (preg_match('#docs\.google\.com/spreadsheets/d/e/([a-zA-Z0-9-_]+)#', $url, $m)) {
+        return ['id' => $m[1], 'gid' => $gid, 'published' => true];
+    }
+
+    if (preg_match('#docs\.google\.com/spreadsheets/d/([a-zA-Z0-9-_]+)#', $url, $m)) {
+        return ['id' => $m[1], 'gid' => $gid, 'published' => false];
+    }
+
+    return null;
 }
 
 /** @return array{id:string}|null */
@@ -53,6 +59,16 @@ function ikhtibar_google_doc_parts(string $url): ?array
     return ['id' => $m[1]];
 }
 
+function ikhtibar_google_is_html_response(string $body): bool
+{
+    $head = ltrim(substr($body, 0, 512));
+    if ($head === '') {
+        return false;
+    }
+
+    return preg_match('/^\s*(<!DOCTYPE|<html\b)/i', $head) === 1;
+}
+
 function ikhtibar_google_fetch_url(string $url, int $timeoutSec = 25): string
 {
     if (!function_exists('curl_init')) {
@@ -65,7 +81,11 @@ function ikhtibar_google_fetch_url(string $url, int $timeoutSec = 25): string
         CURLOPT_MAXREDIRS => 5,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT => $timeoutSec,
-        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; PWA-NailulMuna/1.0)',
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        CURLOPT_HTTPHEADER => [
+            'Accept: text/csv,text/plain,*/*',
+            'Accept-Language: id-ID,id;q=0.9,en;q=0.8',
+        ],
         CURLOPT_SSL_VERIFYPEER => true,
     ]);
     $body = curl_exec($ch);
@@ -76,7 +96,52 @@ function ikhtibar_google_fetch_url(string $url, int $timeoutSec = 25): string
         throw new RuntimeException($err !== '' ? $err : 'Gagal mengunduh (HTTP ' . $code . '). Pastikan link dibagikan: Anyone with the link can view.');
     }
 
-    return (string) $body;
+    $body = (string) $body;
+    if (ikhtibar_google_is_html_response($body)) {
+        throw new RuntimeException('Sheet memerlukan login atau belum dibagikan publik (Anyone with the link can view).');
+    }
+
+    return $body;
+}
+
+/**
+ * @param array{id:string,gid:string,published:bool} $parts
+ * @return list<string>
+ */
+function ikhtibar_google_sheet_export_urls(array $parts): array
+{
+    $id = $parts['id'];
+    $gid = $parts['gid'];
+    $published = !empty($parts['published']);
+
+    if ($published) {
+        return [
+            'https://docs.google.com/spreadsheets/d/e/' . rawurlencode($id) . '/pub?output=csv&gid=' . rawurlencode($gid),
+            'https://docs.google.com/spreadsheets/d/e/' . rawurlencode($id) . '/pub?gid=' . rawurlencode($gid) . '&single=true&output=csv',
+        ];
+    }
+
+    return [
+        'https://docs.google.com/spreadsheets/d/' . rawurlencode($id) . '/export?format=csv&gid=' . rawurlencode($gid),
+        'https://docs.google.com/spreadsheets/d/' . rawurlencode($id) . '/gviz/tq?tqx=out:csv&gid=' . rawurlencode($gid),
+    ];
+}
+
+/**
+ * @param array{id:string,gid:string,published:bool} $parts
+ */
+function ikhtibar_google_fetch_sheet_csv(array $parts): string
+{
+    $lastError = 'Gagal mengunduh sheet.';
+    foreach (ikhtibar_google_sheet_export_urls($parts) as $exportUrl) {
+        try {
+            return ikhtibar_google_fetch_url($exportUrl);
+        } catch (Throwable $e) {
+            $lastError = $e->getMessage();
+        }
+    }
+
+    throw new RuntimeException($lastError);
 }
 
 /**
@@ -88,11 +153,9 @@ function ikhtibar_import_soal_dari_google_sheet(PDO $pdo, string $url, int $maxP
     if ($parts === null) {
         return ['pg' => [], 'esai' => [], 'errors' => ['Link Google Sheets tidak valid.']];
     }
-    $exportUrl = 'https://docs.google.com/spreadsheets/d/' . rawurlencode($parts['id'])
-        . '/export?format=csv&gid=' . rawurlencode($parts['gid']);
 
     try {
-        $csv = ikhtibar_google_fetch_url($exportUrl);
+        $csv = ikhtibar_google_fetch_sheet_csv($parts);
     } catch (Throwable $e) {
         return ['pg' => [], 'esai' => [], 'errors' => ['Google Sheets: ' . $e->getMessage()]];
     }
@@ -143,4 +206,25 @@ function ikhtibar_import_soal_dari_google_doc(PDO $pdo, string $url, int $maxPg,
     }
 
     return $result;
+}
+
+/** Apakah request POST menyertakan sumber import eksplisit (URL/file/OCR). */
+function ikhtibar_import_dipercoba_dari_request(array $post, array $files): bool
+{
+    if (trim((string) ($post['import_google_sheet'] ?? '')) !== '') {
+        return true;
+    }
+    if (trim((string) ($post['import_google_doc'] ?? '')) !== '') {
+        return true;
+    }
+    if (trim((string) ($post['ocr_teks_import'] ?? '')) !== '') {
+        return true;
+    }
+    foreach (['import_docx', 'import_xlsx'] as $key) {
+        if (isset($files[$key]) && (int) ($files[$key]['error'] ?? 1) === UPLOAD_ERR_OK) {
+            return true;
+        }
+    }
+
+    return false;
 }

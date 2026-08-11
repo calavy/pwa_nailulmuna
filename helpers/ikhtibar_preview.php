@@ -179,9 +179,11 @@ function ikhtibar_render_kerjakan_header_html(array $tugas, ?array $santriRow, a
     $preview = (bool) ($opts['preview'] ?? false);
     $textControls = (bool) ($opts['text_controls'] ?? false);
     $sisaDetik = array_key_exists('sisa_detik', $opts) ? $opts['sisa_detik'] : null;
-    $durasiMenit = max(0, (int) ($opts['durasi_menit'] ?? $tugas['durasi_menit'] ?? 0));
+    $durasiMenit = max(5, (int) ($opts['durasi_menit'] ?? $tugas['durasi_menit'] ?? 60));
     $status = (string) ($opts['status'] ?? 'menunggu');
     $judul = (string) ($tugas['judul'] ?? 'Tugas');
+    $mapelLabel = trim((string) ($tugas['mapel_label'] ?? ''));
+    $tanggalTampil = ikhtibar_tugas_tanggal_tampilan($tugas);
 
     if ($preview) {
         $nis = '—';
@@ -224,7 +226,15 @@ function ikhtibar_render_kerjakan_header_html(array $tugas, ?array $santriRow, a
             <hr class="my-2">
             <h1 class="h6 fw-bold mb-1"><?= htmlspecialchars($judul) ?></h1>
             <?php if (!$preview && $status !== 'berjalan'): ?>
-                <p class="small text-muted mb-0">Durasi <?= $durasiMenit ?> menit · urutan soal diacak</p>
+                <p class="small text-muted mb-0"><?php
+                    $meta = array_filter([
+                        $mapelLabel !== '' ? $mapelLabel : null,
+                        $tanggalTampil !== '—' ? $tanggalTampil : null,
+                        'Durasi ' . $durasiMenit . ' menit',
+                        'urutan soal diacak',
+                    ]);
+                    echo htmlspecialchars(implode(' · ', $meta));
+                ?></p>
             <?php endif; ?>
             <?= $timerHtml ?>
         </div>

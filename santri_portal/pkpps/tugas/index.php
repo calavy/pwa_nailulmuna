@@ -55,8 +55,15 @@ santri_portal_layout_head('Tugas PKPPS — Portal Santri', 'tugas_pkpps');
             ?>
             <a href="<?= htmlspecialchars(app_href($base . '/kerjakan.php?id=' . $tid)) ?>" class="btn <?= $btnClass ?> text-start py-3">
                 <strong><?= htmlspecialchars((string) $t['judul']) ?></strong>
-                <span class="d-block small opacity-75"><?= htmlspecialchars((string) ($t['mapel_label'] ?? '')) ?></span>
-                <span class="d-block small opacity-75"><?= htmlspecialchars(ikhtibar_hari_label((int) ($t['hari_ke'] ?? 0))) ?> · <?= htmlspecialchars((string) $t['tanggal']) ?></span>
+                <?php
+                $mapelLabel = trim((string) ($t['mapel_label'] ?? ''));
+                $metaParts = array_filter([
+                    $mapelLabel !== '' ? $mapelLabel : null,
+                    ikhtibar_tugas_tanggal_tampilan($t),
+                    ((int) ($t['durasi_menit'] ?? 0) > 0 ? (int) $t['durasi_menit'] . ' menit' : null),
+                ]);
+                ?>
+                <span class="d-block small opacity-75"><?= htmlspecialchars(implode(' · ', $metaParts)) ?></span>
                 <span class="badge bg-light text-dark mt-1"><?= htmlspecialchars($label) ?></span>
             </a>
         <?php endforeach; ?>

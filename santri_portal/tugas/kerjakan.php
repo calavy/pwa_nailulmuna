@@ -40,6 +40,20 @@ if (!$tugas || (string) ($tugas['status'] ?? '') !== 'published') {
 
 }
 
+$sesiAwal = ikhtibar_sesi_get($pdo, $tugasId, $santriId);
+
+$sesiSudahDimulai = is_array($sesiAwal) && in_array((string) ($sesiAwal['status'] ?? ''), ['berjalan', 'selesai'], true);
+
+if (!$sesiSudahDimulai && !ikhtibar_tugas_dalam_periode($tugas)) {
+
+    set_flash('error', 'Tugas hanya dapat dikerjakan pada tanggal pelaksanaan (' . ikhtibar_tugas_tanggal_tampilan($tugas) . ').');
+
+    header('Location: ' . app_href('/santri_portal/tugas/index.php'));
+
+    exit;
+
+}
+
 if (pkpps_tugas_is_row($tugas)) {
 
     header('Location: ' . app_href(pkpps_tugas_santri_base_path() . '/kerjakan.php?id=' . $tugasId));

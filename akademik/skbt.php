@@ -91,12 +91,24 @@ $baseQs = static function (array $extra = []) use ($periodeMode, $tahunSyawal, $
 };
 ?>
 <div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1">Akademik</p>
-    <h1 class="h4 mb-1">SKBT — Laporan keaktivan kegiatan</h1>
-    <p class="text-muted small mb-0">
-        Surat Keterangan Belajar dan Tingkatan dari rekap presensi, nilai ikhtibar, dan nilai manual pembimbing.
-        Cetak <strong>1 lembar F4</strong> (potong periode TA, mis. Syawal — R.Awal).
-    </p>
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div>
+            <p class="page-intro-kicker mb-1">Akademik</p>
+            <h1 class="h4 mb-1">SKBT — Laporan keaktivan kegiatan</h1>
+            <p class="text-muted small mb-0">
+                Surat Keterangan Belajar dan Tingkatan dari rekap presensi, nilai ikhtibar, dan nilai manual pembimbing.
+                Cetak <strong>1 lembar F4</strong> (potong periode TA, mis. Syawal — R.Awal).
+            </p>
+        </div>
+        <?php
+        $skbtSettingsRole = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+        if (is_super_admin() || in_array($skbtSettingsRole, ['admin', 'pengurus'], true)):
+        ?>
+            <a href="<?= htmlspecialchars(app_href('/settings/skbt.php')) ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="fa-solid fa-sliders me-1"></i> Pengaturan SKBT
+            </a>
+        <?php endif; ?>
+    </div>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -196,17 +208,25 @@ $baseQs = static function (array $extra = []) use ($periodeMode, $tahunSyawal, $
 
 <?php if ($santriPick && $previewRingkas): ?>
     <?php
-    $cetakQs = skbt_periode_query_params($pdo, $periodeResolved, [
+    $taMasehiDefault = skbt_ta_masehi_label_from_periode($previewRingkas['periode'] ?? $periodeResolved);
+    $periodeKeDefault = $periodeKe > 0 ? $periodeKe : 1;
+    $periodeKeLanjutDefault = $periodeKeDefault + 1;
+    $cetakBaseQs = skbt_periode_query_params($pdo, $periodeResolved, [
         'santri_id' => $santriId,
+        'periode_ke' => $periodeKeDefault,
+        'periode_ke_lanjut' => $periodeKeLanjutDefault,
+        'tanggal_cetak' => date('Y-m-d'),
+        'ta_masehi_label' => $taMasehiDefault,
     ]);
-    if ($periodeKe > 0) {
-        $cetakQs['periode_ke'] = $periodeKe;
-    }
-    $cetakUrl = app_href('/akademik/skbt_cetak.php?' . http_build_query($cetakQs));
+    $previewUrl = app_href('/akademik/skbt_cetak.php?' . http_build_query(array_merge($cetakBaseQs, [
+        'preview' => '1',
+        'embed' => '1',
+    ])));
+    $printUrl = app_href('/akademik/skbt_cetak.php?' . http_build_query($cetakBaseQs));
     ?>
-    <div class="card shadow-sm border-success mb-3">
+    <div class="card shadow-sm border-success mb-3" id="skbt-preview-panel">
         <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                 <div>
                     <h2 class="h5 mb-1"><?= htmlspecialchars((string) ($santriPick['nama_santri'] ?? '-')) ?></h2>
                     <div class="text-muted small">
@@ -219,13 +239,49 @@ $baseQs = static function (array $extra = []) use ($periodeMode, $tahunSyawal, $
                     </div>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    <a class="btn btn-success" href="<?= htmlspecialchars($cetakUrl) ?>" target="_blank">
+                    <button type="button" class="btn btn-success" id="skbt-btn-print">
                         <i class="fa-solid fa-print me-1"></i> Cetak SKBT (F4)
-                    </a>
-                    <a class="btn btn-outline-secondary" href="<?= htmlspecialchars($cetakUrl . '&preview=1') ?>" target="_blank">Pratinjau</a>
+                    </button>
                 </div>
             </div>
-            <div class="row g-2 mt-3 small">
+
+            <form id="skbt-meta-form" class="row g-2 mb-3 small">
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_tanggal_cetak">Tanggal cetak</label>
+                    <input type="date" class="form-control form-control-sm" id="skbt_tanggal_cetak" name="tanggal_cetak" value="<?= htmlspecialchars(date('Y-m-d')) ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0" for="skbt_periode_ke">Periode ke (hasil)</label>
+                    <input type="number" class="form-control form-control-sm" id="skbt_periode_ke" name="periode_ke" min="1" max="99" value="<?= (int) $periodeKeDefault ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0" for="skbt_periode_ke_lanjut">Periode ke (lanjut)</label>
+                    <input type="number" class="form-control form-control-sm" id="skbt_periode_ke_lanjut" name="periode_ke_lanjut" min="1" max="99" value="<?= (int) $periodeKeLanjutDefault ?>">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_ta_masehi_label">Tahun ajaran (masehi)</label>
+                    <input type="text" class="form-control form-control-sm" id="skbt_ta_masehi_label" name="ta_masehi_label" value="<?= htmlspecialchars($taMasehiDefault) ?>" placeholder="2023-2024">
+                </div>
+                <div class="col-12"><hr class="my-1"><div class="fw-semibold">Catatan Pendidikan</div></div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_cat_kelas_ramadhan">Kelas Ramadhan</label>
+                    <input type="text" class="form-control form-control-sm" id="skbt_cat_kelas_ramadhan" name="cat_kelas_ramadhan" value="-" placeholder="Ada / Tidak Ada">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_cat_kuota_muhafadzoh">Kuota Muhafadzoh</label>
+                    <input type="text" class="form-control form-control-sm" id="skbt_cat_kuota_muhafadzoh" name="cat_kuota_muhafadzoh" value="-" placeholder="Ada / Tidak Ada">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_cat_khidmah">Khidmah</label>
+                    <input type="text" class="form-control form-control-sm" id="skbt_cat_khidmah" name="cat_khidmah" value="-" placeholder="-">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0" for="skbt_cat_regresi">Regresi</label>
+                    <input type="text" class="form-control form-control-sm" id="skbt_cat_regresi" name="cat_regresi" value="Tidak Ada" placeholder="Tidak Ada">
+                </div>
+            </form>
+
+            <div class="row g-2 small mb-2">
                 <div class="col-md-3">
                     <span class="badge text-bg-primary"><?= (int) ($previewRingkas['disiplin_kelas'] ?? 0) ?> ta'lim / disiplin</span>
                 </div>
@@ -237,16 +293,22 @@ $baseQs = static function (array $extra = []) use ($periodeMode, $tahunSyawal, $
                 </div>
                 <div class="col-md-3">
                     <span class="badge text-bg-success"><?= (int) ($previewRingkas['ikhtibar_jumlah'] ?? 0) ?> ikhtibar</span>
-                    <?php if ((int) ($previewRingkas['manual_jumlah'] ?? 0) > 0): ?>
-                        <span class="badge text-bg-warning text-dark"><?= (int) ($previewRingkas['manual_jumlah']) ?> manual</span>
-                    <?php endif; ?>
-                    <?php if ($previewRingkas['akademik_rata_nilai'] ?? $previewRingkas['ikhtibar_rata_nilai'] ?? null): ?>
-                        <span class="text-muted ms-1">rata <?= htmlspecialchars((string) ($previewRingkas['akademik_rata_nilai'] ?? $previewRingkas['ikhtibar_rata_nilai'])) ?></span>
-                    <?php endif; ?>
                 </div>
+            </div>
+
+            <div class="border rounded overflow-hidden bg-light" style="height: min(75vh, 900px);">
+                <iframe id="skbt-preview-iframe" title="Pratinjau SKBT" src="<?= htmlspecialchars($previewUrl) ?>" style="width:100%;height:100%;border:0;background:#fff;"></iframe>
             </div>
         </div>
     </div>
+    <script>
+    window.SKBT_PREVIEW = <?= json_encode([
+        'baseParams' => $cetakBaseQs,
+        'previewUrl' => app_href('/akademik/skbt_cetak.php'),
+        'printUrl' => $printUrl,
+    ], JSON_UNESCAPED_UNICODE) ?>;
+    </script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/skbt-preview.js')) ?>"></script>
 <?php elseif ($santriId > 0): ?>
     <div class="alert alert-warning">Santri tidak ditemukan.</div>
 <?php else: ?>

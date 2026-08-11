@@ -287,6 +287,7 @@ function user_permission_path_map_base(): array
         '/akademik/rapor_cetak.php' => 'akademik_hafalan',
         '/akademik/skbt.php' => 'akademik_hafalan',
         '/akademik/skbt_cetak.php' => 'akademik_hafalan',
+        '/settings/skbt.php' => 'akademik_hafalan',
         '/pembimbing/tugas/index.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/buat.php' => 'akademik_ikhtibar',
         '/pembimbing/tugas/nilai.php' => 'akademik_ikhtibar',

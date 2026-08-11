@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../helpers/akademik_skbt.php';
+require_once __DIR__ . '/../helpers/skbt_settings.php';
 require_once __DIR__ . '/../helpers/pondok_cetak.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 
@@ -15,8 +16,8 @@ require_roles(['admin', 'pengurus', 'kiai']);
 $santriId = (int) ($_GET['santri_id'] ?? 0);
 $periodeResolved = skbt_resolve_periode($pdo, $_GET);
 $tahunSyawal = (int) ($periodeResolved['tahun_syawal'] ?? skbt_tahun_syawal_default($pdo));
-$periodeKe = max(1, (int) ($_GET['periode_ke'] ?? 1));
 $preview = isset($_GET['preview']);
+$embed = isset($_GET['embed']);
 
 if ($santriId <= 0) {
     exit('Pilih santri terlebih dahulu.');
@@ -30,25 +31,26 @@ if (!$santri) {
 $forceRefresh = isset($_GET['refresh']);
 $laporan = skbt_build_laporan_cached($pdo, $santriId, $tahunSyawal, $forceRefresh, $periodeResolved);
 $ikhtibarNilai = $laporan['ikhtibar_nilai'] ?? ['flat' => [], 'groups' => []];
-$manualNilai = $laporan['manual_nilai'] ?? ['flat' => [], 'jumlah' => 0];
-$akademikNilai = $laporan['akademik_nilai'] ?? skbt_akademik_nilai_gabung($ikhtibarNilai, $manualNilai);
+$meta = skbt_parse_cetak_meta($_GET, $laporan['periode'] ?? $periodeResolved);
+$periodeKe = (int) $meta['periode_ke'];
+$taMasehiLabel = (string) ($meta['ta_masehi_label'] ?? '');
+
 $kop = pondok_kop_data($pdo);
-$nomor = skbt_nomor_surat($santriId, $tahunSyawal, $periodeKe);
+$nomor = skbt_nomor_surat($pdo, $santriId, $tahunSyawal, $periodeKe, $taMasehiLabel !== '' ? $taMasehiLabel : null);
+$accent = trim((string) ($kop['kop_accent_color'] ?? '#38a169')) ?: '#38a169';
 
 $logoHref = skbt_logo_abs_url($pdo, $kop);
-$namaPengasuh = trim((string) ($kop['nama_pengasuh'] ?? ''));
-$namaKepalaPondok = trim((string) app_setting($pdo, 'nama_kepala_pondok', ''));
-if ($namaKepalaPondok === '') {
-    $namaKepalaPondok = trim((string) ($kop['nama_ketua_yayasan'] ?? ''));
-}
-$waliKamar = trim((string) ($santri['nama_kamar'] ?? ''));
+$ttd = skbt_ttd_resolve($pdo, $santri, $kop);
+$waliKamar = $ttd['wali_kamar'];
+$waliKelas = $ttd['wali_kelas'];
+$namaPengasuh = $ttd['pengasuh'];
+$namaKepalaPondok = $ttd['kepala_pondok'];
 
-$periodeLabel = (string) ($laporan['periode']['label'] ?? '');
-if (!empty($laporan['periode']['rentang_tampilan'])) {
-    $periodeLabel .= ' · ' . (string) $laporan['periode']['rentang_tampilan'];
-}
+$disiplinKelas = $laporan['disiplin_kelas'] ?? [];
+$presensiKegiatan = array_merge($laporan['presensi_jamaah'] ?? [], $laporan['lainnya'] ?? []);
 
-$autoPrint = !$preview;
+$backQs = skbt_periode_query_params($pdo, $periodeResolved, ['santri_id' => $santriId]);
+$autoPrint = !$preview && !$embed;
 ?>
 <!doctype html>
 <html lang="id">
@@ -58,71 +60,61 @@ $autoPrint = !$preview;
     <title>SKBT — <?= htmlspecialchars((string) ($santri['nama_santri'] ?? '')) ?></title>
     <link rel="stylesheet" href="<?= htmlspecialchars(app_asset_href('/assets/css/skbt-cetak.css')) ?>">
     <style>
-        body.skbt-body { --skbt-watermark: url("<?= htmlspecialchars($logoHref) ?>"); }
+        body.skbt-body {
+            --skbt-watermark: url("<?= htmlspecialchars($logoHref) ?>");
+            --skbt-accent: <?= htmlspecialchars($accent, ENT_QUOTES) ?>;
+        }
     </style>
 </head>
 <body class="skbt-body skbt-body--f4">
+<?php if (!$embed): ?>
 <div class="no-print">
-    <a href="<?= htmlspecialchars(app_href('/akademik/skbt.php?' . http_build_query(skbt_periode_query_params($pdo, $periodeResolved, ['santri_id' => $santriId])))) ?>">← Kembali</a>
+    <a href="<?= htmlspecialchars(app_href('/akademik/skbt.php?' . http_build_query($backQs))) ?>">← Kembali</a>
     <button type="button" onclick="window.print()">Cetak F4</button>
 </div>
+<?php endif; ?>
 
 <div class="skbt-sheet skbt-sheet--f4">
     <div class="skbt-inner">
-        <?= skbt_kop_surat_html($pdo, $kop, $nomor, $periodeLabel) ?>
+        <?= skbt_kop_surat_html($pdo, $kop) ?>
+        <?= skbt_nomor_surat_html($nomor) ?>
 
+        <div class="section-title">JATIDIRI</div>
         <div class="skbt-jatidiri">
             <?= skbt_jatidiri_cetak_html($santri) ?>
         </div>
 
-        <section class="skbt-prose-section">
-            <h2 class="skbt-section-title">Disiplin Kelas</h2>
-            <?= skbt_presensi_prose_html($laporan['disiplin_kelas'] ?? [], $periodeLabel) ?>
+        <section class="skbt-section">
+            <div class="section-title">Disiplin Kelas</div>
+            <?= skbt_presensi_prose_html($disiplinKelas) ?>
         </section>
 
-        <section class="skbt-prose-section">
-            <h2 class="skbt-section-title">Presensi Kegiatan</h2>
-            <?= skbt_presensi_prose_html($laporan['presensi_jamaah'] ?? [], $periodeLabel) ?>
+        <section class="skbt-section">
+            <div class="section-title">Nilai Kelas</div>
+            <?= skbt_nilai_kelas_html($pdo, $santriId, $laporan['periode'] ?? $periodeResolved, $disiplinKelas) ?>
         </section>
 
-        <?php $akFlat = $akademikNilai['flat'] ?? []; ?>
-        <?php if ($akFlat !== []): ?>
-        <section class="skbt-prose-section">
-            <h2 class="skbt-section-title">Nilai Ikhtibar &amp; Manual</h2>
-            <?php if (($akademikNilai['rata_nilai'] ?? null) !== null): ?>
-                <p class="skbt-akademik-summary">
-                    <?= (int) ($akademikNilai['ikhtibar_jumlah'] ?? 0) ?> ikhtibar
-                    · <?= (int) ($akademikNilai['manual_jumlah'] ?? 0) ?> manual
-                    · rata <?= htmlspecialchars((string) $akademikNilai['rata_nilai']) ?>
-                </p>
-            <?php endif; ?>
-            <?php foreach ($akFlat as $ak): ?>
-                <?php
-                $label = trim((string) ($ak['mapel_label'] ?? ''));
-                $judul = trim((string) ($ak['judul'] ?? ''));
-                $tampil = $label;
-                if ($judul !== '' && ($label === '' || !str_contains($label, $judul))) {
-                    $tampil = $label !== '' ? $label . ' — ' . $judul : $judul;
-                }
-                if ($tampil === '') {
-                    $tampil = '—';
-                }
-                $nilaiTampil = $ak['nilai_total'] !== null ? (string) $ak['nilai_total'] : '—';
-                $predikat = (string) ($ak['predikat'] ?? '—');
-                $sumber = strtoupper(trim((string) ($ak['sumber'] ?? '')));
-                ?>
-                <div class="skbt-prose-entry">
-                    <p class="skbt-prose-title">
-                        <strong><?= htmlspecialchars($tampil) ?></strong>
-                        <span class="skbt-prose-sep"> — </span>
-                        <em class="skbt-prose-value"><?= htmlspecialchars($sumber) ?> · <?= htmlspecialchars($nilaiTampil) ?><?= $predikat !== '—' ? ' · ' . htmlspecialchars($predikat) : '' ?></em>
-                    </p>
-                </div>
-            <?php endforeach; ?>
+        <section class="skbt-section">
+            <div class="section-title">Nilai Ikhtibar</div>
+            <?= skbt_nilai_ikhtibar_ringkas_html($ikhtibarNilai) ?>
         </section>
-        <?php endif; ?>
 
-        <?= skbt_ttd_cetak_html($waliKamar, $namaPengasuh, $namaKepalaPondok) ?>
+        <section class="skbt-section">
+            <div class="section-title">Presensi Kegiatan</div>
+            <?= skbt_presensi_prose_html($presensiKegiatan) ?>
+        </section>
+
+        <section class="skbt-section">
+            <div class="section-title">Catatan Pendidikan</div>
+            <?= skbt_catatan_pendidikan_html($meta['catatan']) ?>
+        </section>
+
+        <?= skbt_narasi_kelangsungan_html($pdo, array_merge($meta, [
+            'nomor' => $nomor,
+            'nama_ponpes' => trim((string) ($kop['nama_ponpes'] ?? 'API Nailul Muna')),
+        ])) ?>
+
+        <?= skbt_ttd_cetak_html($waliKamar, $waliKelas, $namaPengasuh, $namaKepalaPondok) ?>
     </div>
 </div>
 
