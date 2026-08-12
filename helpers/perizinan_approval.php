@@ -52,6 +52,15 @@ function perizinan_approval_ensure_schema(PDO $pdo): void
             /* abaikan */
         }
     }
+
+    if (table_exists($pdo, 'perizinan') && !column_exists($pdo, 'perizinan', 'pengajuan_sumber')) {
+        try {
+            $pdo->exec("ALTER TABLE perizinan ADD COLUMN pengajuan_sumber VARCHAR(20) NOT NULL DEFAULT 'admin'");
+        } catch (PDOException $e) {
+            /* abaikan */
+        }
+    }
+
     perizinan_jenis_ensure_enum($pdo);
     perizinan_tujuan_ensure_schema($pdo);
     require_once __DIR__ . '/perizinan_syari_kategori.php';
@@ -60,6 +69,45 @@ function perizinan_approval_ensure_schema(PDO $pdo): void
     perizinan_ehealth_ensure_table($pdo);
     perizinan_ensure_performance_indexes($pdo);
     perizinan_syari_backfill_finalize_semua($pdo);
+}
+
+/** Normalisasi sumber pengajuan izin: wali | admin | rombongan | santri. */
+function perizinan_pengajuan_sumber_normalize(string $sumber): string
+{
+    $sumber = strtolower(trim($sumber));
+    $allowed = ['wali', 'admin', 'rombongan', 'santri'];
+
+    return in_array($sumber, $allowed, true) ? $sumber : 'admin';
+}
+
+/** Filter SQL: hanya pengajuan dari portal wali. */
+function perizinan_sql_filter_pengajuan_wali(string $alias = 'i'): string
+{
+    return " AND COALESCE({$alias}.pengajuan_sumber, 'admin') = 'wali' ";
+}
+
+/**
+ * Teks alasan untuk WA — tidak pernah kosong.
+ *
+ * @param array<string, mixed> $izinRow
+ */
+function perizinan_wa_alasan_tampil(array $izinRow, ?PDO $pdo = null): string
+{
+    $alasan = trim((string) ($izinRow['alasan'] ?? ''));
+    if ($alasan !== '') {
+        return $alasan;
+    }
+
+    $katKode = trim((string) ($izinRow['syari_kategori'] ?? ''));
+    if ($katKode !== '' && $pdo instanceof PDO) {
+        require_once __DIR__ . '/perizinan_syari_kategori.php';
+        $kat = perizinan_syari_kategori_by_kode($pdo, $katKode);
+        if ($kat && trim((string) ($kat['label'] ?? '')) !== '') {
+            return (string) $kat['label'];
+        }
+    }
+
+    return '—';
 }
 
 /** Kolom inti modul perizinan (sekali per proses, bukan tiap request halaman). */
@@ -1390,7 +1438,7 @@ function perizinan_kirim_wa_wali_disetujui(
         $jenisRaw,
         $tglSelesai,
         $jamSelesai,
-        (string) ($izinRow['alasan'] ?? '-'),
+        perizinan_wa_alasan_tampil($izinRow, $pdo),
         $tglMulai,
         $jamMulai,
         $approvedByUserId
@@ -1402,6 +1450,80 @@ function perizinan_kirim_wa_wali_disetujui(
         'kind' => 'izin',
         'dedup_key' => 'izin:' . $izinId . ':wali:approved',
     ]) ? 1 : 0;
+}
+
+/** Nomor WA pengasuh/kiai untuk notifikasi informatif (bukan antrean). */
+function wa_pengasuh_info_targets(PDO $pdo): string
+{
+    require_once __DIR__ . '/wa_otomatis.php';
+    $phones = [];
+    if (table_exists($pdo, 'users') && column_exists($pdo, 'users', 'no_wa')) {
+        $rows = $pdo->query("
+            SELECT no_wa FROM users
+            WHERE role = 'kiai' AND no_wa IS NOT NULL AND TRIM(no_wa) != ''
+        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($rows as $raw) {
+            $phone = wa_otomatis_normalize_target((string) $raw);
+            if ($phone !== '') {
+                $phones[$phone] = $phone;
+            }
+        }
+    }
+
+    return implode(',', array_values($phones));
+}
+
+/**
+ * WA informatif ke pengasuh saat izin non-wali disetujui pengurus.
+ *
+ * @param array<string,mixed> $izinRow
+ */
+function perizinan_kirim_wa_pengasuh_info_disetujui(
+    PDO $pdo,
+    array $izinRow,
+    string $tglMulai,
+    string $tglSelesai,
+    string $jamMulai,
+    string $jamSelesai,
+    int $approvedByUserId = 0
+): int {
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (!wa_otomatis_should_run($pdo, 'izin') || trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return 0;
+    }
+
+    $targets = wa_pengasuh_info_targets($pdo);
+    if ($targets === '') {
+        return 0;
+    }
+
+    $jenisRaw = strtoupper((string) ($izinRow['jenis_izin'] ?? 'SYARI'));
+    $penyetuju = perizinan_wa_vars_penyetuju($pdo, $approvedByUserId);
+    $msg = wa_template_render($pdo, 'izin_disetujui_pengasuh_info', [
+        'nama_santri' => (string) ($izinRow['nama_santri'] ?? '-'),
+        'nis' => (string) ($izinRow['nis'] ?? ''),
+        'tingkatan' => (string) ($izinRow['tingkatan'] ?? ''),
+        'jenis_izin' => perizinan_jenis_wa_label($jenisRaw),
+        'label_alasan' => perizinan_jenis_wa_label_alasan($jenisRaw),
+        'tanggal_mulai' => $tglMulai,
+        'tanggal_selesai' => $tglSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'alasan' => perizinan_wa_alasan_tampil($izinRow, $pdo),
+        'nama_penyetuju' => $penyetuju['nama_penyetuju'],
+        'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+    ]);
+
+    $izinId = (int) ($izinRow['id'] ?? $izinRow['izin_id'] ?? 0);
+
+    return send_wa_bulk($pdo, $targets, $msg, [
+        'kind' => 'izin',
+        'dedup_key' => 'izin:' . $izinId . ':pengasuh:info',
+        'dedup_key_once' => true,
+    ]);
 }
 
 /**
@@ -1953,6 +2075,21 @@ function perizinan_setujui_izin_satu(
         $waPembimbingOverrides
     );
 
+    $sumberPengajuan = perizinan_pengajuan_sumber_normalize((string) ($izinInfo['pengajuan_sumber'] ?? 'admin'));
+    if ($sumberPengajuan !== 'wali' && !$stampPengasuh) {
+        perizinan_kirim_wa_pengasuh_info_disetujui($pdo, $izinInfo, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $userId);
+        $namaInfo = (string) ($izinInfo['nama_santri'] ?? '-');
+        push_notify_all_kiai(
+            $pdo,
+            'izin_disetujui',
+            'Izin ' . $namaInfo . ' telah disetujui',
+            $namaInfo . ' — ' . jenis_izin_label($jenisIzinRaw) . ' ' . $tglMulai . ' s/d ' . $tglSelesai
+                . '. Alasan: ' . mb_substr(perizinan_wa_alasan_tampil($izinInfo, $pdo), 0, 120),
+            ['jenis' => perizinan_jenis_izin_normalize($jenisIzinRaw)],
+            '/perizinan/index.php'
+        );
+    }
+
     $flashMsg = $stampPengasuh
         ? 'Izin syar\'i disetujui pengasuh. QR digital aktif — pengurus tinggal cetak surat.'
         : 'Izin disetujui. QR digital aktif dan surat siap dicetak.';
@@ -1985,7 +2122,7 @@ function perizinan_fetch_izin_dengan_santri(PDO $pdo, int $izinId): ?array
     $st = $pdo->prepare('
         SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai,
                i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, i.tujuan, i.qr_token,
-               i.approval_status, i.pengasuh_approved_at,
+               i.approval_status, i.pengasuh_approved_at, i.pengajuan_sumber,
                s.' . $nameCol . ' AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin, s.no_wa_wali
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id
@@ -2286,6 +2423,7 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
     $syari = perizinan_jenis_syari_kode();
     $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
     $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
+    $filterWali = perizinan_sql_filter_pengajuan_wali('i');
     $limit = max(1, min(200, $limit));
     $orderCol = column_exists($pdo, 'perizinan', 'created_at') ? 'i.created_at DESC' : 'i.id DESC';
     $st = $pdo->query("
@@ -2295,7 +2433,7 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
         WHERE i.approval_status = 'PENDING'
-          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}{$filterWali}
         ORDER BY {$orderCol}
         LIMIT {$limit}
     ");
@@ -2315,12 +2453,13 @@ function perizinan_pengasuh_pending_count(PDO $pdo): int
     $syari = perizinan_jenis_syari_kode();
     $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
     $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
+    $filterWali = perizinan_sql_filter_pengajuan_wali('i');
     $cnt = $pdo->query("
         SELECT COUNT(*)
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
         WHERE i.approval_status = 'PENDING'
-          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}{$filterWali}
     ")->fetchColumn();
 
     return (int) $cnt;

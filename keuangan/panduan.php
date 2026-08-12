@@ -25,6 +25,13 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
 </div>
 
+<div class="alert alert-info border-info small mb-3">
+    <strong>Panduan lengkap (markdown):</strong>
+    <a href="<?= htmlspecialchars(app_href('/docs/PANDUAN-KEUANGAN.md')) ?>" target="_blank" rel="noopener">docs/PANDUAN-KEUANGAN.md</a>
+    — referensi detail setup, operasional harian, laporan, cashless, portal wali, payroll, BOS, dan troubleshooting.
+    Versi ringkas interaktif ada di accordion di bawah.
+</div>
+
 <?php require __DIR__ . '/partials/alur_keuangan_panduan.php'; ?>
 
 <style>

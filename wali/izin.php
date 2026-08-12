@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         '',
         0,
         trim((string) ($_POST['syari_kategori'] ?? '')),
-        '',
+        trim((string) ($_POST['keterangan_alasan'] ?? '')),
         trim((string) ($_POST['tujuan'] ?? '')),
         trim((string) ($_POST['pemberi_izin'] ?? $defaultPemohon))
     );
@@ -156,6 +156,11 @@ require __DIR__ . '/partials/anak_switcher.php';
                                 <?php endforeach; ?>
                             </select>
                         <?php endif; ?>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small mb-0">Keterangan / alasan <span class="text-danger">*</span></label>
+                        <textarea name="keterangan_alasan" class="form-control form-control-sm" rows="3" minlength="10" maxlength="500" required placeholder="Jelaskan alasan dan keperluan izin secara singkat…"></textarea>
+                        <div class="form-text">Minimal 10 karakter. Akan digabung dengan keperluan yang dipilih.</div>
                     </div>
                     <div class="col-6">
                         <label class="form-label small mb-0">Tanggal mulai</label>

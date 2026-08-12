@@ -15,7 +15,7 @@ function alpa_wa_row_status_is_alpa(string $status): bool
 /**
  * Agregasi jumlah alpa per santri (slot terjadwal, selaras rekap presensi).
  *
- * @return list<array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int}>
+ * @return list<array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int,total_poin:int}>
  */
 function alpa_wa_fetch_santri_alpa_rows(PDO $pdo, string $tanggal): array
 {
@@ -48,7 +48,7 @@ function alpa_wa_fetch_santri_alpa_rows(PDO $pdo, string $tanggal): array
 
     $rows = presensi_fetch_rows_rekap($pdo, $start, $end, 0, null, false);
 
-    /** @var array<int, array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int}> $bySantri */
+    /** @var array<int, array{id:int,nis:string,nama_santri:string,tingkatan:string,alpa_count:int,total_poin:int}> $bySantri */
     $bySantri = [];
     foreach ($rows as $row) {
         if (!alpa_wa_row_status_is_alpa((string) ($row['status_presensi'] ?? ''))) {
@@ -65,14 +65,70 @@ function alpa_wa_fetch_santri_alpa_rows(PDO $pdo, string $tanggal): array
                 'nama_santri' => (string) ($row['nama_santri'] ?? '-'),
                 'tingkatan' => (string) ($row['tingkatan'] ?? ''),
                 'alpa_count' => 0,
+                'total_poin' => 0,
             ];
         }
         $bySantri[$sid]['alpa_count']++;
     }
 
+    $pointPerAlpa = max(1, (int) app_setting($pdo, 'point_auto_alpa', '5'));
+    $poinMap = alpa_wa_fetch_total_poin_map($pdo, $start, $end);
+    foreach ($bySantri as $sid => &$entry) {
+        $fromLedger = (int) ($poinMap[$sid] ?? 0);
+        $entry['total_poin'] = $fromLedger > 0
+            ? $fromLedger
+            : ((int) $entry['alpa_count'] * $pointPerAlpa);
+    }
+    unset($entry);
+
     $cache[$tanggal] = array_values($bySantri);
 
     return $cache[$tanggal];
+}
+
+/**
+ * Total poin ALPA/telat per santri dari point_ledger pada rentang tanggal.
+ *
+ * @return array<int, int>
+ */
+function alpa_wa_fetch_total_poin_map(PDO $pdo, string $start, string $end): array
+{
+    if (!table_exists($pdo, 'point_ledger') || $start === '' || $end === '') {
+        return [];
+    }
+
+    $st = $pdo->prepare('
+        SELECT santri_id, COALESCE(SUM(point_delta), 0) AS total_poin
+        FROM point_ledger
+        WHERE tanggal BETWEEN :a AND :b
+          AND sumber_data IN ("PRESENSI_ALPA_AUTO", "PRESENSI_TELAT_AUTO")
+        GROUP BY santri_id
+    ');
+    $st->execute(['a' => $start, 'b' => $end]);
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid > 0) {
+            $map[$sid] = (int) ($row['total_poin'] ?? 0);
+        }
+    }
+
+    return $map;
+}
+
+/** Ambil nilai poin untuk perbandingan tier (total_poin jika ada, fallback alpa×setting). */
+function alpa_wa_row_poin_value(PDO $pdo, array $row): int
+{
+    $totalPoin = (int) ($row['total_poin'] ?? 0);
+    if ($totalPoin > 0) {
+        return $totalPoin;
+    }
+    $alpaCount = (int) ($row['alpa_count'] ?? 0);
+    if ($alpaCount <= 0) {
+        return 0;
+    }
+
+    return $alpaCount * max(1, (int) app_setting($pdo, 'point_auto_alpa', '5'));
 }
 
 /**
@@ -101,17 +157,17 @@ function alpa_wa_query_santri_rows(PDO $pdo, string $tanggal, int $minThreshold 
     $rows = alpa_wa_fetch_santri_alpa_rows($pdo, $tanggal);
     $rows = array_values(array_filter(
         $rows,
-        static fn (array $row): bool => (int) ($row['alpa_count'] ?? 0) >= $minThreshold
+        static fn (array $row): bool => alpa_wa_row_poin_value($pdo, $row) >= $minThreshold
     ));
 
-    usort($rows, static function (array $a, array $b): int {
+    usort($rows, static function (array $a, array $b) use ($pdo): int {
         $cmp = strcmp((string) ($a['tingkatan'] ?? ''), (string) ($b['tingkatan'] ?? ''));
         if ($cmp !== 0) {
             return $cmp;
         }
-        $cmpAlpa = ((int) ($b['alpa_count'] ?? 0)) <=> ((int) ($a['alpa_count'] ?? 0));
-        if ($cmpAlpa !== 0) {
-            return $cmpAlpa;
+        $cmpPoin = alpa_wa_row_poin_value($pdo, $b) <=> alpa_wa_row_poin_value($pdo, $a);
+        if ($cmpPoin !== 0) {
+            return $cmpPoin;
         }
 
         return strcmp((string) ($a['nama_santri'] ?? ''), (string) ($b['nama_santri'] ?? ''));
@@ -159,7 +215,7 @@ function alpa_wa_preview_manual(PDO $pdo, string $tanggal): array
         $th = (int) $tier['threshold'];
         $count = 0;
         foreach ($santriRows as $row) {
-            if ((int) $row['alpa_count'] >= $th) {
+            if (alpa_wa_row_poin_value($pdo, $row) >= $th) {
                 $count++;
                 $seenIds[(int) $row['id']] = true;
             }
@@ -177,7 +233,7 @@ function alpa_wa_preview_manual(PDO $pdo, string $tanggal): array
     if ($tiers === []) {
         $fallbackTh = max(1, (int) app_setting($pdo, 'batas_alpa_notif', '5'));
         foreach ($santriRows as $row) {
-            if ((int) $row['alpa_count'] >= $fallbackTh) {
+            if (alpa_wa_row_poin_value($pdo, $row) >= $fallbackTh) {
                 $fallbackCount++;
             }
         }
@@ -263,7 +319,7 @@ function alpa_wa_jalankan_laporan_manual(PDO $pdo, bool $paksa = false, ?string 
         $th = (int) $tier['threshold'];
         $entries = [];
         foreach ($santriRows as $row) {
-            if ((int) $row['alpa_count'] >= $th) {
+            if (alpa_wa_row_poin_value($pdo, $row) >= $th) {
                 $entries[] = $row;
             }
         }
@@ -287,12 +343,14 @@ function alpa_wa_jalankan_laporan_manual(PDO $pdo, bool $paksa = false, ?string 
 
         $rowsFmt = [];
         foreach ($entries as $e) {
+            $poin = alpa_wa_row_poin_value($pdo, $e);
             $rowsFmt[] = [
                 'nama_santri' => $e['nama_santri'],
                 'nis' => $e['nis'],
                 'tingkatan' => $e['tingkatan'],
                 'nama_kegiatan' => 'Akumulasi periode',
-                'total_alpha' => $e['alpa_count'],
+                'total_alpha' => $poin,
+                'total_poin' => $poin,
             ];
         }
 
@@ -390,12 +448,14 @@ function alpa_wa_jalankan_laporan_manual_fallback(
 
     $rowsFmt = [];
     foreach ($santriRows as $e) {
+        $poin = alpa_wa_row_poin_value($pdo, $e);
         $rowsFmt[] = [
             'nama_santri' => $e['nama_santri'],
             'nis' => $e['nis'],
             'tingkatan' => $e['tingkatan'],
             'nama_kegiatan' => 'Akumulasi periode',
-            'total_alpha' => $e['alpa_count'],
+            'total_alpha' => $poin,
+            'total_poin' => $poin,
         ];
     }
 

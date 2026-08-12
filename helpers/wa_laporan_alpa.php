@@ -136,9 +136,9 @@ function wa_laporan_alpa_format_daftar_santri(array $santriList): string
 }
 
 /**
- * Satu baris santri: legacy style "Nama (NIS xxx): *N* kali ALPA".
+ * Satu baris santri: "Nama (NIS xxx): *N* poin".
  *
- * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>, total_alpha?: int} $santri
+ * @param array{nama_santri?: string, nis?: string, tingkatan?: string, kegiatan?: array<string, int>, total_alpha?: int, total_poin?: int} $santri
  */
 function wa_laporan_alpa_format_santri_line(array $santri): string
 {
@@ -147,7 +147,10 @@ function wa_laporan_alpa_format_santri_line(array $santri): string
         $nama = '-';
     }
     $nis = trim((string) ($santri['nis'] ?? ''));
-    $n = (int) ($santri['total_alpha'] ?? 0);
+    $n = (int) ($santri['total_poin'] ?? 0);
+    if ($n <= 0) {
+        $n = (int) ($santri['total_alpha'] ?? 0);
+    }
     if ($n <= 0) {
         foreach ((array) ($santri['kegiatan'] ?? []) as $cnt) {
             $n += (int) $cnt;
@@ -159,7 +162,7 @@ function wa_laporan_alpa_format_santri_line(array $santri): string
         $line .= ' (NIS ' . $nis . ')';
     }
 
-    return $line . ': *' . $n . '* kali ALPA';
+    return $line . ': *' . $n . '* poin';
 }
 
 /**
@@ -266,9 +269,9 @@ function wa_laporan_alpa_template_parts(
     ]);
     $raw = trim($raw);
     if ($raw === '') {
-        $raw = "*LAPORAN SANTRI ALPA (KELIPATAN {$kelipatan})*\n"
+        $raw = "*LAPORAN SANTRI ALPA (KELIPATAN {$kelipatan} POIN)*\n"
             . "Tanggal: {$tanggalLabel}\n\n"
-            . "Berikut adalah daftar santri yang telah mencapai akumulasi {$kelipatan} kali ALPA:\n\n"
+            . "Berikut adalah daftar santri yang telah mencapai akumulasi {$kelipatan} poin:\n\n"
             . "{daftar_santri}\n\n"
             . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.';
     }

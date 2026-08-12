@@ -12,8 +12,8 @@ declare(strict_types=1);
             termasuk saat <strong>jam kirim otomatis</strong>.
             Loncatan 3→8 tetap dilapor sekali untuk ambang 5 (total di pesan = 8).
             Yang sudah dilapor untuk ambang 5 <strong>tidak dikirim ulang</strong> setiap hari hanya karena masih ≥ 5.
-            Format: template <a href="?tab=template">Laporan ALPA kelipatan</a>.
-            <code>Batas alpa</code> dipakai seed kelipatan jika tier di bawah masih kosong (5 → 5,10,15,…).
+            Format: template <a href="?tab=template">Laporan ALPA kelipatan</a> (menampilkan jumlah <strong>poin</strong>).
+            <code>Batas alpa</code> dipakai seed kelipatan poin jika tier di bawah masih kosong (5 → 5,10,15,… poin).
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">
@@ -30,7 +30,7 @@ declare(strict_types=1);
             <div class="col-md-3">
                 <label class="form-label">Langkah kelipatan</label>
                 <input type="number" min="1" class="form-control" name="batas_alpa_notif" value="<?= htmlspecialchars($values['batas_alpa_notif']) ?>">
-                <div class="form-text">Mis. 5 → ambang 5,10,15,… jika tier kosong.</div>
+                <div class="form-text">Mis. 5 → ambang 5,10,15,… poin jika tier kosong.</div>
             </div>
             <div class="col-md-6">
                 <?php
@@ -85,13 +85,13 @@ declare(strict_types=1);
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body pb-0">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-            <h2 class="h6 mb-0">Tier penerima (ambang alpa)</h2>
+            <h2 class="h6 mb-0">Tier penerima (ambang poin alpa)</h2>
             <form method="post" onsubmit="return confirm('Reset log dispatch tier?');">
                 <input type="hidden" name="action" value="reset_log">
                 <button class="btn btn-outline-danger btn-sm" type="submit">Reset log (<?= $logTotalAlpa ?>)</button>
             </form>
         </div>
-        <p class="small text-muted">Ambang silang: WA saat baru ≥ ambang dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor kosong → fallback pengurus di atas.</p>
+        <p class="small text-muted">Ambang silang: WA saat total poin santri baru ≥ ambang poin dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor kosong → fallback pengurus di atas.</p>
     </div>
     <?php foreach ($tiers as $t): ?>
         <form method="post" id="wa-tier-form-<?= (int) $t['id'] ?>"><input type="hidden" name="action" value="save_tier"><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"></form>

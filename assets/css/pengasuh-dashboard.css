@@ -369,3 +369,38 @@
         margin-bottom: 1rem;
     }
 }
+
+/* Antrean izin — tombol Setujui/Tolak mudah di-tap di HP */
+.pg-dash-izin-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+    min-width: 7.5rem;
+}
+
+@media (min-width: 768px) {
+    .pg-dash-izin-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+    }
+}
+
+.pg-dash-izin-btn {
+    min-height: 44px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+    .pg-dash-izin-table .pg-dash-izin-actions {
+        width: 100%;
+    }
+
+    .pg-dash-izin-table .pg-dash-izin-btn {
+        width: 100%;
+    }
+}

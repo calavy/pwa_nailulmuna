@@ -296,7 +296,7 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
     $byTier = [];
     foreach ($santriRows as $row) {
         $sid = (int) ($row['id'] ?? 0);
-        $count = (int) ($row['alpa_count'] ?? 0);
+        $count = alpa_wa_row_poin_value($pdo, $row);
         if ($sid <= 0 || $count <= 0) {
             continue;
         }
@@ -315,6 +315,7 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
                 'nis' => (string) ($row['nis'] ?? ''),
                 'tingkatan' => (string) ($row['tingkatan'] ?? ''),
                 'alpa_count' => $count,
+                'total_poin' => $count,
             ];
             $summary['pending_santri']++;
         }
@@ -332,12 +333,14 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
         }
         $rowsFmt = [];
         foreach ($entries as $e) {
+            $poin = (int) ($e['total_poin'] ?? $e['alpa_count'] ?? 0);
             $rowsFmt[] = [
                 'nama_santri' => $e['nama_santri'],
                 'nis' => $e['nis'],
                 'tingkatan' => $e['tingkatan'],
                 'nama_kegiatan' => 'Akumulasi periode',
-                'total_alpha' => $e['alpa_count'],
+                'total_alpha' => $poin,
+                'total_poin' => $poin,
             ];
         }
         $waMessages = wa_format_rekap_alpa_per_santri_messages(
@@ -370,7 +373,7 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
     return $summary;
 }
 
-/** Hitung total alpa santri pada periode aktif (selaras rekap + laporan WA). */
+/** Hitung total poin ALPA santri pada periode aktif (selaras rekap + laporan WA). */
 function alpa_tier_count_alpa(PDO $pdo, int $santriId, string $mode, string $tanggal, string $tanggalMulai = ''): int
 {
     if ($santriId <= 0) {
@@ -384,8 +387,13 @@ function alpa_tier_count_alpa(PDO $pdo, int $santriId, string $mode, string $tan
     }
 
     require_once __DIR__ . '/alpa_wa.php';
+    foreach (alpa_wa_fetch_santri_alpa_rows($pdo, $tanggal) as $row) {
+        if ((int) ($row['id'] ?? 0) === $santriId) {
+            return alpa_wa_row_poin_value($pdo, $row);
+        }
+    }
 
-    return (int) (alpa_wa_santri_alpa_count_map($pdo, $tanggal)[$santriId] ?? 0);
+    return 0;
 }
 
 /** Apakah tier untuk (santri, tier, periode_key) sudah pernah dikirim? */

@@ -51,6 +51,8 @@ function perizinan_rombongan_ensure_schema(PDO $pdo): void
 function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int $userId): array
 {
     perizinan_rombongan_ensure_schema($pdo);
+    require_once __DIR__ . '/perizinan_approval.php';
+    perizinan_approval_ensure_schema($pdo);
     $santriIds = array_values(array_unique(array_filter(array_map('intval', $santriIds))));
     if (count($santriIds) < 2) {
         return ['ok' => false, 'message' => 'Izin rombongan minimal 2 santri.'];
@@ -114,8 +116,8 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
         $insIzin = $pdo->prepare('
             INSERT INTO perizinan
             (santri_id, rombongan_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam,
-             alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
-            VALUES (:sid, :rid, :jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :tujuan, :pemberi, :pengasuh, "IZIN", "PENDING", :grace)
+             alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit, pengajuan_sumber)
+            VALUES (:sid, :rid, :jenis, :tgl1, :tgl2, :jm1, :jm2, :dur, :alasan, :tujuan, :pemberi, :pengasuh, "IZIN", "PENDING", :grace, :sumber)
         ');
         foreach ($santriIds as $sid) {
             $insIzin->execute([
@@ -132,6 +134,7 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
                 'pemberi' => $pemberi,
                 'pengasuh' => $pengasuh,
                 'grace' => $grace,
+                'sumber' => 'rombongan',
             ]);
         }
         $pdo->commit();

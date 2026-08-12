@@ -128,6 +128,23 @@ $izinPengasuhPendingCount = (int) ($izinPengasuhAntrian['total'] ?? 0);
 $izinPengasuhIndividu = $izinPengasuhAntrian['individu'] ?? [];
 $izinPengasuhRombongan = $izinPengasuhAntrian['rombongan'] ?? [];
 
+$userId = (int) ($_SESSION['user']['id'] ?? 0);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'setujui_pengasuh') {
+        $res = perizinan_pengasuh_setujui($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, false);
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/pengasuh/dashboard.php'));
+        exit;
+    }
+    if ($action === 'tolak_pengasuh') {
+        $res = perizinan_tolak_izin_satu($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, 'pengasuh');
+        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+        header('Location: ' . app_href('/pengasuh/dashboard.php'));
+        exit;
+    }
+}
+
 $pageTitle = 'Dashboard Pengasuh';
 $bodyClass = 'dash-page dash-home-mobile-fit page-pengasuh-dashboard kh-wrap';
 $pageStylesheets = [
@@ -229,21 +246,32 @@ require_once __DIR__ . '/../includes/header.php';
 
                 <?php if ($izinPengasuhIndividu !== []): ?>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm align-middle mb-0 pg-dash-izin-table">
                         <thead class="table-light">
                             <tr>
                                 <th>Santri</th>
+                                <th>Alasan</th>
                                 <th>Periode</th>
                                 <th class="text-end">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                        <?php foreach ($izinPengasuhIndividu as $ip): ?>
+                        <?php foreach ($izinPengasuhIndividu as $ip):
+                            $izinIdRow = (int) ($ip['id'] ?? 0);
+                            $alasanSingkat = trim((string) ($ip['alasan'] ?? ''));
+                            if (mb_strlen($alasanSingkat) > 80) {
+                                $alasanSingkat = mb_substr($alasanSingkat, 0, 77) . '…';
+                            }
+                            if ($alasanSingkat === '') {
+                                $alasanSingkat = '—';
+                            }
+                            ?>
                             <tr>
                                 <td>
                                     <div class="fw-semibold small"><?= htmlspecialchars((string) ($ip['nama_santri'] ?? '')) ?></div>
                                     <div class="text-muted font-monospace" style="font-size:.72rem"><?= htmlspecialchars((string) ($ip['nis'] ?? '')) ?></div>
                                 </td>
+                                <td class="small text-muted"><?= htmlspecialchars($alasanSingkat) ?></td>
                                 <td class="small text-nowrap">
                                     <?= htmlspecialchars(app_format_izin_rentang(
                                         (string) ($ip['tanggal_mulai'] ?? ''),
@@ -253,7 +281,18 @@ require_once __DIR__ . '/../includes/header.php';
                                     )) ?>
                                 </td>
                                 <td class="text-end">
-                                    <a class="btn btn-sm btn-outline-warning" href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>">Setujui</a>
+                                    <div class="pg-dash-izin-actions">
+                                        <form method="post" class="d-inline">
+                                            <input type="hidden" name="action" value="setujui_pengasuh">
+                                            <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
+                                            <button type="submit" class="btn btn-success btn-lg pg-dash-izin-btn">Setujui</button>
+                                        </form>
+                                        <form method="post" class="d-inline" onsubmit="return confirm('Tolak permohonan izin ini?');">
+                                            <input type="hidden" name="action" value="tolak_pengasuh">
+                                            <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
+                                            <button type="submit" class="btn btn-outline-danger btn-lg pg-dash-izin-btn">Tolak</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

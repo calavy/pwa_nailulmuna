@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/push_fcm.php';
 require_once __DIR__ . '/keuangan_transaksi.php';
 require_once __DIR__ . '/perizinan_jenis.php';
+require_once __DIR__ . '/perizinan_approval.php';
 
 function push_event_izin_pengajuan_baru(
     PDO $pdo,
@@ -30,21 +31,30 @@ function perizinan_push_setelah_pengajuan(
     string $jenisKode,
     string $tanggalMulai,
     string $tanggalSelesai,
-    array $waDetail = []
+    array $waDetail = [],
+    string $pengajuanSumber = 'admin'
 ): void {
     $label = jenis_izin_label($jenisKode);
     push_event_izin_pengajuan_baru($pdo, $namaSantri, $nis, $label, $tanggalMulai, $tanggalSelesai);
     $body = $namaSantri . ' (' . $nis . ') — ' . $label . ' ' . $tanggalMulai . ' s/d ' . $tanggalSelesai;
+    $alasanSnippet = trim((string) ($waDetail['alasan'] ?? ''));
+    if ($alasanSnippet !== '') {
+        $body .= '. Alasan: ' . mb_substr($alasanSnippet, 0, 120);
+    }
+    $sumber = perizinan_pengajuan_sumber_normalize($pengajuanSumber);
     if (perizinan_memerlukan_persetujuan_pengasuh($jenisKode)) {
-        push_notify_all_kiai($pdo, 'izin_pengajuan', 'Izin syar\'i menunggu persetujuan', $body, [
-            'jenis' => perizinan_jenis_izin_normalize($jenisKode),
-        ], '/pengasuh/perizinan.php');
+        if ($sumber === 'wali') {
+            push_notify_all_kiai($pdo, 'izin_pengajuan', 'Izin syar\'i menunggu persetujuan', $body, [
+                'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+            ], '/pengasuh/perizinan.php');
+        }
     } else {
         push_notify_all_kiai($pdo, 'izin_pengajuan', 'Pemberitahuan izin baru', $body, [
             'jenis' => perizinan_jenis_izin_normalize($jenisKode),
         ], '/perizinan/index.php');
     }
 
+    $alasanWa = $alasanSnippet !== '' ? $alasanSnippet : '—';
     perizinan_wa_kirim_permohonan_baru(
         $pdo,
         $jenisKode,
@@ -55,7 +65,7 @@ function perizinan_push_setelah_pengajuan(
         $tanggalSelesai,
         (string) ($waDetail['jam_mulai'] ?? ''),
         (string) ($waDetail['jam_selesai'] ?? ''),
-        (string) ($waDetail['alasan'] ?? ''),
+        $alasanWa,
         (string) ($waDetail['tujuan'] ?? ''),
         (int) ($waDetail['izin_id'] ?? 0)
     );

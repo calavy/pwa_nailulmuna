@@ -53,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'jam_selesai' => trim((string) ($_POST['jam_selesai'] ?? date('H:i'))),
                         'alasan' => trim((string) ($_POST['alasan'] ?? '')),
                         'tujuan' => trim((string) ($_POST['tujuan'] ?? '')),
-                    ]
+                    ],
+                    'rombongan'
                 );
             }
             set_flash('success', $res['message']);

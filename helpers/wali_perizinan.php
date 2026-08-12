@@ -124,7 +124,18 @@ function wali_perizinan_ajukan(
         return ['ok' => false, 'message' => $durasiErr];
     }
 
-    $alasan = perizinan_syari_kategori_susun_alasan($pdo, $syariKategori, '');
+    $keteranganAlasan = trim($alasan);
+    if ($keteranganAlasan === '') {
+        return ['ok' => false, 'message' => 'Keterangan / alasan wajib diisi.'];
+    }
+    if (mb_strlen($keteranganAlasan) < 10) {
+        return ['ok' => false, 'message' => 'Keterangan / alasan minimal 10 karakter.'];
+    }
+    if (mb_strlen($keteranganAlasan) > 500) {
+        return ['ok' => false, 'message' => 'Keterangan / alasan maksimal 500 karakter.'];
+    }
+
+    $alasan = perizinan_syari_kategori_susun_alasan($pdo, $syariKategori, $keteranganAlasan);
     $pemberiIzin = trim($pemberiIzin);
     if ($pemberiIzin === '') {
         return ['ok' => false, 'message' => 'Nama pemohon wajib diisi.'];
@@ -158,10 +169,10 @@ function wali_perizinan_ajukan(
         $ins = $pdo->prepare('
             INSERT INTO perizinan (
                 santri_id, jenis_izin, syari_kategori, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam,
-                alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit
+                alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit, pengajuan_sumber
             ) VALUES (
                 :sid, :jenis, :kat, :tgl1, :tgl2, :jm1, :jm2, :durasi,
-                :alasan, :tujuan, :pemohon, :pengasuh, "IZIN", "PENDING", :grace
+                :alasan, :tujuan, :pemohon, :pengasuh, "IZIN", "PENDING", :grace, :sumber
             )
         ');
         $ins->execute([
@@ -178,6 +189,7 @@ function wali_perizinan_ajukan(
             'pemohon' => $pemberiIzin,
             'pengasuh' => $pengasuh,
             'grace' => $grace,
+            'sumber' => 'wali',
         ]);
         $izinId = (int) $pdo->lastInsertId();
 
@@ -197,12 +209,14 @@ function wali_perizinan_ajukan(
             $tanggalMulai,
             $tanggalSelesai,
             [
+                'izin_id' => $izinId,
                 'tingkatan' => (string) ($sInfo['tingkatan'] ?? ''),
                 'jam_mulai' => $jamMulai,
                 'jam_selesai' => $jamSelesai,
                 'alasan' => $alasan,
                 'tujuan' => $tujuan,
-            ]
+            ],
+            'wali'
         );
 
         $msg = 'Permohonan izin #' . $izinId . ' terkirim. Menunggu persetujuan pengasuh — setelah disetujui, pengurus tinggal cetak surat.';

@@ -61,6 +61,8 @@ Instalasi **pertama kali** saja: impor **`impor_lokal_pwa_nailulmuna.sql`** (lok
 | Login | http://localhost/pwa_nailulmuna/login.php |
 | Portal wali | http://localhost/pwa_nailulmuna/wali/login.php |
 
+**Panduan keuangan lengkap:** lihat [docs/PANDUAN-KEUANGAN.md](docs/PANDUAN-KEUANGAN.md) (setup, tagihan, pembayaran, cashless, laporan, troubleshooting).
+
 **Jangan** buka URL dengan `...` di akhir — itu hanya contoh, bukan link asli.
 
 ---

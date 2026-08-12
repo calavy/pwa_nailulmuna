@@ -33,11 +33,11 @@ function wa_template_definitions(): array
         ],
         'rekap_alpa' => [
             'label' => 'Laporan ALPA kelipatan → pengurus',
-            'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan kali ALPA. Placeholder {daftar_santri} atau alias {daftar_santri_alpa} diisi otomatis (dikelompokkan per tingkatan). Jangan hapus salah satu placeholder jika ingin daftar ikut terkirim.',
+            'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan poin ALPA. Placeholder {daftar_santri} atau alias {daftar_santri_alpa} diisi otomatis (dikelompokkan per tingkatan). Jangan hapus salah satu placeholder jika ingin daftar ikut terkirim.',
             'placeholders' => '{kelipatan}, {ambang}, {tanggal}, {periode}, {daftar_santri}, {daftar_santri_alpa}, {nama_ponpes}',
-            'default' => "*LAPORAN SANTRI ALPA (KELIPATAN {kelipatan})*\n"
+            'default' => "*LAPORAN SANTRI ALPA (KELIPATAN {kelipatan} POIN)*\n"
                 . "Tanggal: {tanggal}\n\n"
-                . "Berikut adalah daftar santri yang telah mencapai akumulasi {kelipatan} kali ALPA:\n\n"
+                . "Berikut adalah daftar santri yang telah mencapai akumulasi {kelipatan} poin:\n\n"
                 . "{daftar_santri}\n\n"
                 . 'Mohon segera diproses atau tindakan disiplin sesuai aturan. Terima kasih.',
         ],
@@ -74,6 +74,22 @@ function wa_template_definitions(): array
                 . "{tujuan_baris}\n"
                 . "Mohon segera ditinjau melalui panel perizinan.\n"
                 . "Demikian disampaikan.\n\n"
+                . "_Hormat kami,_\n"
+                . "_{nama_ponpes}_",
+        ],
+        'izin_disetujui_pengasuh_info' => [
+            'label' => 'Izin disetujui pengurus → pengasuh (info)',
+            'hint' => 'Notifikasi informatif ke pengasuh saat izin non-wali disetujui pengurus (bukan antrean persetujuan).',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_penyetuju}, {nama_ponpes}',
+            'default' => "*INFO IZIN DISETUJUI*\n\n"
+                . "Izin berikut telah disetujui pengurus (bukan pengajuan wali):\n\n"
+                . "• Santri: *{nama_santri}* ({nis})\n"
+                . "• Tingkatan: {tingkatan}\n"
+                . "• Jenis: *{jenis_izin}*\n"
+                . "• Periode: {tanggal_mulai} s/d {tanggal_selesai}\n"
+                . "• Waktu: {jam_mulai} – {jam_selesai}\n"
+                . "• {label_alasan}: _{alasan}_\n"
+                . "• Disetujui oleh: *{nama_penyetuju}*\n\n"
                 . "_Hormat kami,_\n"
                 . "_{nama_ponpes}_",
         ],

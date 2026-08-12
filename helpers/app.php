@@ -3358,7 +3358,7 @@ function wa_format_pengajuan_izin_baru(
         'tanggal_selesai' => $tanggalSelesai,
         'jam_mulai' => $jamMulai,
         'jam_selesai' => $jamSelesai,
-        'alasan' => $alasan,
+        'alasan' => trim($alasan) !== '' ? trim($alasan) : '—',
         'tujuan' => $tujuanT,
         'tujuan_baris' => $tujuanT !== '' ? '• Tujuan: *' . $tujuanT . "*\n" : '',
         'nama_ponpes' => $namaPonpes !== '' ? $namaPonpes : 'Sistem Informasi',

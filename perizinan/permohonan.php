@@ -124,11 +124,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'pemberi_izin' => $pemberiIzinPost,
         'penandatangan_pengasuh' => $defaultPengasuh !== '' ? $defaultPengasuh : trim((string) ($_POST['penandatangan_pengasuh'] ?? '')),
         'grace_menit' => $graceMenit,
+        'pengajuan_sumber' => 'admin',
     ];
 
+    perizinan_approval_ensure_schema($pdo);
     $insert = $pdo->prepare('
-        INSERT INTO perizinan (santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit)
-        VALUES (:santri_id, :jenis_izin, :tanggal_mulai, :tanggal_selesai, :jam_mulai, :jam_selesai, :durasi_jam, :alasan, :tujuan, :pemberi_izin, :penandatangan_pengasuh, "IZIN", "PENDING", :grace_menit)
+        INSERT INTO perizinan (santri_id, jenis_izin, tanggal_mulai, tanggal_selesai, jam_mulai, jam_selesai, durasi_jam, alasan, tujuan, pemberi_izin, penandatangan_pengasuh, status_izin, approval_status, grace_menit, pengajuan_sumber)
+        VALUES (:santri_id, :jenis_izin, :tanggal_mulai, :tanggal_selesai, :jam_mulai, :jam_selesai, :durasi_jam, :alasan, :tujuan, :pemberi_izin, :penandatangan_pengasuh, "IZIN", "PENDING", :grace_menit, :pengajuan_sumber)
     ');
     $insHealth = $pdo->prepare('
         INSERT INTO ehealth_records (santri_id, gejala, suhu_tubuh, tindakan, status_kesehatan, notifikasi_wali, created_by)
@@ -197,7 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (string) $data['jenis_izin'],
         (string) $data['tanggal_mulai'],
         (string) $data['tanggal_selesai'],
-        $waDetail
+        $waDetail,
+        'admin'
     );
 
     if (perizinan_memerlukan_persetujuan_pengasuh((string) $data['jenis_izin'])) {
