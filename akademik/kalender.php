@@ -46,7 +46,7 @@ function akad_cal_state_from_request(): array
     if ($view === 'tahun') {
         $view = 'atur';
     }
-    if (!in_array($view, ['bulan', 'masehi', 'atur'], true)) {
+    if (!in_array($view, ['bulan', 'masehi', 'atur', 'rencana'], true)) {
         $view = 'bulan';
     }
     $mode = strtolower(trim((string) ($_GET['mode'] ?? 'hijri')));
@@ -94,7 +94,7 @@ function akad_cal_back_state(): array
             continue;
         }
         $v = strtolower(trim($_POST[$pk]));
-        if ($k === 'view' && in_array($v, ['bulan', 'masehi', 'atur'], true)) {
+        if ($k === 'view' && in_array($v, ['bulan', 'masehi', 'atur', 'rencana'], true)) {
             $st['view'] = $v;
         }
         if ($k === 'mode' && in_array($v, ['hijri', 'masehi'], true)) {
@@ -184,22 +184,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     if ($action === 'tambah_agenda') {
-        $tanggal = trim((string) ($_POST['tanggal'] ?? ''));
-        $judul = trim((string) ($_POST['judul'] ?? ''));
         $ulang = max(0, (int) ($_POST['ulang_interval_hari'] ?? 0));
-        $ulangHingga = trim((string) ($_POST['ulang_hingga'] ?? ''));
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) || $judul === '') {
-            set_flash('error', 'Tanggal dan judul wajib diisi.');
-        } elseif ($ulang > 0 && $ulangHingga !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ulangHingga)) {
-            set_flash('error', 'Tanggal akhir pengulangan tidak valid.');
-        } elseif ($ulang > 0 && $ulangHingga !== '' && $ulangHingga < $tanggal) {
-            set_flash('error', 'Tanggal akhir pengulangan harus setelah tanggal mulai.');
+        $err = akademik_agenda_validate_post($_POST);
+        if ($err !== null) {
+            set_flash('error', $err);
         } else {
             $uid = (int) ($_SESSION['user']['id'] ?? 0);
             akademik_agenda_insert_from_post($pdo, $_POST, $uid);
             $msg = $ulang > 0
                 ? 'Acara ditambahkan (berulang setiap ' . $ulang . ' hari).'
-                : 'Acara ditambahkan.';
+                : 'Jadwal ditambahkan.';
             set_flash('success', $msg);
         }
         header('Location: ' . app_href(akad_cal_url($back)));
@@ -414,6 +408,15 @@ if ($view === 'masehi') {
     $agendaByDate = $agendaByDateTahun;
 }
 
+if ($view === 'rencana') {
+    $rencanaRange = akademik_agenda_rencana_range($todayMasehi);
+    $rencanaRowsRaw = akademik_agenda_list_for_rencana($pdo, $rencanaRange['start'], $rencanaRange['end']);
+    $rencanaRowsExpanded = akademik_agenda_for_range($pdo, $rencanaRange['start'], $rencanaRange['end']);
+    $rencanaStats = akademik_agenda_rencana_stats($rencanaRowsRaw, $todayMasehi);
+    $rencanaGantt = akademik_agenda_gantt_pack($rencanaRowsRaw, $rencanaRange['start'], $rencanaRange['end']);
+    $rencanaSidebar = akademik_agenda_sidebar_groups($rencanaRowsExpanded, $todayMasehi);
+}
+
 if ($agendaKlikAktif) {
     $agendaJsonModal = akademik_agenda_json_for_modal($agendaByDate, $currentUserId, $currentUserRole, $currentUserSuper);
 }
@@ -426,6 +429,9 @@ $bodyClass = 'akademik-kalender-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 <link href="<?= htmlspecialchars(app_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
+<?php if ($view === 'rencana'): ?>
+<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-rencana-kerja.css')) ?>" rel="stylesheet">
+<?php endif; ?>
 
 <?php
 render_kalender_page_hero([
@@ -448,11 +454,16 @@ render_kalender_page_hero([
                    class="btn btn-outline-primary<?= $view === 'masehi' ? ' active' : '' ?>"><i class="fa-solid fa-table-cells me-1"></i> 12 bulan (Masehi)</a>
                 <a href="<?= htmlspecialchars(akad_cal_url(['view' => 'atur', 'hy' => $hijriYear])) ?>"
                    class="btn btn-outline-secondary<?= $view === 'atur' ? ' active' : '' ?>"><i class="fa-solid fa-sliders me-1"></i> Atur tahun H.</a>
+                <a href="<?= htmlspecialchars(akad_cal_url(['view' => 'rencana'])) ?>"
+                   class="btn btn-outline-primary<?= $view === 'rencana' ? ' active' : '' ?>"><i class="fa-solid fa-list-check me-1"></i> Rencana Kerja</a>
             </div>
             <a class="btn btn-outline-secondary btn-sm ms-auto" href="/settings/kalender.php"><i class="fa-solid fa-gear me-1"></i> Pengaturan</a>
         </div>
 
         <div class="akad-cal-legend">
+            <?php if ($view === 'rencana'): ?>
+            <span class="akad-cal-legend-note">Periode 4 minggu ke depan · agenda internal pondok · tambah jadwal lewat form di bawah.</span>
+            <?php else: ?>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--today"></span> Hari ini</span>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--jumat"></span> Jumat</span>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--libur"></span> Libur rentang</span>
@@ -463,11 +474,14 @@ render_kalender_page_hero([
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--agenda"></span> Acara / jadwal</span>
             <?php endif; ?>
             <span class="akad-cal-legend-note">Angka besar = tanggal utama · baris kecil = kalender alternatif (Masehi/Hijriyah). Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
-<?php if ($view === 'bulan'): ?>
+<?php if ($view === 'rencana'): ?>
+    <?php require __DIR__ . '/../includes/partials/kalender_rencana_kerja.php'; ?>
+<?php elseif ($view === 'bulan'): ?>
     <div class="akad-cal-main-card mb-4">
             <form method="get" class="akad-cal-filter-bar row g-2 align-items-end">
                 <input type="hidden" name="view" value="bulan">
@@ -867,6 +881,18 @@ render_kalender_page_hero([
                         <label class="form-label small mb-0">Jam (opsional)</label>
                         <input type="time" name="jam_mulai" class="form-control form-control-sm">
                     </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Tanggal selesai (ops.)</label>
+                        <input type="date" name="tanggal_selesai" class="form-control form-control-sm" id="agendaModalTanggalSelesai">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Prioritas</label>
+                        <select name="prioritas" class="form-select form-select-sm">
+                            <option value="rendah">Rendah</option>
+                            <option value="sedang" selected>Sedang</option>
+                            <option value="tinggi">Tinggi</option>
+                        </select>
+                    </div>
                     <div class="col-12">
                         <label class="form-label small mb-0">Catatan</label>
                         <textarea name="catatan" class="form-control form-control-sm" rows="2" maxlength="2000" placeholder="Detail, lokasi, atau pengingat pribadi"></textarea>
@@ -899,8 +925,6 @@ render_kalender_page_hero([
         </div>
     </div>
 </div>
-<?php endif; ?>
-
 <div class="card shadow-sm border-0 mt-4" id="kalender-agenda">
     <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
         <h2 class="h6 mb-0"><i class="fa-solid fa-bell text-primary me-1"></i> Jadwal &amp; acara</h2>
@@ -965,6 +989,7 @@ render_kalender_page_hero([
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 (function () {
@@ -1016,6 +1041,7 @@ render_kalender_page_hero([
 
         var judulTgl = document.getElementById('agendaModalJudulTanggal');
         var inputTgl = document.getElementById('agendaModalTanggal');
+        var inputTglSelesai = document.getElementById('agendaModalTanggalSelesai');
         var daftar = document.getElementById('agendaModalDaftar');
         var ulangHingga = document.getElementById('agendaModalUlangHingga');
         var bsModal = null;
@@ -1064,6 +1090,10 @@ render_kalender_page_hero([
         function bukaModal(ymd) {
             if (!ymd) return;
             if (inputTgl) inputTgl.value = ymd;
+            if (inputTglSelesai) {
+                inputTglSelesai.value = ymd;
+                inputTglSelesai.min = ymd;
+            }
             if (ulangHingga) ulangHingga.min = ymd;
             if (judulTgl) judulTgl.textContent = 'Acara · ' + formatTanggalId(ymd);
             renderDaftar(ymd);
@@ -1071,6 +1101,16 @@ render_kalender_page_hero([
             if (m) {
                 m.show();
             }
+        }
+
+        var formModal = document.getElementById('formTambahAgendaModal');
+        if (formModal) {
+            formModal.addEventListener('submit', function (e) {
+                if (inputTgl && inputTglSelesai && inputTglSelesai.value !== '' && inputTglSelesai.value < inputTgl.value) {
+                    e.preventDefault();
+                    alert('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+                }
+            });
         }
 
         document.addEventListener('click', function (e) {

@@ -119,39 +119,60 @@ $cardClasses = 'jadwal-slot-card'
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($showActions && $editId > 0 && !$mobileLayout): ?>
-        <div class="jadwal-slot-card__actions">
-            <?php if (strtolower($kat) === 'jamaah'): ?>
-                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>" class="btn btn-outline-indigo btn-sm py-0 px-2 jadwal-slot-card__jamaah-link" title="Ubah waktu semua slot jamaah ini">
-                    <i class="fa-solid fa-mosque"></i><span class="d-none d-sm-inline ms-1">Waktu</span>
-                </a>
-                <a href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah_munawib')) ?>" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Munawib harian Putra/Putri">
-                    <i class="fa-solid fa-user-check"></i><span class="d-none d-sm-inline ms-1">Mw</span>
-                </a>
-            <?php endif; ?>
+        <div class="jadwal-slot-card__actions dropdown">
             <button type="button"
-                class="btn btn-outline-primary btn-sm py-0 px-2 jadwal-quick-edit"
-                title="Edit cepat"
-                data-edit-id="<?= $editId ?>"
-                data-kegiatan-id="<?= (int) ($slot['kegiatan_id'] ?? 0) ?>"
-                data-kegiatan-nama="<?= htmlspecialchars((string) ($slot['nama_kegiatan'] ?? '')) ?>"
-                data-kategori="<?= htmlspecialchars(strtolower($kat)) ?>"
-                data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_mulai'] ?? ''))) ?>"
-                data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_selesai'] ?? ''))) ?>"
-                data-pembimbing-id="<?= (int) ($slot['pembimbing_id'] ?? 0) ?>"
-                data-tempat="<?= htmlspecialchars($tempat) ?>"
-                data-tingkatan="<?= htmlspecialchars(json_encode($tingkatanList, JSON_UNESCAPED_UNICODE)) ?>"
-                data-hari="<?= htmlspecialchars(json_encode(array_values(array_map('intval', $hariList)), JSON_UNESCAPED_UNICODE)) ?>">
-                <i class="fa-solid fa-pen"></i><span class="d-none d-sm-inline ms-1">Edit</span>
+                class="btn btn-sm btn-light border-0 jadwal-slot-card__menu-btn"
+                data-bs-toggle="dropdown"
+                data-bs-display="static"
+                aria-expanded="false"
+                aria-label="Menu aksi jadwal"
+                title="Aksi">
+                <i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i>
             </button>
-            <a href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>" class="btn btn-outline-secondary btn-sm py-0 px-2 jadwal-slot-card__full-link" title="Form lengkap">
-                <i class="fa-solid fa-up-right-from-square"></i>
-            </a>
-            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 jadwal-delete-one"
-                title="Hapus"
-                data-delete-ids="<?= htmlspecialchars(implode(',', $mergeIds)) ?>"
-                data-confirm="Hapus slot jadwal ini? Presensi terkait ikut dihapus.">
-                <i class="fa-solid fa-trash"></i>
-            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm jadwal-slot-card__menu">
+                <?php if (strtolower($kat) === 'jamaah'): ?>
+                    <li>
+                        <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah')) ?>">
+                            <i class="fa-solid fa-mosque me-2 text-muted"></i>Atur waktu
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php?tab=jamaah_munawib')) ?>">
+                            <i class="fa-solid fa-user-check me-2 text-muted"></i>Munawib
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                <?php endif; ?>
+                <li>
+                    <button type="button"
+                        class="dropdown-item jadwal-quick-edit"
+                        data-edit-id="<?= $editId ?>"
+                        data-kegiatan-id="<?= (int) ($slot['kegiatan_id'] ?? 0) ?>"
+                        data-kegiatan-nama="<?= htmlspecialchars((string) ($slot['nama_kegiatan'] ?? '')) ?>"
+                        data-kategori="<?= htmlspecialchars(strtolower($kat)) ?>"
+                        data-jam-mulai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_mulai'] ?? ''))) ?>"
+                        data-jam-selesai="<?= htmlspecialchars(app_format_jam((string) ($slot['jam_selesai'] ?? ''))) ?>"
+                        data-pembimbing-id="<?= (int) ($slot['pembimbing_id'] ?? 0) ?>"
+                        data-tempat="<?= htmlspecialchars($tempat) ?>"
+                        data-tingkatan="<?= htmlspecialchars(json_encode($tingkatanList, JSON_UNESCAPED_UNICODE)) ?>"
+                        data-hari="<?= htmlspecialchars(json_encode(array_values(array_map('intval', $hariList)), JSON_UNESCAPED_UNICODE)) ?>">
+                        <i class="fa-solid fa-pen me-2 text-muted"></i>Edit cepat
+                    </button>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>">
+                        <i class="fa-solid fa-up-right-from-square me-2 text-muted"></i>Form lengkap
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <button type="button" class="dropdown-item text-danger jadwal-delete-one"
+                        data-delete-ids="<?= htmlspecialchars(implode(',', $mergeIds)) ?>"
+                        data-confirm="Hapus slot jadwal ini? Presensi terkait ikut dihapus.">
+                        <i class="fa-solid fa-trash me-2"></i>Hapus
+                    </button>
+                </li>
+            </ul>
         </div>
     <?php endif; ?>
 </article>

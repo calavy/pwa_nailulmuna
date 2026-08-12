@@ -24,6 +24,22 @@ $isJadwalUtama = !in_array($activeTab, ['jamaah', 'jamaah_munawib'], true);
 $filterActive = $filterKat !== '' || $filterKegiatanId > 0
     || ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan')
     || ($filterHari >= 1 && $filterHari <= 7);
+
+$filterKegiatanNama = '';
+if ($filterKegiatanId > 0) {
+    foreach ($kegiatanListAktif as $kgChip) {
+        if ((int) ($kgChip['id'] ?? 0) === $filterKegiatanId) {
+            $filterKegiatanNama = (string) ($kgChip['nama_kegiatan'] ?? '');
+            break;
+        }
+    }
+}
+$filterKatLabel = match ($filterKat) {
+    'TAALIM' => "Ta'lim",
+    'JAMAAH' => "Jama'ah",
+    'EXTRA' => 'Extra',
+    default => '',
+};
 ?>
 <div class="jadwal-toolbar mb-3">
     <div class="jadwal-toolbar__row">
@@ -45,9 +61,6 @@ $filterActive = $filterKat !== '' || $filterKegiatanId > 0
                     </span>
                 <?php endif; ?>
             </div>
-            <button type="button" class="btn btn-success btn-sm jadwal-panel-toggle d-none d-lg-inline-flex" data-panel="jadwal" aria-expanded="false">
-                <i class="fa-solid fa-plus me-1"></i> Tambah Jadwal
-            </button>
         </div>
 
         <?php if ($isJadwalUtama): ?>
@@ -74,6 +87,29 @@ $filterActive = $filterKat !== '' || $filterKegiatanId > 0
         <?php endif; ?>
 
         <div class="jadwal-toolbar__right">
+            <?php if ($isJadwalUtama && ($showJadwalAksi ?? true)): ?>
+            <div class="btn-group btn-group-sm jadwal-toolbar__add">
+                <button type="button" class="btn btn-success jadwal-panel-toggle" data-panel="jadwal" aria-expanded="false">
+                    <i class="fa-solid fa-plus me-1"></i><span class="d-none d-sm-inline">Tambah jadwal</span><span class="d-sm-none">Tambah</span>
+                </button>
+                <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">Opsi tambah</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li>
+                        <button type="button" class="dropdown-item jadwal-panel-toggle" data-panel="kegiatan">
+                            <i class="fa-solid fa-bookmark me-2 text-muted"></i>Tambah kegiatan cepat
+                        </button>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>">
+                            <i class="fa-solid fa-list me-2 text-muted"></i>Kelola kegiatan
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <?php endif; ?>
+
             <?php if ($isJadwalUtama): ?>
             <div class="dropdown">
                 <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle<?= $filterActive ? ' active' : '' ?>"
@@ -156,6 +192,25 @@ $filterActive = $filterKat !== '' || $filterKegiatanId > 0
             </div>
         </div>
     </div>
+
+    <?php if ($isJadwalUtama && $filterActive): ?>
+    <div class="jadwal-toolbar__chips d-flex flex-wrap align-items-center gap-1 mt-2 pt-2 border-top">
+        <span class="small text-muted me-1">Filter aktif:</span>
+        <?php if ($filterKatLabel !== ''): ?>
+            <span class="badge rounded-pill text-bg-primary"><?= htmlspecialchars($filterKatLabel) ?></span>
+        <?php endif; ?>
+        <?php if ($filterKegiatanNama !== ''): ?>
+            <span class="badge rounded-pill text-bg-info"><?= htmlspecialchars($filterKegiatanNama) ?></span>
+        <?php endif; ?>
+        <?php if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan'): ?>
+            <span class="badge rounded-pill text-bg-secondary"><?= htmlspecialchars($filterTingkatan) ?></span>
+        <?php endif; ?>
+        <?php if ($filterHari >= 1 && $filterHari <= 7): ?>
+            <span class="badge rounded-pill text-bg-light border text-dark"><?= htmlspecialchars($hari[$filterHari] ?? ('Hari ' . $filterHari)) ?></span>
+        <?php endif; ?>
+        <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, []))) ?>" class="btn btn-link btn-sm py-0 text-decoration-none">Reset</a>
+    </div>
+    <?php endif; ?>
 
     <?php if ($isJadwalUtama && $activeTab === 'daftar'): ?>
     <div class="jadwal-toolbar__sub d-flex flex-wrap align-items-center gap-1 mt-2">

@@ -7,38 +7,6 @@
     var DESKTOP_MQ = window.matchMedia('(min-width: 992px)');
     var focusPage = document.body.classList.contains('jadwal-page--focus');
 
-    function parseTime24(str) {
-        var m = String(str || '').trim().match(/^(\d{1,2}):(\d{2})$/);
-        if (!m) {
-            return null;
-        }
-        var h = parseInt(m[1], 10);
-        var min = parseInt(m[2], 10);
-        if (h < 0 || h > 23 || min < 0 || min > 59) {
-            return null;
-        }
-        return h * 60 + min;
-    }
-
-    function formatTime24(totalMin) {
-        var t = ((totalMin % (24 * 60)) + (24 * 60)) % (24 * 60);
-        var h = Math.floor(t / 60);
-        var m = t % 60;
-        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-    }
-
-    function nudgeTimeInput(input, deltaMin) {
-        if (!input) {
-            return;
-        }
-        var cur = parseTime24(input.value);
-        if (cur === null) {
-            cur = 6 * 60;
-        }
-        input.value = formatTime24(cur + deltaMin);
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
     function initSidebarCollapsed() {
         if (!focusPage || !document.querySelector('.app-sidebar--desktop')) {
             return;
@@ -232,23 +200,29 @@
         });
     }
 
+    function initCardDropdownMenus() {
+        document.querySelectorAll('.jadwal-slot-card__actions.dropdown').forEach(function (wrap) {
+            var card = wrap.closest('.jadwal-slot-card');
+            var toggle = wrap.querySelector('[data-bs-toggle="dropdown"]');
+            if (!card || !toggle || typeof bootstrap === 'undefined') {
+                return;
+            }
+            toggle.addEventListener('show.bs.dropdown', function () {
+                card.classList.add('is-actions-open');
+            });
+            toggle.addEventListener('hide.bs.dropdown', function () {
+                card.classList.remove('is-actions-open');
+            });
+            wrap.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        });
+    }
+
     function initCardInteractions() {
         document.addEventListener('click', function (e) {
             if (contextMenu && !e.target.closest('#jadwal-context-menu')) {
                 hideContextMenu();
-            }
-
-            var nudgeBtn = e.target.closest('.jadwal-time-nudge');
-            if (nudgeBtn) {
-                var scope = nudgeBtn.closest('.jadwal-jamaah-kelompok, .jadwal-jamaah-card, .modal-body, form');
-                if (!scope) {
-                    return;
-                }
-                var target = nudgeBtn.getAttribute('data-target');
-                var delta = parseInt(nudgeBtn.getAttribute('data-delta') || '0', 10);
-                var sel = target === 'js' ? '.jadwal-jamaah-js, #jq-jam-selesai' : '.jadwal-jamaah-jm, #jq-jam-mulai';
-                nudgeTimeInput(scope.querySelector(sel), delta);
-                return;
             }
 
             var saranBtn = e.target.closest('.jadwal-jamaah-isi-saran');
@@ -295,7 +269,7 @@
             if (!card) {
                 return;
             }
-            if (e.target.closest('.jadwal-slot-card__actions, .jadwal-quick-edit, .jadwal-delete-one, a, button')) {
+            if (e.target.closest('.jadwal-slot-card__actions, .jadwal-slot-card__menu, .dropdown-menu, .jadwal-quick-edit, .jadwal-delete-one, a, button')) {
                 return;
             }
             var data = cardDataFromEl(card);
@@ -463,6 +437,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         initSidebarCollapsed();
         initHariTabs();
+        initCardDropdownMenus();
         initCardInteractions();
     });
 })();

@@ -67,6 +67,83 @@ function ikhtibar_pg_jumlah_opsi_dari_row(array $row): int
 }
 
 /**
+ * Huruf opsi PG yang teksnya tidak kosong (urutan asli A–E).
+ *
+ * @param array<string,mixed> $soalRow
+ * @return list<string>
+ */
+function ikhtibar_pg_opsi_huruf_aktif(array $soalRow): array
+{
+    $jumlah = ikhtibar_pg_jumlah_opsi_dari_row($soalRow);
+    $out = [];
+    foreach (ikhtibar_pg_opsi_huruf_list($jumlah) as $huruf) {
+        $col = 'opsi_' . strtolower($huruf);
+        if (trim((string) ($soalRow[$col] ?? '')) !== '') {
+            $out[] = $huruf;
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * @return array<string, list<string>>
+ */
+function ikhtibar_sesi_opsi_map_decode(array $sesi): array
+{
+    $raw = json_decode((string) ($sesi['urutan_opsi_json'] ?? '{}'), true);
+    if (!is_array($raw)) {
+        return [];
+    }
+    $out = [];
+    foreach ($raw as $soalId => $hurufList) {
+        if (!is_array($hurufList)) {
+            continue;
+        }
+        $clean = [];
+        foreach ($hurufList as $huruf) {
+            $h = strtoupper(trim((string) $huruf));
+            if ($h !== '' && in_array($h, ['A', 'B', 'C', 'D', 'E'], true)) {
+                $clean[] = $h;
+            }
+        }
+        if ($clean !== []) {
+            $out[(string) $soalId] = $clean;
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Urutan tampilan opsi PG untuk sesi santri (acak per sesi, fallback A–E).
+ *
+ * @param array<string,mixed> $sesi
+ * @param array<string,mixed> $soalRow
+ * @return list<string>
+ */
+function ikhtibar_pg_opsi_urut_sesi(array $sesi, int $soalId, array $soalRow): array
+{
+    $valid = ikhtibar_pg_opsi_huruf_aktif($soalRow);
+    if ($valid === []) {
+        return [];
+    }
+    $map = ikhtibar_sesi_opsi_map_decode($sesi);
+    $stored = $map[(string) $soalId] ?? null;
+    if (is_array($stored) && $stored !== []) {
+        $filtered = array_values(array_filter(
+            $stored,
+            static fn (string $h): bool => in_array($h, $valid, true)
+        ));
+        if ($filtered !== []) {
+            return $filtered;
+        }
+    }
+
+    return $valid;
+}
+
+/**
  * @param array<string,mixed> $row
  */
 function ikhtibar_pg_validasi_baris(array $row, int $nom): ?string

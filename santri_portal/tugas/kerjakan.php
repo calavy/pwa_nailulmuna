@@ -256,27 +256,11 @@ else:
 
                     <?php if ($jenis === 'PG'): ?>
 
-                        <?php foreach (ikhtibar_pg_opsi_huruf_list(ikhtibar_pg_jumlah_opsi_dari_row($soal)) as $huruf):
-
-                            $col = 'opsi_' . strtolower($huruf);
-
-                            if (trim((string) ($soal[$col] ?? '')) === '') {
-
-                                continue;
-
-                            }
-
-                            ?>
-
-                            <div class="form-check ikhtibar-soal-text" dir="auto">
-
-                                <input class="form-check-input" type="radio" name="jawaban_<?= $sid ?>" value="<?= $huruf ?>" id="j<?= $sid ?>_<?= $huruf ?>" <?= $jawabSaved === $huruf ? 'checked' : '' ?>>
-
-                                <label class="form-check-label" for="j<?= $sid ?>_<?= $huruf ?>"><?= $huruf ?>. <?= htmlspecialchars((string) $soal[$col]) ?></label>
-
-                            </div>
-
-                        <?php endforeach; ?>
+                        <?= ikhtibar_render_pg_opsi_html($soal, [
+                            'soal_id' => $sid,
+                            'saved_jawaban' => $jawabSaved,
+                            'sesi' => $sesi,
+                        ]) ?>
 
                     <?php else: ?>
 

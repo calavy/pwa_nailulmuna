@@ -75,6 +75,7 @@ function ikhtibar_apply_pending_schema_columns(PDO $pdo): void
     if (table_exists($pdo, 'ikhtibar_sesi')) {
         akademik_add_column($pdo, 'ikhtibar_sesi', 'draf_pin_hash', 'VARCHAR(255) NULL');
         akademik_add_column($pdo, 'ikhtibar_sesi', 'draf_disimpan_at', 'DATETIME NULL');
+        akademik_add_column($pdo, 'ikhtibar_sesi', 'urutan_opsi_json', 'TEXT NULL');
     }
 
     akademik_add_column($pdo, 'ikhtibar_tugas', 'draf_akses_pin_hash', 'VARCHAR(255) NULL');
@@ -1043,6 +1044,33 @@ function ikhtibar_shuffle_soal_ids(PDO $pdo, int $tugasId): array
     return $ids;
 }
 
+/**
+ * Acak urutan opsi PG per soal (map soal_id → huruf opsi).
+ *
+ * @return array<string, list<string>>
+ */
+function ikhtibar_shuffle_opsi_map(PDO $pdo, int $tugasId): array
+{
+    require_once __DIR__ . '/ikhtibar_import.php';
+    $map = [];
+    foreach (ikhtibar_soal_by_tugas($pdo, $tugasId) as $soal) {
+        if ((string) ($soal['jenis'] ?? '') !== 'PG') {
+            continue;
+        }
+        $sid = (int) ($soal['id'] ?? 0);
+        if ($sid <= 0) {
+            continue;
+        }
+        $huruf = ikhtibar_pg_opsi_huruf_aktif($soal);
+        if (count($huruf) > 1) {
+            shuffle($huruf);
+        }
+        $map[(string) $sid] = $huruf;
+    }
+
+    return $map;
+}
+
 function ikhtibar_mulai_sesi(PDO $pdo, int $tugasId, int $santriId): array
 {
     ensure_akademik_ikhtibar_tables($pdo);
@@ -1061,25 +1089,28 @@ function ikhtibar_mulai_sesi(PDO $pdo, int $tugasId, int $santriId): array
         return ['ok' => false, 'message' => 'Tugas hanya dapat dikerjakan pada tanggal pelaksanaan (' . ikhtibar_tugas_tanggal_tampilan($tugas) . ').'];
     }
     $urutan = ikhtibar_shuffle_soal_ids($pdo, $tugasId);
+    $urutanOpsi = ikhtibar_shuffle_opsi_map($pdo, $tugasId);
     $durasi = max(5, (int) ($tugas['durasi_menit'] ?? 60));
     if ($sesi) {
         $pdo->prepare('
-            UPDATE ikhtibar_sesi SET urutan_soal_json = :u, waktu_mulai = NOW(), status = "berjalan", durasi_menit = :d
+            UPDATE ikhtibar_sesi SET urutan_soal_json = :u, urutan_opsi_json = :o, waktu_mulai = NOW(), status = "berjalan", durasi_menit = :d
             WHERE id = :id
         ')->execute([
             'u' => json_encode($urutan, JSON_THROW_ON_ERROR),
+            'o' => json_encode($urutanOpsi, JSON_THROW_ON_ERROR),
             'd' => $durasi,
             'id' => (int) $sesi['id'],
         ]);
         $sesiId = (int) $sesi['id'];
     } else {
         $pdo->prepare('
-            INSERT INTO ikhtibar_sesi (tugas_id, santri_id, urutan_soal_json, waktu_mulai, durasi_menit, status)
-            VALUES (:t, :s, :u, NOW(), :d, "berjalan")
+            INSERT INTO ikhtibar_sesi (tugas_id, santri_id, urutan_soal_json, urutan_opsi_json, waktu_mulai, durasi_menit, status)
+            VALUES (:t, :s, :u, :o, NOW(), :d, "berjalan")
         ')->execute([
             't' => $tugasId,
             's' => $santriId,
             'u' => json_encode($urutan, JSON_THROW_ON_ERROR),
+            'o' => json_encode($urutanOpsi, JSON_THROW_ON_ERROR),
             'd' => $durasi,
         ]);
         $sesiId = (int) $pdo->lastInsertId();

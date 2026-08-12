@@ -18,6 +18,49 @@ function ikhtibar_soal_teks_html(string $text, bool $small = false): string
 }
 
 /**
+ * Render opsi PG (radio) — urutan bisa diacak per sesi santri.
+ *
+ * @param array<string,mixed> $soal
+ * @param array{soal_id?:int,name_prefix?:string,saved_jawaban?:string,readonly?:bool,urutan_huruf?:list<string>,sesi?:array<string,mixed>|null} $opts
+ */
+function ikhtibar_render_pg_opsi_html(array $soal, array $opts = []): string
+{
+    $soalId = (int) ($opts['soal_id'] ?? $soal['id'] ?? 0);
+    $namePrefix = (string) ($opts['name_prefix'] ?? 'jawaban_');
+    $saved = (string) ($opts['saved_jawaban'] ?? '');
+    $readonly = (bool) ($opts['readonly'] ?? false);
+    $inputIdPrefix = (string) ($opts['input_id_prefix'] ?? ('j' . $soalId . '_'));
+
+    $urutanHuruf = $opts['urutan_huruf'] ?? null;
+    if (!is_array($urutanHuruf)) {
+        $sesi = $opts['sesi'] ?? null;
+        if (is_array($sesi) && $soalId > 0) {
+            $urutanHuruf = ikhtibar_pg_opsi_urut_sesi($sesi, $soalId, $soal);
+        } else {
+            $urutanHuruf = ikhtibar_pg_opsi_huruf_aktif($soal);
+        }
+    }
+
+    $html = '';
+    foreach ($urutanHuruf as $huruf) {
+        $col = 'opsi_' . strtolower($huruf);
+        if (trim((string) ($soal[$col] ?? '')) === '') {
+            continue;
+        }
+        $inputId = $inputIdPrefix . $huruf;
+        $name = $namePrefix . $soalId;
+        $checked = $saved !== '' && strtoupper($saved) === strtoupper($huruf) ? ' checked' : '';
+        $disabled = $readonly ? ' disabled' : '';
+        $html .= '<div class="form-check ikhtibar-soal-text" dir="auto">';
+        $html .= '<input class="form-check-input" type="radio" name="' . htmlspecialchars($name) . '" value="' . htmlspecialchars($huruf) . '" id="' . htmlspecialchars($inputId) . '"' . $checked . $disabled . '>';
+        $html .= '<label class="form-check-label" for="' . htmlspecialchars($inputId) . '">' . htmlspecialchars($huruf) . '. ' . htmlspecialchars((string) $soal[$col]) . '</label>';
+        $html .= '</div>';
+    }
+
+    return $html;
+}
+
+/**
  * Ubah struct import/form ke baris mirip DB untuk render kartu santri.
  *
  * @param array{pg:array<int,array<string,mixed>>,esai:array<int,array<string,mixed>>} $soal
@@ -104,20 +147,13 @@ function ikhtibar_render_soal_cards_html(array $soalList, array $opts = []): str
                 </div>
                 <div class="mb-2"><?= ikhtibar_soal_teks_html((string) ($soal['teks_soal'] ?? '')) ?></div>
                 <?php if ($jenis === 'PG'): ?>
-                    <?php
-                    $jumlahOpsi = ikhtibar_pg_jumlah_opsi_dari_row($soal);
-                    foreach (ikhtibar_pg_opsi_huruf_list($jumlahOpsi) as $huruf):
-                        $col = 'opsi_' . strtolower($huruf);
-                        if (trim((string) ($soal[$col] ?? '')) === '') {
-                            continue;
-                        }
-                        $inputId = 'preview_j' . $sid . '_' . $huruf;
-                        ?>
-                        <div class="form-check ikhtibar-soal-text" dir="auto">
-                            <input class="form-check-input" type="radio" name="preview_jawaban_<?= $sid ?>" value="<?= $huruf ?>" id="<?= htmlspecialchars($inputId) ?>"<?= $readonly ? ' disabled' : '' ?>>
-                            <label class="form-check-label" for="<?= htmlspecialchars($inputId) ?>"><?= $huruf ?>. <?= htmlspecialchars((string) $soal[$col]) ?></label>
-                        </div>
-                    <?php endforeach; ?>
+                    <?= ikhtibar_render_pg_opsi_html($soal, [
+                        'soal_id' => $sid,
+                        'name_prefix' => 'preview_jawaban_',
+                        'input_id_prefix' => 'preview_j' . $sid . '_',
+                        'readonly' => $readonly,
+                        'urutan_huruf' => ikhtibar_pg_opsi_huruf_aktif($soal),
+                    ]) ?>
                     <?php if ($showKunci && trim((string) ($soal['kunci_jawaban'] ?? '')) !== ''): ?>
                         <p class="small text-success mb-0 mt-1">Kunci: <?= htmlspecialchars((string) $soal['kunci_jawaban']) ?></p>
                     <?php endif; ?>

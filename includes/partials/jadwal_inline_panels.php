@@ -25,21 +25,10 @@ $preselectKegiatanId = (int) ($preselectKegiatanId ?? 0);
 $showKegiatan = $panelOpen === 'kegiatan';
 $showJadwal = $panelOpen === 'jadwal';
 ?>
-<div class="card shadow-sm border-0 mb-3 jadwal-inline-panels">
+<div class="card shadow-sm border-0 mb-3 jadwal-inline-panels<?= ($showKegiatan || $showJadwal) ? '' : ' d-none' ?>" id="jadwal-inline-panels-wrap">
     <div class="card-body py-3">
-        <div class="d-flex flex-wrap gap-2 mb-0">
-            <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>">
-                <i class="fa-solid fa-bookmark me-1"></i> Kegiatan Ta'lim / Jama'ah
-            </a>
-            <button type="button" class="btn btn-outline-success btn-sm jadwal-panel-toggle" data-panel="kegiatan" aria-expanded="<?= $showKegiatan ? 'true' : 'false' ?>">
-                <i class="fa-solid fa-plus me-1"></i> Tambah cepat
-            </button>
-            <button type="button" class="btn btn-success btn-sm jadwal-panel-toggle" data-panel="jadwal" aria-expanded="<?= $showJadwal ? 'true' : 'false' ?>">
-                <i class="fa-solid fa-calendar-plus me-1"></i> Tambah jadwal
-            </button>
-        </div>
 
-        <div id="jadwal-panel-kegiatan" class="jadwal-inline-panel mt-3<?= $showKegiatan ? '' : ' d-none' ?>">
+        <div id="jadwal-panel-kegiatan" class="jadwal-inline-panel<?= $showKegiatan ? '' : ' d-none' ?>">
             <h3 class="h6 mb-2">Form tambah kegiatan</h3>
             <form method="post" class="row g-2 align-items-end" style="max-width:36rem">
                 <input type="hidden" name="action" value="tambah_kegiatan">
@@ -61,7 +50,7 @@ $showJadwal = $panelOpen === 'jadwal';
             </form>
         </div>
 
-        <div id="jadwal-panel-jadwal" class="jadwal-inline-panel mt-3<?= $showJadwal ? '' : ' d-none' ?>">
+        <div id="jadwal-panel-jadwal" class="jadwal-inline-panel<?= $showJadwal ? '' : ' d-none' ?>">
             <h3 class="h6 mb-2">Form tambah slot jadwal</h3>
             <p class="text-muted small mb-2">Pilih <strong>nama kegiatan</strong> yang sudah ada — buat kegiatan baru dulu lewat tombol di atas atau halaman Kegiatan. Setiap kombinasi <strong>hari × tingkatan</strong> disimpan sebagai baris terpisah. Kegiatan <strong>Extra</strong> otomatis memakai tingkatan <em>Semua Tingkatan</em>.</p>
             <?php if ($kegiatanListAktif === []): ?>
@@ -138,6 +127,7 @@ $showJadwal = $panelOpen === 'jadwal';
         btn.addEventListener('click', function () {
             var key = btn.getAttribute('data-panel');
             var target = panels[key];
+            var wrap = document.getElementById('jadwal-inline-panels-wrap');
             if (!target) return;
             var willShow = target.classList.contains('d-none');
             Object.keys(panels).forEach(function (k) {
@@ -146,6 +136,11 @@ $showJadwal = $panelOpen === 'jadwal';
             });
             if (willShow) {
                 target.classList.remove('d-none');
+                if (wrap) {
+                    wrap.classList.remove('d-none');
+                }
+            } else if (wrap) {
+                wrap.classList.add('d-none');
             }
             toggles.forEach(function (b) {
                 b.setAttribute('aria-expanded', b === btn && willShow ? 'true' : 'false');

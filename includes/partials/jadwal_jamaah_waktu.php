@@ -56,24 +56,14 @@ $renderJamaahKelompokForm = static function (
             <div class="jadwal-jamaah-time-row jadwal-jamaah-time-row--compact">
                 <div class="jadwal-jamaah-time-field">
                     <label class="form-label small mb-1">Mulai</label>
-                    <div class="input-group input-group-sm">
-                        <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="jm" data-delta="-5" title="-5 menit">−5</button>
-                        <input type="text" name="jam_mulai" class="form-control font-monospace input-time-24 jadwal-jamaah-jm"
-                            inputmode="numeric" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" placeholder="HH:MM" maxlength="5" required
-                            value="<?= htmlspecialchars($jm !== '' ? $jm : $saranJm) ?>">
-                        <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="jm" data-delta="5" title="+5 menit">+5</button>
-                    </div>
+                    <input type="time" name="jam_mulai" class="form-control form-control-sm jadwal-jamaah-jm jadwal-time-picker"
+                        required value="<?= htmlspecialchars($jm !== '' ? $jm : $saranJm) ?>">
                 </div>
                 <div class="jadwal-jamaah-time-sep" aria-hidden="true">s/d</div>
                 <div class="jadwal-jamaah-time-field">
                     <label class="form-label small mb-1">Selesai</label>
-                    <div class="input-group input-group-sm">
-                        <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="js" data-delta="-5" title="-5 menit">−5</button>
-                        <input type="text" name="jam_selesai" class="form-control font-monospace input-time-24 jadwal-jamaah-js"
-                            inputmode="numeric" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" placeholder="HH:MM" maxlength="5" required
-                            value="<?= htmlspecialchars($js !== '' ? $js : $saranJs) ?>">
-                        <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="js" data-delta="5" title="+5 menit">+5</button>
-                    </div>
+                    <input type="time" name="jam_selesai" class="form-control form-control-sm jadwal-jamaah-js jadwal-time-picker"
+                        required value="<?= htmlspecialchars($js !== '' ? $js : $saranJs) ?>">
                 </div>
             </div>
 
@@ -188,18 +178,18 @@ $renderJamaahKelompokForm = static function (
                                 <div>
                                     <span class="fw-semibold small">Putra</span>
                                     <div class="d-flex gap-1 mt-1">
-                                        <input type="text" name="jam_mulai_putra" class="form-control form-control-sm font-monospace input-time-24 jadwal-jamaah-jm" placeholder="Mulai" required
+                                        <input type="time" name="jam_mulai_putra" class="form-control form-control-sm jadwal-jamaah-jm jadwal-time-picker" required
                                             value="<?= htmlspecialchars((string) ($ringPutra['jam_mulai_tampil'] ?: ($saran['jam_mulai'] ?? ''))) ?>">
-                                        <input type="text" name="jam_selesai_putra" class="form-control form-control-sm font-monospace input-time-24 jadwal-jamaah-js" placeholder="Selesai" required
+                                        <input type="time" name="jam_selesai_putra" class="form-control form-control-sm jadwal-jamaah-js jadwal-time-picker" required
                                             value="<?= htmlspecialchars((string) ($ringPutra['jam_selesai_tampil'] ?: ($saran['jam_selesai'] ?? ''))) ?>">
                                     </div>
                                 </div>
                                 <div>
                                     <span class="fw-semibold small">Putri</span>
                                     <div class="d-flex gap-1 mt-1">
-                                        <input type="text" name="jam_mulai_putri" class="form-control form-control-sm font-monospace input-time-24 jadwal-jamaah-jm" placeholder="Mulai" required
+                                        <input type="time" name="jam_mulai_putri" class="form-control form-control-sm jadwal-jamaah-jm jadwal-time-picker" required
                                             value="<?= htmlspecialchars((string) ($ringPutri['jam_mulai_tampil'] ?: ($saran['jam_mulai'] ?? ''))) ?>">
-                                        <input type="text" name="jam_selesai_putri" class="form-control form-control-sm font-monospace input-time-24 jadwal-jamaah-js" placeholder="Selesai" required
+                                        <input type="time" name="jam_selesai_putri" class="form-control form-control-sm jadwal-jamaah-js jadwal-time-picker" required
                                             value="<?= htmlspecialchars((string) ($ringPutri['jam_selesai_tampil'] ?: ($saran['jam_selesai'] ?? ''))) ?>">
                                     </div>
                                 </div>

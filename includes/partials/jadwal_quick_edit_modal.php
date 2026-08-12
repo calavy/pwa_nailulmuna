@@ -70,19 +70,11 @@ $hari = $hari ?? [];
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Jam mulai</label>
-                            <div class="input-group input-group-sm">
-                                <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="jm" data-delta="-5" title="-5 menit">−5</button>
-                                <input type="text" name="jam_mulai" id="jq-jam-mulai" class="form-control input-time-24" inputmode="numeric" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" placeholder="HH:MM" maxlength="5" autocomplete="off" required>
-                                <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="jm" data-delta="5" title="+5 menit">+5</button>
-                            </div>
+                            <input type="time" name="jam_mulai" id="jq-jam-mulai" class="form-control form-control-sm jadwal-time-picker" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Jam selesai</label>
-                            <div class="input-group input-group-sm">
-                                <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="js" data-delta="-5" title="-5 menit">−5</button>
-                                <input type="text" name="jam_selesai" id="jq-jam-selesai" class="form-control input-time-24" inputmode="numeric" pattern="^([01]?[0-9]|2[0-3]):[0-5][0-9]$" placeholder="HH:MM" maxlength="5" autocomplete="off" required>
-                                <button type="button" class="btn btn-outline-secondary jadwal-time-nudge" data-target="js" data-delta="5" title="+5 menit">+5</button>
-                            </div>
+                            <input type="time" name="jam_selesai" id="jq-jam-selesai" class="form-control form-control-sm jadwal-time-picker" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Tempat</label>

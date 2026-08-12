@@ -40,8 +40,9 @@ $prevKg = '';
                     $kat = (string) ($row['kategori_kegiatan'] ?? 'TAALIM');
                     $hariList = $row['_hari_list'] ?? [(int) ($row['hari_ke'] ?? 0)];
                     $hkPrimary = (int) ($hariList[0] ?? 0);
-                    $hariLabel = jadwal_hari_list_label($hariList, $hari);
-                    $hariSlug = jadwal_hari_badge_slug($hkPrimary);
+                    $hariLabelRingkas = jadwal_hari_list_label_ringkas($hariList, $hari);
+                    $hariLabelFull = jadwal_hari_list_label($hariList, $hari);
+                    $hariSlug = jadwal_hari_badge_slug($hkPrimary === 0 ? 1 : $hkPrimary);
                     $tingkatan = trim((string) ($row['tingkatan'] ?? '—'));
                     $pem = trim((string) ($row['nama_pembimbing'] ?? ''));
                     $groupStart = $namaKg !== $prevKg;
@@ -55,7 +56,7 @@ $prevKg = '';
                     ?>
                     <tr class="jadwal-peta-row<?= $groupStart ? ' jadwal-peta-row--group-start' : '' ?>">
                         <td class="jadwal-peta-td">
-                            <span class="jadwal-peta-hari jadwal-peta-hari--<?= htmlspecialchars($hariSlug) ?>"><?= htmlspecialchars($hariLabel) ?></span>
+                            <span class="jadwal-peta-hari jadwal-peta-hari--<?= htmlspecialchars($hariSlug) ?>" title="<?= htmlspecialchars($hariLabelFull) ?>"><?= htmlspecialchars($hariLabelRingkas) ?></span>
                         </td>
                         <td class="jadwal-peta-td">
                             <span class="jadwal-peta-waktu font-monospace js-time-24">

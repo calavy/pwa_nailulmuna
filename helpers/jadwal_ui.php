@@ -175,6 +175,9 @@ function jadwal_gabung_baris_serupa(array $items): array
 /** @param list<int> $hariList @param array<int,string> $hariLabels */
 function jadwal_hari_list_label(array $hariList, array $hariLabels): string
 {
+    if (in_array(0, array_map('intval', $hariList), true)) {
+        return $hariLabels[0] ?? 'Setiap hari';
+    }
     $hariList = array_values(array_unique(array_filter(array_map('intval', $hariList), static fn (int $h): bool => $h > 0)));
     sort($hariList, SORT_NUMERIC);
     if ($hariList === []) {
@@ -186,6 +189,139 @@ function jadwal_hari_list_label(array $hariList, array $hariLabels): string
     }
 
     return implode(', ', $parts);
+}
+
+/** Singkatan 3 huruf untuk label hari (Sen, Sel, …). */
+function jadwal_hari_singkat3(int $hariKe, array $hariLabels): string
+{
+    if ($hariKe === 0) {
+        return 'Harian';
+    }
+    $full = $hariLabels[$hariKe] ?? ('H' . $hariKe);
+
+    return mb_strtoupper(mb_substr($full, 0, 1)) . mb_substr($full, 1, 2);
+}
+
+/**
+ * Normalisasi daftar hari ke 1–7 (0 = setiap hari).
+ *
+ * @param list<int> $hariList
+ * @return list<int>
+ */
+function jadwal_hari_list_normalize(array $hariList): array
+{
+    $hasDaily = in_array(0, array_map('intval', $hariList), true);
+    if ($hasDaily) {
+        return [1, 2, 3, 4, 5, 6, 7];
+    }
+    $out = array_values(array_unique(array_filter(array_map('intval', $hariList), static fn (int $h): bool => $h >= 1 && $h <= 7)));
+    sort($out, SORT_NUMERIC);
+
+    return $out;
+}
+
+/**
+ * Label hari ringkas: Harian · Sen–Kam · Sen, Rab +N.
+ *
+ * @param list<int> $hariList
+ * @param array<int,string> $hariLabels
+ */
+function jadwal_hari_list_label_ringkas(array $hariList, array $hariLabels): string
+{
+    $days = jadwal_hari_list_normalize($hariList);
+    if ($days === [] || count($days) === 7) {
+        return 'Harian';
+    }
+    if (count($days) === 1) {
+        return jadwal_hari_singkat3($days[0], $hariLabels);
+    }
+
+    $ranges = [];
+    $start = $days[0];
+    $prev = $days[0];
+    for ($i = 1, $n = count($days); $i <= $n; $i++) {
+        $cur = $days[$i] ?? null;
+        if ($cur !== null && $cur === $prev + 1) {
+            $prev = $cur;
+            continue;
+        }
+        $ranges[] = $start === $prev
+            ? jadwal_hari_singkat3($start, $hariLabels)
+            : jadwal_hari_singkat3($start, $hariLabels) . '–' . jadwal_hari_singkat3($prev, $hariLabels);
+        if ($cur !== null) {
+            $start = $cur;
+            $prev = $cur;
+        }
+    }
+
+    if (count($ranges) <= 2) {
+        return implode(', ', $ranges);
+    }
+
+    return $ranges[0] . ', ' . $ranges[1] . ' +' . (count($ranges) - 2);
+}
+
+/**
+ * Badge HTML ringkas untuk kolom hari (daftar/tabel).
+ *
+ * @param list<int> $hariList
+ * @param array<int,string> $hariLabels
+ */
+function jadwal_hari_list_badges_html(array $hariList, array $hariLabels): string
+{
+    $days = jadwal_hari_list_normalize($hariList);
+    $fullLabel = jadwal_hari_list_label($hariList, $hariLabels);
+    $ringkas = jadwal_hari_list_label_ringkas($hariList, $hariLabels);
+    $title = htmlspecialchars($fullLabel !== '—' ? $fullLabel : $ringkas, ENT_QUOTES, 'UTF-8');
+
+    if ($days === [] || count($days) === 7) {
+        return '<span class="badge text-bg-light border jadwal-peta-hari jadwal-peta-hari--daily" title="' . $title . '">Harian</span>';
+    }
+
+    if (count($days) === 1) {
+        $hk = $days[0];
+        $slug = jadwal_hari_badge_slug($hk);
+
+        return '<span class="jadwal-peta-hari jadwal-peta-hari--' . htmlspecialchars($slug, ENT_QUOTES, 'UTF-8') . '" title="' . $title . '">'
+            . htmlspecialchars(jadwal_hari_singkat3($hk, $hariLabels)) . '</span>';
+    }
+
+    $ranges = [];
+    $start = $days[0];
+    $prev = $days[0];
+    for ($i = 1, $n = count($days); $i <= $n; $i++) {
+        $cur = $days[$i] ?? null;
+        if ($cur !== null && $cur === $prev + 1) {
+            $prev = $cur;
+            continue;
+        }
+        $ranges[] = ['start' => $start, 'end' => $prev];
+        if ($cur !== null) {
+            $start = $cur;
+            $prev = $cur;
+        }
+    }
+
+    $html = '';
+    $shown = 0;
+    foreach ($ranges as $range) {
+        if ($shown >= 2) {
+            break;
+        }
+        $slug = jadwal_hari_badge_slug($range['start']);
+        $lbl = $range['start'] === $range['end']
+            ? jadwal_hari_singkat3($range['start'], $hariLabels)
+            : jadwal_hari_singkat3($range['start'], $hariLabels) . '–' . jadwal_hari_singkat3($range['end'], $hariLabels);
+        $html .= '<span class="jadwal-peta-hari jadwal-peta-hari--' . htmlspecialchars($slug, ENT_QUOTES, 'UTF-8') . ' me-1" title="' . $title . '">'
+            . htmlspecialchars($lbl) . '</span>';
+        $shown++;
+    }
+    $extra = count($ranges) - $shown;
+    if ($extra > 0) {
+        $html .= '<span class="badge text-bg-secondary">+' . $extra . '</span>';
+    }
+
+    return $html;
 }
 
 /**

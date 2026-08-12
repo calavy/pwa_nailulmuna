@@ -53,12 +53,8 @@ $renderJadwalRows = static function (array $items, string $namaGrup) use ($byKeg
             <td class="small text-nowrap">
                 <?php
                 $hariListRender = $item['_hari_list'] ?? [(int) ($item['hari_ke'] ?? 0)];
-                foreach ($hariListRender as $hkBadge):
-                    $slug = jadwal_hari_badge_slug((int) $hkBadge);
-                    $lbl = jadwal_hari_singkat((int) $hkBadge, $hari);
-                    ?>
-                    <span class="jadwal-peta-hari jadwal-peta-hari--<?= htmlspecialchars($slug) ?> me-1"><?= htmlspecialchars($lbl) ?></span>
-                <?php endforeach; ?>
+                echo jadwal_hari_list_badges_html($hariListRender, $hari);
+                ?>
             </td>
             <?php if ($byKegiatan): ?>
                 <td class="small"><?= htmlspecialchars((string) ($item['nama_pembimbing'] ?? '—')) ?></td>
