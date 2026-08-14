@@ -925,6 +925,25 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         return $antiDobel;
     }
 
+    require_once __DIR__ . '/keuangan_input_dobel.php';
+    $idempotencyErr = keuangan_input_dobel_idempotency_cek($post, $userId);
+    if ($idempotencyErr !== null) {
+        return ['ok' => false, 'message' => $idempotencyErr, 'id' => 0, 'saku_topup_ok' => false];
+    }
+    $refErr = keuangan_input_dobel_cek_no_referensi_pembayaran($pdo, $noReferensi, $metodeBayar);
+    if ($refErr !== null) {
+        return ['ok' => false, 'message' => $refErr, 'id' => 0, 'saku_topup_ok' => false];
+    }
+    $fingerprintPembayaran = keuangan_input_dobel_fingerprint_pembayaran(
+        $santriId,
+        $tanggalBayar,
+        $totalNominal,
+        $jenisPeriode,
+        $bulanTagihan,
+        $detailRows,
+        $userId
+    );
+
     foreach ($detailRows as $dr) {
         if (keuangan_pembayaran_detail_is_saku($dr)) {
             continue;
@@ -1041,6 +1060,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
             $userId
         );
 
+        if (!keuangan_input_dobel_claim($pdo, $fingerprintPembayaran, 'pembayaran', $pembayaranId)) {
+            throw new RuntimeException(keuangan_validasi_pesan('INPUT_DOBEL'));
+        }
+
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -1059,6 +1082,8 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         require_once __DIR__ . '/keuangan_dashboard.php';
     }
     keuangan_dashboard_cache_invalidate();
+
+    keuangan_input_dobel_idempotency_mark($post, $userId);
 
     require_once __DIR__ . '/keuangan_wa.php';
     $waPembayaran = keuangan_kirim_wa_pembayaran_wali($pdo, $pembayaranId);
@@ -1122,6 +1147,24 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
         return ['ok' => false, 'message' => $akunErr];
     }
 
+    require_once __DIR__ . '/keuangan_input_dobel.php';
+    $idempotencyErr = keuangan_input_dobel_idempotency_cek($post, $userId);
+    if ($idempotencyErr !== null) {
+        return ['ok' => false, 'message' => $idempotencyErr];
+    }
+    $buktiErr = keuangan_input_dobel_cek_no_bukti_pengeluaran($pdo, $noBukti, $metodeKeluar);
+    if ($buktiErr !== null) {
+        return ['ok' => false, 'message' => $buktiErr];
+    }
+    $fingerprintPengeluaran = keuangan_input_dobel_fingerprint_pengeluaran(
+        $tanggal,
+        $akunId,
+        $nominal,
+        $pos,
+        $alokasiNama,
+        $userId
+    );
+
     $cols = ['tanggal', 'penanggung_jawab', 'pos', 'alokasi_nama', 'nominal', 'keterangan', 'created_by'];
     $vals = [':tanggal', ':penanggung_jawab', ':pos', ':alokasi_nama', ':nominal', ':keterangan', ':created_by'];
     $params = [
@@ -1150,16 +1193,35 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     }
 
     $sql = 'INSERT INTO keuangan_pengeluaran (' . implode(', ', $cols) . ') VALUES (' . implode(', ', $vals) . ')';
-    $pdo->prepare($sql)->execute($params);
-    $pengeluaranId = (int) $pdo->lastInsertId();
 
     keuangan_transaksi_bootstrap_jurnal();
-    keuangan_jurnal_pengeluaran($pdo, $pengeluaranId, $tanggal, $akunId, $nominal, $pos, $userId);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare($sql)->execute($params);
+        $pengeluaranId = (int) $pdo->lastInsertId();
+
+        keuangan_jurnal_pengeluaran($pdo, $pengeluaranId, $tanggal, $akunId, $nominal, $pos, $userId);
+
+        if (!keuangan_input_dobel_claim($pdo, $fingerprintPengeluaran, 'pengeluaran', $pengeluaranId)) {
+            throw new RuntimeException(keuangan_validasi_pesan('INPUT_DOBEL'));
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => $e->getMessage()];
+    }
 
     if (!function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
     }
     keuangan_dashboard_cache_invalidate();
+
+    keuangan_input_dobel_idempotency_mark($post, $userId);
 
     return ['ok' => true, 'message' => 'Pengeluaran berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
 }
@@ -1210,29 +1272,66 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
         return ['ok' => false, 'message' => $akunErr];
     }
 
-    $pdo->prepare('
-        INSERT INTO keuangan_pemasukan (tanggal, sumber, dari_pihak, metode_bayar, akun_id, no_bukti, nominal, keterangan, created_by)
-        VALUES (:tanggal, :sumber, :dari_pihak, :metode_bayar, :akun_id, :no_bukti, :nominal, :keterangan, :created_by)
-    ')->execute([
-        'tanggal' => $tanggal,
-        'sumber' => $sumber,
-        'dari_pihak' => $dariPihak !== '' ? $dariPihak : null,
-        'metode_bayar' => $metodeBayar,
-        'akun_id' => $akunId,
-        'no_bukti' => $noBukti !== '' ? $noBukti : null,
-        'nominal' => $nominal,
-        'keterangan' => $keterangan !== '' ? $keterangan : null,
-        'created_by' => $userId > 0 ? $userId : null,
-    ]);
-    $pemasukanId = (int) $pdo->lastInsertId();
+    require_once __DIR__ . '/keuangan_input_dobel.php';
+    $idempotencyErr = keuangan_input_dobel_idempotency_cek($post, $userId);
+    if ($idempotencyErr !== null) {
+        return ['ok' => false, 'message' => $idempotencyErr];
+    }
+    $buktiErr = keuangan_input_dobel_cek_no_bukti_pemasukan($pdo, $noBukti, $metodeBayar);
+    if ($buktiErr !== null) {
+        return ['ok' => false, 'message' => $buktiErr];
+    }
+    $fingerprintPemasukan = keuangan_input_dobel_fingerprint_pemasukan(
+        $tanggal,
+        $akunId,
+        $nominal,
+        $sumber,
+        $metodeBayar,
+        $noBukti,
+        $userId
+    );
 
     keuangan_transaksi_bootstrap_jurnal();
-    keuangan_jurnal_pemasukan($pdo, $pemasukanId, $tanggal, $akunId, $nominal, $sumber, $userId);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('
+            INSERT INTO keuangan_pemasukan (tanggal, sumber, dari_pihak, metode_bayar, akun_id, no_bukti, nominal, keterangan, created_by)
+            VALUES (:tanggal, :sumber, :dari_pihak, :metode_bayar, :akun_id, :no_bukti, :nominal, :keterangan, :created_by)
+        ')->execute([
+            'tanggal' => $tanggal,
+            'sumber' => $sumber,
+            'dari_pihak' => $dariPihak !== '' ? $dariPihak : null,
+            'metode_bayar' => $metodeBayar,
+            'akun_id' => $akunId,
+            'no_bukti' => $noBukti !== '' ? $noBukti : null,
+            'nominal' => $nominal,
+            'keterangan' => $keterangan !== '' ? $keterangan : null,
+            'created_by' => $userId > 0 ? $userId : null,
+        ]);
+        $pemasukanId = (int) $pdo->lastInsertId();
+
+        keuangan_jurnal_pemasukan($pdo, $pemasukanId, $tanggal, $akunId, $nominal, $sumber, $userId);
+
+        if (!keuangan_input_dobel_claim($pdo, $fingerprintPemasukan, 'pemasukan', $pemasukanId)) {
+            throw new RuntimeException(keuangan_validasi_pesan('INPUT_DOBEL'));
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => $e->getMessage()];
+    }
 
     if (!function_exists('keuangan_dashboard_cache_invalidate')) {
         require_once __DIR__ . '/keuangan_dashboard.php';
     }
     keuangan_dashboard_cache_invalidate();
+
+    keuangan_input_dobel_idempotency_mark($post, $userId);
 
     return ['ok' => true, 'message' => 'Pemasukan berhasil dicatat (' . keuangan_format_rupiah($nominal) . ').'];
 }

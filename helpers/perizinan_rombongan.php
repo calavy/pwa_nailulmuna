@@ -337,6 +337,16 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         return ['ok' => false, 'message' => 'Data rombongan tidak ditemukan.'];
     }
 
+    $metaStatus = strtoupper((string) ($meta['approval_status'] ?? ''));
+    if ($metaStatus === 'DISETUJUI') {
+        $anggotaCount = count(perizinan_rombongan_anggota($pdo, $rombonganId));
+
+        return [
+            'ok' => true,
+            'message' => 'Izin rombongan sudah disetujui sebelumnya' . ($anggotaCount > 0 ? ' (' . $anggotaCount . ' santri).' : '.'),
+        ];
+    }
+
     $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
     if ($stampPengasuh && !perizinan_memerlukan_persetujuan_pengasuh($jenisIzin)) {
         return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang dapat disetujui pengasuh.'];
@@ -374,12 +384,14 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('
+        $stMeta = $pdo->prepare('
             UPDATE perizinan_rombongan_meta
             SET approval_status = "DISETUJUI", approved_by = :uid, approved_at = NOW(),
                 qr_token = :qr, tanggal_mulai = :t1, tanggal_selesai = :t2, jam_mulai = :j1, jam_selesai = :j2
             WHERE id = :id
-        ')->execute([
+              AND approval_status = "PENDING"
+        ');
+        $stMeta->execute([
             'uid' => $userId,
             'qr' => $qrToken,
             't1' => $tglMulai,
@@ -388,6 +400,12 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             'j2' => $jamSelesai,
             'id' => $rombonganId,
         ]);
+        if ($stMeta->rowCount() <= 0) {
+            $pdo->rollBack();
+
+            return ['ok' => true, 'message' => 'Izin rombongan sudah disetujui sebelumnya.'];
+        }
+
         $pdo->prepare('
             UPDATE perizinan
             SET approval_status = "DISETUJUI", approved_by = :uid, approved_at = NOW(),
@@ -395,6 +413,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
                 qr_token = :qr, status_izin = "IZIN",
                 tanggal_mulai = :t1, tanggal_selesai = :t2, jam_mulai = :j1, jam_selesai = :j2' . $pengasuhSql . '
             WHERE rombongan_id = :rid
+              AND approval_status = "PENDING"
         ')->execute([
             'uid' => $userId,
             'bypass' => $bypassAlpa ? 1 : 0,

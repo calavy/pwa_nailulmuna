@@ -77,16 +77,58 @@
         return null;
     }
 
+    function ensureIdempotencyKey(form) {
+        var input = form.querySelector('input[name="idempotency_key"]');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'idempotency_key';
+            form.appendChild(input);
+        }
+        if (!input.value) {
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                input.value = crypto.randomUUID();
+            } else {
+                input.value = String(Date.now()) + '-' + String(Math.random()).slice(2, 12);
+            }
+        }
+        return input;
+    }
+
+    function lockSubmit(form) {
+        if (form.getAttribute('data-submitting') === '1') {
+            return false;
+        }
+        form.setAttribute('data-submitting', '1');
+        ensureIdempotencyKey(form);
+        form.querySelectorAll('[type="submit"], button:not([type="button"])').forEach(function (btn) {
+            if (btn.type === 'button' || btn.getAttribute('data-bs-dismiss') === 'modal') {
+                return;
+            }
+            btn.disabled = true;
+            if (btn.tagName === 'BUTTON') {
+                btn.dataset.keuanganSubmitLabel = btn.textContent;
+                btn.textContent = 'Menyimpan…';
+            }
+        });
+        return true;
+    }
+
     window.keuanganFormValidasi = {
         showError: showError,
         clearError: clearError,
         parseRp: parseRp,
+        lockSubmit: lockSubmit,
         bind: function (form, rules) {
             if (!form) {
                 return;
             }
             rules = rules || {};
             form.addEventListener('submit', function (ev) {
+                if (form.getAttribute('data-submitting') === '1') {
+                    ev.preventDefault();
+                    return;
+                }
                 clearError(form);
                 var err = null;
                 if (rules.cekAkun !== false) {
@@ -104,7 +146,9 @@
                 if (err) {
                     ev.preventDefault();
                     showError(form, err);
+                    return;
                 }
+                lockSubmit(form);
             });
             form.querySelectorAll('[name="akun_id"], [name="metode_bayar"], [name="metode_keluar"], [name="no_referensi"], [name="no_bukti"]').forEach(function (el) {
                 el.addEventListener('change', function () {

@@ -26,6 +26,7 @@ function keuangan_validasi_pesan(string $kode, array $ctx = []): string
         'FORM_PENGELUARAN_KOSONG' => 'Form pengeluaran belum lengkap: penanggung jawab, pos beban, dan nominal wajib diisi.',
         'FORM_PEMASUKAN_KOSONG' => 'Form pemasukan belum lengkap: sumber dan nominal wajib diisi.',
         'DOBEL_LUNAS' => (string) ($ctx['detail'] ?? 'Komponen tagihan sudah lunas — input dobel ditolak untuk mencegah entri ganda.'),
+        'INPUT_DOBEL' => 'Transaksi identik baru saja dicatat. Input dobel ditolak.',
         'BULAN_DIBLOKIR' => (string) ($ctx['detail'] ?? 'Bulan tagihan ini belum ditagih atau tidak dapat dipilih untuk santri ini.'),
     ];
 
@@ -67,6 +68,20 @@ function keuangan_kesalahan_kas_def(string $jenis): array
             'penjelasan' => 'Ada lebih dari satu baris pembayaran dengan santri, tanggal, dan nominal yang sama.',
             'dampak' => 'Saldo kas dan tagihan santri bisa terhitung dua kali untuk transaksi yang sebenarnya satu kali.',
             'solusi' => 'Periksa kuitansi/bukti fisik. Hapus baris duplikat (super admin + alasan) jika memang entri ganda.',
+        ],
+        'pemasukan_dobel' => [
+            'kode' => 'pemasukan_dobel',
+            'judul' => 'Kemungkinan pemasukan dobel',
+            'penjelasan' => 'Ada lebih dari satu baris pemasukan dengan tanggal, akun, nominal, dan sumber yang sama.',
+            'dampak' => 'Saldo kas fisik dan laporan pemasukan bisa terhitung dua kali.',
+            'solusi' => 'Periksa bukti fisik. Hapus baris duplikat lewat Perbaikan Input Dobel (super admin + alasan).',
+        ],
+        'pengeluaran_dobel' => [
+            'kode' => 'pengeluaran_dobel',
+            'judul' => 'Kemungkinan pengeluaran dobel',
+            'penjelasan' => 'Ada lebih dari satu baris pengeluaran dengan tanggal, akun, nominal, dan pos yang sama.',
+            'dampak' => 'Saldo kas fisik dan laporan beban bisa terhitung dua kali.',
+            'solusi' => 'Periksa bukti fisik. Hapus baris duplikat lewat Perbaikan Input Dobel (super admin + alasan).',
         ],
         'gaji_tanpa_pengeluaran' => [
             'kode' => 'gaji_tanpa_pengeluaran',

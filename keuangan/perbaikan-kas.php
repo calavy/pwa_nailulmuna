@@ -471,6 +471,7 @@ function perbaikan_kas_render_tabel(
             <i class="fa-solid fa-circle-info me-1"></i>
             <?= htmlspecialchars((string) $dupDef['penjelasan'] . ' ' . $dupDef['dampak']) ?>
             Input baru sudah ditolak jika pos wajib sudah lunas. Hapus baris duplikat lewat edit pembayaran (super admin + alasan).
+            Lihat juga <a href="<?= htmlspecialchars(app_href('/keuangan/perbaikan-input-dobel.php')) ?>">Perbaikan Input Dobel</a> untuk pemasukan &amp; pengeluaran.
         </p>
     </div>
 </div>

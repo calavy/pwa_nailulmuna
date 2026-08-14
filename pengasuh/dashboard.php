@@ -370,6 +370,28 @@ require_once __DIR__ . '/../includes/header.php';
         });
     })();
 </script>
+<script>
+(function () {
+    document.querySelectorAll('form').forEach(function (form) {
+        var actionInput = form.querySelector('input[name="action"]');
+        if (!actionInput || actionInput.value !== 'setujui_pengasuh') {
+            return;
+        }
+        form.addEventListener('submit', function (e) {
+            if (form.getAttribute('data-submitting') === '1') {
+                e.preventDefault();
+                return;
+            }
+            form.setAttribute('data-submitting', '1');
+            var btn = form.querySelector('.pg-dash-izin-btn[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Memproses…';
+            }
+        });
+    });
+})();
+</script>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/keaktifan-hari.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

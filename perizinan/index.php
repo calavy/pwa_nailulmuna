@@ -80,6 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
+            if (strtoupper((string) ($izinInfo['approval_status'] ?? '')) !== 'PENDING') {
+                set_flash('info', 'Izin sudah disetujui sebelumnya.');
+                header('Location: ' . app_href('/perizinan/index.php'));
+                exit;
+            }
+
             $santriId = (int) ($izinInfo['santri_id'] ?? 0);
             $jenisIzinRaw = strtoupper((string) ($izinInfo['jenis_izin'] ?? ''));
             if (perizinan_memerlukan_persetujuan_pengasuh($jenisIzinRaw)) {
@@ -921,6 +927,22 @@ require_once __DIR__ . '/../includes/header.php';
             }
         }
     });
+
+    var approveForm = approveModal.querySelector('form');
+    if (approveForm) {
+        approveForm.addEventListener('submit', function (e) {
+            if (approveForm.getAttribute('data-submitting') === '1') {
+                e.preventDefault();
+                return;
+            }
+            approveForm.setAttribute('data-submitting', '1');
+            var submitBtn = document.getElementById('approve-submit-btn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Memproses…';
+            }
+        });
+    }
 })();
 
 (function () {

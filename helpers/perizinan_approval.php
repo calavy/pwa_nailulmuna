@@ -2000,6 +2000,12 @@ function perizinan_setujui_izin_satu(
         return ['ok' => false, 'message' => 'Data tidak valid.', 'wa' => ['pembimbing' => 0, 'grup' => 0, 'pengurus' => 0, 'total' => 0]];
     }
 
+    $emptyWa = ['pembimbing' => 0, 'grup' => 0, 'pengurus' => 0, 'total' => 0];
+    $statusNow = strtoupper((string) ($izinInfo['approval_status'] ?? ''));
+    if ($statusNow === 'DISETUJUI') {
+        return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.', 'wa' => $emptyWa];
+    }
+
     $tglMulai = trim((string) ($jadwal['tanggal_mulai'] ?? $izinInfo['tanggal_mulai'] ?? date('Y-m-d')));
     $tglSelesai = trim((string) ($jadwal['tanggal_selesai'] ?? $izinInfo['tanggal_selesai'] ?? date('Y-m-d')));
     $jamMulai = trim((string) ($jadwal['jam_mulai'] ?? substr((string) ($izinInfo['jam_mulai'] ?? '00:00'), 0, 5)));
@@ -2037,6 +2043,7 @@ function perizinan_setujui_izin_satu(
                jam_selesai = :jam_selesai,
                durasi_jam = :durasi_jam' . $pengasuhSql . '
          WHERE id = :id
+           AND approval_status = "PENDING"
     ');
     $ap->execute([
         'uid' => $userId,
@@ -2049,6 +2056,10 @@ function perizinan_setujui_izin_satu(
         'durasi_jam' => $durasi,
         'id' => $id,
     ]);
+
+    if ($ap->rowCount() <= 0) {
+        return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.', 'wa' => $emptyWa];
+    }
 
     $pdo->prepare('UPDATE santri s INNER JOIN perizinan i ON i.santri_id = s.id SET s.is_aktif = 0 WHERE i.id = :id')
         ->execute(['id' => $id]);
@@ -2293,11 +2304,15 @@ function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $by
     if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($izinInfo['jenis_izin'] ?? ''))) {
         return ['ok' => false, 'message' => 'Hanya izin syar\'i yang memerlukan persetujuan pengasuh di menu ini.'];
     }
-    if (strtoupper((string) ($izinInfo['approval_status'] ?? '')) !== 'PENDING') {
+    $statusIzin = strtoupper((string) ($izinInfo['approval_status'] ?? ''));
+    if ($statusIzin === 'DISETUJUI') {
+        return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.'];
+    }
+    if ($statusIzin !== 'PENDING') {
         return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat disetujui pengasuh.'];
     }
     if (trim((string) ($izinInfo['pengasuh_approved_at'] ?? '')) !== '') {
-        return ['ok' => false, 'message' => 'Permohonan ini sudah disetujui pengasuh.'];
+        return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.'];
     }
 
     $santriId = (int) ($izinInfo['santri_id'] ?? 0);
@@ -2333,7 +2348,17 @@ function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $u
     if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($meta['jenis_izin'] ?? ''))) {
         return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang memerlukan persetujuan pengasuh.', 'jumlah' => 0];
     }
-    if (strtoupper((string) ($meta['approval_status'] ?? '')) !== 'PENDING') {
+    $metaStatus = strtoupper((string) ($meta['approval_status'] ?? ''));
+    if ($metaStatus === 'DISETUJUI') {
+        $jumlah = count(perizinan_rombongan_anggota($pdo, $rombonganId));
+
+        return [
+            'ok' => true,
+            'message' => 'Izin rombongan sudah disetujui sebelumnya.',
+            'jumlah' => $jumlah,
+        ];
+    }
+    if ($metaStatus !== 'PENDING') {
         return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat disetujui pengasuh.', 'jumlah' => 0];
     }
 

@@ -1330,6 +1330,10 @@
     }
 
     form.addEventListener('submit', function (ev) {
+        if (form.getAttribute('data-submitting') === '1') {
+            ev.preventDefault();
+            return;
+        }
         resetHiddenKomponenRows();
         if (isJenisBulanan() && bulanUrutanBlokir) {
             ev.preventDefault();
@@ -1398,6 +1402,10 @@
             } else {
                 window.alert(msg);
             }
+            return;
+        }
+        if (window.keuanganFormValidasi && typeof window.keuanganFormValidasi.lockSubmit === 'function') {
+            window.keuanganFormValidasi.lockSubmit(form);
         }
     });
 

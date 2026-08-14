@@ -616,33 +616,47 @@ require_once __DIR__ . '/../includes/header.php';
 
         form.addEventListener('submit', function (e) {
 
-            if (form.getAttribute('data-alpa-blocked') !== '1') {
+            if (form.getAttribute('data-submitting') === '1') {
 
-                if (!confirm('Setujui permohonan izin ini sebagai pengasuh?')) {
+                e.preventDefault();
+
+                return;
+
+            }
+
+            if (form.getAttribute('data-alpa-blocked') === '1') {
+
+                var bypassBox = form.querySelector('.pg-pengasuh-bypass-alpa');
+
+                if (!bypassBox || !bypassBox.checked) {
 
                     e.preventDefault();
 
+                    alert('Centang Lewati syarat ALPA terlebih dahulu karena santri terhalang syarat ALPA.');
+
+                    return;
+
                 }
 
-                return;
+                if (!confirm('Setujui meski syarat ALPA tidak terpenuhi?')) {
+
+                    e.preventDefault();
+
+                    return;
+
+                }
 
             }
 
-            var bypassBox = form.querySelector('.pg-pengasuh-bypass-alpa');
+            form.setAttribute('data-submitting', '1');
 
-            if (!bypassBox || !bypassBox.checked) {
+            var btn = form.querySelector('.pg-pengasuh-submit');
 
-                e.preventDefault();
+            if (btn) {
 
-                alert('Centang Lewati syarat ALPA terlebih dahulu karena santri terhalang syarat ALPA.');
+                btn.disabled = true;
 
-                return;
-
-            }
-
-            if (!confirm('Setujui meski syarat ALPA tidak terpenuhi?')) {
-
-                e.preventDefault();
+                btn.textContent = 'Memproses…';
 
             }
 
