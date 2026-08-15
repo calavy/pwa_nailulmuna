@@ -602,6 +602,9 @@ function pondok_settings_defaults(): array
         'wa_kelas_kosong_batas_kali' => '3',
         'wa_kelas_kosong_target_1' => '',
         'wa_kelas_kosong_target_3' => '',
+        'wa_presensi_grup_fonte' => '',
+        'wa_presensi_grup_fonte_enabled' => '1',
+        'wa_presensi_kirim_pembimbing_enabled' => '1',
         'jam_kirim_wa_auto' => '',
         'wa_tagihan_auto_enabled' => '0',
         'wa_tagihan_calendar' => 'HIJRIYAH',
@@ -1555,12 +1558,16 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
     }
     $message = implode("\n", $lines);
 
-    $sent = send_wa_bulk($pdo, $waTujuan, $message, [
+    if (!function_exists('presensi_wa_kirim')) {
+        require_once __DIR__ . '/wa_presensi.php';
+    }
+    $bulk = presensi_wa_kirim($pdo, $waTujuan, $message, [
         'kind' => 'presensi',
         'dedup_key' => 'mudabir_missing:' . $debounceDate . ':summary',
         'dedup_key_once' => true,
     ]);
-    if ($sent > 0) {
+    $sent = (int) ($bulk['sent'] ?? 0);
+    if ($sent > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
         foreach ($missing as $m) {
             $jadwalId = (int) ($m['jadwal_id'] ?? 0);
             if ($jadwalId > 0) {
@@ -1568,6 +1575,27 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
             }
         }
         save_setting($pdo, 'wa_mudabir_last_sent_at', date('Y-m-d H:i:s'));
+
+        $pbMessages = [];
+        foreach ($missing as $m) {
+            $pbId = (int) ($m['pembimbing_id'] ?? 0);
+            if ($pbId <= 0 || isset($pbMessages[$pbId])) {
+                continue;
+            }
+            $pbMessages[$pbId] = '⚠️ Munawib pengganti belum hadir' . "\n"
+                . 'Tanggal: ' . date('d/m/Y') . "\n"
+                . 'Kegiatan: ' . (string) ($m['nama_kegiatan'] ?? 'Kegiatan') . "\n"
+                . 'Tingkatan: ' . (string) ($m['tingkatan'] ?? '-') . "\n"
+                . 'Jam: ' . substr((string) ($m['jam_mulai'] ?? '00:00:00'), 0, 5)
+                . ' - ' . substr((string) ($m['jam_selesai'] ?? '00:00:00'), 0, 5) . "\n"
+                . 'Status: ' . (string) ($m['reason'] ?? '-') . "\n"
+                . 'Silakan koordinasi munawib pengganti.';
+        }
+        presensi_wa_kirim_ke_pembimbing($pdo, $pbMessages, [
+            'kind' => 'presensi',
+            'dedup_key' => 'mudabir_missing:' . $debounceDate . ':summary',
+            'context' => 'munawib_belum_hadir',
+        ]);
     }
 }
 

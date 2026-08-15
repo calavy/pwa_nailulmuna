@@ -400,80 +400,56 @@ function keuangan_pengeluaran_alokasi_options(PDO $pdo): array
     return $out;
 }
 
-/** @return list<string> */
-function keuangan_pengeluaran_pos_default_list(): array
-{
-    return [
-        'Administrasi',
-        'ATK',
-        'Bahan',
-        'Gaji',
-        'Konsumsi',
-        'Operasional',
-        'Pemeliharaan',
-        'Pendidikan',
-        'Perlengkapan',
-        'Sarpras',
-        'Transport',
-        'Utilitas',
-    ];
-}
-
 /**
- * Daftar pos/jenis beban untuk dropdown input pengeluaran.
+ * Kategori pos/jenis beban yang diizinkan (distinct dari alokasi aktif syahriyah/awal tahun/makan).
  *
  * @return list<string>
  */
-function keuangan_pengeluaran_pos_options(PDO $pdo): array
+function keuangan_pengeluaran_pos_allowed_values(PDO $pdo): array
 {
     $seen = [];
     $out = [];
-    $add = static function (string $val) use (&$seen, &$out): void {
-        $val = trim($val);
-        if ($val === '') {
-            return;
+    foreach (keuangan_pengeluaran_pos_options($pdo) as $opt) {
+        $val = trim((string) ($opt['value'] ?? ''));
+        if ($val === '' || isset($seen[$val])) {
+            continue;
         }
-        $key = strtolower($val);
-        if (isset($seen[$key])) {
-            return;
-        }
-        $seen[$key] = true;
+        $seen[$val] = true;
         $out[] = $val;
-    };
-
-    foreach (keuangan_pengeluaran_pos_default_list() as $pos) {
-        $add($pos);
     }
-
-    if (table_exists($pdo, 'keuangan_alokasi')) {
-        $rows = $pdo->query("
-            SELECT DISTINCT TRIM(kategori) AS kat
-            FROM keuangan_alokasi
-            WHERE TRIM(COALESCE(kategori, '')) <> ''
-            ORDER BY kat ASC
-        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
-        foreach ($rows as $kat) {
-            $add((string) $kat);
-        }
-    }
-
-    if (table_exists($pdo, 'keuangan_pengeluaran')) {
-        if (!function_exists('keuangan_sql_pengeluaran_operasional_where')) {
-            require_once __DIR__ . '/keuangan_rekonsiliasi.php';
-        }
-        $opsWhere = keuangan_sql_pengeluaran_operasional_where();
-        $rows = $pdo->query("
-            SELECT DISTINCT TRIM(pos) AS pos
-            FROM keuangan_pengeluaran
-            WHERE TRIM(COALESCE(pos, '')) <> '' AND {$opsWhere}
-            ORDER BY pos ASC
-        ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
-        foreach ($rows as $pos) {
-            $add((string) $pos);
-        }
-    }
-
     sort($out, SORT_NATURAL | SORT_FLAG_CASE);
+
+    return $out;
+}
+
+/**
+ * Daftar pos/jenis beban untuk dropdown input pengeluaran (kategori alokasi aktif).
+ *
+ * @return list<array{value:string,label:string,group:string}>
+ */
+function keuangan_pengeluaran_pos_options(PDO $pdo): array
+{
+    $out = [];
+    $groups = [
+        KEUNGAN_ALOKASI_JENIS_SYAHRIYAH => 'Dana syahriyah',
+        KEUNGAN_ALOKASI_JENIS_AWAL_TAHUN => 'Dana awal tahun',
+        KEUNGAN_ALOKASI_JENIS_MAKAN => 'Dana makan',
+    ];
+    foreach ($groups as $jenis => $groupLabel) {
+        $seenInGroup = [];
+        foreach (keuangan_fetch_alokasi_aktif($pdo, $jenis) as $ar) {
+            $kat = trim((string) ($ar['kategori'] ?? ''));
+            if ($kat === '' || isset($seenInGroup[$kat])) {
+                continue;
+            }
+            $seenInGroup[$kat] = true;
+            $out[] = [
+                'value' => $kat,
+                'label' => $kat,
+                'group' => $groupLabel,
+            ];
+        }
+    }
 
     return $out;
 }
@@ -589,6 +565,24 @@ function keuangan_pengeluaran_ringkasan_kategori(PDO $pdo, string $dari, string 
     }
 
     return $out;
+}
+
+/** Validasi pos/jenis beban pengeluaran (wajib; harus dari kategori alokasi aktif). */
+function keuangan_validasi_pos_pengeluaran(PDO $pdo, string $pos): ?string
+{
+    $pos = trim($pos);
+    if ($pos === '') {
+        return 'Pos/jenis beban wajib dipilih.';
+    }
+    $allowed = keuangan_pengeluaran_pos_allowed_values($pdo);
+    if ($allowed === []) {
+        return null;
+    }
+    if (!in_array($pos, $allowed, true)) {
+        return 'Pos/jenis beban tidak valid. Pilih dari daftar alokasi aktif (syahriyah, awal tahun, makan).';
+    }
+
+    return null;
 }
 
 /** Validasi nama alokasi pengeluaran (wajib; harus dari daftar jika ada opsi). */

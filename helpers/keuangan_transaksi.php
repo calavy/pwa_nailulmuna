@@ -1125,6 +1125,10 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => keuangan_validasi_pesan('FORM_PENGELUARAN_KOSONG')];
     }
+    $posErr = keuangan_validasi_pos_pengeluaran($pdo, $pos);
+    if ($posErr !== null) {
+        return ['ok' => false, 'message' => $posErr];
+    }
     $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
     if ($alokasiErr !== null) {
         return ['ok' => false, 'message' => $alokasiErr];

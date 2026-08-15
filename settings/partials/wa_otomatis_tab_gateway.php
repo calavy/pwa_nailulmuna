@@ -144,7 +144,7 @@ declare(strict_types=1);
             <div class="col-md-6">
                 <label class="form-label">No. petugas pendidikan</label>
                 <input type="text" class="form-control" name="wa_petugas_pendidikan" value="<?= htmlspecialchars((string) ($values['wa_petugas_pendidikan'] ?? '')) ?>">
-                <div class="form-text">Munawib belum hadir, kelas kosong. Kosong = fallback nomor alpa (tab Alpa). Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=petugas_pendidikan')) ?>">Nomor WhatsApp</a>.</div>
+                <div class="form-text">Munawib belum hadir, kelas kosong (nomor personal). Grup WA: tab <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=presensi')) ?>">Presensi</a>. Kosong = fallback nomor alpa (tab Alpa). Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=petugas_pendidikan')) ?>">Nomor WhatsApp</a>.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Batas telat presensi (menit)</label>

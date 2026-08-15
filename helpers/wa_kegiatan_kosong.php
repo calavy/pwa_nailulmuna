@@ -14,7 +14,11 @@ function wa_kegiatan_kosong_target_awal(PDO $pdo): string
         return $custom;
     }
 
-    return trim((string) app_setting($pdo, 'wa_petugas_pendidikan', ''));
+    if (!function_exists('wa_petugas_pendidikan_target')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    return wa_petugas_pendidikan_target($pdo);
 }
 
 /**
@@ -27,7 +31,11 @@ function wa_kegiatan_kosong_target_eskalasi(PDO $pdo): string
         return $custom;
     }
 
-    return trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    if (!function_exists('wa_alpa_notif_target')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    return wa_alpa_notif_target($pdo);
 }
 
 /**
@@ -156,6 +164,7 @@ function wa_kegiatan_kosong_group_slots(PDO $pdo, array $rows, string $tanggal):
             'tingkatan' => $tingkatan !== '' ? $tingkatan : '-',
             'reasons' => $status['reasons'],
             'nama_pembimbing' => (string) ($r['nama_pembimbing'] ?? '-'),
+            'pembimbing_id' => (int) ($r['pembimbing_id'] ?? 0),
             'jadwal_id' => (int) ($r['jadwal_id'] ?? 0),
         ];
         if (trim((string) ($groups[$slotKey]['tempat'] ?? '')) === '') {
@@ -227,6 +236,43 @@ function wa_kegiatan_kosong_format_message(array $group, int $counter, int $bata
     }
 
     return implode("\n", $lines);
+}
+
+/**
+ * Pesan ringkas per pembimbing untuk slot kelas kosong.
+ *
+ * @param array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,pembimbing_id:int,jadwal_id:int}>} $group
+ * @return array<int, string>
+ */
+function wa_kegiatan_kosong_pembimbing_messages(array $group, int $counter, int $batasKali, string $levelLabel): array
+{
+    $jamMulai = substr((string) ($group['jam_mulai'] ?? '00:00:00'), 0, 5);
+    $jamSelesai = substr((string) ($group['jam_selesai'] ?? '00:00:00'), 0, 5);
+    $kegiatan = (string) ($group['nama_kegiatan'] ?? 'Kegiatan');
+    $out = [];
+
+    foreach ($group['empty'] ?? [] as $entry) {
+        $pbId = (int) ($entry['pembimbing_id'] ?? 0);
+        if ($pbId <= 0 || isset($out[$pbId])) {
+            continue;
+        }
+
+        $lines = [];
+        $lines[] = '⚠️ Jadwal Anda belum terpenuhi (deteksi ke-' . $counter . ')';
+        if ($levelLabel === 'eskalasi') {
+            $lines[] = 'Eskalasi ke pengurus — batas ' . $batasKali . 'x deteksi.';
+        }
+        $lines[] = 'Tanggal: ' . date('d/m/Y');
+        $lines[] = 'Kegiatan: ' . $kegiatan;
+        $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
+        $lines[] = 'Tingkatan: ' . (string) ($entry['tingkatan'] ?? '-');
+        $lines[] = 'Alasan: ' . implode('; ', (array) ($entry['reasons'] ?? []));
+        $lines[] = 'Silakan koordinasi scan/hadir segera.';
+
+        $out[$pbId] = implode("\n", $lines);
+    }
+
+    return $out;
 }
 
 /**
@@ -345,15 +391,26 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
                 (string) ($lv['label'] ?? '')
             );
 
-            $bulk = send_wa_bulk_with_result($pdo, (string) $lv['target'], $message, [
+            $dedupKey = 'kelas_kosong:' . $tanggal . ':kegiatan:' . $kegiatanId . ':slot:' . $jamMulai . '-' . $jamSelesai . ':level:' . (int) ($lv['level'] ?? 0);
+            if (!function_exists('presensi_wa_kirim')) {
+                require_once __DIR__ . '/wa_presensi.php';
+            }
+            $bulk = presensi_wa_kirim($pdo, (string) $lv['target'], $message, [
                 'kind' => 'presensi',
-                'dedup_key' => 'kelas_kosong:' . $tanggal . ':kegiatan:' . $kegiatanId . ':slot:' . $jamMulai . '-' . $jamSelesai . ':level:' . (int) ($lv['level'] ?? 0),
+                'dedup_key' => $dedupKey,
                 'dedup_key_once' => true,
             ]);
             if ((int) ($bulk['sent'] ?? 0) > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
                 save_setting($pdo, (string) $lv['sent_key'], '1');
                 save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
                 save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);
+
+                $pbMessages = wa_kegiatan_kosong_pembimbing_messages($group, $counter, $batasKali, (string) ($lv['label'] ?? ''));
+                presensi_wa_kirim_ke_pembimbing($pdo, $pbMessages, [
+                    'kind' => 'presensi',
+                    'dedup_key' => $dedupKey,
+                    'context' => 'kelas_kosong',
+                ]);
             }
         }
     }

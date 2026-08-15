@@ -24,7 +24,8 @@ $pondokWaFields = [
         'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali',
-    'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
+    'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_presensi_grup_fonte', 'wa_presensi_grup_fonte_enabled', 'wa_presensi_kirim_pembimbing_enabled',
+    'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
     'wa_musyawarah_enabled', 'wa_musyawarah_target', 'wa_musyawarah_auto_selesai',
     'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit',
 ];
@@ -176,6 +177,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting($pdo, 'wa_yayasan_tugas_enabled', isset($_POST['wa_yayasan_tugas_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_yayasan_tugas_noprogress_enabled', isset($_POST['wa_yayasan_tugas_noprogress_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_yayasan_tugas_noprogress_jam', (string) max(1, min(72, (int) ($_POST['wa_yayasan_tugas_noprogress_jam'] ?? 6))));
+        save_setting($pdo, 'wa_presensi_grup_fonte_enabled', isset($_POST['wa_presensi_grup_fonte_enabled']) ? '1' : '0');
+        if (array_key_exists('wa_presensi_grup_fonte', $_POST)) {
+            save_setting($pdo, 'wa_presensi_grup_fonte', trim((string) $_POST['wa_presensi_grup_fonte']));
+        }
+        save_setting($pdo, 'wa_presensi_kirim_pembimbing_enabled', isset($_POST['wa_presensi_kirim_pembimbing_enabled']) ? '1' : '0');
         wa_otomatis_save_delay_from_post($pdo, 'presensi');
         set_flash('success', 'Pengaturan presensi & kelas kosong disimpan.');
         header('Location: ' . $redirectUrl);
@@ -533,6 +539,10 @@ $scanMenit = max(5, min(30, (int) app_setting($pdo, 'wa_pembimbing_scan_menit_se
 $ytTugasWaEnabled = trim((string) app_setting($pdo, 'wa_yayasan_tugas_enabled', '1')) === '1';
 $ytTugasNoProgressEnabled = trim((string) app_setting($pdo, 'wa_yayasan_tugas_noprogress_enabled', '1')) === '1';
 $ytTugasNoProgressJam = max(1, min(72, (int) app_setting($pdo, 'wa_yayasan_tugas_noprogress_jam', '6')));
+$waPresensiGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_presensi_grup_fonte_enabled', '1')) !== '0';
+$waPresensiGrupFonte = trim((string) app_setting($pdo, 'wa_presensi_grup_fonte', ''));
+$waPresensiGrupAktifOtomatis = $waPresensiGrupFonte !== '' && $waPresensiGrupFonteEnabled;
+$waPresensiKirimPembimbingEnabled = trim((string) app_setting($pdo, 'wa_presensi_kirim_pembimbing_enabled', '1')) === '1';
 
 // Log terbaru
 $waLogRecent = [];

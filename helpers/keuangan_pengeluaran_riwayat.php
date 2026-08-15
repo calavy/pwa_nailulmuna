@@ -105,6 +105,10 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Penanggung jawab, pos, dan nominal wajib diisi.'];
     }
+    $posErr = keuangan_validasi_pos_pengeluaran($pdo, $pos);
+    if ($posErr !== null) {
+        return ['ok' => false, 'message' => $posErr];
+    }
     $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasiNama);
     if ($alokasiErr !== null) {
         return ['ok' => false, 'message' => $alokasiErr];

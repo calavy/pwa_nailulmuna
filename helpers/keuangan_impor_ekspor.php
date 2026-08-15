@@ -870,6 +870,10 @@ function keuangan_impor_ekspor_validate_keluar(PDO $pdo, array $rows): array
         if (!in_array($metode, ['KAS', 'TRANSFER'], true)) {
             $rowErrors[] = 'metode_keluar harus KAS/TRANSFER';
         }
+        $posErr = keuangan_validasi_pos_pengeluaran($pdo, $pos);
+        if ($posErr !== null) {
+            $rowErrors[] = $posErr;
+        }
         $alokasiErr = keuangan_validasi_alokasi_pengeluaran($pdo, $alokasi);
         if ($alokasiErr !== null) {
             $rowErrors[] = $alokasiErr;

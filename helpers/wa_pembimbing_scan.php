@@ -107,6 +107,15 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
 
         $phone = normalize_wa_phone(trim((string) ($r['no_wa'] ?? '')));
         if ($phone === '') {
+            if (!function_exists('presensi_wa_log_pembimbing_no_wa')) {
+                require_once __DIR__ . '/wa_presensi.php';
+            }
+            presensi_wa_log_pembimbing_no_wa(
+                $pdo,
+                $pembimbingId,
+                'pengingat_scan:' . $tanggal . ':jadwal:' . $jadwalId,
+                (string) ($r['nama_pembimbing'] ?? '')
+            );
             continue;
         }
 
