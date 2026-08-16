@@ -11,7 +11,7 @@ body.wali-portal,
 body.santri-portal {
     background: linear-gradient(165deg, #ecfdf5 0%, #e0f2fe 38%, #f8fafc 100%);
     min-height: 100dvh;
-    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: 1rem;
     line-height: 1.5;
     color: #0f172a;

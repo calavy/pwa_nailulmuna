@@ -138,8 +138,28 @@
         var hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
         var bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
         var bulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        var intervalId = null;
+        var lastDateKey = '';
 
-        function tick() {
+        function renderDate(now) {
+            if (!dateEl) return;
+            var compact = document.body.classList.contains('pb-dash-home-mobile-fit')
+                || document.body.classList.contains('dash-home-mobile-fit');
+            var bln = compact ? bulanPendek[now.getMonth()] : bulan[now.getMonth()];
+            var hariStr = hari[now.getDay()];
+            var pasaran = (dateEl.getAttribute('data-pasaran') || '').trim();
+            if (pasaran !== '') {
+                hariStr += ' · ' + pasaran;
+            }
+            var dateStr = hariStr + ', ' + now.getDate() + ' ' + bln + ' ' + now.getFullYear();
+            var hijri = (dateEl.getAttribute('data-hijri') || '').trim();
+            if (hijri !== '') {
+                dateStr += ' / ' + hijri;
+            }
+            dateEl.textContent = dateStr;
+        }
+
+        function tickTime() {
             var now = new Date(Date.now() + driftMs);
             var timeFull = formatTime24FromDate(now);
             clockEl.textContent = timeFull;
@@ -147,23 +167,36 @@
                 var mode = el.getAttribute('data-pg-sync-clock') || 'hm';
                 el.textContent = mode === 'hms' ? timeFull : timeFull.slice(0, 5);
             });
-            if (dateEl) {
-                var compact = document.body.classList.contains('pb-dash-home-mobile-fit')
-                    || document.body.classList.contains('dash-home-mobile-fit');
-                var bln = compact ? bulanPendek[now.getMonth()] : bulan[now.getMonth()];
-                var dateStr = hari[now.getDay()] + ', ' + now.getDate() + ' ' + bln;
-                if (!compact) {
-                    dateStr += ' ' + now.getFullYear();
-                }
-                var pasaran = (dateEl.getAttribute('data-pasaran') || '').trim();
-                if (pasaran !== '') {
-                    dateStr += ' · ' + pasaran;
-                }
-                dateEl.textContent = dateStr;
+            var dateKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate() + '-' + now.getHours() + '-' + now.getMinutes();
+            if (dateKey !== lastDateKey) {
+                lastDateKey = dateKey;
+                renderDate(now);
             }
         }
-        tick();
-        setInterval(tick, 1000);
+
+        function startClock() {
+            if (intervalId !== null) return;
+            tickTime();
+            intervalId = setInterval(tickTime, 1000);
+        }
+
+        function stopClock() {
+            if (intervalId === null) return;
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+
+        startClock();
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                stopClock();
+                return;
+            }
+            driftMs = (typeof window.PONDOK_SERVER_CLOCK_MS === 'number' ? window.PONDOK_SERVER_CLOCK_MS : Date.now()) - Date.now();
+            tickTime();
+            startClock();
+        });
     }
 
     function scanTimeDisplays() {

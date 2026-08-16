@@ -445,10 +445,13 @@ function akademik_kalender_render_month(
                         } else {
                             $altLabel = (string) ($cell['hijri_ringkas'] ?? '');
                         }
+                        $pasaranLabel = trim((string) ($cell['pasaran'] ?? ''));
+                        $pasaranKelas = trim((string) ($cell['pasaran_kelas'] ?? ''));
                         $ariaLabel = trim(
                             (string) ($cell['masehi_label'] ?? '')
                             . '. '
                             . (string) ($cell['hijri_label'] ?? '')
+                            . ($pasaranLabel !== '' ? '. Pasaran ' . $pasaranLabel : '')
                             . ($tip !== '' ? '. ' . $tip : '')
                         );
                         ?>
@@ -459,7 +462,12 @@ function akademik_kalender_render_month(
                             <?= $tip !== '' ? ' title="' . htmlspecialchars($tip) . '"' : '' ?>>
                             <div class="akad-cal-day-inner">
                                 <div class="akad-cal-day-top">
-                                    <span class="akad-cal-day-num"><?= $primaryNum ?></span>
+                                    <span class="akad-cal-day-num-row">
+                                        <span class="akad-cal-day-num"><?= $primaryNum ?></span>
+                                        <?php if ($pasaranLabel !== ''): ?>
+                                            <span class="akad-cal-day-pasaran<?= $compact ? ' akad-cal-day-pasaran--compact' : '' ?><?= $pasaranKelas !== '' ? ' ' . htmlspecialchars($pasaranKelas) : '' ?>"><?= htmlspecialchars($pasaranLabel) ?></span>
+                                        <?php endif; ?>
+                                    </span>
                                     <?php if (!empty($cell['is_today'])): ?>
                                         <span class="akad-cal-day-today-badge">Hari ini</span>
                                     <?php elseif (!empty($cell['is_libur'])): ?>
@@ -469,11 +477,6 @@ function akademik_kalender_render_month(
                                 <?php if ($altLabel !== ''): ?>
                                     <span class="akad-cal-day-alt<?= $compact ? ' akad-cal-day-alt--compact' : '' ?>">
                                         <?= htmlspecialchars($altLabel) ?>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if ((string) ($cell['pasaran'] ?? '') !== ''): ?>
-                                    <span class="akad-cal-day-pasaran <?= htmlspecialchars((string) ($cell['pasaran_kelas'] ?? '')) ?><?= $compact ? ' akad-cal-day-pasaran--compact' : '' ?>">
-                                        <?= htmlspecialchars((string) $cell['pasaran']) ?>
                                     </span>
                                 <?php endif; ?>
                                 <?php if ($eventLabel !== ''): ?>

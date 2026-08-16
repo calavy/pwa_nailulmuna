@@ -90,7 +90,7 @@ $bodyClass = 'settings-module-page';
 $settingsNavActive = '/settings/kalender.php';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<link href="/assets/css/kalender-akademik.css" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/settings/kalender.php">Pengaturan Kalender</a> · <a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>

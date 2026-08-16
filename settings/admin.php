@@ -297,6 +297,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Kelola user &amp; hak akses</h1>
     <p class="text-muted mb-0">Buat akun pengurus / admin / petugas lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
 </div>
+<?php require __DIR__ . '/partials/pondok_theme_toggle.php'; ?>
 <div class="alert alert-info d-flex align-items-start gap-2 small mb-3">
     <i class="fa-solid fa-circle-info mt-1" aria-hidden="true"></i>
     <div>

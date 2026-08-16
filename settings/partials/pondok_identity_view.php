@@ -1,5 +1,3 @@
-<?php require __DIR__ . '/pondok_theme_toggle.php'; ?>
-
 <div class="card shadow-sm mb-3">
     <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">

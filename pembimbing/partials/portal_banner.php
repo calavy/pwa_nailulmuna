@@ -70,12 +70,7 @@ $cssVars = pembimbing_portal_banner_css_vars($pbBannerCfg);
             </div>
             <div class="pb-portal-banner__clock" aria-live="polite">
                 <div class="pb-portal-banner__clock-time" id="dashboard-live-clock">--:--:--</div>
-                <div class="pb-portal-banner__clock-date" id="dashboard-live-date"<?= ($pbDashPasaran ?? '') !== '' ? ' data-pasaran="' . htmlspecialchars((string) $pbDashPasaran) . '"' : '' ?>>—</div>
-                <?php if (($pbDashHijriLabel ?? '') !== ''): ?>
-                    <div class="pb-portal-banner__clock-hijri d-none d-md-block">
-                        <i class="fa-solid fa-moon me-1"></i><?= htmlspecialchars((string) $pbDashHijriLabel) ?>
-                    </div>
-                <?php endif; ?>
+                <div class="pb-portal-banner__clock-date" id="dashboard-live-date"<?= ($pbDashPasaran ?? '') !== '' ? ' data-pasaran="' . htmlspecialchars((string) $pbDashPasaran) . '"' : '' ?><?= ($pbDashHijriClock ?? '') !== '' ? ' data-hijri="' . htmlspecialchars((string) $pbDashHijriClock) . '"' : '' ?>>—</div>
             </div>
         </div>
         <?php if (!$isMunawibPortal && ((int) ($totalSantri ?? 0) > 0 || (int) ($jumlahTingkatanHome ?? 0) > 0)): ?>

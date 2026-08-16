@@ -134,6 +134,8 @@ $roleLabels = [
     'keuangan' => 'Keuangan',
 ];
 $currentRoleLabel = $roleLabels[$currentRole] ?? user_role_label((string) $currentRole);
+/* Satu identitas di topbar: pill profil saja (hindari label role + nama yang dobel). */
+$showTopbarRoleBadge = false;
 $pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
 if (isset($_SESSION['user']) && !isset($loadPushFcm)) {
@@ -301,8 +303,8 @@ if (!function_exists('render_app_sidebar_nav')) {
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <?php if (isset($_SESSION['user'])): ?>
@@ -378,8 +380,8 @@ if (!function_exists('render_app_sidebar_nav')) {
                 var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
                 var d = document.documentElement;
                 d.setAttribute('data-theme', m);
-                d.style.colorScheme = m;
-                d.style.backgroundColor = m === 'dark' ? '#0f172a' : '#eef5ff';
+                d.style.colorScheme = 'light';
+                d.style.backgroundColor = m === 'dark' ? '#e2e8f0' : '#eef5ff';
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
             }
@@ -430,7 +432,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                         </span>
                     </a>
                     <div class="app-topbar-page<?= $hideAppSidebar ? ' d-none' : ' d-none d-lg-flex' ?>">
-                        <span class="app-topbar-page-kicker">Halaman aktif</span>
+                        <span class="app-topbar-page-kicker">Modul utama</span>
                         <h1 class="app-topbar-page-title"><?= htmlspecialchars($pageTitleHeader) ?></h1>
                     </div>
                 </div>
@@ -446,7 +448,9 @@ if (!function_exists('render_app_sidebar_nav')) {
                             <span class="app-topbar-action-btn__label"><?= htmlspecialchars($topbarBackLabel) ?></span>
                         </a>
                         <?php endif; ?>
+                        <?php if ($showTopbarRoleBadge): ?>
                         <span class="app-topbar-role badge rounded-pill d-none d-lg-inline-flex"><?= htmlspecialchars($currentRoleLabel) ?></span>
+                        <?php endif; ?>
                         <div class="dropdown app-topbar-profile-menu">
                             <button type="button" class="app-topbar-user-pill dropdown-toggle d-none d-sm-inline-flex" data-bs-toggle="dropdown" aria-expanded="false" title="Profil &amp; pengaturan">
                                 <?= user_profil_render_avatar($currentUserRow, 'app-user-avatar--sm') ?>

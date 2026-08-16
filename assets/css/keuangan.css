@@ -1,5 +1,5 @@
 /**
- * Modul Keuangan — tipografi seragam (Plus Jakarta Sans, sama dengan aplikasi).
+ * Modul Keuangan — tipografi seragam (Inter, sama dengan aplikasi).
  * Mudah dibaca: ukuran nyaman, angka rapi, kontras teks jelas.
  */
 
@@ -446,42 +446,42 @@ body.kuitansi-page .kuitansi-wrap {
 }
 
 [data-theme="dark"] .kuitansi-ortu {
-    background: #1e293b;
-    color: #f1f5f9;
-    border-color: #94a3b8 !important;
+    background: #fff;
+    color: #0f172a;
+    border-color: rgba(148, 163, 184, 0.4) !important;
 }
 
 [data-theme="dark"] .kuitansi-ortu__santri {
-    background: #0f172a;
-    border-color: #334155;
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.3);
 }
 
 [data-theme="dark"] .kuitansi-ortu__total {
-    background: linear-gradient(180deg, #134e4a 0%, #115e59 100%);
+    background: linear-gradient(180deg, #ecfdf5 0%, #ccfbf1 100%);
     border-color: #14b8a6;
 }
 
 
 [data-theme="dark"] body.keuangan-module .form-label {
-    color: #cbd5e1;
+    color: #334155;
 }
 
 [data-theme="dark"] body.keuangan-module .card-body,
 [data-theme="dark"] body.keuangan-module .table tbody td {
-    color: #e2e8f0;
+    color: #0f172a;
 }
 
 [data-theme="dark"] body.keuangan-module .table thead th {
-    color: #f8fafc;
+    color: #0f172a;
 }
 
 [data-theme="dark"] body.keuangan-module .text-muted {
-    color: #94a3b8 !important;
+    color: #64748b !important;
 }
 
 [data-theme="dark"] body.keuangan-module .neraca-sheet,
 [data-theme="dark"] body.keuangan-module .aruskas-sheet {
-    color: #e2e8f0;
+    color: #0f172a;
 }
 
 @media print {
@@ -490,7 +490,7 @@ body.kuitansi-page .kuitansi-wrap {
     }
     body.keuangan-module .neraca-sheet,
     body.keuangan-module .aruskas-sheet {
-        font-family: "Plus Jakarta Sans", system-ui, sans-serif !important;
+        font-family: "Inter", system-ui, sans-serif !important;
     }
 }
 

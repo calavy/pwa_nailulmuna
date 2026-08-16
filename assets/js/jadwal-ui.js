@@ -1,35 +1,11 @@
 /**
- * Jadwal — sidebar focus, toolbar, kartu interaktif, tab hari mobile.
+ * Jadwal — toolbar, kartu interaktif, tab hari mobile.
  */
 (function () {
     'use strict';
 
     var DESKTOP_MQ = window.matchMedia('(min-width: 992px)');
     var focusPage = document.body.classList.contains('jadwal-page--focus');
-
-    function initSidebarCollapsed() {
-        if (!focusPage || !document.querySelector('.app-sidebar--desktop')) {
-            return;
-        }
-        function apply() {
-            var collapsed = DESKTOP_MQ.matches;
-            document.body.classList.toggle('app-sidebar-collapsed', collapsed);
-            document.querySelectorAll('.app-sidebar--desktop .app-side-nav-item').forEach(function (item) {
-                if (collapsed) {
-                    var label = item.querySelector('.app-side-nav-text');
-                    if (label && !item.getAttribute('title')) {
-                        item.setAttribute('title', label.textContent.trim());
-                    }
-                }
-            });
-        }
-        apply();
-        if (typeof DESKTOP_MQ.addEventListener === 'function') {
-            DESKTOP_MQ.addEventListener('change', apply);
-        } else if (typeof DESKTOP_MQ.addListener === 'function') {
-            DESKTOP_MQ.addListener(apply);
-        }
-    }
 
     function cardDataFromEl(card) {
         if (!card) {
@@ -435,7 +411,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        initSidebarCollapsed();
         initHariTabs();
         initCardDropdownMenus();
         initCardInteractions();

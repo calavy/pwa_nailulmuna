@@ -43,22 +43,31 @@ $heroId = 'khHero-' . $panelSlug;
     id="pg-dash-kat-<?= htmlspecialchars($panelSlug) ?>">
 
     <?php if ($keaktivanByTingkatan === []): ?>
+        <?php if ($panelIsLive && is_array($pgIdleData ?? null)): ?>
+            <?php
+            $idleContext = 'pengasuh';
+            $jamLabel = $jamServerLabel;
+            $idleData = is_array($pgIdleData) ? $pgIdleData : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+            $canJadwalLink = false;
+            require __DIR__ . '/../../includes/partials/dashboard_kegiatan_idle.php';
+            ?>
+        <?php else: ?>
         <div class="dash-empty-chart py-5 text-center text-muted">
             <div class="dash-empty-chart__inner">
                 <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
                 <?php if ($panelIsLive): ?>
-                    <p class="mb-0 fw-semibold">Belum ada kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> berlangsung di jam <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span>.</p>
+                    <p class="mb-0 fw-semibold">Tidak ada kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> pukul <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span>.</p>
                 <?php elseif ($panelIsProgress): ?>
-                    <p class="mb-0 fw-semibold">Belum ada data presensi kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> yang sudah berjalan hari ini.</p>
+                    <p class="mb-0 fw-semibold">Belum ada presensi <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> yang selesai hari ini.</p>
                 <?php else: ?>
                     <p class="mb-0 fw-semibold">Belum ada data presensi <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> hari ini.</p>
                 <?php endif; ?>
                 <p class="small mb-0 mt-1">
-                    Data muncul setelah presensi diisi atau saat jadwal berlangsung.
-                    <a href="<?= htmlspecialchars(app_href('/pengasuh/laporan_hari.php')) ?>">Buka laporan hari</a>
+                    <a href="<?= htmlspecialchars(app_href('/pengasuh/laporan_hari.php')) ?>">Laporan hari</a>
                 </p>
             </div>
         </div>
+        <?php endif; ?>
     <?php else: ?>
         <?php if ($totalPerhatian > 0): ?>
         <div class="card border-warning kh-section kh-banner-attn shadow-sm mb-3">

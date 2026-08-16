@@ -747,15 +747,15 @@ body.page-keaktifan-hari .app-main {
 
 [data-theme="dark"] body.page-keaktifan-hari.app-body-shell,
 [data-theme="dark"] body.page-keaktifan-hari .app-main {
-    background: #0f172a;
+    background: #f1f5f9;
 }
 
 [data-theme="dark"] .kh-card__alert,
 [data-theme="dark"] .kh-card__alert--ok,
 [data-theme="dark"] .kh-detail-panel {
-    background: rgba(30, 41, 59, 0.65);
-    border-color: rgba(71, 85, 105, 0.5);
-    color: #cbd5e1;
+    background: #fff;
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #334155;
 }
 
 [data-theme="dark"] .kh-card__alert-icon,
@@ -765,11 +765,11 @@ body.page-keaktifan-hari .app-main {
 
 [data-theme="dark"] .kh-card__alert-names,
 [data-theme="dark"] .kh-list__name {
-    color: #e2e8f0;
+    color: #0f172a;
 }
 
 [data-theme="dark"] .kh-list__sub {
-    color: #94a3b8;
+    color: #64748b;
 }
 
 [data-theme="dark"] .kh-hero,
@@ -777,13 +777,13 @@ body.page-keaktifan-hari .app-main {
 [data-theme="dark"] .kh-chip,
 [data-theme="dark"] .kh-panduan--desktop,
 [data-theme="dark"] .kh-banner-attn {
-    background: rgba(15, 23, 42, 0.85);
-    border-color: rgba(71, 85, 105, 0.55);
+    background: #fff;
+    border-color: rgba(148, 163, 184, 0.3);
 }
 
 [data-theme="dark"] .kh-total-pill,
 [data-theme="dark"] .kh-stat {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
 [data-theme="dark"] .kh-total-pill--hadir { background: var(--kh-hadir-solid); border-color: color-mix(in srgb, var(--kh-hadir-solid) 80%, #000 20%); }
@@ -797,8 +797,8 @@ body.page-keaktifan-hari .app-main {
 [data-theme="dark"] .kh-stat--alpa { background: var(--kh-alpa-solid); border-color: color-mix(in srgb, var(--kh-alpa-solid) 80%, #000 20%); }
 
 [data-theme="dark"] .kh-stat-popup {
-    background: rgba(15, 23, 42, 0.92);
-    border-color: rgba(71, 85, 105, 0.55);
+    background: #fff;
+    border-color: rgba(148, 163, 184, 0.35);
 }
 
 [data-theme="dark"] .kh-total-pill__n,
@@ -812,9 +812,9 @@ body.page-keaktifan-hari .app-main {
 
 [data-theme="dark"] .kh-detail-toggle,
 [data-theme="dark"] .kh-detail-panel {
-    background: rgba(15, 23, 42, 0.5);
+    background: #fff;
 }
 
 [data-theme="dark"] .kh-tab {
-    background: rgba(30, 41, 59, 0.85);
+    background: #f8fafc;
 }

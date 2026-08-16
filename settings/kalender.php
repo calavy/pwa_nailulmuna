@@ -80,7 +80,7 @@ require_once __DIR__ . '/../includes/header.php';
 $err = get_flash('error');
 $ok = get_flash('success');
 ?>
-<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
 
 <?php
 render_kalender_page_hero([

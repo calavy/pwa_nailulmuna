@@ -16,6 +16,7 @@ require_once __DIR__ . '/../helpers/akademik_pasaran.php';
 require_once __DIR__ . '/../helpers/pembimbing_pkpps.php';
 require_once __DIR__ . '/../helpers/pembimbing_nilai_manual.php';
 require_once __DIR__ . '/../helpers/munawib_portal.php';
+require_once __DIR__ . '/../helpers/dashboard_insights.php';
 
 ikhtibar_require_pembimbing_access();
 munawib_portal_require_konteks();
@@ -115,6 +116,7 @@ $hariKe = (int) date('N');
 
 $isPbHomeRingkas = $isPbHomeRingkasEarly;
 $pbDashHijriLabel = '';
+$pbDashHijriClock = '';
 $pbDashPasaran = '';
 if (!$isPbKeaktivanOnly) {
     ensure_hijri_mappings_table($pdo);
@@ -123,7 +125,8 @@ if (!$isPbKeaktivanOnly) {
         1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
         7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
     ];
-    $pbDashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNama);
+    $pbDashHijriLabel = akademik_hijri_badge_dashboard($pdo, $today, $hijriBulanNama);
+    $pbDashHijriClock = akademik_hijri_label_h($pdo, $today, $hijriBulanNama);
     $pbDashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 }
 
@@ -299,6 +302,13 @@ $kehadiranPersen = $statPresensi['total'] > 0
     ? round($statPresensi['hadir'] / $statPresensi['total'] * 100, 1)
     : 0.0;
 
+$pbKpiTrends = dashboard_pembimbing_kpi_trends($pdo, $today, $tingkatanAsuhan, $statPresensi);
+$pbIdleEmpty = $kegiatanAktifGrouped === [] && ($kegiatanAktifPresensi ?? []) === [];
+$pbIdleData = $pbIdleEmpty
+    ? dashboard_idle_panel_data($pdo, $today, $nowTime, $tingkatanAsuhan !== [] ? $tingkatanAsuhan : null)
+    : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+$pbJamLabel = substr($nowTime, 0, 5);
+
 $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';
 if ($isMunawibPortal && is_array($munawibPortalKonteks)) {
     $mwPb = trim((string) ($munawibPortalKonteks['pembimbing_nama'] ?? ''));
@@ -370,49 +380,40 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         require __DIR__ . '/partials/dashboard_home_top.php';
         ?>
     <?php else: ?>
-    <div class="dash-hero mb-4">
-        <div class="dash-hero-inner">
-            <div class="dash-hero-layout dash-hero-layout--slim">
-                <div class="dash-hero-greeting">
-                    <div class="dash-hero-kicker text-white-50">Portal Pembimbing</div>
+    <div class="dash-hero-split mb-4">
+        <section class="dash-identity-card">
+            <div class="dash-identity-card__meta">
+                <div class="dash-identity-card__role">
+                    <span class="dash-identity-card__role-kicker">Portal Pembimbing</span>
+                    <div class="dash-identity-card__role-value">
+                        <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?>" aria-hidden="true"></i>
+                        <?= $pbSudahHadir ? 'Hadir hari ini' : 'Belum scan' ?>
+                    </div>
+                </div>
+                <div class="dash-identity-card__greeting">
                     <h1 class="h3 dash-hero-title mb-2 d-flex flex-wrap align-items-center gap-2">
                         <?= htmlspecialchars($labelUser) ?>
-                        <span class="badge <?= $pbSudahHadir ? 'text-bg-success' : 'text-bg-secondary' ?> fs-6">
-                            <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?> me-1"></i><?= $pbSudahHadir ? 'Hadir' : 'Belum scan' ?>
-                        </span>
                     </h1>
-                    <p class="dash-hero-sub mb-0 small text-white-50">
+                    <p class="dash-hero-sub mb-0 small">
                         <?php if ($modeMengajar): ?>
-                            <strong class="text-white">Sedang mengajar</strong> — data santri &amp; laporan dibatasi kelas: <?= htmlspecialchars(implode(', ', $tingkatanMengajar)) ?>.
+                            <strong>Sedang mengajar</strong> — data santri &amp; laporan dibatasi kelas: <?= htmlspecialchars(implode(', ', $tingkatanMengajar)) ?>.
                         <?php else: ?>
                             Pantau santri pada tingkatan kajian<?= $hasPkppsJadwal ? ' &amp; PKPPS' : '' ?> Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
                         <?php endif; ?>
                     </p>
-                    <?php if ($pbDashHijriLabel !== '' || $pbDashPasaran !== ''): ?>
-                        <p class="dash-hero-hijri mb-0 mt-2 small text-white-50">
-                            <?php if ($pbDashHijriLabel !== ''): ?>
-                                <i class="fa-solid fa-moon me-1" aria-hidden="true"></i>
-                                <strong class="text-white"><?= htmlspecialchars($pbDashHijriLabel) ?></strong>
-                            <?php endif; ?>
-                            <?php if ($pbDashPasaran !== ''): ?>
-                                <span class="<?= $pbDashHijriLabel !== '' ? 'ms-2' : '' ?>">
-                                    <i class="fa-solid fa-sun me-1" aria-hidden="true"></i>
-                                    Pasaran <strong class="text-white"><?= htmlspecialchars($pbDashPasaran) ?></strong>
-                                </span>
-                            <?php endif; ?>
-                        </p>
-                    <?php endif; ?>
                 </div>
-                <div class="dash-hero-clock" aria-live="polite">
-                    <div class="dash-hero-clock__top">
-                        <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan</span>
-                        <span class="dash-hero-clock__live">Live</span>
-                    </div>
-                    <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
-                    <div class="dash-hero-clock__date" id="dashboard-live-date">—</div>
                 </div>
             </div>
-        </div>
+        </section>
+        <section class="dash-clock-card" aria-live="polite">
+            <div class="dash-hero-clock__top">
+                <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan server</span>
+                <span class="dash-hero-clock__live">Live</span>
+            </div>
+            <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
+            <div class="dash-clock-card__tz">WIB</div>
+            <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $pbDashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($pbDashPasaran) . '"' : '' ?><?= ($pbDashHijriClock ?? '') !== '' ? ' data-hijri="' . htmlspecialchars((string) $pbDashHijriClock) . '"' : '' ?>>—</div>
+        </section>
     </div>
     <?php endif; ?>
 
@@ -556,7 +557,13 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                         <?php if ($kegiatanAktifPresensi !== []): ?>
                             <?php $inBanner = false; require __DIR__ . '/partials/dashboard_kegiatan_berlangsung_cards.php'; ?>
                         <?php elseif ($kegiatanAktifGrouped === []): ?>
-                            <p class="small text-muted mb-0 py-2">Belum ada kegiatan di jam ini.</p>
+                            <?php
+                            $idleContext = 'pembimbing';
+                            $jamLabel = $pbJamLabel;
+                            $idleData = $pbIdleData;
+                            $canJadwalLink = false;
+                            require __DIR__ . '/../includes/partials/dashboard_kegiatan_idle.php';
+                            ?>
                         <?php else: ?>
                             <div class="d-flex flex-column gap-1">
                                 <?php foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows): ?>
@@ -646,6 +653,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-user-group"></i></div>
                 <div class="dash-kpi-box__label">Total santri diasuh</div>
                 <div class="dash-kpi-box__value"><?= (int) $totalSantri ?></div>
+                <?php $dashKpiTrend = $pbKpiTrends['santri'] ?? null; require __DIR__ . '/../includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">
                     Putra <?= (int) $statSantri['putra'] ?> · Putri <?= (int) $statSantri['putri'] ?>
                     <?php if ($tingkatanAsuhan !== []): ?>
@@ -659,6 +667,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-walking-luggage"></i></div>
                 <div class="dash-kpi-box__label">Sedang izin</div>
                 <div class="dash-kpi-box__value"><?= (int) $statIzinCount ?></div>
+                <?php $dashKpiTrend = $pbKpiTrends['izin'] ?? null; require __DIR__ . '/../includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Hari ini <?= htmlspecialchars(date('d M Y', strtotime($today))) ?></div>
             </div>
         </div>
@@ -667,6 +676,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></div>
                 <div class="dash-kpi-box__label">Hadir hari ini</div>
                 <div class="dash-kpi-box__value"><?= (int) $statPresensi['hadir'] ?></div>
+                <?php $dashKpiTrend = $pbKpiTrends['hadir'] ?? null; require __DIR__ . '/../includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">
                     dari <?= (int) $statPresensi['total'] ?> presensi
                     <?php if ($statPresensi['total'] > 0): ?>· <?= number_format($kehadiranPersen, 1, ',', '.') ?>%<?php endif; ?>
@@ -716,13 +726,13 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
                     <?php if ($kegiatanAktifGrouped === []): ?>
-                        <div class="dash-empty-chart py-5 text-center text-muted">
-                            <div class="dash-empty-chart__inner">
-                                <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
-                                <p class="mb-0 fw-semibold">Belum ada kegiatan di jam ini.</p>
-                                <p class="small mb-0 mt-1">Silakan cek jadwal atau waktu lain.</p>
-                            </div>
-                        </div>
+                        <?php
+                        $idleContext = 'pembimbing';
+                        $jamLabel = $pbJamLabel;
+                        $idleData = $pbIdleData;
+                        $canJadwalLink = false;
+                        require __DIR__ . '/../includes/partials/dashboard_kegiatan_idle.php';
+                        ?>
                     <?php else: ?>
                         <div class="d-flex flex-column gap-2">
                             <?php foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows): ?>

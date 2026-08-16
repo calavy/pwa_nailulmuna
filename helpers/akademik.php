@@ -131,8 +131,52 @@ function akademik_hijri_label_dari_masehi(PDO $pdo, string $tanggalMasehi, array
 {
     $hijri = akademik_hijri_tanggal_sistem($pdo, $tanggalMasehi);
     $k = akademik_hijri_komponen_dari_ymd($hijri, $hijriBulanNama);
+    if ($k === null) {
+        return '';
+    }
+    // Hindari label palsu: fallback Intl yang gagal mengembalikan Y-m-d Masehi (tahun > 1600).
+    if ($k['t'] < 1300 || $k['t'] > 1600) {
+        return '';
+    }
 
-    return $k !== null ? $k['label'] : '';
+    return $k['label'];
+}
+
+/**
+ * Label hijriyah dengan sufiks H: "16 Sya'ban 1447 H".
+ * Mengabaikan hasil yang ternyata tanggal Masehi (tahun di luar 1300–1600).
+ */
+function akademik_hijri_label_h(PDO $pdo, string $tanggalMasehi, array $hijriBulanNama): string
+{
+    $candidates = [
+        akademik_hijri_tanggal_sistem($pdo, $tanggalMasehi),
+        get_hijri_full_date($tanggalMasehi),
+    ];
+    foreach ($candidates as $ymd) {
+        $try = akademik_hijri_komponen_dari_ymd((string) $ymd, $hijriBulanNama);
+        if ($try !== null && $try['t'] >= 1300 && $try['t'] <= 1600) {
+            return sprintf('%d %s %d H', $try['h'], $try['bulan_nama'], $try['t']);
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Badge dashboard mockup: "16 Sya'ban 1447 H / 2026 M".
+ */
+function akademik_hijri_badge_dashboard(PDO $pdo, string $tanggalMasehi, array $hijriBulanNama): string
+{
+    $gy = (int) substr($tanggalMasehi, 0, 4);
+    if ($gy < 1) {
+        $gy = (int) date('Y');
+    }
+    $hijriH = akademik_hijri_label_h($pdo, $tanggalMasehi, $hijriBulanNama);
+    if ($hijriH === '') {
+        return $gy . ' M';
+    }
+
+    return $hijriH . ' / ' . $gy . ' M';
 }
 
 /** Ringkas H/B/T untuk UI: "16 / Ramadan / 1447" */

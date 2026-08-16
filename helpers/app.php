@@ -3979,7 +3979,7 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
 
 function settings_pengaturan_hub_url(): string
 {
-    return '/menu/menu_hub.php?id=menu-grp-yayasan';
+    return '/menu/menu_hub.php?id=menu-grp-pengaturan';
 }
 
 /** Alias ID grup menu lama → ID mega-kategori baru (backward compatibility breadcrumb). */
@@ -3992,7 +3992,6 @@ function menu_hub_id_aliases(): array
         'menu-grp-pkpps' => 'menu-grp-akademik',
         'menu-grp-kajian' => 'menu-grp-ketertiban',
         'menu-grp-perizinan' => 'menu-grp-ketertiban',
-        'menu-grp-pengaturan' => 'menu-grp-yayasan',
     ];
 }
 
@@ -4225,8 +4224,18 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
     if ($hubId === 'menu-grp-yayasan' && str_contains($requestPath, '/yayasan/')) {
         return true;
     }
-    if ($hubId === 'menu-grp-yayasan' && str_starts_with($requestPath, '/settings/')) {
+    if ($hubId === 'menu-grp-pengaturan' && (
+        (
+            str_starts_with($requestPath, '/settings/')
+            && !str_contains($requestPath, '/settings/profil.php')
+            && !str_contains($requestPath, '/settings/akses_saya.php')
+        )
+        || str_contains($requestPath, '/admin/cek_update.php')
+    )) {
         return true;
+    }
+    if ($hubId === 'menu-grp-yayasan' && str_starts_with($requestPath, '/settings/')) {
+        return false;
     }
 
     return false;

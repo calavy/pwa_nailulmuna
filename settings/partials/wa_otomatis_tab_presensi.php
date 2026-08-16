@@ -84,7 +84,7 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
             <div class="col-12"><h3 class="h6 text-primary mb-2">Kegiatan kosong → WA otomatis</h3></div>
             <div class="col-12">
                 <p class="small text-muted mb-2">
-                    Sistem mengecek slot jadwal aktif (setelah batas menit dari jam mulai).
+                    Sistem mengecek slot jadwal setelah jam kegiatan selesai, dalam jendela N menit berikutnya.
                     Deteksi ke-1 dikirim ke petugas pendidikan (+ grup jika diaktifkan); setelah berturut-turut N kali (default 3) dikirim ke
                     <strong>nomor pengurus</strong> (tab Alpa) kecuali diisi override di bawah.
                 </p>
@@ -97,7 +97,7 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label">Batas awal (menit)</label>
+                <label class="form-label">Jendela setelah selesai (menit)</label>
                 <input type="number" min="5" max="180" class="form-control" name="wa_kelas_kosong_batas_menit" value="<?= htmlspecialchars((string) (($values['wa_kelas_kosong_batas_menit'] ?? '') !== '' ? $values['wa_kelas_kosong_batas_menit'] : '20')) ?>">
             </div>
             <div class="col-md-3">

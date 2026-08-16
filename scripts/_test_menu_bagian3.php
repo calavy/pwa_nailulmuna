@@ -24,6 +24,7 @@ $expected = [
     'menu-grp-keuangan',
     'menu-grp-akademik',
     'menu-grp-yayasan',
+    'menu-grp-pengaturan',
 ];
 
 $missing = array_diff($expected, $groupIds);
@@ -39,13 +40,51 @@ if ($extra !== []) {
     exit(1);
 }
 
-$aliases = menu_hub_id_aliases();
 $resolved = menu_hub_resolve_id('menu-grp-pengaturan');
-if ($resolved !== 'menu-grp-yayasan') {
-    echo "FAIL alias pengaturan -> yayasan, got: {$resolved}" . PHP_EOL;
+if ($resolved !== 'menu-grp-pengaturan') {
+    echo "FAIL menu-grp-pengaturan harus tetap sebagai ID grup, got: {$resolved}" . PHP_EOL;
     exit(1);
 }
-echo "Alias menu-grp-pengaturan -> {$resolved} OK" . PHP_EOL;
+echo "menu-grp-pengaturan resolve OK ({$resolved})" . PHP_EOL;
+
+$hubUrl = settings_pengaturan_hub_url();
+if ($hubUrl !== '/menu/menu_hub.php?id=menu-grp-pengaturan') {
+    echo "FAIL settings_pengaturan_hub_url: {$hubUrl}" . PHP_EOL;
+    exit(1);
+}
+echo "settings_pengaturan_hub_url OK" . PHP_EOL;
+
+$yayasanNode = null;
+$pengaturanNode = null;
+foreach ($structure as $node) {
+    if (($node['type'] ?? '') !== 'group') {
+        continue;
+    }
+    $id = (string) ($node['id'] ?? '');
+    if ($id === 'menu-grp-yayasan') {
+        $yayasanNode = $node;
+    }
+    if ($id === 'menu-grp-pengaturan') {
+        $pengaturanNode = $node;
+    }
+}
+$yayasanTitles = array_map(
+    static fn(array $s): string => (string) ($s['title'] ?? ''),
+    is_array($yayasanNode['sections'] ?? null) ? $yayasanNode['sections'] : []
+);
+if ($yayasanTitles !== ['Operasional']) {
+    echo "FAIL Yayasan sections expected [Operasional], got: " . implode(', ', $yayasanTitles) . PHP_EOL;
+    exit(1);
+}
+$pengaturanTitles = array_map(
+    static fn(array $s): string => (string) ($s['title'] ?? ''),
+    is_array($pengaturanNode['sections'] ?? null) ? $pengaturanNode['sections'] : []
+);
+if ($pengaturanTitles !== ['Pengaturan Pesantren', 'Pengaturan Sistem']) {
+    echo "FAIL Pengaturan sections, got: " . implode(', ', $pengaturanTitles) . PHP_EOL;
+    exit(1);
+}
+echo "Yayasan/Pengaturan section layout OK" . PHP_EOL;
 
 // Simulasi ACL terbatas (keuangan saja)
 $_SESSION['user'] = ['id' => 99999, 'role' => 'pengurus', 'is_super_admin' => 0];

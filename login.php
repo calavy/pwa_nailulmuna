@@ -426,11 +426,11 @@ $loginScanDest = $loginDest === 'setoran' ? 'setoran' : '';
 
 if ($scanMode) {
 
-    $cardTitle = 'Scan Kegiatan';
+    $cardTitle = 'Multi Scan';
 
     auth_portal_layout_begin([
 
-        'title' => 'Scan Kegiatan',
+        'title' => 'Multi Scan',
 
         'headline' => '',
 
@@ -586,13 +586,13 @@ $ok = get_flash('success');
 
                 <a href="<?= htmlspecialchars($scanKegiatanHref) ?>" class="btn btn-auth-scan w-100">
 
-                    <i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i>
+                    <i class="fa-solid fa-qrcode" aria-hidden="true"></i>
 
-                    Scan Kegiatan (tanpa login)
+                    Multi Scan
 
                 </a>
 
-                <p class="auth-portal-scan-hint">Untuk Petugas Presensi &amp; Musyawir</p>
+                <p class="auth-portal-scan-hint">Absensi &amp; portal otomatis</p>
 
 
 

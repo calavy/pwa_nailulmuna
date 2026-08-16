@@ -12,7 +12,7 @@ function keuangan_format_rupiah(int $nominal): string
 /** Font stack modul keuangan — sama dengan --font-sans di app.css */
 function keuangan_font_family(): string
 {
-    return '"Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
+    return '"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
 }
 
 /** Tag link Google Fonts untuk halaman cetak mandiri (tanpa header). */
@@ -20,7 +20,7 @@ function keuangan_typography_font_links(): string
 {
     return '<link rel="preconnect" href="https://fonts.googleapis.com">'
         . '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-        . '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">';
+        . '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">';
 }
 
 /** CSS dasar untuk halaman cetak/PDF laporan keuangan. */

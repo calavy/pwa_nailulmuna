@@ -299,8 +299,8 @@ function auth_portal_layout_begin(array $ctx): void
     <link rel="shortcut icon" href="<?= htmlspecialchars($iconHref) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"></noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <?php if ($logoUrl !== ''): ?>
     <meta name="pondok-pwa-logo" content="<?= htmlspecialchars($logoUrl) ?>">
@@ -316,13 +316,13 @@ function auth_portal_layout_begin(array $ctx): void
             --ap-auth-surface: rgba(255, 255, 255, 0.94);
         }
         [data-theme="dark"] {
-            --ap-auth-surface: rgba(30, 41, 59, 0.96);
+            --ap-auth-surface: #ffffff;
         }
         html {
             background-color: <?= htmlspecialchars((string) ($pwaTheme['background_color'] ?? $gradMid)) ?>;
         }
         body.auth-portal-page {
-            font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             min-height: 100dvh;
             margin: 0;
             background: linear-gradient(145deg, <?= htmlspecialchars($gradStart) ?> 0%, <?= htmlspecialchars($gradMid) ?> 42%, <?= htmlspecialchars($gradEnd) ?> 100%);
@@ -374,8 +374,8 @@ function auth_portal_layout_begin(array $ctx): void
                 var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
                 var d = document.documentElement;
                 d.setAttribute('data-theme', m);
-                d.style.colorScheme = m;
-                d.style.backgroundColor = m === 'dark' ? '#0f172a' : <?= json_encode($gradMid, JSON_UNESCAPED_UNICODE) ?>;
+                d.style.colorScheme = 'light';
+                d.style.backgroundColor = m === 'dark' ? '#e2e8f0' : <?= json_encode($gradMid, JSON_UNESCAPED_UNICODE) ?>;
             } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'light');
             }

@@ -12,6 +12,7 @@ require_once __DIR__ . '/../helpers/pengasuh_dashboard.php';
 require_once __DIR__ . '/../helpers/pengasuh_laporan_hari.php';
 require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/dashboard_insights.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 
@@ -31,7 +32,8 @@ if (empty($_SESSION[$dashSyncKey])) {
     akademik_libur_sinkron_hari_khusus_tahun($pdo, (int) date('Y'), $hijriBulanNamaDash);
     $_SESSION[$dashSyncKey] = 1;
 }
-$dashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNamaDash);
+$dashHijriLabel = akademik_hijri_badge_dashboard($pdo, $today, $hijriBulanNamaDash);
+$dashHijriClock = akademik_hijri_label_h($pdo, $today, $hijriBulanNamaDash);
 $dashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 
 $kegiatanAktif = pengasuh_dashboard_kegiatan_aktif($pdo, $nowTime);
@@ -79,6 +81,9 @@ if ($jumlahKegiatanBerlangsung === 0 && $kegiatanAktif !== []) {
 
 $konteks = pengasuh_laporan_hari_konteks($pdo, $today, count($detailLive));
 $dashServerClockMs = (int) round(microtime(true) * 1000);
+$pgIdleData = !$adaKegiatanLive
+    ? dashboard_idle_panel_data($pdo, $today, $nowTime)
+    : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
 
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Pengasuh';
@@ -156,44 +161,47 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="dash-page">
-    <div class="dash-hero mb-3 pg-dash-hero">
-        <div class="dash-hero-inner">
-            <?php
-            $brandTitle = $namaPonpes;
-            $brandKicker = $dashHeroKicker;
-            $brandAlamat = $alamatPonpes;
-            $brandLogoHref = $dashLogoHref;
-            $brandLogoInitial = $dashLogoInitial;
-            require __DIR__ . '/../includes/partials/dash_hero_brand.php';
-            ?>
-            <div class="dash-hero-layout dash-hero-layout--slim">
-                <div class="dash-hero-greeting">
-                    <div class="dash-hero-kicker text-white-50">Pengasuh · Beranda</div>
+    <div class="dash-hero-split mb-3">
+        <section class="dash-identity-card">
+            <div class="dash-identity-card__brand">
+                <?php
+                $brandTitle = $namaPonpes;
+                $brandKicker = $dashHeroKicker;
+                $brandAlamat = $alamatPonpes;
+                $brandLogoHref = $dashLogoHref;
+                $brandLogoInitial = $dashLogoInitial;
+                require __DIR__ . '/../includes/partials/dash_hero_brand.php';
+                ?>
+            </div>
+            <div class="dash-identity-card__meta">
+                <div class="dash-identity-card__role">
+                    <span class="dash-identity-card__role-kicker">Pengasuh · Beranda</span>
+                    <div class="dash-identity-card__role-value">
+                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                        Pengasuh
+                    </div>
+                </div>
+                <div class="dash-identity-card__greeting">
                     <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($labelUser) ?></h1>
-                    <p class="small text-white-50 mb-0">
+                    <p class="small mb-0">
                         <?= htmlspecialchars((string) ($konteks['hari_label'] ?? '')) ?>
                         · <?= htmlspecialchars((string) ($konteks['tgl_label'] ?? $today)) ?>
                         <?php if (($konteks['libur_label'] ?? '') !== ''): ?>
                             · <span class="text-warning"><?= htmlspecialchars((string) $konteks['libur_label']) ?></span>
                         <?php endif; ?>
                     </p>
-                    <?php if ($dashHijriLabel !== ''): ?>
-                        <p class="dash-hero-hijri mb-0 small text-white-50 d-none d-md-block">
-                            <i class="fa-solid fa-moon" aria-hidden="true"></i>
-                            <strong class="text-white"><?= htmlspecialchars($dashHijriLabel) ?></strong>
-                        </p>
-                    <?php endif; ?>
-                </div>
-                <div class="dash-hero-clock" aria-live="polite">
-                    <div class="dash-hero-clock__top">
-                        <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan</span>
-                        <span class="dash-hero-clock__live">Live</span>
-                    </div>
-                    <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
-                    <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?>>—</div>
                 </div>
             </div>
-        </div>
+        </section>
+        <section class="dash-clock-card" aria-live="polite">
+            <div class="dash-hero-clock__top">
+                <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan server</span>
+                <span class="dash-hero-clock__live">Live</span>
+            </div>
+            <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
+            <div class="dash-clock-card__tz">WIB</div>
+            <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?><?= $dashHijriClock !== '' ? ' data-hijri="' . htmlspecialchars($dashHijriClock) . '"' : '' ?>>—</div>
+        </section>
     </div>
 
     <div class="mb-4">

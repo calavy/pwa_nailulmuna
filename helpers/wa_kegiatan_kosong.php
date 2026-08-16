@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/wa_otomatis.php';
+require_once __DIR__ . '/presensi_jadwal.php';
 
 /**
  * Tujuan laporan awal: override → petugas pendidikan.
@@ -47,7 +48,11 @@ function wa_kegiatan_kosong_slot_status(PDO $pdo, array $jadwalRow, string $tang
     $kegiatanId = (int) ($jadwalRow['kegiatan_id'] ?? 0);
     $pembimbingId = (int) ($jadwalRow['pembimbing_id'] ?? 0);
     $tingkatan = trim((string) ($jadwalRow['tingkatan'] ?? ''));
+    $jamSelesai = trim((string) ($jadwalRow['jam_selesai'] ?? ''));
     if ($kegiatanId <= 0) {
+        return ['kosong' => false, 'reasons' => []];
+    }
+    if ($jamSelesai === '' || !presensi_jam_selesai_lewat($tanggal, $jamSelesai)) {
         return ['kosong' => false, 'reasons' => []];
     }
 
@@ -280,7 +285,9 @@ function wa_kegiatan_kosong_pembimbing_messages(array $group, int $counter, int 
  * - deteksi ke-1 → petugas pendidikan (atau override)
  * - deteksi ke-N (default 3) → pengurus (atau override eskalasi)
  *
- * Kegiatan dianggap kosong bila tidak ada scan santri dan/atau pembimbing & munawib belum hadir.
+ * Dievaluasi hanya setelah jam kegiatan selesai, dalam jendela N menit berikutnya
+ * (wa_kelas_kosong_batas_menit). Kegiatan dianggap kosong bila tidak ada scan santri
+ * dan/atau pembimbing & munawib belum hadir — selaras dengan logika ALPA presensi.
  */
 function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
 {
@@ -330,7 +337,8 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
         LEFT JOIN pembimbing b ON b.id = j.pembimbing_id
         WHERE k.is_active = 1
           AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
-          AND :jam_now BETWEEN ADDTIME(j.jam_mulai, SEC_TO_TIME(:batas_sec)) AND j.jam_selesai
+          AND :jam_now >= j.jam_selesai
+          AND :jam_now <= ADDTIME(j.jam_selesai, SEC_TO_TIME(:batas_sec))
         ORDER BY j.jam_mulai ASC, j.id ASC
     ';
     $st = $pdo->prepare($sql);

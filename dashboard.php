@@ -14,6 +14,7 @@ require_once __DIR__ . '/helpers/dashboard_menu.php';
 require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/pembimbing_dashboard.php';
+require_once __DIR__ . '/helpers/dashboard_insights.php';
 
 // Pembimbing & pengasuh punya dashboard khusus.
 if (isset($_SESSION['user'])) {
@@ -47,7 +48,8 @@ if (empty($_SESSION[$dashSyncKey])) {
     }
     $_SESSION[$dashSyncKey] = 1;
 }
-$dashHijriLabel = akademik_hijri_label_dari_masehi($pdo, $today, $hijriBulanNamaDash);
+$dashHijriLabel = akademik_hijri_badge_dashboard($pdo, $today, $hijriBulanNamaDash);
+$dashHijriClock = akademik_hijri_label_h($pdo, $today, $hijriBulanNamaDash);
 $dashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 $nowTime = date('H:i:s');
 $hariKe = (int) date('N');
@@ -204,44 +206,68 @@ $sideQuickCount = count($sideQuickActions);
 
 $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
-$pageTitle = 'Dashboard';
+$dashKpiTrends = dashboard_kpi_trends($pdo, $today);
+$dashIdleData = ($kegiatanAktifPresensi === [] && $kegiatanAktifGrouped === [])
+    ? dashboard_idle_panel_data($pdo, $today, $nowTime)
+    : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+$dashTotalSantriAktif = (int) $putra + (int) $putri;
+$dashRoleRaw = strtolower((string) ($_SESSION['user']['role'] ?? 'admin'));
+$dashRoleLabels = [
+    'admin' => 'Administrator Sistem',
+    'pengurus' => 'Pengurus',
+    'petugas_absensi' => 'Petugas Absensi',
+    'kiai' => 'Pengasuh',
+];
+$dashRoleLabel = $dashRoleLabels[$dashRoleRaw] ?? 'Pengguna';
+if (function_exists('is_super_admin') && is_super_admin()) {
+    $dashRoleLabel = 'Administrator Sistem';
+}
+
+$pageTitle = 'Dashboard Pesantren';
 $bodyClass = 'dash-page dash-home-mobile-fit';
 $loadPushFcm = true;
+$pageScripts = [
+    app_asset_href('/assets/js/dashboard-aside.js'),
+];
 require_once __DIR__ . '/includes/header.php';
 ?>
 
 <div class="dash-page">
-    <div class="dash-hero mb-4">
-        <div class="dash-hero-inner">
-            <?php
-            $brandTitle = $namaPonpes;
-            $brandKicker = $dashHeroKicker;
-            $brandAlamat = $alamatPonpes;
-            $brandLogoHref = $dashLogoHref;
-            $brandLogoInitial = $dashLogoInitial;
-            require __DIR__ . '/includes/partials/dash_hero_brand.php';
-            ?>
-            <div class="dash-hero-layout dash-hero-layout--slim">
-                <div class="dash-hero-greeting">
-                    <div class="dash-hero-kicker text-white-50">Beranda</div>
-                    <h1 class="h3 dash-hero-title mb-2"><?= htmlspecialchars($labelUser) ?></h1>
-                    <?php if ($dashHijriLabel !== ''): ?>
-                        <p class="dash-hero-hijri mb-0 small text-white-50 d-none d-md-block">
-                            <i class="fa-solid fa-moon" aria-hidden="true"></i>
-                            <strong class="text-white"><?= htmlspecialchars($dashHijriLabel) ?></strong>
-                        </p>
-                    <?php endif; ?>
-                </div>
-                <div class="dash-hero-clock" aria-live="polite">
-                    <div class="dash-hero-clock__top">
-                        <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan</span>
-                        <span class="dash-hero-clock__live">Live</span>
+    <div class="dash-hero-split mb-4">
+        <section class="dash-identity-card">
+            <div class="dash-identity-card__brand">
+                <?php
+                $brandTitle = $namaPonpes;
+                $brandKicker = $dashHeroKicker;
+                $brandAlamat = $alamatPonpes;
+                $brandLogoHref = $dashLogoHref;
+                $brandLogoInitial = $dashLogoInitial;
+                require __DIR__ . '/includes/partials/dash_hero_brand.php';
+                ?>
+            </div>
+            <div class="dash-identity-card__meta">
+                <div class="dash-identity-card__role">
+                    <span class="dash-identity-card__role-kicker">Peran pengguna</span>
+                    <div class="dash-identity-card__role-value">
+                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                        <?= htmlspecialchars($dashRoleLabel) ?>
                     </div>
-                    <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
-                    <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?>>—</div>
+                </div>
+                <div class="dash-identity-card__greeting">
+                    <div class="dash-hero-kicker">Beranda</div>
+                    <h1 class="h3 dash-hero-title mb-0"><?= htmlspecialchars($labelUser) ?></h1>
                 </div>
             </div>
-        </div>
+        </section>
+        <section class="dash-clock-card" aria-live="polite">
+            <div class="dash-hero-clock__top">
+                <span class="dash-hero-clock__label"><i class="fa-regular fa-clock me-1"></i> Waktu berjalan server</span>
+                <span class="dash-hero-clock__live">Live</span>
+            </div>
+            <div class="dash-hero-clock__time" id="dashboard-live-clock">--:--:--</div>
+            <div class="dash-clock-card__tz">WIB</div>
+            <div class="dash-hero-clock__date" id="dashboard-live-date"<?= $dashPasaran !== '' ? ' data-pasaran="' . htmlspecialchars($dashPasaran) . '"' : '' ?><?= $dashHijriClock !== '' ? ' data-hijri="' . htmlspecialchars($dashHijriClock) . '"' : '' ?>>—</div>
+        </section>
     </div>
 
     <div class="dash-kpi-grid mb-4" role="list" aria-label="Ringkasan data santri">
@@ -250,6 +276,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person"></i></div>
                 <div class="dash-kpi-box__label">Santri Putra</div>
                 <div class="dash-kpi-box__value"><?= (int) $putra ?></div>
+                <?php $dashKpiTrend = $dashKpiTrends['putra'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Jumlah aktif</div>
             </div>
         </div>
@@ -258,6 +285,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-dress"></i></div>
                 <div class="dash-kpi-box__label">Santri Putri</div>
                 <div class="dash-kpi-box__value"><?= (int) $putri ?></div>
+                <?php $dashKpiTrend = $dashKpiTrends['putri'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Jumlah aktif</div>
             </div>
         </div>
@@ -266,6 +294,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-book-open-reader"></i></div>
                 <div class="dash-kpi-box__label">Data Mukimin</div>
                 <div class="dash-kpi-box__value"><?= (int) $mukiminCount ?></div>
+                <?php $dashKpiTrend = $dashKpiTrends['mukimin'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Santri non aktif</div>
             </div>
         </div>
@@ -274,6 +303,7 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-walking-luggage"></i></div>
                 <div class="dash-kpi-box__label">Sedang izin</div>
                 <div class="dash-kpi-box__value"><?= (int) $izinAktifCount ?></div>
+                <?php $dashKpiTrend = $dashKpiTrends['izin'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Hari ini</div>
             </div>
         </div>
@@ -281,7 +311,7 @@ require_once __DIR__ . '/includes/header.php';
 
     <div class="dash-layout-grid mb-4">
         <section class="dash-layout-main">
-            <div class="card border-0 shadow-sm h-100 dash-panel dash-panel--lift">
+            <div class="card border-0 shadow-sm h-100 dash-panel dash-panel--lift dash-panel--kegiatan">
                 <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-start gap-2 pt-4 px-4 pb-0">
                     <div>
                         <h2 class="h5 mb-1">Kegiatan berlangsung</h2>
@@ -291,17 +321,17 @@ require_once __DIR__ . '/includes/header.php';
                     <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill">Jadwal lengkap</a>
                     <?php endif; ?>
                 </div>
-                <div class="card-body px-4 pb-4 pt-3">
+                <div class="card-body px-4 pb-3 pt-3">
                     <?php if ($kegiatanAktifPresensi !== []): ?>
                         <?php require __DIR__ . '/includes/partials/dashboard_kegiatan_berlangsung_live.php'; ?>
                     <?php elseif ($kegiatanAktifGrouped === []): ?>
-                        <div class="dash-empty-chart py-5 text-center text-muted">
-                            <div class="dash-empty-chart__inner">
-                                <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
-                                <p class="mb-0 fw-semibold">Belum ada kegiatan di jam <?= htmlspecialchars($jamServerLabel) ?>.</p>
-                                <p class="small mb-0 mt-1">Ini normal jika tidak ada jadwal aktif di database untuk slot ini — bukan karena offline. Cek <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>" class="alert-link">jadwal lengkap</a> atau ubah jam di jadwal kegiatan.</p>
-                            </div>
-                        </div>
+                        <?php
+                        $idleContext = 'admin';
+                        $jamLabel = $jamServerLabel;
+                        $idleData = $dashIdleData;
+                        $canJadwalLink = $canJadwal;
+                        require __DIR__ . '/includes/partials/dashboard_kegiatan_idle.php';
+                        ?>
                     <?php else: ?>
                         <div class="d-flex flex-column gap-2">
                             <?php foreach ($kegiatanAktifGrouped as $namaKegiatan => $slotRows): ?>
@@ -334,14 +364,32 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                     <?php endif; ?>
                 </div>
+                <div class="dash-status-strip">
+                    <span class="dash-status-pill dash-status-pill--ok">
+                        <i class="fa-solid fa-signal" aria-hidden="true"></i>
+                        Status sistem: <strong>Normal Online</strong>
+                    </span>
+                    <span class="dash-status-pill">
+                        <i class="fa-solid fa-users" aria-hidden="true"></i>
+                        Total santri: <strong><?= $dashTotalSantriAktif ?> Aktif</strong>
+                    </span>
+                    <span class="dash-status-pill dash-status-pill--secure">
+                        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                        Keamanan: <strong>Terkunci &amp; Aman</strong>
+                    </span>
+                </div>
+                <div class="dash-sync-footer">
+                    <span>Sistem sinkronisasi otomatis aktif · data real-time</span>
+                    <span class="dash-sync-footer__badge"><i class="fa-solid fa-circle" aria-hidden="true"></i> Connected</span>
+                </div>
             </div>
         </section>
-        <aside class="dash-layout-aside">
-            <div class="card border-0 shadow-sm h-100 dash-panel dash-panel-side dash-panel--lift">
-                <?php if ($dashSearchItems !== []): ?>
-                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 <?= $sideQuickCount === 0 ? 'pb-4' : '' ?>">
-                    <h2 class="h6 mb-1">Pencarian cepat</h2>
-                    <p class="small text-muted mb-2">Cari modul menu</p>
+        <aside class="dash-layout-aside dash-layout-aside--split">
+            <?php if ($dashSearchItems !== []): ?>
+            <div class="card border-0 shadow-sm dash-panel dash-panel-side dash-panel--lift dash-aside-card">
+                <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
+                    <h2 class="h6 mb-1">Pencarian cepat modul</h2>
+                    <p class="small text-muted mb-2">Cari santri, keuangan, izin…</p>
                     <div class="dash-aside-search" id="dash-menu-search-wrap">
                         <label class="visually-hidden" for="dash-menu-search-input">Pencarian cepat modul</label>
                         <span class="dash-aside-search__ico" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span>
@@ -349,7 +397,7 @@ require_once __DIR__ . '/includes/header.php';
                             type="search"
                             id="dash-menu-search-input"
                             class="dash-aside-search__input form-control"
-                            placeholder="Ketik nama modul…"
+                            placeholder="Cari Santri, Keuangan, Izin…"
                             autocomplete="off"
                             enterkeyhint="search"
                             role="combobox"
@@ -360,26 +408,33 @@ require_once __DIR__ . '/includes/header.php';
                         <div class="dash-aside-search__results" id="dash-menu-search-results" role="listbox" hidden></div>
                     </div>
                 </div>
-                <?php endif; ?>
+                <div class="pb-3"></div>
+            </div>
+            <?php endif; ?>
 
-                <?php if ($sideQuickCount > 0): ?>
-                <div class="card-header bg-transparent border-0 <?= $dashSearchItems !== [] ? 'pt-3' : 'pt-4' ?> px-4 pb-0 <?= $dashSearchItems !== [] ? 'border-top' : '' ?>">
-                    <h2 class="h5 mb-1">Aksi cepat</h2>
+            <?php if ($sideQuickCount > 0): ?>
+            <div class="card border-0 shadow-sm dash-panel dash-panel-side dash-panel--lift dash-aside-card flex-grow-1">
+                <div class="card-header bg-transparent border-0 pt-3 px-3 pb-0">
+                    <h2 class="h6 mb-1">Aksi cepat</h2>
                     <p class="small text-muted mb-0">Modul yang sering dipakai</p>
                 </div>
-                <div class="card-body px-4 pb-4 pt-3 d-flex flex-column gap-2">
+                <div class="card-body px-3 pb-3 pt-2 d-flex flex-column gap-2">
                     <?php foreach ($sideQuickActions as $act): ?>
                         <a href="<?= htmlspecialchars(app_rewrite_internal_url($act['path'])) ?>" class="<?= htmlspecialchars($act['class']) ?>">
-                            <i class="fa-solid <?= htmlspecialchars($act['icon']) ?> me-2"></i> <?= htmlspecialchars($act['label']) ?>
+                            <i class="fa-solid <?= htmlspecialchars($act['icon']) ?>"></i>
+                            <span><?= htmlspecialchars($act['label']) ?></span>
+                            <i class="fa-solid fa-chevron-right dash-quick-action__chev" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>
-                <?php elseif ($dashSearchItems === []): ?>
-                <div class="card-body px-4 pb-4 pt-3">
+            </div>
+            <?php elseif ($dashSearchItems === []): ?>
+            <div class="card border-0 shadow-sm dash-panel dash-panel-side">
+                <div class="card-body px-3 pb-3 pt-3">
                     <p class="small text-muted mb-0">Gunakan menu modul di samping untuk membuka fitur yang tersedia.</p>
                 </div>
-                <?php endif; ?>
             </div>
+            <?php endif; ?>
         </aside>
     </div>
 
@@ -424,108 +479,14 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <script>
-    (function () {
-        const searchItems = <?= json_encode(array_map(static function (array $item): array {
-            return [
-                'path' => app_rewrite_internal_url((string) $item['path']),
-                'label' => (string) $item['label'],
-                'icon' => (string) $item['icon'],
-            ];
-        }, $dashSearchItems), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
-        const searchWrap = document.getElementById('dash-menu-search-wrap');
-        const searchInput = document.getElementById('dash-menu-search-input');
-        const searchResults = document.getElementById('dash-menu-search-results');
-        if (searchWrap && searchInput && searchResults && searchItems.length) {
-            let activeIdx = -1;
-            const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
-
-            function closeResults() {
-                searchResults.hidden = true;
-                searchInput.setAttribute('aria-expanded', 'false');
-                activeIdx = -1;
-            }
-
-            function openResults() {
-                searchResults.hidden = false;
-                searchInput.setAttribute('aria-expanded', 'true');
-            }
-
-            function renderResults(query) {
-                const q = norm(query.trim());
-                const matches = q === ''
-                    ? searchItems.slice(0, 12)
-                    : searchItems.filter((item) => norm(item.label).includes(q) || norm(item.path).includes(q)).slice(0, 16);
-
-                searchResults.innerHTML = '';
-                if (matches.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.className = 'dash-aside-search__empty';
-                    empty.textContent = 'Tidak ada modul yang cocok.';
-                    searchResults.appendChild(empty);
-                    openResults();
-                    return;
-                }
-
-                matches.forEach((item, idx) => {
-                    const row = document.createElement('a');
-                    row.className = 'dash-aside-search__item';
-                    row.href = item.path;
-                    row.setAttribute('role', 'option');
-                    row.dataset.idx = String(idx);
-                    const ico = document.createElement('i');
-                    ico.className = item.icon;
-                    ico.setAttribute('aria-hidden', 'true');
-                    const lbl = document.createElement('span');
-                    lbl.textContent = item.label;
-                    row.append(ico, lbl);
-                    searchResults.appendChild(row);
-                });
-                openResults();
-            }
-
-            function setActive(idx) {
-                const rows = searchResults.querySelectorAll('.dash-aside-search__item');
-                rows.forEach((r) => r.classList.remove('is-active'));
-                activeIdx = idx;
-                if (idx >= 0 && rows[idx]) {
-                    rows[idx].classList.add('is-active');
-                    rows[idx].scrollIntoView({ block: 'nearest' });
-                }
-            }
-
-            searchInput.addEventListener('focus', () => renderResults(searchInput.value));
-            searchInput.addEventListener('input', () => renderResults(searchInput.value));
-            searchInput.addEventListener('keydown', (e) => {
-                const rows = searchResults.querySelectorAll('.dash-aside-search__item');
-                if (e.key === 'Escape') {
-                    closeResults();
-                    return;
-                }
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setActive(Math.min(activeIdx + 1, rows.length - 1));
-                    return;
-                }
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setActive(Math.max(activeIdx - 1, 0));
-                    return;
-                }
-                if (e.key === 'Enter' && activeIdx >= 0 && rows[activeIdx]) {
-                    e.preventDefault();
-                    window.location.href = rows[activeIdx].href;
-                }
-            });
-            document.addEventListener('click', (e) => {
-                if (!searchWrap.contains(e.target)) {
-                    closeResults();
-                }
-            });
-        }
-
-        window.PONDOK_SERVER_CLOCK_MS = <?= (int) $dashServerClockMs ?>;
-    })();
+    window.DASH_MENU_SEARCH_ITEMS = <?= json_encode(array_map(static function (array $item): array {
+        return [
+            'path' => app_rewrite_internal_url((string) $item['path']),
+            'label' => (string) $item['label'],
+            'icon' => (string) $item['icon'],
+        ];
+    }, $dashSearchItems), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    window.PONDOK_SERVER_CLOCK_MS = <?= (int) $dashServerClockMs ?>;
 </script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

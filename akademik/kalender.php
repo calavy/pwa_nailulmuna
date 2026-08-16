@@ -428,9 +428,9 @@ $pageTitle = 'Kalender akademik';
 $bodyClass = 'akademik-kalender-page';
 require_once __DIR__ . '/../includes/header.php';
 ?>
-<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/kalender-akademik.css')) ?>" rel="stylesheet">
 <?php if ($view === 'rencana'): ?>
-<link href="<?= htmlspecialchars(app_href('/assets/css/kalender-rencana-kerja.css')) ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/kalender-rencana-kerja.css')) ?>" rel="stylesheet">
 <?php endif; ?>
 
 <?php
@@ -473,7 +473,7 @@ render_kalender_page_hero([
             <?php if ($agendaKlikAktif): ?>
             <span class="akad-cal-legend-item"><span class="akad-cal-legend-swatch akad-cal-legend-swatch--agenda"></span> Acara / jadwal</span>
             <?php endif; ?>
-            <span class="akad-cal-legend-note">Angka besar = tanggal utama · baris kecil = kalender alternatif (Masehi/Hijriyah). Warna teks hijriyah = per bulan H. · Pasaran: Legi, Pahing, Pon, Wage, Kliwon.<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
+            <span class="akad-cal-legend-note">Angka besar = tanggal utama · pasaran di samping angka · baris kecil = kalender alternatif (Masehi/Hijriyah).<?= $agendaKlikAktif ? ' · Klik tanggal untuk menambah acara.' : '' ?></span>
             <?php endif; ?>
         </div>
     </div>
@@ -581,7 +581,7 @@ render_kalender_page_hero([
                 </div>
                 <p class="small text-muted mt-3 mb-0">
                     <i class="fa-solid fa-hand-pointer me-1"></i> Klik tanggal untuk menambah atau melihat acara.
-                    Angka besar = <?= $mode === 'hijri' ? 'tanggal hijriyah' : 'tanggal masehi' ?> · baris kecil = kalender <?= $mode === 'hijri' ? 'masehi' : 'hijriyah' ?>.
+                    Angka besar = <?= $mode === 'hijri' ? 'tanggal hijriyah' : 'tanggal masehi' ?> · pasaran di samping angka · baris kecil = kalender <?= $mode === 'hijri' ? 'masehi' : 'hijriyah' ?>.
                     Rentang Masehi: <strong><?= htmlspecialchars($bulanPaket['gStart']) ?></strong> — <strong><?= htmlspecialchars($bulanPaket['gEnd']) ?></strong>.
                 </p>
             <?php endif; ?>

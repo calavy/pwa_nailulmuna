@@ -25,8 +25,8 @@
     function paintRoot(mode) {
         var doc = global.document.documentElement;
         doc.setAttribute('data-theme', mode);
-        doc.style.colorScheme = mode === 'dark' ? 'dark' : 'light';
-        doc.style.backgroundColor = mode === 'dark' ? '#0f172a' : '#eef5ff';
+        doc.style.colorScheme = 'light';
+        doc.style.backgroundColor = mode === 'dark' ? '#f1f5f9' : '#eef5ff';
     }
 
     function syncRadios(mode) {

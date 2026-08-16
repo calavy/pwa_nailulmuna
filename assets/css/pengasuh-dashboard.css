@@ -364,6 +364,10 @@
     grid-column: 2 / span 2;
 }
 
+.page-pengasuh-dashboard .pg-dash-keaktivan .text-muted {
+    color: var(--dash-muted-strong, #475569) !important;
+}
+
 @media (max-width: 767.98px) {
     .page-pengasuh-dashboard .kh-hero {
         margin-bottom: 1rem;
@@ -403,4 +407,21 @@
     .pg-dash-izin-table .pg-dash-izin-btn {
         width: 100%;
     }
+}
+
+/* Dark mockup — dashboard pengasuh */
+[data-theme="dark"] .page-pengasuh-dashboard .card.dash-panel,
+[data-theme="dark"] .page-pengasuh-dashboard .card {
+    background: #fff !important;
+    border-color: rgba(148, 163, 184, 0.22) !important;
+    color: #0f172a;
+}
+
+[data-theme="dark"] .page-pengasuh-dashboard .card .h6,
+[data-theme="dark"] .page-pengasuh-dashboard .card h2 {
+    color: #0f172a;
+}
+
+[data-theme="dark"] .page-pengasuh-dashboard .dash-identity-card .text-warning {
+    color: #fde68a !important;
 }
