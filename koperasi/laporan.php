@@ -11,6 +11,7 @@ require_once __DIR__ . '/../helpers/datetime_display.php';
 require_once __DIR__ . '/../includes/koperasi_portal_layout.php';
 
 cashless_koperasi_ensure_schema($pdo);
+cashless_koperasi_bootstrap_from_user_session($pdo);
 $koperasi = cashless_koperasi_require_session($pdo);
 $koperasiId = (int) $koperasi['id'];
 $koperasiNama = (string) $koperasi['nama'];

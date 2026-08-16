@@ -46,13 +46,6 @@ declare(strict_types=1);
         'desc' => 'NIS · PIN santri',
     ]);
     auth_portal_role_link([
-        'href' => app_href('/koperasi/index.php'),
-        'icon' => 'fa-store',
-        'icon_mod' => 'koperasi',
-        'title' => 'Koperasi cashless',
-        'desc' => 'Password koperasi',
-    ]);
-    auth_portal_role_link([
         'href' => app_href('/mukimin/login.php'),
         'icon' => 'fa-book-open',
         'icon_mod' => 'mukimin',

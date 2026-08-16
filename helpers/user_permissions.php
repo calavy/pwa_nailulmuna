@@ -872,6 +872,9 @@ function user_permission_default_keys_for_role(string $role): array
             'perizinan_permohonan',
         ];
     }
+    if ($role === 'petugas_koperasi') {
+        return [];
+    }
     if ($role === 'pengurus') {
         $keys = array_keys(user_permission_flat_options());
 

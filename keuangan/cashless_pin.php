@@ -524,28 +524,28 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
 <div class="row g-3">
     <div class="col-lg-12">
         <div class="card shadow-sm mb-3" id="koperasi-cashless">
-            <div class="card-header fw-semibold small">Portal Koperasi (login petugas)</div>
+            <div class="card-header fw-semibold small">Nama koperasi cashless</div>
             <div class="card-body">
-                <p class="small text-muted">Atur nama tampilan dan password login untuk masing-masing koperasi. Petugas masuk lewat <a href="<?= htmlspecialchars(app_href('/koperasi/index.php')) ?>" target="_blank" rel="noopener">Portal Koperasi</a>.</p>
+                <p class="small text-muted mb-3">
+                    Atur nama tampilan masing-masing koperasi.
+                    Petugas scan memakai akun role <strong>Petugas Koperasi</strong> yang dibuat di
+                    <a href="<?= htmlspecialchars(app_href('/settings/admin.php')) ?>">Kelola user</a>
+                    (login di halaman utama).
+                </p>
                 <form method="post">
                     <input type="hidden" name="action" value="save_koperasi_cashless">
                     <?php foreach ($koperasiList as $kop):
                         $kid = (int) $kop['id'];
-                        $pwSet = trim((string) app_setting($pdo, cashless_koperasi_password_setting_key($kid), '')) !== '';
                         ?>
                         <div class="border rounded p-3 mb-2">
-                            <div class="fw-semibold small mb-2"><?= htmlspecialchars((string) $kop['nama']) ?></div>
-                            <div class="mb-2">
+                            <div class="fw-semibold small mb-2">Koperasi <?= $kid ?></div>
+                            <div class="mb-0">
                                 <label class="form-label small">Nama tampilan</label>
                                 <input type="text" name="koperasi_nama_<?= $kid ?>" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $kop['nama']) ?>" maxlength="120">
                             </div>
-                            <div class="mb-0">
-                                <label class="form-label small">Password login petugas <?= $pwSet ? '<span class="text-success">(sudah diatur)</span>' : '<span class="text-warning">(belum diatur)</span>' ?></label>
-                                <input type="password" name="koperasi_password_<?= $kid ?>" class="form-control form-control-sm" placeholder="Kosongkan jika tidak ingin mengubah" autocomplete="new-password">
-                            </div>
                         </div>
                     <?php endforeach; ?>
-                    <button type="submit" class="btn btn-primary btn-sm">Simpan koperasi</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Simpan nama koperasi</button>
                 </form>
             </div>
         </div>

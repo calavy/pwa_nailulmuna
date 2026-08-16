@@ -29,7 +29,7 @@ require_once __DIR__ . '/../includes/header.php';
     <i class="fa-solid fa-circle-info me-1"></i>
     Data disimpan di browser (IndexedDB). Gunakan perangkat yang sama setelah unduh.
     Default: <strong><?= (int) keuangan_offline_pack_years_default() ?> tahun terakhir</strong>.
-    PIN cashless &amp; password koperasi tidak diunduh.
+    PIN cashless tidak diunduh.
 </div>
 
 <div class="card shadow-sm mb-3">

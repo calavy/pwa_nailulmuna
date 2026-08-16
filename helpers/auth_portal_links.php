@@ -25,12 +25,6 @@ function auth_portal_alt_portal_links(): array
             'icon' => 'fa-user-graduate',
         ],
         [
-            'href' => '/koperasi/index.php',
-            'label' => 'Koperasi',
-            'short_label' => 'Koperasi',
-            'icon' => 'fa-store',
-        ],
-        [
             'href' => '/mukimin/login.php',
             'label' => 'Mukimin',
             'short_label' => 'Mukimin',

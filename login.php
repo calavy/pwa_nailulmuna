@@ -170,25 +170,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         user_profil_ensure_schema($pdo);
 
-        if (empty($_SESSION['users_role_enum_v2'])) {
+        if (empty($_SESSION['users_role_enum_v3'])) {
 
-            $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-
-            try {
-
-                $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-
-            } catch (PDOException $e) { /* abaikan */ }
+            require_once __DIR__ . '/helpers/cashless_koperasi.php';
+            cashless_koperasi_users_ensure_schema($pdo);
 
             $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
 
-            $_SESSION['users_role_enum_v2'] = 1;
+            $_SESSION['users_role_enum_v3'] = 1;
 
         }
 
 
 
-        $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin, foto_profil FROM users WHERE username = :username LIMIT 1');
+        $statement = $pdo->prepare('SELECT id, nama, username, password, role, is_super_admin, foto_profil, koperasi_id FROM users WHERE username = :username LIMIT 1');
 
         $statement->execute(['username' => $username]);
 
@@ -330,6 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 
+        $kopIdLogin = (int) ($userRow['koperasi_id'] ?? 0);
         $_SESSION['user'] = [
 
             'id' => $userId,
@@ -344,7 +340,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             'foto_profil' => trim((string) ($userRow['foto_profil'] ?? '')),
 
+            'koperasi_id' => ($sessionRole === 'petugas_koperasi' && $kopIdLogin >= 1 && $kopIdLogin <= 3) ? $kopIdLogin : null,
+
         ];
+
+        if ($sessionRole === 'petugas_koperasi' && $kopIdLogin >= 1 && $kopIdLogin <= 3) {
+            require_once __DIR__ . '/helpers/cashless_koperasi.php';
+            cashless_koperasi_login_from_user($pdo, $kopIdLogin);
+        }
 
         if ($isRegisteredPembimbing && $userId > 0 && $pdo instanceof PDO) {
 

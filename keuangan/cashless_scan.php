@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && trim((string) ($_GET['ajax'] ?? ''))
     exit;
 }
 
-$createdByUserId = $koperasiPortal ? 0 : (int) ($_SESSION['user']['id'] ?? 0);
+$createdByUserId = (int) ($_SESSION['user']['id'] ?? 0);
 
 $resultMessage = null;
 $resultType = 'success';

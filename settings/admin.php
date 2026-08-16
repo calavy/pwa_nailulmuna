@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/user_profil.php';
 require_once __DIR__ . '/../helpers/user_permissions.php';
+require_once __DIR__ . '/../helpers/cashless_koperasi.php';
 
 require_roles(['admin']);
 require_super_admin();
@@ -21,9 +22,27 @@ if (!table_exists($pdo, 'users')) {
         )
     ');
 }
-$pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','kiai') NOT NULL DEFAULT 'pengurus'");
+cashless_koperasi_users_ensure_schema($pdo);
 $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
 user_profil_ensure_schema($pdo);
+cashless_koperasi_ensure_schema($pdo);
+$koperasiOptions = cashless_koperasi_list($pdo);
+$adminAllowedRoles = ['admin', 'pengurus', 'petugas_absensi', 'kiai', 'petugas_koperasi'];
+
+$normalizeAdminRoleKoperasi = static function (string $role, int $koperasiId) use ($adminAllowedRoles): array {
+    if (!in_array($role, $adminAllowedRoles, true)) {
+        $role = 'pengurus';
+    }
+    if ($role === 'petugas_koperasi') {
+        if ($koperasiId < 1 || $koperasiId > 3) {
+            return ['ok' => false, 'role' => $role, 'koperasi_id' => null, 'is_super_admin' => 0, 'error' => 'Petugas koperasi wajib memilih koperasi 1–3.'];
+        }
+
+        return ['ok' => true, 'role' => $role, 'koperasi_id' => $koperasiId, 'is_super_admin' => 0, 'error' => ''];
+    }
+
+    return ['ok' => true, 'role' => $role, 'koperasi_id' => null, 'is_super_admin' => null, 'error' => ''];
+};
 $pdo->exec('
     CREATE TABLE IF NOT EXISTS user_access_permissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -107,8 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = (string) ($_POST['password'] ?? '');
         $role = (string) ($_POST['role'] ?? 'pengurus');
         $isSuperAdmin = isset($_POST['is_super_admin']) ? 1 : 0;
-        if (!in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'kiai'], true)) {
-            $role = 'pengurus';
+        $koperasiIdPost = (int) ($_POST['koperasi_id'] ?? 0);
+        $norm = $normalizeAdminRoleKoperasi($role, $koperasiIdPost);
+        if (!$norm['ok']) {
+            set_flash('error', (string) $norm['error']);
+            header('Location: ' . app_href('/settings/admin.php'));
+            exit;
+        }
+        $role = (string) $norm['role'];
+        $koperasiIdSave = $norm['koperasi_id'];
+        if ($norm['is_super_admin'] !== null) {
+            $isSuperAdmin = (int) $norm['is_super_admin'];
         }
 
         $stmt = $pdo->prepare('SELECT id, role, is_super_admin FROM users WHERE id = :id LIMIT 1');
@@ -162,27 +190,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($password !== '') {
-            $upd = $pdo->prepare('UPDATE users SET nama = :nama, username = :username, password = :password, role = :role, is_super_admin = :is_super_admin WHERE id = :id');
+            $upd = $pdo->prepare('UPDATE users SET nama = :nama, username = :username, password = :password, role = :role, is_super_admin = :is_super_admin, koperasi_id = :koperasi_id WHERE id = :id');
             $upd->execute([
                 'nama' => $nama,
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
                 'role' => $role,
                 'is_super_admin' => $isSuperAdmin,
+                'koperasi_id' => $koperasiIdSave,
                 'id' => $targetUserId,
             ]);
         } else {
-            $upd = $pdo->prepare('UPDATE users SET nama = :nama, username = :username, role = :role, is_super_admin = :is_super_admin WHERE id = :id');
+            $upd = $pdo->prepare('UPDATE users SET nama = :nama, username = :username, role = :role, is_super_admin = :is_super_admin, koperasi_id = :koperasi_id WHERE id = :id');
             $upd->execute([
                 'nama' => $nama,
                 'username' => $username,
                 'role' => $role,
                 'is_super_admin' => $isSuperAdmin,
+                'koperasi_id' => $koperasiIdSave,
                 'id' => $targetUserId,
             ]);
         }
 
-        if ($isSuperAdmin === 1) {
+        if ($isSuperAdmin === 1 || $role === 'petugas_koperasi') {
             $pdo->prepare('DELETE FROM user_access_permissions WHERE user_id = :id')->execute(['id' => $targetUserId]);
         }
 
@@ -229,6 +259,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? 'pengurus';
     $isSuperAdmin = isset($_POST['is_super_admin']) ? 1 : 0;
+    $koperasiIdPost = (int) ($_POST['koperasi_id'] ?? 0);
+    $norm = $normalizeAdminRoleKoperasi((string) $role, $koperasiIdPost);
+    if (!$norm['ok']) {
+        set_flash('error', (string) $norm['error']);
+        header('Location: ' . app_href('/settings/admin.php'));
+        exit;
+    }
+    $role = (string) $norm['role'];
+    $koperasiIdSave = $norm['koperasi_id'];
+    if ($norm['is_super_admin'] !== null) {
+        $isSuperAdmin = (int) $norm['is_super_admin'];
+    }
     if ($nama !== '' && $username !== '' && $password !== '') {
         $checkUname = $pdo->prepare('SELECT id FROM users WHERE username = :u LIMIT 1');
         $checkUname->execute(['u' => $username]);
@@ -236,15 +278,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             set_flash('error', 'Username sudah dipakai. Pilih username lain.');
         } else {
             $insert = $pdo->prepare('
-                INSERT INTO users (nama, username, password, role, is_super_admin)
-                VALUES (:nama, :username, :password, :role, :is_super_admin)
+                INSERT INTO users (nama, username, password, role, is_super_admin, koperasi_id)
+                VALUES (:nama, :username, :password, :role, :is_super_admin, :koperasi_id)
             ');
             $insert->execute([
                 'nama' => $nama,
                 'username' => $username,
                 'password' => password_hash($password, PASSWORD_DEFAULT),
-                'role' => in_array($role, ['admin', 'pengurus', 'petugas_absensi', 'kiai'], true) ? $role : 'pengurus',
+                'role' => $role,
                 'is_super_admin' => $isSuperAdmin,
+                'koperasi_id' => $koperasiIdSave,
             ]);
             $newUserId = (int) $pdo->lastInsertId();
             if ($newUserId > 0 && isset($_FILES['foto_profil']) && is_array($_FILES['foto_profil'])) {
@@ -258,7 +301,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                 }
             }
-            set_flash('success', 'User baru berhasil ditambahkan.');
+            set_flash('success', $role === 'petugas_koperasi'
+                ? 'Petugas koperasi ditambahkan. Login lewat halaman utama → langsung ke scan.'
+                : 'User baru berhasil ditambahkan.');
         }
     } else {
         set_flash('error', 'Nama, username, dan password wajib diisi.');
@@ -270,8 +315,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Akun pembimbing tidak ditampilkan/diolah dari halaman ini — pengelolaannya
 // dipusatkan di /pembimbing/index.php & /pembimbing/edit.php agar admin
 // tidak perlu pindah-pindah halaman ketika membuat akun pembimbing.
-$users = $pdo->query("SELECT id, nama, username, role, is_super_admin, foto_profil, created_at FROM users WHERE COALESCE(role, '') <> 'pembimbing' ORDER BY id DESC")->fetchAll();
+$users = $pdo->query("SELECT id, nama, username, role, is_super_admin, foto_profil, koperasi_id, created_at FROM users WHERE COALESCE(role, '') <> 'pembimbing' ORDER BY id DESC")->fetchAll();
 $pembimbingUserCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE COALESCE(role, '') = 'pembimbing'")->fetchColumn();
+$koperasiNamaById = [];
+foreach ($koperasiOptions as $kopOpt) {
+    $koperasiNamaById[(int) ($kopOpt['id'] ?? 0)] = (string) ($kopOpt['nama'] ?? '');
+}
 $accessRows = $pdo->query('SELECT user_id, permission_key FROM user_access_permissions')->fetchAll();
 $accessMap = [];
 foreach ($accessRows as $row) {
@@ -295,7 +344,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="/menu/menu_hub.php?id=menu-grp-pengaturan">Pengaturan</a> · Akses</p>
     <h1 class="h4 mb-1">Kelola user &amp; hak akses</h1>
-    <p class="text-muted mb-0">Buat akun pengurus / admin / petugas lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
+    <p class="text-muted mb-0">Buat akun pengurus / admin / petugas absensi / petugas koperasi, lalu atur hak akses fitur per user. Super admin tetap memiliki akses penuh.</p>
 </div>
 <?php require __DIR__ . '/partials/pondok_theme_toggle.php'; ?>
 <div class="alert alert-info d-flex align-items-start gap-2 small mb-3">
@@ -366,7 +415,8 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h5">Tambah user</h1>
-                <form method="post" class="row g-2" enctype="multipart/form-data">
+                <p class="small text-muted">Untuk loket scan, pilih role <strong>Petugas Koperasi</strong> lalu tentukan koperasi.</p>
+                <form method="post" class="row g-2" enctype="multipart/form-data" id="admin-create-user-form">
                     <input type="hidden" name="action" value="create_user">
                     <div class="col-12"><input class="form-control" type="text" name="nama" placeholder="Nama" required></div>
                     <div class="col-12"><input class="form-control" type="text" name="username" placeholder="Username" required></div>
@@ -376,14 +426,25 @@ require_once __DIR__ . '/../includes/header.php';
                         <input class="form-control form-control-sm" type="file" name="foto_profil" accept="image/jpeg,image/png,image/webp">
                     </div>
                     <div class="col-12">
-                        <select class="form-select" name="role">
+                        <select class="form-select" name="role" id="create-user-role" data-admin-role-select>
                             <option value="pengurus">Pengurus</option>
                             <option value="admin">Admin</option>
                             <option value="petugas_absensi">Petugas Absensi</option>
                             <option value="kiai">Pengasuh</option>
+                            <option value="petugas_koperasi">Petugas Koperasi</option>
                         </select>
                     </div>
-                    <div class="col-12 form-check ms-1">
+                    <div class="col-12 d-none" data-admin-koperasi-wrap>
+                        <label class="form-label small mb-0" for="create-user-koperasi">Koperasi</label>
+                        <select class="form-select" name="koperasi_id" id="create-user-koperasi">
+                            <option value="">— Pilih koperasi —</option>
+                            <?php foreach ($koperasiOptions as $kopOpt): ?>
+                                <option value="<?= (int) $kopOpt['id'] ?>"><?= htmlspecialchars((string) $kopOpt['nama']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">Login username/password → langsung ke scan koperasi ini.</div>
+                    </div>
+                    <div class="col-12 form-check ms-1" data-admin-super-wrap>
                         <input class="form-check-input" type="checkbox" id="is_super_admin" name="is_super_admin" value="1">
                         <label class="form-check-label" for="is_super_admin">Jadikan Admin Super</label>
                     </div>
@@ -423,18 +484,26 @@ require_once __DIR__ . '/../includes/header.php';
                         if ($role === 'admin') { $roleBadge = 'primary'; }
                         elseif ($role === 'pengurus') { $roleBadge = 'success'; }
                         elseif ($role === 'petugas_absensi') { $roleBadge = 'info'; }
+                        elseif ($role === 'petugas_koperasi') { $roleBadge = 'teal'; }
                         elseif ($role === 'kiai') { $roleBadge = 'warning'; }
+                        $kopIdRow = (int) ($u['koperasi_id'] ?? 0);
+                        $kopNamaRow = $kopIdRow > 0 ? ($koperasiNamaById[$kopIdRow] ?? ('Koperasi ' . $kopIdRow)) : '';
                         ?>
                         <tr>
                             <td class="text-center"><?= user_profil_render_avatar($u, 'app-user-avatar--table') ?></td>
                             <td class="fw-semibold"><?= htmlspecialchars($u['nama']) ?> <?php if ($isSelf): ?><span class="badge text-bg-light text-dark border ms-1">Anda</span><?php endif; ?></td>
                             <td class="font-monospace small"><?= htmlspecialchars($u['username']) ?></td>
-                            <td><span class="badge text-bg-<?= $roleBadge ?>"><?= htmlspecialchars(user_role_label($role)) ?></span></td>
+                            <td>
+                                <span class="badge text-bg-<?= $roleBadge === 'teal' ? 'success' : $roleBadge ?>"><?= htmlspecialchars(user_role_label($role)) ?></span>
+                                <?php if ($role === 'petugas_koperasi' && $kopNamaRow !== ''): ?>
+                                    <div class="small text-muted mt-1"><?= htmlspecialchars($kopNamaRow) ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td><?= (int) $u['is_super_admin'] === 1 ? '<span class="badge text-bg-danger">Super</span>' : '<span class="text-muted">-</span>' ?></td>
                             <td class="small text-muted"><?= htmlspecialchars((string) ($u['created_at'] ?? '')) ?></td>
                             <td class="text-end text-nowrap">
                                 <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal<?= $uid ?>">Edit</button>
-                                <?php if ((int) ($u['is_super_admin'] ?? 0) !== 1): ?>
+                                <?php if ((int) ($u['is_super_admin'] ?? 0) !== 1 && $role !== 'petugas_koperasi'): ?>
                                     <?php
                                     $permCount = count($accessMap[$uid] ?? []);
                                     $permTotal = count($permissionOptions);
@@ -443,8 +512,10 @@ require_once __DIR__ . '/../includes/header.php';
                                         Atur akses
                                         <span class="badge text-bg-light text-dark border ms-1"><?= $permCount ?>/<?= $permTotal ?></span>
                                     </button>
+                                <?php elseif ($role === 'petugas_koperasi'): ?>
+                                    <span class="badge text-bg-light text-dark border" title="Akses tetap: scan koperasi">Scan koperasi</span>
                                 <?php else: ?>
-                                    <span class="badge text-bg-danger ms-1" title="Super admin â€” akses penuh">Akses penuh</span>
+                                    <span class="badge text-bg-danger ms-1" title="Super admin — akses penuh">Akses penuh</span>
                                 <?php endif; ?>
                                 <?php if (!$isSelf): ?>
                                     <form method="post" class="d-inline" onsubmit="return confirm('Hapus user <?= htmlspecialchars(addslashes($u['nama'])) ?>? Tindakan tidak bisa dibatalkan.');">
@@ -483,6 +554,7 @@ require_once __DIR__ . '/../includes/header.php';
     <?php
     $uid = (int) $u['id'];
     $rolev = (string) ($u['role'] ?? 'pengurus');
+    $kopIdEdit = (int) ($u['koperasi_id'] ?? 0);
     ?>
     <div class="modal fade" id="editUserModal<?= $uid ?>" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -515,14 +587,24 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Role</label>
-                                <select class="form-select" name="role">
+                                <select class="form-select" name="role" data-admin-role-select>
                                     <option value="pengurus" <?= $rolev === 'pengurus' ? 'selected' : '' ?>>Pengurus</option>
                                     <option value="admin" <?= $rolev === 'admin' ? 'selected' : '' ?>>Admin</option>
                                     <option value="petugas_absensi" <?= $rolev === 'petugas_absensi' ? 'selected' : '' ?>>Petugas Absensi</option>
                                     <option value="kiai" <?= $rolev === 'kiai' ? 'selected' : '' ?>>Pengasuh</option>
+                                    <option value="petugas_koperasi" <?= $rolev === 'petugas_koperasi' ? 'selected' : '' ?>>Petugas Koperasi</option>
                                 </select>
                             </div>
-                            <div class="col-12 form-check ms-1 mt-3">
+                            <div class="col-12<?= $rolev === 'petugas_koperasi' ? '' : ' d-none' ?>" data-admin-koperasi-wrap>
+                                <label class="form-label">Koperasi</label>
+                                <select class="form-select" name="koperasi_id">
+                                    <option value="">— Pilih koperasi —</option>
+                                    <?php foreach ($koperasiOptions as $kopOpt): ?>
+                                        <option value="<?= (int) $kopOpt['id'] ?>" <?= $kopIdEdit === (int) $kopOpt['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $kopOpt['nama']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-12 form-check ms-1 mt-3<?= $rolev === 'petugas_koperasi' ? ' d-none' : '' ?>" data-admin-super-wrap>
                                 <input class="form-check-input" type="checkbox" name="is_super_admin" value="1" id="is_super_admin_<?= $uid ?>" <?= (int) $u['is_super_admin'] === 1 ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="is_super_admin_<?= $uid ?>">Jadikan Admin Super</label>
                             </div>
@@ -541,7 +623,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
     </div>
-    <?php if ((int) ($u['is_super_admin'] ?? 0) !== 1): ?>
+    <?php if ((int) ($u['is_super_admin'] ?? 0) !== 1 && $rolev !== 'petugas_koperasi'): ?>
         <?php
         $selected = $accessMap[$uid] ?? [];
         $permCount = count($selected);
@@ -805,6 +887,35 @@ require_once __DIR__ . '/../includes/header.php';
         }
         <?php endif; ?>
     })();
+</script>
+<script>
+(function () {
+    function syncRoleUi(root) {
+        if (!root) return;
+        var sel = root.querySelector('[data-admin-role-select]');
+        if (!sel) return;
+        var isKop = sel.value === 'petugas_koperasi';
+        root.querySelectorAll('[data-admin-koperasi-wrap]').forEach(function (el) {
+            el.classList.toggle('d-none', !isKop);
+            var kopSel = el.querySelector('select[name="koperasi_id"]');
+            if (kopSel) {
+                kopSel.required = isKop;
+            }
+        });
+        root.querySelectorAll('[data-admin-super-wrap]').forEach(function (el) {
+            el.classList.toggle('d-none', isKop);
+            if (isKop) {
+                var cb = el.querySelector('input[name="is_super_admin"]');
+                if (cb) cb.checked = false;
+            }
+        });
+    }
+    document.querySelectorAll('[data-admin-role-select]').forEach(function (sel) {
+        var root = sel.closest('form') || document;
+        sel.addEventListener('change', function () { syncRoleUi(root); });
+        syncRoleUi(root);
+    });
+})();
 </script>
 
 <?php

@@ -523,24 +523,24 @@ function cashless_koperasi_session_active(): bool
 function cashless_koperasi_require_session(PDO $pdo, ?int $expectedId = null): array
 {
     cashless_koperasi_ensure_schema($pdo);
+    cashless_koperasi_bootstrap_from_user_session($pdo);
     if (!cashless_koperasi_session_active()) {
-        set_flash('error', 'Silakan login koperasi terlebih dahulu.');
-        $kid = $expectedId ?? cashless_koperasi_resolve_id_from_request();
-        header('Location: ' . app_href('/koperasi/login.php' . ($kid > 0 ? '?k=' . $kid : '')));
+        set_flash('error', 'Silakan login sebagai Petugas Koperasi (Kelola user).');
+        header('Location: ' . app_href('/login.php'));
         exit;
     }
     $session = $_SESSION['koperasi_cashless'];
     $id = (int) ($session['id'] ?? 0);
     if ($expectedId !== null && $expectedId > 0 && $id !== $expectedId) {
         set_flash('error', 'Sesi koperasi tidak sesuai. Login ulang.');
-        header('Location: ' . app_href('/koperasi/login.php?k=' . $expectedId));
+        header('Location: ' . app_href('/login.php'));
         exit;
     }
     $row = cashless_koperasi_by_id($pdo, $id);
     if (!is_array($row)) {
         unset($_SESSION['koperasi_cashless']);
         set_flash('error', 'Data koperasi tidak valid.');
-        header('Location: ' . app_href('/koperasi/index.php'));
+        header('Location: ' . app_href('/login.php'));
         exit;
     }
 
@@ -571,15 +571,94 @@ function cashless_koperasi_login(PDO $pdo, int $koperasiId, string $password): b
         return false;
     }
     session_regenerate_id(true);
+    cashless_koperasi_set_session_from_row($row);
+
+    return true;
+}
+
+/** Pastikan ENUM role + kolom users.koperasi_id tersedia. */
+function cashless_koperasi_users_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai','petugas_koperasi') NOT NULL DEFAULT 'pengurus'");
+    } catch (Throwable $e) {
+        // Abaikan jika DB belum punya tabel users / ENUM lama berbeda.
+    }
+    try {
+        $pdo->exec('ALTER TABLE users ADD COLUMN IF NOT EXISTS koperasi_id TINYINT UNSIGNED NULL DEFAULT NULL');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec('ALTER TABLE users ADD COLUMN koperasi_id TINYINT UNSIGNED NULL DEFAULT NULL');
+        } catch (Throwable $e2) {
+            // sudah ada
+        }
+    }
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function cashless_koperasi_set_session_from_row(array $row): void
+{
+    $id = (int) ($row['id'] ?? 0);
+    if ($id < 1) {
+        return;
+    }
     $_SESSION['koperasi_cashless'] = [
-        'id' => $koperasiId,
-        'kode' => (string) $row['kode'],
-        'nama' => (string) $row['nama'],
+        'id' => $id,
+        'kode' => (string) ($row['kode'] ?? ''),
+        'nama' => (string) ($row['nama'] ?? ('Koperasi ' . $id)),
         'logged_at' => time(),
     ];
     unset($_SESSION['cashless_verified'], $_SESSION['cashless_auto_nominal_scan']);
+}
+
+/** Mulai sesi portal dari akun petugas_koperasi (tanpa password bersama). */
+function cashless_koperasi_login_from_user(PDO $pdo, int $koperasiId): bool
+{
+    cashless_koperasi_ensure_schema($pdo);
+    $row = cashless_koperasi_by_id($pdo, $koperasiId);
+    if (!is_array($row)) {
+        return false;
+    }
+    cashless_koperasi_set_session_from_row($row);
 
     return true;
+}
+
+/**
+ * Jika user login ber-role petugas_koperasi, pastikan sesi portal aktif
+ * dan terkunci ke koperasi yang terikat di akun.
+ */
+function cashless_koperasi_bootstrap_from_user_session(PDO $pdo): void
+{
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role !== 'petugas_koperasi') {
+        return;
+    }
+    $kid = (int) ($_SESSION['user']['koperasi_id'] ?? 0);
+    if ($kid < 1 || $kid > 3) {
+        $uid = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($uid > 0) {
+            cashless_koperasi_users_ensure_schema($pdo);
+            $st = $pdo->prepare('SELECT koperasi_id FROM users WHERE id = :id LIMIT 1');
+            $st->execute(['id' => $uid]);
+            $kid = (int) ($st->fetchColumn() ?: 0);
+            $_SESSION['user']['koperasi_id'] = $kid > 0 ? $kid : null;
+        }
+    }
+    if ($kid < 1 || $kid > 3) {
+        return;
+    }
+    $activeId = (int) ($_SESSION['koperasi_cashless']['id'] ?? 0);
+    if ($activeId !== $kid) {
+        cashless_koperasi_login_from_user($pdo, $kid);
+    }
 }
 
 function cashless_koperasi_logout(): void
@@ -589,7 +668,7 @@ function cashless_koperasi_logout(): void
 
 function cashless_koperasi_hub_url(): string
 {
-    return '/koperasi/index.php';
+    return '/login.php';
 }
 
 function cashless_koperasi_scan_url(int $koperasiId): string

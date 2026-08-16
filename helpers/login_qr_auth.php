@@ -29,13 +29,13 @@ function login_qr_authenticate(PDO $pdo, string $qrCode, string $loginDest = '')
     }
 
     user_profil_ensure_schema($pdo);
-    if (empty($_SESSION['users_role_enum_v2'])) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-        try {
-            $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
-        } catch (PDOException $e) { /* abaikan */ }
+    if (empty($_SESSION['users_role_enum_v3'])) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        if (function_exists('cashless_koperasi_users_ensure_schema')) {
+            cashless_koperasi_users_ensure_schema($pdo);
+        }
         $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin TINYINT(1) NOT NULL DEFAULT 0");
-        $_SESSION['users_role_enum_v2'] = 1;
+        $_SESSION['users_role_enum_v3'] = 1;
     }
 
     $pbRow = null;

@@ -31,7 +31,7 @@ if (!$pembimbing) {
 // Pastikan kolom & ENUM users mendukung 'pembimbing'.
 if (table_exists($pdo, 'users')) {
     try {
-        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai','petugas_koperasi') NOT NULL DEFAULT 'pengurus'");
     } catch (PDOException $e) { /* abaikan */ }
 }
 

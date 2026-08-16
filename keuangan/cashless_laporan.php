@@ -102,9 +102,6 @@ require_once __DIR__ . '/../includes/header.php';
         <p class="page-intro-kicker text-muted mb-1">Keuangan · Cashless</p>
         <h1 class="h4 mb-0">Laporan Cashless Koperasi</h1>
     </div>
-    <a href="<?= htmlspecialchars(app_href('/koperasi/index.php')) ?>" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
-        <i class="fa-solid fa-store me-1"></i> Portal petugas
-    </a>
     <a href="<?= htmlspecialchars(app_href('/keuangan/cashless_setor.php')) ?>" class="btn btn-success btn-sm">
         <i class="fa-solid fa-vault me-1"></i> Setor
     </a>

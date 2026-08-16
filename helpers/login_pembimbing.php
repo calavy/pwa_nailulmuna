@@ -32,7 +32,7 @@ function pembimbing_users_role_enum_ready(PDO $pdo): bool
         return false;
     }
     try {
-        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai') NOT NULL DEFAULT 'pengurus'");
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('admin','pengurus','petugas_absensi','pembimbing','kiai','petugas_koperasi') NOT NULL DEFAULT 'pengurus'");
 
         return true;
     } catch (PDOException $e) {

@@ -3681,6 +3681,14 @@ function app_post_login_redirect(PDO $pdo): void
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
     }
+    if ($role === 'petugas_koperasi') {
+        require_once __DIR__ . '/cashless_koperasi.php';
+        $kid = (int) ($_SESSION['user']['koperasi_id'] ?? 0);
+        if ($kid >= 1 && $kid <= 3) {
+            cashless_koperasi_login_from_user($pdo, $kid);
+        }
+        app_redirect('koperasi/scan.php');
+    }
     if (function_exists('is_super_admin') && is_super_admin()) {
         app_redirect('dashboard.php');
     }
@@ -3963,6 +3971,9 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
+    }
+    if ($role === 'petugas_koperasi') {
+        app_redirect('koperasi/scan.php');
     }
     if ($allowedMap === []) {
         unset($_SESSION['user']);

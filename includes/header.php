@@ -132,6 +132,8 @@ $roleLabels = [
     'kiai' => 'Pengasuh',
     'guru' => 'Guru',
     'keuangan' => 'Keuangan',
+    'petugas_absensi' => 'Petugas Absensi',
+    'petugas_koperasi' => 'Petugas Koperasi',
 ];
 $currentRoleLabel = $roleLabels[$currentRole] ?? user_role_label((string) $currentRole);
 /* Satu identitas di topbar: pill profil saja (hindari label role + nama yang dobel). */

@@ -14,6 +14,7 @@ function user_role_label(string $role): string
         'admin' => 'Admin',
         'pengurus' => 'Pengurus',
         'petugas_absensi' => 'Petugas Absensi',
+        'petugas_koperasi' => 'Petugas Koperasi',
         'kiai' => 'Pengasuh',
         'pembimbing' => 'Pembimbing',
         default => $role !== '' ? ucfirst($role) : 'Pengurus',
@@ -50,7 +51,15 @@ function auth_refresh_user_session_from_db(): void
     if (!($pdo instanceof PDO) || !function_exists('table_exists') || !table_exists($pdo, 'users')) {
         return;
     }
-    $st = $pdo->prepare('SELECT nama, username, role, is_super_admin, foto_profil FROM users WHERE id = :id LIMIT 1');
+    if (function_exists('cashless_koperasi_users_ensure_schema')) {
+        cashless_koperasi_users_ensure_schema($pdo);
+    } else {
+        require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+        if (function_exists('cashless_koperasi_users_ensure_schema')) {
+            cashless_koperasi_users_ensure_schema($pdo);
+        }
+    }
+    $st = $pdo->prepare('SELECT nama, username, role, is_super_admin, foto_profil, koperasi_id FROM users WHERE id = :id LIMIT 1');
     $st->execute(['id' => $uid]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -65,6 +74,8 @@ function auth_refresh_user_session_from_db(): void
     }
     $_SESSION['user']['is_super_admin'] = $isSuper ? 1 : 0;
     $_SESSION['user']['foto_profil'] = trim((string) ($row['foto_profil'] ?? $_SESSION['user']['foto_profil'] ?? ''));
+    $kopId = (int) ($row['koperasi_id'] ?? 0);
+    $_SESSION['user']['koperasi_id'] = ($kopId >= 1 && $kopId <= 3) ? $kopId : null;
     $_SESSION[$marker] = 1;
 }
 
@@ -171,6 +182,9 @@ function auth_redirect_access_denied(): void
     $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
     if ($role === 'petugas_absensi') {
         app_redirect('presensi/scan.php');
+    }
+    if ($role === 'petugas_koperasi') {
+        app_redirect('koperasi/scan.php');
     }
     if ($role === 'kiai') {
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
