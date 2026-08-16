@@ -3979,7 +3979,28 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
 
 function settings_pengaturan_hub_url(): string
 {
-    return '/menu/menu_hub.php?id=menu-grp-pengaturan';
+    return '/menu/menu_hub.php?id=menu-grp-yayasan';
+}
+
+/** Alias ID grup menu lama → ID mega-kategori baru (backward compatibility breadcrumb). */
+function menu_hub_id_aliases(): array
+{
+    return [
+        'menu-grp-sdm' => 'menu-grp-santri',
+        'menu-grp-saku' => 'menu-grp-keuangan',
+        'menu-grp-keuangan-bos' => 'menu-grp-keuangan',
+        'menu-grp-pkpps' => 'menu-grp-akademik',
+        'menu-grp-kajian' => 'menu-grp-ketertiban',
+        'menu-grp-perizinan' => 'menu-grp-ketertiban',
+        'menu-grp-pengaturan' => 'menu-grp-yayasan',
+    ];
+}
+
+function menu_hub_resolve_id(string $hubId): string
+{
+    $aliases = menu_hub_id_aliases();
+
+    return $aliases[$hubId] ?? $hubId;
 }
 
 /**
@@ -4170,7 +4191,7 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
 {
     $hubId = (string) ($node['id'] ?? '');
     if ($hubId !== '' && str_contains($requestPath, '/menu/menu_hub.php')) {
-        $qid = isset($_GET['id']) ? (string) $_GET['id'] : '';
+        $qid = menu_hub_resolve_id(isset($_GET['id']) ? (string) $_GET['id'] : '');
         if ($qid === $hubId) {
             return true;
         }
@@ -4181,20 +4202,33 @@ function menu_sidebar_group_is_active(array $node, string $requestPath, array $m
             return true;
         }
     }
-    if ($hubId === 'menu-grp-pkpps' && (
+    if ($hubId === 'menu-grp-akademik' && (
         str_contains($requestPath, '/pkpps/')
         || str_contains($requestPath, '/rekap/pkpps_')
         || str_contains($requestPath, '/pembimbing/pkpps_')
         || str_contains($requestPath, '/pembayaran/laporan_pkpps_syahriyah.php')
+        || str_contains($requestPath, '/akademik/')
+        || str_contains($requestPath, '/pembimbing/tugas/')
     )) {
         return true;
     }
-    if ($hubId === 'menu-grp-kajian' && preg_match('#^/rekap/#', $requestPath) && !str_contains($requestPath, '/rekap/pkpps_')) {
+    if ($hubId === 'menu-grp-ketertiban' && preg_match('#^/rekap/#', $requestPath) && !str_contains($requestPath, '/rekap/pkpps_')) {
         return true;
     }
-    if ($hubId === 'menu-grp-kajian' && str_contains($requestPath, '/pkpps/')) {
+    if ($hubId === 'menu-grp-ketertiban' && (
+        str_contains($requestPath, '/pkpps/')
+        || str_contains($requestPath, '/akademik/')
+        || str_contains($requestPath, '/pembimbing/tugas/')
+    )) {
         return false;
     }
+    if ($hubId === 'menu-grp-yayasan' && str_contains($requestPath, '/yayasan/')) {
+        return true;
+    }
+    if ($hubId === 'menu-grp-yayasan' && str_starts_with($requestPath, '/settings/')) {
+        return true;
+    }
+
     return false;
 }
 

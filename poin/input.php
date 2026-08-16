@@ -6,6 +6,8 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/push_events.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
+require_once __DIR__ . '/../helpers/poin_offline.php';
+require_once __DIR__ . '/../helpers/offline_sync_http.php';
 
 require_roles(['admin', 'pengurus']);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
@@ -13,79 +15,22 @@ ensure_point_tables($pdo);
 ensure_akademik_libur_table($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $santriId = (int) ($_POST['santri_id'] ?? 0);
-    $jenis = strtoupper(trim((string) ($_POST['jenis_perubahan'] ?? 'PLUS')));
-    $tanggal = (string) ($_POST['tanggal'] ?? date('Y-m-d'));
-    $ruleId = (int) ($_POST['rule_id'] ?? 0);
-    $customPoint = (int) ($_POST['point_custom'] ?? 0);
-    $keterangan = trim((string) ($_POST['keterangan'] ?? ''));
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $result = poin_offline_submit($pdo, $_POST, $userId);
 
-    if ($santriId <= 0) {
-        set_flash('error', 'Pilih santri terlebih dahulu.');
-        header('Location: ' . app_href('/poin/input.php'));
-        exit;
-    }
-    if (!in_array($jenis, ['PLUS', 'MINUS'], true)) {
-        $jenis = 'PLUS';
+    if (offline_sync_wants_json()) {
+        offline_sync_json_response(
+            (string) ($result['type'] ?? ($result['ok'] ? 'success' : 'error')),
+            (string) ($result['message'] ?? 'OK'),
+            array_filter(['ledger_id' => $result['ledger_id'] ?? null], static fn($v): bool => $v !== null)
+        );
     }
 
-    $point = 0;
-    if ($ruleId > 0) {
-        $ruleStmt = $pdo->prepare('SELECT id, nama_rule, bobot_poin, jenis_rule FROM point_rules WHERE id = :id');
-        $ruleStmt->execute(['id' => $ruleId]);
-        $rule = $ruleStmt->fetch();
-        if ($rule) {
-            $ruleJenis = strtoupper((string) ($rule['jenis_rule'] ?? 'PLUS'));
-            if ($ruleJenis !== $jenis) {
-                set_flash('error', 'Rule yang dipilih tidak sesuai jenis perubahan (' . ($jenis === 'MINUS' ? 'pengurangan' : 'penambahan') . ').');
-                header('Location: ' . app_href('/poin/input.php'));
-                exit;
-            }
-            $point = (int) $rule['bobot_poin'];
-            if ($keterangan === '') {
-                $keterangan = ($jenis === 'MINUS' ? 'Remedial: ' : 'Input rule: ') . $rule['nama_rule'];
-            }
-        }
+    if ($result['ok']) {
+        set_flash('success', (string) ($result['message'] ?? 'Input poin berhasil disimpan.'));
+    } else {
+        set_flash('error', (string) ($result['message'] ?? 'Gagal menyimpan poin.'));
     }
-    if ($customPoint > 0) {
-        $point = $customPoint;
-    }
-    if ($point <= 0) {
-        set_flash('error', 'Bobot poin harus lebih dari 0.');
-        header('Location: ' . app_href('/poin/input.php'));
-        exit;
-    }
-
-    $liburN = akademik_libur_info($pdo, $tanggal, 'penilaian');
-    if ($liburN !== null && akademik_blokir_penilaian_libur($pdo)) {
-        set_flash('error', 'Tanggal ini libur: ' . $liburN['nama'] . ' — input poin tidak diizinkan (atur di Kalender akademik).');
-        header('Location: ' . app_href('/poin/input.php'));
-        exit;
-    }
-
-    $delta = $jenis === 'MINUS' ? -$point : $point;
-    $insert = $pdo->prepare('
-        INSERT INTO point_ledger (santri_id, tanggal, jenis_perubahan, point_delta, rule_id, sumber_data, keterangan, created_by)
-        VALUES (:santri_id, :tanggal, :jenis_perubahan, :point_delta, :rule_id, "MANUAL", :keterangan, :created_by)
-    ');
-    $insert->execute([
-        'santri_id' => $santriId,
-        'tanggal' => $tanggal,
-        'jenis_perubahan' => $jenis,
-        'point_delta' => $delta,
-        'rule_id' => $ruleId > 0 ? $ruleId : null,
-        'keterangan' => $keterangan !== '' ? $keterangan : ($jenis === 'MINUS' ? 'Pengurangan poin manual' : 'Penambahan poin manual'),
-        'created_by' => (int) ($_SESSION['user']['id'] ?? 1),
-    ]);
-
-    if ($jenis === 'PLUS') {
-        require_once __DIR__ . '/../helpers/poin_wa.php';
-        poin_wa_maybe_notify_santri($pdo, $santriId, $tanggal);
-        require_once __DIR__ . '/../helpers/push_events.php';
-        push_maybe_pelanggaran_berat_after_point($pdo, $santriId);
-    }
-
-    set_flash('success', 'Input poin berhasil disimpan.');
     header('Location: ' . app_href('/poin/input.php'));
     exit;
 }
@@ -137,7 +82,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h5">Form Input/Pengurangan Poin</h1>
-                <form method="post" class="row g-2">
+                <form method="post" class="row g-2" id="form-poin-input">
                     <div class="col-12">
                         <label class="form-label">Santri</label>
                         <select class="form-select santri-select-searchable" name="santri_id" required>
@@ -193,7 +138,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="table-responsive">
                     <table class="table table-sm table-striped table-hover">
                         <thead><tr><th>Tanggal</th><th>Santri</th><th>Tingkatan</th><th>Jenis</th><th>Poin</th><th>Keterangan</th></tr></thead>
-                        <tbody>
+                        <tbody id="poin-recent-tbody">
                         <?php foreach ($recentRows as $row): ?>
                             <tr>
                                 <td><?= htmlspecialchars($row['tanggal']) ?></td>

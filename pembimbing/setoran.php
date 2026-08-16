@@ -8,7 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/login_pembimbing.php';
 
 if (!isset($_SESSION['user'])) {
-    app_redirect('login.php?peran=pembimbing&act=qr&dest=setoran');
+    app_redirect('login.php?dest=setoran');
 }
 
 require_once __DIR__ . '/../helpers/akademik_setoran.php';

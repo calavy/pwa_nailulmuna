@@ -12,6 +12,7 @@ $menuItems = $menuPack['menuItems'];
 $menuStructure = $menuPack['menuStructure'];
 
 $hubId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) ($_GET['id'] ?? ''));
+$hubId = menu_hub_resolve_id($hubId);
 $groupNode = null;
 foreach ($menuStructure as $node) {
     if (($node['type'] ?? '') === 'group' && ($node['id'] ?? '') === $hubId) {
@@ -29,11 +30,6 @@ $visiblePaths = menu_group_visible_paths($groupNode, $menuItems);
 if ($visiblePaths === []) {
     set_flash('error', 'Anda tidak memiliki akses ke modul ini.');
     header('Location: ' . app_href('/dashboard.php'));
-    exit;
-}
-
-if ($hubId === 'menu-grp-yayasan') {
-    header('Location: ' . app_href('/yayasan/operasional.php'));
     exit;
 }
 

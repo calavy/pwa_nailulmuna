@@ -131,6 +131,53 @@ html.pondok-offline-syncing .pondok-offline-queue-btn {
     pointer-events: none;
 }
 
+.pondok-offline-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.85rem;
+    background: #fef3c7;
+    color: #92400e;
+    border-bottom: 1px solid #fcd34d;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.pondok-offline-status-bar__queue {
+    margin-left: auto;
+    font-size: 0.75rem;
+    background: #f59e0b;
+    color: #fff;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+}
+
+.pondok-offline-queue-item__status {
+    float: right;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+}
+
+tr.is-local-pending {
+    background: rgba(251, 191, 36, 0.18) !important;
+}
+
+tr.is-local-pending .badge {
+    font-size: 0.65rem;
+}
+
+[data-theme="dark"] .pondok-offline-status-bar {
+    background: rgba(120, 53, 15, 0.55);
+    color: #fef3c7;
+    border-bottom-color: rgba(251, 191, 36, 0.35);
+}
+
+[data-theme="dark"] tr.is-local-pending {
+    background: rgba(120, 53, 15, 0.35) !important;
+}
+
 [data-theme="dark"] .pondok-offline-queue-drawer {
     background: var(--card-bg);
     color: var(--app-text);

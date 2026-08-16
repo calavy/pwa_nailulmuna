@@ -230,7 +230,7 @@ return [
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],
-        ['type' => 'group', 'id' => 'menu-grp-sdm', 'label' => 'Manajemen SDM', 'icon' => 'fa-solid fa-address-card', 'sections' => [
+        ['type' => 'group', 'id' => 'menu-grp-santri', 'label' => 'Santri', 'icon' => 'fa-solid fa-user-graduate', 'sections' => [
             ['title' => 'Santri', 'paths' => [
                 '/santri/index.php',
                 '/santri/import.php',
@@ -249,6 +249,34 @@ return [
             ['title' => 'Munawib', 'paths' => [
                 '/pembimbing/munawib.php',
                 '/rekap/munawib.php',
+            ]],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-ketertiban', 'label' => 'Ketertiban', 'icon' => 'fa-solid fa-shield-halved', 'sections' => [
+            ['title' => 'Jadwal & Scan', 'paths' => [
+                '/jadwal/index.php',
+                '/jadwal/kegiatan.php',
+                '/jadwal/import.php',
+                '/presensi/scan.php',
+                '/presensi/kegiatan_khusus.php',
+                '/presensi/rekap_tanpa_scan.php',
+            ]],
+            ['title' => 'Rekap', 'paths' => [
+                '/rekap/presensi.php',
+            ]],
+            ['title' => 'Poin & Keaktifan', 'paths' => [
+                '/pengasuh/dashboard.php',
+                '/pengasuh/laporan_hari.php',
+                '/poin/input.php',
+                '/poin/rekap.php',
+                '/pengasuh/nilai_keaktifan.php',
+            ]],
+            ['title' => 'Perizinan', 'paths' => [
+                '/perizinan/hub.php',
+            ]],
+            ['title' => 'Surat & Arsip', 'paths' => [
+                '/admin/surat_nomor.php',
+                '/admin/rekap_surat_izin.php',
+                '/admin/rekap_surat_sp.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-keuangan', 'label' => 'Keuangan', 'icon' => 'fa-solid fa-wallet', 'sections' => [
@@ -278,29 +306,23 @@ return [
                 '/pembayaran/laporan_kopsa_per_santri.php',
                 '/rekap/pembimbing.php',
             ]],
-            ['title' => 'Pengaturan', 'paths' => [
+            ['title' => 'Pengaturan Keuangan', 'paths' => [
                 '/keuangan/pengaturan.php',
                 '/keuangan/panduan.php',
                 '/keuangan/inventaris.php',
                 '/keuangan/pengaturan.php?bagian=santri_bulanan',
             ]],
-        ]],
-        ['type' => 'group', 'id' => 'menu-grp-saku', 'label' => 'Saku & Cashless', 'icon' => 'fa-solid fa-coins', 'sections' => [
-            ['title' => 'Keuangan Cashless', 'paths' => [
+            ['title' => 'Saku & Cashless', 'paths' => [
                 '/keuangan/cashless.php',
                 '/keuangan/saku.php',
                 '/keuangan/cashless_laporan.php',
                 '/keuangan/cashless_pin.php',
                 '/keuangan/cashless_scan.php',
                 '/keuangan/cashless_setor.php',
-            ]],
-            ['title' => 'Status & Audit', 'paths' => [
                 '/keuangan/neraca.php?view=saku',
                 '/keuangan/perbaikan-saku.php',
             ]],
-        ]],
-        ['type' => 'group', 'id' => 'menu-grp-keuangan-bos', 'label' => 'Keuangan BOS', 'icon' => 'fa-solid fa-landmark', 'sections' => [
-            ['title' => 'Modul BOS PKPPS', 'paths' => [
+            ['title' => 'Keuangan BOS', 'paths' => [
                 '/keuangan-bos/index.php',
                 '/keuangan-bos/pengeluaran.php',
                 '/keuangan-bos/riwayat.php',
@@ -310,24 +332,11 @@ return [
                 '/keuangan-bos/pengaturan-pos.php',
             ]],
         ]],
-        ['type' => 'group', 'id' => 'menu-grp-pkpps', 'label' => 'PKPPS', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
-            ['title' => 'Program PKPPS', 'paths' => [
+        ['type' => 'group', 'id' => 'menu-grp-akademik', 'label' => 'Akademik', 'icon' => 'fa-solid fa-graduation-cap', 'sections' => [
+            ['title' => 'PKPPS', 'paths' => [
                 '/pkpps/index.php',
                 '/pkpps/rapor.php',
                 '/pkpps/pengaturan_rapor.php',
-            ]],
-        ]],
-        ['type' => 'group', 'id' => 'menu-grp-kajian', 'label' => 'Kajian & Presensi', 'icon' => 'fa-solid fa-book-open', 'sections' => [
-            ['title' => 'Jadwal & Scan', 'paths' => [
-                '/jadwal/index.php',
-                '/jadwal/kegiatan.php',
-                '/jadwal/import.php',
-                '/presensi/scan.php',
-                '/presensi/kegiatan_khusus.php',
-                '/presensi/rekap_tanpa_scan.php',
-            ]],
-            ['title' => 'Rekap', 'paths' => [
-                '/rekap/presensi.php',
             ]],
             ['title' => 'Setoran Hafalan', 'paths' => [
                 '/akademik/setoran.php',
@@ -338,28 +347,12 @@ return [
                 '/akademik/rapor.php',
                 '/akademik/skbt.php',
             ]],
-            ['title' => 'Poin & Keaktifan', 'paths' => [
-                '/pengasuh/dashboard.php',
-                '/pengasuh/laporan_hari.php',
-                '/poin/input.php',
-                '/poin/rekap.php',
-                '/pengasuh/nilai_keaktifan.php',
-            ]],
         ]],
-        ['type' => 'group', 'id' => 'menu-grp-perizinan', 'label' => 'Perizinan', 'icon' => 'fa-solid fa-person-walking-arrow-right', 'sections' => [
-            ['title' => 'Alur izin', 'paths' => [
-                '/perizinan/hub.php',
+        ['type' => 'group', 'id' => 'menu-grp-yayasan', 'label' => 'Yayasan', 'icon' => 'fa-solid fa-building-columns', 'sections' => [
+            ['title' => 'Operasional', 'paths' => [
+                '/yayasan/operasional.php',
             ]],
-            ['title' => 'Surat & arsip', 'paths' => [
-                '/admin/surat_nomor.php',
-                '/admin/rekap_surat_izin.php',
-                '/admin/rekap_surat_sp.php',
-            ]],
-        ]],
-        ['type' => 'item', 'path' => '/yayasan/operasional.php', 'icon' => 'fa-solid fa-building-columns', 'match_prefix' => '/yayasan/'],
-        ['type' => 'item', 'path' => '/catatan/index.php', 'icon' => 'fa-solid fa-book'],
-        ['type' => 'group', 'id' => 'menu-grp-pengaturan', 'label' => 'Pengaturan', 'icon' => 'fa-solid fa-sliders', 'sections' => [
-            ['title' => 'Umum', 'paths' => [
+            ['title' => 'Pengaturan Pondok', 'paths' => [
                 '/settings/pesantren.php',
                 '/settings/surat_cetak.php',
                 '/settings/kalender_ta.php',
@@ -389,6 +382,7 @@ return [
                 '/admin/cek_update.php',
             ]],
         ]],
+        ['type' => 'item', 'path' => '/catatan/index.php', 'icon' => 'fa-solid fa-book'],
     ],
     'pengaturanNav' => [
         ['path' => '/settings/pesantren.php', 'label' => 'Profil Pondok', 'icon' => 'fa-solid fa-mosque', 'group' => 'Umum'],

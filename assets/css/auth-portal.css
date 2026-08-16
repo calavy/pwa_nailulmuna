@@ -1217,3 +1217,829 @@ html {
             max(0.75rem, env(safe-area-inset-left, 0px));
     }
 }
+
+/* Scan Kegiatan — link & mode bar di login.php */
+.login-scan-kegiatan-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #0f766e;
+    text-decoration: none;
+}
+
+.login-scan-kegiatan-link:hover {
+    color: #115e59;
+    text-decoration: underline;
+}
+
+.auth-portal-shell--pb-scan .login-scan-kegiatan.presensi-scan-app,
+.login-scan-kegiatan.presensi-scan-app {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 118, 110, 0.22);
+    background: #0f172a;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    min-height: min(72dvh, 640px);
+}
+
+.login-scan-kegiatan__head.presensi-scan-top {
+    background: rgba(4, 120, 87, 0.95);
+}
+
+.login-scan-kegiatan__title {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #ecfdf5;
+}
+
+.login-scan-kegiatan__viewport.presensi-scan-viewport {
+    flex: 1;
+    min-height: min(52dvh, 480px);
+    width: 100%;
+    max-width: none;
+    aspect-ratio: unset;
+    border-radius: 0;
+}
+
+.login-scan-kegiatan__viewport #login-scan-reader {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: min(52dvh, 480px);
+}
+
+.login-scan-mode-bar {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 0.55rem 0.65rem 0.35rem;
+    background: rgba(15, 23, 42, 0.92);
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.login-scan-mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(51, 65, 85, 0.65);
+    border: 1px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+}
+
+.login-scan-mode-pill.active {
+    color: #ecfdf5;
+    background: rgba(13, 148, 136, 0.85);
+    border-color: rgba(167, 243, 208, 0.45);
+}
+
+.login-scan-kegiatan__hint {
+    padding: 0.45rem 0.75rem 0.65rem;
+    color: #94a3b8 !important;
+}
+
+.login-scan-munawib-pick {
+    margin: 0.5rem 0.65rem 0;
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.login-scan-munawib-pick__title {
+    color: #fde68a;
+    margin-bottom: 0.5rem;
+}
+
+.login-scan-munawib-pick__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.login-scan-munawib-pick__row .form-select {
+    flex: 1 1 160px;
+    max-width: 100%;
+}
+
+.login-scan-munawib-pick__row .btn {
+    flex: 0 0 auto;
+}
+
+/* =============================================================================
+   Split clean — login portal modern (login.php)
+   ============================================================================= */
+
+.auth-portal-bg--clean .auth-portal-bg__grid {
+    display: none;
+}
+
+.auth-portal-bg--clean .auth-portal-bg__orb {
+    opacity: 0.32;
+}
+
+.auth-portal-page--split-clean {
+    overflow-x: hidden;
+}
+
+.auth-portal-page--split-clean .auth-portal-viewport {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    padding: 0;
+    align-items: stretch;
+    flex-direction: column;
+}
+
+.auth-portal-shell--split-clean {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    gap: 0;
+}
+
+.auth-portal-split {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 100dvh;
+}
+
+.auth-portal-split__brand {
+    flex: 0 0 auto;
+    color: #fff;
+    padding: 1.25rem 1.5rem 1.75rem;
+}
+
+.auth-portal-split__form {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.12);
+}
+
+.auth-portal-shell--split-clean .auth-portal-hero {
+    text-align: left;
+    max-width: 36rem;
+}
+
+.auth-portal-kop--flat {
+    background: transparent;
+    border: none;
+    backdrop-filter: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+    width: 100%;
+    max-width: none;
+}
+
+.auth-portal-kop--flat .auth-portal-kop__logo .logo-ring,
+.auth-portal-kop--flat .auth-portal-kop__logo .logo-ring--round {
+    width: clamp(72px, 14vw, 96px);
+    height: clamp(72px, 14vw, 96px);
+    min-width: clamp(72px, 14vw, 96px);
+    min-height: clamp(72px, 14vw, 96px);
+}
+
+.auth-portal-kop--flat .auth-portal-kop__nama {
+    font-size: clamp(1.15rem, 3.5vw, 1.45rem);
+    font-weight: 800;
+    margin-top: 0.25rem !important;
+}
+
+.auth-portal-shell--split-clean .auth-portal-formal-body {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 16px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 0;
+}
+
+.auth-portal-shell--split-clean .auth-portal-pintu-hint {
+    text-align: left;
+    margin-top: 0.75rem;
+    opacity: 0.92;
+    font-weight: 500;
+}
+
+.auth-portal-shell--split-clean .auth-portal-card--minimal {
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.auth-portal-shell--split-clean .auth-portal-card--minimal .auth-portal-card__body {
+    padding: clamp(1.75rem, 5vw, 2.5rem) clamp(1.5rem, 4vw, 2.75rem);
+    width: 100%;
+    max-width: 420px;
+    margin-inline: auto;
+}
+
+.auth-portal-form-title {
+    font-size: clamp(1.35rem, 3vw, 1.65rem);
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+    line-height: 1.25;
+}
+
+.auth-portal-form-meta {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0 0 1.5rem;
+    line-height: 1.45;
+}
+
+.auth-portal-field-group {
+    margin-bottom: 1.25rem;
+}
+
+.auth-portal-field-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.45rem;
+}
+
+.auth-portal-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.auth-portal-field__icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 0.95rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.auth-portal-field__input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0.65rem 1rem 0.65rem 2.75rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #0f172a;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-portal-field__input::placeholder {
+    color: #94a3b8;
+}
+
+.auth-portal-field__input:focus {
+    border-color: var(--ap-auth-accent);
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+}
+
+.auth-portal-form .btn-auth-primary--lg {
+    min-height: 48px;
+    font-size: 1rem;
+    border-radius: 12px;
+    padding-block: 0.75rem;
+    margin-top: 0.5rem;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .auth-portal-form .btn-auth-primary--lg:hover {
+        background: var(--ap-auth-accent-dark) !important;
+        border-color: var(--ap-auth-accent-dark) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.25);
+        filter: none;
+    }
+}
+
+.auth-portal-scan-link-wrap {
+    text-align: center;
+    margin: 1.25rem 0 0;
+}
+
+.auth-portal-topnav {
+    position: fixed;
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: calc(100% - 1.5rem);
+}
+
+.auth-portal-topnav__label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.75);
+    margin-right: 0.15rem;
+}
+
+.auth-portal-topnav__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-end;
+}
+
+.auth-portal-topnav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+.auth-portal-topnav__link:hover {
+    background: rgba(255, 255, 255, 0.24);
+    color: #fff;
+}
+
+.auth-portal-topnav__link i {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+@media (min-width: 992px) {
+    .auth-portal-split {
+        flex-direction: row;
+        min-height: 100dvh;
+    }
+
+    .auth-portal-split__brand {
+        flex: 1 1 55%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: max(2rem, env(safe-area-inset-top, 0px)) clamp(2.5rem, 5vw, 4rem) max(2rem, env(safe-area-inset-bottom, 0px)) clamp(3rem, 6vw, 5rem);
+    }
+
+    .auth-portal-split__form {
+        flex: 0 0 min(480px, 45%);
+        max-width: min(520px, 45%);
+        border-radius: 0;
+        box-shadow: -12px 0 48px rgba(15, 23, 42, 0.1);
+        align-items: center;
+        justify-content: center;
+    }
+
+    .auth-portal-shell--split-clean .auth-portal-card--minimal .auth-portal-card__body {
+        padding: 2.5rem 2.75rem;
+        max-width: 400px;
+    }
+
+    .auth-portal-page--split-clean .auth-portal-topnav {
+        top: max(1.25rem, env(safe-area-inset-top, 0px));
+        right: max(1.5rem, env(safe-area-inset-right, 0px));
+    }
+
+    .auth-portal-page--split-clean .auth-portal-topnav__label {
+        color: #64748b;
+    }
+
+    .auth-portal-page--split-clean .auth-portal-topnav__link {
+        color: #334155;
+        background: #f1f5f9;
+        border-color: #e2e8f0;
+        backdrop-filter: none;
+    }
+
+    .auth-portal-page--split-clean .auth-portal-topnav__link:hover {
+        color: var(--ap-auth-accent);
+        background: rgba(15, 118, 110, 0.08);
+        border-color: rgba(15, 118, 110, 0.25);
+    }
+
+    .auth-portal-topnav__link {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.75rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .auth-portal-shell--split-clean .auth-portal-hero {
+        text-align: center;
+    }
+
+    .auth-portal-kop--flat {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .auth-portal-kop--flat .auth-portal-kop__teks {
+        text-align: center;
+    }
+
+    .auth-portal-shell--split-clean .auth-portal-formal-body,
+    .auth-portal-shell--split-clean .auth-portal-pintu-hint {
+        text-align: center;
+    }
+
+    .auth-portal-page--split-clean .auth-portal-topnav {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: 100%;
+        max-width: 100%;
+        padding: max(0.75rem, env(safe-area-inset-top, 0px)) 1rem 0.5rem;
+        justify-content: center;
+        flex-shrink: 0;
+        order: -1;
+    }
+
+    .auth-portal-topnav__links {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start;
+        max-width: 100%;
+        padding-bottom: 0.15rem;
+    }
+
+    .auth-portal-topnav__label {
+        display: none !important;
+    }
+}
+
+[data-theme="dark"] .auth-portal-split__form {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .auth-portal-form-title {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .auth-portal-form-meta,
+[data-theme="dark"] .auth-portal-field-label {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .auth-portal-field__input {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .auth-portal-field__input:focus {
+    border-color: var(--ap-auth-accent-mid, var(--ap-auth-accent));
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+}
+
+@media (min-width: 992px) {
+    [data-theme="dark"] .auth-portal-page--split-clean .auth-portal-topnav__label {
+        color: #94a3b8;
+    }
+
+    [data-theme="dark"] .auth-portal-page--split-clean .auth-portal-topnav__link {
+        color: #e2e8f0;
+        background: rgba(30, 41, 59, 0.9);
+        border-color: rgba(71, 85, 105, 0.55);
+    }
+
+    [data-theme="dark"] .auth-portal-page--split-clean .auth-portal-topnav__link:hover {
+        color: #5eead4;
+        background: rgba(15, 118, 110, 0.2);
+    }
+}
+
+@media (max-width: 991.98px) {
+    [data-theme="dark"] .auth-portal-topnav__link {
+        color: #e2e8f0;
+        background: rgba(30, 41, 59, 0.85);
+        border-color: rgba(71, 85, 105, 0.5);
+    }
+}
+
+/* =============================================================================
+   Center card — login portal (mockup: kartu putih di tengah)
+   ============================================================================= */
+
+.auth-portal-bg--center-card .auth-portal-bg__grid {
+    display: none;
+}
+
+.auth-portal-bg--center-card .auth-portal-bg__orb {
+    opacity: 0.38;
+}
+
+.auth-portal-page--center-card .auth-portal-viewport {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.auth-portal-shell--center-card {
+    width: 100%;
+    max-width: min(420px, 94vw);
+    margin-inline: auto;
+    gap: 0;
+}
+
+.auth-portal-card--center {
+    border-radius: 20px;
+    border: 1px solid #e8edf2;
+    background: #fff;
+    box-shadow:
+        0 4px 6px rgba(15, 23, 42, 0.04),
+        0 20px 48px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+}
+
+.auth-portal-card--center .auth-portal-card__body {
+    padding: 2rem 1.75rem 1.5rem;
+}
+
+.auth-portal-center-head {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.auth-portal-center-head__logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.auth-portal-center-head__logo-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: rgba(240, 253, 250, 0.95);
+    border: 1px solid rgba(153, 246, 228, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.auth-portal-center-head__logo-box--fallback {
+    background: rgba(15, 118, 110, 0.1);
+    border-color: rgba(15, 118, 110, 0.2);
+}
+
+.auth-portal-center-head__logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.auth-portal-center-head__logo-fallback {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--ap-auth-accent);
+    letter-spacing: 0.04em;
+}
+
+.auth-portal-center-head__title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+    line-height: 1.3;
+}
+
+.auth-portal-center-head__subtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.auth-portal-form--center {
+    margin-bottom: 0;
+}
+
+.auth-portal-field-group--center {
+    margin-bottom: 0.85rem;
+}
+
+.auth-portal-field--center {
+    display: block;
+}
+
+.auth-portal-field__input--center {
+    width: 100%;
+    min-height: 46px;
+    padding: 0.65rem 1rem;
+    font-size: 0.92rem;
+    font-family: inherit;
+    color: #0f172a;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-portal-field__input--center::placeholder {
+    color: #94a3b8;
+}
+
+.auth-portal-field__input--center:focus {
+    border-color: var(--ap-auth-accent);
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+}
+
+.btn-auth-center {
+    display: block;
+    width: 100%;
+    min-height: 46px;
+    margin-top: 0.35rem;
+    padding: 0.7rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff !important;
+    background: var(--ap-auth-accent) !important;
+    border: none !important;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-auth-center:hover {
+        background: var(--ap-auth-accent-dark) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.28);
+    }
+}
+
+.auth-portal-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.25rem 0 1rem;
+    color: #94a3b8;
+    font-size: 0.82rem;
+}
+
+.auth-portal-divider::before,
+.auth-portal-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
+.auth-portal-divider span {
+    flex-shrink: 0;
+}
+
+.btn-auth-scan {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 46px;
+    padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--ap-auth-accent-dark) !important;
+    background: rgba(240, 253, 250, 0.95) !important;
+    border: 1px solid rgba(153, 246, 228, 0.85) !important;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-auth-scan:hover {
+    background: rgba(204, 251, 241, 0.95) !important;
+    border-color: rgba(45, 212, 191, 0.75) !important;
+    color: var(--ap-auth-accent-dark) !important;
+}
+
+.auth-portal-scan-hint {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin: 0.5rem 0 0;
+    line-height: 1.4;
+}
+
+.auth-portal-offline-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin: 1.35rem 0 0;
+    padding-top: 1.15rem;
+    border-top: 1px solid #f1f5f9;
+    line-height: 1.45;
+}
+
+.auth-portal-offline-note i {
+    font-size: 0.8rem;
+    opacity: 0.85;
+    color: var(--ap-auth-accent);
+}
+
+@media (min-width: 576px) {
+    .auth-portal-card--center .auth-portal-card__body {
+        padding: 2.25rem 2rem 1.75rem;
+    }
+}
+
+[data-theme="dark"] .auth-portal-page--center-card {
+    background: linear-gradient(145deg, #0f766e 0%, #0d9488 42%, #0891b2 100%) !important;
+}
+
+[data-theme="dark"] .auth-portal-card--center {
+    background: #1e293b;
+    border-color: rgba(71, 85, 105, 0.5);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .auth-portal-center-head__title {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .auth-portal-center-head__subtitle {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .auth-portal-field__input--center {
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(71, 85, 105, 0.55);
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .btn-auth-center {
+    background: var(--ap-auth-accent) !important;
+    color: #fff !important;
+}
+
+[data-theme="dark"] .btn-auth-center:hover {
+    background: var(--ap-auth-accent-dark) !important;
+}
+
+[data-theme="dark"] .btn-auth-scan {
+    background: rgba(15, 118, 110, 0.18) !important;
+    border-color: rgba(45, 212, 191, 0.35) !important;
+    color: #5eead4 !important;
+}
+
+[data-theme="dark"] .auth-portal-divider::before,
+[data-theme="dark"] .auth-portal-divider::after {
+    background: rgba(71, 85, 105, 0.5);
+}
+
+[data-theme="dark"] .auth-portal-offline-note {
+    border-top-color: rgba(71, 85, 105, 0.4);
+}
+

@@ -6,6 +6,22 @@ declare(strict_types=1);
  * Layout halaman login mandiri (kartu responsif, salam portal).
  */
 
+/** @var bool|null */
+$GLOBALS['_auth_portal_split_clean'] = null;
+
+/** @var bool|null */
+$GLOBALS['_auth_portal_center_card'] = null;
+
+function auth_portal_layout_is_split_clean(): bool
+{
+    return !empty($GLOBALS['_auth_portal_split_clean']);
+}
+
+function auth_portal_layout_is_center_card(): bool
+{
+    return !empty($GLOBALS['_auth_portal_center_card']);
+}
+
 function auth_portal_salam_waktu(?DateTimeInterface $when = null): string
 {
     $tz = new DateTimeZone('Asia/Jakarta');
@@ -36,7 +52,7 @@ function auth_portal_salam_islami(): string
 function auth_portal_formal_body_paragraphs(): array
 {
     return [
-        'Selamat datang di portal resmi A.P.I Nailul Muna, silahkan pilih peran lalu masuk dengan akun yang telah diberikan.',
+        'Selamat datang di portal resmi A.P.I Nailul Muna, silahkan masuk dengan akun yang telah diberikan.',
     ];
 }
 
@@ -133,7 +149,10 @@ function auth_portal_brand_nama(PDO $pdo): string
  *   subtitle_mobile?: string,
  *   subtitle_desktop?: string,
  *   max_width?: string,
- *   layout?: 'stack'|'split',
+ *   layout?: 'stack'|'split'|'split_clean'|'center_card',
+ *   card_style?: 'default'|'minimal'|'center',
+ *   card_subtitle?: string,
+ *   show_alt_nav?: bool,
  *   shell_mod?: 'default'|'wali'|'pb_scan',
  *   accent?: 'teal'|'indigo'
  * } $ctx
@@ -187,16 +206,49 @@ function auth_portal_layout_begin(array $ctx): void
     $kopJenis = htmlspecialchars((string) ($kopCtx['jenis'] ?? ''));
     $kopAlamat = htmlspecialchars((string) ($kopCtx['alamat'] ?? ''));
     $kopInitials = htmlspecialchars((string) ($kopCtx['initials'] ?? 'AP'));
-    $layout = ($ctx['layout'] ?? 'stack') === 'split' ? 'split' : 'stack';
+    $layoutRaw = (string) ($ctx['layout'] ?? 'stack');
+    $allowedLayouts = ['split', 'split_clean', 'center_card'];
+    $layout = in_array($layoutRaw, $allowedLayouts, true) ? $layoutRaw : 'stack';
+    $isSplitClean = $layout === 'split_clean';
+    $isCenterCard = $layout === 'center_card';
+    $GLOBALS['_auth_portal_split_clean'] = $isSplitClean;
+    $GLOBALS['_auth_portal_center_card'] = $isCenterCard;
+    $cardStyleRaw = (string) ($ctx['card_style'] ?? 'default');
+    $cardStyle = $cardStyleRaw === 'center' ? 'center' : (($cardStyleRaw === 'minimal') ? 'minimal' : 'default');
+    $showAltNav = !empty($ctx['show_alt_nav']);
     $shellClass = 'auth-portal-shell';
-    $shellClass .= $layout === 'split' ? ' auth-portal-shell--wide' : ' auth-portal-shell--narrow';
+    if ($isCenterCard) {
+        $shellClass .= ' auth-portal-shell--center-card';
+    } elseif ($isSplitClean) {
+        $shellClass .= ' auth-portal-shell--split-clean';
+    } elseif ($layout === 'split') {
+        $shellClass .= ' auth-portal-shell--wide';
+    } else {
+        $shellClass .= ' auth-portal-shell--narrow';
+    }
     $shellMod = (string) ($ctx['shell_mod'] ?? '');
     if ($shellMod === 'wali') {
         $shellClass .= ' auth-portal-shell--wali';
     } elseif ($shellMod === 'pb_scan') {
         $shellClass .= ' auth-portal-shell--pb-scan';
     }
-    $bodyClass = 'auth-portal-page' . ($shellMod === 'pb_scan' ? ' auth-portal-page--pb-scan' : '');
+    $bodyClass = 'auth-portal-page';
+    if ($shellMod === 'pb_scan') {
+        $bodyClass .= ' auth-portal-page--pb-scan';
+    } elseif ($isCenterCard) {
+        $bodyClass .= ' auth-portal-page--center-card';
+    } elseif ($isSplitClean) {
+        $bodyClass .= ' auth-portal-page--split-clean';
+    }
+    $kopClass = 'auth-portal-kop' . ($isSplitClean ? ' auth-portal-kop--flat' : '');
+    $cardClass = 'auth-portal-card';
+    if ($cardStyle === 'center') {
+        $cardClass .= ' auth-portal-card--center';
+    } elseif ($cardStyle === 'minimal') {
+        $cardClass .= ' auth-portal-card--minimal';
+    }
+    $cardSubtitle = trim((string) ($ctx['card_subtitle'] ?? ''));
+    $cardSubtitleHtml = $cardSubtitle !== '' ? htmlspecialchars($cardSubtitle) : '';
     $accent = ($ctx['accent'] ?? 'teal') === 'indigo' ? 'indigo' : 'teal';
     $gradStart = $accent === 'indigo' ? '#312e81' : '#0f766e';
     $gradMid = $accent === 'indigo' ? '#4338ca' : '#0d9488';
@@ -275,9 +327,22 @@ function auth_portal_layout_begin(array $ctx): void
             background-color: <?= htmlspecialchars((string) ($pwaTheme['background_color'] ?? $gradMid)) ?>;
             padding: max(1rem, env(safe-area-inset-top, 0px)) max(0.85rem, env(safe-area-inset-right, 0px)) max(1.25rem, env(safe-area-inset-bottom, 0px)) max(0.85rem, env(safe-area-inset-left, 0px));
         }
+        body.auth-portal-page--split-clean {
+            padding: 0;
+            background: <?= htmlspecialchars($gradStart) ?>;
+        }
+        body.auth-portal-page--center-card {
+            padding: max(1.25rem, env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) max(1.25rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+        }
         @media (min-width: 992px) {
             body.auth-portal-page {
                 padding: max(1.5rem, env(safe-area-inset-top, 0px)) max(1.25rem, env(safe-area-inset-right, 0px)) max(1.5rem, env(safe-area-inset-bottom, 0px)) max(1.25rem, env(safe-area-inset-left, 0px));
+            }
+            body.auth-portal-page--split-clean {
+                padding: 0;
+            }
+            body.auth-portal-page--center-card {
+                padding: max(2rem, env(safe-area-inset-top, 0px)) max(1.5rem, env(safe-area-inset-right, 0px)) max(2rem, env(safe-area-inset-bottom, 0px)) max(1.5rem, env(safe-area-inset-left, 0px));
             }
         }
         .btn-auth-primary {
@@ -315,15 +380,20 @@ function auth_portal_layout_begin(array $ctx): void
     </script>
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
-    <div class="auth-portal-bg" aria-hidden="true">
+    <div class="auth-portal-bg<?= $isSplitClean ? ' auth-portal-bg--clean' : '' ?><?= $isCenterCard ? ' auth-portal-bg--center-card' : '' ?>" aria-hidden="true">
         <span class="auth-portal-bg__orb auth-portal-bg__orb--1"></span>
         <span class="auth-portal-bg__orb auth-portal-bg__orb--2"></span>
         <span class="auth-portal-bg__grid"></span>
     </div>
     <div class="auth-portal-viewport">
+    <?php if ($showAltNav): ?>
+        <?php require __DIR__ . '/partials/auth_portal_topnav.php'; ?>
+    <?php endif; ?>
     <div class="<?= htmlspecialchars($shellClass) ?>">
+        <?php if ($isSplitClean): ?><div class="auth-portal-split"><div class="auth-portal-split__brand"><?php endif; ?>
+        <?php if (!$isCenterCard): ?>
         <header class="auth-portal-hero">
-            <div class="auth-portal-kop">
+            <div class="<?= htmlspecialchars($kopClass) ?>">
                 <div class="auth-portal-kop__logo">
                     <div class="logo-ring logo-ring--round<?= $logoUrl === '' ? ' logo-ring--fallback' : '' ?>">
                         <?php if ($logoUrl !== ''): ?>
@@ -386,7 +456,10 @@ function auth_portal_layout_begin(array $ctx): void
                 <?php endif; ?>
             </div>
         </header>
-        <div class="auth-portal-card">
+        <?php endif; ?>
+        <?php if ($isSplitClean): ?></div><div class="auth-portal-split__form"><?php endif; ?>
+        <div class="<?= htmlspecialchars($cardClass) ?>">
+            <?php if ($cardStyle !== 'minimal' && $cardStyle !== 'center'): ?>
             <div class="auth-portal-card__head">
                 <p class="auth-portal-card__head-title mb-0">
                     <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
@@ -396,7 +469,38 @@ function auth_portal_layout_begin(array $ctx): void
                     <p class="auth-portal-card__head-meta"><?= $cardMeta ?></p>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
             <div class="auth-portal-card__body">
+            <?php if ($cardStyle === 'center'): ?>
+                <div class="auth-portal-center-head">
+                    <div class="auth-portal-center-head__logo">
+                        <div class="auth-portal-center-head__logo-box<?= $logoUrl === '' ? ' auth-portal-center-head__logo-box--fallback' : '' ?>">
+                            <?php if ($logoUrl !== ''): ?>
+                                <img
+                                    src="<?= htmlspecialchars($logoUrl) ?>"
+                                    alt="Logo <?= $kopNama ?>"
+                                    class="auth-portal-center-head__logo-img"
+                                    decoding="async"
+                                    fetchpriority="high"
+                                    data-pondok-cache="1"
+                                    data-fallback-src="<?= htmlspecialchars($logoFallbackHref) ?>"
+                                >
+                            <?php else: ?>
+                                <span class="auth-portal-center-head__logo-fallback"><?= $kopInitials ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <h1 class="auth-portal-center-head__title"><?= $kopNama !== '' ? $kopNama : ($namaPonpes !== '' ? $namaPonpes : 'Pondok Pesantren') ?></h1>
+                    <?php if ($cardSubtitleHtml !== ''): ?>
+                        <p class="auth-portal-center-head__subtitle"><?= $cardSubtitleHtml ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php elseif ($cardStyle === 'minimal'): ?>
+                <h2 class="auth-portal-form-title"><?= $cardTitle ?></h2>
+                <?php if ($cardMeta !== ''): ?>
+                    <p class="auth-portal-form-meta"><?= $cardMeta ?></p>
+                <?php endif; ?>
+            <?php endif; ?>
     <?php
 }
 
@@ -408,6 +512,9 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
     ?>
             </div>
         </div>
+        <?php if (auth_portal_layout_is_split_clean()): ?>
+        </div></div>
+        <?php endif; ?>
         <?php if ($footerLinks !== []): ?>
             <nav class="auth-portal-links text-center mt-2 d-flex flex-wrap justify-content-center gap-3" aria-label="Tautan portal">
                 <?php foreach ($footerLinks as $lnk): ?>

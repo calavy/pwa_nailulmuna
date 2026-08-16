@@ -229,10 +229,10 @@ function login_pembimbing_setoran_entry_meta(?PDO $pdo = null): array
     require_once __DIR__ . '/app_path.php';
 
     $meta = [
-        'href' => app_href('/login.php?peran=pembimbing&act=qr&dest=setoran'),
+        'href' => app_href('/login.php?dest=setoran'),
         'title' => 'Input setoran hafalan',
-        'desc' => 'Scan kartu penerima setoran',
-        'icon' => 'fa-qrcode',
+        'desc' => 'Masuk untuk input setoran',
+        'icon' => 'fa-book-quran',
     ];
 
     if ($pdo instanceof PDO) {

@@ -33,7 +33,8 @@ function pwa_cache_version(): string
         '/keuangan/riwayat_pembayaran.php',
         '/keuangan/cashless_laporan.php',
         '/presensi/scan.php',
-        '/pembimbing/perizinan.php',
+        '/poin/input.php',
+        '/assets/js/santri-select.js',
     ] as $rel) {
         $full = $root . $rel;
         $parts[] = is_file($full) ? (string) filemtime($full) : '0';
@@ -264,7 +265,11 @@ function pwaIsOfflineNavAllowlist(url) {
   if (p.endsWith('/offline.php')) {
     return true;
   }
+  if (p.indexOf('/login.php') >= 0 && url.search.indexOf('scan=1') >= 0) {
+    return true;
+  }
   return p.indexOf('/presensi/scan') >= 0
+    || p.indexOf('/poin/input') >= 0
     || p.indexOf('/cashless/scan') >= 0
     || p.indexOf('/keuangan/cashless_scan') >= 0
     || p.indexOf('/koperasi/scan') >= 0

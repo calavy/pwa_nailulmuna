@@ -396,7 +396,7 @@ if (!function_exists('render_app_sidebar_nav')) {
         require __DIR__ . '/partials/app_sidebar_head.php';
         ?>
         <div class="app-sidebar-inner">
-            <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'hub']); ?>
+            <?php render_app_sidebar_nav($menuStructure, $menuItems, $requestPath, ['mode' => 'accordion']); ?>
         </div>
     </aside>
     <?php endif; ?>
@@ -485,6 +485,10 @@ if (!function_exists('render_app_sidebar_nav')) {
                 </div>
             </div>
         </header>
+
+        <?php if (isset($_SESSION['user']) && app_should_load_offline_sync_js($requestPath)): ?>
+        <?php require __DIR__ . '/partials/offline_status_bar.php'; ?>
+        <?php endif; ?>
 
         <?php if (!$hideAppSidebar): ?>
         <div class="offcanvas offcanvas-start app-mobile-sidebar" tabindex="-1" id="mobileSidebar" aria-labelledby="mobileSidebarLabel">

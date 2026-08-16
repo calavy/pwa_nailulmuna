@@ -12,7 +12,7 @@ require_login();
 $munawibId = munawib_session_id();
 if ($munawibId <= 0) {
     set_flash('error', 'Halaman ini khusus login munawib.');
-    app_redirect('login.php?peran=pembimbing&act=qr');
+    app_redirect('login.php');
 }
 
 munawib_ensure_schema($pdo);

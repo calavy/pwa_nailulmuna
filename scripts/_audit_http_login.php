@@ -50,8 +50,8 @@ function title_of(string $body): string {
 }
 
 $logins = [
-    ['label' => 'pembimbing', 'url' => "$base/login.php?peran=pembimbing", 'fields' => ['peran'=>'pembimbing','username'=>'PMB001','password'=>'abc123','login_method'=>'password']],
-    ['label' => 'pengurus', 'url' => "$base/login.php?peran=pengurus", 'fields' => ['peran'=>'pengurus','username'=>'slamet','password'=>'abc123','login_method'=>'password']],
+    ['label' => 'pembimbing', 'url' => "$base/login.php", 'fields' => ['username'=>'PMB001','password'=>'abc123']],
+    ['label' => 'pengurus', 'url' => "$base/login.php", 'fields' => ['username'=>'slamet','password'=>'abc123']],
 ];
 
 $pages = [

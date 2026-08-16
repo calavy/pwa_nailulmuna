@@ -115,6 +115,6 @@ $ok = get_flash('success');
                 </script>
 <?php
 auth_portal_layout_end([
-    ['href' => '/login.php', 'label' => 'Ganti peran / login lain'],
+    ['href' => '/login.php', 'label' => 'Portal utama'],
     ['href' => '/wali/login.php', 'label' => 'Portal wali santri'],
 ]);

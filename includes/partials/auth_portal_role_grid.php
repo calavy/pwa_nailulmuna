@@ -11,18 +11,18 @@ declare(strict_types=1);
 <div class="auth-portal-role-grid">
     <?php
     auth_portal_role_link([
-        'href' => app_href('/login.php?peran=pengurus'),
+        'href' => app_href('/login.php'),
         'icon' => 'fa-user-tie',
         'icon_mod' => 'pengurus',
         'title' => 'Pengurus / Admin',
         'desc' => 'Username & password',
     ]);
     auth_portal_role_link([
-        'href' => app_href('/login.php?peran=pembimbing'),
+        'href' => app_href('/login.php'),
         'icon' => 'fa-chalkboard-user',
         'icon_mod' => 'pembimbing',
         'title' => 'Pembimbing',
-        'desc' => 'Scan QR atau NIP & password',
+        'desc' => 'NIP & password',
     ]);
     auth_portal_role_link([
         'href' => app_href('/presensi/login.php'),
