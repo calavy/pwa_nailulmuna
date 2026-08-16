@@ -21,6 +21,18 @@ if (!table_exists($pdo, 'app_settings')) {
     exit;
 }
 
+/** Field identitas pondok yang perlu dipertahankan saat simpan form operasional. */
+$pondokIdentityPreserveFields = [
+    'jenis_pendidikan',
+    'alamat_ponpes',
+    'telp_ponpes',
+    'website_ponpes',
+    'kota_ponpes',
+    'nama_pengasuh',
+    'pwa_theme_color',
+    'pwa_background_color',
+];
+
 $pondokIdentityFields = [
     'nama_ponpes',
     'jenis_pendidikan',
@@ -29,6 +41,8 @@ $pondokIdentityFields = [
     'website_ponpes',
     'kota_ponpes',
     'nama_pengasuh',
+    'pwa_theme_color',
+    'pwa_background_color',
     'kategori_baik_max',
     'kategori_sedang_max',
     'keaktifan_tanggal_mulai_scan',
@@ -159,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         set_flash('success', 'Profil pesantren berhasil disimpan.');
+        if (function_exists('app_settings_cache')) {
+            app_settings_cache($pdo, true);
+        }
         if (function_exists('app_settings_cache_reset')) {
             app_settings_cache_reset($pdo);
         }

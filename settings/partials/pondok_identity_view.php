@@ -19,7 +19,8 @@
             </div>
             <div class="col-md-6">
                 <label class="form-label">Alamat pesantren</label>
-                <input type="text" class="form-control" name="alamat_ponpes" value="<?= htmlspecialchars($values['alamat_ponpes']) ?>">
+                <textarea class="form-control" name="alamat_ponpes" rows="2" placeholder="Jl. ..., Kec. ..., Kab. ..."><?= htmlspecialchars((string) ($values['alamat_ponpes'] ?? '')) ?></textarea>
+                <div class="form-text">Tampil di halaman login, kop surat, dan laporan. Bisa lebih dari satu baris.</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label">Telepon (kop surat)</label>
@@ -55,30 +56,17 @@
             <div class="col-md-12">
                 <label class="form-label">Logo pesantren</label>
                 <input type="file" class="form-control" name="logo_file" accept=".jpg,.jpeg,.png,.webp">
-                <div class="form-text">Format: JPG, PNG, WEBP. Latar putih pada file akan dihilangkan otomatis. Setelah <strong>Simpan</strong>, ikon PWA di layar utama ikut diperbarui — hapus pintasan PWA lama di HP lalu pasang ulang.</div>
-                <?php if (!empty($values['logo_path'])): ?>
-                    <div class="mt-2">
-                        <img src="<?= htmlspecialchars(app_pondok_logo_href($pdo)) ?>" alt="Logo pesantren" class="pondok-logo-preview">
-                    </div>
-                <?php endif; ?>
+                <div class="form-text">Format: JPG, PNG, WEBP. Latar putih dihilangkan otomatis; gambar diperkecil &amp; dikompres saat disimpan. Setelah <strong>Simpan</strong>, ikon PWA di layar utama ikut diperbarui — hapus pintasan PWA lama di HP lalu pasang ulang.<?php if (!empty($values['logo_path'])): ?> <span class="text-success">Logo aktif.</span><?php endif; ?></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Stempel surat resmi</label>
                 <input type="file" class="form-control" name="stampel_surat_file" accept=".jpg,.jpeg,.png,.webp">
-                <div class="form-text">Dipakai di blok tanda tangan surat izin dan surat cetak lain. PNG transparan disarankan. Kosongkan file = pakai stempel bawaan.</div>
-                <div class="mt-2 p-2 border rounded bg-light text-center">
-                    <img src="<?= htmlspecialchars(pondok_stampel_href($pdo, 'surat')) ?>" alt="Pratinjau stempel surat" style="max-width:140px;max-height:140px;object-fit:contain;">
-                    <div class="small text-muted mt-1"><?= $stampelSuratConfigured ? 'Stempel custom aktif' : 'Pratinjau stempel default' ?></div>
-                </div>
+                <div class="form-text">Dipakai di blok tanda tangan surat izin dan surat cetak lain. PNG transparan disarankan. Kosongkan file = pakai stempel bawaan. <span class="<?= $stampelSuratConfigured ? 'text-success' : 'text-muted' ?>"><?= $stampelSuratConfigured ? 'Stempel custom aktif.' : 'Memakai stempel default.' ?></span></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Stempel bukti pembayaran / kuitansi</label>
                 <input type="file" class="form-control" name="stampel_kuitansi_file" accept=".jpg,.jpeg,.png,.webp">
-                <div class="form-text">Dipakai di kuitansi keuangan (print resmi &amp; download PNG). Terpisah dari stempel surat.</div>
-                <div class="mt-2 p-2 border rounded bg-light text-center">
-                    <img src="<?= htmlspecialchars(pondok_stampel_href($pdo, 'kuitansi')) ?>" alt="Pratinjau stempel kuitansi" style="max-width:140px;max-height:140px;object-fit:contain;">
-                    <div class="small text-muted mt-1"><?= $stampelKuitansiConfigured ? 'Stempel custom aktif' : 'Pratinjau stempel default' ?></div>
-                </div>
+                <div class="form-text">Dipakai di kuitansi keuangan (print resmi &amp; download PNG). Terpisah dari stempel surat. <span class="<?= $stampelKuitansiConfigured ? 'text-success' : 'text-muted' ?>"><?= $stampelKuitansiConfigured ? 'Stempel custom aktif.' : 'Memakai stempel default.' ?></span></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Warna tema PWA (status bar)</label>
@@ -104,6 +92,9 @@
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_pesantren">
             <input type="hidden" name="nama_ponpes" value="<?= htmlspecialchars($values['nama_ponpes']) ?>">
+            <?php foreach ($pondokIdentityPreserveFields as $preserveKey): ?>
+                <input type="hidden" name="<?= htmlspecialchars($preserveKey) ?>" value="<?= htmlspecialchars((string) ($values[$preserveKey] ?? '')) ?>">
+            <?php endforeach; ?>
             <div class="col-md-4">
                 <label class="form-label">Password petugas presensi</label>
                 <input type="password" class="form-control" name="presensi_password" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password">

@@ -186,6 +186,7 @@ function auth_portal_layout_begin(array $ctx): void
     global $pdo;
     if (isset($pdo) && $pdo instanceof PDO) {
         require_once __DIR__ . '/../helpers/app.php';
+        app_settings_cache($pdo, true);
         if ($kickerRaw === '') {
             $kickerRaw = trim((string) app_setting($pdo, 'jenis_pendidikan', ''));
         }
@@ -199,12 +200,14 @@ function auth_portal_layout_begin(array $ctx): void
     $initials = strtoupper(substr($lettersOnly !== '' ? $lettersOnly : 'AP', 0, 2));
     $logoUrl = trim((string) ($ctx['logo_url'] ?? ''));
     if (isset($pdo) && $pdo instanceof PDO) {
+        app_settings_cache($pdo, true);
         $kopCtx = auth_portal_kop_context($pdo, $logoUrl);
         $logoUrl = (string) ($kopCtx['logo_url'] ?? $logoUrl);
     }
+    $kopAlamatRaw = trim((string) ($kopCtx['alamat'] ?? ''));
     $kopNama = htmlspecialchars((string) ($kopCtx['nama'] ?? ''));
     $kopJenis = htmlspecialchars((string) ($kopCtx['jenis'] ?? ''));
-    $kopAlamat = htmlspecialchars((string) ($kopCtx['alamat'] ?? ''));
+    $kopAlamat = $kopAlamatRaw !== '' ? nl2br(htmlspecialchars($kopAlamatRaw, ENT_QUOTES, 'UTF-8')) : '';
     $kopInitials = htmlspecialchars((string) ($kopCtx['initials'] ?? 'AP'));
     $layoutRaw = (string) ($ctx['layout'] ?? 'stack');
     $allowedLayouts = ['split', 'split_clean', 'center_card'];
@@ -418,7 +421,7 @@ function auth_portal_layout_begin(array $ctx): void
                         <p class="auth-portal-kop__jenis mb-0"><?= $kicker ?></p>
                     <?php endif; ?>
                     <p class="auth-portal-kop__nama mb-0"><?= $kopNama !== '' ? $kopNama : ($namaPonpes !== '' ? $namaPonpes : 'Pondok Pesantren') ?></p>
-                    <?php if ($kopAlamat !== ''): ?>
+                    <?php if ($kopAlamatRaw !== ''): ?>
                         <p class="auth-portal-kop__alamat mb-0"><i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><?= $kopAlamat ?></p>
                     <?php endif; ?>
                 </div>
@@ -491,6 +494,11 @@ function auth_portal_layout_begin(array $ctx): void
                         </div>
                     </div>
                     <h1 class="auth-portal-center-head__title"><?= $kopNama !== '' ? $kopNama : ($namaPonpes !== '' ? $namaPonpes : 'Pondok Pesantren') ?></h1>
+                    <?php if ($kopAlamatRaw !== ''): ?>
+                        <p class="auth-portal-center-head__alamat mb-0">
+                            <i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><?= $kopAlamat ?>
+                        </p>
+                    <?php endif; ?>
                     <?php if ($cardSubtitleHtml !== ''): ?>
                         <p class="auth-portal-center-head__subtitle"><?= $cardSubtitleHtml ?></p>
                     <?php endif; ?>

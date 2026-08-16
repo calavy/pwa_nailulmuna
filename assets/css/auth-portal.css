@@ -1856,6 +1856,15 @@ html {
     line-height: 1.45;
 }
 
+.auth-portal-center-head__alamat {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+    margin: 0.35rem 0 0.5rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
 .auth-portal-form--center {
     margin-bottom: 0;
 }
@@ -2010,6 +2019,10 @@ html {
 }
 
 [data-theme="dark"] .auth-portal-center-head__subtitle {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .auth-portal-center-head__alamat {
     color: #94a3b8;
 }
 

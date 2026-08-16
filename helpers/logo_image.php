@@ -3,8 +3,14 @@
 declare(strict_types=1);
 
 /**
- * Olah logo pondok: hilangkan latar putih/terang, pertahankan transparansi PNG.
+ * Olah logo pondok: hilangkan latar putih/terang, pertahankan transparansi PNG, resize & kompres.
  */
+
+/** Batas sisi terpanjang bawaan per jenis unggahan. */
+function logo_image_default_max_dimension(string $uploadsDirRelative = 'uploads/logos'): int
+{
+    return str_contains(str_replace('\\', '/', $uploadsDirRelative), 'stempel') ? 320 : 512;
+}
 
 /** @return GdImage|null */
 function logo_image_load(string $absolutePath)
@@ -75,11 +81,43 @@ function logo_image_remove_light_background(GdImage $src, int $tolerance = 48): 
     return $rgba;
 }
 
+/** Perkecil gambar jika melebihi batas sisi terpanjang (pertahankan alpha). */
+function logo_image_resize_to_max(GdImage $src, int $maxDim): GdImage
+{
+    if ($maxDim <= 0) {
+        return logo_image_to_rgba($src);
+    }
+
+    $w = imagesx($src);
+    $h = imagesy($src);
+    if ($w <= $maxDim && $h <= $maxDim) {
+        return logo_image_to_rgba($src);
+    }
+
+    $scale = min($maxDim / max(1, $w), $maxDim / max(1, $h));
+    $nw = max(1, (int) round($w * $scale));
+    $nh = max(1, (int) round($h * $scale));
+
+    $out = imagecreatetruecolor($nw, $nh);
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+    $transparent = imagecolorallocatealpha($out, 0, 0, 0, 127);
+    imagefilledrectangle($out, 0, 0, $nw, $nh, $transparent);
+    imagecopyresampled($out, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    imagesavealpha($out, true);
+
+    return $out;
+}
+
 /**
  * Simpan logo sebagai PNG transparan (hilangkan putih). Mengembalikan path absolut baru atau null.
  */
-function logo_image_save_transparent_png(string $sourceAbsolute, ?string $destAbsolute = null): ?string
-{
+function logo_image_save_transparent_png(
+    string $sourceAbsolute,
+    ?string $destAbsolute = null,
+    int $maxDimension = 0,
+    int $pngCompression = 9
+): ?string {
     if (!function_exists('imagepng')) {
         return null;
     }
@@ -89,6 +127,12 @@ function logo_image_save_transparent_png(string $sourceAbsolute, ?string $destAb
     }
     $clean = logo_image_remove_light_background($src);
     imagedestroy($src);
+
+    if ($maxDimension > 0) {
+        $resized = logo_image_resize_to_max($clean, $maxDimension);
+        imagedestroy($clean);
+        $clean = $resized;
+    }
 
     if ($destAbsolute !== null) {
         $dest = $destAbsolute;
@@ -101,18 +145,26 @@ function logo_image_save_transparent_png(string $sourceAbsolute, ?string $destAb
 
     imagesavealpha($clean, true);
     imagealphablending($clean, false);
-    $ok = imagepng($clean, $dest, 6);
+    $compression = max(0, min(9, $pngCompression));
+    $ok = imagepng($clean, $dest, $compression);
     imagedestroy($clean);
 
     return $ok ? $dest : null;
 }
 
 /**
- * Setelah unggah logo: optimasi PNG transparan & kembalikan path relatif baru (uploads/logos/...).
+ * Setelah unggah logo/stempel: optimasi PNG transparan, resize, kompres — kembalikan path relatif baru.
  */
-function logo_image_process_uploaded_logo(string $absolutePath, string $uploadsDirRelative = 'uploads/logos'): ?string
-{
-    $pngPath = logo_image_save_transparent_png($absolutePath);
+function logo_image_process_uploaded_logo(
+    string $absolutePath,
+    string $uploadsDirRelative = 'uploads/logos',
+    int $maxDimension = 0
+): ?string {
+    if ($maxDimension <= 0) {
+        $maxDimension = logo_image_default_max_dimension($uploadsDirRelative);
+    }
+
+    $pngPath = logo_image_save_transparent_png($absolutePath, null, $maxDimension, 9);
     if ($pngPath === null || !is_file($pngPath)) {
         return null;
     }
