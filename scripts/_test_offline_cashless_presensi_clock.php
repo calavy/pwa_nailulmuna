@@ -24,6 +24,14 @@ if ($clock['tanggal'] !== $expectedDate || $clock['jam'] !== $expectedJam) {
 }
 echo "OK presensi_scan_resolve_clock honors client time\n";
 
+$sixDays = gmdate('c', time() - 86400 * 6);
+$clockSix = presensi_scan_resolve_clock(['scan_client_at' => $sixDays]);
+if (empty($clockSix['from_client'])) {
+    echo "FAIL 6-day client time should be honored (7-day window)\n";
+    exit(1);
+}
+echo "OK scan_client_at within 7 days honored\n";
+
 $tooOld = gmdate('c', time() - 86400 * 10);
 $clockOld = presensi_scan_resolve_clock(['scan_client_at' => $tooOld]);
 if (!empty($clockOld['from_client'])) {

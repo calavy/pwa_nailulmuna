@@ -105,6 +105,9 @@ function login_qr_authenticate(PDO $pdo, string $qrCode, string $loginDest = '')
                 $_SESSION['setoran_pembimbing_id']
             );
             app_menu_pack_invalidate();
+            if (function_exists('app_mark_offline_queue_flush')) {
+                app_mark_offline_queue_flush();
+            }
 
             $redirect = $loginDest === 'setoran'
                 ? 'pembimbing/setoran_dashboard.php'
@@ -176,6 +179,9 @@ function login_qr_authenticate(PDO $pdo, string $qrCode, string $loginDest = '')
         'is_super_admin' => $isSuperAdmin ? 1 : 0,
         'foto_profil' => trim((string) ($userRow['foto_profil'] ?? '')),
     ];
+    if (function_exists('app_mark_offline_queue_flush')) {
+        app_mark_offline_queue_flush();
+    }
 
     if ($isRegisteredPembimbing && $userId > 0) {
         login_pembimbing_ensure_acl($pdo, $userId);

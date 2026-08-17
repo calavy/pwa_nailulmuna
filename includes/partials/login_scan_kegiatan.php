@@ -81,6 +81,7 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
 <link href="<?= htmlspecialchars(app_url('assets/css/offline-sync.css')) ?>" rel="stylesheet">
 <?php require_once __DIR__ . '/../../helpers/app_vendor.php'; require __DIR__ . '/app_html5_qrcode_script.php'; ?>
 <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+<?php if (function_exists('app_offline_queue_flush_script')) { app_offline_queue_flush_script(); } ?>
 <script src="<?= htmlspecialchars(app_url('assets/js/pwa-register.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/offline-sync.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-feedback.js')) ?>"></script>

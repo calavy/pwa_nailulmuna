@@ -338,6 +338,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         ];
 
+        app_mark_offline_queue_flush();
+
         if ($sessionRole === 'petugas_koperasi' && $kopIdLogin >= 1 && $kopIdLogin <= 3) {
             require_once __DIR__ . '/helpers/cashless_koperasi.php';
             cashless_koperasi_login_from_user($pdo, $kopIdLogin);

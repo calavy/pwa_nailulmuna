@@ -14,6 +14,7 @@
     var STORE_PENDING = 'pending_display';
     var SYNC_HEADER = 'X-PWA-Offline-Sync';
     var QUEUE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    var FLUSH_STORAGE_KEY = 'pondok_flush_offline';
     var RETRY_INTERVAL_MS = 90000;
     var syncing = false;
     var retryTimer = null;
@@ -158,11 +159,21 @@
         });
     }
 
+    function queueItemSortTime(r) {
+        if (r && r.fields && r.fields.scan_client_at) {
+            var parsed = Date.parse(String(r.fields.scan_client_at));
+            if (!isNaN(parsed)) {
+                return parsed;
+            }
+        }
+        return (r && r.createdAt) ? Number(r.createdAt) : 0;
+    }
+
     function queueListPending() {
         return queueListAll().then(function (all) {
             return all.filter(function (r) {
                 return r.status === 'pending' || r.status === 'error';
-            }).sort(function (a, b) { return a.createdAt - b.createdAt; });
+            }).sort(function (a, b) { return queueItemSortTime(a) - queueItemSortTime(b); });
         });
     }
 
@@ -170,7 +181,7 @@
         return queueListAll().then(function (all) {
             return all.filter(function (r) {
                 return r.status === 'pending' || (includeErrors && r.status === 'error');
-            }).sort(function (a, b) { return a.createdAt - b.createdAt; });
+            }).sort(function (a, b) { return queueItemSortTime(a) - queueItemSortTime(b); });
         });
     }
 
@@ -713,7 +724,10 @@
             })(),
         }).then(function (res) {
             if (res.status === 401) {
-                throw new Error('Sesi habis — login ulang untuk mengirim antrian.');
+                var authErr = new Error('Sesi habis — masuk lagi agar antrian terkirim otomatis.');
+                authErr.authRequired = true;
+                authErr.status = 401;
+                throw authErr;
             }
             return res.json().catch(function () {
                 throw new Error('Respons server tidak valid (HTTP ' + res.status + ').');
@@ -761,15 +775,31 @@
                 item.syncedAt = Date.now();
                 var route = routeForModule(item.module);
                 handleSyncResult(json, route, { batch: true }, item);
-                return queueUpdate(item);
+                return queueUpdate(item).then(function () {
+                    return { stop: false };
+                });
             }).catch(function (err) {
-                item.status = 'error';
+                var authRequired = !!(err && err.authRequired);
+                item.status = authRequired ? 'pending' : 'error';
                 item.lastError = err && err.message ? err.message : 'Gagal kirim';
-                syncBatchSummary.err += 1;
-                return queueUpdate(item);
-            }).then(function () {
-                return queueListToSync(!!options.includeErrors);
-            }).then(processNext);
+                if (!authRequired) {
+                    syncBatchSummary.err += 1;
+                }
+                return queueUpdate(item).then(function () {
+                    return { stop: authRequired, auth: authRequired };
+                });
+            }).then(function (ctrl) {
+                if (ctrl && ctrl.stop) {
+                    syncing = false;
+                    document.documentElement.classList.remove('pondok-offline-syncing');
+                    if (ctrl.auth) {
+                        toast('Sesi habis — masuk lagi agar antrian terkirim otomatis.', 'warning');
+                    }
+                    flushSyncBatchToast();
+                    return refreshQueueUi();
+                }
+                return queueListToSync(!!options.includeErrors).then(processNext);
+            });
         }).catch(function () {
             syncing = false;
             document.documentElement.classList.remove('pondok-offline-syncing');
@@ -980,6 +1010,23 @@
         });
     }
 
+    function consumeFlushOfflineFlag() {
+        try {
+            if (global.sessionStorage && sessionStorage.getItem(FLUSH_STORAGE_KEY) === '1') {
+                sessionStorage.removeItem(FLUSH_STORAGE_KEY);
+                return true;
+            }
+        } catch (e) { /* mode privat / storage diblokir */ }
+        return false;
+    }
+
+    function tryProcessQueueIfOnline(options) {
+        if (!navigator.onLine) {
+            return;
+        }
+        processQueue(options || {});
+    }
+
     function scheduleRetryLoop() {
         if (retryTimer) {
             return;
@@ -1004,6 +1051,8 @@
         updateDashboardStatus();
         scheduleRetryLoop();
 
+        var afterLogin = consumeFlushOfflineFlag();
+
         global.addEventListener('online', function () {
             updateOfflineBar();
             updateDashboardStatus();
@@ -1016,6 +1065,16 @@
             updateOfflineBar();
             updateDashboardStatus();
         });
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                tryProcessQueueIfOnline();
+            }
+        });
+        global.addEventListener('pageshow', function () {
+            tryProcessQueueIfOnline();
+        });
+
+        tryProcessQueueIfOnline({ includeErrors: afterLogin });
     }
 
     global.PondokOfflineSync = {

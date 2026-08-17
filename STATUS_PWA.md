@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-17] Offline: unggah otomatis + jam scan 7 hari
+- **Apa yang diubah:** Jendela `scan_client_at` di server 7 hari (selaras antrian IndexedDB). Antrian dikirim otomatis saat online (init, `pageshow`, `visibilitychange`), urut waktu scan. HTTP 401 tidak membuang antrian; setelah login pengurus/petugas, flag `sessionStorage.pondok_flush_offline` memicu flush di halaman berikutnya.
+- **File:** `helpers/presensi_scan_client.php`, `assets/js/offline-sync.js`, `helpers/app.php`, `login.php`, `presensi/login.php`, `helpers/login_qr_auth.php`, `includes/footer.php`, `includes/koperasi_portal_layout.php`, `includes/partials/login_scan_kegiatan.php`, `scripts/_test_offline_cashless_presensi_clock.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Beberapa kegiatan tertumpuk harus masuk sesuai jam HP, bukan jam upload; unggah tanpa tombol; sesi habis tidak boleh menghapus antrian.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-17] Satu halaman login untuk wali
 - **Apa yang diubah:** Wali masuk lewat `login.php` seperti pengguna lain. `/wali/login.php` dialihkan ke login utama. Logout dan sesi invalid portal wali kembali ke `/login.php`. Tautan "Portal wali" dihapus dari grid/footer.
 - **File:** `wali/login.php`, `login.php`, `wali/logout.php`, `wali/inc_portal.php`, `helpers/auth_portal_links.php`, `includes/partials/auth_portal_role_grid.php`, `presensi/login.php`, `santri_portal/login.php`, `data/wali.php`, `santri/edit.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`

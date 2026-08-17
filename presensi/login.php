@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'role' => 'petugas_absensi',
             'is_super_admin' => 0,
         ];
+        app_mark_offline_queue_flush();
         set_flash('success', 'Selamat datang. Silakan mulai scan presensi.');
         app_redirect('presensi/scan.php');
     }

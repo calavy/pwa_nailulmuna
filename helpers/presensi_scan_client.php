@@ -21,7 +21,7 @@ function presensi_scan_resolve_clock(array $post): array
         $ts = strtotime($rawAt);
         if ($ts !== false) {
             $age = abs(time() - $ts);
-            if ($age <= 86400 * 3) {
+            if ($age <= 86400 * 7) {
                 return [
                     'tanggal' => date('Y-m-d', $ts),
                     'jam' => date('H:i:s', $ts),
@@ -36,7 +36,7 @@ function presensi_scan_resolve_clock(array $post): array
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate) && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $rawJam)) {
         $jamNorm = strlen($rawJam) === 5 ? $rawJam . ':00' : $rawJam;
         $ts = strtotime($rawDate . ' ' . $jamNorm);
-        if ($ts !== false && abs(time() - $ts) <= 86400 * 3) {
+        if ($ts !== false && abs(time() - $ts) <= 86400 * 7) {
             return [
                 'tanggal' => $rawDate,
                 'jam' => $jamNorm,

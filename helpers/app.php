@@ -3740,6 +3740,22 @@ function app_acl_request_paths_equal(string $requestPath, string $targetPath): b
     return $a === $b;
 }
 
+/** Setelah login pengurus/petugas: halaman berikutnya mengirim antrian offline otomatis. */
+function app_mark_offline_queue_flush(): void
+{
+    $_SESSION['pondok_flush_offline'] = 1;
+}
+
+/** Salin flag flush ke sessionStorage (dibaca assets/js/offline-sync.js). */
+function app_offline_queue_flush_script(): void
+{
+    if (empty($_SESSION['pondok_flush_offline'])) {
+        return;
+    }
+    unset($_SESSION['pondok_flush_offline']);
+    echo '<script>try{sessionStorage.setItem("pondok_flush_offline","1");}catch(e){}</script>' . "\n";
+}
+
 /** Redirect aman setelah login / dari halaman login (hindari loop). */
 function app_post_login_redirect(PDO $pdo): void
 {

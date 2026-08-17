@@ -44,6 +44,7 @@ $deferPwaRegisterJs = $isScanKioskPage;
     <?php require_once __DIR__ . '/../helpers/app_vendor.php'; ?>
     <script src="<?= htmlspecialchars(app_vendor_bootstrap_js_href()) ?>" defer crossorigin="anonymous"></script>
     <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
+    <?php app_offline_queue_flush_script(); ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
     <?php if (isset($_SESSION['user']) && $loadOfflineSyncJs): ?>
     <?php if ($loadPwaMediaCacheJs): ?>
