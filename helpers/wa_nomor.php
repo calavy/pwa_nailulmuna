@@ -13,7 +13,19 @@ function wa_nomor_peran_definitions(): array
         'pengurus' => [
             'label' => 'Pengurus / ALPA',
             'setting' => 'wa_pengurus',
-            'desc' => 'Notifikasi alpa otomatis & fallback umum',
+            'desc' => 'Notifikasi alpa otomatis & fallback umum (legacy putra)',
+            'group' => 'Presensi & Alpa',
+        ],
+        'alpa_putra' => [
+            'label' => 'ALPA santri putra',
+            'setting' => 'wa_alpa_pengurus_putra',
+            'desc' => 'Notifikasi crossing alpa khusus putra',
+            'group' => 'Presensi & Alpa',
+        ],
+        'alpa_putri' => [
+            'label' => 'ALPA santri putri',
+            'setting' => 'wa_alpa_pengurus_putri',
+            'desc' => 'Notifikasi crossing alpa khusus putri',
             'group' => 'Presensi & Alpa',
         ],
         'petugas_pendidikan' => [

@@ -1,0 +1,6 @@
+﻿OK offline_sync_log table exists
+OK offline_sync_compare_time_hms
+OK presensi conflict decision
+OK poin reference pack version=77f6679fb9260819
+OK idempotent log
+All offline smoke tests passed.

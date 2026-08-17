@@ -129,7 +129,9 @@ return [
         '/admin/rekap_surat_izin.php' => 'Rekap Surat Izin',
         '/admin/rekap_surat_sp.php' => 'Rekap Surat SP',
         '/rekap/santri_bagus.php' => 'Rekap Keaktifan Santri',
-        '/rekap/alpa_santri.php' => 'Laporan ALPA per Santri',
+        '/rekap/alpa_santri_putra.php' => 'Laporan ALPA Putra',
+        '/rekap/alpa_santri_putri.php' => 'Laporan ALPA Putri',
+        '/rekap/alpa_santri.php' => 'Laporan ALPA Putra',
         '/pengasuh/dashboard.php' => 'Dashboard Pengasuh',
         '/pengasuh/laporan_hari.php' => 'Laporan Hari Ini',
         '/pengasuh/perizinan.php' => 'Persetujuan Izin Pengasuh',
@@ -262,6 +264,8 @@ return [
             ]],
             ['title' => 'Rekap', 'paths' => [
                 '/rekap/presensi.php',
+                '/rekap/alpa_santri_putra.php',
+                '/rekap/alpa_santri_putri.php',
             ]],
             ['title' => 'Poin & Keaktifan', 'paths' => [
                 '/pengasuh/dashboard.php',

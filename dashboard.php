@@ -365,9 +365,9 @@ require_once __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </div>
                 <div class="dash-status-strip">
-                    <span class="dash-status-pill dash-status-pill--ok">
+                    <span class="dash-status-pill dash-status-pill--ok" id="dash-system-pill">
                         <i class="fa-solid fa-signal" aria-hidden="true"></i>
-                        Status sistem: <strong>Normal Online</strong>
+                        Status sistem: <strong id="dash-system-status">Normal Online</strong>
                     </span>
                     <span class="dash-status-pill">
                         <i class="fa-solid fa-users" aria-hidden="true"></i>
@@ -378,9 +378,9 @@ require_once __DIR__ . '/includes/header.php';
                         Keamanan: <strong>Terkunci &amp; Aman</strong>
                     </span>
                 </div>
-                <div class="dash-sync-footer">
-                    <span>Sistem sinkronisasi otomatis aktif · data real-time</span>
-                    <span class="dash-sync-footer__badge"><i class="fa-solid fa-circle" aria-hidden="true"></i> Connected</span>
+                <div class="dash-sync-footer" id="dash-sync-footer">
+                    <span id="dash-sync-text">Sistem sinkronisasi otomatis aktif · data real-time</span>
+                    <span class="dash-sync-footer__badge" id="dash-sync-badge"><i class="fa-solid fa-circle" aria-hidden="true"></i> Connected</span>
                 </div>
             </div>
         </section>

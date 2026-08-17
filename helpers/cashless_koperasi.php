@@ -726,7 +726,8 @@ function cashless_koperasi_insert_debit(
     string $keterangan,
     int $createdBy,
     ?int $koperasiId,
-    ?string $clientToken = null
+    ?string $clientToken = null,
+    ?string $tanggal = null
 ): int {
     $cols = ['santri_id', 'jenis', 'nominal', 'keterangan', 'created_by'];
     $vals = [':santri_id', "'DEBIT'", ':nominal', ':keterangan', ':created_by'];
@@ -736,6 +737,18 @@ function cashless_koperasi_insert_debit(
         'keterangan' => $keterangan,
         'created_by' => $createdBy,
     ];
+    $tanggalNorm = null;
+    if ($tanggal !== null && $tanggal !== '') {
+        $ts = strtotime($tanggal);
+        if ($ts !== false) {
+            $tanggalNorm = date('Y-m-d H:i:s', $ts);
+        }
+    }
+    if ($tanggalNorm !== null && column_exists($pdo, 'cashless_transactions', 'tanggal')) {
+        $cols[] = 'tanggal';
+        $vals[] = ':tanggal';
+        $params['tanggal'] = $tanggalNorm;
+    }
     if ($koperasiId > 0 && column_exists($pdo, 'cashless_transactions', 'koperasi_id')) {
         $cols[] = 'koperasi_id';
         $vals[] = ':koperasi_id';

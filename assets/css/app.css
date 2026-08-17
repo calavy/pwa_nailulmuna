@@ -2815,6 +2815,63 @@ body.app-page-leaving .app-main {
     border-left-color: #f87171;
 }
 
+/* Mockup gelap: kartu/area terang — flash & alert pakai kontras light mode */
+[data-theme="dark"] .app-main .app-flash.alert-success,
+[data-theme="dark"] .dash-page .app-flash.alert-success {
+    background: linear-gradient(135deg, rgba(220, 252, 231, 0.98) 0%, rgba(187, 247, 208, 0.75) 100%);
+    color: #14532d !important;
+    border-left: 4px solid #22c55e;
+}
+
+[data-theme="dark"] .app-main .app-flash.alert-danger,
+[data-theme="dark"] .dash-page .app-flash.alert-danger {
+    background: linear-gradient(135deg, rgba(254, 226, 226, 0.98) 0%, rgba(254, 202, 202, 0.65) 100%);
+    color: #7f1d1d !important;
+    border-left: 4px solid #ef4444;
+}
+
+[data-theme="dark"] .app-main .app-flash.alert-warning,
+[data-theme="dark"] .dash-page .app-flash.alert-warning {
+    background: linear-gradient(135deg, rgba(254, 243, 199, 0.98) 0%, rgba(253, 230, 138, 0.55) 100%);
+    color: #78350f !important;
+    border-left: 4px solid #f59e0b;
+}
+
+[data-theme="dark"] .app-main .app-flash.alert-info,
+[data-theme="dark"] .dash-page .app-flash.alert-info {
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.98) 0%, rgba(186, 230, 253, 0.55) 100%);
+    color: #0c4a6e !important;
+    border-left: 4px solid #0ea5e9;
+}
+
+[data-theme="dark"] .app-main .alert-success,
+[data-theme="dark"] .dash-page .alert-success {
+    background: #ecfdf5;
+    color: #14532d;
+    border-color: rgba(34, 197, 94, 0.35);
+}
+
+[data-theme="dark"] .app-main .alert-danger,
+[data-theme="dark"] .dash-page .alert-danger {
+    background: #fef2f2;
+    color: #7f1d1d;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="dark"] .app-main .alert-warning,
+[data-theme="dark"] .dash-page .alert-warning {
+    background: #fffbeb;
+    color: #78350f;
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="dark"] .app-main .alert-info,
+[data-theme="dark"] .dash-page .alert-info {
+    background: #f0f9ff;
+    color: #0c4a6e;
+    border-color: rgba(14, 165, 233, 0.35);
+}
+
 .app-hub-tabs {
     display: flex;
     flex-direction: column;
@@ -3674,6 +3731,17 @@ body.app-page-leaving .app-main {
 [data-theme="dark"] .alert-danger {
     color: inherit;
     border-color: transparent;
+}
+
+[data-theme="dark"] .app-main .alert-info,
+[data-theme="dark"] .app-main .alert-warning,
+[data-theme="dark"] .app-main .alert-success,
+[data-theme="dark"] .app-main .alert-danger,
+[data-theme="dark"] .dash-page .alert-info,
+[data-theme="dark"] .dash-page .alert-warning,
+[data-theme="dark"] .dash-page .alert-success,
+[data-theme="dark"] .dash-page .alert-danger {
+    border-color: rgba(148, 163, 184, 0.28);
 }
 
 [data-theme="dark"] #qr-reader,

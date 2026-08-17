@@ -26,7 +26,9 @@ function pwa_cache_version(): string
         '/assets/js/presensi-scan-timer.js',
         '/assets/js/presensi-scan-camera.js',
         '/assets/js/presensi-scan-feedback.js',
+        '/assets/js/login-scan-kegiatan.js',
         '/keuangan/cashless_scan.php',
+        '/koperasi/scan.php',
         '/keuangan/offline-data.php',
         '/keuangan/neraca.php',
         '/keuangan/arus-kas.php',
@@ -145,6 +147,32 @@ function pwa_scan_precache_relative_paths(): array
     return $out;
 }
 
+/**
+ * Shell HTML + aset modul kritis untuk cold-start offline (presensi/poin).
+ *
+ * @return list<string>
+ */
+function pwa_module_shell_precache_relative_paths(): array
+{
+    $paths = [
+        '/presensi/scan.php',
+        '/poin/input.php',
+        '/assets/js/santri-select.js',
+    ];
+    foreach (pwa_scan_precache_relative_paths() as $rel) {
+        $paths[] = $rel;
+    }
+    $root = dirname(__DIR__);
+    $out = [];
+    foreach (array_values(array_unique($paths)) as $rel) {
+        if (str_ends_with($rel, '.php') || is_file($root . $rel)) {
+            $out[] = $rel;
+        }
+    }
+
+    return $out;
+}
+
 function pwa_precache_paths(string $basePath, ?PDO $pdo = null): array
 {
     require_once __DIR__ . '/app.php';
@@ -154,11 +182,12 @@ function pwa_precache_paths(string $basePath, ?PDO $pdo = null): array
     $prefix = $base === '' ? '' : $base;
     $vendor = array_map(static fn (string $p): string => $prefix . $p, app_vendor_precache_relative_paths());
     $uiStatic = array_map(static fn (string $p): string => $prefix . $p, pwa_ui_static_precache_relative_paths());
+    $moduleShell = array_map(static fn (string $p): string => $prefix . $p, pwa_module_shell_precache_relative_paths());
 
     return array_values(array_unique(array_merge([
         $prefix . '/offline.php',
         $prefix . '/api/vendor/fontawesome.css.php',
-    ], $uiStatic, $vendor, pwa_media_precache_paths($basePath, $pdo))));
+    ], $uiStatic, $vendor, $moduleShell, pwa_media_precache_paths($basePath, $pdo))));
 }
 
 /**
@@ -349,11 +378,22 @@ function pwaCacheFirstMedia(request) {
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(PWA_CACHE).then(function (cache) {
-      return cache.addAll(
+      // Satu gagal (mis. shell auth) tidak membatalkan seluruh precache.
+      return Promise.all(
         PWA_PRECACHE.map(function (p) {
-          return new Request(p, { credentials: 'same-origin' });
+          var req = new Request(p, { credentials: 'same-origin', cache: 'no-cache' });
+          return fetch(req).then(function (res) {
+            if (res && res.ok) {
+              return cache.put(req, res.clone()).then(function () {
+                var normHref = pwaNormalizeCacheUrl(req);
+                if (normHref !== req.url) {
+                  return cache.put(new Request(normHref, { credentials: 'same-origin' }), res.clone());
+                }
+              });
+            }
+          }).catch(function () {});
         })
-      ).catch(function () {});
+      );
     }).then(function () {
       return self.skipWaiting();
     })

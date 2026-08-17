@@ -98,6 +98,8 @@ function app_hub_registry(): array
                 ['path' => '/rekap/izin_telat.php', 'label' => 'Telat'],
                 ['path' => '/rekap/kegiatan_khusus.php', 'label' => 'Khusus'],
                 ['path' => '/presensi/rekap_tanpa_scan.php', 'label' => 'Tanpa scan'],
+                ['path' => '/rekap/alpa_santri_putra.php', 'label' => 'ALPA Putra'],
+                ['path' => '/rekap/alpa_santri_putri.php', 'label' => 'ALPA Putri'],
             ],
         ],
         'perizinan_hub' => [

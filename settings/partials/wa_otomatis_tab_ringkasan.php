@@ -85,7 +85,11 @@ declare(strict_types=1);
             <p class="small text-muted mb-2">Fallback otomatis dimatikan: <strong><?= htmlspecialchars($waFallbackAutoOff) ?></strong>
                 (<?= htmlspecialchars((string) app_setting($pdo, 'wa_auto_fallback_auto_disabled_reason', 'hosting_cron_http')) ?>)</p>
         <?php endif; ?>
-        <p class="small text-muted mb-2">Jadwalkan <code>cron/wa_auto.php</code> setiap <strong>1–5 menit</strong>. Pastikan hanya <strong>satu baris</strong> crontab di panel hosting (hindari duplikat cPanel + manual). Setelah cron aktif, nonaktifkan <strong>Fallback cron</strong> di tab Gateway.</p>
+        <p class="small text-muted mb-2">Satu cron <code>cron/wa_auto.php</code> melayani <strong>seluruh</strong> WA otomatis (ALPA, tagihan wali, cashless, kelas kosong, poin, dll.). Jadwalkan setiap <strong>1–5 menit</strong> di panel hosting. Pastikan hanya <strong>satu baris</strong> crontab (hindari duplikat). Setelah cron aktif, nonaktifkan <strong>Fallback cron</strong> di tab Gateway.</p>
+        <div class="alert alert-light border py-2 small mb-2">
+            <strong>Deploy ke hosting yang sudah jalan:</strong> upload/pull kode saja — jadwal cron di panel hosting dan setting di database <strong>tidak berubah</strong>.
+            Setelah deploy, pastikan badge <strong>Cron aktif</strong> (hijau) dan klik <strong>Tes cron</strong> di bawah.
+        </div>
         <div class="small mb-3">
             <div class="fw-semibold mb-1">Perintah cron</div>
             <div class="font-monospace bg-light border rounded p-2 mb-1 user-select-all">php <?= htmlspecialchars($waCronCliPath ?? (str_replace('\\', '/', dirname(__DIR__, 3) . '/cron/wa_auto.php'))) ?></div>
@@ -106,10 +110,50 @@ declare(strict_types=1);
             <?php endif; ?>
             <?php if ($waScheduledLast && !empty($waScheduledLast['skipped'])): ?>
                 <li class="text-warning">Job terjadwal dilewati: <?= htmlspecialchars((string) ($waScheduledLast['gateway_error'] ?? $waScheduledLast['reason'] ?? 'gateway')) ?></li>
-            <?php elseif ($waAlpaLast): ?>
-                <li>Alpa terakhir: <?= (int) ($waAlpaLast['sent'] ?? 0) ?> terkirim · <?= (int) ($waAlpaLast['rows'] ?? 0) ?> baris</li>
+            <?php elseif (is_array($waScheduledLast['jobs'] ?? null)): ?>
+                <?php
+                $jobLabels = [
+                    'alpa' => 'ALPA',
+                    'tagihan' => 'Tagihan wali',
+                    'kelas_kosong' => 'Kelas kosong',
+                    'cashless_laporan' => 'Laporan cashless',
+                    'poin_ambang' => 'Poin ambang',
+                ];
+                ?>
+                <li>Job terjadwal terakhir:
+                    <?php foreach ($jobLabels as $jobKey => $jobLabel): ?>
+                        <?php
+                        $jobRow = $waScheduledLast['jobs'][$jobKey] ?? null;
+                        if (!is_array($jobRow)) {
+                            continue;
+                        }
+                        $jobNote = trim((string) ($jobRow['note'] ?? ''));
+                        ?>
+                        <span class="d-inline-block me-2"><?= htmlspecialchars($jobLabel) ?>:
+                            <?= !empty($jobRow['ran']) ? '<span class="text-success">jalan</span>' : '<span class="text-muted">—</span>' ?>
+                            <?php if ($jobNote !== ''): ?>
+                                <span class="text-muted">(<?= htmlspecialchars($jobNote) ?>)</span>
+                            <?php endif; ?>
+                        </span>
+                    <?php endforeach; ?>
+                </li>
+            <?php endif; ?>
+            <?php if ($waAlpaLast): ?>
+                <li>ALPA crossing terakhir: <?= (int) ($waAlpaLast['sent'] ?? 0) ?> terkirim
+                    <?php if ((int) ($waAlpaLast['sent_putra'] ?? 0) > 0 || (int) ($waAlpaLast['sent_putri'] ?? 0) > 0): ?>
+                        (Putra: <?= (int) ($waAlpaLast['sent_putra'] ?? 0) ?>, Putri: <?= (int) ($waAlpaLast['sent_putri'] ?? 0) ?>)
+                    <?php endif; ?>
+                    · <?= htmlspecialchars((string) ($waAlpaLast['note'] ?? '')) ?>
+                </li>
             <?php endif; ?>
         </ul>
+        <h3 class="h6 mb-2">Checklist setelah deploy (hosting)</h3>
+        <ol class="small mb-3 ps-3">
+            <li>Badge di atas = <strong>Cron aktif</strong> (hijau) dan <em>Terakhir jalan</em> &lt; 10 menit</li>
+            <li>Klik <strong>Tes cron</strong> → respons <code>OK wa_auto ...</code></li>
+            <li>Jangan hapus baris cron di panel hosting; jangan impor ulang database production</li>
+            <li>Setting gateway, kunci cron, nomor penerima tetap di database — tidak perlu diisi ulang</li>
+        </ol>
         <h3 class="h6 mb-2">Checklist otomatisasi WA</h3>
         <ul class="small mb-3 ps-3">
             <li>Gateway: <?= $waGatewayErr === null ? '<span class="text-success">OK</span>' : '<span class="text-danger">Error</span>' ?></li>

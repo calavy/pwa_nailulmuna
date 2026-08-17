@@ -339,11 +339,12 @@
 .cashless-flash {
     min-height: 2.5rem;
     margin-top: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.85rem;
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
     text-align: center;
-    line-height: 1.35;
+    line-height: 1.4;
     white-space: pre-line;
 }
 
@@ -355,27 +356,27 @@
 }
 
 .cashless-flash.is-success {
-    background: rgba(34, 197, 94, 0.18);
-    color: #86efac;
-    border: 1px solid rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.28);
+    color: #dcfce7;
+    border: 1px solid rgba(34, 197, 94, 0.55);
 }
 
 .cashless-flash.is-error {
-    background: rgba(248, 113, 113, 0.15);
+    background: rgba(248, 113, 113, 0.22);
     color: #fecaca;
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    border: 1px solid rgba(248, 113, 113, 0.5);
 }
 
 .cashless-flash.is-warning {
-    background: rgba(251, 191, 36, 0.15);
-    color: #fde68a;
-    border: 1px solid rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.22);
+    color: #fef3c7;
+    border: 1px solid rgba(251, 191, 36, 0.5);
 }
 
 .cashless-flash.is-info {
-    background: rgba(56, 189, 248, 0.12);
-    color: #bae6fd;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.2);
+    color: #e0f2fe;
+    border: 1px solid rgba(56, 189, 248, 0.45);
 }
 
 .cashless-scan-controls {
@@ -427,6 +428,20 @@
 
 .cashless-btn-ctl.is-active i {
     color: #fef08a;
+}
+
+.cashless-btn-ctl--flash.is-active {
+    background: rgba(250, 204, 21, 0.32);
+    border-color: #facc15;
+    color: #fefce8;
+}
+
+.cashless-btn-ctl--flash.is-active i {
+    color: #fde047;
+}
+
+.cashless-btn-ctl--secondary {
+    display: none;
 }
 
 .cashless-actions {

@@ -128,7 +128,7 @@ function offline_sync_presensi_existing_decision(array $existingRow, string $cli
     if (!$fromClient) {
         return [
             'action' => 'duplicate',
-            'message' => 'Presensi sudah tercatat untuk kegiatan aktif ini. Scan ditolak.',
+            'message' => 'Duplikat — sudah tercatat di perangkat/server lain untuk kegiatan aktif ini.',
         ];
     }
     $serverJam = (string) ($existingRow['jam_presensi'] ?? '');
@@ -139,7 +139,7 @@ function offline_sync_presensi_existing_decision(array $existingRow, string $cli
 
     return [
         'action' => 'duplicate',
-        'message' => 'Duplikat — sudah tercatat pukul ' . substr($serverJam, 0, 5) . '. Scan offline lebih lambat dilewati.',
+        'message' => 'Duplikat — sudah tercatat di perangkat lain pukul ' . substr($serverJam, 0, 5) . '. Scan lebih lambat dilewati.',
     ];
 }
 

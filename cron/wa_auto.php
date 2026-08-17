@@ -8,6 +8,8 @@ require_once __DIR__ . '/../helpers/wa_otomatis.php';
 
 date_default_timezone_set('Asia/Jakarta');
 
+ensure_pondok_settings_defaults($pdo);
+
 $configuredKey = trim((string) app_setting($pdo, 'wa_auto_cron_key', ''));
 $providedKey = trim((string) ($_GET['key'] ?? $_SERVER['HTTP_X_CRON_KEY'] ?? ''));
 $isCli = PHP_SAPI === 'cli';

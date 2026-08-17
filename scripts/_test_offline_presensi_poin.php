@@ -42,7 +42,19 @@ if (($decision2['action'] ?? '') !== 'duplicate') {
     echo "FAIL expected duplicate for later client scan\n";
     exit(1);
 }
+if (stripos((string) ($decision2['message'] ?? ''), 'perangkat') === false) {
+    echo "FAIL duplicate message should mention perangkat lain\n";
+    exit(1);
+}
 echo "OK presensi conflict decision\n";
+
+require_once __DIR__ . '/../helpers/pwa_offline.php';
+$shell = pwa_module_shell_precache_relative_paths();
+if (!in_array('/presensi/scan.php', $shell, true) || !in_array('/poin/input.php', $shell, true)) {
+    echo "FAIL module shell precache missing scan/poin HTML\n";
+    exit(1);
+}
+echo "OK SW module shell precache paths\n";
 
 $pack = poin_offline_reference_pack($pdo);
 if (empty($pack['ok']) || empty($pack['version'])) {

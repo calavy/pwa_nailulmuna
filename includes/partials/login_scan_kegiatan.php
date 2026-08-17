@@ -33,8 +33,18 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
     </div>
 
     <div class="presensi-scan-controls login-scan-kegiatan__controls" id="login-scan-controls">
-        <button type="button" class="btn-scan-ctl" id="login-scan-flip" title="Ganti kamera"><i class="fa-solid fa-camera-rotate"></i></button>
-        <button type="button" class="btn-scan-ctl" id="login-scan-restart" title="Ulangi scan"><i class="fa-solid fa-rotate-right"></i></button>
+        <button type="button" class="btn-scan-ctl btn-scan-ctl--flash" id="login-scan-torch" title="Nyalakan/matikan flash kamera">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Flash</span>
+        </button>
+        <button type="button" class="btn-scan-ctl" id="login-scan-flip" title="Ganti kamera">
+            <i class="fa-solid fa-camera-rotate"></i>
+            <span>Ganti kamera</span>
+        </button>
+        <button type="button" class="btn-scan-ctl btn-scan-ctl--secondary" id="login-scan-restart" title="Nyalakan ulang kamera">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span>Ulangi</span>
+        </button>
     </div>
 
     <input type="hidden" id="login-scan-login-dest" value="<?= htmlspecialchars($loginScanDest) ?>">

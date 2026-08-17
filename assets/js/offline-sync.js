@@ -398,6 +398,69 @@
         document.documentElement.classList.toggle('pondok-offline', offline);
     }
 
+    function updateDashboardStatus(pendingCount) {
+        var statusEl = document.getElementById('dash-system-status');
+        var pillEl = document.getElementById('dash-system-pill');
+        var syncText = document.getElementById('dash-sync-text');
+        var syncFooter = document.getElementById('dash-sync-footer');
+        var syncBadge = document.getElementById('dash-sync-badge');
+        if (!statusEl || !pillEl) {
+            return Promise.resolve();
+        }
+
+        function apply(count) {
+            var offline = !navigator.onLine;
+            pillEl.classList.remove('dash-status-pill--ok', 'dash-status-pill--offline', 'dash-status-pill--pending');
+            if (syncFooter) {
+                syncFooter.classList.remove('dash-sync-footer--offline', 'dash-sync-footer--pending');
+            }
+            if (offline) {
+                pillEl.classList.add('dash-status-pill--offline');
+                statusEl.textContent = 'Mode Offline';
+                if (syncText) {
+                    syncText.textContent = count > 0
+                        ? 'Antrian tersimpan lokal (' + count + ') · akan terkirim saat online'
+                        : 'Tidak ada koneksi · antrian akan tersimpan lokal';
+                }
+                if (syncFooter) {
+                    syncFooter.classList.add('dash-sync-footer--offline');
+                }
+                if (syncBadge) {
+                    syncBadge.innerHTML = '<i class="fa-solid fa-circle" aria-hidden="true"></i> Offline';
+                }
+            } else if (count > 0) {
+                pillEl.classList.add('dash-status-pill--pending');
+                statusEl.textContent = 'Online · ' + count + ' belum terkirim';
+                if (syncText) {
+                    syncText.textContent = count + ' antrian menunggu sinkronisasi otomatis';
+                }
+                if (syncFooter) {
+                    syncFooter.classList.add('dash-sync-footer--pending');
+                }
+                if (syncBadge) {
+                    syncBadge.innerHTML = '<i class="fa-solid fa-circle" aria-hidden="true"></i> Pending (' + count + ')';
+                }
+            } else {
+                pillEl.classList.add('dash-status-pill--ok');
+                statusEl.textContent = 'Normal Online';
+                if (syncText) {
+                    syncText.textContent = 'Sistem sinkronisasi otomatis aktif · data real-time';
+                }
+                if (syncBadge) {
+                    syncBadge.innerHTML = '<i class="fa-solid fa-circle" aria-hidden="true"></i> Connected';
+                }
+            }
+        }
+
+        if (typeof pendingCount === 'number') {
+            apply(pendingCount);
+            return Promise.resolve();
+        }
+        return queueListPending().then(function (items) {
+            apply(items.length);
+        });
+    }
+
     function escapeHtml(s) {
         return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
@@ -415,6 +478,7 @@
     function refreshQueueUi() {
         return queueListPending().then(function (items) {
             updateQueueBadge(items.length);
+            updateDashboardStatus(items.length);
             var list = document.getElementById('pondok-offline-queue-list');
             if (!list) {
                 return items;
@@ -449,7 +513,7 @@
         toast(message, type);
     }
 
-    function appendPoinPendingRow(fields, label) {
+    function appendPoinPendingRow(fields, label, santriName) {
         var tbody = document.getElementById('poin-recent-tbody');
         if (!tbody) {
             return;
@@ -457,13 +521,115 @@
         var tr = document.createElement('tr');
         tr.className = 'is-local-pending';
         var poin = fields.point_custom || '?';
+        var nama = santriName || ('Santri #' + String(fields.santri_id || '?'));
         tr.innerHTML = '<td>' + escapeHtml(fields.tanggal || '-') + '</td>'
-            + '<td>Santri #' + escapeHtml(String(fields.santri_id || '?')) + '</td>'
+            + '<td>' + escapeHtml(nama) + '</td>'
             + '<td>-</td>'
             + '<td>' + escapeHtml(fields.jenis_perubahan || '-') + '</td>'
             + '<td>' + escapeHtml(String(poin)) + '</td>'
             + '<td>' + escapeHtml(String(fields.keterangan || label)) + ' <span class="badge bg-warning text-dark">Lokal</span></td>';
         tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    function hydratePoinSelects(pack) {
+        if (!pack) {
+            return false;
+        }
+        var santriList = pack.santri || [];
+        var ruleList = pack.point_rules || [];
+        var santriSelect = document.querySelector('#form-poin-input select[name="santri_id"]');
+        var ruleSelect = document.getElementById('poinRuleSelect');
+        var changed = false;
+
+        if (santriSelect && santriList.length) {
+            var prev = santriSelect.value;
+            var html = '<option value="">Pilih santri</option>';
+            santriList.forEach(function (s) {
+                var label = (s.nama_santri || '-') + ' - ' + (s.tingkatan || '-') + ' (' + (s.nis || '') + ')';
+                html += '<option value="' + escapeHtml(String(s.id)) + '">' + escapeHtml(label) + '</option>';
+            });
+            santriSelect.innerHTML = html;
+            if (prev) {
+                santriSelect.value = prev;
+            }
+            changed = true;
+        }
+
+        if (ruleSelect && ruleList.length) {
+            var prevRule = ruleSelect.value;
+            var ruleHtml = '<option value="0">Pilih rule / kosongkan jika poin custom</option>';
+            ruleList.forEach(function (r) {
+                var jr = String(r.jenis_rule || 'PLUS').toUpperCase();
+                var label = (r.kategori || '') + ' - ' + (r.nama_rule || '') + ' (' + (r.bobot_poin || 0) + ' poin)';
+                ruleHtml += '<option value="' + escapeHtml(String(r.id)) + '" data-jenis="' + escapeHtml(jr)
+                    + '" data-poin="' + escapeHtml(String(r.bobot_poin || 0)) + '">'
+                    + escapeHtml(label) + '</option>';
+            });
+            ruleSelect.innerHTML = ruleHtml;
+            if (prevRule) {
+                ruleSelect.value = prevRule;
+            }
+            changed = true;
+            var jenisEl = document.getElementById('poinJenisSelect');
+            if (jenisEl) {
+                jenisEl.dispatchEvent(new Event('change'));
+            }
+        }
+
+        return changed;
+    }
+
+    function resolveSantriNameFromPack(pack, santriId) {
+        var list = (pack && pack.santri) || [];
+        var id = String(santriId || '');
+        for (var i = 0; i < list.length; i++) {
+            if (String(list[i].id) === id) {
+                return list[i].nama_santri || ('Santri #' + id);
+            }
+        }
+        return id ? ('Santri #' + id) : '-';
+    }
+
+    function bootstrapPoinPage() {
+        if (!routeInfo() || routeInfo().module !== 'poin_input') {
+            return;
+        }
+        var applyCached = function (cached) {
+            var pack = cached && cached.payload ? cached.payload : null;
+            if (!pack || !pack.ok) {
+                if (!navigator.onLine) {
+                    toast('Data referensi poin belum di-cache. Buka halaman ini sekali saat online dulu.', 'warning');
+                }
+                return null;
+            }
+            if (!navigator.onLine || (document.querySelectorAll('#form-poin-input select[name="santri_id"] option').length <= 1)) {
+                hydratePoinSelects(pack);
+            }
+            return pack;
+        };
+
+        if (navigator.onLine) {
+            fetchReferencePack()
+                .then(function () { return refLoad('poin_reference'); })
+                .then(applyCached)
+                .catch(function () { /* abaikan */ });
+        } else {
+            refLoad('poin_reference').then(applyCached).catch(function () {
+                toast('Data referensi poin belum di-cache. Buka halaman ini sekali saat online dulu.', 'warning');
+            });
+        }
+
+        Promise.all([
+            pendingListByModule('poin_input'),
+            refLoad('poin_reference'),
+        ]).then(function (parts) {
+            var rows = parts[0] || [];
+            var pack = parts[1] && parts[1].payload ? parts[1].payload : null;
+            rows.forEach(function (row) {
+                var fields = row.fields || {};
+                appendPoinPendingRow(fields, row.label || 'Poin', resolveSantriNameFromPack(pack, fields.santri_id));
+            });
+        });
     }
 
     var syncBatchSummary = { ok: 0, err: 0, dup: 0 };
@@ -610,8 +776,11 @@
         });
     }
 
-    function stampScanClientAt(fields) {
-        if (!fields || fields.scan_client_at) {
+    function stampScanClientAt(fields, force) {
+        if (!fields) {
+            return fields;
+        }
+        if (!force && fields.scan_client_at) {
             return fields;
         }
         fields.scan_client_at = new Date().toISOString();
@@ -622,8 +791,9 @@
         options = options || {};
         var module = options.module || 'generic';
         var route = routeForModule(module);
-        if (module === 'presensi_scan') {
-            fields = stampScanClientAt(fields);
+        if (module === 'presensi_scan' || module === 'cashless') {
+            // Selalu stamp ulang di momen masuk antrian (= waktu scan offline).
+            fields = stampScanClientAt(fields, true);
             if (!fields.scan_source) {
                 fields.scan_source = 'camera';
             }
@@ -663,8 +833,15 @@
             }).then(function () {
                 if (module === 'presensi_scan') {
                     playScanFeedback('success', 'Scan tercatat offline (' + label + '). Akan dikirim saat online.');
+                } else if (module === 'cashless') {
+                    toast('Cashless tersimpan offline dengan waktu scan (' + label + '). Akan dikirim saat online.', 'warning');
                 } else if (module === 'poin_input') {
-                    appendPoinPendingRow(fields, label);
+                    refLoad('poin_reference').then(function (cached) {
+                        var pack = cached && cached.payload ? cached.payload : null;
+                        appendPoinPendingRow(fields, label, resolveSantriNameFromPack(pack, fields.santri_id));
+                    }).catch(function () {
+                        appendPoinPendingRow(fields, label);
+                    });
                     toast('Poin disimpan lokal (' + label + '). Akan dikirim saat online.', 'warning');
                 } else {
                     toast('Disimpan di antrian offline (' + label + ').', 'warning');
@@ -733,26 +910,6 @@
             });
     }
 
-    function bootstrapPoinPage() {
-        if (!routeInfo() || routeInfo().module !== 'poin_input') {
-            return;
-        }
-        if (navigator.onLine) {
-            fetchReferencePack().catch(function () { /* abaikan */ });
-        } else {
-            refLoad('poin_reference').then(function (cached) {
-                if (!cached || !cached.payload) {
-                    toast('Data referensi poin belum di-cache. Buka halaman ini saat online dulu.', 'warning');
-                }
-            });
-        }
-        pendingListByModule('poin_input').then(function (rows) {
-            rows.forEach(function (row) {
-                appendPoinPendingRow(row.fields || {}, row.label || 'Poin');
-            });
-        });
-    }
-
     function fetchRekapSnapshot(cfg) {
         var url = appPath('api/offline/rekap_data.php?page=' + encodeURIComponent(cfg.page));
         if (global.location.search) {
@@ -808,7 +965,7 @@
             + '</button>'
             + '<div class="pondok-offline-queue-drawer" id="pondok-offline-queue-drawer" hidden>'
             + '<p class="fw-semibold mb-1">Antrian offline</p>'
-            + '<p class="small text-muted">Presensi &amp; poin tersimpan lokal, belum terkirim.</p>'
+            + '<p class="small text-muted">Presensi &amp; poin tersimpan lokal, belum terkirim. Buka halaman scan/poin sekali saat online agar siap offline.</p>'
             + '<ul class="pondok-offline-queue-list" id="pondok-offline-queue-list"></ul>'
             + '<button type="button" class="btn btn-sm btn-primary w-100" id="pondok-offline-sync-now">Kirim sekarang</button>'
             + '</div>';
@@ -844,16 +1001,21 @@
         bootstrapPoinPage();
         refreshQueueUi();
         updateOfflineBar();
+        updateDashboardStatus();
         scheduleRetryLoop();
 
         global.addEventListener('online', function () {
             updateOfflineBar();
+            updateDashboardStatus();
             toast('Internet kembali — mengirim antrian…', 'info');
             processQueue();
             bootstrapRekap();
             fetchReferencePack().catch(function () { /* abaikan */ });
         });
-        global.addEventListener('offline', updateOfflineBar);
+        global.addEventListener('offline', function () {
+            updateOfflineBar();
+            updateDashboardStatus();
+        });
     }
 
     global.PondokOfflineSync = {

@@ -158,18 +158,20 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     <?php endif; ?>
 
     <?php
-    $activeSlotsTimer = ($timerState === 'active' && is_array($scanJadwalCtx['slots'] ?? null))
-        ? $scanJadwalCtx['slots'] : [];
+    require_once __DIR__ . '/../helpers/presensi_scan_jadwal.php';
+    $activeSlotsTimer = presensi_scan_marquee_slots($scanJadwalCtx);
     $activeSlotCount = count($activeSlotsTimer);
+    $showScanMarquee = $timerState === 'active' && $activeSlotCount > 0;
+    $scanMarqueeTrackHtml = $showScanMarquee ? presensi_scan_marquee_track_html($activeSlotsTimer) : '';
     ?>
-    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $activeSlotCount > 0 && $timerState === 'active' ? ' has-marquee' : '' ?>" aria-live="polite">
+    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $showScanMarquee ? ' has-marquee' : '' ?>" aria-live="polite">
         <div class="presensi-scan-timer-inner">
-            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= ($activeSlotCount > 0 && $timerState === 'active') ? '' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
+            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= $showScanMarquee ? ' is-always-scroll is-ready' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
                 <div class="presensi-scan-timer-marquee__viewport">
-                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track"></div>
+                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track"><?= $scanMarqueeTrackHtml ?></div>
                 </div>
             </div>
-            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title<?= ($activeSlotCount > 0 && $timerState === 'active') ? ' d-none' : '' ?>"><?php
+            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title"><?php
                 if ($timerState === 'active') {
                     echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: 'Kegiatan aktif'));
                 } elseif ($timerState === 'upcoming') {
@@ -182,7 +184,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
                     echo 'Belum ada jadwal';
                 }
             ?></span>
-            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range<?= ($activeSlotCount > 0 && $timerState === 'active') ? ' d-none' : '' ?>"><?php
+            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range"><?php
                 if (!empty($scanJadwalCtx['jam_mulai']) && !empty($scanJadwalCtx['jam_selesai'])) {
                     echo htmlspecialchars(substr((string) $scanJadwalCtx['jam_mulai'], 0, 5) . ' – ' . substr((string) $scanJadwalCtx['jam_selesai'], 0, 5));
                     if (!empty($scanJadwalCtx['tingkatan'])) {
@@ -239,23 +241,23 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     <div id="presensi-scan-flash" class="presensi-scan-flash<?= $scanFlashMessage === '' ? ' is-empty' : (' is-' . htmlspecialchars($scanFlashType)) ?>" role="status" aria-live="polite"><?= $scanFlashMessage !== '' ? htmlspecialchars($scanFlashMessage) : '' ?></div>
 
     <div class="presensi-scan-controls">
+        <button type="button" class="btn-scan-ctl btn-scan-ctl--flash" id="btn-torch" title="Nyalakan/matikan flash kamera">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Flash</span>
+        </button>
         <button type="button" class="btn-scan-ctl" id="btn-flip-camera" title="Ganti kamera depan/belakang">
             <i class="fa-solid fa-camera-rotate"></i>
             <span>Ganti kamera</span>
-        </button>
-        <button type="button" class="btn-scan-ctl" id="btn-scan-settings" title="Pilih kamera">
-            <i class="fa-solid fa-sliders"></i>
-            <span>Kamera</span>
-        </button>
-        <button type="button" class="btn-scan-ctl" id="btn-torch" title="Nyalakan/matikan flash kamera" style="display:none">
-            <i class="fa-solid fa-bolt"></i>
-            <span>Flash</span>
         </button>
         <button type="button" class="btn-scan-ctl" id="btn-super-focus" title="Optimalkan fokus kamera">
             <i class="fa-solid fa-crosshairs"></i>
             <span>Super Fokus</span>
         </button>
-        <button type="button" class="btn-scan-ctl" id="btn-restart-camera" title="Nyalakan ulang kamera">
+        <button type="button" class="btn-scan-ctl" id="btn-scan-settings" title="Pilih kamera">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Kamera</span>
+        </button>
+        <button type="button" class="btn-scan-ctl btn-scan-ctl--secondary" id="btn-restart-camera" title="Nyalakan ulang kamera">
             <i class="fa-solid fa-rotate-right"></i>
             <span>Ulangi</span>
         </button>
@@ -294,6 +296,9 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         stampScanClientTime();
         if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(form, { label: 'Scan: ' + code })) {
             submitting = false;
+            if (scanner && typeof scanner.resetScanState === 'function') {
+                scanner.resetScanState();
+            }
             return;
         }
         submitting = true;
@@ -326,6 +331,9 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
             if (window.PresensiScanFeedback) {
                 PresensiScanFeedback.show(type, msg);
             }
+            if (scanner && typeof scanner.resetScanState === 'function') {
+                scanner.resetScanState();
+            }
         }).catch(function () {
             submitting = false;
             form.submit();
@@ -350,21 +358,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         onSubmit: submitScan,
     });
 
-    scanner.init().then(function () {
-        var torchBtn = document.getElementById('btn-torch');
-        if (!torchBtn) return;
-        setTimeout(function () {
-            try {
-                var video = document.querySelector('#qr-reader video');
-                if (!video || !video.srcObject) return;
-                var track = video.srcObject.getVideoTracks()[0];
-                var caps = track && track.getCapabilities ? track.getCapabilities() : {};
-                if (caps.torch) {
-                    torchBtn.style.display = '';
-                }
-            } catch (e) { /* abaikan */ }
-        }, 800);
-    });
+    scanner.init();
 })();
 </script>
 

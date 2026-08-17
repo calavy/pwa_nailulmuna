@@ -209,6 +209,28 @@
         }).join('|');
     }
 
+    function activeMarqueeSlots(ctx, slots) {
+        if (Array.isArray(slots) && slots.length > 0) {
+            return slots;
+        }
+        if (!ctx || ctx.state !== 'active') {
+            return [];
+        }
+        var nama = String(ctx.nama_kegiatan || '').trim();
+        if (!nama) {
+            return [];
+        }
+        return [{
+            nama_kegiatan: nama,
+            jam_mulai: ctx.jam_mulai || '',
+            jam_selesai: ctx.jam_selesai || '',
+            tingkatan: ctx.tingkatan || '',
+            tempat: ctx.tempat || '',
+            starts_at: ctx.starts_at || '',
+            ends_at: ctx.ends_at || ''
+        }];
+    }
+
     function updateMarquee(slots, force) {
         var marqueeEl = document.getElementById('presensi-scan-timer-marquee');
         var trackEl = document.getElementById('presensi-scan-timer-marquee-track');
@@ -219,12 +241,7 @@
         if (marqueeEl) {
             marqueeEl.classList.toggle('d-none', !useMarquee);
             marqueeEl.classList.toggle('is-always-scroll', useMarquee);
-        }
-        if (titleEl) {
-            titleEl.classList.toggle('d-none', useMarquee);
-        }
-        if (rangeEl) {
-            rangeEl.classList.toggle('d-none', useMarquee);
+            marqueeEl.classList.toggle('is-ready', useMarquee);
         }
 
         if (!useMarquee || !trackEl) {
@@ -480,7 +497,7 @@
         }
 
         var state = ctx.state || 'none';
-        var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
+        var slots = activeMarqueeSlots(ctx, Array.isArray(ctx.slots) ? ctx.slots : []);
         var useMarquee = state === 'active' && slots.length > 0;
         var stateKey = state + '|' + slotsSignature(slots) + '|' + String(ctx.nama_kegiatan || '') + '|' + String(ctx.starts_at || '') + '|' + String(ctx.ends_at || '');
 
@@ -493,6 +510,8 @@
 
     function start() {
         render();
+        syncMarqueeSpeed();
+        scheduleMarqueeSync(150);
         if (tickTimer) {
             clearInterval(tickTimer);
         }
@@ -503,7 +522,7 @@
                 return;
             }
             var state = ctx.state || 'none';
-            var slots = Array.isArray(ctx.slots) ? ctx.slots : [];
+            var slots = activeMarqueeSlots(ctx, Array.isArray(ctx.slots) ? ctx.slots : []);
             var stateKey = state + '|' + slotsSignature(slots) + '|' + String(ctx.nama_kegiatan || '') + '|' + String(ctx.starts_at || '') + '|' + String(ctx.ends_at || '');
             if (stateKey !== lastStateKey) {
                 render();

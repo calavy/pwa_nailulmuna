@@ -21,7 +21,7 @@ $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
         'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode', 'wa_auto_web_fallback_enabled',
         'wa_delay_tagihan', 'wa_delay_cashless', 'wa_delay_presensi', 'wa_delay_alpa', 'wa_delay_poin', 'wa_delay_izin', 'wa_delay_rapor',
-        'wa_pengurus', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
+        'wa_pengurus', 'wa_alpa_pengurus_putra', 'wa_alpa_pengurus_putri', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali',
     'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_presensi_grup_fonte', 'wa_presensi_grup_fonte_enabled', 'wa_presensi_kirim_pembimbing_enabled',
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'save_alpa_penerima') {
         require_once __DIR__ . '/../../helpers/datetime_display.php';
-        foreach (['wa_pengurus', 'jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
+        foreach (['wa_pengurus', 'wa_alpa_pengurus_putra', 'wa_alpa_pengurus_putri', 'jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
             if (array_key_exists($field, $_POST)) {
                 $value = trim((string) $_POST[$field]);
                 if ($field === 'jam_kirim_wa_auto') {

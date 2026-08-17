@@ -236,12 +236,15 @@ function alpa_tier_ensure_kelipatan_defaults(PDO $pdo): array
     return alpa_tier_list($pdo, true);
 }
 
-/** Nomor WA tier, atau fallback pengurus. */
-function alpa_tier_resolve_wa(PDO $pdo, string $tierWa): string
+/** Nomor WA tier, atau fallback pengurus per kelompok jika tier kosong. */
+function alpa_tier_resolve_wa(PDO $pdo, string $tierWa, ?string $kelompok = null): string
 {
     $tierWa = trim($tierWa);
     if ($tierWa !== '') {
         return $tierWa;
+    }
+    if ($kelompok !== null && $kelompok !== '' && function_exists('wa_alpa_notif_target_kelompok')) {
+        return trim(wa_alpa_notif_target_kelompok($pdo, $kelompok));
     }
     if (function_exists('wa_alpa_notif_target')) {
         return trim(wa_alpa_notif_target($pdo));
@@ -327,45 +330,69 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
         if ($entries === []) {
             continue;
         }
-        $wa = alpa_tier_resolve_wa($pdo, (string) $tier['wa']);
-        if ($wa === '') {
+
+        require_once __DIR__ . '/alpa_wa.php';
+        $batches = alpa_wa_build_tier_send_batches($pdo, (string) $tier['wa'], $entries);
+        if ($batches === []) {
             continue;
         }
-        $rowsFmt = [];
-        foreach ($entries as $e) {
-            $poin = (int) ($e['total_poin'] ?? $e['alpa_count'] ?? 0);
-            $rowsFmt[] = [
-                'nama_santri' => $e['nama_santri'],
-                'nis' => $e['nis'],
-                'tingkatan' => $e['tingkatan'],
-                'nama_kegiatan' => 'Akumulasi periode',
-                'total_alpha' => $poin,
-                'total_poin' => $poin,
-            ];
+
+        $tierSent = 0;
+        $sentPutra = 0;
+        $sentPutri = 0;
+        foreach ($batches as $batch) {
+            $batchEntries = $batch['entries'];
+            $wa = (string) $batch['wa'];
+            $kelompok = $batch['kelompok'] ?? null;
+            $rowsFmt = [];
+            foreach ($batchEntries as $e) {
+                $poin = (int) ($e['total_poin'] ?? $e['alpa_count'] ?? 0);
+                $rowsFmt[] = [
+                    'nama_santri' => $e['nama_santri'],
+                    'nis' => $e['nis'],
+                    'tingkatan' => $e['tingkatan'],
+                    'nama_kegiatan' => 'Akumulasi periode',
+                    'total_alpha' => $poin,
+                    'total_poin' => $poin,
+                ];
+            }
+            $waMessages = wa_format_rekap_alpa_per_santri_messages(
+                $pdo,
+                $periodeLabel,
+                (int) $tier['threshold'],
+                $rowsFmt
+            );
+            $dedupSuffix = $kelompok !== null && $kelompok !== '' ? $kelompok : 'rekap';
+            $sent = send_wa_bulk_messages($pdo, $wa, $waMessages, [
+                'kind' => 'alpa',
+                'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':' . $dedupSuffix,
+            ]);
+            if ($sent <= 0) {
+                continue;
+            }
+            foreach ($batchEntries as $entry) {
+                alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
+            }
+            $tierSent += $sent;
+            if ($kelompok === 'putra') {
+                $sentPutra += $sent;
+            } elseif ($kelompok === 'putri') {
+                $sentPutri += $sent;
+            }
         }
-        $waMessages = wa_format_rekap_alpa_per_santri_messages(
-            $pdo,
-            $periodeLabel,
-            (int) $tier['threshold'],
-            $rowsFmt
-        );
-        $sent = send_wa_bulk_messages($pdo, $wa, $waMessages, [
-            'kind' => 'alpa',
-            'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':rekap',
-        ]);
-        if ($sent <= 0) {
+
+        if ($tierSent <= 0) {
             continue;
         }
-        foreach ($entries as $entry) {
-            alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
-        }
-        $summary['sent'] += $sent;
+        $summary['sent'] += $tierSent;
         $summary['tiers'][] = [
             'tier_id' => $tid,
             'threshold' => (int) $tier['threshold'],
             'label' => (string) $tier['label'],
             'santri_count' => count($entries),
-            'sent' => $sent,
+            'sent' => $tierSent,
+            'sent_putra' => $sentPutra,
+            'sent_putri' => $sentPutri,
         ];
     }
     $summary['note'] = $summary['sent'] > 0 ? 'ok' : 'tidak_ada_kiriman_baru';

@@ -634,6 +634,8 @@ function pondok_settings_defaults(): array
         'wa_izin_pengurus' => '',
         'wa_izin_pengurus_putra' => '',
         'wa_izin_pengurus_putri' => '',
+        'wa_alpa_pengurus_putra' => '',
+        'wa_alpa_pengurus_putri' => '',
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
         'wa_izin_wali_enabled' => '1',
@@ -727,16 +729,44 @@ function akademik_libur_presensi_filter_sql_by_mode(string $mode, string $katego
     return '';
 }
 
-/** Nomor penerima notifikasi alpa otomatis (mode lama / fallback tanpa tier). */
-function wa_alpa_notif_target(PDO $pdo): string
+/** Nomor penerima notifikasi alpa otomatis per kelompok putra/putri. */
+function wa_alpa_notif_target_kelompok(PDO $pdo, string $kelompok): string
 {
     require_once __DIR__ . '/wa_nomor.php';
-    $fromTable = wa_nomor_targets($pdo, 'pengurus');
-    if ($fromTable !== '') {
-        return $fromTable;
+    $kelompok = strtolower(trim($kelompok));
+    if ($kelompok === 'putri') {
+        $fromTable = wa_nomor_targets($pdo, 'alpa_putri');
+        if ($fromTable !== '') {
+            return $fromTable;
+        }
+        $nomor = trim((string) app_setting($pdo, 'wa_alpa_pengurus_putri', ''));
+        if ($nomor !== '') {
+            return $nomor;
+        }
+    } elseif ($kelompok === 'putra') {
+        $fromTable = wa_nomor_targets($pdo, 'alpa_putra');
+        if ($fromTable !== '') {
+            return $fromTable;
+        }
+        $nomor = trim((string) app_setting($pdo, 'wa_alpa_pengurus_putra', ''));
+        if ($nomor !== '') {
+            return $nomor;
+        }
+        $fromPengurus = wa_nomor_targets($pdo, 'pengurus');
+        if ($fromPengurus !== '') {
+            return $fromPengurus;
+        }
+
+        return trim((string) app_setting($pdo, 'wa_pengurus', ''));
     }
 
-    return trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    return wa_alpa_notif_target($pdo);
+}
+
+/** Nomor penerima notifikasi alpa otomatis (mode lama / fallback putra tanpa tier). */
+function wa_alpa_notif_target(PDO $pdo): string
+{
+    return wa_alpa_notif_target_kelompok($pdo, 'putra');
 }
 
 /** Nomor penerima permohonan izin baru (PENDING). Fallback ke wa_pengurus jika belum diisi. */
@@ -1402,8 +1432,19 @@ function trigger_auto_wa_notifications(PDO $pdo): void
     // Silang ambang: hanya yang belum pernah dilapor untuk ambang tsb (bukan dump harian semua ≥ N).
     require_once __DIR__ . '/wa_laporan_alpa.php';
     $result = alpa_tier_cron_flush_crossings($pdo, date('Y-m-d'));
+    $sentPutra = 0;
+    $sentPutri = 0;
+    foreach ($result['tiers'] ?? [] as $tierRow) {
+        if (!is_array($tierRow)) {
+            continue;
+        }
+        $sentPutra += (int) ($tierRow['sent_putra'] ?? 0);
+        $sentPutri += (int) ($tierRow['sent_putri'] ?? 0);
+    }
     save_setting($pdo, 'wa_auto_alpa_last_result', json_encode([
         'sent' => (int) ($result['sent'] ?? 0),
+        'sent_putra' => $sentPutra,
+        'sent_putri' => $sentPutri,
         'tiers' => $result['tiers'] ?? [],
         'pending_santri' => (int) ($result['pending_santri'] ?? 0),
         'note' => (string) ($result['note'] ?? ''),

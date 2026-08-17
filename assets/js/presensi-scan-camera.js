@@ -274,6 +274,8 @@
         this.startWrap = options.startWrap || null;
         this.startBtn = options.startBtn || null;
         this.deferStartOnMobile = options.deferStartOnMobile !== false;
+        this.continuousScan = options.continuousScan !== false;
+        this.onCameraReady = options.onCameraReady || null;
 
         this.qr = null;
         this.scanning = false;
@@ -361,7 +363,78 @@
             beepSuccess();
         }
         vibrateOk();
-        this.onSubmit(decodedText);
+        var self = this;
+        var justScanned = decodedText;
+        var result;
+        try {
+            result = this.onSubmit(decodedText);
+        } catch (e) {
+            result = null;
+        }
+        function afterSubmit() {
+            if (!self.continuousScan) {
+                return;
+            }
+            self.resetScanState();
+            self.lastCode = justScanned;
+            self.lastTime = Date.now();
+            self.hitCount = 2;
+        }
+        if (result && typeof result.then === 'function') {
+            result.then(afterSubmit).catch(afterSubmit);
+        } else {
+            afterSubmit();
+        }
+    };
+
+    PresensiScanCamera.prototype.resetScanState = function () {
+        this.lastCode = '';
+        this.lastTime = 0;
+        this.hitCount = 0;
+    };
+
+    PresensiScanCamera.prototype.resumeScanning = async function () {
+        this.resetScanState();
+        if (this.scanning) {
+            return;
+        }
+        this.hideError();
+        await this.runStart(this.selectedId);
+    };
+
+    PresensiScanCamera.prototype.detectTorch = async function () {
+        if (!this.btnTorch) {
+            return;
+        }
+        try {
+            var video = document.querySelector('#' + this.readerId + ' video');
+            if (!video || !video.srcObject) {
+                return;
+            }
+            var track = video.srcObject.getVideoTracks()[0];
+            if (!track) {
+                return;
+            }
+            var caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.torch) {
+                this.btnTorch.style.display = '';
+                this.btnTorch.disabled = false;
+                if (this.torchOn) {
+                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                }
+            } else {
+                this.btnTorch.style.display = 'none';
+                this.torchOn = false;
+                this.btnTorch.classList.remove('is-active');
+            }
+        } catch (e) {
+            /* biarkan tombol flash tetap ada; perangkat tanpa torch akan disembunyikan di percobaan berikutnya */
+        }
+        if (typeof this.onCameraReady === 'function') {
+            try {
+                this.onCameraReady();
+            } catch (err) { /* abaikan */ }
+        }
     };
 
     PresensiScanCamera.prototype.waitReaderVisible = async function () {
@@ -516,6 +589,12 @@
                 self.setStatus('is-error', 'Gagal');
                 throw err2 || err;
             }
+        }
+        if (self.scanning) {
+            await self.detectTorch();
+            global.setTimeout(function () {
+                self.detectTorch();
+            }, 700);
         }
     };
 

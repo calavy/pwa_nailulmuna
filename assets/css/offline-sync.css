@@ -88,11 +88,12 @@ html.pondok-offline #pondok-offline-banner {
     transform: translateX(-50%);
     z-index: 1060;
     max-width: min(420px, calc(100vw - 1.5rem));
-    padding: 0.65rem 1rem;
+    padding: 0.7rem 1.1rem;
     border-radius: 10px;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+    line-height: 1.4;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
 }
 
 .pondok-offline-toast--success { background: #047857; color: #ecfdf5; }

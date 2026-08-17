@@ -240,8 +240,9 @@ declare(strict_types=1);
                         );
                     }
                 } else {
-                    $resultType = 'warning';
-                    $resultMessage = (string) ($decision['message'] ?? ('Presensi sudah tercatat untuk kegiatan aktif ini: ' . $santri['nama_santri'] . '.'));
+                    // type: duplicate agar antrian offline langsung bersih (tanpa retry).
+                    $resultType = 'duplicate';
+                    $resultMessage = (string) ($decision['message'] ?? ('Duplikat — sudah tercatat di perangkat lain: ' . $santri['nama_santri'] . '.'));
                     if ($clientUuidPresensi !== '') {
                         offline_sync_log_write(
                             $pdo,
@@ -440,7 +441,7 @@ if ($resultMessage !== null && $resultMessage !== '' && $resultType === 'warning
     $pendingForClassify = $_SESSION['munawib_scan_pending'] ?? null;
     if (is_array($pendingForClassify) && !empty($pendingForClassify['slots'])) {
         $resultType = 'info';
-    } elseif (preg_match('/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal/i', $resultMessage)) {
+    } elseif (preg_match('/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal|Duplikat/i', $resultMessage)) {
         $resultType = 'duplicate';
     } else {
         $resultType = 'danger';

@@ -1052,6 +1052,17 @@
     border: 1px dashed rgba(15, 118, 110, 0.28);
 }
 
+.auth-portal-wali-forgot {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--ap-auth-accent, #0f766e);
+    list-style: none;
+}
+
+.auth-portal-wali-forgot::-webkit-details-marker {
+    display: none;
+}
+
 .auth-portal-form .input-group-lg > .form-control {
     border-radius: 0 0.65rem 0.65rem 0;
 }

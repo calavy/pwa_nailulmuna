@@ -38,11 +38,12 @@
 .presensi-scan-flash {
     min-height: 2.5rem;
     margin: 0.5rem 0.75rem 0;
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.85rem;
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
     text-align: center;
-    line-height: 1.35;
+    line-height: 1.4;
     white-space: pre-line;
 }
 
@@ -54,34 +55,34 @@
 }
 
 .presensi-scan-flash.is-success {
-    background: rgba(34, 197, 94, 0.18);
-    color: #86efac;
-    border: 1px solid rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.28);
+    color: #dcfce7;
+    border: 1px solid rgba(34, 197, 94, 0.55);
 }
 
 .presensi-scan-flash.is-error {
-    background: rgba(248, 113, 113, 0.15);
+    background: rgba(248, 113, 113, 0.22);
     color: #fecaca;
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    border: 1px solid rgba(248, 113, 113, 0.5);
 }
 
 .presensi-scan-flash.is-warning {
-    background: rgba(251, 191, 36, 0.15);
-    color: #fde68a;
-    border: 1px solid rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.22);
+    color: #fef3c7;
+    border: 1px solid rgba(251, 191, 36, 0.5);
 }
 
 .presensi-scan-flash.is-info,
 .presensi-scan-flash.is-duplicate {
-    background: rgba(56, 189, 248, 0.12);
-    color: #bae6fd;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.2);
+    color: #e0f2fe;
+    border: 1px solid rgba(56, 189, 248, 0.45);
 }
 
 .presensi-scan-flash.is-danger {
-    background: rgba(248, 113, 113, 0.15);
+    background: rgba(248, 113, 113, 0.22);
     color: #fecaca;
-    border: 1px solid rgba(248, 113, 113, 0.35);
+    border: 1px solid rgba(248, 113, 113, 0.5);
 }
 
 .presensi-scan-app {
@@ -405,6 +406,8 @@
     gap: 0.15rem;
 }
 
+.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-title,
+.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-range,
 .presensi-scan-timer.has-marquee .presensi-scan-timer-title,
 .presensi-scan-timer.has-marquee .presensi-scan-timer-range {
     display: none !important;
@@ -529,6 +532,18 @@
     background: rgba(59, 130, 246, 0.35);
     border-color: #60a5fa;
     color: #fff;
+}
+
+.presensi-scan-controls .btn-scan-ctl--flash.is-active,
+#btn-torch.is-active,
+#login-scan-torch.is-active {
+    background: rgba(250, 204, 21, 0.35);
+    border-color: #facc15;
+    color: #fefce8;
+}
+
+.presensi-scan-controls .btn-scan-ctl--secondary {
+    display: none;
 }
 
 #btn-super-focus.is-active {

@@ -3726,7 +3726,7 @@ body.dash-page .app-shell--wide {
     border-radius: 999px;
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.35);
-    font-size: 0.72rem;
+    font-size: 0.82rem;
     color: #334155;
     font-weight: 600;
     flex: 1 1 10rem;
@@ -3737,6 +3737,18 @@ body.dash-page .app-shell--wide {
     border-color: rgba(15, 118, 110, 0.35);
     color: #0f766e;
     background: #f0fdfa;
+}
+
+.dash-status-pill--offline {
+    border-color: rgba(180, 83, 9, 0.45);
+    color: #92400e;
+    background: #fffbeb;
+}
+
+.dash-status-pill--pending {
+    border-color: rgba(14, 116, 144, 0.4);
+    color: #0e7490;
+    background: #ecfeff;
 }
 
 .dash-status-pill--secure {
@@ -3755,10 +3767,22 @@ body.dash-page .app-shell--wide {
     padding: 0.65rem 0.9rem;
     background: #ccfbf1;
     color: #115e59;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 700;
     border-radius: 12px;
     border-top: 1px solid rgba(15, 118, 110, 0.2);
+}
+
+.dash-sync-footer--offline {
+    background: #fef3c7;
+    color: #92400e;
+    border-top-color: rgba(180, 83, 9, 0.25);
+}
+
+.dash-sync-footer--pending {
+    background: #e0f2fe;
+    color: #0c4a6e;
+    border-top-color: rgba(14, 165, 233, 0.25);
 }
 
 .dash-sync-footer__badge {
@@ -3770,12 +3794,30 @@ body.dash-page .app-shell--wide {
     background: #ffffff;
     color: #0f766e;
     border: 1px solid rgba(15, 118, 110, 0.25);
-    font-size: 0.68rem;
+    font-size: 0.78rem;
 }
 
 .dash-sync-footer__badge i {
-    font-size: 0.45rem;
+    font-size: 0.5rem;
     color: #0f766e;
+}
+
+.dash-sync-footer--offline .dash-sync-footer__badge {
+    color: #b45309;
+    border-color: rgba(180, 83, 9, 0.3);
+}
+
+.dash-sync-footer--offline .dash-sync-footer__badge i {
+    color: #b45309;
+}
+
+.dash-sync-footer--pending .dash-sync-footer__badge {
+    color: #0e7490;
+    border-color: rgba(14, 165, 233, 0.3);
+}
+
+.dash-sync-footer--pending .dash-sync-footer__badge i {
+    color: #0e7490;
 }
 
 /* Dark mockup: kartu terpisah, KPI putih, kanvas abu — kontras & hierarki jelas */

@@ -7,6 +7,47 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-17] Cron hosting deploy — observability app-wide
+- **Apa yang diubah:** `cron/wa_auto.php` memanggil `ensure_pondok_settings_defaults()` saat tick (edge case DB kosong). Health script `_test_wa_cron_health.php` parse `wa_auto_scheduled_last_result.jobs` (tagihan, cashless, poin, dll.). Tab Ringkasan: catatan deploy hosting, checklist pasca-deploy, ringkasan job terjadwal; tab Alpa: catatan deploy tidak mengubah jadwal panel.
+- **File:** `cron/wa_auto.php`, `scripts/_test_wa_cron_health.php`, `settings/partials/wa_otomatis_tab_ringkasan.php`, `settings/partials/wa_otomatis_tab_alpa.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Hosting yang sudah berjalan — deploy hanya ganti kode; cron panel + setting DB persisten; diagnostik cron mencerminkan seluruh app.
+- **Status:** belum diuji di hosting live
+
+### [2026-08-17] WA otomatis ALPA Putra/Putri + diagnostik cron
+- **Apa yang diubah:** Penerima notifikasi crossing ALPA dipisah putra/putri (`wa_alpa_pengurus_putra` / `wa_alpa_pengurus_putri`, peran `alpa_putra` / `alpa_putri`). Tier tanpa nomor WA → kirim 2 batch terpisah per kelompok; tier dengan nomor tetap satu batch. Tab Alpa: field Putra/Putri, panel status cron, preview manual per kelompok. Script `scripts/_test_wa_cron_health.php` untuk smoke test kesehatan cron.
+- **File:** `helpers/app.php`, `helpers/wa_nomor.php`, `helpers/alpa_tier.php`, `helpers/alpa_wa.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_alpa.php`, `scripts/_test_wa_cron_health.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengurus putra/putri butuh notifikasi ALPA terpisah; perlu observability cron agar jadwal WA otomatis terpantau jelas.
+- **Status:** smoke test placeholder lulus; health cron exit 1 jika cron belum aktif (normal di dev)
+
+### [2026-08-17] Rekap ALPA terpisah Putra & Putri
+- **Apa yang diubah:** Laporan ALPA per santri dipisah: `/rekap/alpa_santri_putra.php` (Putra) dan `/rekap/alpa_santri_putri.php` (Putri). Filter kelompok berdasarkan sufiks tingkatan `(putri)` via `jadwal_tingkatan_kelompok_dari_nama()`. URL lama `/rekap/alpa_santri.php` redirect 301 ke Putra. Shared helper + partial UI; menu Ketertiban → Rekap & hub Rekap Presensi diperbarui.
+- **File:** `helpers/rekap_alpa_santri.php`, `includes/partials/rekap_alpa_santri_body.php`, `rekap/alpa_santri_putra.php`, `rekap/alpa_santri_putri.php`, `rekap/alpa_santri.php`, `includes/menu_data.php`, `helpers/user_permissions.php`, `helpers/app_hub.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengurus putra/putri butuh rekap ALPA terpisah; halaman lama menampilkan semua santri sekaligus.
+- **Status:** belum diuji browser manual
+
+### [2026-08-17] Kontras notif + status offline dashboard
+- **Apa yang diubah:** Flash/alert Bootstrap di `.app-main` mode mockup gelap (`data-theme="dark"`) memakai kontras terang (teks gelap di latar hijau/merah/kuning terang). Feedback scan presensi/cashless & toast offline dipertebal (`font-weight: 600`, kontras lebih kuat). Dashboard status dinamis: `navigator.onLine` + jumlah antrian IndexedDB (`updateDashboardStatus` di `offline-sync.js`); pill amber saat offline, cyan saat ada antrian pending.
+- **File:** `assets/css/app.css`, `assets/css/dashboard.css`, `assets/css/presensi-scan.css`, `assets/css/cashless-scan.css`, `assets/css/offline-sync.css`, `dashboard.php`, `assets/js/offline-sync.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Notif seperti "Login berhasil" sulit dibaca di kartu putih; status dashboard selalu "Normal Online" meski offline.
+- **Status:** smoke test offline lulus; **checklist uji manual HP:**
+  1. Buka `/presensi/scan.php` sekali saat online (SW cache).
+  2. Matikan WiFi → scan QR santri → toast "tersimpan lokal" + badge antrian.
+  3. Nyalakan WiFi → auto-sync → feedback sukses, antrian bersih.
+  4. Scan santri B tanpa refresh (flash + continuous scan).
+  5. Dashboard: status berubah Offline saat WiFi mati; kembali Online + jumlah antrian jika ada.
+
+### [2026-08-17] Scan flash + auto-continue & portal wali NIS+PIN
+- **Apa yang diubah:** Tombol Flash menonjol di presensi/login-scan/cashless; tombol Ulangi/refresh disembunyikan dari bar utama. Scan berikutnya otomatis tanpa reload (kamera login scan tidak lagi di-stop). Portal wali: form utama NIS+PIN langsung, plus “Lupa NIS?” untuk cari nama.
+- **File:** `assets/js/presensi-scan-camera.js`, `presensi/scan.php`, `includes/partials/presensi_scan_ui.php`, `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `keuangan/cashless_scan.php`, `assets/css/presensi-scan.css`, `assets/css/cashless-scan.css`, `wali/login.php`, `assets/css/auth-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Petugas butuh flash dan scan berurutan; wali harus masuk pakai NIS (bukan username pengurus).
+- **Status:** lint PHP; uji kamera/HP manual masih disarankan
+
+### [2026-08-17] Offline polish: SW cold-start + duplicate + hydrate poin
+- **Apa yang diubah:** Service Worker precache shell HTML `/presensi/scan.php` + `/poin/input.php` (+ aset scan & `santri-select.js`) saat install dengan fetch per-item (satu gagal tidak gagalkan semua). Warm cache modul saat online via `pwa-register.js`. Konflik presensi mengembalikan `type: duplicate` langsung + copy “perangkat lain”. Form poin dihydrate dari IndexedDB `reference_cache` saat offline. Copy UX: buka scan/poin sekali saat online.
+- **File:** `helpers/pwa_offline.php`, `helpers/offline_sync_dedup.php`, `helpers/presensi_scan_post.inc.php`, `assets/js/offline-sync.js`, `assets/js/pwa-register.js`, `includes/partials/offline_status_bar.php`, `scripts/_test_offline_presensi_poin.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Melengkapi gap audit status offline (Option C inti tanpa aturan bisnis baru untuk poin antar-device / cashless).
+- **Status:** smoke test diperbarui
+
 ### [2026-08-16] Pembuatan file pelacak riwayat kerja
 - **Apa yang diubah:** File `STATUS_PWA.md` dibuat sebagai log riwayat perubahan proyek. Belum ada perubahan kode aplikasi.
 - **File:** `STATUS_PWA.md`

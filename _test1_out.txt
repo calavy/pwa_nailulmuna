@@ -1,0 +1,5 @@
+﻿OK presensi_scan_resolve_clock honors client time
+OK old scan_client_at falls back to server
+OK cashless_koperasi_insert_debit stores scan time
+OK client_token idempotent lookup
+ALL OK

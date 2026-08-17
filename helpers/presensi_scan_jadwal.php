@@ -193,3 +193,77 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
 
     return array_merge($empty, ['state' => 'ended', 'day_slots' => $daySlots]);
 }
+
+/** Label satu slot untuk marquee teks berjalan di halaman scan. */
+function presensi_scan_marquee_slot_label(array $slot): string
+{
+    $label = trim((string) ($slot['nama_kegiatan'] ?? 'Kegiatan'));
+    if ($label === '') {
+        $label = 'Kegiatan';
+    }
+    $mulai = substr(trim((string) ($slot['jam_mulai'] ?? '')), 0, 5);
+    $selesai = substr(trim((string) ($slot['jam_selesai'] ?? '')), 0, 5);
+    if ($mulai !== '' && $selesai !== '') {
+        $label .= ' · ' . $mulai . '–' . $selesai;
+    }
+    $tingkatan = trim((string) ($slot['tingkatan'] ?? ''));
+    if ($tingkatan !== '') {
+        $label .= ' · ' . $tingkatan;
+    }
+    $tempat = trim((string) ($slot['tempat'] ?? ''));
+    if ($tempat !== '') {
+        $label .= ' · ' . $tempat;
+    }
+
+    return $label;
+}
+
+/** HTML awal track marquee — tampil sebelum JS, agar teks tidak kosong. */
+function presensi_scan_marquee_track_html(array $slots): string
+{
+    if ($slots === []) {
+        return '';
+    }
+    $labels = array_map('presensi_scan_marquee_slot_label', $slots);
+    $repeatPasses = count($labels) === 1 ? 6 : 2;
+    $html = '';
+    for ($pass = 0; $pass < $repeatPasses; $pass++) {
+        foreach ($labels as $i => $label) {
+            if ($pass > 0 || $i > 0) {
+                $html .= '<span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>';
+            }
+            $html .= '<span class="presensi-scan-timer-marquee__item">'
+                . '<i class="fa-solid fa-bolt" aria-hidden="true"></i>'
+                . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>'
+                . '</span>';
+        }
+    }
+
+    return $html;
+}
+
+/** Slot aktif untuk marquee — fallback ke kegiatan utama jika daftar slot kosong. */
+function presensi_scan_marquee_slots(array $ctx): array
+{
+    $state = (string) ($ctx['state'] ?? 'none');
+    if ($state !== 'active') {
+        return [];
+    }
+    $slots = is_array($ctx['slots'] ?? null) ? $ctx['slots'] : [];
+    if ($slots !== []) {
+        return $slots;
+    }
+    $nama = trim((string) ($ctx['nama_kegiatan'] ?? ''));
+    if ($nama === '') {
+        return [];
+    }
+
+    return [[
+        'kegiatan_id' => 0,
+        'nama_kegiatan' => $nama,
+        'tingkatan' => (string) ($ctx['tingkatan'] ?? ''),
+        'jam_mulai' => (string) ($ctx['jam_mulai'] ?? ''),
+        'jam_selesai' => (string) ($ctx['jam_selesai'] ?? ''),
+        'tempat' => (string) ($ctx['tempat'] ?? ''),
+    ]];
+}

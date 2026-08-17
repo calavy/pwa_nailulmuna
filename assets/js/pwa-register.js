@@ -50,7 +50,7 @@
         el.setAttribute('role', 'status');
         el.setAttribute('aria-live', 'polite');
         el.hidden = true;
-        el.textContent = 'Mode offline — scan, penilaian & cashless masuk antrian; logo tampil dari cache perangkat.';
+        el.textContent = 'Mode offline — presensi & poin masuk antrian lokal. Buka halaman scan/poin sekali saat online agar siap dipakai offline.';
         document.body.appendChild(el);
     }
 
@@ -128,11 +128,11 @@
     }
 
     function warmUiCacheWhenOnline() {
-        if (!navigator.onLine || navigator.serviceWorker.controller) {
+        if (!navigator.onLine) {
             return;
         }
         var base = appBase();
-        [
+        var paths = [
             '/assets/vendor/bootstrap/5.3.3/bootstrap.min.css',
             '/assets/vendor/bootstrap/5.3.3/bootstrap.bundle.min.js',
             '/api/vendor/fontawesome.css.php',
@@ -142,10 +142,21 @@
             '/assets/css/offline-sync.css',
             '/assets/js/app-shell.js',
             '/assets/js/pwa-register.js',
-        ].forEach(function (rel) {
+            '/assets/js/offline-sync.js',
+            '/assets/js/santri-select.js',
+            '/presensi/scan.php',
+            '/poin/input.php',
+        ];
+        paths.forEach(function (rel) {
             var url = (base === '' ? '' : base) + rel;
-            fetch(url, { credentials: 'same-origin' }).catch(function () {});
+            fetch(url, { credentials: 'same-origin', cache: 'no-cache' }).catch(function () {});
         });
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'PRECACHE_SCAN',
+                paths: ['/presensi/scan.php', '/poin/input.php', '/assets/js/santri-select.js'],
+            });
+        }
     }
 
     async function registerPwa() {

@@ -18,9 +18,19 @@ declare(strict_types=1);
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">
             <div class="col-md-6">
-                <label class="form-label">No. penerima alpa (fallback)</label>
+                <label class="form-label">No. penerima ALPA Putra</label>
+                <input type="text" class="form-control" name="wa_alpa_pengurus_putra" value="<?= htmlspecialchars($values['wa_alpa_pengurus_putra'] ?? '') ?>">
+                <div class="form-text">Fallback tier kosong untuk santri putra. Kosong → <code>wa_pengurus</code> legacy. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putra')) ?>">Nomor WhatsApp</a>.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">No. penerima ALPA Putri</label>
+                <input type="text" class="form-control" name="wa_alpa_pengurus_putri" value="<?= htmlspecialchars($values['wa_alpa_pengurus_putri'] ?? '') ?>">
+                <div class="form-text">Fallback tier kosong untuk santri putri. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putri')) ?>">Nomor WhatsApp</a>.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">No. pengurus legacy (<code>wa_pengurus</code>)</label>
                 <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Dipakai jika nomor di baris tier kosong. Beberapa nomor: pisah koma. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=pengurus')) ?>">Nomor WhatsApp</a>.</div>
+                <div class="form-text">Alias fallback putra jika field Putra di atas kosong. Beberapa nomor: pisah koma.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Jam kirim WA otomatis</label>
@@ -43,6 +53,51 @@ declare(strict_types=1);
                 <button type="submit" class="btn btn-success btn-sm">Simpan penerima alpa</button>
             </div>
         </form>
+    </div>
+</div>
+
+<?php
+$waCronStaleAlpa = wa_auto_cron_is_stale($pdo);
+$waCronActiveAlpa = $waCronLastRun !== '' && !$waCronStaleAlpa;
+$jamKirimAlpa = trim((string) ($values['jam_kirim_wa_auto'] ?? ''));
+$jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lewat') && app_jam_sudah_lewat($jamKirimAlpa));
+?>
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Status cron ALPA</h2>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="badge <?= $waCronActiveAlpa ? 'bg-success' : ($waCronLastRun === '' ? 'bg-secondary' : 'bg-danger') ?>">
+                <?= $waCronActiveAlpa ? 'Cron aktif' : ($waCronLastRun === '' ? 'Belum pernah jalan' : 'Cron tidak update (&gt;10 menit)') ?>
+            </span>
+            <?php if ($jamKirimAlpa !== ''): ?>
+                <span class="badge <?= $jamKirimAlpaLewat ? 'bg-primary' : 'bg-light text-dark border' ?>">
+                    Jam kirim: <?= htmlspecialchars(function_exists('app_format_jam') ? app_format_jam($jamKirimAlpa) : $jamKirimAlpa) ?>
+                    <?= $jamKirimAlpaLewat ? ' (sudah lewat hari ini)' : ' (belum)' ?>
+                </span>
+            <?php endif; ?>
+        </div>
+        <ul class="small mb-2 ps-3">
+            <li>Terakhir tick cron: <strong><?= $waCronLastRun !== '' ? htmlspecialchars($waCronLastRun) : 'Belum pernah' ?></strong></li>
+            <li>Terakhir job terjadwal: <strong><?= $waScheduledLastAt !== '' ? htmlspecialchars($waScheduledLastAt) : 'Belum pernah' ?></strong></li>
+            <?php if (is_array($waAlpaLast)): ?>
+                <li>Terakhir kirim ALPA otomatis: <strong><?= htmlspecialchars((string) ($waAlpaLast['at'] ?? '—')) ?></strong>
+                    · <?= (int) ($waAlpaLast['sent'] ?? 0) ?> pesan
+                    <?php if ((int) ($waAlpaLast['sent_putra'] ?? 0) > 0 || (int) ($waAlpaLast['sent_putri'] ?? 0) > 0): ?>
+                        (Putra: <?= (int) ($waAlpaLast['sent_putra'] ?? 0) ?>, Putri: <?= (int) ($waAlpaLast['sent_putri'] ?? 0) ?>)
+                    <?php endif; ?>
+                    · <?= htmlspecialchars((string) ($waAlpaLast['note'] ?? '')) ?>
+                </li>
+            <?php else: ?>
+                <li>Terakhir kirim ALPA otomatis: <strong>Belum pernah</strong></li>
+            <?php endif; ?>
+        </ul>
+        <p class="small text-muted mb-2">
+            Satu cron <code>cron/wa_auto.php</code> menjalankan semua job WA otomatis (ALPA, tagihan wali, cashless, poin, dll.).
+            Deploy kode ke hosting <strong>tidak mengubah</strong> jadwal cron panel — verifikasi di tab <a href="?tab=ringkasan">Ringkasan</a>.
+            Windows lokal: jalankan <code>setup-cron-wa.bat</code> sebagai Administrator.
+        </p>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars($cronUrl) ?>" target="_blank" rel="noopener">Tes cron</a>
+        <a class="btn btn-outline-primary btn-sm ms-1" href="?tab=ringkasan">Detail cron di tab Ringkasan</a>
     </div>
 </div>
 
@@ -91,7 +146,7 @@ declare(strict_types=1);
                 <button class="btn btn-outline-danger btn-sm" type="submit">Reset log (<?= $logTotalAlpa ?>)</button>
             </form>
         </div>
-        <p class="small text-muted">Ambang silang: WA saat total poin santri baru ≥ ambang poin dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor kosong → fallback pengurus di atas.</p>
+        <p class="small text-muted">Ambang silang: WA saat total poin santri baru ≥ ambang poin dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor tier kosong → fallback Putra/Putri di atas.</p>
     </div>
     <?php foreach ($tiers as $t): ?>
         <form method="post" id="wa-tier-form-<?= (int) $t['id'] ?>"><input type="hidden" name="action" value="save_tier"><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"></form>
@@ -130,7 +185,7 @@ declare(strict_types=1);
         </table>
     </div>
 </div>
-<p class="small text-muted">Tanpa tier aktif, sistem memakai mode fallback di atas: alpa ≥ batas → kirim ke <strong>No. penerima alpa</strong>.</p>
+<p class="small text-muted">Tanpa tier aktif, sistem memakai mode fallback: alpa ≥ batas → kirim terpisah ke penerima <strong>Putra</strong> dan <strong>Putri</strong>.</p>
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
@@ -144,9 +199,15 @@ declare(strict_types=1);
             <li>Periode aktif (<?= htmlspecialchars($alpaModeLabel) ?>): <strong><?= htmlspecialchars((string) ($alpaManualPreview['periode_label'] ?? '-')) ?></strong></li>
             <?php if ($tiers !== []): ?>
                 <?php foreach (($alpaManualPreview['tiers'] ?? []) as $tp): ?>
-                    <li>Ambang <?= (int) ($tp['threshold'] ?? 0) ?> (<?= htmlspecialchars((string) ($tp['label'] ?? '')) ?>): <strong><?= (int) ($tp['santri_count'] ?? 0) ?></strong> santri
-                        <?php if (trim((string) ($tp['wa'] ?? '')) === ''): ?>
-                            <span class="text-warning">· nomor kosong</span>
+                    <li>Ambang <?= (int) ($tp['threshold'] ?? 0) ?> (<?= htmlspecialchars((string) ($tp['label'] ?? '')) ?>):
+                        <strong><?= (int) ($tp['santri_count'] ?? 0) ?></strong> santri
+                        <?php if (trim((string) ($tp['wa'] ?? '')) !== ''): ?>
+                            · nomor tier
+                        <?php else: ?>
+                            · Putra: <strong><?= (int) ($tp['santri_count_putra'] ?? 0) ?></strong>
+                            <?php if (trim((string) ($tp['wa_putra'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
+                            · Putri: <strong><?= (int) ($tp['santri_count_putri'] ?? 0) ?></strong>
+                            <?php if (trim((string) ($tp['wa_putri'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
                         <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
