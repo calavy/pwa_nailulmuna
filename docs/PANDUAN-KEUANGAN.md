@@ -462,7 +462,7 @@ Wali santri melihat tagihan dan membayar tanpa datang ke bendahara.
 
 ### Login
 
-**URL:** `/wali/login.php`
+**URL:** `/login.php` (NIS atau nama santri + PIN portal wali)
 
 ### Tab di Portal Keuangan
 

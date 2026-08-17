@@ -32,13 +32,6 @@ declare(strict_types=1);
         'desc' => 'Scan & password',
     ]);
     auth_portal_role_link([
-        'href' => app_href('/wali/login.php'),
-        'icon' => 'fa-mobile-screen-button',
-        'icon_mod' => 'wali',
-        'title' => 'Portal wali',
-        'desc' => 'NIS / nama · PIN wali',
-    ]);
-    auth_portal_role_link([
         'href' => app_href('/santri_portal/login.php'),
         'icon' => 'fa-user-graduate',
         'icon_mod' => 'santri',

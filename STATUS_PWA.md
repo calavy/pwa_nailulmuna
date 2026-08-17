@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-17] Satu halaman login untuk wali
+- **Apa yang diubah:** Wali masuk lewat `login.php` seperti pengguna lain. `/wali/login.php` dialihkan ke login utama. Logout dan sesi invalid portal wali kembali ke `/login.php`. Tautan "Portal wali" dihapus dari grid/footer.
+- **File:** `wali/login.php`, `login.php`, `wali/logout.php`, `wali/inc_portal.php`, `helpers/auth_portal_links.php`, `includes/partials/auth_portal_role_grid.php`, `presensi/login.php`, `santri_portal/login.php`, `data/wali.php`, `santri/edit.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Satu pintu masuk; dashboard wali tetap setelah login.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-17] Mode tampilan pondok (hanya Super Admin)
 - **Apa yang diubah:** Mode terang/gelap disimpan di `app_settings.ui_theme_mode`. Hanya super admin (Kelola user) yang dapat mengubah; seluruh pengguna (pengurus, wali, santri, login, koperasi) mengikuti setting itu. localStorage bukan sumber kebenaran lagi.
 - **File:** `helpers/app.php`, `settings/admin.php`, `settings/partials/pondok_theme_toggle.php`, `assets/js/theme-mode.js`, `includes/header.php`, `includes/auth_portal_layout.php`, `wali/includes/layout.php`, `santri_portal/includes/layout.php`, `includes/koperasi_portal_layout.php`, `STATUS_PWA.md`

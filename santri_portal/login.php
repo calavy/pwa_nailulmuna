@@ -67,8 +67,7 @@ $err = get_flash('error');
 </form>
 <p class="small text-muted text-center mt-3 mb-0">PIN bisa dari <strong>portal santri</strong> (edit santri) atau <strong>PIN cashless</strong> (menu keuangan). Berbeda dari PIN wali.</p>
 <p class="small text-center mt-2 mb-0">
-    <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>">Masuk sebagai wali santri</a>
-    · <a href="<?= htmlspecialchars(app_href('/login.php')) ?>">Portal pengurus</a>
+    <a href="<?= htmlspecialchars(app_href('/login.php')) ?>">Portal masuk</a>
 </p>
 <?php
 auth_portal_layout_end();

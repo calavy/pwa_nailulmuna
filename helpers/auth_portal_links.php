@@ -13,12 +13,6 @@ function auth_portal_alt_portal_links(): array
 
     return [
         [
-            'href' => '/wali/login.php',
-            'label' => 'Portal wali',
-            'short_label' => 'Wali',
-            'icon' => 'fa-mobile-screen-button',
-        ],
-        [
             'href' => '/santri_portal/login.php',
             'label' => 'Portal santri',
             'short_label' => 'Santri',

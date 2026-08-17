@@ -72,12 +72,6 @@ if (isset($_SESSION['user']) && $pdo instanceof PDO) {
 
 $legacyPeran = strtolower(trim((string) ($_GET['peran'] ?? '')));
 
-if ($legacyPeran === 'wali') {
-
-    app_redirect('wali/login.php');
-
-}
-
 if ($legacyPeran === 'petugas') {
 
     app_redirect('presensi/login.php');
@@ -517,6 +511,10 @@ $cardSubtitle = $loginDest === 'setoran' ? 'Masuk untuk input setoran' : 'Masuk 
 
 $scanKegiatanHref = app_href('/login.php?scan=1' . ($loginDest === 'setoran' ? '&dest=setoran' : ''));
 
+$prefillIdentity = $loginDest === 'setoran'
+    ? ''
+    : trim((string) ($_GET['identity'] ?? $_GET['nis'] ?? $_GET['username'] ?? ''));
+
 
 
 auth_portal_layout_begin([
@@ -593,7 +591,7 @@ $ok = get_flash('success');
 
                         <div class="auth-portal-field auth-portal-field--center<?= $loginDest === 'setoran' ? '' : ' auth-portal-suggest-wrap' ?>">
 
-                            <input type="text" name="username" id="login-username" class="auth-portal-field__input auth-portal-field__input--center" required autocomplete="username" placeholder="Username, NIP, NIS, atau nama santri"<?php if ($loginDest !== 'setoran'): ?> data-santri-suggest="1" data-santri-suggest-url="<?= htmlspecialchars(app_href('/api/login_santri_suggest.php')) ?>" role="combobox" aria-autocomplete="list" aria-controls="login-santri-suggest" aria-expanded="false"<?php endif; ?>>
+                            <input type="text" name="username" id="login-username" class="auth-portal-field__input auth-portal-field__input--center" required autocomplete="username" placeholder="Username, NIP, NIS, atau nama santri" value="<?= htmlspecialchars($prefillIdentity) ?>"<?php if ($loginDest !== 'setoran'): ?> data-santri-suggest="1" data-santri-suggest-url="<?= htmlspecialchars(app_href('/api/login_santri_suggest.php')) ?>" role="combobox" aria-autocomplete="list" aria-controls="login-santri-suggest" aria-expanded="false"<?php endif; ?>>
 
                             <?php if ($loginDest !== 'setoran'): ?>
 
