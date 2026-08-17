@@ -1888,6 +1888,47 @@ html {
     display: block;
 }
 
+.auth-portal-suggest-wrap {
+    position: relative;
+}
+
+.auth-portal-suggest-list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 30;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    max-height: min(240px, 40vh);
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.auth-portal-suggest-list.d-none,
+.auth-portal-suggest-list[hidden] {
+    display: none !important;
+}
+
+.auth-portal-suggest-list .auth-portal-wali-pick {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.auth-portal-suggest-list .auth-portal-wali-pick:last-child {
+    border-bottom: none;
+}
+
+[data-theme="dark"] .auth-portal-suggest-list {
+    background: #f8fafc;
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
 .auth-portal-field__input--center {
     width: 100%;
     min-height: 46px;

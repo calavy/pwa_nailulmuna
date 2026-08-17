@@ -15,22 +15,24 @@ declare(strict_types=1);
             Format: template <a href="?tab=template">Laporan ALPA kelipatan</a> (menampilkan jumlah <strong>poin</strong>).
             <code>Batas alpa</code> dipakai seed kelipatan poin jika tier di bawah masih kosong (5 → 5,10,15,… poin).
         </p>
+        <?php
+        $alpaPutraDisplay = trim((string) ($values['wa_alpa_pengurus_putra'] ?? ''));
+        if ($alpaPutraDisplay === '') {
+            $alpaPutraDisplay = trim((string) ($values['wa_pengurus'] ?? ''));
+        }
+        $alpaPutriDisplay = trim((string) ($values['wa_alpa_pengurus_putri'] ?? ''));
+        ?>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_alpa_penerima">
             <div class="col-md-6">
                 <label class="form-label">No. penerima ALPA Putra</label>
-                <input type="text" class="form-control" name="wa_alpa_pengurus_putra" value="<?= htmlspecialchars($values['wa_alpa_pengurus_putra'] ?? '') ?>">
-                <div class="form-text">Fallback tier kosong untuk santri putra. Kosong → <code>wa_pengurus</code> legacy. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putra')) ?>">Nomor WhatsApp</a>.</div>
+                <input type="text" class="form-control" name="wa_alpa_pengurus_putra" value="<?= htmlspecialchars($alpaPutraDisplay) ?>" placeholder="628xx, 628yy">
+                <div class="form-text">Khusus santri putra jika nomor di baris tier kosong. Beberapa nomor: pisah koma. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putra')) ?>">Nomor WhatsApp</a>.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">No. penerima ALPA Putri</label>
-                <input type="text" class="form-control" name="wa_alpa_pengurus_putri" value="<?= htmlspecialchars($values['wa_alpa_pengurus_putri'] ?? '') ?>">
-                <div class="form-text">Fallback tier kosong untuk santri putri. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putri')) ?>">Nomor WhatsApp</a>.</div>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">No. pengurus legacy (<code>wa_pengurus</code>)</label>
-                <input type="text" class="form-control" name="wa_pengurus" value="<?= htmlspecialchars($values['wa_pengurus']) ?>">
-                <div class="form-text">Alias fallback putra jika field Putra di atas kosong. Beberapa nomor: pisah koma.</div>
+                <input type="text" class="form-control" name="wa_alpa_pengurus_putri" value="<?= htmlspecialchars($alpaPutriDisplay) ?>" placeholder="628xx, 628yy">
+                <div class="form-text">Khusus santri putri jika nomor di baris tier kosong. Beberapa nomor: pisah koma. Kelola di <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php?peran=alpa_putri')) ?>">Nomor WhatsApp</a>.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label">Jam kirim WA otomatis</label>
@@ -146,7 +148,7 @@ $jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lew
                 <button class="btn btn-outline-danger btn-sm" type="submit">Reset log (<?= $logTotalAlpa ?>)</button>
             </form>
         </div>
-        <p class="small text-muted">Ambang silang: WA saat total poin santri baru ≥ ambang poin dan belum pernah dikirim di periode ini (generate ALPA &amp; jam otomatis). Nomor tier kosong → fallback Putra/Putri di atas.</p>
+        <p class="small text-muted">Ambang silang: WA saat total poin santri baru ≥ ambang dan belum pernah dikirim di periode ini. Isi <strong>WA Putra</strong> dan <strong>WA Putri</strong> per baris (mengalahkan fallback di atas). Kosong → pakai No. penerima ALPA Putra/Putri.</p>
     </div>
     <?php foreach ($tiers as $t): ?>
         <form method="post" id="wa-tier-form-<?= (int) $t['id'] ?>"><input type="hidden" name="action" value="save_tier"><input type="hidden" name="id" value="<?= (int) $t['id'] ?>"></form>
@@ -156,7 +158,14 @@ $jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lew
     <div class="table-responsive border-top">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light">
-                <tr><th>Ambang</th><th>Label</th><th>Nomor WA</th><th class="text-center">Aktif</th><th></th></tr>
+                <tr>
+                    <th>Ambang</th>
+                    <th>Label</th>
+                    <th>WA Putra</th>
+                    <th>WA Putri</th>
+                    <th class="text-center">Aktif</th>
+                    <th></th>
+                </tr>
             </thead>
             <tbody>
                 <?php foreach ($tiers as $t):
@@ -166,7 +175,8 @@ $jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lew
                     <tr>
                         <td><input type="number" form="<?= $fid ?>" name="threshold" class="form-control form-control-sm" min="1" value="<?= (int) $t['threshold'] ?>" required></td>
                         <td><input type="text" form="<?= $fid ?>" name="label" class="form-control form-control-sm" value="<?= htmlspecialchars($t['label']) ?>"></td>
-                        <td><input type="text" form="<?= $fid ?>" name="wa" class="form-control form-control-sm" value="<?= htmlspecialchars($t['wa']) ?>"></td>
+                        <td><input type="text" form="<?= $fid ?>" name="wa_putra" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($t['wa_putra'] ?? '')) ?>" placeholder="Kosong = fallback Putra"></td>
+                        <td><input type="text" form="<?= $fid ?>" name="wa_putri" class="form-control form-control-sm" value="<?= htmlspecialchars((string) ($t['wa_putri'] ?? '')) ?>" placeholder="Kosong = fallback Putri"></td>
                         <td class="text-center"><input type="checkbox" form="<?= $fid ?>" name="is_active" value="1" <?= $t['is_active'] ? 'checked' : '' ?>></td>
                         <td class="text-end text-nowrap">
                             <button class="btn btn-sm btn-primary" type="submit" form="<?= $fid ?>">Simpan</button>
@@ -177,7 +187,8 @@ $jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lew
                 <tr class="table-light">
                     <td><input type="number" form="wa-tier-form-new" name="threshold" class="form-control form-control-sm" min="1" placeholder="5" required></td>
                     <td><input type="text" form="wa-tier-form-new" name="label" class="form-control form-control-sm" placeholder="Wali kelas"></td>
-                    <td><input type="text" form="wa-tier-form-new" name="wa" class="form-control form-control-sm" placeholder="628xx" required></td>
+                    <td><input type="text" form="wa-tier-form-new" name="wa_putra" class="form-control form-control-sm" placeholder="628xx"></td>
+                    <td><input type="text" form="wa-tier-form-new" name="wa_putri" class="form-control form-control-sm" placeholder="628xx"></td>
                     <td class="text-center"><input type="checkbox" form="wa-tier-form-new" name="is_active" value="1" checked></td>
                     <td class="text-end"><button class="btn btn-sm btn-success" type="submit" form="wa-tier-form-new">+ Tambah</button></td>
                 </tr>
@@ -201,14 +212,10 @@ $jamKirimAlpaLewat = $jamKirimAlpa === '' || (function_exists('app_jam_sudah_lew
                 <?php foreach (($alpaManualPreview['tiers'] ?? []) as $tp): ?>
                     <li>Ambang <?= (int) ($tp['threshold'] ?? 0) ?> (<?= htmlspecialchars((string) ($tp['label'] ?? '')) ?>):
                         <strong><?= (int) ($tp['santri_count'] ?? 0) ?></strong> santri
-                        <?php if (trim((string) ($tp['wa'] ?? '')) !== ''): ?>
-                            · nomor tier
-                        <?php else: ?>
-                            · Putra: <strong><?= (int) ($tp['santri_count_putra'] ?? 0) ?></strong>
-                            <?php if (trim((string) ($tp['wa_putra'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
-                            · Putri: <strong><?= (int) ($tp['santri_count_putri'] ?? 0) ?></strong>
-                            <?php if (trim((string) ($tp['wa_putri'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
-                        <?php endif; ?>
+                        · Putra: <strong><?= (int) ($tp['santri_count_putra'] ?? 0) ?></strong>
+                        <?php if (trim((string) ($tp['wa_putra'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
+                        · Putri: <strong><?= (int) ($tp['santri_count_putri'] ?? 0) ?></strong>
+                        <?php if (trim((string) ($tp['wa_putri'] ?? '')) === ''): ?><span class="text-warning">(nomor kosong)</span><?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             <?php else: ?>

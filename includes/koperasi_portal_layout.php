@@ -32,6 +32,7 @@ function koperasi_portal_layout_begin(array $ctx): void
     <meta name="pondok-pwa-logo" content="<?= htmlspecialchars(app_pwa_icon_href()) ?>">
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
+    <?= pondok_ui_theme_head_html(isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO ? $GLOBALS['pdo'] : null) ?>
     <style>
         body { background: #f1f5f9; min-height: 100dvh; }
         .koperasi-topbar {

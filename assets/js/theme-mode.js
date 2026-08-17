@@ -1,5 +1,6 @@
 /**
- * Mode tampilan terang/gelap — disimpan di localStorage, transisi halus, anti spam klik.
+ * Mode tampilan terang/gelap pondok — sumber: window.PONDOK_THEME_MODE (app_settings).
+ * Hanya super admin (kartu #theme-settings-card) yang boleh mengubah; disimpan ke server.
  */
 (function (global) {
     'use strict';
@@ -9,12 +10,16 @@
     var TRANSITION_MS = 280;
     var pendingTimer = null;
     var lastApplied = null;
+    var saveUrl = '';
 
     function resolveMode(mode) {
         return mode === 'dark' ? 'dark' : 'light';
     }
 
-    function readStored() {
+    function readPondokMode() {
+        if (typeof global.PONDOK_THEME_MODE === 'string') {
+            return resolveMode(global.PONDOK_THEME_MODE);
+        }
         try {
             return resolveMode(global.localStorage.getItem(STORAGE_KEY));
         } catch (e) {
@@ -26,7 +31,7 @@
         var doc = global.document.documentElement;
         doc.setAttribute('data-theme', mode);
         doc.style.colorScheme = 'light';
-        doc.style.backgroundColor = mode === 'dark' ? '#f1f5f9' : '#eef5ff';
+        doc.style.backgroundColor = mode === 'dark' ? '#e2e8f0' : '#eef5ff';
     }
 
     function syncRadios(mode) {
@@ -56,6 +61,7 @@
         }
 
         lastApplied = mode;
+        global.PONDOK_THEME_MODE = mode;
         paintRoot(mode);
 
         try {
@@ -66,7 +72,35 @@
         return mode;
     }
 
-    function scheduleApply(mode) {
+    function savePondokTheme(mode) {
+        if (!saveUrl) {
+            applyTheme(mode, { animate: true });
+            return;
+        }
+        var body = new FormData();
+        body.append('action', 'save_ui_theme');
+        body.append('mode', mode);
+        body.append('ajax', '1');
+        fetch(saveUrl, {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+        })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok && data && data.ok, mode: data && data.mode ? data.mode : mode };
+                });
+            })
+            .then(function (result) {
+                applyTheme(result.ok ? result.mode : mode, { animate: true, force: true });
+            })
+            .catch(function () {
+                syncRadios(readPondokMode());
+            });
+    }
+
+    function scheduleSave(mode) {
         if (pendingTimer) {
             global.clearTimeout(pendingTimer);
         }
@@ -75,7 +109,7 @@
         });
         pendingTimer = global.setTimeout(function () {
             pendingTimer = null;
-            applyTheme(mode, { animate: true });
+            savePondokTheme(mode);
         }, DEBOUNCE_MS);
     }
 
@@ -84,18 +118,23 @@
         if (!target || target.name !== 'theme-mode' || !target.checked) {
             return;
         }
-        scheduleApply(target.value);
+        scheduleSave(target.value);
     }
 
     function bindRadios() {
-        global.document.querySelectorAll('input[name="theme-mode"]').forEach(function (radio) {
+        var card = global.document.getElementById('theme-settings-card');
+        if (!card) {
+            return;
+        }
+        saveUrl = card.getAttribute('data-theme-save-url') || '';
+        card.querySelectorAll('input[name="theme-mode"]').forEach(function (radio) {
             if (radio.dataset.themeBound === '1') {
                 return;
             }
             radio.dataset.themeBound = '1';
             radio.addEventListener('change', onRadioChange);
         });
-        syncRadios(readStored());
+        syncRadios(readPondokMode());
     }
 
     function markReady() {
@@ -113,11 +152,11 @@
     function init() {
         bindRadios();
         markReady();
+        applyTheme(readPondokMode(), { animate: false, force: true });
     }
 
-    /** Dipanggil dari inline &lt;head&gt; sebelum CSS — cegah FOUC / layout rusak saat buka. */
     function bootstrapEarly() {
-        var mode = readStored();
+        var mode = readPondokMode();
         lastApplied = mode;
         paintRoot(mode);
     }
@@ -125,7 +164,7 @@
     global.PondokTheme = {
         bootstrapEarly: bootstrapEarly,
         apply: applyTheme,
-        read: readStored,
+        read: readPondokMode,
         init: init,
     };
 

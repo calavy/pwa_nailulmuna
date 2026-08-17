@@ -194,25 +194,16 @@ function alpa_wa_filter_rows_by_kelompok(array $rows, string $kelompok): array
 }
 
 /**
- * Rencana batch kirim WA per tier: satu batch jika tier punya nomor, else pecah putra/putri.
+ * Rencana batch kirim WA per tier: pecah putra/putri, nomor dari kolom tier lalu fallback setting.
  *
+ * @param array<string, mixed> $tier
  * @param list<array<string, mixed>> $entries
- * @return list<array{kelompok:?string,entries:list<array<string,mixed>>,wa:string}>
+ * @return list<array{kelompok:string,entries:list<array<string,mixed>>,wa:string}>
  */
-function alpa_wa_build_tier_send_batches(PDO $pdo, string $tierWa, array $entries): array
+function alpa_wa_build_tier_send_batches(PDO $pdo, array $tier, array $entries): array
 {
     if ($entries === []) {
         return [];
-    }
-
-    $tierWa = trim($tierWa);
-    if ($tierWa !== '') {
-        $wa = alpa_tier_resolve_wa($pdo, $tierWa);
-        if ($wa === '') {
-            return [];
-        }
-
-        return [['kelompok' => null, 'entries' => $entries, 'wa' => $wa]];
     }
 
     require_once __DIR__ . '/rekap_alpa_santri.php';
@@ -222,7 +213,9 @@ function alpa_wa_build_tier_send_batches(PDO $pdo, string $tierWa, array $entrie
         if ($filtered === []) {
             continue;
         }
-        $wa = alpa_tier_resolve_wa($pdo, '', $kelompok);
+        $col = $kelompok === 'putri' ? 'wa_putri' : 'wa_putra';
+        $tierWa = trim((string) ($tier[$col] ?? ''));
+        $wa = alpa_tier_resolve_wa($pdo, $tierWa, $kelompok);
         if ($wa === '') {
             continue;
         }
@@ -281,14 +274,13 @@ function alpa_wa_preview_manual(PDO $pdo, string $tanggal): array
                 }
             }
         }
-        $tierWa = trim((string) $tier['wa']);
         $tierPreview[] = [
             'tier_id' => (int) $tier['id'],
             'threshold' => $th,
             'label' => (string) $tier['label'],
-            'wa' => $tierWa !== '' ? alpa_tier_resolve_wa($pdo, $tierWa) : '',
-            'wa_putra' => $tierWa !== '' ? '' : alpa_tier_resolve_wa($pdo, '', 'putra'),
-            'wa_putri' => $tierWa !== '' ? '' : alpa_tier_resolve_wa($pdo, '', 'putri'),
+            'wa' => '',
+            'wa_putra' => alpa_tier_resolve_wa($pdo, (string) ($tier['wa_putra'] ?? ''), 'putra'),
+            'wa_putri' => alpa_tier_resolve_wa($pdo, (string) ($tier['wa_putri'] ?? ''), 'putri'),
             'santri_count' => $count,
             'santri_count_putra' => $countPutra,
             'santri_count_putri' => $countPutri,
@@ -393,7 +385,7 @@ function alpa_wa_jalankan_laporan_manual(PDO $pdo, bool $paksa = false, ?string 
             continue;
         }
 
-        $batches = alpa_wa_build_tier_send_batches($pdo, (string) $tier['wa'], $entries);
+        $batches = alpa_wa_build_tier_send_batches($pdo, $tier, $entries);
         if ($batches === []) {
             $tierResults[] = [
                 'tier_id' => $tid,

@@ -508,7 +508,8 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
             <div class="col-12">
                 <div class="alert alert-info py-3 mb-0">
                     <h2 class="h6 mb-2">Portal wali santri</h2>
-                    <p class="small mb-2">Wali login di <a href="/wali/login.php" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS</strong> santri dan <strong>PIN</strong>. Nama &amp; WhatsApp dipakai untuk notifikasi otomatis ke wali.</p>
+                    <p class="small mb-2">Wali login di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS atau nama santri</strong> + <strong>PIN portal wali</strong>. Pengaturan PIN massal: <a href="<?= htmlspecialchars(app_href('/data/wali.php')) ?>">Data → Wali santri</a>.</p>
+                    <p class="small mb-2">Nama &amp; WhatsApp wali dipakai untuk notifikasi otomatis ke wali.</p>
                     <p class="small mb-3 <?= !empty($santri['wali_portal_pin_hash']) ? 'text-success' : 'text-warning' ?>">
                         <?= !empty($santri['wali_portal_pin_hash']) ? 'PIN portal sudah diatur.' : 'PIN portal belum diatur — wali belum bisa masuk.' ?>
                     </p>

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/santri_operasional.php';
+require_once __DIR__ . '/../helpers/wali_portal.php';
 require_once __DIR__ . '/../includes/auth_portal_layout.php';
 
 ensure_santri_identity_columns($pdo);
@@ -19,7 +20,7 @@ $aktifSql = santri_sql_aktif_only('s');
 $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 
 $cari = trim((string) ($_GET['q'] ?? ''));
-$prefillNis = trim((string) ($_GET['nis'] ?? $_POST['nis'] ?? ''));
+$prefillIdentity = trim((string) ($_GET['identity'] ?? $_GET['nis'] ?? $_POST['identity'] ?? ''));
 $cariHasil = [];
 $selectedSantri = null;
 
@@ -32,45 +33,36 @@ if ($cari !== '') {
     $cariHasil = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-if ($prefillNis !== '') {
-    $stSel = $pdo->prepare('SELECT s.id, s.nis, s.' . $nameCol . ' AS nama_tampil FROM santri s WHERE s.nis = :nis AND ' . $aktifSql . ' LIMIT 1');
-    $stSel->execute(['nis' => $prefillNis]);
-    $selectedSantri = $stSel->fetch(PDO::FETCH_ASSOC) ?: null;
-    if (!$selectedSantri) {
-        $prefillNis = '';
+if ($prefillIdentity !== '') {
+    $resolved = wali_portal_find_santri_by_identity($pdo, $prefillIdentity);
+    if ($resolved) {
+        $selectedSantri = [
+            'id' => (int) $resolved['id'],
+            'nis' => (string) ($resolved['nis'] ?? ''),
+            'nama_tampil' => (string) ($resolved['nama_santri'] ?? ''),
+        ];
+    } elseif (!wali_portal_identity_is_ambiguous($pdo, $prefillIdentity)) {
+        $prefillIdentity = '';
     }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nis = trim((string) ($_POST['nis'] ?? ''));
+    $identity = trim((string) ($_POST['identity'] ?? ''));
     $pin = (string) ($_POST['pin'] ?? '');
-    $redirectPin = app_href('/wali/login.php') . ($nis !== '' ? '?nis=' . urlencode($nis) : '');
+    $redirectPin = app_href('/wali/login.php') . ($identity !== '' ? '?identity=' . urlencode($identity) : '');
 
-    if ($nis === '' || $pin === '') {
-        set_flash('error', 'Isi NIS dan PIN portal wali.');
-        header('Location: ' . app_href($redirectPin));
+    $result = wali_portal_verify_login($pdo, $identity, $pin);
+    if (!$result['ok']) {
+        set_flash('error', (string) ($result['message'] ?? 'Identitas atau PIN salah.'));
+        header('Location: ' . $redirectPin);
         exit;
     }
 
-    $sql = 'SELECT s.id, s.nis, s.' . $nameCol . ' AS nama_santri, s.wali_portal_pin_hash';
-    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
-        $sql .= ', s.wali_santri_id';
-    }
-    $sql .= ' FROM santri s WHERE s.nis = :nis AND ' . $aktifSql . ' LIMIT 1';
-    $st = $pdo->prepare($sql);
-    $st->execute(['nis' => $nis]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
-    $hash = (string) ($row['wali_portal_pin_hash'] ?? '');
-    if (!$row || $hash === '' || !password_verify($pin, $hash)) {
-        set_flash('error', 'NIS atau PIN salah, atau PIN wali belum diatur pengurus. Hubungi administrasi pondok.');
-        header('Location: ' . app_href($redirectPin));
-        exit;
-    }
-
+    $row = (array) ($result['row'] ?? []);
     session_regenerate_id(true);
     $_SESSION['wali'] = [
         'santri_id' => (int) $row['id'],
-        'nis' => (string) $row['nis'],
+        'nis' => (string) ($row['nis'] ?? ''),
         'nama_santri' => (string) ($row['nama_santri'] ?? ''),
         'wali_santri_id' => (int) ($row['wali_santri_id'] ?? 0),
     ];
@@ -87,8 +79,8 @@ auth_portal_layout_begin([
     'welcome_salam' => $welcome['salam'],
     'welcome_salam_waktu' => $welcome['salam_waktu'],
     'welcome_tagline' => $welcome['tagline_portal'],
-    'subtitle_mobile' => 'Masuk dengan NIS anak dan PIN portal wali. Bukan username pengurus.',
-    'subtitle_desktop' => 'Masuk dengan NIS anak dan PIN portal wali. Bukan username pengurus.',
+    'subtitle_mobile' => 'Masuk dengan NIS atau nama santri + PIN portal wali. Bukan username pengurus.',
+    'subtitle_desktop' => 'Masuk dengan NIS atau nama santri + PIN portal wali. Bukan username pengurus.',
     'kicker' => $jenisPendidikan,
     'nama_ponpes' => $brandNama,
     'logo_url' => '',
@@ -110,14 +102,14 @@ $ok = get_flash('success');
                 <?php endif; ?>
 
                 <div class="auth-portal-inner-panel mb-3" id="wali-login-card">
-                    <h2 class="auth-portal-inner-title"><i class="fa-solid fa-id-card me-1" aria-hidden="true"></i> Masuk dengan NIS</h2>
-                    <p class="small text-muted mb-3">Identitas masuk adalah <strong>NIS santri</strong> yang sudah terdaftar, bukan username pengurus. PIN wali diatur admin di menu Edit Santri (berbeda dari PIN santri/cashless).</p>
+                    <h2 class="auth-portal-inner-title"><i class="fa-solid fa-id-card me-1" aria-hidden="true"></i> Masuk ke portal</h2>
+                    <p class="small text-muted mb-3">Identitas masuk: <strong>NIS</strong> atau <strong>nama santri</strong> yang terdaftar, plus <strong>PIN portal wali</strong> (diatur pengurus di Data → Wali santri). Bukan username/password pengurus.</p>
                     <form method="post" class="auth-portal-form d-grid gap-3" autocomplete="on" action="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" id="wali-login-form">
                         <div>
-                            <label class="form-label" for="wali-nis">NIS</label>
+                            <label class="form-label" for="wali-identity">NIS atau nama santri</label>
                             <div class="input-group input-group-lg">
-                                <span class="input-group-text"><i class="fa-solid fa-hashtag" aria-hidden="true"></i></span>
-                                <input id="wali-nis" type="text" name="nis" class="form-control" required value="<?= htmlspecialchars($prefillNis) ?>" autocomplete="username" inputmode="numeric" placeholder="Nomor induk santri">
+                                <span class="input-group-text"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+                                <input id="wali-identity" type="text" name="identity" class="form-control" required value="<?= htmlspecialchars($prefillIdentity) ?>" autocomplete="username" placeholder="Nomor induk atau nama lengkap santri">
                             </div>
                         </div>
                         <div>
@@ -151,20 +143,21 @@ $ok = get_flash('success');
                     <?php if ($cari !== '' && $cariHasil === []): ?>
                         <p class="small text-danger mb-0 mt-2">Tidak ada santri aktif yang cocok. Periksa ejaan nama atau NIS.</p>
                     <?php elseif ($cariHasil !== []): ?>
-                        <p class="small text-muted mb-2 mt-3">Ketuk nama untuk mengisi NIS di form masuk:</p>
+                        <p class="small text-muted mb-2 mt-3">Ketuk nama untuk mengisi identitas di form masuk:</p>
                         <div class="auth-portal-wali-pick-list" id="wali-pick-list" role="listbox" aria-label="Daftar santri">
                             <?php foreach ($cariHasil as $ch): ?>
                                 <?php
                                 $nisRow = (string) ($ch['nis'] ?? '');
-                                $isPicked = $hasSelected && $prefillNis === $nisRow;
+                                $namaRow = (string) ($ch['nama_tampil'] ?? '');
+                                $isPicked = $hasSelected && ($prefillIdentity === $nisRow || $prefillIdentity === $namaRow);
                                 ?>
                                 <button type="button"
                                         class="auth-portal-wali-pick<?= $isPicked ? ' is-selected' : '' ?>"
                                         role="option"
                                         aria-selected="<?= $isPicked ? 'true' : 'false' ?>"
-                                        data-nis="<?= htmlspecialchars($nisRow) ?>"
-                                        data-nama="<?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?>">
-                                    <span class="fw-semibold"><?= htmlspecialchars((string) ($ch['nama_tampil'] ?? '')) ?></span>
+                                        data-identity="<?= htmlspecialchars($nisRow) ?>"
+                                        data-nama="<?= htmlspecialchars($namaRow) ?>">
+                                    <span class="fw-semibold"><?= htmlspecialchars($namaRow) ?></span>
                                     <span class="font-monospace text-muted"><?= htmlspecialchars($nisRow) ?></span>
                                 </button>
                             <?php endforeach; ?>
@@ -191,29 +184,29 @@ $ok = get_flash('success');
 <script>
 (function () {
     var pickList = document.getElementById('wali-pick-list');
-    var nisInput = document.getElementById('wali-nis');
+    var identityInput = document.getElementById('wali-identity');
     var nameEl = document.getElementById('wali-selected-name');
     var nisEl = document.getElementById('wali-selected-nis');
     var pinInput = document.getElementById('wali-pin');
     var selectedBox = document.getElementById('wali-selected-display');
 
-    function setSelected(nis, nama) {
-        if (nisInput) {
-            nisInput.value = nis || '';
+    function setSelected(identity, nama, nisLabel) {
+        if (identityInput) {
+            identityInput.value = identity || '';
         }
         if (nameEl) nameEl.textContent = nama || '';
-        if (nisEl) nisEl.textContent = nis ? 'NIS ' + nis : '';
+        if (nisEl) nisEl.textContent = nisLabel ? 'NIS ' + nisLabel : '';
         if (selectedBox) selectedBox.classList.remove('d-none');
         if (pickList) {
             pickList.querySelectorAll('.auth-portal-wali-pick').forEach(function (btn) {
-                var on = btn.getAttribute('data-nis') === nis;
+                var on = btn.getAttribute('data-identity') === identity;
                 btn.classList.toggle('is-selected', on);
                 btn.setAttribute('aria-selected', on ? 'true' : 'false');
             });
         }
         if (pinInput) pinInput.focus();
-        if (nisInput) {
-            nisInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (identityInput) {
+            identityInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
 
@@ -221,14 +214,19 @@ $ok = get_flash('success');
         pickList.addEventListener('click', function (e) {
             var btn = e.target.closest('.auth-portal-wali-pick');
             if (!btn) return;
-            setSelected(btn.getAttribute('data-nis'), btn.getAttribute('data-nama'));
+            var nisText = btn.querySelector('.font-monospace');
+            setSelected(
+                btn.getAttribute('data-identity'),
+                btn.getAttribute('data-nama'),
+                nisText ? nisText.textContent.trim() : ''
+            );
         });
     }
 
     <?php if ($hasSelected): ?>
     if (pinInput) pinInput.focus();
     <?php else: ?>
-    if (nisInput) nisInput.focus();
+    if (identityInput) identityInput.focus();
     <?php endif; ?>
 
     var toggle = document.getElementById('wali-pin-toggle');

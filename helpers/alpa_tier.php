@@ -165,6 +165,21 @@ function ensure_alpa_tier_tables(PDO $pdo): void
                 INDEX idx_santri_periode (santri_id, periode_key)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ');
+        if (table_exists($pdo, 'alpa_tier_notif')) {
+            if (!column_exists($pdo, 'alpa_tier_notif', 'wa_putra')) {
+                $pdo->exec('ALTER TABLE alpa_tier_notif ADD COLUMN wa_putra VARCHAR(500) NOT NULL DEFAULT "" AFTER wa');
+            }
+            if (!column_exists($pdo, 'alpa_tier_notif', 'wa_putri')) {
+                $pdo->exec('ALTER TABLE alpa_tier_notif ADD COLUMN wa_putri VARCHAR(500) NOT NULL DEFAULT "" AFTER wa_putra');
+            }
+            $pdo->exec('
+                UPDATE alpa_tier_notif
+                SET wa_putra = wa, wa_putri = wa
+                WHERE TRIM(wa) <> ""
+                  AND TRIM(COALESCE(wa_putra, "")) = ""
+                  AND TRIM(COALESCE(wa_putri, "")) = ""
+            ');
+        }
     } catch (PDOException $e) {
         // Kalau CREATE TABLE gagal (mis. hosting batasi DDL), jangan fatal — fitur tier
         // sebagian tidak jalan, tapi sisa app tetap hidup.
@@ -176,7 +191,7 @@ function ensure_alpa_tier_tables(PDO $pdo): void
 /**
  * Ambil daftar tier (urut threshold ASC).
  *
- * @return list<array{id:int,threshold:int,label:string,wa:string,is_active:int}>
+ * @return list<array{id:int,threshold:int,label:string,wa:string,wa_putra:string,wa_putri:string,is_active:int}>
  */
 function alpa_tier_list(PDO $pdo, bool $activeOnly = true): array
 {
@@ -184,7 +199,11 @@ function alpa_tier_list(PDO $pdo, bool $activeOnly = true): array
     if (!table_exists($pdo, 'alpa_tier_notif')) {
         return [];
     }
-    $sql = 'SELECT id, threshold, label, wa, is_active FROM alpa_tier_notif';
+    $hasSplit = column_exists($pdo, 'alpa_tier_notif', 'wa_putra')
+        && column_exists($pdo, 'alpa_tier_notif', 'wa_putri');
+    $sql = $hasSplit
+        ? 'SELECT id, threshold, label, wa, wa_putra, wa_putri, is_active FROM alpa_tier_notif'
+        : 'SELECT id, threshold, label, wa, is_active FROM alpa_tier_notif';
     if ($activeOnly) {
         $sql .= ' WHERE is_active = 1';
     }
@@ -195,12 +214,18 @@ function alpa_tier_list(PDO $pdo, bool $activeOnly = true): array
         error_log('[alpa_tier] alpa_tier_list: ' . $e->getMessage());
         return [];
     }
-    return array_map(static function (array $r): array {
+    return array_map(static function (array $r) use ($hasSplit): array {
+        $wa = (string) ($r['wa'] ?? '');
+        $waPutra = $hasSplit ? (string) ($r['wa_putra'] ?? '') : $wa;
+        $waPutri = $hasSplit ? (string) ($r['wa_putri'] ?? '') : $wa;
+
         return [
             'id' => (int) $r['id'],
             'threshold' => (int) $r['threshold'],
             'label' => (string) $r['label'],
-            'wa' => (string) $r['wa'],
+            'wa' => $wa !== '' ? $wa : $waPutra,
+            'wa_putra' => $waPutra,
+            'wa_putri' => $waPutri,
             'is_active' => (int) $r['is_active'],
         ];
     }, $rows);
@@ -332,7 +357,7 @@ function alpa_tier_cron_flush_crossings(PDO $pdo, ?string $tanggal = null): arra
         }
 
         require_once __DIR__ . '/alpa_wa.php';
-        $batches = alpa_wa_build_tier_send_batches($pdo, (string) $tier['wa'], $entries);
+        $batches = alpa_wa_build_tier_send_batches($pdo, $tier, $entries);
         if ($batches === []) {
             continue;
         }
@@ -580,6 +605,7 @@ function alpa_tier_dispatch_batch(
                 'santri_id' => $sid,
                 'nama_santri' => (string) ($santri['nama_santri'] ?? '-'),
                 'nis' => (string) ($santri['nis'] ?? ''),
+                'tingkatan' => (string) ($santri['tingkatan'] ?? $tingkatan),
                 'alpa_count' => $count,
             ];
         }
@@ -591,40 +617,51 @@ function alpa_tier_dispatch_batch(
         if ($entries === []) {
             continue;
         }
-        $waTarget = alpa_tier_resolve_wa($pdo, (string) $tier['wa']);
-        if ($waTarget === '') {
+
+        require_once __DIR__ . '/alpa_wa.php';
+        $batches = alpa_wa_build_tier_send_batches($pdo, $tier, $entries);
+        if ($batches === []) {
             continue;
         }
 
         require_once __DIR__ . '/wa_laporan_alpa.php';
-        $waMessages = wa_format_alpa_tier_messages(
-            $pdo,
-            $tanggalIdn,
-            $tingkatan,
-            $namaKegiatan,
-            $tier['label'],
-            $tier['threshold'],
-            $periodeLabel,
-            $entries
-        );
-        $sent = send_wa_bulk_messages($pdo, $waTarget, $waMessages, [
-            'kind' => 'alpa',
-            'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':notify',
-        ]);
-        if ($sent <= 0) {
-            continue;
+        $tierSent = 0;
+        foreach ($batches as $batch) {
+            $waTarget = (string) $batch['wa'];
+            $kelompok = (string) ($batch['kelompok'] ?? '');
+            $waMessages = wa_format_alpa_tier_messages(
+                $pdo,
+                $tanggalIdn,
+                $tingkatan,
+                $namaKegiatan,
+                $tier['label'],
+                $tier['threshold'],
+                $periodeLabel,
+                $batch['entries']
+            );
+            $dedupSuffix = $kelompok !== '' ? $kelompok : 'notify';
+            $sent = send_wa_bulk_messages($pdo, $waTarget, $waMessages, [
+                'kind' => 'alpa',
+                'dedup_key' => 'alpa:' . $periodeKey . ':tier:' . $tid . ':' . $dedupSuffix,
+            ]);
+            if ($sent <= 0) {
+                continue;
+            }
+            foreach ($batch['entries'] as $entry) {
+                alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
+            }
+            $tierSent += $sent;
         }
 
-        foreach ($entries as $entry) {
-            alpa_tier_dispatch_record($pdo, (int) $entry['santri_id'], $tid, $periodeKey, (int) $entry['alpa_count']);
+        if ($tierSent <= 0) {
+            continue;
         }
-        $summary['sent_total'] += $sent;
+        $summary['sent_total'] += $tierSent;
         $summary['tiers'][] = [
             'tier_id' => $tid,
             'threshold' => $tier['threshold'],
             'label' => $tier['label'],
-            'wa' => $waTarget,
-            'sent_count' => $sent,
+            'sent_count' => $tierSent,
             'santri_count' => count($entries),
         ];
     }

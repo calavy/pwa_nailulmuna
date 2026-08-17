@@ -368,19 +368,7 @@ function auth_portal_layout_begin(array $ctx): void
         }
         .auth-portal-links a:hover { color: #fff; }
     </style>
-    <script>
-        (function () {
-            try {
-                var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
-                var d = document.documentElement;
-                d.setAttribute('data-theme', m);
-                d.style.colorScheme = 'light';
-                d.style.backgroundColor = m === 'dark' ? '#e2e8f0' : <?= json_encode($gradMid, JSON_UNESCAPED_UNICODE) ?>;
-            } catch (e) {
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
-        })();
-    </script>
+    <?= pondok_ui_theme_head_html(isset($pdo) && $pdo instanceof PDO ? $pdo : null) ?>
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="auth-portal-bg<?= $isSplitClean ? ' auth-portal-bg--clean' : '' ?><?= $isCenterCard ? ' auth-portal-bg--center-card' : '' ?>" aria-hidden="true">

@@ -22,6 +22,151 @@ function wali_portal_salam_waktu(): string
     return 'Selamat malam';
 }
 
+/**
+ * Cari santri aktif untuk login portal wali: NIS exact, lalu nama (case-insensitive, harus unik).
+ *
+ * @return array{id:int,nis:string,nama_santri:string,wali_portal_pin_hash:?string,wali_santri_id?:int}|null
+ */
+function wali_portal_find_santri_by_identity(PDO $pdo, string $identity): ?array
+{
+    if (!table_exists($pdo, 'santri')) {
+        return null;
+    }
+    ensure_santri_identity_columns($pdo);
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
+    }
+
+    $identity = trim($identity);
+    if ($identity === '') {
+        return null;
+    }
+
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $aktifSql = santri_sql_aktif_only('s');
+    $cols = 's.id, s.nis, s.' . $nameCol . ' AS nama_santri, s.wali_portal_pin_hash';
+    if (column_exists($pdo, 'santri', 'wali_santri_id')) {
+        $cols .= ', s.wali_santri_id';
+    }
+
+    $stNis = $pdo->prepare('SELECT ' . $cols . ' FROM santri s WHERE s.nis = :nis AND ' . $aktifSql . ' LIMIT 1');
+    $stNis->execute(['nis' => $identity]);
+    $byNis = $stNis->fetch(PDO::FETCH_ASSOC);
+    if (is_array($byNis)) {
+        return $byNis;
+    }
+
+    $stNama = $pdo->prepare(
+        'SELECT ' . $cols . ' FROM santri s WHERE LOWER(TRIM(s.' . $nameCol . ')) = LOWER(TRIM(:nama)) AND ' . $aktifSql . ' LIMIT 2'
+    );
+    $stNama->execute(['nama' => $identity]);
+    $byNama = $stNama->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if (count($byNama) === 1) {
+        return $byNama[0];
+    }
+
+    return null;
+}
+
+/** Apakah identitas nama santri ambigu (lebih dari satu siswa aktif). */
+function wali_portal_identity_is_ambiguous(PDO $pdo, string $identity): bool
+{
+    if (!table_exists($pdo, 'santri') || trim($identity) === '') {
+        return false;
+    }
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
+    }
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $aktifSql = santri_sql_aktif_only('s');
+    $st = $pdo->prepare(
+        'SELECT COUNT(*) FROM santri s WHERE LOWER(TRIM(s.' . $nameCol . ')) = LOWER(TRIM(:nama)) AND ' . $aktifSql
+    );
+    $st->execute(['nama' => trim($identity)]);
+
+    return (int) $st->fetchColumn() > 1;
+}
+
+/**
+ * Verifikasi login portal wali (NIS atau nama santri + PIN).
+ *
+ * @return array{ok:bool, row?:array, message?:string}
+ */
+function wali_portal_verify_login(PDO $pdo, string $identity, string $pin): array
+{
+    $identity = trim($identity);
+    $pin = (string) $pin;
+    if ($identity === '' || $pin === '') {
+        return ['ok' => false, 'message' => 'Isi NIS atau nama santri dan PIN portal wali.'];
+    }
+
+    if (wali_portal_identity_is_ambiguous($pdo, $identity)) {
+        return ['ok' => false, 'message' => 'Nama santri sama dengan lebih dari satu siswa. Gunakan NIS.'];
+    }
+
+    $row = wali_portal_find_santri_by_identity($pdo, $identity);
+    if (!$row) {
+        return ['ok' => false, 'message' => 'NIS atau nama santri tidak ditemukan. Periksa ejaan atau hubungi administrasi pondok.'];
+    }
+
+    $hash = trim((string) ($row['wali_portal_pin_hash'] ?? ''));
+    if ($hash === '') {
+        return [
+            'ok' => false,
+            'message' => 'PIN portal wali belum diatur. Minta pengurus mengatur PIN di menu Data → Wali santri.',
+        ];
+    }
+    if (!password_verify($pin, $hash)) {
+        return ['ok' => false, 'message' => 'PIN salah. Periksa kembali atau hubungi administrasi pondok.'];
+    }
+
+    return ['ok' => true, 'row' => $row];
+}
+
+/**
+ * Saran nama/NIS santri aktif untuk typeahead login (tanpa id).
+ *
+ * @return list<array{nama:string,nis:string}>
+ */
+function wali_portal_suggest_santri(PDO $pdo, string $q, int $limit = 8): array
+{
+    $q = trim($q);
+    if (mb_strlen($q) < 2 || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    ensure_santri_identity_columns($pdo);
+    if (!function_exists('santri_sql_aktif_only')) {
+        require_once __DIR__ . '/santri_operasional.php';
+    }
+
+    $limit = max(1, min(8, $limit));
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $aktifSql = santri_sql_aktif_only('s');
+    $like = '%' . mb_strtolower($q) . '%';
+    $st = $pdo->prepare(
+        'SELECT s.nis, s.' . $nameCol . ' AS nama
+         FROM santri s
+         WHERE ' . $aktifSql . '
+           AND (LOWER(s.' . $nameCol . ') LIKE :q OR LOWER(COALESCE(s.nis, \'\')) LIKE :q2)
+         ORDER BY s.' . $nameCol . ' ASC
+         LIMIT ' . $limit
+    );
+    $st->execute(['q' => $like, 'q2' => $like]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $items = [];
+    foreach ($rows as $row) {
+        $nama = trim((string) ($row['nama'] ?? ''));
+        $nis = trim((string) ($row['nis'] ?? ''));
+        if ($nama === '' && $nis === '') {
+            continue;
+        }
+        $items[] = ['nama' => $nama, 'nis' => $nis];
+    }
+
+    return $items;
+}
+
 /** Nama wali dari tabel wali_santri atau nama kafil di santri. */
 function wali_portal_resolve_nama_wali(PDO $pdo, array $santriRow): string
 {

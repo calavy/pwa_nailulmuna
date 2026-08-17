@@ -7,6 +7,42 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-17] Mode tampilan pondok (hanya Super Admin)
+- **Apa yang diubah:** Mode terang/gelap disimpan di `app_settings.ui_theme_mode`. Hanya super admin (Kelola user) yang dapat mengubah; seluruh pengguna (pengurus, wali, santri, login, koperasi) mengikuti setting itu. localStorage bukan sumber kebenaran lagi.
+- **File:** `helpers/app.php`, `settings/admin.php`, `settings/partials/pondok_theme_toggle.php`, `assets/js/theme-mode.js`, `includes/header.php`, `includes/auth_portal_layout.php`, `wali/includes/layout.php`, `santri_portal/includes/layout.php`, `includes/koperasi_portal_layout.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Toggle sebelumnya hanya mengubah perangkat super admin.
+- **Status:** belum diuji browser manual
+
+### [2026-08-17] Login utama: saran nama santri (typeahead)
+- **Apa yang diubah:** Kolom identitas di `login.php` menampilkan saran nama + NIS setelah 2 huruf (maks 8 hasil, santri aktif). Pilih baris mengisi NIS lalu fokus ke password. API publik terbatas `api/login_santri_suggest.php` (rate-limit jika IP sudah diblokir login gagal). Tidak aktif untuk destinasi setoran.
+- **File:** `helpers/wali_portal.php`, `api/login_santri_suggest.php`, `login.php`, `assets/js/login-santri-suggest.js`, `assets/css/auth-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Wali masuk dari halaman login utama; butuh referensi nama tanpa buka `/wali/login.php`.
+- **Status:** belum diuji browser manual
+
+### [2026-08-17] Login utama: fallback portal wali (NIS/nama + PIN)
+- **Apa yang diubah:** Jika username/password di `login.php` tidak cocok dengan akun pengurus, sistem coba NIS atau nama santri + PIN portal wali, lalu redirect ke `wali/index.php`. Placeholder form: *Username, NIP, NIS, atau nama santri*. Pesan gagal tetap generik. Destinasi setoran tidak memakai fallback ini.
+- **File:** `login.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Wali mencoba masuk dari halaman login utama, bukan `/wali/login.php`.
+- **Status:** belum diuji browser manual
+
+### [2026-08-17] Portal wali: login NIS/nama + penyederhanaan pengaturan
+- **Apa yang diubah:** Login portal wali menerima **NIS atau nama santri** + PIN (`wali_portal_find_santri_by_identity`, `wali_portal_verify_login`). Halaman Data → Wali santri: fokus tabel portal per santri (stat PIN sudah/belum); field **Akun pengguna** dihapus dari UI (tidak perlu hubungkan ke `users`). Pesan error login lebih jelas jika PIN belum diatur.
+- **File:** `helpers/wali_portal.php`, `wali/login.php`, `data/wali.php`, `santri/edit.php`, `includes/partials/auth_portal_role_grid.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Portal wali tidak bisa diakses karena PIN belum diatur / admin bingung harus buat akun pengurus; cukup NIS atau nama santri dari data wali santri.
+- **Status:** lint PHP; uji login manual disarankan
+
+### [2026-08-17] Tier ALPA: nomor WA Putra dan Putri per ambang
+- **Apa yang diubah:** Tabel *Tier penerima (ambang poin alpa)* punya dua kolom nomor: **WA Putra** dan **WA Putri**. Kolom `wa` lama dimigrasi ke keduanya. Kirim crossing/manual/generate ALPA selalu pecah per kelompok; kolom kosong memakai fallback ALPA Putra/Putri di atas tabel.
+- **File:** `helpers/alpa_tier.php`, `helpers/alpa_wa.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_alpa.php`, `presensi/alpha.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Satu kolom Nomor WA di baris tier masih mengirim putra dan putri ke nomor yang sama.
+- **Status:** belum diuji browser manual
+
+### [2026-08-17] Penerima ALPA Putra dan Putri tersendiri
+- **Apa yang diubah:** Tab Alpa hanya dua field nomor: **ALPA Putra** dan **ALPA Putri**. Field `wa_pengurus` dihapus dari form (tetap fallback diam di kode jika Putra kosong). Saat simpan, nomor Putra kosong disalin dari `wa_pengurus` lama. Buku nomor: peran `pengurus` = Pengurus (umum); ALPA memakai peran `alpa_putra` / `alpa_putri`.
+- **File:** `settings/partials/wa_otomatis_tab_alpa.php`, `settings/includes/wa_otomatis_logic.php`, `helpers/wa_nomor.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengisian penerima ALPA harus terpisah putra/putri, bukan satu nomor pengurus.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-17] Cron hosting deploy — observability app-wide
 - **Apa yang diubah:** `cron/wa_auto.php` memanggil `ensure_pondok_settings_defaults()` saat tick (edge case DB kosong). Health script `_test_wa_cron_health.php` parse `wa_auto_scheduled_last_result.jobs` (tagihan, cashless, poin, dll.). Tab Ringkasan: catatan deploy hosting, checklist pasca-deploy, ringkasan job terjadwal; tab Alpa: catatan deploy tidak mengubah jadwal panel.
 - **File:** `cron/wa_auto.php`, `scripts/_test_wa_cron_health.php`, `settings/partials/wa_otomatis_tab_ringkasan.php`, `settings/partials/wa_otomatis_tab_alpa.php`, `STATUS_PWA.md`

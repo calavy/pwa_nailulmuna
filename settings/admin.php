@@ -79,6 +79,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? 'create_user'));
     $targetUserIdForGuard = (int) ($_POST['target_user_id'] ?? 0);
 
+    if ($action === 'save_ui_theme') {
+        $mode = strtolower(trim((string) ($_POST['mode'] ?? ''))) === 'dark' ? 'dark' : 'light';
+        save_setting($pdo, 'ui_theme_mode', $mode);
+        $accept = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+        $wantsJson = str_contains($accept, 'application/json') || trim((string) ($_POST['ajax'] ?? '')) === '1';
+        if ($wantsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => true, 'mode' => $mode], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        set_flash('success', 'Mode tampilan pondok disimpan. Seluruh pengguna memakai tema ini.');
+        header('Location: ' . app_href('/settings/admin.php'));
+        exit;
+    }
+
     if (
         $targetUserIdForGuard > 0
         && in_array($action, ['save_access', 'update_user', 'delete_user'], true)

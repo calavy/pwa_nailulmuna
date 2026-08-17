@@ -376,19 +376,7 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php if (trim((string) ($currentUserRow['foto_profil'] ?? '')) !== ''): ?>
     <meta name="pondok-pwa-avatar" content="<?= htmlspecialchars(user_profil_url((string) $currentUserRow['foto_profil'])) ?>">
     <?php endif; ?>
-    <script>
-        (function () {
-            try {
-                var m = localStorage.getItem('theme-mode') === 'dark' ? 'dark' : 'light';
-                var d = document.documentElement;
-                d.setAttribute('data-theme', m);
-                d.style.colorScheme = 'light';
-                d.style.backgroundColor = m === 'dark' ? '#e2e8f0' : '#eef5ff';
-            } catch (e) {
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
-        })();
-    </script>
+    <?= pondok_ui_theme_head_html($pdo instanceof PDO ? $pdo : null) ?>
 </head>
 <body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . ' app-body-shell' . $bodyClassExtra . '"' : ' class="app-body-shell' . $bodyClassExtra . '"' ?>>
 <div class="app-frame" id="app-frame">

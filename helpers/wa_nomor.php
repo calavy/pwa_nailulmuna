@@ -11,9 +11,9 @@ function wa_nomor_peran_definitions(): array
 {
     return [
         'pengurus' => [
-            'label' => 'Pengurus / ALPA',
+            'label' => 'Pengurus (umum)',
             'setting' => 'wa_pengurus',
-            'desc' => 'Notifikasi alpa otomatis & fallback umum (legacy putra)',
+            'desc' => 'Fallback umum; bukan penerima ALPA utama',
             'group' => 'Presensi & Alpa',
         ],
         'alpa_putra' => [

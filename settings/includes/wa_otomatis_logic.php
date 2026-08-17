@@ -147,7 +147,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'save_alpa_penerima') {
         require_once __DIR__ . '/../../helpers/datetime_display.php';
-        foreach (['wa_pengurus', 'wa_alpa_pengurus_putra', 'wa_alpa_pengurus_putri', 'jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
+        $putra = trim((string) ($_POST['wa_alpa_pengurus_putra'] ?? ''));
+        $putri = trim((string) ($_POST['wa_alpa_pengurus_putri'] ?? ''));
+        if ($putra === '') {
+            $putra = trim((string) app_setting($pdo, 'wa_pengurus', ''));
+        }
+        save_setting($pdo, 'wa_alpa_pengurus_putra', $putra);
+        save_setting($pdo, 'wa_alpa_pengurus_putri', $putri);
+        foreach (['jam_kirim_wa_auto', 'batas_alpa_notif'] as $field) {
             if (array_key_exists($field, $_POST)) {
                 $value = trim((string) $_POST[$field]);
                 if ($field === 'jam_kirim_wa_auto') {
@@ -157,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         wa_otomatis_save_delay_from_post($pdo, 'alpa');
-        set_flash('success', 'Penerima notifikasi alpa disimpan.');
+        set_flash('success', 'Penerima ALPA Putra dan Putri disimpan.');
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
     } elseif ($action === 'save_presensi') {
@@ -339,19 +346,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int) ($_POST['id'] ?? 0);
         $threshold = max(1, (int) ($_POST['threshold'] ?? 0));
         $label = trim((string) ($_POST['label'] ?? ''));
-        $wa = trim((string) ($_POST['wa'] ?? ''));
+        $waPutra = trim((string) ($_POST['wa_putra'] ?? ''));
+        $waPutri = trim((string) ($_POST['wa_putri'] ?? ''));
+        $wa = $waPutra;
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         if ($threshold < 1) {
             set_flash('error', 'Ambang harus angka ≥ 1.');
-        } elseif ($wa === '' && $isActive === 1) {
-            set_flash('error', 'Nomor WA penerima wajib diisi untuk tier aktif.');
         } elseif ($id > 0) {
-            $st = $pdo->prepare('UPDATE alpa_tier_notif SET threshold = :t, label = :l, wa = :w, is_active = :a WHERE id = :id');
-            $st->execute(['t' => $threshold, 'l' => $label, 'w' => $wa, 'a' => $isActive, 'id' => $id]);
+            $st = $pdo->prepare('UPDATE alpa_tier_notif SET threshold = :t, label = :l, wa = :w, wa_putra = :wp, wa_putri = :wi, is_active = :a WHERE id = :id');
+            $st->execute([
+                't' => $threshold,
+                'l' => $label,
+                'w' => $wa,
+                'wp' => $waPutra,
+                'wi' => $waPutri,
+                'a' => $isActive,
+                'id' => $id,
+            ]);
             set_flash('success', 'Tier diperbarui.');
         } else {
-            $st = $pdo->prepare('INSERT INTO alpa_tier_notif (threshold, label, wa, is_active) VALUES (:t, :l, :w, :a)');
-            $st->execute(['t' => $threshold, 'l' => $label, 'w' => $wa, 'a' => $isActive]);
+            $st = $pdo->prepare('INSERT INTO alpa_tier_notif (threshold, label, wa, wa_putra, wa_putri, is_active) VALUES (:t, :l, :w, :wp, :wi, :a)');
+            $st->execute([
+                't' => $threshold,
+                'l' => $label,
+                'w' => $wa,
+                'wp' => $waPutra,
+                'wi' => $waPutri,
+                'a' => $isActive,
+            ]);
             set_flash('success', 'Tier baru ditambahkan.');
         }
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));

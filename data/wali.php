@@ -22,19 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
         $noWa = trim((string) ($_POST['no_wa'] ?? ''));
         $alamat = trim((string) ($_POST['alamat'] ?? ''));
         $nomorId = trim((string) ($_POST['nomor_id'] ?? ''));
-        $userId = (int) ($_POST['user_id'] ?? 0);
         if ($nama === '') {
             set_flash('error', 'Nama wali wajib diisi.');
         } else {
             $redirectAfter = '/data/wali.php';
-            $uid = $userId > 0 ? $userId : null;
-            if ($uid !== null) {
-                $chk = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
-                $chk->execute(['id' => $uid]);
-                if (!$chk->fetch()) {
-                    $uid = null;
-                }
-            }
             if ($nomorId !== '') {
                 $dup = $pdo->prepare('SELECT id FROM wali_santri WHERE nomor_id = :n LIMIT 1');
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40)]);
@@ -45,12 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 }
             }
             try {
-                $pdo->prepare('INSERT INTO wali_santri (nama, no_wa, alamat, nomor_id, user_id) VALUES (:nama, :no_wa, :alamat, :nomor_id, :uid)')->execute([
+                $pdo->prepare('INSERT INTO wali_santri (nama, no_wa, alamat, nomor_id, user_id) VALUES (:nama, :no_wa, :alamat, :nomor_id, NULL)')->execute([
                     'nama' => mb_substr($nama, 0, 120),
                     'no_wa' => $noWa !== '' ? mb_substr($noWa, 0, 40) : null,
                     'alamat' => $alamat !== '' ? $alamat : null,
                     'nomor_id' => $nomorId !== '' ? mb_substr($nomorId, 0, 40) : null,
-                    'uid' => $uid,
                 ]);
             } catch (PDOException $e) {
                 set_flash('error', 'Gagal menyimpan (No. ID bentrok atau data tidak valid).');
@@ -71,19 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
         $noWa = trim((string) ($_POST['no_wa'] ?? ''));
         $alamat = trim((string) ($_POST['alamat'] ?? ''));
         $nomorId = trim((string) ($_POST['nomor_id'] ?? ''));
-        $userId = (int) ($_POST['user_id'] ?? 0);
         $redirectAfter = '/data/wali.php?edit=' . max(0, $id);
         if ($id <= 0 || $nama === '') {
             set_flash('error', 'Data tidak valid.');
         } else {
-            $uid = $userId > 0 ? $userId : null;
-            if ($uid !== null) {
-                $chk = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
-                $chk->execute(['id' => $uid]);
-                if (!$chk->fetch()) {
-                    $uid = null;
-                }
-            }
             if ($nomorId !== '') {
                 $dup = $pdo->prepare('SELECT id FROM wali_santri WHERE nomor_id = :n AND id <> :id LIMIT 1');
                 $dup->execute(['n' => mb_substr($nomorId, 0, 40), 'id' => $id]);
@@ -94,12 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canMutate) {
                 }
             }
             try {
-                $pdo->prepare('UPDATE wali_santri SET nama = :nama, no_wa = :no_wa, alamat = :alamat, nomor_id = :nomor_id, user_id = :uid WHERE id = :id')->execute([
+                $pdo->prepare('UPDATE wali_santri SET nama = :nama, no_wa = :no_wa, alamat = :alamat, nomor_id = :nomor_id WHERE id = :id')->execute([
                     'nama' => mb_substr($nama, 0, 120),
                     'no_wa' => $noWa !== '' ? mb_substr($noWa, 0, 40) : null,
                     'alamat' => $alamat !== '' ? $alamat : null,
                     'nomor_id' => $nomorId !== '' ? mb_substr($nomorId, 0, 40) : null,
-                    'uid' => $uid,
                     'id' => $id,
                 ]);
             } catch (PDOException $e) {
@@ -145,29 +125,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$canMutate) {
     exit;
 }
 
-$usersPick = [];
-if (table_exists($pdo, 'users')) {
-    $usersPick = $pdo->query('SELECT id, nama, username, role FROM users ORDER BY nama ASC LIMIT 300')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-}
-
 $sqlList = "
-    SELECT w.*, u.nama AS user_nama, u.username AS user_username,
+    SELECT w.*,
         (SELECT COUNT(*) FROM santri s WHERE s.wali_santri_id = w.id) AS jumlah_santri,
         (SELECT SUBSTRING(GROUP_CONCAT(CONCAT(IFNULL(NULLIF(TRIM(s.nis), ''), '-'), ' ', IFNULL(s.nama_santri, '')) ORDER BY s.nis SEPARATOR ' · '), 1, 320)
          FROM santri s WHERE s.wali_santri_id = w.id) AS santri_ringkas
     FROM wali_santri w
-    LEFT JOIN users u ON u.id = w.user_id
     ORDER BY w.nama ASC
 ";
 $rows = $pdo->query($sqlList)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $total = count($rows);
-$linked = count(array_filter($rows, static fn(array $r): bool => !empty($r['user_id'])));
 $editOpenId = $canMutate ? (int) ($_GET['edit'] ?? 0) : 0;
 $bukaDaftarWali = $editOpenId > 0 || isset($_GET['daftar']) || (isset($_GET['tambah']) && $canMutate);
 
 $portalSantriRows = [];
-if (column_exists($pdo, 'santri', 'wali_portal_pin_hash')) {
-    ensure_santri_identity_columns($pdo);
+ensure_santri_identity_columns($pdo);
+if (table_exists($pdo, 'santri')) {
     ensure_wali_santri_table($pdo);
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $joinWali = column_exists($pdo, 'santri', 'wali_santri_id') && table_exists($pdo, 'wali_santri');
@@ -195,7 +168,7 @@ if (column_exists($pdo, 'santri', 'wali_portal_pin_hash')) {
         $sqlPortal .= ' LEFT JOIN wali_santri w ON w.id = s.wali_santri_id';
     }
     $sqlPortal .= "
-        ORDER BY s.nama_santri ASC
+        ORDER BY s.{$nameCol} ASC
         LIMIT 500";
     $portalSantriRows = $pdo->query($sqlPortal)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($portalSantriRows as &$psRow) {
@@ -207,6 +180,9 @@ if (column_exists($pdo, 'santri', 'wali_portal_pin_hash')) {
     unset($psRow);
 }
 
+$portalPinSudah = count(array_filter($portalSantriRows, static fn(array $r): bool => !empty($r['pin_ada'])));
+$portalPinBelum = count($portalSantriRows) - $portalPinSudah;
+
 $pageTitle = 'Wali santri';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -217,22 +193,22 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="sdm-hub-kicker mb-1">Manajemen SDM</p>
             <h1 class="h3 mb-2 sdm-hub-title">Wali santri</h1>
             <p class="text-muted mb-0 small">
-                Data wali pondok dan <strong>portal wali per santri</strong> (NIS + PIN, nama wali, WhatsApp) untuk login di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">portal wali</a>.
-                Klik <strong>Edit</strong> pada baris untuk mengubah profil; pengaturan portal per santri di bagian bawah.
+                Atur <strong>portal wali</strong> per santri: login di <a href="<?= htmlspecialchars(app_href('/wali/login.php')) ?>" target="_blank" rel="noopener">/wali/login.php</a> memakai <strong>NIS atau nama santri</strong> + PIN.
+                Tidak perlu akun pengurus. Profil wali pondok (nama, WhatsApp, alamat) di bagian daftar wali di bawah.
             </p>
         </div>
         <div class="col-lg-4">
             <div class="row g-2 text-center">
                 <div class="col-6">
                     <div class="sdm-stat-pill h-100">
-                        <div class="sdm-stat-value"><?= (int) $total ?></div>
-                        <div class="sdm-stat-label">Total wali</div>
+                        <div class="sdm-stat-value"><?= (int) $portalPinSudah ?></div>
+                        <div class="sdm-stat-label">PIN sudah</div>
                     </div>
                 </div>
                 <div class="col-6">
                     <div class="sdm-stat-pill h-100">
-                        <div class="sdm-stat-value"><?= (int) $linked ?></div>
-                        <div class="sdm-stat-label">Terhubung user</div>
+                        <div class="sdm-stat-value"><?= (int) $portalPinBelum ?></div>
+                        <div class="sdm-stat-label">PIN belum</div>
                     </div>
                 </div>
             </div>
@@ -244,13 +220,14 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="alert alert-info">Anda dapat melihat daftar. Untuk menambah / mengubah / menghapus, minta izin <strong>Tambah/Edit Santri</strong> kepada admin.</div>
 <?php endif; ?>
 
-<?php if ($canMutate && $portalSantriRows !== []): ?>
+<?php if ($portalSantriRows !== []): ?>
 <div class="card shadow-sm border-0 mt-4">
     <div class="card-header bg-white fw-semibold small">Portal wali (per santri)</div>
     <div class="card-body p-0">
         <p class="small text-muted px-3 pt-3 mb-2">
-            Login portal: <strong>NIS</strong> + PIN. Isi <strong>nama wali</strong> dan <strong>WhatsApp</strong> agar notifikasi otomatis (tagihan, izin, cashless, dll.) terkirim.
-            PIN kosong = tidak diubah.
+            Wali masuk dengan <strong>NIS atau nama santri</strong> + PIN. Isi PIN di bawah agar portal bisa diakses.
+            Nama wali &amp; WhatsApp opsional — dipakai notifikasi otomatis (tagihan, izin, cashless, dll.).
+            <?php if ($canMutate): ?>PIN kosong = tidak diubah.<?php endif; ?>
         </p>
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
@@ -259,7 +236,9 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>NIS</th>
                         <th>Nama santri</th>
                         <th class="text-center">PIN</th>
-                        <th style="min-width:18rem">Nama wali · WhatsApp · PIN</th>
+                        <?php if ($canMutate): ?>
+                            <th style="min-width:18rem">Nama wali · WhatsApp · PIN</th>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -270,6 +249,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td class="text-center">
                             <span class="badge text-bg-<?= !empty($ps['pin_ada']) ? 'success' : 'warning' ?>"><?= !empty($ps['pin_ada']) ? 'Sudah' : 'Belum' ?></span>
                         </td>
+                        <?php if ($canMutate): ?>
                         <td>
                             <form method="post" class="d-flex flex-wrap align-items-center gap-1">
                                 <input type="hidden" name="action" value="set_portal_settings">
@@ -281,6 +261,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">Simpan</button>
                             </form>
                         </td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -288,6 +269,8 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+<?php elseif ($canMutate): ?>
+    <div class="alert alert-warning mt-4 mb-0">Belum ada data santri. Tambah santri terlebih dahulu, lalu atur PIN portal di sini.</div>
 <?php endif; ?>
 
 <div class="d-flex flex-wrap align-items-center gap-2 mt-4 mb-2">
@@ -330,15 +313,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label small mb-0">WhatsApp</label>
                         <input type="text" name="no_wa" class="form-control form-control-sm" maxlength="40" placeholder="628…">
                     </div>
-                    <div class="col-md-4 col-lg-3">
-                        <label class="form-label small mb-0">Akun pengguna</label>
-                        <select name="user_id" class="form-select form-select-sm">
-                            <option value="0">— Tidak dihubungkan —</option>
-                            <?php foreach ($usersPick as $u): ?>
-                                <option value="<?= (int) $u['id'] ?>"><?= htmlspecialchars((string) $u['nama']) ?> (@<?= htmlspecialchars((string) $u['username']) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
                     <div class="col-12 col-lg-4">
                         <label class="form-label small mb-0">Alamat</label>
                         <textarea name="alamat" class="form-control form-control-sm" rows="1" placeholder="Alamat domisili"></textarea>
@@ -358,7 +332,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <th class="text-nowrap">No. ID</th>
                         <th>Santri</th>
                         <th>WhatsApp</th>
-                        <th>Akun pengguna</th>
                         <?php if ($canMutate): ?>
                             <th class="text-end text-nowrap" style="width:8.5rem">Aksi</th>
                         <?php endif; ?>
@@ -366,7 +339,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </thead>
                 <tbody>
                 <?php if (!$rows): ?>
-                    <tr><td colspan="<?= $canMutate ? 6 : 5 ?>" class="text-center text-muted py-4">Belum ada data wali.</td></tr>
+                    <tr><td colspan="<?= $canMutate ? 5 : 4 ?>" class="text-center text-muted py-4">Belum ada data wali.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($rows as $r):
                     $waliId = (int) $r['id'];
@@ -385,14 +358,6 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-nowrap small font-monospace"><?= htmlspecialchars((string) ($r['no_wa'] ?? '—')) ?></td>
-                        <td class="small">
-                            <?php if (!empty($r['user_id'])): ?>
-                                <span class="badge text-bg-light border"><?= htmlspecialchars((string) ($r['user_nama'] ?? '')) ?></span>
-                                <div class="text-muted" style="font-size:0.75rem">@<?= htmlspecialchars((string) ($r['user_username'] ?? '')) ?></div>
-                            <?php else: ?>
-                                <span class="text-muted">—</span>
-                            <?php endif; ?>
-                        </td>
                         <?php if ($canMutate): ?>
                             <td class="text-end text-nowrap">
                                 <button type="button"
@@ -413,7 +378,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                     <?php if ($canMutate): ?>
                     <tr class="collapse<?= $isEditing ? ' show' : '' ?>" id="edit-wali-<?= $waliId ?>">
-                        <td colspan="6" class="bg-light bg-opacity-25 border-top-0 pt-0">
+                        <td colspan="5" class="bg-light bg-opacity-25 border-top-0 pt-0">
                             <form method="post" class="p-3 border rounded-3 bg-white shadow-sm">
                                 <input type="hidden" name="action" value="update">
                                 <input type="hidden" name="id" value="<?= $waliId ?>">
@@ -434,20 +399,9 @@ require_once __DIR__ . '/../includes/header.php';
                                         <label class="form-label small mb-0">WhatsApp</label>
                                         <input type="text" name="no_wa" class="form-control form-control-sm font-monospace" value="<?= htmlspecialchars((string) ($r['no_wa'] ?? '')) ?>" maxlength="40" placeholder="628…">
                                     </div>
-                                    <div class="col-12 col-lg-8">
+                                    <div class="col-12">
                                         <label class="form-label small mb-0">Alamat</label>
                                         <textarea name="alamat" class="form-control form-control-sm" rows="2" placeholder="Alamat"><?= htmlspecialchars((string) ($r['alamat'] ?? '')) ?></textarea>
-                                    </div>
-                                    <div class="col-12 col-lg-4">
-                                        <label class="form-label small mb-0">Akun pengguna</label>
-                                        <select name="user_id" class="form-select form-select-sm">
-                                            <option value="0">— Tanpa akun —</option>
-                                            <?php foreach ($usersPick as $u): ?>
-                                                <option value="<?= (int) $u['id'] ?>" <?= (int) ($r['user_id'] ?? 0) === (int) $u['id'] ? 'selected' : '' ?>>
-                                                    <?= htmlspecialchars((string) $u['nama']) ?> (@<?= htmlspecialchars((string) $u['username']) ?>)
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
                                     </div>
                                 </div>
                                 <div class="mt-3">

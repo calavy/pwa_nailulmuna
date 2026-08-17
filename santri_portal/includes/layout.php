@@ -45,6 +45,7 @@ function santri_portal_layout_head(string $title, ?string $navActive = null, str
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/wali-portal.css')) ?>" rel="stylesheet">
     <?= $extraHeadHtml ?>
+    <?= pondok_ui_theme_head_html(isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO ? $GLOBALS['pdo'] : null) ?>
 </head>
 <body class="<?= htmlspecialchars($bodyClass) ?>">
     <div class="container wali-shell px-3">

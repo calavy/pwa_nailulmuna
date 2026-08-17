@@ -368,6 +368,33 @@ function save_setting(PDO $pdo, string $key, string $value): void
     }
 }
 
+/** Mode tampilan pondok: light atau dark (dipaksa untuk semua pengguna). */
+function pondok_ui_theme_mode(?PDO $pdo = null): string
+{
+    if (!($pdo instanceof PDO)) {
+        $pdo = $GLOBALS['pdo'] ?? null;
+    }
+    if (!($pdo instanceof PDO)) {
+        return 'light';
+    }
+    $mode = strtolower(trim((string) app_setting($pdo, 'ui_theme_mode', 'light')));
+
+    return $mode === 'dark' ? 'dark' : 'light';
+}
+
+/** Script anti-FOUC di &lt;head&gt; + window.PONDOK_THEME_MODE. */
+function pondok_ui_theme_head_html(?PDO $pdo = null): string
+{
+    $mode = pondok_ui_theme_mode($pdo);
+    $bg = $mode === 'dark' ? '#e2e8f0' : '#eef5ff';
+
+    return '<script>window.PONDOK_THEME_MODE=' . json_encode($mode, JSON_UNESCAPED_UNICODE)
+        . ';(function(){try{var m=window.PONDOK_THEME_MODE===\'dark\'?\'dark\':\'light\';var d=document.documentElement;'
+        . 'd.setAttribute(\'data-theme\',m);d.style.colorScheme=\'light\';d.style.backgroundColor='
+        . json_encode($bg, JSON_UNESCAPED_UNICODE)
+        . ';try{localStorage.setItem(\'theme-mode\',m);}catch(e2){}}catch(e){document.documentElement.setAttribute(\'data-theme\',\'light\');}})();</script>';
+}
+
 /** Reset cache pengaturan setelah simpan. */
 function app_settings_cache_reset(PDO $pdo): void
 {
@@ -573,6 +600,7 @@ function pondok_settings_defaults(): array
         'logo_path' => '',
         'pwa_theme_color' => '',
         'pwa_background_color' => '',
+        'ui_theme_mode' => 'light',
         'pwa_icon_192' => '',
         'pwa_icon_512' => '',
         'pwa_icon_maskable_512' => '',

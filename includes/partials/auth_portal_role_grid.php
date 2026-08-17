@@ -36,7 +36,7 @@ declare(strict_types=1);
         'icon' => 'fa-mobile-screen-button',
         'icon_mod' => 'wali',
         'title' => 'Portal wali',
-        'desc' => 'NIS · PIN wali',
+        'desc' => 'NIS / nama · PIN wali',
     ]);
     auth_portal_role_link([
         'href' => app_href('/santri_portal/login.php'),

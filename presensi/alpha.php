@@ -163,6 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'id' => $santriId,
             'nama_santri' => (string) ($santri['nama_santri'] ?? '-'),
             'nis' => (string) ($santri['nis'] ?? ''),
+            'tingkatan' => $tingkatan,
         ];
 
         $alphaCount = alpa_tier_count_alpa(

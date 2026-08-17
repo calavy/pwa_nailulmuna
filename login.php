@@ -403,6 +403,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 
+    if ($pdo instanceof PDO && $loginDest !== 'setoran') {
+
+        require_once __DIR__ . '/helpers/wali_portal.php';
+
+        $waliLogin = wali_portal_verify_login($pdo, $username, $password);
+
+        if (!empty($waliLogin['ok']) && is_array($waliLogin['row'] ?? null)) {
+
+            $waliRow = $waliLogin['row'];
+
+            session_regenerate_id(true);
+
+            $_SESSION['wali'] = [
+
+                'santri_id' => (int) $waliRow['id'],
+
+                'nis' => (string) ($waliRow['nis'] ?? ''),
+
+                'nama_santri' => (string) ($waliRow['nama_santri'] ?? ''),
+
+                'wali_santri_id' => (int) ($waliRow['wali_santri_id'] ?? 0),
+
+            ];
+
+            login_rate_limit_clear($pdo, $clientIp, $username);
+
+            set_flash('success', 'Login berhasil.');
+
+            app_redirect('wali/index.php');
+
+        }
+
+    }
+
+
+
     if ($pdo instanceof PDO) {
 
         login_rate_limit_record_failure($pdo, $clientIp, $username);
@@ -555,9 +591,15 @@ $ok = get_flash('success');
 
                     <div class="auth-portal-field-group auth-portal-field-group--center">
 
-                        <div class="auth-portal-field auth-portal-field--center">
+                        <div class="auth-portal-field auth-portal-field--center<?= $loginDest === 'setoran' ? '' : ' auth-portal-suggest-wrap' ?>">
 
-                            <input type="text" name="username" id="login-username" class="auth-portal-field__input auth-portal-field__input--center" required autocomplete="username" placeholder="Username, NIP, atau NIS">
+                            <input type="text" name="username" id="login-username" class="auth-portal-field__input auth-portal-field__input--center" required autocomplete="username" placeholder="Username, NIP, NIS, atau nama santri"<?php if ($loginDest !== 'setoran'): ?> data-santri-suggest="1" data-santri-suggest-url="<?= htmlspecialchars(app_href('/api/login_santri_suggest.php')) ?>" role="combobox" aria-autocomplete="list" aria-controls="login-santri-suggest" aria-expanded="false"<?php endif; ?>>
+
+                            <?php if ($loginDest !== 'setoran'): ?>
+
+                            <div id="login-santri-suggest" class="auth-portal-suggest-list d-none" role="listbox" hidden aria-label="Saran nama santri"></div>
+
+                            <?php endif; ?>
 
                         </div>
 
@@ -607,7 +649,9 @@ $ok = get_flash('success');
 
                 </p>
 
-
+<?php if ($loginDest !== 'setoran'): ?>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/login-santri-suggest.js')) ?>" defer></script>
+<?php endif; ?>
 
 <?php
 
