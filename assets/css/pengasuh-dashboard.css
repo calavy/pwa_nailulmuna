@@ -425,3 +425,87 @@
 [data-theme="dark"] .page-pengasuh-dashboard .dash-identity-card .text-warning {
     color: #fde68a !important;
 }
+
+/* Single-view clip (dash-home-mobile-fit) memotong isi pengasuh — izinkan scroll halaman */
+@media (min-width: 992px) {
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-frame-main {
+        overflow: auto;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-shell,
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-main {
+        display: block;
+        overflow: visible;
+        flex: none;
+        max-height: none;
+        min-height: 0;
+    }
+
+    body.page-pengasuh-dashboard.dash-home-mobile-fit .dash-page {
+        display: block;
+        overflow: visible;
+        flex: none;
+        max-height: none;
+        min-height: 0;
+    }
+}
+
+body.page-pengasuh-dashboard .app-main,
+body.page-pengasuh-dashboard .dash-page,
+body.page-pengasuh-dashboard .card,
+body.page-pengasuh-dashboard .kh-card {
+    min-width: 0;
+}
+
+body.page-pengasuh-dashboard .app-main,
+body.page-pengasuh-dashboard .dash-page {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+@media (max-width: 991.98px) {
+    body.page-pengasuh-dashboard .dash-identity-card,
+    body.page-pengasuh-dashboard .dash-clock-card {
+        min-height: 0;
+        padding: 0.85rem 0.95rem;
+    }
+
+    body.page-pengasuh-dashboard .dash-hero-title {
+        font-size: 1.05rem;
+        margin-bottom: 0.35rem !important;
+    }
+
+    body.page-pengasuh-dashboard .dash-clock-card .dash-hero-clock__time {
+        font-size: 1.5rem;
+    }
+
+    body.page-pengasuh-dashboard .pg-dash-izin-table td.text-nowrap,
+    body.page-pengasuh-dashboard .pg-dash-izin-table .text-nowrap {
+        white-space: normal;
+    }
+
+    body.page-pengasuh-dashboard .pg-dash-keg-live-summary .card-body.px-4 {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    body.page-pengasuh-dashboard .kh-grid {
+        grid-template-columns: 1fr;
+    }
+
+    body.page-pengasuh-dashboard .pg-dash-sdm-badges {
+        max-width: 100%;
+        flex-shrink: 1;
+        align-items: flex-start;
+    }
+
+    body.page-pengasuh-dashboard .pg-dash-sdm-item {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    body.page-pengasuh-dashboard .kh-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+}

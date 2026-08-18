@@ -24,7 +24,7 @@
 
     var smartUrl = smartUrlEl.value || '';
     var loginDest = loginDestEl ? loginDestEl.value || '' : '';
-    var submitted = false;
+    var inflightCodes = Object.create(null);
     var scanner = null;
     var pendingQrCode = '';
     var pendingMunawibId = 0;
@@ -35,6 +35,18 @@
             body.login_dest = loginDest;
         }
         return body;
+    }
+
+    function isInflight(code) {
+        return !!inflightCodes[String(code || '')];
+    }
+
+    function markInflight(code) {
+        inflightCodes[String(code || '')] = true;
+    }
+
+    function clearInflight(code) {
+        delete inflightCodes[String(code || '')];
     }
 
     function showFeedback(type, msg) {
@@ -55,7 +67,6 @@
 
     function showMunawibPick(data, qrCode) {
         if (!munawibPick || !munawibSelect) {
-            submitted = false;
             return;
         }
         pendingQrCode = qrCode;
@@ -75,7 +86,6 @@
         }
         munawibPick.classList.remove('d-none');
         showFeedback(data.type || 'info', data.message || 'Pilih jadwal munawib.');
-        submitted = false;
     }
 
     function handleRedirect(redirect, presensiMsg) {
@@ -107,7 +117,6 @@
     }
 
     function continueScanning() {
-        submitted = false;
         if (scanner && typeof scanner.resetScanState === 'function') {
             scanner.resetScanState();
         }
@@ -119,7 +128,6 @@
     function handleSmartResponse(data, qrCode) {
         if (data.munawib_pending) {
             showMunawibPick(data, qrCode);
-            continueScanning();
             return;
         }
 
@@ -133,7 +141,6 @@
         var msg = data.message || '';
         showFeedback(type, msg);
         resetMunawibPick();
-        continueScanning();
     }
 
     function submitOffline(code) {
@@ -153,14 +160,10 @@
                 url: formOffline.getAttribute('action') || '',
             }).then(function () {
                 showFeedback('info', 'Absensi disimpan offline. Masuk portal membutuhkan koneksi internet.');
-                continueScanning();
-            }).catch(function () {
-                continueScanning();
             });
         }
 
         showFeedback('warning', 'Tidak ada koneksi. Masuk portal membutuhkan internet.');
-        continueScanning();
         return Promise.resolve();
     }
 
@@ -168,36 +171,37 @@
         return postSmart(body).then(function (data) {
             handleSmartResponse(data, qrCode);
         }).catch(function () {
-            continueScanning();
             showFeedback('danger', 'Gagal memproses scan. Periksa koneksi lalu coba lagi.');
         });
     }
 
     function submitScan(code) {
-        if (submitted || !code) {
+        if (!code || isInflight(code)) {
             return Promise.resolve();
         }
-        submitted = true;
-        resetMunawibPick();
+        markInflight(code);
         pendingQrCode = code;
 
+        var work;
         if (!navigator.onLine) {
-            return submitOffline(code);
+            work = submitOffline(code);
+        } else {
+            showFeedback('success', 'Kartu terbaca, memproses…');
+            work = submitSmart({
+                qr_code: code,
+                scan_source: 'camera',
+            }, code);
         }
 
-        showFeedback('success', 'Kartu terbaca, memproses…');
-        return new Promise(function (resolve) {
-            setTimeout(function () {
-                submitSmart({
-                    qr_code: code,
-                    scan_source: 'camera',
-                }, code).then(resolve).catch(resolve);
-            }, 550);
+        work.finally(function () {
+            clearInflight(code);
         });
+        continueScanning();
+        return Promise.resolve();
     }
 
     function submitMunawibPick() {
-        if (submitted || !pendingQrCode || pendingMunawibId <= 0 || !munawibSelect) {
+        if (!pendingQrCode || pendingMunawibId <= 0 || !munawibSelect) {
             return;
         }
         var kegiatanId = parseInt(munawibSelect.value, 10);
@@ -205,7 +209,10 @@
             showFeedback('warning', 'Pilih jadwal terlebih dahulu.');
             return;
         }
-        submitted = true;
+        if (isInflight(pendingQrCode)) {
+            return;
+        }
+        markInflight(pendingQrCode);
         submitSmart({
             action: 'munawib_pick_schedule',
             qr_code: pendingQrCode,
@@ -213,7 +220,10 @@
             munawib_id: pendingMunawibId,
             kegiatan_id: kegiatanId,
             scan_source: 'camera',
-        }, pendingQrCode);
+        }, pendingQrCode).finally(function () {
+            clearInflight(pendingQrCode);
+        });
+        continueScanning();
     }
 
     if (munawibConfirm) {

@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-19] Dashboard pengasuh scroll + Multi Scan kartu berikutnya
+- **Apa yang diubah:** Dashboard pengasuh tidak lagi terpotong oleh `dash-home-mobile-fit` (overflow hidden / max-height). CSS mobile mencegah overflow horizontal. Multi Scan login mengunci per QR dan langsung menerima kartu berbeda tanpa menunggu API / jeda 550ms.
+- **File:** `assets/css/pengasuh-dashboard.css`, `assets/js/login-scan-kegiatan.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tampilan pengasuh tidak menyesuaikan perangkat; scan kartu berikutnya masih tertahan flag `submitted` global.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-18] Multi Scan: jadwal berlangsung + scan beruntun; portal wali terpisah
 - **Apa yang diubah:** Halaman Multi Scan (`login.php?scan=1`) menampilkan strip jadwal kegiatan berlangsung (timer/marquee). Setelah absensi satu kartu, kamera siap kartu berikutnya tanpa refresh (debounce hanya untuk QR yang sama). Login wali kembali ke `/wali/login.php` (NIS/nama + PIN); login utama tidak lagi menerima fallback wali. Siap subdomain `wali_public_url` (mis. `https://wali.pwa.nailulmuna.id`).
 - **File:** `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/login_scan_kegiatan.php`, `login.php`, `presensi/scan.php`, `assets/js/presensi-scan-camera.js`, `assets/js/login-scan-kegiatan.js`, `helpers/app_path.php`, `wali/login.php`, `wali/inc_portal.php`, `wali/logout.php`, `wali/manifest.php`, `STATUS_PWA.md`
