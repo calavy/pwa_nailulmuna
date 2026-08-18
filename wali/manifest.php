@@ -9,8 +9,8 @@ require_once __DIR__ . '/../helpers/app.php';
 header('Content-Type: application/manifest+json; charset=utf-8');
 header('Cache-Control: public, max-age=3600');
 
-$startUrl = app_public_url() . app_url('wali/index.php');
-$scope = app_public_url() . app_url('wali/');
+$startUrl = app_wali_href('/wali/index.php');
+$scope = rtrim(app_wali_href('/wali/'), '/') . '/';
 $iconUrl = app_pwa_manifest_icon_url($pdo);
 $iconType = app_pwa_icon_mime($pdo);
 

@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-18] Multi Scan: jadwal berlangsung + scan beruntun; portal wali terpisah
+- **Apa yang diubah:** Halaman Multi Scan (`login.php?scan=1`) menampilkan strip jadwal kegiatan berlangsung (timer/marquee). Setelah absensi satu kartu, kamera siap kartu berikutnya tanpa refresh (debounce hanya untuk QR yang sama). Login wali kembali ke `/wali/login.php` (NIS/nama + PIN); login utama tidak lagi menerima fallback wali. Siap subdomain `wali_public_url` (mis. `https://wali.pwa.nailulmuna.id`).
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/login_scan_kegiatan.php`, `login.php`, `presensi/scan.php`, `assets/js/presensi-scan-camera.js`, `assets/js/login-scan-kegiatan.js`, `helpers/app_path.php`, `wali/login.php`, `wali/inc_portal.php`, `wali/logout.php`, `wali/manifest.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Petugas perlu melihat jadwal aktif di Multi Scan dan men-scan antrean kartu tanpa reload; wali tidak campur dengan login pengurus/scan.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-17] Offline: unggah otomatis + jam scan 7 hari
 - **Apa yang diubah:** Jendela `scan_client_at` di server 7 hari (selaras antrian IndexedDB). Antrian dikirim otomatis saat online (init, `pageshow`, `visibilitychange`), urut waktu scan. HTTP 401 tidak membuang antrian; setelah login pengurus/petugas, flag `sessionStorage.pondok_flush_offline` memicu flush di halaman berikutnya.
 - **File:** `helpers/presensi_scan_client.php`, `assets/js/offline-sync.js`, `helpers/app.php`, `login.php`, `presensi/login.php`, `helpers/login_qr_auth.php`, `includes/footer.php`, `includes/koperasi_portal_layout.php`, `includes/partials/login_scan_kegiatan.php`, `scripts/_test_offline_cashless_presensi_clock.php`, `STATUS_PWA.md`

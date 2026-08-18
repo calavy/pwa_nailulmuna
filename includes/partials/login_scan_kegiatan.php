@@ -21,6 +21,10 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         <span id="login-scan-status" class="presensi-scan-status is-waiting">Menyiapkan…</span>
     </div>
 
+    <div class="presensi-scan-banner-host-login" id="presensi-scan-banner-host" hidden></div>
+
+    <?php require __DIR__ . '/presensi_scan_timer_strip.php'; ?>
+
     <div class="login-scan-kegiatan__viewport presensi-scan-viewport" id="login-scan-camera-wrap">
         <div id="login-scan-reader" aria-label="Kamera scan kartu santri, pembimbing, atau munawib"></div>
         <div class="presensi-scan-frame" aria-hidden="true"><div class="presensi-scan-frame-box"></div></div>
@@ -85,5 +89,6 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
 <script src="<?= htmlspecialchars(app_url('assets/js/pwa-register.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/offline-sync.js')) ?>" defer></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-feedback.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-timer.js')) ?>"></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
 <script src="<?= htmlspecialchars(app_url('assets/js/login-scan-kegiatan.js')) ?>"></script>

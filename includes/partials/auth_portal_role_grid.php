@@ -39,6 +39,13 @@ declare(strict_types=1);
         'desc' => 'NIS · PIN santri',
     ]);
     auth_portal_role_link([
+        'href' => app_wali_login_href(),
+        'icon' => 'fa-users',
+        'icon_mod' => 'wali',
+        'title' => 'Portal wali',
+        'desc' => 'NIS · PIN wali',
+    ]);
+    auth_portal_role_link([
         'href' => app_href('/mukimin/login.php'),
         'icon' => 'fa-book-open',
         'icon_mod' => 'mukimin',

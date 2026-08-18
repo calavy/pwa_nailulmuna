@@ -267,3 +267,24 @@ function presensi_scan_marquee_slots(array $ctx): array
         'tempat' => (string) ($ctx['tempat'] ?? ''),
     ]];
 }
+
+/**
+ * Kelas CSS + jam countdown awal untuk strip timer scan.
+ *
+ * @param array<string, mixed> $scanJadwalCtx
+ * @return array{state:string,class:string,clock:string}
+ */
+function presensi_scan_timer_prepare(array $scanJadwalCtx): array
+{
+    $timerState = (string) ($scanJadwalCtx['state'] ?? 'none');
+    $timerClass = in_array($timerState, ['active', 'upcoming', 'ended', 'libur', 'none'], true) ? $timerState : 'none';
+    $timerSec = $timerState === 'active'
+        ? (int) ($scanJadwalCtx['seconds_remaining'] ?? 0)
+        : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
+
+    return [
+        'state' => $timerState,
+        'class' => $timerClass,
+        'clock' => sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60),
+    ];
+}

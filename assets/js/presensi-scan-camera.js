@@ -283,6 +283,7 @@
         this.selectedId = null;
         this.currentIndex = 0;
         this.lastCode = '';
+        this.lastSubmittedCode = '';
         this.lastTime = 0;
         this.hitCount = 0;
         this.torchOn = false;
@@ -353,10 +354,11 @@
         if (this.hitCount < 2) {
             return;
         }
-        if (decodedText === this.lastCode && now - this.lastTime < 2500) {
+        if (decodedText === this.lastSubmittedCode && now - this.lastTime < 2500) {
             return;
         }
         this.lastTime = now;
+        this.lastSubmittedCode = decodedText;
         if (global.PresensiScanFeedback && global.PresensiScanFeedback.scanTick) {
             global.PresensiScanFeedback.scanTick();
         } else {
@@ -364,7 +366,6 @@
         }
         vibrateOk();
         var self = this;
-        var justScanned = decodedText;
         var result;
         try {
             result = this.onSubmit(decodedText);
@@ -376,9 +377,6 @@
                 return;
             }
             self.resetScanState();
-            self.lastCode = justScanned;
-            self.lastTime = Date.now();
-            self.hitCount = 2;
         }
         if (result && typeof result.then === 'function') {
             result.then(afterSubmit).catch(afterSubmit);
@@ -389,7 +387,6 @@
 
     PresensiScanCamera.prototype.resetScanState = function () {
         this.lastCode = '';
-        this.lastTime = 0;
         this.hitCount = 0;
     };
 

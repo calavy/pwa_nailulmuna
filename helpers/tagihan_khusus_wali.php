@@ -761,7 +761,9 @@ function tagihan_khusus_wa_pesan(PDO $pdo, array $row): string
     if ($namaPonpes === '') {
         $namaPonpes = trim((string) app_setting($pdo, 'nama_pondok', ''));
     }
-    $portalUrl = function_exists('app_url') ? app_url('/wali/keuangan.php?tab=tagihan_lain') : app_href('/wali/keuangan.php?tab=tagihan_lain');
+    $portalUrl = function_exists('app_wali_href')
+        ? app_wali_href('/wali/keuangan.php?tab=tagihan_lain')
+        : (function_exists('app_url') ? app_url('/wali/keuangan.php?tab=tagihan_lain') : app_href('/wali/keuangan.php?tab=tagihan_lain'));
     $sisa = tagihan_khusus_sisa($row);
 
     return wa_template_render($pdo, 'tagihan_khusus_wali', [

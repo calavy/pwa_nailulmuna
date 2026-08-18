@@ -15,4 +15,5 @@ declare(strict_types=1);
 return [
     'base_path' => null,
     'public_url' => null,
+    'wali_public_url' => null,
 ];

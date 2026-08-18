@@ -148,7 +148,7 @@
         at.value = new Date().toISOString();
 
         if (window.PondokOfflineSync && PondokOfflineSync.enqueuePresensiScan) {
-            PondokOfflineSync.enqueuePresensiScan(formOffline, {
+            return PondokOfflineSync.enqueuePresensiScan(formOffline, {
                 label: 'Scan: ' + String(code).slice(0, 24),
                 url: formOffline.getAttribute('action') || '',
             }).then(function () {
@@ -157,15 +157,15 @@
             }).catch(function () {
                 continueScanning();
             });
-            return;
         }
 
         showFeedback('warning', 'Tidak ada koneksi. Masuk portal membutuhkan internet.');
         continueScanning();
+        return Promise.resolve();
     }
 
     function submitSmart(body, qrCode) {
-        postSmart(body).then(function (data) {
+        return postSmart(body).then(function (data) {
             handleSmartResponse(data, qrCode);
         }).catch(function () {
             continueScanning();
@@ -175,24 +175,25 @@
 
     function submitScan(code) {
         if (submitted || !code) {
-            return;
+            return Promise.resolve();
         }
         submitted = true;
         resetMunawibPick();
         pendingQrCode = code;
 
         if (!navigator.onLine) {
-            submitOffline(code);
-            return;
+            return submitOffline(code);
         }
 
         showFeedback('success', 'Kartu terbaca, memproses…');
-        setTimeout(function () {
-            submitSmart({
-                qr_code: code,
-                scan_source: 'camera',
-            }, code);
-        }, 550);
+        return new Promise(function (resolve) {
+            setTimeout(function () {
+                submitSmart({
+                    qr_code: code,
+                    scan_source: 'camera',
+                }, code).then(resolve).catch(resolve);
+            }, 550);
+        });
     }
 
     function submitMunawibPick() {

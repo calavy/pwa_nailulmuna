@@ -13,4 +13,7 @@ return [
     //
     // Ngrok: cukup biarkan public_url kosong / jangan set localhost jika sering buka lewat ngrok.
     // Atau isi keduanya dengan URL ngrok lengkap Anda.
+    //
+    // Portal wali subdomain (opsional). Kosong = login di /wali/login.php pada host yang sama.
+    // 'wali_public_url' => 'https://wali.pwa.nailulmuna.id',
 ];

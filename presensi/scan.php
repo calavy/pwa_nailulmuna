@@ -80,12 +80,10 @@ $pageStylesheets = [app_asset_href('/assets/css/presensi-scan.css')];
 $hideAppSidebar = true;
 $loadPushFcm = false;
 $scanJadwalCtx = presensi_scan_jadwal_context_cached($pdo);
-$timerState = (string) ($scanJadwalCtx['state'] ?? 'none');
-$timerClass = in_array($timerState, ['active', 'upcoming', 'ended', 'libur', 'none'], true) ? $timerState : 'none';
-$timerSec = $timerState === 'active'
-    ? (int) ($scanJadwalCtx['seconds_remaining'] ?? 0)
-    : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
-$timerClockInit = sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60);
+$scanTimerPrep = presensi_scan_timer_prepare($scanJadwalCtx);
+$timerState = $scanTimerPrep['state'];
+$timerClass = $scanTimerPrep['class'];
+$timerClockInit = $scanTimerPrep['clock'];
 $scanFlashSuccess = get_flash('success');
 $scanFlashError = get_flash('error');
 $scanFlashMessage = $scanFlashSuccess ?: $scanFlashError ?: '';
@@ -157,47 +155,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
         </div>
     <?php endif; ?>
 
-    <?php
-    require_once __DIR__ . '/../helpers/presensi_scan_jadwal.php';
-    $activeSlotsTimer = presensi_scan_marquee_slots($scanJadwalCtx);
-    $activeSlotCount = count($activeSlotsTimer);
-    $showScanMarquee = $timerState === 'active' && $activeSlotCount > 0;
-    $scanMarqueeTrackHtml = $showScanMarquee ? presensi_scan_marquee_track_html($activeSlotsTimer) : '';
-    ?>
-    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $showScanMarquee ? ' has-marquee' : '' ?>" aria-live="polite">
-        <div class="presensi-scan-timer-inner">
-            <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= $showScanMarquee ? ' is-always-scroll is-ready' : ' d-none' ?>" aria-label="Kegiatan berlangsung">
-                <div class="presensi-scan-timer-marquee__viewport">
-                    <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track"><?= $scanMarqueeTrackHtml ?></div>
-                </div>
-            </div>
-            <span id="presensi-scan-timer-title" class="presensi-scan-timer-title"><?php
-                if ($timerState === 'active') {
-                    echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: 'Kegiatan aktif'));
-                } elseif ($timerState === 'upcoming') {
-                    echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: 'Menunggu jadwal'));
-                } elseif ($timerState === 'libur') {
-                    echo 'Hari libur';
-                } elseif ($timerState === 'ended') {
-                    echo 'Di luar jadwal';
-                } else {
-                    echo 'Belum ada jadwal';
-                }
-            ?></span>
-            <span id="presensi-scan-timer-range" class="presensi-scan-timer-range"><?php
-                if (!empty($scanJadwalCtx['jam_mulai']) && !empty($scanJadwalCtx['jam_selesai'])) {
-                    echo htmlspecialchars(substr((string) $scanJadwalCtx['jam_mulai'], 0, 5) . ' – ' . substr((string) $scanJadwalCtx['jam_selesai'], 0, 5));
-                    if (!empty($scanJadwalCtx['tingkatan'])) {
-                        echo ' · ' . htmlspecialchars((string) $scanJadwalCtx['tingkatan']);
-                    }
-                }
-            ?></span>
-            <span id="presensi-scan-timer-clock" class="presensi-scan-timer-clock"><?= htmlspecialchars($timerClockInit) ?></span>
-            <span id="presensi-scan-timer-wall" class="presensi-scan-timer-wall" aria-label="Jam sekarang"></span>
-            <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint" aria-live="polite"></span>
-        </div>
-    </div>
-    <script type="application/json" id="presensi-scan-timer-data"><?= json_encode($scanJadwalCtx, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
+    <?php require __DIR__ . '/../includes/partials/presensi_scan_timer_strip.php'; ?>
 
     <form method="post" id="form-scan-presensi" class="visually-hidden">
         <input type="text" id="kode_qr" name="kode_qr" required readonly>

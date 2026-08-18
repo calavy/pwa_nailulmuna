@@ -508,7 +508,7 @@ function akademik_rapor_wa_render_pesan(PDO $pdo, array $raporRow, string $jenis
     $jenis = akademik_rapor_jenis_normalize($jenis);
     $tab = $jenis === 'pkpps' ? 'rapor_pkpps' : 'rapor_pesantren';
     $portalPath = '/wali/akademik.php?tab=' . $tab;
-    $portalUrl = function_exists('app_url') ? app_url($portalPath) : app_href($portalPath);
+    $portalUrl = function_exists('app_wali_href') ? app_wali_href($portalPath) : (function_exists('app_url') ? app_url($portalPath) : app_href($portalPath));
     $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', ''));
     if ($namaPonpes === '') {
         $namaPonpes = trim((string) app_setting($pdo, 'nama_pondok', ''));

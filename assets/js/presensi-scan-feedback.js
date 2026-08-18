@@ -570,6 +570,8 @@
         var wrap = document.createElement('div');
         wrap.id = 'presensi-result-overlay';
         wrap.className = 'presensi-scan-result is-visible';
+        wrap.setAttribute('aria-live', 'assertive');
+        wrap.style.pointerEvents = 'none';
         var duration = type === 'success' ? 3500 : (type === 'duplicate' ? 3500 : (type === 'info' ? 3800 : 4200));
         var displayMessage = shortDisplayMessage(type, message);
         wrap.innerHTML = ''

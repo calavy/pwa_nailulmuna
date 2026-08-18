@@ -101,6 +101,90 @@ function app_public_url(): string
     return $scheme . '://' . $requestHost . app_base_path();
 }
 
+function app_request_host(): string
+{
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $stripped = preg_replace('/:\d+$/', '', $host);
+
+    return is_string($stripped) && $stripped !== '' ? $stripped : $host;
+}
+
+/** Origin portal wali, mis. https://wali.pwa.nailulmuna.id — kosong = path /wali/ di host yang sama. */
+function app_wali_public_url(): string
+{
+    $env = getenv('APP_WALI_PUBLIC_URL');
+    if (is_string($env) && trim($env) !== '') {
+        return rtrim(trim($env), '/');
+    }
+    $cfg = app_config();
+
+    return rtrim(trim((string) ($cfg['wali_public_url'] ?? '')), '/');
+}
+
+function app_wali_host(): string
+{
+    $url = app_wali_public_url();
+    if ($url === '') {
+        return '';
+    }
+    $host = parse_url($url, PHP_URL_HOST);
+
+    return is_string($host) ? strtolower($host) : '';
+}
+
+function app_is_wali_host(): bool
+{
+    $want = app_wali_host();
+    if ($want === '') {
+        return false;
+    }
+
+    return app_request_host() === $want;
+}
+
+/** URL absolut ke halaman portal wali (subdomain jika dikonfigurasi). */
+function app_wali_href(string $path): string
+{
+    $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
+    $origin = app_wali_public_url();
+    if ($origin === '') {
+        return app_href($path);
+    }
+    $originPath = (string) (parse_url($origin, PHP_URL_PATH) ?? '');
+    $scheme = (string) (parse_url($origin, PHP_URL_SCHEME) ?: 'https');
+    $host = (string) (parse_url($origin, PHP_URL_HOST) ?? '');
+    $port = parse_url($origin, PHP_URL_PORT);
+    $hostPort = $host . (is_int($port) ? ':' . $port : '');
+    $rel = ltrim($path, '/');
+    if ($originPath !== '' && $originPath !== '/') {
+        return rtrim($origin, '/') . '/' . $rel;
+    }
+
+    return $scheme . '://' . $hostPort . app_url($rel);
+}
+
+function app_wali_login_href(): string
+{
+    return app_wali_href('/wali/login.php');
+}
+
+function app_main_login_href(): string
+{
+    $cfg = app_config();
+    $pub = rtrim(trim((string) ($cfg['public_url'] ?? '')), '/');
+    if ($pub !== '' && app_is_wali_host()) {
+        return $pub . app_url('login.php');
+    }
+
+    return app_href('/login.php');
+}
+
+function app_redirect_wali_login(): void
+{
+    header('Location: ' . app_wali_login_href());
+    exit;
+}
+
 /** Normalisasi REQUEST_URI untuk ACL/menu (hilangkan base_path di lokal). */
 function app_normalize_request_path(string $uri): string
 {

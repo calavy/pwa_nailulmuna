@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/app_path.php';
 require_once __DIR__ . '/../helpers/wali.php';
 require_once __DIR__ . '/../helpers/wali_portal.php';
 
@@ -193,7 +194,7 @@ require_once __DIR__ . '/../includes/header.php';
             <p class="sdm-hub-kicker mb-1">Manajemen SDM</p>
             <h1 class="h3 mb-2 sdm-hub-title">Wali santri</h1>
             <p class="text-muted mb-0 small">
-                Atur <strong>portal wali</strong> per santri: wali masuk di <a href="<?= htmlspecialchars(app_href('/login.php')) ?>" target="_blank" rel="noopener">halaman login utama</a> memakai <strong>NIS atau nama santri</strong> + PIN.
+                Atur <strong>portal wali</strong> per santri: wali masuk di <a href="<?= htmlspecialchars(app_wali_login_href()) ?>" target="_blank" rel="noopener">portal wali</a> memakai <strong>NIS atau nama santri</strong> + PIN.
                 Tidak perlu akun pengurus. Profil wali pondok (nama, WhatsApp, alamat) di bagian daftar wali di bawah.
             </p>
         </div>
