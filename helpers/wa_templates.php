@@ -13,16 +13,17 @@ function wa_template_definitions(): array
 {
     return [
         'tagihan_wali' => [
-            'label' => 'Tagihan syahriyah ke wali',
-            'hint' => 'Dikirim otomatis / manual ke wali santri yang masih punya tagihan.',
-            'placeholders' => '{nama_santri}, {nama_ponpes}, {label_kekurangan}, {total_sisa}, {periode_tagihan}, {keterangan_keuangan}',
+            'label' => 'Tagihan syahriyah & makan ke wali',
+            'hint' => 'Dikirim otomatis / manual ke wali santri yang masih punya kekurangan syahriyah dan/atau makan (tunggakan TA jika kumulatif aktif).',
+            'placeholders' => '{nama_santri}, {nama_ponpes}, {label_kekurangan}, {total_sisa}, {periode_tagihan}, {rincian_per_bulan}, {keterangan_keuangan}',
             'default' => "Assalamu'alaikum Wr. Wb.\n"
                 . 'Nyuwun pangapunten, kepareng matur dateng Bpk/Ibu wali saking *{nama_santri}*\n'
                 . 'Atasnama Pengurus *{nama_ponpes}* *Pengurus Bidang Keuangan*,\n'
                 . '{keterangan_keuangan}'
                 . 'memberitahukan bahwa putra/putri Bapak/Ibu masih mempunyai kekurangan{periode_tagihan} '
-                . '{label_kekurangan}, dan jumlah total *{total_sisa}*.\n'
-                . 'Berkenaan dengan hal tersebut, kami mohon maaf baru saat ini dapat melaporkan kepada Bapak/Ibu. '
+                . '{label_kekurangan}, dan jumlah total *{total_sisa}*.'
+                . '{rincian_per_bulan}'
+                . "\nBerkenaan dengan hal tersebut, kami mohon maaf baru saat ini dapat melaporkan kepada Bapak/Ibu. "
                 . 'Atas pengertian dan kerja samanya kami ucapkan terima kasih 🙏.',
         ],
         'pembimbing_belum_scan' => [

@@ -174,6 +174,21 @@
         });
     }
 
+    function setTimerExpanded(open) {
+        var box = document.getElementById('presensi-scan-timer');
+        var inner = box ? box.querySelector('.presensi-scan-timer-inner') : null;
+        if (!box || !inner) {
+            return;
+        }
+        box.classList.toggle('is-expanded', open);
+        inner.setAttribute('aria-expanded', open ? 'true' : 'false');
+        inner.setAttribute('title', open ? 'Ketuk untuk sembunyikan jadwal' : 'Ketuk untuk lihat jadwal');
+        if (open) {
+            marqueeSyncRetries = 0;
+            scheduleMarqueeSync(50);
+        }
+    }
+
     function bindExpandToggle() {
         if (expandBound) {
             return;
@@ -185,23 +200,13 @@
         }
         expandBound = true;
 
-        function setExpanded(open) {
-            box.classList.toggle('is-expanded', open);
-            inner.setAttribute('aria-expanded', open ? 'true' : 'false');
-            inner.setAttribute('title', open ? 'Ketuk untuk sembunyikan jadwal' : 'Ketuk untuk lihat jadwal');
-            if (open) {
-                marqueeSyncRetries = 0;
-                scheduleMarqueeSync(50);
-            }
-        }
-
         inner.addEventListener('click', function () {
-            setExpanded(!box.classList.contains('is-expanded'));
+            setTimerExpanded(!box.classList.contains('is-expanded'));
         });
         inner.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setExpanded(!box.classList.contains('is-expanded'));
+                setTimerExpanded(!box.classList.contains('is-expanded'));
             }
         });
     }
@@ -411,11 +416,8 @@
         if (state === 'libur') {
             return 'Hari libur — scan ditolak';
         }
-        if (state === 'ended') {
-            return 'Di luar jadwal — scan ditolak';
-        }
-        if (state === 'none') {
-            return 'Belum ada jadwal aktif';
+        if (state === 'ended' || state === 'none') {
+            return 'Belum ada kegiatan berlangsung';
         }
         if (state === 'active') {
             return 'Sisa waktu scan';
@@ -429,45 +431,46 @@
     function applyStaticUi(box, ctx, state, slots, useMarquee) {
         var titleEl = document.getElementById('presensi-scan-timer-title');
         var rangeEl = document.getElementById('presensi-scan-timer-range');
-        var nama = ctx.nama_kegiatan || '';
-        var tingkat = ctx.tingkatan || '';
-        var range = '';
-        if (ctx.jam_mulai && ctx.jam_selesai) {
-            range = ctx.jam_mulai + ' – ' + ctx.jam_selesai;
-        }
 
         setTimerClass(box, state, useMarquee);
         updateMarquee(useMarquee ? slots : [], false);
+
+        if (useMarquee) {
+            setTimerExpanded(true);
+        } else {
+            setTimerExpanded(false);
+        }
 
         if (state === 'libur') {
             if (titleEl) titleEl.textContent = 'Hari libur';
             if (rangeEl) rangeEl.textContent = '';
             return;
         }
-        if (state === 'active') {
-            if (titleEl && !useMarquee) {
-                titleEl.textContent = nama !== '' ? nama : 'Kegiatan aktif';
-            }
-            if (rangeEl && !useMarquee) {
-                rangeEl.textContent = range + (tingkat ? ' · ' + tingkat : '');
-            }
+        if (useMarquee) {
             return;
         }
         if (state === 'upcoming') {
-            if (titleEl) {
-                titleEl.textContent = nama !== '' ? nama : 'Kegiatan berikutnya';
-            }
+            if (titleEl) titleEl.textContent = 'Kegiatan yang akan berlangsung';
             if (rangeEl) {
-                rangeEl.textContent = range + (tingkat ? ' · ' + tingkat : '');
+                var parts = [];
+                var nama = String(ctx.nama_kegiatan || '').trim();
+                var jamMulai = String(ctx.jam_mulai || '').slice(0, 5);
+                var jamSelesai = String(ctx.jam_selesai || '').slice(0, 5);
+                var tingkat = String(ctx.tingkatan || '').trim();
+                if (nama) {
+                    parts.push(nama);
+                }
+                if (jamMulai && jamSelesai) {
+                    parts.push(jamMulai + ' – ' + jamSelesai);
+                }
+                if (tingkat) {
+                    parts.push(tingkat);
+                }
+                rangeEl.textContent = parts.join(' · ');
             }
             return;
         }
-        if (state === 'ended') {
-            if (titleEl) titleEl.textContent = 'Di luar jadwal';
-            if (rangeEl) rangeEl.textContent = '';
-            return;
-        }
-        if (titleEl) titleEl.textContent = 'Belum ada jadwal';
+        if (titleEl) titleEl.textContent = 'Belum ada kegiatan berlangsung';
         if (rangeEl) rangeEl.textContent = '';
     }
 
@@ -529,7 +532,7 @@
                 updateMarquee([], true);
                 var titleEl = document.getElementById('presensi-scan-timer-title');
                 var rangeEl = document.getElementById('presensi-scan-timer-range');
-                if (titleEl) titleEl.textContent = 'Jadwal scan';
+                if (titleEl) titleEl.textContent = 'Belum ada kegiatan berlangsung';
                 if (rangeEl) rangeEl.textContent = '';
             }
             updateDynamicUi({ ends_at: '', starts_at: '' }, 'none');

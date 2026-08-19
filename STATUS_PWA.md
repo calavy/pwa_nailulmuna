@@ -7,6 +7,48 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-19] Scan: kamera tetap terbuka saat marquee tampil
+- **Apa yang diubah:** Area kamera punya tinggi minimum agar tidak tertekan jadi 0 px saat teks kegiatan tampil. Flash tidak disembunyikan jika torch gagal dicek; jika kamera belum siap, status memberi tahu.
+- **File:** `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Marquee kegiatan yang tampil langsung membuat viewport kamera terlalu pendek, html5-qrcode gagal start, tombol flash tidak punya track video.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan: marquee kegiatan aktif tampil tanpa klik
+- **Apa yang diubah:** Jika ada kegiatan berlangsung, teks berjalan (nama · jam · tingkatan) tampil langsung di kotak timer. Upcoming/ended/none/libur tetap ringkas sampai diklik. Ketuk kotak tetap bisa menyembunyikan marquee; ketuk marquee tetap jeda/lanjut.
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `assets/js/presensi-scan-timer.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Petugas perlu melihat kegiatan yang sedang berlangsung tanpa harus mengetuk kotak dulu.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan: teks ended/none tanpa “scan ditolak”
+- **Apa yang diubah:** Status `ended` dan `none` menampilkan “Belum ada kegiatan berlangsung” (hint + judul), bukan “Di luar jadwal — scan ditolak”. Libur tetap “Hari libur — scan ditolak”. Logika izinkan/tolak scan tidak diubah.
+- **File:** `assets/js/presensi-scan-timer.js`, `includes/partials/presensi_scan_timer_strip.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Di Multi Scan login kotak tertutup hanya menampilkan hint; teks “scan ditolak” terasa keras padahal hanya belum ada kegiatan.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan: tampilkan kegiatan yang akan berlangsung
+- **Apa yang diubah:** Jika belum ada kegiatan aktif, setelah kotak diklik tampil “Kegiatan yang akan berlangsung” plus nama, jam, dan tingkatan. Jika tidak ada jadwal berikutnya, tetap “Belum ada kegiatan berlangsung”.
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Petugas perlu melihat kegiatan berikutnya, bukan hanya placeholder kosong.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan: placeholder jika belum ada kegiatan berlangsung
+- **Apa yang diubah:** Setelah kotak timer diklik, jika tidak ada kegiatan aktif tampil satu baris “Belum ada kegiatan berlangsung” (bukan strip kosong atau judul/jam menumpuk). Libur/di luar jadwal tetap teks khusus.
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Teks berjalan kosong atau judul kegiatan berikutnya membuat kotak scan terasa berantakan.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] WA tagihan: rincian kekurangan per bulan
+- **Apa yang diubah:** Satu pesan WA memuat rincian per bulan (nama bulan + pos syahriyah/makan yang masih kurang + nominal), di bawah ringkasan total. Template `{rincian_per_bulan}`; template lama tanpa placeholder tetap diisi otomatis.
+- **File:** `helpers/tagihan_bulanan.php`, `helpers/wa_tagihan.php`, `helpers/app.php`, `helpers/wa_templates.php`, `docs/PANDUAN-KEUANGAN.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Wali perlu melihat kekurangan per bulan, bukan hanya total gabungan.
+- **Status:** belum diuji kirim WA live
+
+### [2026-08-19] WA tagihan syahriyah + makan (tunggakan TA, satu pesan)
+- **Apa yang diubah:** Pengingat WA (otomatis, manual, preview, push) mengirim satu pesan berisi sisa syahriyah dan makan. Tunggakan dari awal tahun ajaran ikut jika kumulatif aktif. Saku tidak ikut. Status lunas di halaman tagihan tetap hanya syahriyah.
+- **File:** `helpers/app.php`, `helpers/tagihan_bulanan.php`, `helpers/wa_tagihan.php`, `helpers/push_events.php`, `helpers/wa_templates.php`, `settings/partials/wa_otomatis_tab_tagihan.php`, `docs/PANDUAN-KEUANGAN.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kiriman sebelumnya hanya syahriyah bulan wajib; wali perlu juga diingatkan makan dan tunggakan bulan sebelumnya dalam satu pesan.
+- **Status:** belum diuji kirim WA live
+
 ### [2026-08-19] Kotak timer: jarak tulisan tidak numpuk
 - **Apa yang diubah:** “Waktu sekarang” dipindah ke baris sendiri (tidak menimpa kotak). Padding/gap hint + jam `HH:MM:SS` diperlonggar, termasuk di layar pendek.
 - **File:** `assets/css/presensi-scan.css`, `STATUS_PWA.md`

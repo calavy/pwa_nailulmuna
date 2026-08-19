@@ -111,6 +111,7 @@ $waPembayaranSiap = $waMasterOn
                 <div class="form-check mt-4">
                     <input class="form-check-input" type="checkbox" id="wa_tagihan_kumulatif" name="wa_tagihan_kumulatif" value="1" <?= !empty($waJadwal['kumulatif']) ? 'checked' : '' ?>>
                     <label class="form-check-label" for="wa_tagihan_kumulatif">Hitung tunggakan kumulatif (awal TA → bulan berjalan)</label>
+                    <div class="form-text">Syahriyah dan makan yang belum lunas digabung dalam satu pesan.</div>
                 </div>
             </div>
             <div class="col-md-6">

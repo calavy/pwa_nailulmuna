@@ -327,7 +327,7 @@ Jika **«Tagihan mulai tanggal masuk»** aktif:
 ### Tips operator
 
 - Refresh laporan setelah ubah tarif/potongan: tambahkan `?refresh=1` di URL laporan
-- Tagihan WA otomatis hanya untuk syahriyah belum lunas
+- Tagihan WA otomatis untuk syahriyah **dan makan** belum lunas (satu pesan; tunggakan dari awal TA jika kumulatif aktif)
 - Gunakan **Cek Pembayaran** untuk konfirmasi ke wali sebelum input manual
 
 ### Kesalahan umum
@@ -791,7 +791,7 @@ Mencatat pengeluaran dan laporan **dana BOS PKPPS** — terpisah dari kas pondok
 
 ### Tujuan
 
-Mengirim pengingat WhatsApp otomatis ke wali santri yang syahriyah belum lunas.
+Mengirim pengingat WhatsApp otomatis ke wali santri yang masih punya kekurangan **syahriyah dan/atau makan**. Saku tidak ikut. Satu pesan per wali.
 
 ### Pengaturan
 
@@ -799,6 +799,7 @@ Mengirim pengingat WhatsApp otomatis ke wali santri yang syahriyah belum lunas.
 
 - Template pesan tagihan
 - Jadwal kirim (hari + jam, sesuai kalender Hijriyah/Masehi)
+- Tunggakan kumulatif (awal TA → bulan berjalan) — default aktif
 - Status cron terakhir jalan
 
 ### Setup cron (Windows / XAMPP)
@@ -830,7 +831,10 @@ Dari daftar **Status Tagihan Bulanan** — tombol WA per baris santri.
 
 ### Perilaku cron
 
-- Hanya kirim ke santri syahriyah **belum lunas**
+- Kirim ke santri yang masih punya sisa **syahriyah dan/atau makan** (bukan saku)
+- Jika kumulatif aktif: kekurangan dari awal tahun ajaran sampai bulan berjalan digabung **satu pesan**, dengan **rincian per bulan** (contoh Syawal → Makan Rp …; Shafar → Syahriyah Rp …) plus total.
+- Santri makan nonaktif tidak ditagih pos makan
+- Status **Lunas** di halaman tagihan bulanan tetap hanya syahriyah
 - Santri yang sudah sukses dikirim **tidak** dikirim ulang di retry berikutnya (hari yang sama)
 
 ---
@@ -961,6 +965,9 @@ Hanya **syahriyah**. Makan dan saku opsional.
 
 **Apakah makan/saku mempengaruhi status lunas?**  
 Tidak. Status lunas wajib hanya syahriyah.
+
+**Apa yang dikirim di pengingat WA tagihan?**  
+Syahriyah dan makan yang masih kurang, dalam **satu pesan**, plus rincian per bulan. Jika kumulatif aktif, termasuk tunggakan dari awal tahun ajaran. Saku tidak ikut.
 
 **Bagaimana santri PKPPS ditagih?**  
 Nominal PKPPS ditambahkan ke syahriyah dasar, bukan invoice terpisah.

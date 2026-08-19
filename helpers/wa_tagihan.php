@@ -153,11 +153,11 @@ function wa_tagihan_santri_status(
     ?array $paidMap = null,
     ?array $syCtx = null
 ): array {
-    if (!function_exists('tagihan_wajib_status_kumulatif_ta')) {
+    if (!function_exists('tagihan_wa_status_kumulatif_ta')) {
         require_once __DIR__ . '/tagihan_bulanan.php';
     }
     if (wa_tagihan_kumulatif_enabled($pdo)) {
-        return tagihan_wajib_status_kumulatif_ta($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai, $kelas);
+        return tagihan_wa_status_kumulatif_ta($pdo, $santriId, $bulanTagihan, $tahunMulai, $tahunSelesai, $kelas);
     }
     if ($paidMap === null || $syCtx === null) {
         $ctx = tagihan_bulanan_page_context($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai);
@@ -165,7 +165,7 @@ function wa_tagihan_santri_status(
         $syCtx = $ctx['sy_ctx'];
     }
 
-    return tagihan_wajib_status_for_month_bulk(
+    $st = tagihan_wa_status_for_month_bulk(
         $pdo,
         $santriId,
         $bulanTagihan,
@@ -175,6 +175,99 @@ function wa_tagihan_santri_status(
         $paidMap,
         $syCtx
     );
+    if ((int) ($st['sisa_total'] ?? 0) > 0 && empty($st['per_bulan'])) {
+        if (!function_exists('pondok_bulan_label')) {
+            require_once __DIR__ . '/pondok_kalender.php';
+        }
+        $perPosBulan = [];
+        foreach ((array) ($st['per_pos'] ?? []) as $slug => $pos) {
+            $sisaPos = (int) ($pos['sisa'] ?? 0);
+            if ($sisaPos <= 0) {
+                continue;
+            }
+            $perPosBulan[(string) $slug] = ['sisa' => $sisaPos];
+        }
+        $st['per_bulan'] = [[
+            'bulan' => $bulanTagihan,
+            'label' => pondok_bulan_label($pdo, $bulanTagihan, $tahunMulai, $tahunSelesai),
+            'sisa_total' => (int) ($st['sisa_total'] ?? 0),
+            'per_pos' => $perPosBulan,
+        ]];
+        $st['bulan_akhir'] = $bulanTagihan;
+        $st['tahun_mulai'] = $tahunMulai;
+        $st['tahun_selesai'] = $tahunSelesai;
+    }
+
+    return $st;
+}
+
+/**
+ * Rincian kekurangan per bulan (syahriyah/makan) untuk satu pesan WA.
+ *
+ * @param list<array{slug:string,nama:string,nominal?:int}> $components
+ * @param array<string, mixed> $status
+ */
+function wa_tagihan_format_rincian_per_bulan(array $components, array $status): string
+{
+    $namaBySlug = [];
+    foreach ($components as $c) {
+        $slug = (string) ($c['slug'] ?? '');
+        if ($slug === '') {
+            continue;
+        }
+        $nama = trim((string) ($c['nama'] ?? $slug));
+        $namaBySlug[$slug] = $nama !== '' ? $nama : $slug;
+    }
+
+    $perBulan = $status['per_bulan'] ?? null;
+    if (!is_array($perBulan) || $perBulan === []) {
+        $perPos = (array) ($status['per_pos'] ?? []);
+        $rows = [];
+        foreach ($namaBySlug as $slug => $nama) {
+            $sisa = (int) (($perPos[$slug]['sisa'] ?? 0));
+            if ($sisa > 0) {
+                $rows[$slug] = ['sisa' => $sisa];
+            }
+        }
+        if ($rows === []) {
+            return '';
+        }
+        $perBulan = [[
+            'label' => '',
+            'per_pos' => $rows,
+        ]];
+    }
+
+    $blocks = [];
+    foreach ($perBulan as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $label = trim((string) ($row['label'] ?? ''));
+        $perPos = (array) ($row['per_pos'] ?? []);
+        $posLines = [];
+        foreach ($namaBySlug as $slug => $nama) {
+            $sisa = (int) (($perPos[$slug]['sisa'] ?? 0));
+            if ($sisa <= 0) {
+                continue;
+            }
+            $posLines[] = '  • ' . $nama . ': Rp ' . number_format($sisa, 0, ',', '.');
+        }
+        if ($posLines === []) {
+            $sisaBulan = (int) ($row['sisa_total'] ?? 0);
+            if ($sisaBulan <= 0) {
+                continue;
+            }
+            $posLines[] = '  • Kekurangan: Rp ' . number_format($sisaBulan, 0, ',', '.');
+        }
+        $head = $label !== '' ? '*' . $label . '*' : '*Kekurangan*';
+        $blocks[] = $head . "\n" . implode("\n", $posLines);
+    }
+    if ($blocks === []) {
+        return '';
+    }
+
+    return '*Rincian kekurangan:*' . "\n" . implode("\n", $blocks);
 }
 
 /** Label periode tagihan untuk teks WA. */
@@ -208,13 +301,15 @@ function wa_tagihan_format_pesan_santri(PDO $pdo, string $namaSantri, array $com
 {
     $labelKekurangan = wa_tagihan_label_kekurangan($components, (array) ($status['per_pos'] ?? []));
     $periode = wa_tagihan_periode_label_dari_status($pdo, $status);
+    $rincian = wa_tagihan_format_rincian_per_bulan($components, $status);
 
     return wa_format_tagihan_otomatis_wali(
         $pdo,
         $namaSantri,
         $labelKekurangan,
         (int) ($status['sisa_total'] ?? 0),
-        $periode
+        $periode,
+        $rincian
     );
 }
 
@@ -403,7 +498,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         $kelas = function_exists('keuangan_santri_kelas_tagihan')
             ? keuangan_santri_kelas_tagihan($pdo, $santriId, $tahunMulai, $tahunSelesai, $row, is_array($tingkatanMap) ? $tingkatanMap : null)
             : trim((string) ($row['kategori_kelas'] ?? ''));
-        $components = keuangan_tagihan_wajib_components($pdo, $kelas);
+        $components = keuangan_tagihan_wa_components($pdo, $kelas);
         if ($components === []) {
             $skipped++;
             continue;
@@ -481,7 +576,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         ? $sent . ' WA tagihan terkirim.'
         : ($eligible > 0
             ? 'Tidak ada WA terkirim (' . $failed . ' gagal). Periksa token gateway di Pengaturan → WA.'
-            : 'Tidak ada santri dengan tagihan wajib belum lunas.');
+            : 'Tidak ada santri dengan tagihan syahriyah/makan belum lunas.');
 
     if ($failed > 0 && $sent > 0) {
         $msg .= ' Gagal: ' . $failed . '.';

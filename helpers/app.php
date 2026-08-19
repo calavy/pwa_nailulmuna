@@ -2542,6 +2542,41 @@ function keuangan_tagihan_bulanan_slugs(): array
     return array_merge(keuangan_tagihan_wajib_slugs(), keuangan_tagihan_opsional_bulanan_slugs());
 }
 
+/** Pos yang masuk pengingat WA (syahriyah + makan; saku tidak ikut). */
+function keuangan_tagihan_wa_slugs(): array
+{
+    return ['syahriyah', 'makan'];
+}
+
+/**
+ * Komponen nama pos untuk label WA (syahriyah + makan).
+ *
+ * @return list<array{slug:string,nama:string,nominal:int}>
+ */
+function keuangan_tagihan_wa_components(PDO $pdo, string $kelasKategori): array
+{
+    $slugs = keuangan_tagihan_wa_slugs();
+    $out = [];
+    foreach (keuangan_monthly_bill_components($pdo, $kelasKategori) as $c) {
+        $slug = (string) ($c['slug'] ?? '');
+        if (!in_array($slug, $slugs, true)) {
+            continue;
+        }
+        if ($slug === 'makan') {
+            if (!function_exists('keuangan_makan_pos_nama')) {
+                require_once __DIR__ . '/keuangan_kelas_makan.php';
+            }
+            $namaMakan = keuangan_makan_pos_nama($pdo);
+            if ($namaMakan !== '') {
+                $c['nama'] = $namaMakan;
+            }
+        }
+        $out[] = $c;
+    }
+
+    return $out;
+}
+
 /**
  * @return list<array{slug:string,nama:string,nominal:int}>
  */
@@ -2819,7 +2854,7 @@ function wa_tagihan_kirim_manual(PDO $pdo, int $bulanTagihan, int $tahunAjaranMu
             continue;
         }
         $kelas = trim((string) ($row['kategori_kelas'] ?? ''));
-        $components = keuangan_tagihan_wajib_components($pdo, $kelas);
+        $components = keuangan_tagihan_wa_components($pdo, $kelas);
         if ($components === []) {
             $skipped++;
             continue;
@@ -2931,9 +2966,9 @@ function wa_tagihan_preview_santri(PDO $pdo, int $santriId, int $bulanTagihan, i
     );
     $sisa = (int) ($stTag['sisa_total'] ?? 0);
     if ($sisa <= 0) {
-        return ['ok' => false, 'message' => 'Tagihan wajib sudah lunas.', 'error' => 'Tagihan wajib sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
+        return ['ok' => false, 'message' => 'Tagihan syahriyah dan makan sudah lunas.', 'error' => 'Tagihan syahriyah dan makan sudah lunas.', 'phone' => $phone, 'wa_url' => null, 'nama' => (string) ($row['nama_santri'] ?? ''), 'sisa' => 0];
     }
-    $components = keuangan_tagihan_wajib_components($pdo, $kelas);
+    $components = keuangan_tagihan_wa_components($pdo, $kelas);
     $nama = trim((string) ($row['nama_santri'] ?? 'Santri'));
     $pesan = wa_tagihan_format_pesan_santri($pdo, $nama, $components, $stTag);
 
@@ -3355,7 +3390,8 @@ function wa_format_tagihan_otomatis_wali(
     string $namaSantri,
     string $labelKekurangan,
     int $totalSisa,
-    string $periodeTagihan = ''
+    string $periodeTagihan = '',
+    string $rincianPerBulan = ''
 ): string {
     if (!function_exists('wa_template_render')) {
         require_once __DIR__ . '/wa_templates.php';
@@ -3371,15 +3407,30 @@ function wa_format_tagihan_otomatis_wali(
     $ketKeuanganLine = $ketKeuangan !== '' ? "\n_" . $ketKeuangan . "_\n" : "\n";
     $periode = trim($periodeTagihan);
     $periodeSnippet = $periode !== '' ? ' untuk periode *' . $periode . '*' : '';
+    $rincianBlock = trim($rincianPerBulan);
+    $rincianVar = $rincianBlock !== '' ? "\n" . $rincianBlock . "\n" : '';
+    $tpl = wa_template_get($pdo, 'tagihan_wali');
+    $hasRincianPlaceholder = str_contains($tpl, '{rincian_per_bulan}');
 
-    return wa_template_render($pdo, 'tagihan_wali', [
+    $msg = wa_template_render($pdo, 'tagihan_wali', [
         'nama_santri' => $nama,
         'nama_ponpes' => $namaPonpes,
         'label_kekurangan' => $labelKekurangan,
         'total_sisa' => '*' . $totalFmt . '*',
         'keterangan_keuangan' => $ketKeuanganLine,
         'periode_tagihan' => $periodeSnippet,
+        'rincian_per_bulan' => $hasRincianPlaceholder ? $rincianVar : '',
     ]);
+    if ($rincianBlock !== '' && !$hasRincianPlaceholder) {
+        $anchor = 'jumlah total *' . $totalFmt . '*.';
+        if (str_contains($msg, $anchor)) {
+            $msg = str_replace($anchor, $anchor . "\n\n" . $rincianBlock, $msg);
+        } else {
+            $msg .= "\n\n" . $rincianBlock;
+        }
+    }
+
+    return $msg;
 }
 
 /** Ringkasan tagihan untuk notifikasi push (tanpa markup tebal). */

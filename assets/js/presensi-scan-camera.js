@@ -166,8 +166,14 @@
         var qrbox = options.qrbox;
         if (!qrbox) {
             qrbox = function (vw, vh) {
-                var s = Math.min(vw, vh) * 0.78;
-                return { width: Math.floor(s), height: Math.floor(s) };
+                var w = Math.max(1, vw || 0);
+                var h = Math.max(1, vh || 0);
+                var s = Math.floor(Math.min(w, h) * 0.78);
+                if (s < 80) {
+                    s = Math.min(80, Math.floor(Math.min(w, h)));
+                }
+                s = Math.max(40, s);
+                return { width: s, height: s };
             };
         }
         return {
@@ -187,12 +193,15 @@
     }
 
     async function waitReaderVisibleById(elementId) {
-        for (var i = 0; i < 16; i++) {
+        for (var i = 0; i < 40; i++) {
             var el = document.getElementById(elementId);
-            if (el && el.offsetParent !== null && el.offsetHeight > 40) {
+            if (el && el.offsetParent !== null && el.offsetHeight > 80) {
                 return;
             }
             await nextPaint();
+            if (i % 5 === 4) {
+                await sleep(50);
+            }
         }
         await sleep(120);
     }
@@ -417,14 +426,13 @@
                 return;
             }
             var caps = track.getCapabilities ? track.getCapabilities() : {};
+            this.btnTorch.style.display = '';
+            this.btnTorch.disabled = false;
             if (caps.torch) {
-                this.btnTorch.style.display = '';
-                this.btnTorch.disabled = false;
                 if (this.torchOn) {
                     await track.applyConstraints({ advanced: [{ torch: true }] });
                 }
             } else {
-                this.btnTorch.style.display = 'none';
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
             }
@@ -653,25 +661,34 @@
         if (!this.btnTorch) {
             return;
         }
+        this.btnTorch.style.display = '';
         this.btnTorch.classList.toggle('is-active', this.torchOn);
         try {
             var video = document.querySelector('#' + this.readerId + ' video');
             if (!video || !video.srcObject) {
+                this.torchOn = false;
+                this.btnTorch.classList.remove('is-active');
+                this.setStatus('is-waiting', 'Kamera belum siap');
                 return;
             }
             var track = video.srcObject.getVideoTracks()[0];
             if (!track) {
+                this.torchOn = false;
+                this.btnTorch.classList.remove('is-active');
                 return;
             }
             var caps = track.getCapabilities ? track.getCapabilities() : {};
             if (!caps.torch) {
-                this.btnTorch.style.display = 'none';
+                this.torchOn = false;
+                this.btnTorch.classList.remove('is-active');
+                this.setStatus('is-waiting', 'Flash tidak tersedia di kamera ini');
                 return;
             }
-            this.btnTorch.style.display = '';
             await track.applyConstraints({ advanced: [{ torch: this.torchOn }] });
         } catch (e) {
-            this.btnTorch.style.display = 'none';
+            this.torchOn = false;
+            this.btnTorch.classList.remove('is-active');
+            this.setStatus('is-waiting', 'Flash gagal dinyalakan');
         }
     };
 

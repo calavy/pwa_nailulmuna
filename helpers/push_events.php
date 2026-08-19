@@ -406,7 +406,7 @@ function trigger_push_tagihan_wali_from_cron(PDO $pdo): void
             continue;
         }
         $nama = (string) ($row['nama_santri'] ?? 'Santri');
-        $components = keuangan_tagihan_wajib_components($pdo, $kat);
+        $components = keuangan_tagihan_wa_components($pdo, $kat);
         $labelKekurangan = wa_tagihan_label_kekurangan($components, $st['per_pos'] ?? []);
         $body = push_format_tagihan_otomatis_body($nama, $labelKekurangan, $sisa);
         if (push_notify_wali_for_santri(
