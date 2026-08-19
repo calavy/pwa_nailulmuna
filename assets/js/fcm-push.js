@@ -49,8 +49,12 @@
             });
         }
 
-        var swScope = (appBase() === '' ? '/' : appBase() + '/');
-        var swUrl = appPath('api/pwa/app-sw.php');
+        var isWali = (typeof global.PONDOK_PWA_SCOPE === 'string' && String(global.PONDOK_PWA_SCOPE).indexOf('/wali') >= 0)
+            || /\/wali\//.test(global.location.pathname);
+        var swScope = isWali
+            ? (appBase() === '' ? '/wali/' : appBase() + '/wali/')
+            : (appBase() === '' ? '/' : appBase() + '/');
+        var swUrl = isWali ? appPath('wali/sw.php') : appPath('api/pwa/app-sw.php');
         var reg = await navigator.serviceWorker.getRegistration(swScope);
         if (!reg) {
             reg = await navigator.serviceWorker.register(swUrl, {

@@ -122,6 +122,33 @@ Contoh bagian terbaru (Yayasan + kalender):
 
 ---
 
+## Portal wali di `wali.nailulmuna.id`
+
+Staf tetap di `https://pwa.nailulmuna.id`. Portal wali memakai subdomain **sejajar**: `https://wali.nailulmuna.id` (satu aplikasi, document root sama).
+
+### Server (DNS / SSL / vhost)
+
+1. DNS: buat `A` atau `CNAME` `wali.nailulmuna.id` ke server yang sama dengan `pwa.nailulmuna.id`.
+2. SSL: sertifikat untuk `wali.nailulmuna.id` (atau wildcard `*.nailulmuna.id`).
+3. Vhost: **document root identik** dengan `pwa.nailulmuna.id` (bukan folder `wali/` saja).
+4. Di `config/app.local.php` di server (jangan di-commit):
+
+```php
+'public_url' => 'https://pwa.nailulmuna.id',
+'wali_public_url' => 'https://wali.nailulmuna.id',
+```
+
+### Cek setelah DNS hidup
+
+- `https://wali.nailulmuna.id/` → login/beranda portal wali
+- `https://wali.nailulmuna.id/wali/login.php` → login NIS + PIN
+- `https://pwa.nailulmuna.id/wali/login.php` → dialihkan ke host wali
+- `https://wali.nailulmuna.id/dashboard.php` → dialihkan ke portal wali (bukan dashboard staf)
+- Cron WA tetap `https://pwa.nailulmuna.id/cron/wa_auto.php?...`
+- Webhook Midtrans tetap di host `pwa`; setelah bayar, browser wali kembali ke `wali.nailulmuna.id`
+
+---
+
 ## Langkah 5 — Verifikasi cron WA otomatis
 
 Deploy memperbarui **kode** cron (`cron/wa_auto.php` + helper), tetapi **jadwal** di panel hosting dan **setting** di database (kunci cron, jam kirim) tidak berubah otomatis.

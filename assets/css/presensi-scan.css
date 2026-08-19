@@ -90,10 +90,23 @@
     width: 100%;
     max-width: 560px;
     margin: 0 auto;
-    min-height: calc(100dvh - 52px);
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     background: #0f172a;
+}
+
+.scan-simple-page {
+    overflow: hidden;
+}
+
+.scan-simple-page .app-content {
+    overflow: hidden;
+    height: 100dvh;
+    max-height: 100dvh;
 }
 
 .scan-portal-pembimbing .presensi-scan-top {
@@ -102,6 +115,7 @@
 
 .presensi-scan-top {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
@@ -142,15 +156,16 @@
 
 .presensi-scan-viewport {
     position: relative;
-    flex: 1;
-    min-height: min(68dvh, 560px);
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: hidden;
 }
 
-.presensi-scan-viewport #qr-reader {
+.presensi-scan-viewport #qr-reader,
+.presensi-scan-viewport #login-scan-reader {
     width: 100% !important;
     height: 100% !important;
-    min-height: min(68dvh, 560px);
+    min-height: 0 !important;
     border: none !important;
     padding: 0 !important;
     background: #000 !important;
@@ -172,9 +187,10 @@
 }
 
 .presensi-scan-viewport #qr-reader video,
-.presensi-scan-viewport #reader video {
+.presensi-scan-viewport #reader video,
+.presensi-scan-viewport #login-scan-reader video {
     display: block !important;
-    min-height: 240px;
+    min-height: 0 !important;
 }
 
 /* Jangan tampilkan teks hasil decode QR dari library html5-qrcode */
@@ -271,27 +287,47 @@
 
 /* Panel hitung mundur jadwal scan */
 .presensi-scan-timer {
-    padding: 0.35rem 0.75rem 0.3rem;
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    padding: 0.4rem 0.75rem 0.45rem;
     background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.login-scan-kegiatan .presensi-scan-timer {
+    padding: 0.35rem 0.55rem 0.35rem;
+    gap: 0.22rem;
+}
+
+.login-scan-kegiatan .presensi-scan-timer-inner {
+    padding: 0.5rem 0.6rem 0.45rem;
+}
+
 .presensi-scan-timer-inner {
     text-align: center;
-    padding: 0.35rem 0.5rem 0.3rem;
+    padding: 0.55rem 0.75rem 0.5rem;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(15, 23, 42, 0.6);
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .presensi-scan-timer-marquee {
     position: relative;
-    display: block;
+    display: none;
     width: 100%;
     max-width: 100%;
-    margin-bottom: 0.25rem;
-    min-height: 1.55rem;
+    margin: 0;
+    min-height: 1.7rem;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     overflow: hidden;
@@ -342,20 +378,53 @@
     display: inline-flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.2rem;
     font-size: 0.88rem;
     font-weight: 700;
-    color: #fef9c3;
+    color: #facc15;
     letter-spacing: 0.02em;
     line-height: 1.3;
     white-space: nowrap;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
+.presensi-scan-timer-marquee__item.is-tone-yellow {
+    color: #facc15;
+}
+
+.presensi-scan-timer-marquee__item.is-tone-white {
+    color: #ffffff;
+}
+
+.presensi-scan-timer-marquee__kegiatan,
+.presensi-scan-timer-marquee__waktu,
+.presensi-scan-timer-marquee__meta,
+.presensi-scan-timer-marquee__tempat {
+    color: inherit;
+}
+
+.presensi-scan-timer-marquee__waktu {
+    font-variant-numeric: tabular-nums;
+}
+
+.presensi-scan-timer-marquee__waktu::before,
+.presensi-scan-timer-marquee__meta::before,
+.presensi-scan-timer-marquee__tempat::before {
+    content: '·';
+    margin: 0 0.35em;
+    color: inherit;
+    opacity: 0.55;
+    font-weight: 600;
+}
+
+.presensi-scan-timer-marquee__meta {
+    font-weight: 700;
+}
+
 .presensi-scan-timer-marquee__item i {
     flex-shrink: 0;
     font-size: 0.72rem;
-    color: #86efac;
+    color: inherit;
 }
 
 .presensi-scan-timer-marquee__sep {
@@ -398,23 +467,39 @@
     display: none;
 }
 
-.presensi-scan-timer.has-marquee .presensi-scan-timer-inner {
-    padding-top: 0.35rem;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.15rem;
+.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-inner {
+    gap: 0.4rem;
 }
 
-.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-title,
-.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-range,
-.presensi-scan-timer.has-marquee .presensi-scan-timer-title,
-.presensi-scan-timer.has-marquee .presensi-scan-timer-range {
+.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) {
+    display: block;
+}
+
+.presensi-scan-timer-title,
+.presensi-scan-timer-range {
+    display: none;
+}
+
+.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-title,
+.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-range {
+    display: block;
+}
+
+.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-title,
+.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-range,
+.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-title,
+.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-range {
     display: none !important;
 }
 
-.presensi-scan-timer.has-marquee .presensi-scan-timer-clock {
-    margin-top: 0;
+.presensi-scan-timer-remain {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.22rem;
+    margin: 0;
+    min-height: 2.6rem;
 }
 
 .presensi-scan-timer.is-active .presensi-scan-timer-inner {
@@ -438,7 +523,6 @@
 }
 
 .presensi-scan-timer-title {
-    display: block;
     font-size: 0.78rem;
     font-weight: 600;
     color: #e2e8f0;
@@ -446,7 +530,6 @@
 }
 
 .presensi-scan-timer-range {
-    display: block;
     font-size: 0.65rem;
     color: #94a3b8;
     margin-top: 0.05rem;
@@ -454,23 +537,41 @@
 
 .presensi-scan-timer-clock {
     display: block;
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: #f8fafc;
-    line-height: 1.1;
-    margin: 0.12rem 0 0;
+    line-height: 1.25;
+    margin: 0;
 }
 
 .presensi-scan-timer-wall {
-    display: block;
-    font-size: 0.72rem;
+    position: static;
+    align-self: flex-end;
+    z-index: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0 0.15rem;
+    font-size: 0.68rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    color: #e2e8f0;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.presensi-scan-timer-wall__label {
+    font-weight: 600;
+    color: #94a3b8;
+}
+
+.presensi-scan-timer-wall__value {
+    color: #f8fafc;
     letter-spacing: 0.04em;
-    color: rgba(248, 250, 252, 0.72);
-    margin-top: 0.08rem;
 }
 
 .presensi-scan-timer.is-active .presensi-scan-timer-clock {
@@ -483,9 +584,9 @@
 
 .presensi-scan-timer-hint {
     display: block;
-    margin-top: 0.12rem;
-    font-size: 0.72rem;
-    line-height: 1.3;
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.35;
     color: #cbd5e1;
     font-weight: 600;
 }
@@ -497,16 +598,20 @@
 
 .presensi-scan-controls {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
     gap: 0.5rem;
-    padding: 0.5rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    padding: 0.45rem 0.65rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
     background: #1e293b;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    bottom: 0;
+    z-index: 12;
 }
 
 .presensi-scan-controls .btn-scan-ctl {
-    flex: 1 1 calc(33% - 0.35rem);
-    min-width: 5.5rem;
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -807,7 +912,7 @@
     width: 100%;
     max-width: none;
     margin: 0;
-    min-height: min(72dvh, 640px);
+    min-height: 0;
 }
 
 .login-pb-scan .login-pb-qr__head.presensi-scan-top {
@@ -826,8 +931,8 @@
 }
 
 .login-pb-scan .login-pb-qr__viewport.presensi-scan-viewport {
-    flex: 1;
-    min-height: min(68dvh, 560px);
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
     max-width: none;
     aspect-ratio: unset;
@@ -837,7 +942,7 @@
 .login-pb-scan .login-pb-qr__viewport.presensi-scan-viewport #login-pb-reader {
     width: 100% !important;
     height: 100% !important;
-    min-height: min(68dvh, 560px);
+    min-height: 0 !important;
 }
 
 .login-pb-scan .login-pb-qr__hint {
@@ -848,3 +953,54 @@
     width: min(78vw, 320px);
     height: min(78vw, 320px);
 }
+
+@media (max-height: 760px) {
+    .presensi-scan-timer-clock {
+        font-size: 1.2rem;
+        line-height: 1.25;
+    }
+
+    .presensi-scan-timer-remain {
+        margin: 0;
+        gap: 0.18rem;
+        min-height: 2.4rem;
+    }
+
+    .presensi-scan-timer {
+        padding: 0.32rem 0.55rem 0.35rem;
+        gap: 0.2rem;
+    }
+
+    .presensi-scan-timer-inner {
+        padding: 0.45rem 0.55rem 0.4rem;
+        gap: 0.3rem;
+    }
+
+    .presensi-scan-timer-marquee {
+        margin: 0;
+        min-height: 1.5rem;
+    }
+
+    .login-scan-kegiatan__hint,
+    .login-pb-scan .login-pb-qr__hint,
+    .presensi-scan-start-wrap .small {
+        display: none;
+    }
+}
+
+@media (max-height: 640px) {
+    .presensi-scan-top {
+        padding: 0.35rem 0.6rem;
+    }
+
+    .presensi-scan-controls {
+        padding: 0.3rem 0.45rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+        gap: 0.35rem;
+    }
+
+    .presensi-scan-controls .btn-scan-ctl {
+        padding: 0.4rem 0.25rem;
+        font-size: 0.68rem;
+    }
+}
+

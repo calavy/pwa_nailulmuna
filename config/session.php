@@ -19,6 +19,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+if (PHP_SAPI !== 'cli' && function_exists('app_wali_host_enforce')) {
+    app_wali_host_enforce();
+}
+
 /** Semua link internal href="/..." otomatis dapat prefix subfolder di XAMPP (hanya HTML, bukan API/asset). */
 if (PHP_SAPI !== 'cli' && !headers_sent()) {
     $reqPath = app_normalize_request_path((string) (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: ''));

@@ -34,6 +34,12 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
                 <button type="button" class="btn btn-light btn-sm" id="login-scan-retry">Coba lagi</button>
             </div>
         </div>
+        <div id="login-scan-start-wrap" class="presensi-scan-start-wrap is-hidden">
+            <button type="button" class="btn btn-success btn-lg px-4" id="btn-start-login-scan">
+                <i class="fa-solid fa-camera me-2" aria-hidden="true"></i>Mulai scan kamera
+            </button>
+            <p class="small text-muted mt-2 mb-0">Tutup balon chat, filter layar, atau perekam layar, lalu ketuk untuk mengizinkan kamera.</p>
+        </div>
     </div>
 
     <div class="presensi-scan-controls login-scan-kegiatan__controls" id="login-scan-controls">

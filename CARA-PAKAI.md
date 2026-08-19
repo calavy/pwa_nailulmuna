@@ -59,7 +59,9 @@ Instalasi **pertama kali** saja: impor **`impor_lokal_pwa_nailulmuna.sql`** (lok
 |---------|-----|
 | Cek server | http://localhost/pwa_nailulmuna/cek-server.php |
 | Login | http://localhost/pwa_nailulmuna/login.php |
-| Portal wali | http://localhost/pwa_nailulmuna/wali/login.php |
+| Portal wali (lokal) | http://localhost/pwa_nailulmuna/wali/login.php |
+| Portal wali (live) | https://wali.nailulmuna.id/wali/login.php |
+| Login staf (live) | https://pwa.nailulmuna.id/login.php |
 
 **Panduan keuangan lengkap:** lihat [docs/PANDUAN-KEUANGAN.md](docs/PANDUAN-KEUANGAN.md) (setup, tagihan, pembayaran, cashless, laporan, troubleshooting).
 

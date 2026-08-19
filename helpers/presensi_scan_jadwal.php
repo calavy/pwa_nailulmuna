@@ -194,28 +194,62 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
     return array_merge($empty, ['state' => 'ended', 'day_slots' => $daySlots]);
 }
 
-/** Label satu slot untuk marquee teks berjalan di halaman scan. */
+/** Label polos satu slot (tes / fallback). */
 function presensi_scan_marquee_slot_label(array $slot): string
 {
-    $label = trim((string) ($slot['nama_kegiatan'] ?? 'Kegiatan'));
-    if ($label === '') {
-        $label = 'Kegiatan';
+    $nama = trim((string) ($slot['nama_kegiatan'] ?? 'Kegiatan'));
+    if ($nama === '') {
+        $nama = 'Kegiatan';
     }
+    $parts = [$nama];
     $mulai = substr(trim((string) ($slot['jam_mulai'] ?? '')), 0, 5);
     $selesai = substr(trim((string) ($slot['jam_selesai'] ?? '')), 0, 5);
     if ($mulai !== '' && $selesai !== '') {
-        $label .= ' · ' . $mulai . '–' . $selesai;
+        $parts[] = $mulai . '–' . $selesai;
     }
     $tingkatan = trim((string) ($slot['tingkatan'] ?? ''));
     if ($tingkatan !== '') {
-        $label .= ' · ' . $tingkatan;
+        $parts[] = $tingkatan;
     }
     $tempat = trim((string) ($slot['tempat'] ?? ''));
     if ($tempat !== '') {
-        $label .= ' · ' . $tempat;
+        $parts[] = $tempat;
     }
 
-    return $label;
+    return implode(' · ', $parts);
+}
+
+/** Inner HTML satu item marquee: kegiatan vs jam vs meta. */
+function presensi_scan_marquee_slot_inner_html(array $slot): string
+{
+    $nama = trim((string) ($slot['nama_kegiatan'] ?? 'Kegiatan'));
+    if ($nama === '') {
+        $nama = 'Kegiatan';
+    }
+    $html = '<span class="presensi-scan-timer-marquee__kegiatan">'
+        . htmlspecialchars($nama, ENT_QUOTES, 'UTF-8')
+        . '</span>';
+    $mulai = substr(trim((string) ($slot['jam_mulai'] ?? '')), 0, 5);
+    $selesai = substr(trim((string) ($slot['jam_selesai'] ?? '')), 0, 5);
+    if ($mulai !== '' && $selesai !== '') {
+        $html .= '<span class="presensi-scan-timer-marquee__waktu">'
+            . htmlspecialchars($mulai . '–' . $selesai, ENT_QUOTES, 'UTF-8')
+            . '</span>';
+    }
+    $tingkatan = trim((string) ($slot['tingkatan'] ?? ''));
+    if ($tingkatan !== '') {
+        $html .= '<span class="presensi-scan-timer-marquee__meta">'
+            . htmlspecialchars($tingkatan, ENT_QUOTES, 'UTF-8')
+            . '</span>';
+    }
+    $tempat = trim((string) ($slot['tempat'] ?? ''));
+    if ($tempat !== '') {
+        $html .= '<span class="presensi-scan-timer-marquee__tempat">'
+            . htmlspecialchars($tempat, ENT_QUOTES, 'UTF-8')
+            . '</span>';
+    }
+
+    return $html;
 }
 
 /** HTML awal track marquee — tampil sebelum JS, agar teks tidak kosong. */
@@ -224,17 +258,20 @@ function presensi_scan_marquee_track_html(array $slots): string
     if ($slots === []) {
         return '';
     }
-    $labels = array_map('presensi_scan_marquee_slot_label', $slots);
-    $repeatPasses = count($labels) === 1 ? 6 : 2;
+    $repeatPasses = count($slots) === 1 ? 6 : 2;
     $html = '';
     for ($pass = 0; $pass < $repeatPasses; $pass++) {
-        foreach ($labels as $i => $label) {
+        foreach ($slots as $i => $slot) {
             if ($pass > 0 || $i > 0) {
                 $html .= '<span class="presensi-scan-timer-marquee__sep" aria-hidden="true"></span>';
             }
-            $html .= '<span class="presensi-scan-timer-marquee__item">'
+            $tone = '';
+            if (count($slots) > 1) {
+                $tone = ((int) $i % 2 === 0) ? ' is-tone-yellow' : ' is-tone-white';
+            }
+            $html .= '<span class="presensi-scan-timer-marquee__item' . $tone . '">'
                 . '<i class="fa-solid fa-bolt" aria-hidden="true"></i>'
-                . '<span>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</span>'
+                . presensi_scan_marquee_slot_inner_html(is_array($slot) ? $slot : [])
                 . '</span>';
         }
     }
@@ -269,6 +306,19 @@ function presensi_scan_marquee_slots(array $ctx): array
 }
 
 /**
+ * Countdown digital HH:MM:SS.
+ */
+function presensi_scan_timer_format_clock(int $totalSec): string
+{
+    $s = max(0, $totalSec);
+    $h = intdiv($s, 3600);
+    $m = intdiv($s % 3600, 60);
+    $sec = $s % 60;
+
+    return sprintf('%02d:%02d:%02d', $h, $m, $sec);
+}
+
+/**
  * Kelas CSS + jam countdown awal untuk strip timer scan.
  *
  * @param array<string, mixed> $scanJadwalCtx
@@ -285,6 +335,6 @@ function presensi_scan_timer_prepare(array $scanJadwalCtx): array
     return [
         'state' => $timerState,
         'class' => $timerClass,
-        'clock' => sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60),
+        'clock' => presensi_scan_timer_format_clock($timerSec),
     ];
 }

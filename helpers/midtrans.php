@@ -489,7 +489,14 @@ function midtrans_create_snap_for_tagihan(
         'custom_field2' => 'BULANAN:' . $bulanTagihan,
         'custom_field3' => $tahunMulai . '/' . $tahunSelesai,
         'callbacks' => [
-            'finish' => rtrim(app_public_url(), '/') . app_href('/wali/keuangan.php?tab=bayar&midtrans=finish'),
+            'finish' => (static function (): string {
+                $finish = app_wali_href('/wali/keuangan.php?tab=bayar&midtrans=finish');
+                if (preg_match('#^https?://#i', $finish) === 1) {
+                    return $finish;
+                }
+
+                return rtrim(app_public_url(), '/') . $finish;
+            })(),
         ],
         // Jangan kirim enabled_payments — biarkan Midtrans menampilkan semua channel
         // yang aktif di dashboard (QRIS/VA). Filter ketat justru bisa mengosongkan metode.

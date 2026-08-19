@@ -7,6 +7,126 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-19] Kotak timer: jarak tulisan tidak numpuk
+- **Apa yang diubah:** “Waktu sekarang” dipindah ke baris sendiri (tidak menimpa kotak). Padding/gap hint + jam `HH:MM:SS` diperlonggar, termasuk di layar pendek.
+- **File:** `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Overlay jam dinding + padding rapat membuat tulisan di kotak timer menumpuk.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Teks berjalan scan hanya setelah klik
+- **Apa yang diubah:** Kotak timer default hanya hint + jam `HH:MM:SS`. Teks berjalan (atau judul/jam kegiatan) tampil di atas countdown setelah kotak diklik; ketuk lagi untuk menyembunyikan. Ketuk marquee tetap jeda/lanjut tanpa menutup.
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Marquee dan judul kegiatan membuat kotak ramai sebelum petugas membutuhkannya.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Countdown scan tanpa teks satuan
+- **Apa yang diubah:** Teks satuan “3 jam 42 menit” dihapus dari kotak timer. Countdown tetap `HH:MM:SS` (contoh `03:42:28`).
+- **File:** `assets/js/presensi-scan-timer.js`, `helpers/presensi_scan_jadwal.php`, `includes/partials/presensi_scan_timer_strip.php`, `assets/css/presensi-scan.css`, `login.php`, `presensi/scan.php`, `yayasan/scan_musyawarah.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Hint + angka + satuan menumpuk sehingga kotak timer tidak rapi.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Countdown scan jam:menit:detik + satuan
+- **Apa yang diubah:** Countdown scan memakai `HH:MM:SS` (contoh `03:42:28`) plus teks satuan jam/menit (`3 jam 42 menit`; di bawah 1 jam hanya menit). Scan musyawarah memakai helper format yang sama.
+- **File:** `assets/js/presensi-scan-timer.js`, `helpers/presensi_scan_jadwal.php`, `includes/partials/presensi_scan_timer_strip.php`, `assets/css/presensi-scan.css`, `yayasan/scan_musyawarah.php`, `login.php`, `presensi/scan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Format menit total (`222:27`) terasa salah untuk sisa waktu beberapa jam.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Multi Scan sekali lihat tanpa scroll
+- **Apa yang diubah:** Halaman Multi Scan dikunci `100dvh` (border-box). Judul kartu teal disembunyikan (judul cukup di bar hijau). Timer dipadatkan; nama kegiatan tidak diulang jika marquee tampil. Kamera mengisi sisa ruang; hint layar pendek disembunyikan.
+- **File:** `assets/css/auth-portal.css`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Padding 100dvh + judul ganda + strip timer membuat Flash/Ganti kamera terdorong keluar layar.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Portal wali di wali.nailulmuna.id
+- **Apa yang diubah:** Host wali memblokir rute staf (dashboard/scan/keuangan) dan mengarah ke `/wali/`. Callback Midtrans finish memakai `app_wali_href()`. Service worker portal dibatasi scope `/wali/` + precache tanpa shell scan. Contoh config/DNS di `config/app.local.example.php` dan `DEPLOY-LIVE.md`.
+- **File:** `helpers/app_path.php`, `config/session.php`, `config/database.php`, `helpers/midtrans.php`, `helpers/pwa_offline.php`, `wali/sw.php`, `assets/js/fcm-push.js`, `config/app.local.example.php`, `config/app.php`, `DEPLOY-LIVE.md`, `CARA-PAKAI.md`, `docs/PANDUAN-KEUANGAN.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Staf di `pwa.nailulmuna.id`, portal wali di `wali.nailulmuna.id` (satu aplikasi, document root sama).
+- **Status:** belum diuji browser/DNS live
+
+### [2026-08-19] Scan cashless QR santri tanpa scroll
+- **Apa yang diubah:** Halaman scan dikunci `100dvh` (overflow hidden). Topbar aplikasi dan riwayat di bawah disembunyikan agar kamera + Flash/Ganti kamera muat sekali lihat. Portal koperasi: padding main dihapus, kamera mengisi sisa layar di bawah header koperasi.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Scan QR santri masih perlu scroll karena kamera 100dvh ditambah topbar/admin bar/riwayat.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless: kamera sama ukuran scan presensi
+- **Apa yang diubah:** Viewport QR santri dan QR nominal mengisi sisa layar (tanpa scroll). Nama santri di atas kamera nominal; Saldo Saku / sisa jatah tetap di bawah kamera. Flash/Ganti kamera menempel di bawah.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Overlay saldo di atas kamera mengganggu; petugas perlu lihat saldo di bawah seperti sebelumnya, tetap sekali lihat.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless: PIN muncul setelah QR santri
+- **Apa yang diubah:** Kamera QR santri kembali mengisi sisa layar (tanpa kotak PIN). Setelah QR santri terbaca, kamera disembunyikan dan panel PIN muncul di ruang yang sama — pola seperti panel Bayar setelah QR nominal.
+- **File:** `assets/css/cashless-scan.css`, `keuangan/cashless_scan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** PIN tidak perlu tampil bersama kamera; ukurannya harus seperti alur konfirmasi nominal.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless: kamera QR santri = QR nominal
+- **Apa yang diubah:** Kedua viewport kamera (QR santri dan QR uang) memakai kotak tetap yang sama: `min(30dvh, 220px)`.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kamera santri mengisi sisa ruang di atas PIN sehingga tampak lebih besar dari kamera nominal.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless: kamera nominal sama ukuran QR santri
+- **Apa yang diubah:** Viewport scan QR uang memakai ukuran yang sama dengan kamera QR santri (tanpa max-height 180px / 20dvh). Kotak bidik sama. Saat konfirmasi Bayar, kamera uang tetap disembunyikan.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kamera nominal masih lebih kecil dari kamera scan santri.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless sekali lihat: Flash/kamera terlihat
+- **Apa yang diubah:** Layout scan cashless mengisi tinggi perangkat. Kamera mengisi sisa ruang (tanpa min-height 28dvh). Tombol Flash dan Ganti kamera menempel di bawah tanpa geser. PIN/hint dipadatkan di layar pendek.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Penataan sekali lihat sudah diterapkan di Multi Scan; cashless masih mendorong tombol ke bawah lipatan.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan sekali lihat: tombol Flash/kamera tetap terlihat
+- **Apa yang diubah:** Halaman Multi Scan / scan presensi mengisi tinggi perangkat (flex). Viewport kamera tidak lagi memaksa 52–68dvh. Tombol Flash, Ganti kamera, Ulangi menempel di bawah layar tanpa geser.
+- **File:** `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Timer + kamera tinggi membuat tombol Flash dan Ganti kamera terdorong ke bawah lipatan.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Marquee kuning/putih + waktu sekarang pojok kanan
+- **Apa yang diubah:** Jam dinding jadi “Waktu sekarang : …” di pojok kanan. Teks berjalan satu warna (kuning); jika lebih dari satu kegiatan, bergantian kuning dan putih.
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/presensi_scan_ui.php`, `helpers/presensi_scan_jadwal.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Jam sekarang perlu label dan posisi tetap; banyak kegiatan perlu dibedakan tanpa banyak warna.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Timer scan: sisa waktu di bawah marquee
+- **Apa yang diubah:** Tulisan “Sisa waktu scan” / “Mulai scan dalam” tampil di bawah teks berjalan. Angka countdown hanya sekali (tidak diulang di hint).
+- **File:** `includes/partials/presensi_scan_timer_strip.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Hint memuat jam yang sama dengan countdown, sehingga angka sisa waktu tampil dobel.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Marquee: tingkatan sama warna kegiatan
+- **Apa yang diubah:** Warna tingkatan di teks berjalan disamakan dengan nama kegiatan (kuning `#facc15`). Tempat tetap oranye; jam cyan.
+- **File:** `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tingkatan perlu terlihat setara dengan nama kegiatan, bukan abu.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Marquee: warna kegiatan vs tempat
+- **Apa yang diubah:** Nama kegiatan kuning tegas (`#facc15`), tempat oranye (`#fb923c`). Jam tetap cyan; tingkatan abu. Tempat tidak lagi digabung dengan tingkatan.
+- **File:** `assets/css/presensi-scan.css`, `helpers/presensi_scan_jadwal.php`, `assets/js/presensi-scan-timer.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Nama kegiatan dan tempat sulit dibedakan saat masih satu kelompok warna.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Kamera nominal kompak + marquee kegiatan vs jam
+- **Apa yang diubah:** Viewport scan QR uang diperkecil (~160px / 20dvh). Teks berjalan scan presensi membedakan warna nama kegiatan (kuning) dan jam (cyan); tingkatan/tempat abu.
+- **File:** `assets/css/cashless-scan.css`, `helpers/presensi_scan_jadwal.php`, `assets/js/presensi-scan-timer.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kamera nominal masih terlalu besar; teks berjalan satu warna sehingga jam sulit dibedakan dari nama kegiatan.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Scan cashless: kamera kecil + tombol Bayar
+- **Apa yang diubah:** Viewport kamera diperkecil. Setelah QR uang terbaca, kamera disembunyikan dan panel nominal + Bayar langsung tampil (tidak menunggu stop kamera). Ketuk Bayar menampilkan hasil dulu; kamera santri menyusul. Lookup nominal memperpanjang sesi; batas server debit 120 detik (timeout 30 detik tetap untuk menunggu scan QR uang).
+- **File:** `assets/css/cashless-scan.css`, `keuangan/cashless_scan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kamera memenuhi layar sehingga tombol Bayar tertutup; jeda setelah Bayar karena teardown kamera dan sesi 30 detik dari PIN.
+- **Status:** belum diuji browser manual
+
+### [2026-08-19] Multi Scan HP: izin kamera setelah ketuk
+- **Apa yang diubah:** Di HP, Multi Scan dan scan petugas tidak lagi memanggil `getUserMedia` saat halaman terbuka. Overlay “Mulai scan kamera” muncul dulu; izin diminta setelah ketuk. Pesan error menyebut overlay Android (balon chat, filter, perekam).
+- **File:** `assets/js/presensi-scan-camera.js`, `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Chrome Android menolak izin kamera jika ada overlay aplikasi lain; auto-start memicu dialog “Situs ini tidak dapat meminta izin Anda” sebelum petugas sempat menutup overlay.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-19] Dashboard pengasuh scroll + Multi Scan kartu berikutnya
 - **Apa yang diubah:** Dashboard pengasuh tidak lagi terpotong oleh `dash-home-mobile-fit` (overflow hidden / max-height). CSS mobile mencegah overflow horizontal. Multi Scan login mengunci per QR dan langsung menerima kartu berbeda tanpa menunggu API / jeda 550ms.
 - **File:** `assets/css/pengasuh-dashboard.css`, `assets/js/login-scan-kegiatan.js`, `STATUS_PWA.md`
@@ -14,7 +134,7 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 - **Status:** belum diuji browser manual
 
 ### [2026-08-18] Multi Scan: jadwal berlangsung + scan beruntun; portal wali terpisah
-- **Apa yang diubah:** Halaman Multi Scan (`login.php?scan=1`) menampilkan strip jadwal kegiatan berlangsung (timer/marquee). Setelah absensi satu kartu, kamera siap kartu berikutnya tanpa refresh (debounce hanya untuk QR yang sama). Login wali kembali ke `/wali/login.php` (NIS/nama + PIN); login utama tidak lagi menerima fallback wali. Siap subdomain `wali_public_url` (mis. `https://wali.pwa.nailulmuna.id`).
+- **Apa yang diubah:** Halaman Multi Scan (`login.php?scan=1`) menampilkan strip jadwal kegiatan berlangsung (timer/marquee). Setelah absensi satu kartu, kamera siap kartu berikutnya tanpa refresh (debounce hanya untuk QR yang sama). Login wali kembali ke `/wali/login.php` (NIS/nama + PIN); login utama tidak lagi menerima fallback wali. Siap subdomain `wali_public_url` (mis. `https://wali.nailulmuna.id`).
 - **File:** `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/login_scan_kegiatan.php`, `login.php`, `presensi/scan.php`, `assets/js/presensi-scan-camera.js`, `assets/js/login-scan-kegiatan.js`, `helpers/app_path.php`, `wali/login.php`, `wali/inc_portal.php`, `wali/logout.php`, `wali/manifest.php`, `STATUS_PWA.md`
 - **Alasan/konteks:** Petugas perlu melihat jadwal aktif di Multi Scan dan men-scan antrean kartu tanpa reload; wali tidak campur dengan login pengurus/scan.
 - **Status:** belum diuji browser manual

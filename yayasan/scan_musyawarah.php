@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/yayasan_musyawarah.php';
+require_once __DIR__ . '/../helpers/presensi_scan_jadwal.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -59,12 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pendingMusyawarahPick = $_SESSION['yayasan_musyawarah_scan_pending'] ?? null;
 $scanJadwalCtx = yayasan_musyawarah_scan_jadwal_context($pdo, $rapatFilter);
-$timerState = (string) ($scanJadwalCtx['state'] ?? 'none');
-$timerClass = in_array($timerState, ['active', 'upcoming', 'ended', 'libur', 'none'], true) ? $timerState : 'none';
-$timerSec = $timerState === 'active'
-    ? (int) ($scanJadwalCtx['seconds_remaining'] ?? 0)
-    : ($timerState === 'upcoming' ? (int) ($scanJadwalCtx['seconds_until_start'] ?? 0) : 0);
-$timerClockInit = sprintf('%02d:%02d', (int) floor($timerSec / 60), $timerSec % 60);
+$scanTimerPrep = presensi_scan_timer_prepare(is_array($scanJadwalCtx) ? $scanJadwalCtx : ['state' => 'none']);
+$timerState = $scanTimerPrep['state'];
+$timerClass = $scanTimerPrep['class'];
+$timerClockInit = $scanTimerPrep['clock'];
 
 $rapatJudul = '';
 if ($rapatFilter !== null) {

@@ -109,7 +109,7 @@ function app_request_host(): string
     return is_string($stripped) && $stripped !== '' ? $stripped : $host;
 }
 
-/** Origin portal wali, mis. https://wali.pwa.nailulmuna.id — kosong = path /wali/ di host yang sama. */
+/** Origin portal wali, mis. https://wali.nailulmuna.id — kosong = path /wali/ di host yang sama. */
 function app_wali_public_url(): string
 {
     $env = getenv('APP_WALI_PUBLIC_URL');
@@ -183,6 +183,47 @@ function app_redirect_wali_login(): void
 {
     header('Location: ' . app_wali_login_href());
     exit;
+}
+
+/** Path yang boleh dilayani di host portal wali (subdomain). */
+function app_wali_host_path_allowed(string $path): bool
+{
+    $path = strtolower($path);
+    if ($path === '' || $path === '/') {
+        return true;
+    }
+    foreach (['/wali/', '/assets/', '/uploads/', '/api/vendor/', '/api/push/'] as $prefix) {
+        if (str_starts_with($path, $prefix)) {
+            return true;
+        }
+    }
+    $allowed = [
+        '/index.php',
+        '/offline.php',
+        '/favicon.ico',
+        '/api/login_santri_suggest.php',
+    ];
+
+    return in_array($path, $allowed, true);
+}
+
+/**
+ * Di host wali.nailulmuna.id, halaman staf (dashboard, scan, keuangan pengurus) dialihkan ke portal wali.
+ */
+function app_wali_host_enforce(): void
+{
+    if (PHP_SAPI === 'cli' || !function_exists('app_is_wali_host') || !app_is_wali_host()) {
+        return;
+    }
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $path = app_normalize_request_path($uri);
+    if (app_wali_host_path_allowed($path)) {
+        return;
+    }
+    if (isset($_SESSION['wali']['santri_id']) && (int) $_SESSION['wali']['santri_id'] > 0) {
+        app_redirect('wali/index.php');
+    }
+    app_redirect_wali_login();
 }
 
 /** Normalisasi REQUEST_URI untuk ACL/menu (hilangkan base_path di lokal). */

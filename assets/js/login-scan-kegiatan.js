@@ -239,6 +239,8 @@
         btnRestart: document.getElementById('login-scan-restart'),
         btnRetry: document.getElementById('login-scan-retry'),
         btnTorch: document.getElementById('login-scan-torch'),
+        startWrap: document.getElementById('login-scan-start-wrap'),
+        startBtn: document.getElementById('btn-start-login-scan'),
         onSubmit: submitScan,
     });
     scanner.init();

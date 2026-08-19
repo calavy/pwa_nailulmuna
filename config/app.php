@@ -8,6 +8,7 @@ declare(strict_types=1);
  * base_path null = deteksi otomatis:
  *   - XAMPP: http://localhost/pwa_nailulmuna/...
  *   - Hosting (root domain): https://pwa.nailulmuna.id/...
+ *   - Portal wali (opsional): https://wali.nailulmuna.id/... via wali_public_url
  *
  * public_url null = ikut domain browser saat dibuka.
  * Opsional: salin config/app.local.example.php → app.local.php jika perlu override.

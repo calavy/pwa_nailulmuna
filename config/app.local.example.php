@@ -15,5 +15,7 @@ return [
     // Atau isi keduanya dengan URL ngrok lengkap Anda.
     //
     // Portal wali subdomain (opsional). Kosong = login di /wali/login.php pada host yang sama.
-    // 'wali_public_url' => 'https://wali.pwa.nailulmuna.id',
+    // Di server live isi:
+    // 'public_url' => 'https://pwa.nailulmuna.id',
+    // 'wali_public_url' => 'https://wali.nailulmuna.id',
 ];

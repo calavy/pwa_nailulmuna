@@ -142,16 +142,20 @@
     function formatCameraError(err) {
         var name = err && err.name ? String(err.name) : '';
         var message = err && err.message ? String(err.message) : '';
-        if (/NotAllowedError|PermissionDeniedError/i.test(name + message)) {
-            return 'Akses kamera ditolak. Izinkan kamera di pengaturan browser/situs, lalu ketuk Ulangi.';
+        var combined = name + ' ' + message;
+        if (/overlay|balon|bubble|float(?:ing)?|draw.?over|tapjack|tidak dapat meminta izin|cannot request/i.test(combined)) {
+            return 'Kamera diblokir overlay aplikasi lain. Tutup balon chat, filter layar, atau perekam layar, lalu ketuk Coba lagi.';
         }
-        if (/NotFoundError|DevicesNotFoundError/i.test(name + message)) {
+        if (/NotAllowedError|PermissionDeniedError/i.test(combined)) {
+            return 'Akses kamera ditolak. Tutup balon chat, filter layar, atau perekam layar jika ada, izinkan kamera di browser, lalu ketuk Coba lagi.';
+        }
+        if (/NotFoundError|DevicesNotFoundError/i.test(combined)) {
             return 'Kamera tidak ditemukan di perangkat ini.';
         }
-        if (/NotReadableError|TrackStartError|AbortError/i.test(name + message)) {
+        if (/NotReadableError|TrackStartError|AbortError/i.test(combined)) {
             return 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi lain, lalu ketuk Ulangi.';
         }
-        if (/OverconstrainedError/i.test(name + message)) {
+        if (/OverconstrainedError/i.test(combined)) {
             return 'Pengaturan kamera tidak didukung. Coba ganti kamera atau matikan Super Fokus.';
         }
         return 'Gagal membuka kamera. Izinkan akses kamera di browser, lalu ketuk Ulangi.';
@@ -597,7 +601,14 @@
 
     PresensiScanCamera.prototype.restart = async function () {
         this.hideError();
-        await this.runStart(this.selectedId);
+        try {
+            await this.prepareCameras();
+            await this.runStart(this.selectedId);
+        } catch (e) {
+            if (this.startBtn && this.deferStartOnMobile) {
+                this.showStartWrap();
+            }
+        }
     };
 
     PresensiScanCamera.prototype.fillCameraSelect = function () {
@@ -682,6 +693,69 @@
         this.cameras = await loadCameraList();
     };
 
+    /**
+     * Izin + daftar kamera. Di HP dipanggil setelah ketuk Mulai scan, bukan saat halaman terbuka.
+     *
+     * @param {boolean} [force]
+     */
+    PresensiScanCamera.prototype.prepareCameras = async function (force) {
+        var self = this;
+        if (!force && self.cameras && self.cameras.length > 0 && self.selectedId) {
+            return;
+        }
+
+        await primeCameraPermission();
+        await self.loadCameras();
+
+        if (!self.cameras || self.cameras.length === 0) {
+            self.showError('Tidak ada kamera terdeteksi. Pastikan perangkat punya kamera dan izin sudah diizinkan.');
+            throw new Error('Tidak ada kamera terdeteksi');
+        }
+
+        var savedId = null;
+        try {
+            savedId = global.localStorage.getItem(STORAGE_KEY);
+        } catch (e) {
+            /* abaikan */
+        }
+        if (savedId && !self.cameras.some(function (c) { return c.id === savedId; })) {
+            savedId = null;
+            try {
+                global.localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {
+                /* abaikan */
+            }
+        }
+
+        var preferred = pickPreferredCamera(self.cameras, savedId);
+        self.selectedId = preferred ? preferred.id : self.cameras[0].id;
+        self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === self.selectedId; }));
+
+        self.fillCameraSelect();
+
+        if (self.btnFlip) {
+            self.btnFlip.disabled = self.cameras.length < 2;
+            self.btnFlip.style.opacity = self.cameras.length < 2 ? '0.45' : '1';
+        }
+    };
+
+    PresensiScanCamera.prototype.bindStartBtn = function () {
+        var self = this;
+        if (!self.startBtn || self._startBtnBound) {
+            return;
+        }
+        self._startBtnBound = true;
+        self.startBtn.addEventListener('click', function () {
+            self.prepareCameras().then(function () {
+                return self.runStart(null);
+            }).catch(function () {
+                if (self.startBtn && self.deferStartOnMobile) {
+                    self.showStartWrap();
+                }
+            });
+        });
+    };
+
     PresensiScanCamera.prototype.init = async function () {
         var self = this;
 
@@ -740,39 +814,6 @@
         }
 
         await self.waitReaderVisible();
-        await primeCameraPermission();
-        await self.loadCameras();
-
-        if (!self.cameras || self.cameras.length === 0) {
-            self.showError('Tidak ada kamera terdeteksi. Pastikan perangkat punya kamera dan izin sudah diizinkan.');
-            return;
-        }
-
-        var savedId = null;
-        try {
-            savedId = global.localStorage.getItem(STORAGE_KEY);
-        } catch (e) {
-            /* abaikan */
-        }
-        if (savedId && !self.cameras.some(function (c) { return c.id === savedId; })) {
-            savedId = null;
-            try {
-                global.localStorage.removeItem(STORAGE_KEY);
-            } catch (e) {
-                /* abaikan */
-            }
-        }
-
-        var preferred = pickPreferredCamera(self.cameras, savedId);
-        self.selectedId = preferred ? preferred.id : self.cameras[0].id;
-        self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === self.selectedId; }));
-
-        self.fillCameraSelect();
-
-        if (self.btnFlip) {
-            self.btnFlip.disabled = self.cameras.length < 2;
-            self.btnFlip.style.opacity = self.cameras.length < 2 ? '0.45' : '1';
-        }
 
         global.addEventListener('beforeunload', function () {
             if (self.qr) {
@@ -783,16 +824,12 @@
         if (self.deferStartOnMobile && isMobileScanDevice() && self.startBtn) {
             self.showStartWrap();
             self.setStatus('is-waiting', 'Ketuk Mulai scan');
-            if (!self._startBtnBound) {
-                self._startBtnBound = true;
-                self.startBtn.addEventListener('click', function () {
-                    self.runStart(null).catch(function () {});
-                });
-            }
+            self.bindStartBtn();
             return;
         }
 
         try {
+            await self.prepareCameras();
             await self.runStart(null);
         } catch (e) {
             /* error sudah ditampilkan */

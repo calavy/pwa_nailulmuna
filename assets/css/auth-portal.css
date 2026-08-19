@@ -1162,17 +1162,32 @@ html {
 }
 
 /* Portal pembimbing — masuk dengan scan QR (layout mirip presensi/scan) */
+html:has(body.auth-portal-page--pb-scan),
+body.auth-portal-page--pb-scan {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
 .auth-portal-page--pb-scan {
-    padding: max(0.35rem, env(safe-area-inset-top, 0px))
-        max(0.35rem, env(safe-area-inset-right, 0px))
-        max(0.5rem, env(safe-area-inset-bottom, 0px))
-        max(0.35rem, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+    padding: max(0.2rem, env(safe-area-inset-top, 0px))
+        max(0.25rem, env(safe-area-inset-right, 0px))
+        max(0.25rem, env(safe-area-inset-bottom, 0px))
+        max(0.25rem, env(safe-area-inset-left, 0px));
+    overflow: hidden;
+    height: 100dvh;
+    max-height: 100dvh;
 }
 
 .auth-portal-page--pb-scan .auth-portal-viewport {
     align-items: stretch;
     padding-inline: 0;
-    min-height: calc(100dvh - 0.5rem);
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
 }
 
 .auth-portal-shell--pb-scan {
@@ -1181,7 +1196,8 @@ html {
     margin-inline: auto;
     flex: 1;
     min-height: 0;
-    gap: 0.5rem;
+    gap: 0.25rem;
+    overflow: hidden;
 }
 
 .auth-portal-shell--pb-scan .auth-portal-hero {
@@ -1197,7 +1213,7 @@ html {
 }
 
 .auth-portal-shell--pb-scan .auth-portal-card__head {
-    padding: 0.55rem 0.85rem;
+    display: none;
 }
 
 .auth-portal-shell--pb-scan .auth-portal-card__body {
@@ -1205,11 +1221,14 @@ html {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 0.5rem 0.5rem 0.65rem;
+    overflow: hidden;
+    padding: 0.2rem 0.25rem 0;
 }
 
 .auth-portal-shell--pb-scan .auth-portal-back {
-    margin-bottom: 0.35rem;
+    flex-shrink: 0;
+    margin-bottom: 0.2rem;
+    font-size: 0.82rem;
 }
 
 .auth-portal-shell--pb-scan .login-pb-alt {
@@ -1222,10 +1241,10 @@ html {
     }
 
     .auth-portal-page--pb-scan {
-        padding: max(0.5rem, env(safe-area-inset-top, 0px))
-            max(0.75rem, env(safe-area-inset-right, 0px))
-            max(0.75rem, env(safe-area-inset-bottom, 0px))
-            max(0.75rem, env(safe-area-inset-left, 0px));
+        padding: max(0.35rem, env(safe-area-inset-top, 0px))
+            max(0.5rem, env(safe-area-inset-right, 0px))
+            max(0.5rem, env(safe-area-inset-bottom, 0px))
+            max(0.5rem, env(safe-area-inset-left, 0px));
     }
 }
 
@@ -1256,11 +1275,14 @@ html {
     flex: 1;
     width: 100%;
     max-width: none;
-    margin: 0;
-    min-height: min(72dvh, 640px);
+    margin: 0 !important;
+    min-height: 0;
+    height: auto;
+    max-height: none;
 }
 
 .login-scan-kegiatan__head.presensi-scan-top {
+    flex-shrink: 0;
     background: rgba(4, 120, 87, 0.95);
 }
 
@@ -1271,18 +1293,52 @@ html {
 }
 
 .login-scan-kegiatan__viewport.presensi-scan-viewport {
-    flex: 1;
-    min-height: min(52dvh, 480px);
+    flex: 1 1 auto;
+    min-height: 0;
     width: 100%;
     max-width: none;
     aspect-ratio: unset;
     border-radius: 0;
 }
 
-.login-scan-kegiatan__viewport #login-scan-reader {
+.login-scan-kegiatan__viewport #login-scan-reader,
+.login-scan-kegiatan__viewport #login-scan-reader video {
     width: 100% !important;
     height: 100% !important;
-    min-height: min(52dvh, 480px);
+    min-height: 0 !important;
+    max-height: 100% !important;
+}
+
+.login-scan-kegiatan__viewport #login-scan-reader > div {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+}
+
+.login-scan-kegiatan__controls {
+    flex-shrink: 0;
+}
+
+.login-scan-kegiatan__hint {
+    flex-shrink: 0;
+    padding: 0.3rem 0.75rem 0.4rem;
+    color: #94a3b8 !important;
+}
+
+@media (max-height: 760px) {
+    .login-scan-kegiatan__hint {
+        display: none;
+    }
+
+    .auth-portal-shell--pb-scan .auth-portal-back {
+        margin-bottom: 0.1rem;
+        font-size: 0.78rem;
+    }
+
+    .login-scan-kegiatan .presensi-scan-start-wrap .small {
+        display: none;
+    }
 }
 
 .login-scan-mode-bar {
@@ -1315,11 +1371,6 @@ html {
     color: #ecfdf5;
     background: rgba(13, 148, 136, 0.85);
     border-color: rgba(167, 243, 208, 0.45);
-}
-
-.login-scan-kegiatan__hint {
-    padding: 0.45rem 0.75rem 0.65rem;
-    color: #94a3b8 !important;
 }
 
 .login-scan-munawib-pick {

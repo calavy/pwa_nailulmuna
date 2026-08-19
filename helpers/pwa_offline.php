@@ -190,16 +190,55 @@ function pwa_precache_paths(string $basePath, ?PDO $pdo = null): array
     ], $uiStatic, $vendor, $moduleShell, pwa_media_precache_paths($basePath, $pdo))));
 }
 
+/** Precache portal wali saja (tanpa shell scan/staf). */
+function pwa_wali_precache_paths(string $basePath, ?PDO $pdo = null): array
+{
+    require_once __DIR__ . '/app.php';
+    require_once __DIR__ . '/app_vendor.php';
+
+    $base = rtrim($basePath, '/');
+    $prefix = $base === '' ? '' : $base;
+    $root = dirname(__DIR__);
+    $rel = [
+        '/assets/css/app.css',
+        '/assets/css/pwa-ui.css',
+        '/assets/css/auth-portal.css',
+        '/assets/css/wali-portal.css',
+        '/assets/js/app-shell.js',
+        '/assets/js/theme-mode.js',
+        '/assets/js/pwa-register.js',
+        '/wali/login.php',
+        '/wali/index.php',
+        '/offline.php',
+        '/api/vendor/fontawesome.css.php',
+    ];
+    $out = [];
+    foreach ($rel as $p) {
+        if (str_ends_with($p, '.php') || is_file($root . $p)) {
+            $out[] = $prefix . $p;
+        }
+    }
+    foreach (app_vendor_precache_relative_paths() as $p) {
+        $out[] = $prefix . $p;
+    }
+
+    return array_values(array_unique(array_merge($out, pwa_media_precache_paths($basePath, $pdo))));
+}
+
 /**
  * Generate isi service worker (offline + opsional FCM).
  */
-function pwa_render_service_worker_js(PDO $pdo, string $basePath, bool $includeFcm = true): string
+function pwa_render_service_worker_js(PDO $pdo, string $basePath, bool $includeFcm = true, bool $waliPortal = false): string
 {
     $basePath = rtrim($basePath, '/');
     $baseJs = addslashes($basePath === '' ? '' : $basePath);
-    $cacheVer = addslashes(pwa_cache_version());
+    $cacheVer = addslashes(pwa_cache_version() . ($waliPortal ? '-wali' : ''));
     $mediaCacheVer = addslashes(substr(md5(pwa_cache_version()), 0, 12));
-    $precacheJson = json_encode(pwa_precache_paths($basePath, $pdo), JSON_UNESCAPED_SLASHES);
+    $precacheJson = json_encode(
+        $waliPortal ? pwa_wali_precache_paths($basePath, $pdo) : pwa_precache_paths($basePath, $pdo),
+        JSON_UNESCAPED_SLASHES
+    );
+    $variantJs = $waliPortal ? 'wali' : 'app';
 
     $fcmBlock = '';
     if ($includeFcm) {
@@ -261,6 +300,7 @@ var PWA_BASE = '{$baseJs}';
 var PWA_CACHE = '{$cacheVer}';
 var PWA_MEDIA_CACHE = 'pondok-pwa-media-{$mediaCacheVer}';
 var PWA_PRECACHE = {$precacheJson};
+var PWA_VARIANT = '{$variantJs}';
 
 function pwaUrl(path) {
   path = String(path || '');
@@ -293,6 +333,9 @@ function pwaIsOfflineNavAllowlist(url) {
   var p = url.pathname;
   if (p.endsWith('/offline.php')) {
     return true;
+  }
+  if (PWA_VARIANT === 'wali') {
+    return p.indexOf('/wali/') >= 0;
   }
   if (p.indexOf('/login.php') >= 0 && url.search.indexOf('scan=1') >= 0) {
     return true;

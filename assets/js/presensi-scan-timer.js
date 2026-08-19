@@ -14,6 +14,7 @@
     var lastStateKey = '';
     var lastMarqueeSig = '';
     var daySlotBounds = null;
+    var expandBound = false;
 
     function pad2(n) {
         return n < 10 ? '0' + n : String(n);
@@ -21,9 +22,10 @@
 
     function formatClock(totalSec) {
         var s = Math.max(0, Math.floor(totalSec));
-        var m = Math.floor(s / 60);
+        var h = Math.floor(s / 3600);
+        var m = Math.floor((s % 3600) / 60);
         var sec = s % 60;
-        return pad2(m) + ':' + pad2(sec);
+        return pad2(h) + ':' + pad2(m) + ':' + pad2(sec);
     }
 
     function parseCtx() {
@@ -56,22 +58,6 @@
         }
     }
 
-    function slotLabel(slot) {
-        var label = String(slot.nama_kegiatan || 'Kegiatan');
-        var mulai = String(slot.jam_mulai || '').slice(0, 5);
-        var selesai = String(slot.jam_selesai || '').slice(0, 5);
-        if (mulai && selesai) {
-            label += ' · ' + mulai + '–' + selesai;
-        }
-        if (slot.tingkatan) {
-            label += ' · ' + String(slot.tingkatan);
-        }
-        if (slot.tempat) {
-            label += ' · ' + String(slot.tempat);
-        }
-        return label;
-    }
-
     function escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -80,10 +66,27 @@
             .replace(/"/g, '&quot;');
     }
 
-    function buildMarqueeItem(label) {
-        return '<span class="presensi-scan-timer-marquee__item">'
+    function buildMarqueeItem(slot, index, total) {
+        var nama = String((slot && slot.nama_kegiatan) || 'Kegiatan').trim() || 'Kegiatan';
+        var inner = '<span class="presensi-scan-timer-marquee__kegiatan">' + escapeHtml(nama) + '</span>';
+        var mulai = String((slot && slot.jam_mulai) || '').slice(0, 5);
+        var selesai = String((slot && slot.jam_selesai) || '').slice(0, 5);
+        if (mulai && selesai) {
+            inner += '<span class="presensi-scan-timer-marquee__waktu">' + escapeHtml(mulai + '–' + selesai) + '</span>';
+        }
+        if (slot && slot.tingkatan) {
+            inner += '<span class="presensi-scan-timer-marquee__meta">' + escapeHtml(String(slot.tingkatan)) + '</span>';
+        }
+        if (slot && slot.tempat) {
+            inner += '<span class="presensi-scan-timer-marquee__tempat">' + escapeHtml(String(slot.tempat)) + '</span>';
+        }
+        var tone = '';
+        if (total > 1) {
+            tone = (index % 2 === 0) ? ' is-tone-yellow' : ' is-tone-white';
+        }
+        return '<span class="presensi-scan-timer-marquee__item' + tone + '">'
             + '<i class="fa-solid fa-bolt" aria-hidden="true"></i>'
-            + '<span>' + escapeHtml(label) + '</span>'
+            + inner
             + '</span>';
     }
 
@@ -162,11 +165,44 @@
         }
         marqueeBound = true;
         marqueeEl.setAttribute('title', 'Ketuk untuk jeda / lanjut teks jadwal');
-        marqueeEl.addEventListener('click', function () {
+        marqueeEl.addEventListener('click', function (e) {
+            e.stopPropagation();
             if (marqueeEl.classList.contains('is-static')) {
                 return;
             }
             marqueeEl.classList.toggle('is-paused');
+        });
+    }
+
+    function bindExpandToggle() {
+        if (expandBound) {
+            return;
+        }
+        var box = document.getElementById('presensi-scan-timer');
+        var inner = box ? box.querySelector('.presensi-scan-timer-inner') : null;
+        if (!box || !inner) {
+            return;
+        }
+        expandBound = true;
+
+        function setExpanded(open) {
+            box.classList.toggle('is-expanded', open);
+            inner.setAttribute('aria-expanded', open ? 'true' : 'false');
+            inner.setAttribute('title', open ? 'Ketuk untuk sembunyikan jadwal' : 'Ketuk untuk lihat jadwal');
+            if (open) {
+                marqueeSyncRetries = 0;
+                scheduleMarqueeSync(50);
+            }
+        }
+
+        inner.addEventListener('click', function () {
+            setExpanded(!box.classList.contains('is-expanded'));
+        });
+        inner.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setExpanded(!box.classList.contains('is-expanded'));
+            }
         });
     }
 
@@ -255,17 +291,16 @@
         }
         lastMarqueeSig = sig;
 
-        var labels = slots.map(slotLabel);
         var html = '';
         var pass;
         var i;
-        var repeatPasses = labels.length === 1 ? 6 : 2;
+        var repeatPasses = slots.length === 1 ? 6 : 2;
         for (pass = 0; pass < repeatPasses; pass += 1) {
-            for (i = 0; i < labels.length; i += 1) {
+            for (i = 0; i < slots.length; i += 1) {
                 if (i > 0 || pass > 0) {
                     html += buildMarqueeSeparator();
                 }
-                html += buildMarqueeItem(labels[i]);
+                html += buildMarqueeItem(slots[i], i, slots.length);
             }
         }
         if (trackEl.innerHTML !== html) {
@@ -383,10 +418,10 @@
             return 'Belum ada jadwal aktif';
         }
         if (state === 'active') {
-            return 'Sisa waktu scan: ' + formatClock(remainSec);
+            return 'Sisa waktu scan';
         }
         if (state === 'upcoming') {
-            return 'Mulai scan dalam: ' + formatClock(remainSec);
+            return 'Mulai scan dalam';
         }
         return '';
     }
@@ -443,7 +478,12 @@
         var nowWall = formatWallClock(new Date());
 
         if (wallEl) {
-            wallEl.textContent = nowWall;
+            var wallValue = document.getElementById('presensi-scan-timer-wall-value');
+            if (wallValue) {
+                wallValue.textContent = nowWall;
+            } else {
+                wallEl.textContent = nowWall;
+            }
         }
 
         if (state === 'libur') {
@@ -466,11 +506,11 @@
             return;
         }
         if (state === 'ended') {
-            if (clockEl) clockEl.textContent = '00:00';
+            if (clockEl) clockEl.textContent = '00:00:00';
             if (hintEl) hintEl.textContent = hintForState('ended', 0);
             return;
         }
-        if (clockEl) clockEl.textContent = '--:--';
+        if (clockEl) clockEl.textContent = '--:--:--';
         if (hintEl) hintEl.textContent = hintForState('none', 0);
     }
 
@@ -509,6 +549,7 @@
     }
 
     function start() {
+        bindExpandToggle();
         render();
         syncMarqueeSpeed();
         scheduleMarqueeSync(150);

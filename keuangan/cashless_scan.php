@@ -53,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && trim((string) ($_GET['action'] ?? ''
         exit;
     }
     $nominal = (int) ($mapRow['nominal'] ?? 0);
+    $verifiedId = (int) ($_SESSION['cashless_verified']['santri_id'] ?? 0);
+    if ($verifiedId > 0) {
+        cashless_verified_session_mark($verifiedId, $pdo);
+    }
     echo json_encode([
         'ok' => true,
         'nominal' => $nominal,
@@ -268,10 +272,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 unset($_SESSION['cashless_verified'], $_SESSION['cashless_auto_nominal_scan']);
                 $resultType = 'warning';
                 $resultMessage = 'Hari operasional berganti. Silakan scan QR dan PIN kembali.';
-            } elseif ((int) ($verified['verified_at'] ?? 0) > 0 && time() - (int) $verified['verified_at'] > 30) {
+            } elseif ((int) ($verified['verified_at'] ?? 0) > 0 && time() - (int) $verified['verified_at'] > 120) {
                 unset($_SESSION['cashless_verified']);
                 $resultType = 'warning';
-                $resultMessage = 'Waktu scan uang habis (30 detik). Silakan scan QR dan PIN kembali.';
+                $resultMessage = 'Waktu sesi habis (2 menit). Silakan scan QR dan PIN kembali.';
             } else {
                 $sessionOk = true;
             }
@@ -567,10 +571,10 @@ if ($koperasiPortal) {
                         </div>
                     </div>
                 </div>
-                <div class="cashless-pin-card">
+                <div class="cashless-pin-card" id="cashless_pin_card">
                     <label for="pin_input">Masukkan PIN santri</label>
-                    <input type="password" id="pin_input" class="cashless-pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" aria-label="PIN">
-                    <p class="cashless-pin-hint small text-muted mb-0 mt-1" id="pin_hint">Scan QR santri dulu, lalu masukkan PIN sampai selesai (Enter atau jeda ±1,5 detik).</p>
+                    <input type="password" id="pin_input" class="cashless-pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" aria-label="PIN" disabled>
+                    <p class="cashless-pin-hint small text-muted mb-0 mt-1" id="pin_hint">Masukkan PIN sampai selesai (Enter atau jeda ±1,5 detik).</p>
                 </div>
                 <form method="post" id="pin_form" class="d-none">
                     <input type="hidden" name="action" value="verify_cashless_pin">
@@ -618,7 +622,7 @@ if ($koperasiPortal) {
                     <p class="small text-muted mb-3" id="cashless_nominal_label"></p>
                     <div class="d-flex flex-wrap gap-2 justify-content-center">
                         <button type="button" class="btn btn-success btn-lg px-4" id="cashless_btn_bayar">
-                            <i class="fa-solid fa-check me-1"></i> Bayar
+                            <i class="fa-solid fa-check me-1"></i><span id="cashless_btn_bayar_label">Bayar</span>
                         </button>
                         <button type="button" class="btn btn-outline-light btn-sm" id="cashless_btn_scan_ulang">
                             <i class="fa-solid fa-rotate-left me-1"></i> Scan ulang
@@ -792,6 +796,7 @@ if ($koperasiPortal) {
         const nominalAmountEl = document.getElementById('cashless_nominal_amount');
         const nominalLabelEl = document.getElementById('cashless_nominal_label');
         const btnBayar = document.getElementById('cashless_btn_bayar');
+        const btnBayarLabel = document.getElementById('cashless_btn_bayar_label');
         const btnScanUlang = document.getElementById('cashless_btn_scan_ulang');
         const liveClockEl = document.getElementById('cashless_live_clock');
 
@@ -1100,17 +1105,29 @@ if ($koperasiPortal) {
             }
         }
 
+        function setAwaitingPin(on) {
+            pinEntryActive = !!on;
+            if (wrap) {
+                wrap.classList.toggle('is-awaiting-pin', !!on);
+            }
+            if (pinInput) {
+                pinInput.disabled = !on;
+                if (!on) {
+                    pinInput.value = '';
+                    pinInput.blur();
+                }
+            }
+        }
+
         async function restartCamera() {
             setFlash('', '');
             if (moneyPhase) {
                 await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
-            } else if (pinEntryActive && (input.value || '').trim()) {
-                if (pinInput) {
-                    pinInput.disabled = false;
-                    pinInput.focus();
-                }
+            } else if (pinEntryActive) {
+                setAwaitingPin(false);
+                if (input) input.value = '';
+                await startSantriScanner(activeCameraId);
             } else {
-                pinEntryActive = false;
                 await startSantriScanner(activeCameraId);
             }
         }
@@ -1154,22 +1171,20 @@ if ($koperasiPortal) {
                     var data = await res.json();
                     if (data && data.ok && data.registered) {
                         notifyResult('success', '\u2713 ' + (data.nama || 'Santri') + ' (' + (data.nis || '-') + ') terdaftar. Masukkan PIN.');
+                        setAwaitingPin(true);
                         if (pinInput) {
-                            pinInput.value = '';
-                            pinInput.disabled = false;
                             pinInput.focus();
                         }
                         return;
                     }
                     notifyResult('danger', 'QR/NIS tidak terdaftar di sistem.');
                     input.value = '';
-                    pinEntryActive = false;
+                    setAwaitingPin(false);
                     await startSantriScanner(activeCameraId);
                 } catch (e) {
                     notifyResult('info', 'QR terbaca. Lanjutkan masukkan PIN sampai selesai.');
+                    setAwaitingPin(true);
                     if (pinInput) {
-                        pinInput.value = '';
-                        pinInput.disabled = false;
                         pinInput.focus();
                     }
                 }
@@ -1207,6 +1222,23 @@ if ($koperasiPortal) {
             } catch (e) {}
         }
 
+        function setConfirming(on) {
+            if (wrap) {
+                wrap.classList.toggle('is-confirming', !!on);
+            }
+        }
+
+        function setBayarState(opts) {
+            opts = opts || {};
+            if (!btnBayar) {
+                return;
+            }
+            btnBayar.disabled = !!opts.disabled;
+            if (btnBayarLabel) {
+                btnBayarLabel.textContent = opts.processing ? 'Memproses…' : 'Bayar';
+            }
+        }
+
         function switchToMoneyPhase(santriName) {
             moneyPhase = true;
             if (wrap) wrap.classList.add('is-money-phase');
@@ -1235,6 +1267,8 @@ if ($koperasiPortal) {
 
         function hideNominalConfirm() {
             pendingNominalRaw = '';
+            setConfirming(false);
+            setBayarState({ disabled: false, processing: false });
             if (nominalConfirmPanel) {
                 nominalConfirmPanel.classList.add('d-none');
             }
@@ -1258,15 +1292,23 @@ if ($koperasiPortal) {
             }
             pendingNominalRaw = raw;
             clearMoneyPhaseTimeout();
+            setConfirming(true);
             if (nominalConfirmPanel) {
                 nominalConfirmPanel.classList.remove('d-none');
             }
             if (nominalAmountEl) {
                 nominalAmountEl.textContent = '…';
             }
+            if (nominalLabelEl) {
+                nominalLabelEl.textContent = '';
+            }
+            setBayarState({ disabled: true, processing: false });
             setFlash('Periksa nominal lalu ketuk Bayar.', 'info');
             try {
                 var data = await lookupNominal(raw);
+                if (pendingNominalRaw !== raw) {
+                    return;
+                }
                 if (data.ok) {
                     if (nominalAmountEl) {
                         nominalAmountEl.textContent = data.nominal_fmt || ('Rp ' + formatRp(data.nominal || 0));
@@ -1274,6 +1316,7 @@ if ($koperasiPortal) {
                     if (nominalLabelEl) {
                         nominalLabelEl.textContent = data.label ? ('Kode: ' + data.label) : '';
                     }
+                    setBayarState({ disabled: false, processing: false });
                 } else {
                     if (nominalAmountEl) {
                         nominalAmountEl.textContent = '—';
@@ -1281,12 +1324,17 @@ if ($koperasiPortal) {
                     if (nominalLabelEl) {
                         nominalLabelEl.textContent = data.message || 'QR tidak dikenali';
                     }
+                    setBayarState({ disabled: true, processing: false });
                     notifyResult('warning', data.message || 'QR tidak dikenali.');
                 }
             } catch (e) {
+                if (pendingNominalRaw !== raw) {
+                    return;
+                }
                 if (nominalAmountEl) {
                     nominalAmountEl.textContent = '—';
                 }
+                setBayarState({ disabled: true, processing: false });
                 notifyResult('danger', 'Gagal membaca nominal. Coba scan ulang.');
             }
         }
@@ -1368,16 +1416,12 @@ if ($koperasiPortal) {
         function resetToSantriPhase(opts) {
             opts = opts || {};
             moneyPhase = false;
-            pinEntryActive = false;
+            setAwaitingPin(false);
             clearMoneyPhaseTimeout();
             hideNominalConfirm();
             clearMoneyOfflineFields();
             if (wrap) wrap.classList.remove('is-money-phase');
             if (input) input.value = '';
-            if (pinInput) {
-                pinInput.value = '';
-                pinInput.disabled = false;
-            }
             if (nominalScanInput) nominalScanInput.value = '';
             if (opts.clearStats !== false) {
                 setSantriStats(null, null);
@@ -1394,17 +1438,23 @@ if ($koperasiPortal) {
             }
         }
 
-        async function returnToSantriQrScan(noticeType, noticeMessage) {
+        async function returnToSantriQrScan(noticeType, noticeMessage, opts) {
+            opts = opts || {};
+            setConfirming(false);
             await stopMoneyScanner();
-            resetToSantriPhase({ clearFlash: true, clearSantriChip: true, clearStats: true });
-            await nextPaint();
-            await waitReaderVisible(readerId);
-            await startSantriScanner(activeCameraId);
-            if (noticeMessage) {
-                notifyResult(noticeType || 'info', noticeMessage);
-            } else {
-                notifyResult('info', 'Kamera siap scan QR santri.');
+            resetToSantriPhase({
+                clearFlash: opts.keepFlash ? false : true,
+                clearSantriChip: true,
+                clearStats: true
+            });
+            if (!opts.skipNotify) {
+                if (noticeMessage) {
+                    notifyResult(noticeType || 'info', noticeMessage);
+                } else {
+                    notifyResult('info', 'Kamera siap scan QR santri.');
+                }
             }
+            startSantriScanner(activeCameraId).catch(function () {});
         }
 
         async function beginMoneyQrScan(santriName, skipSwitch) {
@@ -1424,10 +1474,14 @@ if ($koperasiPortal) {
             await waitReaderVisible(moneyReaderId);
             hideCameraError('money');
             moneyQr = new Html5Qrcode(moneyReaderId);
-            const moneyOnSuccess = async function (decodedText) {
+            const moneyOnSuccess = function (decodedText) {
+                var raw = (decodedText || '').trim();
+                if (!raw || moneyScanBusy || pendingNominalRaw) {
+                    return;
+                }
                 notifyScanTick();
-                await stopMoneyScanner();
-                await showNominalConfirm((decodedText || '').trim());
+                showNominalConfirm(raw);
+                stopMoneyScanner().catch(function () {});
             };
             try {
                 var useId = activeCameraId;
@@ -1476,9 +1530,9 @@ if ($koperasiPortal) {
         async function submitMoneyScan(raw) {
             if (moneyScanBusy || !raw || !nominalScanInput || !moneyForm) return;
             moneyScanBusy = true;
-            hideNominalConfirm();
+            setBayarState({ disabled: true, processing: true });
             clearMoneyPhaseTimeout();
-            await stopMoneyScanner();
+            stopMoneyScanner().catch(function () {});
             nominalScanInput.value = raw;
             var tokenInput = document.getElementById('cashless_client_token');
             if (tokenInput) {
@@ -1491,9 +1545,14 @@ if ($koperasiPortal) {
             }
             setFlash('Memproses nominal…', 'info');
 
+            function finishBackToSantri(type, msg) {
+                notifyResult(type, msg);
+                returnToSantriQrScan(type, msg, { keepFlash: true, skipNotify: true }).catch(function () {});
+            }
+
             if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {
                 moneyScanBusy = false;
-                await returnToSantriQrScan('info', 'Transaksi masuk antrian offline (waktu scan tersimpan).\nScan QR santri untuk transaksi berikutnya.');
+                finishBackToSantri('info', 'Transaksi masuk antrian offline (waktu scan tersimpan).\nScan QR santri untuk transaksi berikutnya.');
                 return;
             }
 
@@ -1508,25 +1567,27 @@ if ($koperasiPortal) {
                         msg += ' Saldo Saku ' + formatRp(data.saldo_saku) + '.';
                     }
                     msg += '\nScan QR santri untuk transaksi berikutnya.';
-                    await returnToSantriQrScan('success', msg);
+                    finishBackToSantri('success', msg);
                 } else {
                     var failType = mapAjaxResultType(data);
                     var failMsg = data.message || 'Transaksi gagal.';
                     if (data.verified) {
+                        setBayarState({ disabled: false, processing: false });
                         notifyResult(failType, failMsg);
                         await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
                     } else {
-                        await returnToSantriQrScan(failType, failMsg + '\nScan QR santri untuk mulai lagi.');
+                        finishBackToSantri(failType, failMsg + '\nScan QR santri untuk mulai lagi.');
                     }
                 }
             } catch (e) {
                 if (window.PondokOfflineSync && PondokOfflineSync.handleFormSubmit(moneyForm, { label: 'Cashless: ' + raw })) {
-                    await returnToSantriQrScan('info', 'Koneksi gagal. Transaksi masuk antrian offline (waktu scan tersimpan).');
+                    finishBackToSantri('info', 'Koneksi gagal. Transaksi masuk antrian offline (waktu scan tersimpan).');
                 } else if (moneyPhase) {
+                    setBayarState({ disabled: false, processing: false });
                     notifyResult('danger', 'Gagal kirim transaksi. Periksa koneksi lalu coba lagi.');
                     await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '', true);
                 } else {
-                    await returnToSantriQrScan('danger', 'Gagal kirim transaksi.\nScan QR santri untuk mulai lagi.');
+                    finishBackToSantri('danger', 'Gagal kirim transaksi.\nScan QR santri untuk mulai lagi.');
                 }
             } finally {
                 moneyScanBusy = false;
@@ -1538,7 +1599,7 @@ if ($koperasiPortal) {
             offlineMoneyPin = pin || '';
             offlineMoneyKodeQr = kodeQr || ((input && input.value) ? input.value.trim() : '');
             syncMoneyOfflineFields();
-            pinEntryActive = false;
+            setAwaitingPin(false);
             setSantriName(nama || 'Santri');
             speak('PIN benar');
             notifyResult('success', 'PIN benar. Arahkan ke QR nominal.');
@@ -1593,7 +1654,7 @@ if ($koperasiPortal) {
                     }
                     await beginMoneyPhaseAfterPin(nama, sid, pin, qr);
                 } else if (data.ok && !CFG.scanUangEnabled) {
-                    pinEntryActive = false;
+                    setAwaitingPin(false);
                     notifyResult('success', data.message || 'PIN benar. Scan uang nonaktif.');
                     if (pinInput) pinInput.value = '';
                     await returnToSantriQrScan('success', (data.message || 'PIN benar.') + '\nScan QR santri untuk transaksi berikutnya.');

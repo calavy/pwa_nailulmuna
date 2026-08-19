@@ -88,7 +88,7 @@ $pendingMusyawarahPick = $pendingMusyawarahPick ?? null;
     $scanTimerUpcomingFallback = $scanTimerUpcomingFallback ?? 'Menunggu rapat';
     $scanTimerEndedLabel = $scanTimerEndedLabel ?? 'Di luar jadwal rapat';
     $scanTimerAriaLabel = $scanTimerAriaLabel ?? 'Rapat berlangsung';
-    $scanTimerShowWall = false;
+    $scanTimerShowWall = true;
     require __DIR__ . '/presensi_scan_timer_strip.php';
     ?>
 

@@ -306,3 +306,10 @@ function ensure_santri_compat_schema(PDO $pdo): void
 }
 
 // Skema & helper berat: jangan di sini — dipanggil sekali per sesi via app_ensure_schema_deferred() (includes/header).
+
+if (PHP_SAPI !== 'cli') {
+    require_once dirname(__DIR__) . '/helpers/app_path.php';
+    if (function_exists('app_wali_host_enforce')) {
+        app_wali_host_enforce();
+    }
+}

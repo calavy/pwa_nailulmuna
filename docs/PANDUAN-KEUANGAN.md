@@ -462,7 +462,7 @@ Wali santri melihat tagihan dan membayar tanpa datang ke bendahara.
 
 ### Login
 
-**URL:** `/wali/login.php` (NIS atau nama santri + PIN portal wali). Jika subdomain dikonfigurasi: `wali.pwa.nailulmuna.id`.
+**URL:** `/wali/login.php` (NIS atau nama santri + PIN portal wali). Production: `https://wali.nailulmuna.id/wali/login.php` (set `wali_public_url` di `config/app.local.php`).
 
 ### Tab di Portal Keuangan
 
