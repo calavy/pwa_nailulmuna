@@ -14,7 +14,6 @@
     var lastStateKey = '';
     var lastMarqueeSig = '';
     var daySlotBounds = null;
-    var expandBound = false;
 
     function pad2(n) {
         return n < 10 ? '0' + n : String(n);
@@ -174,41 +173,14 @@
         });
     }
 
-    function setTimerExpanded(open) {
+    function ensureTimerOpen() {
         var box = document.getElementById('presensi-scan-timer');
-        var inner = box ? box.querySelector('.presensi-scan-timer-inner') : null;
-        if (!box || !inner) {
+        if (!box) {
             return;
         }
-        box.classList.toggle('is-expanded', open);
-        inner.setAttribute('aria-expanded', open ? 'true' : 'false');
-        inner.setAttribute('title', open ? 'Ketuk untuk sembunyikan jadwal' : 'Ketuk untuk lihat jadwal');
-        if (open) {
-            marqueeSyncRetries = 0;
-            scheduleMarqueeSync(50);
-        }
-    }
-
-    function bindExpandToggle() {
-        if (expandBound) {
-            return;
-        }
-        var box = document.getElementById('presensi-scan-timer');
-        var inner = box ? box.querySelector('.presensi-scan-timer-inner') : null;
-        if (!box || !inner) {
-            return;
-        }
-        expandBound = true;
-
-        inner.addEventListener('click', function () {
-            setTimerExpanded(!box.classList.contains('is-expanded'));
-        });
-        inner.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setTimerExpanded(!box.classList.contains('is-expanded'));
-            }
-        });
+        box.classList.add('is-expanded');
+        marqueeSyncRetries = 0;
+        scheduleMarqueeSync(50);
     }
 
     function getParsedCtx() {
@@ -434,12 +406,7 @@
 
         setTimerClass(box, state, useMarquee);
         updateMarquee(useMarquee ? slots : [], false);
-
-        if (useMarquee) {
-            setTimerExpanded(true);
-        } else {
-            setTimerExpanded(false);
-        }
+        ensureTimerOpen();
 
         if (state === 'libur') {
             if (titleEl) titleEl.textContent = 'Hari libur';
@@ -552,7 +519,7 @@
     }
 
     function start() {
-        bindExpandToggle();
+        ensureTimerOpen();
         render();
         syncMarqueeSpeed();
         scheduleMarqueeSync(150);

@@ -318,8 +318,6 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0.35rem;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
 }
 
 .presensi-scan-timer-marquee {
@@ -468,15 +466,15 @@
     display: none;
 }
 
-.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-inner {
+.presensi-scan-timer.has-marquee .presensi-scan-timer-inner {
     gap: 0.22rem;
 }
 
-.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) {
+.presensi-scan-timer-marquee:not(.d-none) {
     display: block;
 }
 
-.presensi-scan-timer.has-marquee.is-expanded .presensi-scan-timer-remain {
+.presensi-scan-timer.has-marquee .presensi-scan-timer-remain {
     min-height: 0;
     gap: 0.08rem;
 }
@@ -486,12 +484,12 @@
     display: none;
 }
 
-.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-title,
-.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-range {
+.presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-title,
+.presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-range {
     display: block;
 }
 
-.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-title {
+.presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-title {
     text-align: center;
     color: #94a3b8;
     font-weight: 600;
@@ -499,7 +497,7 @@
     padding: 0.15rem 0.35rem 0;
 }
 
-.presensi-scan-timer.is-expanded.is-upcoming:not(.has-marquee) .presensi-scan-timer-range {
+.presensi-scan-timer.is-upcoming:not(.has-marquee) .presensi-scan-timer-range {
     text-align: center;
     color: #e2e8f0;
     font-weight: 600;
@@ -509,14 +507,14 @@
     padding: 0 0.35rem 0.1rem;
 }
 
-.presensi-scan-timer.is-expanded:not(.has-marquee) .presensi-scan-timer-range:empty {
+.presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-range:empty {
     display: none !important;
 }
 
-.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-title,
-.presensi-scan-timer.is-expanded .presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-range,
-.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-title,
-.presensi-scan-timer.is-expanded.has-marquee .presensi-scan-timer-range {
+.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-title,
+.presensi-scan-timer-marquee:not(.d-none) ~ .presensi-scan-timer-range,
+.presensi-scan-timer.has-marquee .presensi-scan-timer-title,
+.presensi-scan-timer.has-marquee .presensi-scan-timer-range {
     display: none !important;
 }
 
@@ -994,7 +992,7 @@
         min-height: 2.4rem;
     }
 
-    .presensi-scan-timer.has-marquee.is-expanded .presensi-scan-timer-remain {
+    .presensi-scan-timer.has-marquee .presensi-scan-timer-remain {
         min-height: 0;
         gap: 0.08rem;
     }

@@ -27,14 +27,14 @@ $activeSlotCount = count($activeSlotsTimer);
 $showScanMarquee = $timerState === 'active' && $activeSlotCount > 0;
 $scanMarqueeTrackHtml = $showScanMarquee ? presensi_scan_marquee_track_html($activeSlotsTimer) : '';
 ?>
-    <div id="presensi-scan-timer" class="presensi-scan-timer is-<?= htmlspecialchars($timerClass) ?><?= $showScanMarquee ? ' has-marquee is-expanded' : '' ?><?= !empty($scanTimerShowWall) ? ' has-wall' : '' ?>" aria-live="polite">
+    <div id="presensi-scan-timer" class="presensi-scan-timer is-expanded is-<?= htmlspecialchars($timerClass) ?><?= $showScanMarquee ? ' has-marquee' : '' ?><?= !empty($scanTimerShowWall) ? ' has-wall' : '' ?>" aria-live="polite">
         <?php if ($scanTimerShowWall): ?>
         <span id="presensi-scan-timer-wall" class="presensi-scan-timer-wall" aria-label="Waktu sekarang">
             <span class="presensi-scan-timer-wall__label">Waktu sekarang :</span>
             <span id="presensi-scan-timer-wall-value" class="presensi-scan-timer-wall__value">--:--:--</span>
         </span>
         <?php endif; ?>
-        <div class="presensi-scan-timer-inner" role="button" tabindex="0" aria-expanded="<?= $showScanMarquee ? 'true' : 'false' ?>" title="<?= $showScanMarquee ? 'Ketuk untuk sembunyikan jadwal' : 'Ketuk untuk lihat jadwal' ?>">
+        <div class="presensi-scan-timer-inner">
             <div id="presensi-scan-timer-marquee" class="presensi-scan-timer-marquee<?= $showScanMarquee ? ' is-always-scroll is-ready' : ' d-none' ?>" aria-label="<?= htmlspecialchars($scanTimerAriaLabel) ?>">
                 <div class="presensi-scan-timer-marquee__viewport">
                     <div id="presensi-scan-timer-marquee-track" class="presensi-scan-timer-marquee__track"><?= $scanMarqueeTrackHtml ?></div>

@@ -286,7 +286,7 @@
         this.btnSuperFocus = options.btnSuperFocus || null;
         this.startWrap = options.startWrap || null;
         this.startBtn = options.startBtn || null;
-        this.deferStartOnMobile = options.deferStartOnMobile !== false;
+        this.deferStartOnMobile = options.deferStartOnMobile === true;
         this.continuousScan = options.continuousScan !== false;
         this.onCameraReady = options.onCameraReady || null;
 
@@ -817,6 +817,7 @@
             self.btnSuperFocus.classList.toggle('is-active', self.superFocusOn);
         }
 
+        self.hideStartWrap();
         self.setStatus('is-waiting', 'Menyiapkan kamera…');
 
         var libReady = await waitForHtml5Qrcode(LIB_WAIT_MS);
@@ -837,13 +838,6 @@
                 self.qr.stop().catch(function () {});
             }
         });
-
-        if (self.deferStartOnMobile && isMobileScanDevice() && self.startBtn) {
-            self.showStartWrap();
-            self.setStatus('is-waiting', 'Ketuk Mulai scan');
-            self.bindStartBtn();
-            return;
-        }
 
         try {
             await self.prepareCameras();

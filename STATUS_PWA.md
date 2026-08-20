@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-20] Scan: kamera auto-start, teks jadwal tanpa klik
+- **Apa yang diubah:** Tombol “Mulai scan kamera” tidak lagi menahan kamera di HP; kamera langsung menyala (gagal tetap pakai Coba lagi). Teks berjalan dan keterangan jadwal selalu tampil tanpa mengetuk kotak. Ketuk marquee tetap jeda/lanjut.
+- **File:** `assets/js/presensi-scan-camera.js`, `assets/js/presensi-scan-timer.js`, `includes/partials/presensi_scan_timer_strip.php`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Overlay Mulai scan menutup preview; keterangan kegiatan tersembunyi sampai kotak diklik.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-19] Scan: kamera tetap terbuka saat marquee tampil
 - **Apa yang diubah:** Area kamera punya tinggi minimum agar tidak tertekan jadi 0 px saat teks kegiatan tampil. Flash tidak disembunyikan jika torch gagal dicek; jika kamera belum siap, status memberi tahu.
 - **File:** `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
