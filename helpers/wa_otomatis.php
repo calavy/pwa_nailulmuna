@@ -129,6 +129,129 @@ function wa_otomatis_delay_min_seconds(string $delay): int
     return 0;
 }
 
+/** Ambil nilai maksimum delay (detik) dari string delay, atau 0 jika kosong. */
+function wa_otomatis_delay_max_seconds(string $delay): int
+{
+    $delay = wa_otomatis_validate_delay_string($delay);
+    if ($delay === '') {
+        return 0;
+    }
+    if (preg_match('/^(\d+)(?:-(\d+))?$/', $delay, $matches)) {
+        $min = (int) $matches[1];
+        $max = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : $min;
+
+        return max($min, $max);
+    }
+
+    return 0;
+}
+
+/**
+ * Jeda PHP (mikrodetik) dari string delay Fonnte, acak jika rentang.
+ * $floorSec menaikkan batas bawah (tagihan massal).
+ */
+function wa_otomatis_delay_sleep_us(string $delay, int $floorSec = 0): int
+{
+    $min = wa_otomatis_delay_min_seconds($delay);
+    $max = wa_otomatis_delay_max_seconds($delay);
+    $floorSec = max(0, min(120, $floorSec));
+    if ($min <= 0) {
+        $min = $floorSec > 0 ? $floorSec : 12;
+        $max = $min === 12 && $floorSec <= 12 ? 20 : $min;
+    }
+    if ($floorSec > 0 && $min < $floorSec) {
+        $min = $floorSec;
+        if ($max < $min) {
+            $max = min(120, $floorSec + 8);
+        }
+    }
+    $sec = $max > $min ? random_int($min, $max) : $min;
+
+    return max(1, $sec) * 1000000;
+}
+
+function wa_fonte_bulk_limit(PDO $pdo): int
+{
+    return max(1, min(50, (int) app_setting($pdo, 'wa_fonte_bulk_limit', '15')));
+}
+
+function wa_fonte_warmup_hours(PDO $pdo): int
+{
+    return max(1, min(48, (int) app_setting($pdo, 'wa_fonte_warmup_hours', '3')));
+}
+
+function wa_fonte_warmup_until_ts(PDO $pdo): int
+{
+    $raw = trim((string) app_setting($pdo, 'wa_fonte_warmup_until', ''));
+    if ($raw === '') {
+        return 0;
+    }
+    $ts = strtotime($raw);
+
+    return is_int($ts) ? $ts : 0;
+}
+
+function wa_fonte_warmup_active(PDO $pdo): bool
+{
+    return wa_fonte_warmup_until_ts($pdo) > time();
+}
+
+function wa_fonte_start_warmup(PDO $pdo, string $reason = 'scan'): void
+{
+    $hours = wa_fonte_warmup_hours($pdo);
+    $until = date('Y-m-d H:i:s', time() + ($hours * 3600));
+    save_setting($pdo, 'wa_fonte_warmup_until', $until);
+    save_setting($pdo, 'wa_fonte_warmup_started_at', date('Y-m-d H:i:s'));
+    save_setting($pdo, 'wa_fonte_warmup_reason', $reason);
+    save_setting($pdo, 'wa_fonte_warmup_pending', '0');
+    save_setting($pdo, 'wa_fonte_disconnected_at', '');
+}
+
+function wa_fonte_mark_disconnected(PDO $pdo): void
+{
+    if (trim((string) app_setting($pdo, 'wa_fonte_disconnected_at', '')) === '') {
+        save_setting($pdo, 'wa_fonte_disconnected_at', date('Y-m-d H:i:s'));
+    }
+    save_setting($pdo, 'wa_fonte_warmup_pending', '1');
+}
+
+function wa_fonte_mark_connected_maybe_warmup(PDO $pdo): void
+{
+    $pending = trim((string) app_setting($pdo, 'wa_fonte_warmup_pending', '0')) === '1';
+    if (!$pending) {
+        return;
+    }
+    if (wa_fonte_warmup_active($pdo)) {
+        save_setting($pdo, 'wa_fonte_warmup_pending', '0');
+        save_setting($pdo, 'wa_fonte_disconnected_at', '');
+
+        return;
+    }
+    wa_fonte_start_warmup($pdo, 'reconnect');
+}
+
+function wa_fonte_bulk_blocked_reason(PDO $pdo): ?string
+{
+    if (!wa_fonte_warmup_active($pdo)) {
+        return null;
+    }
+    $until = trim((string) app_setting($pdo, 'wa_fonte_warmup_until', ''));
+    $hours = wa_fonte_warmup_hours($pdo);
+
+    return 'Blast Fonte ditahan ' . $hours . ' jam setelah perangkat baru di-scan / baru nyambung. Kirim 1 nomor masih boleh. Blast lagi setelah ' . $until . '.';
+}
+
+/** Delay API tagihan massal: kosong atau di bawah 12 detik → 12-20. */
+function wa_fonte_safe_tagihan_delay(PDO $pdo): string
+{
+    $raw = wa_otomatis_fonnte_api_delay($pdo, ['kind' => 'tagihan']);
+    if ($raw === '' || wa_otomatis_delay_min_seconds($raw) < 12) {
+        return '12-20';
+    }
+
+    return $raw;
+}
+
 /**
  * Simpan delay kategori setelah validasi.
  *
@@ -255,7 +378,29 @@ function wa_otomatis_parse_targets(string $raw): array
 
 /**
  * @param array<string, mixed> $override
- * @return array{endpoint:string,token:string,sender:string}
+ */
+function wa_otomatis_gateway_provider(PDO $pdo, array $override = []): string
+{
+    $raw = isset($override['provider'])
+        ? strtolower(trim((string) $override['provider']))
+        : strtolower(trim((string) app_setting($pdo, 'wa_gateway_provider', 'fonte')));
+
+    return $raw === 'meta' ? 'meta' : 'fonte';
+}
+
+/**
+ * @param array<string, mixed> $override
+ * @return array{
+ *   provider:string,
+ *   endpoint:string,
+ *   token:string,
+ *   sender:string,
+ *   meta_phone_number_id:string,
+ *   meta_access_token:string,
+ *   meta_graph_version:string,
+ *   meta_template_name:string,
+ *   meta_template_lang:string
+ * }
  */
 function wa_otomatis_gateway_config(PDO $pdo, array $override = []): array
 {
@@ -268,11 +413,41 @@ function wa_otomatis_gateway_config(PDO $pdo, array $override = []): array
     $sender = isset($override['sender'])
         ? trim((string) $override['sender'])
         : trim((string) app_setting($pdo, 'wa_sender', ''));
+    $metaPhone = isset($override['meta_phone_number_id'])
+        ? trim((string) $override['meta_phone_number_id'])
+        : trim((string) app_setting($pdo, 'wa_meta_phone_number_id', ''));
+    $metaToken = isset($override['meta_access_token'])
+        ? trim((string) $override['meta_access_token'])
+        : trim((string) app_setting($pdo, 'wa_meta_access_token', ''));
+    $metaVer = isset($override['meta_graph_version'])
+        ? trim((string) $override['meta_graph_version'])
+        : trim((string) app_setting($pdo, 'wa_meta_graph_version', 'v21.0'));
+    if ($metaVer === '') {
+        $metaVer = 'v21.0';
+    }
+    if ($metaVer[0] !== 'v') {
+        $metaVer = 'v' . $metaVer;
+    }
+    $metaTpl = isset($override['meta_template_name'])
+        ? trim((string) $override['meta_template_name'])
+        : trim((string) app_setting($pdo, 'wa_meta_template_name', ''));
+    $metaLang = isset($override['meta_template_lang'])
+        ? trim((string) $override['meta_template_lang'])
+        : trim((string) app_setting($pdo, 'wa_meta_template_lang', 'id'));
+    if ($metaLang === '') {
+        $metaLang = 'id';
+    }
 
     return [
+        'provider' => wa_otomatis_gateway_provider($pdo, $override),
         'endpoint' => resolve_wa_endpoint($endpoint, $token),
         'token' => $token,
         'sender' => $sender,
+        'meta_phone_number_id' => $metaPhone,
+        'meta_access_token' => $metaToken,
+        'meta_graph_version' => $metaVer,
+        'meta_template_name' => $metaTpl,
+        'meta_template_lang' => $metaLang,
     ];
 }
 
@@ -282,11 +457,22 @@ function wa_otomatis_gateway_config(PDO $pdo, array $override = []): array
 function wa_otomatis_gateway_error(PDO $pdo, array $override = []): ?string
 {
     $cfg = wa_otomatis_gateway_config($pdo, $override);
-    if ($cfg['token'] === '') {
-        return 'Token gateway WA belum diisi (Pengaturan → Gateway WA).';
+    $targetRaw = isset($override['check_target']) ? trim((string) $override['check_target']) : '';
+    $isGroup = $targetRaw !== '' && wa_otomatis_is_group_target(wa_otomatis_normalize_target($targetRaw));
+    if ($isGroup || $cfg['provider'] !== 'meta') {
+        if ($cfg['token'] === '') {
+            return $isGroup && $cfg['provider'] === 'meta'
+                ? 'Kiriman grup memakai Fonte. Token Fonte belum diisi (Pengaturan → Gateway WA).'
+                : 'Token gateway WA belum diisi (Pengaturan → Gateway WA).';
+        }
+        if ($cfg['endpoint'] === '') {
+            return 'URL gateway WA tidak valid.';
+        }
+
+        return null;
     }
-    if ($cfg['endpoint'] === '') {
-        return 'URL gateway WA tidak valid.';
+    if ($cfg['meta_phone_number_id'] === '' || $cfg['meta_access_token'] === '') {
+        return 'Phone Number ID dan Access Token Meta belum diisi (Pengaturan → Gateway WA).';
     }
 
     return null;
@@ -333,6 +519,13 @@ function wa_otomatis_extract_api_error(string $response, string $curlError, int 
 
     $decoded = json_decode($response, true);
     if (is_array($decoded)) {
+        if (isset($decoded['error']) && is_array($decoded['error'])) {
+            foreach (['error_user_msg', 'message', 'error_user_title'] as $ek) {
+                if (!empty($decoded['error'][$ek]) && is_string($decoded['error'][$ek])) {
+                    return trim((string) $decoded['error'][$ek]);
+                }
+            }
+        }
         foreach (['reason', 'message', 'msg', 'detail', 'error', 'pesan'] as $key) {
             if (!isset($decoded[$key])) {
                 continue;
@@ -572,16 +765,6 @@ function wa_dispatch_recent_rows(PDO $pdo, int $limit = 30): array
 function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, array $override = []): array
 {
     $target = wa_otomatis_normalize_target($targetRaw);
-    $gwErr = wa_otomatis_gateway_error($pdo, $override);
-    if ($gwErr !== null) {
-        return [
-            'success' => false,
-            'http_code' => 0,
-            'error' => $gwErr,
-            'response' => $gwErr,
-            'target' => $target,
-        ];
-    }
     if ($target === '') {
         return [
             'success' => false,
@@ -592,22 +775,38 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         ];
     }
 
-    $cfg = wa_otomatis_gateway_config($pdo, $override);
-    $endpoint = $cfg['endpoint'];
-    $token = $cfg['token'];
-    $sender = $cfg['sender'];
+    $gwErr = wa_otomatis_gateway_error($pdo, array_merge($override, ['check_target' => $target]));
+    if ($gwErr !== null) {
+        return wa_otomatis_finish_send($pdo, $target, $message, false, 0, $gwErr, $gwErr, $target);
+    }
 
-    $ch = curl_init($endpoint);
+    $cfg = wa_otomatis_gateway_config($pdo, $override);
+    $useMeta = $cfg['provider'] === 'meta' && !wa_otomatis_is_group_target($target);
+    if ($useMeta) {
+        return wa_otomatis_send_meta_once($pdo, $cfg, $target, $message);
+    }
+
+    return wa_otomatis_send_fonte_once($pdo, $cfg, $target, $message, $override);
+}
+
+/**
+ * @param array<string, mixed> $cfg
+ * @param array<string, mixed> $override
+ * @return array{success:bool,http_code:int,error:string,response:string,target:string}
+ */
+function wa_otomatis_send_fonte_once(PDO $pdo, array $cfg, string $target, string $message, array $override): array
+{
+    $endpoint = (string) ($cfg['endpoint'] ?? '');
+    $token = (string) ($cfg['token'] ?? '');
     $isFonte = (bool) preg_match('/fonte|fonnte/i', $endpoint);
     $apiTarget = wa_otomatis_format_target_for_payload($target, $isFonte);
 
     $payload = [
         'token' => $token,
-        'sender' => $sender,
+        'sender' => (string) ($cfg['sender'] ?? ''),
         'target' => $apiTarget,
         'message' => $message,
     ];
-
     $headers = [];
     if ($isFonte && $token !== '') {
         $headers[] = 'Authorization: ' . $token;
@@ -631,9 +830,153 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         }
     }
 
+    $exec = wa_otomatis_curl_post($endpoint, http_build_query($payload), $headers);
+    $response = $exec['body'];
+    $statusCode = $exec['http_code'];
+    $curlError = $exec['curl_error'];
+    $isSuccess = wa_otomatis_parse_success($response, $statusCode, $curlError);
+    $apiError = wa_otomatis_extract_api_error($response, $curlError, $statusCode);
+    if ($exec['location'] !== '') {
+        $apiError = ($apiError !== '' ? $apiError . "\n" : '') . '[redirect] ' . $exec['location'];
+        $isSuccess = false;
+    }
+
+    return wa_otomatis_finish_send(
+        $pdo,
+        $target,
+        $message,
+        $isSuccess,
+        $statusCode,
+        $apiError !== '' ? $apiError : $curlError,
+        $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response),
+        $apiTarget !== '' ? $apiTarget : $target
+    );
+}
+
+/**
+ * @param array<string, mixed> $cfg
+ * @return array{success:bool,http_code:int,error:string,response:string,target:string}
+ */
+function wa_otomatis_send_meta_once(PDO $pdo, array $cfg, string $target, string $message): array
+{
+    $phoneId = preg_replace('/\D+/', '', (string) ($cfg['meta_phone_number_id'] ?? '')) ?? '';
+    $token = (string) ($cfg['meta_access_token'] ?? '');
+    $version = (string) ($cfg['meta_graph_version'] ?? 'v21.0');
+    $to = preg_replace('/\D+/', '', $target) ?? '';
+    $endpoint = 'https://graph.facebook.com/' . rawurlencode($version) . '/' . rawurlencode($phoneId) . '/messages';
+    $headers = [
+        'Authorization: Bearer ' . $token,
+        'Content-Type: application/json',
+    ];
+
+    $textPayload = [
+        'messaging_product' => 'whatsapp',
+        'recipient_type' => 'individual',
+        'to' => $to,
+        'type' => 'text',
+        'text' => [
+            'preview_url' => false,
+            'body' => $message,
+        ],
+    ];
+    $exec = wa_otomatis_curl_post($endpoint, json_encode($textPayload, JSON_UNESCAPED_UNICODE), $headers);
+    $response = $exec['body'];
+    $statusCode = $exec['http_code'];
+    $curlError = $exec['curl_error'];
+    $isSuccess = wa_otomatis_parse_success($response, $statusCode, $curlError)
+        || wa_otomatis_meta_message_id($response) !== '';
+    $apiError = wa_otomatis_extract_api_error($response, $curlError, $statusCode);
+
+    $tplName = trim((string) ($cfg['meta_template_name'] ?? ''));
+    if (!$isSuccess && $tplName !== '' && wa_otomatis_meta_is_24h_error($response, $statusCode)) {
+        $tplLang = trim((string) ($cfg['meta_template_lang'] ?? 'id'));
+        $bodyText = mb_substr($message, 0, 1024);
+        $tplPayload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $to,
+            'type' => 'template',
+            'template' => [
+                'name' => $tplName,
+                'language' => ['code' => $tplLang !== '' ? $tplLang : 'id'],
+                'components' => [[
+                    'type' => 'body',
+                    'parameters' => [[
+                        'type' => 'text',
+                        'text' => $bodyText !== '' ? $bodyText : '-',
+                    ]],
+                ]],
+            ],
+        ];
+        $exec = wa_otomatis_curl_post($endpoint, json_encode($tplPayload, JSON_UNESCAPED_UNICODE), $headers);
+        $response = $exec['body'];
+        $statusCode = $exec['http_code'];
+        $curlError = $exec['curl_error'];
+        $isSuccess = wa_otomatis_parse_success($response, $statusCode, $curlError)
+            || wa_otomatis_meta_message_id($response) !== '';
+        $apiError = wa_otomatis_extract_api_error($response, $curlError, $statusCode);
+        if (!$isSuccess && $apiError !== '') {
+            $apiError = 'Jendela 24 jam Meta tertutup; kirim template gagal: ' . $apiError;
+        }
+    } elseif (!$isSuccess && wa_otomatis_meta_is_24h_error($response, $statusCode) && $tplName === '') {
+        $apiError = ($apiError !== '' ? $apiError . ' ' : '')
+            . 'Isi nama template Meta yang sudah disetujui untuk kiriman di luar jendela 24 jam.';
+    }
+
+    return wa_otomatis_finish_send(
+        $pdo,
+        $target,
+        $message,
+        $isSuccess,
+        $statusCode,
+        $apiError !== '' ? $apiError : $curlError,
+        $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response),
+        $to
+    );
+}
+
+function wa_otomatis_meta_message_id(string $response): string
+{
+    $decoded = json_decode($response, true);
+    if (!is_array($decoded) || !isset($decoded['messages'][0]['id'])) {
+        return '';
+    }
+
+    return trim((string) $decoded['messages'][0]['id']);
+}
+
+function wa_otomatis_meta_is_24h_error(string $response, int $httpCode): bool
+{
+    if ($httpCode > 0 && $httpCode < 400) {
+        return false;
+    }
+    $decoded = json_decode($response, true);
+    $err = is_array($decoded['error'] ?? null) ? $decoded['error'] : [];
+    $code = (int) ($err['code'] ?? 0);
+    if (in_array($code, [131047, 131051], true)) {
+        return true;
+    }
+    $blob = strtolower(
+        (string) ($err['message'] ?? '') . ' '
+        . (string) ($err['error_user_msg'] ?? '') . ' '
+        . json_encode($err['error_data'] ?? [], JSON_UNESCAPED_UNICODE)
+    );
+
+    return str_contains($blob, '24 hour')
+        || str_contains($blob, '24-hour')
+        || str_contains($blob, 're-engagement')
+        || str_contains($blob, 'outside the allowed window');
+}
+
+/**
+ * @param list<string> $headers
+ * @return array{body:string,http_code:int,curl_error:string,location:string}
+ */
+function wa_otomatis_curl_post(string $endpoint, string $body, array $headers): array
+{
+    $ch = curl_init($endpoint);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($payload),
+        CURLOPT_POSTFIELDS => $body,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 20,
         CURLOPT_CONNECTTIMEOUT => 10,
@@ -654,20 +997,32 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         $responseHeaders = substr($rawResponse, 0, $headerSize);
         $response = substr($rawResponse, $headerSize);
     }
-
-    $isSuccess = wa_otomatis_parse_success((string) $response, $statusCode, $curlError);
-    $apiError = wa_otomatis_extract_api_error((string) $response, $curlError, $statusCode);
-
     $location = '';
     if ($responseHeaders !== '' && preg_match('/^Location:\s*(.+)$/mi', $responseHeaders, $matches)) {
         $location = trim((string) ($matches[1] ?? ''));
     }
-    $responseText = $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : (string) $response);
-    if ($location !== '') {
-        $responseText .= "\n[redirect] " . $location;
-        $isSuccess = false;
-    }
 
+    return [
+        'body' => $response,
+        'http_code' => $statusCode,
+        'curl_error' => $curlError,
+        'location' => $location,
+    ];
+}
+
+/**
+ * @return array{success:bool,http_code:int,error:string,response:string,target:string}
+ */
+function wa_otomatis_finish_send(
+    PDO $pdo,
+    string $target,
+    string $message,
+    bool $isSuccess,
+    int $statusCode,
+    string $errorRaw,
+    string $responseText,
+    string $displayTarget
+): array {
     if (table_exists($pdo, 'wa_logs')) {
         $log = $pdo->prepare('
             INSERT INTO wa_logs (target_phone, message, response_text, is_success)
@@ -681,10 +1036,16 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
         ]);
     }
 
-    $displayTarget = $apiTarget !== '' ? $apiTarget : $target;
-    $errorOut = $isSuccess ? '' : wa_otomatis_enrich_api_error($apiError !== '' ? $apiError : $curlError, $target);
+    $errorOut = $isSuccess ? '' : wa_otomatis_enrich_api_error($errorRaw, $target);
     if (!$isSuccess && $errorOut !== '' && function_exists('save_setting')) {
         save_setting($pdo, 'wa_auto_last_gateway_error', $errorOut);
+        $errLow = strtolower($errorOut . ' ' . $errorRaw);
+        if (str_contains($errLow, 'disconnected device') || str_contains($errLow, 'device disconnected')) {
+            wa_fonte_mark_disconnected($pdo);
+        }
+    }
+    if ($isSuccess) {
+        wa_fonte_mark_connected_maybe_warmup($pdo);
     }
 
     return [
@@ -875,9 +1236,41 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
 function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, array $opts = []): array
 {
     $targets = wa_otomatis_parse_targets($targetsRaw);
+    $kind = trim((string) ($opts['kind'] ?? 'general'));
+    if (count($targets) > 1) {
+        $blocked = wa_fonte_bulk_blocked_reason($pdo);
+        if ($blocked !== null) {
+            return [
+                'sent' => 0,
+                'failed' => 0,
+                'skipped' => count($targets),
+                'total' => count($targets),
+                'blocked' => true,
+                'blocked_reason' => 'warmup',
+                'error' => $blocked,
+                'details' => [[
+                    'success' => false,
+                    'skipped' => true,
+                    'skipped_reason' => 'warmup',
+                    'error' => $blocked,
+                    'target' => 'bulk',
+                ]],
+            ];
+        }
+        $limit = wa_fonte_bulk_limit($pdo);
+        if (count($targets) > $limit) {
+            $targets = array_slice($targets, 0, $limit);
+        }
+    }
     if (!array_key_exists('delay_between_ms', $opts)) {
-        $fonnteDelay = wa_otomatis_fonnte_api_delay($pdo, $opts);
+        $fonnteDelay = $kind === 'tagihan'
+            ? wa_fonte_safe_tagihan_delay($pdo)
+            : wa_otomatis_fonnte_api_delay($pdo, $opts);
         $minSec = wa_otomatis_delay_min_seconds($fonnteDelay);
+        $floor = $kind === 'tagihan' ? 12 : 8;
+        if ($minSec < $floor) {
+            $minSec = $floor;
+        }
         if ($minSec > 0) {
             $opts['delay_between_ms'] = $minSec * 1000;
         }
@@ -892,7 +1285,6 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
     $dedupPerTarget = array_key_exists('dedup_key_per_target', $opts)
         ? (bool) $opts['dedup_key_per_target']
         : ($dedupKeyBase !== '' && !$dedupOnce);
-    $kind = trim((string) ($opts['kind'] ?? 'general'));
     $claimedBulk = false;
 
     if ($dedupKeyBase !== '' && $dedupOnce && wa_dispatch_strict_enabled($pdo) && empty($opts['skip_dedup'])) {
@@ -915,7 +1307,11 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
 
     foreach ($targets as $idx => $target) {
         if ($idx > 0 && $delayMs > 0) {
-            usleep($delayMs * 1000);
+            if ($kind === 'tagihan') {
+                usleep(wa_otomatis_delay_sleep_us(wa_fonte_safe_tagihan_delay($pdo), 12));
+            } else {
+                usleep($delayMs * 1000);
+            }
         }
         $targetOpts = $opts;
         if ($dedupKeyBase !== '' && !$dedupOnce) {

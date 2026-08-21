@@ -19,7 +19,9 @@ ensure_pondok_settings_defaults($pdo);
 $pondokDefaults = pondok_settings_defaults();
 $appNama = app_brand_nama_ponpes($pdo);
 $pondokWaFields = [
-        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode', 'wa_auto_web_fallback_enabled',
+        'wa_gateway_url', 'wa_gateway_token', 'wa_sender', 'wa_gateway_provider',
+        'wa_meta_phone_number_id', 'wa_meta_access_token', 'wa_meta_graph_version', 'wa_meta_template_lang', 'wa_meta_template_name',
+        'wa_fonnte_queue_offline', 'wa_fonnte_api_delay', 'wa_dispatch_strict_mode', 'wa_auto_web_fallback_enabled',
         'wa_delay_tagihan', 'wa_delay_cashless', 'wa_delay_presensi', 'wa_delay_alpa', 'wa_delay_poin', 'wa_delay_izin', 'wa_delay_rapor',
         'wa_pengurus', 'wa_alpa_pengurus_putra', 'wa_alpa_pengurus_putri', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
@@ -88,16 +90,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'endpoint' => trim((string) ($_POST['wa_gateway_url'] ?? app_setting($pdo, 'wa_gateway_url', ''))),
             'token' => trim((string) ($_POST['wa_gateway_token'] ?? app_setting($pdo, 'wa_gateway_token', ''))),
             'sender' => trim((string) ($_POST['wa_sender'] ?? app_setting($pdo, 'wa_sender', ''))),
+            'provider' => trim((string) ($_POST['wa_gateway_provider'] ?? app_setting($pdo, 'wa_gateway_provider', 'fonte'))),
+            'meta_phone_number_id' => trim((string) ($_POST['wa_meta_phone_number_id'] ?? app_setting($pdo, 'wa_meta_phone_number_id', ''))),
+            'meta_access_token' => trim((string) ($_POST['wa_meta_access_token'] ?? app_setting($pdo, 'wa_meta_access_token', ''))),
+            'meta_graph_version' => trim((string) ($_POST['wa_meta_graph_version'] ?? app_setting($pdo, 'wa_meta_graph_version', 'v21.0'))),
+            'meta_template_lang' => trim((string) ($_POST['wa_meta_template_lang'] ?? app_setting($pdo, 'wa_meta_template_lang', 'id'))),
+            'meta_template_name' => trim((string) ($_POST['wa_meta_template_name'] ?? app_setting($pdo, 'wa_meta_template_name', ''))),
             'skip_dedup' => true,
         ];
         $waTestResult = send_wa_message_with_result($pdo, $testTarget, $testMessage, $override);
         $waActiveTab = 'gateway';
     } elseif ($action === 'save_gateway') {
-        foreach (['wa_gateway_url', 'wa_gateway_token', 'wa_sender'] as $field) {
+        foreach ([
+            'wa_gateway_url', 'wa_gateway_token', 'wa_sender',
+            'wa_meta_phone_number_id', 'wa_meta_access_token', 'wa_meta_graph_version',
+            'wa_meta_template_lang', 'wa_meta_template_name',
+        ] as $field) {
             if (array_key_exists($field, $_POST)) {
                 save_setting($pdo, $field, trim((string) $_POST[$field]));
             }
         }
+        $provider = strtolower(trim((string) ($_POST['wa_gateway_provider'] ?? 'fonte')));
+        if (!in_array($provider, ['fonte', 'meta'], true)) {
+            $provider = 'fonte';
+        }
+        save_setting($pdo, 'wa_gateway_provider', $provider);
         save_setting($pdo, 'wa_otomatis_master_enabled', isset($_POST['wa_otomatis_master_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_fonnte_queue_offline', isset($_POST['wa_fonnte_queue_offline']) ? '1' : '0');
         $delayRaw = trim((string) ($_POST['wa_fonnte_api_delay'] ?? ''));
@@ -210,6 +227,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = wa_tagihan_jalankan_kirim($pdo, true, $bulanPaksa > 0 ? $bulanPaksa : null);
         set_flash($res['ok'] ? 'success' : 'warning', (string) ($res['message'] ?? ''));
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=tagihan'));
+        exit;
+    } elseif ($action === 'fonte_start_warmup') {
+        wa_fonte_start_warmup($pdo, 'manual_scan');
+        set_flash('success', 'Jeda aman Fonte dimulai ' . wa_fonte_warmup_hours($pdo) . ' jam. Blast massal ditahan; tes 1 nomor masih boleh.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=gateway'));
         exit;
     } elseif ($action === 'save_wa_templates') {
         $res = wa_template_save_all($pdo, $_POST);
@@ -474,6 +496,10 @@ if (!is_array($waLastStats)) {
 }
 $waGatewayErr = wa_otomatis_gateway_error($pdo);
 $waGatewayLastErr = trim((string) app_setting($pdo, 'wa_auto_last_gateway_error', ''));
+$waFonteWarmupActive = wa_fonte_warmup_active($pdo);
+$waFonteWarmupUntil = trim((string) app_setting($pdo, 'wa_fonte_warmup_until', ''));
+$waFonteWarmupHours = wa_fonte_warmup_hours($pdo);
+$waFonteBulkLimit = wa_fonte_bulk_limit($pdo);
 $waPartialFailRaw = trim((string) app_setting($pdo, 'wa_tagihan_last_partial_fail_stats', ''));
 $waPartialFail = $waPartialFailRaw !== '' ? json_decode($waPartialFailRaw, true) : null;
 if (!is_array($waPartialFail)) {
@@ -481,6 +507,8 @@ if (!is_array($waPartialFail)) {
 }
 $waMasterOn = trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) === '1';
 $notifyMode = push_notify_mode($pdo);
+$waGatewayProvider = wa_otomatis_gateway_provider($pdo);
+$values['wa_gateway_provider'] = $waGatewayProvider;
 $kalenderV = kalender_pengaturan_load($pdo);
 
 // Template

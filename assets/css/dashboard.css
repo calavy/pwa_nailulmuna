@@ -693,15 +693,24 @@
 }
 
 @media (max-width: 767.98px) {
+    body.dash-home-mobile-fit .app-frame-main,
+    body.dash-home-mobile-fit .app-shell,
+    body.dash-home-mobile-fit .app-main,
+    body.dash-home-mobile-fit .dash-page {
+        overflow: visible;
+        max-height: none;
+    }
+
     body.dash-home-mobile-fit .dash-hero-split {
         margin-bottom: 0.75rem !important;
-        gap: 0.75rem;
+        gap: 0.65rem;
+        grid-template-columns: 1fr;
     }
 
     body.dash-home-mobile-fit .dash-identity-card,
     body.dash-home-mobile-fit .dash-clock-card {
         min-height: 0;
-        padding: 0.95rem 1rem;
+        padding: 0.85rem 0.9rem;
     }
 
     body.dash-home-mobile-fit .dash-identity-card .dash-hero-pesantren {
@@ -728,6 +737,59 @@
 
     body.dash-home-mobile-fit .dash-live-kegiatan--in-banner .dash-live-keg__nama {
         font-size: 0.82rem;
+    }
+
+    body.dash-home-mobile-fit .dash-kpi-grid {
+        gap: 0.5rem;
+        margin-bottom: 0.85rem !important;
+    }
+
+    body.dash-home-mobile-fit .dash-kpi-box {
+        min-height: 5.75rem;
+        padding: 0.75rem 0.8rem 0.7rem;
+    }
+
+    body.dash-home-mobile-fit .dash-kpi-box__value {
+        font-size: 1.45rem;
+    }
+
+    body.dash-home-mobile-fit .dash-kpi-box__label {
+        font-size: 0.68rem;
+        padding-inline-end: 2.1rem;
+    }
+
+    body.dash-home-mobile-fit .dash-page .dash-panel .card-header,
+    body.dash-home-mobile-fit .dash-page .dash-panel .card-body {
+        padding-inline: 0.85rem !important;
+    }
+
+    body.dash-home-mobile-fit .dash-page .dash-panel .h5,
+    body.dash-home-mobile-fit .dash-page .dash-panel h2.h5 {
+        font-size: 1.05rem;
+    }
+
+    body.dash-home-mobile-fit .dash-status-strip {
+        padding: 0.65rem 0.75rem;
+        gap: 0.4rem;
+    }
+
+    body.dash-home-mobile-fit .dash-status-pill {
+        flex: 1 1 100%;
+        font-size: 0.75rem;
+        min-width: 0;
+    }
+
+    body.dash-home-mobile-fit .dash-sync-footer {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin: 0.5rem 0.65rem 0.75rem;
+        padding: 0.55rem 0.7rem;
+        font-size: 0.75rem;
+    }
+
+    body.dash-home-mobile-fit .dash-layout-grid {
+        gap: 0.75rem;
+        margin-bottom: 0.75rem !important;
     }
 }
 

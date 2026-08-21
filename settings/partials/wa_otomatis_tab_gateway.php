@@ -13,40 +13,98 @@ declare(strict_types=1);
         ke <?= htmlspecialchars((string) ($waTestResult['target'] ?? '-')) ?>
         <?php if (!empty($waTestResult['error'])): ?> — <?= htmlspecialchars((string) $waTestResult['error']) ?><?php endif; ?>
     </div>
+<?php endif; ?>
+<?php if (!empty($waFonteWarmupActive)): ?>
+    <div class="alert alert-info py-2 small mb-3">
+        <strong>Jeda aman Fonte aktif.</strong>
+        Blast massal ditahan sampai <?= htmlspecialchars((string) $waFonteWarmupUntil) ?>
+        (<?= (int) $waFonteWarmupHours ?> jam setelah scan/reconnect). Tes 1 nomor di bawah masih boleh.
+    </div>
 <?php elseif ($waGatewayLastErr !== '' && stripos($waGatewayLastErr, 'disconnected') !== false): ?>
-    <div class="alert alert-warning py-2 small mb-0">
+    <div class="alert alert-warning py-2 small mb-3">
         <strong>Perangkat Fonnte terputus.</strong> Terakhir: <?= htmlspecialchars($waGatewayLastErr) ?>
+        Setelah scan QR di dashboard Fonnte, tekan tombol jeda aman di bawah.
     </div>
 <?php endif; ?>
 
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
-        <h2 class="h6 mb-2">1. Koneksi gateway (Fonnte)</h2>
+        <h2 class="h6 mb-2">1. Koneksi gateway</h2>
         <p class="small text-muted mb-3">
-            Token dari dashboard Fonnte. URL kosong = otomatis <code>api.fonnte.com/send</code>.
-            Atur <strong>nomor penerima</strong> notifikasi di
+            Pilih <strong>Fonte</strong> (Fonnte) atau <strong>Meta Cloud API</strong>.
+            Kiriman ke nomor personal memakai provider yang dipilih.
+            <strong>Grup WhatsApp selalu lewat Fonte</strong> (Meta tidak mendukung grup).
+            Atur nomor penerima di
             <a href="<?= htmlspecialchars(app_href('/settings/wa_akun.php')) ?>">Nomor WhatsApp</a>.
-            Jika tes gagal <em>disconnected device</em>, hubungkan ulang perangkat WA di
-            <a href="https://md.fonnte.com" target="_blank" rel="noopener">dashboard Fonnte</a> (scan QR).
         </p>
         <form method="post" class="row g-3">
             <input type="hidden" name="action" value="save_gateway">
             <input type="hidden" name="redirect_tab" value="gateway">
+            <div class="col-12">
+                <label class="form-label">Provider kirim personal</label>
+                <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="wa_gateway_provider" id="wa_provider_fonte" value="fonte" <?= ($values['wa_gateway_provider'] ?? 'fonte') !== 'meta' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="wa_provider_fonte">Fonte (Fonnte)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="wa_gateway_provider" id="wa_provider_meta" value="meta" <?= ($values['wa_gateway_provider'] ?? '') === 'meta' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="wa_provider_meta">Meta Cloud API</label>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12">
+                <h3 class="h6 mb-1">Fonte (Fonnte)</h3>
+                <p class="small text-muted mb-2">
+                    Token dari dashboard Fonnte. URL kosong = otomatis <code>api.fonnte.com/send</code>.
+                    Jika tes gagal <em>disconnected device</em>, hubungkan ulang perangkat di
+                    <a href="https://md.fonnte.com" target="_blank" rel="noopener">dashboard Fonnte</a> (scan QR).
+                </p>
+            </div>
             <div class="col-md-6">
-                <label class="form-label">URL gateway</label>
+                <label class="form-label">URL gateway Fonte</label>
                 <input type="text" class="form-control" name="wa_gateway_url" value="<?= htmlspecialchars($values['wa_gateway_url']) ?>">
             </div>
             <div class="col-md-6">
-                <label class="form-label">Token</label>
+                <label class="form-label">Token Fonte</label>
                 <input type="text" class="form-control" name="wa_gateway_token" value="<?= htmlspecialchars($values['wa_gateway_token']) ?>">
             </div>
             <div class="col-md-6">
-                <label class="form-label">Sender (opsional)</label>
+                <label class="form-label">Sender Fonte (opsional)</label>
                 <input type="text" class="form-control" name="wa_sender" value="<?= htmlspecialchars($values['wa_sender']) ?>">
             </div>
             <div class="col-md-6">
                 <label class="form-label">Kunci cron <span class="text-muted">(opsional)</span></label>
                 <input type="text" class="form-control font-monospace" name="wa_auto_cron_key" value="<?= htmlspecialchars($waCronKey) ?>" placeholder="Rahasia untuk URL cron">
+            </div>
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12">
+                <h3 class="h6 mb-1">Meta Cloud API</h3>
+                <p class="small text-muted mb-2">
+                    Phone Number ID dan Access Token dari Meta Business / WhatsApp Cloud API.
+                    Di luar jendela 24 jam, isi <strong>nama template</strong> yang sudah disetujui (satu parameter isi pesan).
+                </p>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Phone Number ID</label>
+                <input type="text" class="form-control font-monospace" name="wa_meta_phone_number_id" value="<?= htmlspecialchars((string) ($values['wa_meta_phone_number_id'] ?? '')) ?>" autocomplete="off">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Access Token</label>
+                <input type="password" class="form-control" name="wa_meta_access_token" value="<?= htmlspecialchars((string) ($values['wa_meta_access_token'] ?? '')) ?>" autocomplete="off">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Versi Graph</label>
+                <input type="text" class="form-control font-monospace" name="wa_meta_graph_version" value="<?= htmlspecialchars((string) ($values['wa_meta_graph_version'] ?? 'v21.0')) ?>" placeholder="v21.0">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Bahasa template</label>
+                <input type="text" class="form-control font-monospace" name="wa_meta_template_lang" value="<?= htmlspecialchars((string) ($values['wa_meta_template_lang'] ?? 'id')) ?>" placeholder="id">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Nama template (opsional)</label>
+                <input type="text" class="form-control font-monospace" name="wa_meta_template_name" value="<?= htmlspecialchars((string) ($values['wa_meta_template_name'] ?? '')) ?>" placeholder="pondok_notifikasi">
             </div>
             <div class="col-12"><hr class="my-1"></div>
             <div class="col-md-4">
@@ -74,11 +132,12 @@ declare(strict_types=1);
                 <label class="form-label" for="wa_fonnte_api_delay">Delay antar kirim Fonnte (detik)</label>
                 <input type="text" class="form-control font-monospace" id="wa_fonnte_api_delay" name="wa_fonnte_api_delay"
                     value="<?= htmlspecialchars((string) ($values['wa_fonnte_api_delay'] ?? '3')) ?>"
-                    placeholder="3 atau 3-8">
+                    placeholder="8-12">
                 <div class="form-text">
                     Default untuk semua kategori. Override per kategori di tab Tagihan, Cashless, Presensi, Alpa, Poin, Izin, dan Template.
-                    Parameter <code>delay</code> di API Fonnte. Contoh: <code>3</code> (tetap) atau <code>3-8</code> (acak).
-                    Kosongkan untuk menonaktifkan. Disarankan 3–10 detik agar nomor tidak terdeteksi spam.
+                    Blast tagihan memakai jeda aman 12–20 detik dan maksimal <?= (int) $waFonteBulkLimit ?> pesan per gelombang.
+                    Parameter <code>delay</code> di API Fonnte. Contoh: <code>8-12</code> (acak).
+                    Kosongkan untuk menonaktifkan pada kiriman satuan.
                 </div>
             </div>
             <div class="col-md-6">
@@ -101,6 +160,14 @@ declare(strict_types=1);
                 <button type="submit" class="btn btn-success btn-sm">Simpan gateway</button>
             </div>
         </form>
+        <form method="post" class="mt-3">
+            <input type="hidden" name="action" value="fonte_start_warmup">
+            <input type="hidden" name="redirect_tab" value="gateway">
+            <button type="submit" class="btn btn-outline-warning btn-sm" onclick="return confirm('Tahan blast massal Fonte selama <?= (int) $waFonteWarmupHours ?> jam? Tes 1 nomor tetap boleh.');">
+                <i class="fa-solid fa-qrcode me-1"></i>Perangkat baru di-scan — jeda aman <?= (int) $waFonteWarmupHours ?> jam
+            </button>
+            <div class="form-text">Pakai ini setelah scan QR di HP. Blast tagihan/grup ditahan; kirim satu nomor (tes) tetap jalan.</div>
+        </form>
     </div>
 </div>
 
@@ -122,11 +189,20 @@ declare(strict_types=1);
                 <button type="submit" class="btn btn-outline-primary w-100">Kirim tes</button>
             </div>
             <div class="col-12">
-                <p class="small text-muted mb-0">Gunakan field token di atas saat tes; simpan dulu jika ingin permanen.</p>
+                <p class="small text-muted mb-0">
+                    Simpan gateway dulu. Tes ke nomor HP memakai provider yang dipilih.
+                    Tes ke grup selalu Fonte — Meta tidak mengirim ke grup.
+                </p>
             </div>
             <input type="hidden" name="wa_gateway_url" value="<?= htmlspecialchars($values['wa_gateway_url']) ?>">
             <input type="hidden" name="wa_gateway_token" value="<?= htmlspecialchars($values['wa_gateway_token']) ?>">
             <input type="hidden" name="wa_sender" value="<?= htmlspecialchars($values['wa_sender']) ?>">
+            <input type="hidden" name="wa_gateway_provider" value="<?= htmlspecialchars((string) ($values['wa_gateway_provider'] ?? 'fonte')) ?>">
+            <input type="hidden" name="wa_meta_phone_number_id" value="<?= htmlspecialchars((string) ($values['wa_meta_phone_number_id'] ?? '')) ?>">
+            <input type="hidden" name="wa_meta_access_token" value="<?= htmlspecialchars((string) ($values['wa_meta_access_token'] ?? '')) ?>">
+            <input type="hidden" name="wa_meta_graph_version" value="<?= htmlspecialchars((string) ($values['wa_meta_graph_version'] ?? 'v21.0')) ?>">
+            <input type="hidden" name="wa_meta_template_lang" value="<?= htmlspecialchars((string) ($values['wa_meta_template_lang'] ?? 'id')) ?>">
+            <input type="hidden" name="wa_meta_template_name" value="<?= htmlspecialchars((string) ($values['wa_meta_template_name'] ?? '')) ?>">
         </form>
     </div>
 </div>

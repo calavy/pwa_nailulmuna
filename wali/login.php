@@ -107,7 +107,7 @@ $ok = get_flash('success');
                     <button type="submit" class="btn btn-auth-center w-100">Masuk</button>
                 </form>
 
-                <p class="small text-muted text-center mt-3 mb-0">PIN diatur pengurus di Data → Wali santri. Bukan password pengurus.</p>
+                <p class="small text-muted text-center mt-3 mb-0">Silakan cari nama santri, atau masukkan NIS, lalu isi PIN yang telah diberikan pengurus.</p>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/login-santri-suggest.js')) ?>" defer></script>
 <?php
 auth_portal_layout_end();

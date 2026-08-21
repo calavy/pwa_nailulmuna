@@ -72,7 +72,7 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         </div>
     </div>
 
-    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau — absensi &amp; portal otomatis.</p>
+    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau. Santri: absensi. Pembimbing/munawib: kehadiran dulu, scan lagi untuk portal. Tanpa jadwal, portal otomatis.</p>
 
     <form method="post" id="login-scan-form-offline" class="visually-hidden" action="<?= htmlspecialchars(app_href('/presensi/scan.php?portal=1')) ?>" autocomplete="off">
         <input type="hidden" name="scan_source" value="camera">

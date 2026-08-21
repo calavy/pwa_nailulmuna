@@ -18,17 +18,23 @@ $pbBannerCfg = is_array($pbBannerCfg ?? null) ? $pbBannerCfg : pembimbing_portal
 $pbBannerVariant = strtolower(trim((string) ($pbBannerVariant ?? 'default')));
 $pattern = in_array((string) ($pbBannerCfg['pattern'] ?? 'dots'), ['dots', 'grid', 'rays', 'waves'], true)
     ? (string) $pbBannerCfg['pattern'] : 'dots';
-$kicker = trim((string) ($pbBannerCfg['kicker'] ?? 'Portal Pembimbing'));
-$subtitle = trim((string) ($pbBannerCfg['subtitle'] ?? ''));
-$tagline = trim((string) ($pbBannerCfg['tagline'] ?? ''));
 $icon = trim((string) ($pbBannerCfg['icon'] ?? 'fa-chalkboard-user'));
 if ($icon !== '' && !str_contains($icon, 'fa-')) {
     $icon = 'fa-solid fa-' . ltrim($icon, '-');
 }
-$customTitle = trim((string) ($pbBannerCfg['title'] ?? ''));
-$displayTitle = $customTitle !== '' ? $customTitle : $labelUser;
 $hasLive = !empty($kegiatanAktifPresensi);
 $cssVars = pembimbing_portal_banner_css_vars($pbBannerCfg);
+$displayName = trim((string) ($pembimbingNama ?? $labelUser ?? ''));
+if ($displayName === '') {
+    $displayName = 'Pembimbing';
+}
+$pbBannerNip = trim((string) ($pbBannerNip ?? ''));
+if ($pbBannerNip === '' && isset($pembimbingInfo) && is_array($pembimbingInfo)) {
+    $pbBannerNip = trim((string) ($pembimbingInfo['nip'] ?? ''));
+}
+if ($pbBannerNip === '' && !empty($isMunawibPortal)) {
+    $pbBannerNip = trim((string) ($_SESSION['user']['username'] ?? ''));
+}
 ?>
 <div class="pb-portal-banner pb-portal-banner--<?= htmlspecialchars($pbBannerVariant) ?> pb-portal-banner--pattern-<?= htmlspecialchars($pattern) ?><?= $hasLive ? ' pb-portal-banner--live' : '' ?>"
      style="<?= htmlspecialchars($cssVars) ?>">
@@ -45,15 +51,8 @@ $cssVars = pembimbing_portal_banner_css_vars($pbBannerCfg);
                 </div>
             <?php endif; ?>
             <div class="pb-portal-banner__identity">
-                <p class="pb-portal-banner__kicker mb-0">
-                    <?php if ($isMunawibPortal): ?>
-                        <i class="fa-solid fa-user-clock me-1"></i> Portal Munawib
-                    <?php else: ?>
-                        <i class="<?= htmlspecialchars($icon) ?> me-1"></i><?= htmlspecialchars($kicker) ?>
-                    <?php endif; ?>
-                </p>
                 <div class="pb-portal-banner__title-row">
-                    <h1 class="pb-portal-banner__title mb-0"><?= htmlspecialchars($displayTitle) ?></h1>
+                    <h1 class="pb-portal-banner__title mb-0"><?= htmlspecialchars($displayName) ?></h1>
                     <?php if (!$isMunawibPortal): ?>
                         <span class="pb-portal-banner__badge <?= $pbSudahHadir ? 'is-hadir' : 'is-wait' ?>">
                             <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?> me-1"></i>
@@ -61,11 +60,8 @@ $cssVars = pembimbing_portal_banner_css_vars($pbBannerCfg);
                         </span>
                     <?php endif; ?>
                 </div>
-                <?php if ($subtitle !== ''): ?>
-                    <p class="pb-portal-banner__subtitle mb-0"><?= htmlspecialchars($subtitle) ?></p>
-                <?php endif; ?>
-                <?php if ($tagline !== ''): ?>
-                    <p class="pb-portal-banner__tagline mb-0"><?= htmlspecialchars($tagline) ?></p>
+                <?php if ($pbBannerNip !== ''): ?>
+                    <p class="pb-portal-banner__nip mb-0">NIP <?= htmlspecialchars($pbBannerNip) ?></p>
                 <?php endif; ?>
             </div>
             <div class="pb-portal-banner__clock" aria-live="polite">

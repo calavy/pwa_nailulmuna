@@ -163,34 +163,61 @@
 
 .presensi-scan-viewport #qr-reader,
 .presensi-scan-viewport #login-scan-reader {
+    position: relative;
+    overflow: hidden;
     width: 100% !important;
     height: 100% !important;
-    min-height: 0 !important;
+    min-height: 12rem !important;
     border: none !important;
     padding: 0 !important;
     background: #000 !important;
 }
 
-.presensi-scan-viewport #qr-reader video {
-    object-fit: cover !important;
-    width: 100% !important;
-    height: 100% !important;
-}
-
 .presensi-scan-viewport #qr-reader__scan_region,
 .presensi-scan-viewport #qr-reader__scan_region > div,
 .presensi-scan-viewport #reader__scan_region,
-.presensi-scan-viewport #reader__scan_region > div {
+.presensi-scan-viewport #reader__scan_region > div,
+.presensi-scan-viewport #login-scan-reader__scan_region,
+.presensi-scan-viewport #login-scan-reader__scan_region > div,
+.presensi-scan-viewport [id$="__scan_region"] {
+    position: absolute !important;
+    inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
-    min-height: inherit;
+    min-height: 100% !important;
 }
 
 .presensi-scan-viewport #qr-reader video,
 .presensi-scan-viewport #reader video,
 .presensi-scan-viewport #login-scan-reader video {
+    position: absolute !important;
+    inset: 0 !important;
     display: block !important;
-    min-height: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    opacity: 1 !important;
+    z-index: 1 !important;
+    background: transparent !important;
+}
+
+.presensi-scan-viewport #qr-shaded-region,
+.presensi-scan-viewport [id="qr-shaded-region"] {
+    display: none !important;
+    opacity: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+.presensi-scan-viewport canvas {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
 }
 
 /* Jangan tampilkan teks hasil decode QR dari library html5-qrcode */
@@ -200,6 +227,15 @@
 #reader__dashboard_section_csr,
 #reader__dashboard_section_swaplink,
 #reader__dashboard_section_fsr,
+#login-scan-reader__dashboard,
+#login-scan-reader__dashboard_section_csr,
+#login-scan-reader__dashboard_section_swaplink,
+#login-scan-reader__dashboard_section_fsr,
+#qr-reader__dashboard,
+#reader__dashboard,
+#qr-reader__header_message,
+#reader__header_message,
+#login-scan-reader__header_message,
 #qr-reader__scan_region [id$="scan-result"],
 #reader__scan_region [id$="scan-result"] {
     display: none !important;
@@ -220,7 +256,7 @@
     height: min(78vw, 320px);
     border: 2px solid rgba(255, 255, 255, 0.35);
     border-radius: 16px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.22);
     position: relative;
 }
 
@@ -671,6 +707,10 @@
     background: rgba(250, 204, 21, 0.35);
     border-color: #facc15;
     color: #fefce8;
+}
+
+.presensi-scan-controls .btn-scan-ctl--flash.is-unavailable {
+    opacity: 0.72;
 }
 
 .presensi-scan-controls .btn-scan-ctl--secondary {

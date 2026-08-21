@@ -547,6 +547,18 @@ html {
     text-align: left !important;
 }
 
+.wali-anak-list__btn {
+    border-radius: 0.65rem !important;
+    border: 1px solid rgba(15, 118, 110, 0.16) !important;
+    margin-bottom: 0.4rem;
+}
+
+.wali-anak-list__btn.active {
+    background: rgba(15, 118, 110, 0.1) !important;
+    border-color: rgba(15, 118, 110, 0.45) !important;
+    color: inherit !important;
+}
+
 .wali-tile-link--accent-wallet { border-color: rgba(14, 165, 233, 0.35); }
 .wali-tile-link--accent-wallet .wali-tile-ico { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
 .wali-tile-link--accent-aktif { border-color: rgba(16, 185, 129, 0.35); }
@@ -582,4 +594,47 @@ html {
 
 .santri-list-name-cell {
     min-width: 10rem;
+}
+
+@media (max-width: 767.98px) {
+    body.wali-portal,
+    body.santri-portal {
+        overflow-x: clip;
+        max-width: 100%;
+        padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
+    }
+
+    .wali-shell {
+        width: 100%;
+        max-width: 28rem;
+        min-width: 0;
+        padding-left: 0.35rem !important;
+        padding-right: 0.35rem !important;
+    }
+
+    .wali-card,
+    .wali-card .d-flex,
+    .portal-profile-hero__inner {
+        min-width: 0;
+    }
+
+    .wali-card .d-flex.justify-content-between {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .wali-stat-value {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .portal-profile-hero {
+        padding: 0.9rem 0.85rem;
+    }
+
+    .portal-profile-hero__name {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
 }

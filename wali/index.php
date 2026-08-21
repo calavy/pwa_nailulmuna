@@ -39,6 +39,8 @@ $keaktifanPenilaianBulan = wali_portal_keaktifan_penilaian_bulan(
 );
 
 require_once __DIR__ . '/includes/layout.php';
+$waliSwitcherLayout = 'list';
+$waliSwitcherRedirect = '/wali/index.php';
 wali_layout_head('Beranda Wali', true, 'beranda');
 
 ?>
@@ -49,7 +51,7 @@ wali_layout_head('Beranda Wali', true, 'beranda');
         $portalProfileShowLogout = true;
         $anakCount = isset($waliAnakRows) ? count($waliAnakRows) : 1;
         $portalProfileExtraHtml = 'Ringkasan tagihan, presensi, dan informasi anak Anda'
-            . ($anakCount > 1 ? ' — ganti anak lewat menu di atas.' : '.');
+            . ($anakCount > 1 ? ' — pilih santri dari daftar di atas untuk mengganti anak.' : '.');
         require __DIR__ . '/../includes/partials/portal_profile_hero.php';
         ?>
 

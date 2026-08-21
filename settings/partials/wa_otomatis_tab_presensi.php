@@ -164,7 +164,7 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
             <div class="col-md-8">
                 <label class="form-label" for="wa_presensi_grup_fonte">ID / kode grup Fonte</label>
                 <input type="text" class="form-control font-monospace" id="wa_presensi_grup_fonte" name="wa_presensi_grup_fonte" value="<?= htmlspecialchars($waPresensiGrupFonte) ?>" placeholder="120363xxxxx@g.us" autocomplete="off">
-                <div class="form-text">Salin dari panel Fonte → Grup. Beberapa grup: pisah koma.</div>
+                <div class="form-text">Salin dari panel Fonte → Grup. Beberapa grup: pisah koma. Meta Cloud API tidak mengirim ke grup — tetap memakai Fonte.</div>
             </div>
             <div class="col-md-4">
                 <div class="form-check form-switch mt-md-4 pt-md-2">

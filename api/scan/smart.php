@@ -87,12 +87,40 @@ $portalAfterPresensi = static function (array $presensiResult) use ($pdo, $qrCod
     );
 };
 
+/**
+ * Ada jadwal: kehadiran baru = tetap di kamera. Sudah tercatat / pilih munawib = portal atau picker.
+ *
+ * @param array<string, mixed> $presensiResult
+ */
+$respondAfterJadwalPresensi = static function (array $presensiResult) use ($portalAfterPresensi): void {
+    if (!empty($presensiResult['munawib_pending'])) {
+        $portalAfterPresensi($presensiResult);
+    }
+
+    $type = strtolower(trim((string) ($presensiResult['type'] ?? '')));
+    if ($type === 'success') {
+        offline_sync_json_response(
+            'success',
+            (string) ($presensiResult['message'] ?? 'Kehadiran tercatat. Scan lagi untuk masuk portal.'),
+            ['stay_on_scan' => true]
+        );
+    }
+    if ($type === 'duplicate') {
+        $portalAfterPresensi($presensiResult);
+    }
+
+    offline_sync_json_response(
+        (string) ($presensiResult['type'] ?? 'warning'),
+        (string) ($presensiResult['message'] ?? 'Scan tidak dapat diproses.'),
+        ['stay_on_scan' => true]
+    );
+};
+
 if ($action === 'munawib_pick_schedule') {
     if ($qrCode === '') {
         offline_sync_json_response('error', 'Kode QR munawib tidak ditemukan. Scan ulang kartu.');
     }
-    $presensiResult = presensi_scan_portal_json($pdo, $input);
-    $portalAfterPresensi($presensiResult);
+    $respondAfterJadwalPresensi(presensi_scan_portal_json($pdo, $input));
 }
 
 if ($qrCode === '') {
@@ -105,6 +133,9 @@ if ($loginDest === 'setoran') {
         offline_sync_json_response('error', (string) ($auth['error'] ?? 'Gagal masuk portal setoran.'));
     }
     $redirectPath = trim((string) ($auth['redirect'] ?? ''));
+    if (($auth['flash_success'] ?? '') !== '') {
+        set_flash('success', (string) $auth['flash_success']);
+    }
     offline_sync_json_response(
         'success',
         (string) ($auth['flash_success'] ?? 'Masuk portal setoran.'),
@@ -150,6 +181,28 @@ if ($class['entity'] === 'pembimbing' && is_array($class['pembimbing'])) {
 $presensiResult = ['type' => 'success', 'message' => '', 'munawib_pending' => false];
 if ($hasJadwal) {
     $presensiResult = presensi_scan_portal_json($pdo, array_merge($input, ['kode_qr' => $qrCode]));
+}
+
+if (!empty($presensiResult['munawib_pending'])) {
+    $mwId = (int) ($presensiResult['munawib_id'] ?? 0);
+    $alreadyMw = false;
+    if ($mwId > 0 && table_exists($pdo, 'presensi_munawib')) {
+        $cekMw = $pdo->prepare('SELECT id FROM presensi_munawib WHERE munawib_id = :m AND tanggal = :t LIMIT 1');
+        $cekMw->execute(['m' => $mwId, 't' => $clock['tanggal']]);
+        $alreadyMw = (bool) $cekMw->fetch();
+    }
+    if ($alreadyMw) {
+        unset($_SESSION['munawib_scan_pending']);
+        $presensiResult['munawib_pending'] = false;
+        $presensiResult['type'] = 'duplicate';
+        $namaMw = trim((string) ($presensiResult['munawib_nama'] ?? 'Munawib'));
+        $presensiResult['message'] = ($namaMw !== '' ? $namaMw : 'Munawib') . ' sudah tercatat hadir.';
+        $portalAfterPresensi($presensiResult);
+    }
+}
+
+if ($hasJadwal) {
+    $respondAfterJadwalPresensi($presensiResult);
 }
 
 $portalAfterPresensi($presensiResult);

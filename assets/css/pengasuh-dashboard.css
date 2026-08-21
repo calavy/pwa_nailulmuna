@@ -150,6 +150,33 @@
     body.page-pengasuh-dashboard.dash-home-mobile-fit .pg-dash-hero .dash-hero-clock {
         padding: 0.4rem 0.5rem;
     }
+
+    .page-pengasuh-dashboard .pg-dash-kat-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+        scrollbar-width: none;
+    }
+
+    .page-pengasuh-dashboard .pg-dash-kat-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .page-pengasuh-dashboard .pg-dash-kat-tab {
+        flex-shrink: 0;
+    }
+
+    .page-pengasuh-dashboard .card,
+    .page-pengasuh-dashboard .d-flex,
+    .page-pengasuh-dashboard .pg-dash-tk-group__head {
+        min-width: 0;
+    }
+
+    .page-pengasuh-dashboard .pg-dash-izin-actions {
+        min-width: 0;
+        width: 100%;
+    }
 }
 
 /* Dashboard pengasuh — grup tingkatan & SDM */

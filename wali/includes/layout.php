@@ -145,9 +145,15 @@ function wali_layout_head(string $title, bool $withManifest = true, ?string $nav
             </button>
             <button type="button" class="btn btn-sm btn-outline-success" id="btn-fcm-subscribe" title="Aktifkan notifikasi push"><i class="fa-solid fa-bell"></i></button>
         </nav>
-        <?php if (isset($waliAnakRows) && count($waliAnakRows) > 1): ?>
-            <?php require __DIR__ . '/../partials/anak_switcher.php'; ?>
-        <?php endif; ?>
+        <?php
+        $waliAnakRows = $GLOBALS['waliAnakRows'] ?? [];
+        $waliSantriId = (int) ($GLOBALS['waliSantriId'] ?? 0);
+        $waliSwitcherLayout = (string) ($GLOBALS['waliSwitcherLayout'] ?? 'strip');
+        $waliSwitcherRedirect = $GLOBALS['waliSwitcherRedirect'] ?? null;
+        if (is_array($waliAnakRows) && count($waliAnakRows) > 1) {
+            require __DIR__ . '/../partials/anak_switcher.php';
+        }
+        ?>
     <?php endif; ?>
     <?php
 }

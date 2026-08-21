@@ -69,8 +69,6 @@ $riwayatIzin = wali_perizinan_list_for_santri($pdo, $waliAnakIds, 50);
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Izin — Portal Wali', true, 'izin');
 require __DIR__ . '/partials/greeting.php';
-$waliSwitcherRedirect = '/wali/izin.php';
-require __DIR__ . '/partials/anak_switcher.php';
 ?>
 
         <div class="d-flex justify-content-between align-items-start gap-2 mb-3">

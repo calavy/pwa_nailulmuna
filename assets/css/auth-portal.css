@@ -1305,15 +1305,26 @@ body.auth-portal-page--pb-scan {
 .login-scan-kegiatan__viewport #login-scan-reader video {
     width: 100% !important;
     height: 100% !important;
-    min-height: 0 !important;
-    max-height: 100% !important;
+    min-height: 12rem !important;
+    max-height: none !important;
+    object-fit: cover;
+}
+
+.login-scan-kegiatan__viewport #login-scan-reader video {
+    position: absolute !important;
+    inset: 0 !important;
+    opacity: 1 !important;
 }
 
 .login-scan-kegiatan__viewport #login-scan-reader > div {
     width: 100% !important;
     height: 100% !important;
-    min-height: 0 !important;
-    max-height: 100% !important;
+    min-height: 100% !important;
+    max-height: none !important;
+}
+
+.login-scan-kegiatan .presensi-scan-frame-box {
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.16);
 }
 
 .login-scan-kegiatan__controls {
@@ -1346,12 +1357,14 @@ body.auth-portal-page--pb-scan {
     gap: 0.35rem;
     justify-content: center;
     flex-wrap: wrap;
+    flex-shrink: 0;
     padding: 0.55rem 0.65rem 0.35rem;
     background: rgba(15, 23, 42, 0.92);
     border-top: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .login-scan-mode-pill {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -1365,6 +1378,14 @@ body.auth-portal-page--pb-scan {
     cursor: pointer;
     user-select: none;
     margin: 0;
+}
+
+.login-scan-mode-pill input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
 }
 
 .login-scan-mode-pill.active {

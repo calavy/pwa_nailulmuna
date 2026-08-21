@@ -373,6 +373,10 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
     if ($gwErr !== null) {
         return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => $gwErr, 'blocked_reason' => 'gateway'];
     }
+    $warmup = wa_fonte_bulk_blocked_reason($pdo);
+    if ($warmup !== null) {
+        return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => $warmup, 'blocked_reason' => 'warmup'];
+    }
 
     ensure_santri_identity_columns($pdo);
     if (!table_exists($pdo, 'keuangan_pembayaran')) {
@@ -444,13 +448,19 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             $waCols .= ', ' . $col;
         }
     }
-    $sendKey = (string) ($ctx['send_key'] ?? '');
-    $sentIds = (!$paksaTanpaJadwal && $sendKey !== '') ? wa_tagihan_sent_ids_load($pdo, $sendKey) : [];
+    $sendKey = trim((string) ($ctx['send_key'] ?? ''));
+    if ($sendKey === '') {
+        $sendKey = 'manual:' . date('Y-m-d');
+    }
+    $sentIds = wa_tagihan_sent_ids_load($pdo, $sendKey);
     $sentIdMap = array_fill_keys($sentIds, true);
 
     $batchSize = 500;
+    $waveLimit = wa_fonte_bulk_limit($pdo);
+    $tagihanDelay = wa_fonte_safe_tagihan_delay($pdo);
     $offsetKey = 'wa_tagihan_batch_offset:' . md5($sendKey);
-    $offset = $paksaTanpaJadwal ? 0 : max(0, (int) app_setting($pdo, $offsetKey, '0'));
+    $offset = max(0, (int) app_setting($pdo, $offsetKey, '0'));
+    @set_time_limit(max(120, ($waveLimit * 25) + 60));
 
     $stmt = $pdo->prepare('SELECT ' . $waCols . ' FROM santri WHERE 1=1 ' . $activeExpr . ' ORDER BY id ASC LIMIT ' . $batchSize . ' OFFSET ' . $offset);
     $stmt->execute();
@@ -459,11 +469,11 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         return ['ok' => false, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Tidak ada santri aktif.'];
     }
     if ($santriRows === [] && $offset > 0) {
-        if (!$paksaTanpaJadwal && $sendKey !== '') {
-            save_setting($pdo, $offsetKey, '0');
+        save_setting($pdo, $offsetKey, '0');
+        if (!$paksaTanpaJadwal) {
             save_setting($pdo, 'wa_tagihan_last_period_key', $sendKey);
-            wa_tagihan_sent_ids_clear($pdo, $sendKey);
         }
+        wa_tagihan_sent_ids_clear($pdo, $sendKey);
 
         return ['ok' => true, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'eligible' => 0, 'message' => 'Batch selesai — semua santri sudah diproses.'];
     }
@@ -482,6 +492,9 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
     $failed = 0;
     $skipped = 0;
     $eligible = 0;
+    $sendAttempts = 0;
+    $hitWaveCap = false;
+    $processedAllRows = true;
 
     foreach ($santriRows as $row) {
         $santriId = (int) ($row['id'] ?? 0);
@@ -517,44 +530,57 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             $failed++;
             continue;
         }
+        if ($sendAttempts >= $waveLimit) {
+            $hitWaveCap = true;
+            $processedAllRows = false;
+            break;
+        }
+        if ($sendAttempts > 0) {
+            usleep(wa_otomatis_delay_sleep_us($tagihanDelay, 12));
+        }
+        $sendAttempts++;
         $result = send_wa_message_with_result($pdo, $phone, $message, [
             'kind' => 'tagihan',
+            'fonnte_delay' => $tagihanDelay,
             'dedup_key' => 'tagihan:' . $sendKey . ':santri:' . $santriId,
         ]);
         if ($result['success'] ?? false) {
             $sent++;
-            if (!$paksaTanpaJadwal && $sendKey !== '') {
-                $sentIds[] = $santriId;
-                $sentIdMap[$santriId] = true;
-            }
+            $sentIds[] = $santriId;
+            $sentIdMap[$santriId] = true;
         } else {
             $failed++;
         }
-        usleep(350000);
     }
 
-    if (!$paksaTanpaJadwal && $sendKey !== '') {
-        wa_tagihan_sent_ids_save($pdo, $sendKey, $sentIds);
-        if (count($santriRows) >= $batchSize) {
-            save_setting($pdo, $offsetKey, (string) ($offset + $batchSize));
-        } else {
-            save_setting($pdo, $offsetKey, '0');
-        }
+    wa_tagihan_sent_ids_save($pdo, $sendKey, $sentIds);
+    if ($hitWaveCap) {
+        save_setting($pdo, $offsetKey, (string) $offset);
+    } elseif (count($santriRows) >= $batchSize && $processedAllRows) {
+        save_setting($pdo, $offsetKey, (string) ($offset + $batchSize));
+    } elseif ($processedAllRows) {
+        save_setting($pdo, $offsetKey, '0');
     }
 
-    if (!$paksaTanpaJadwal && $sent > 0) {
+    if ($sent > 0) {
         save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
-        if (!empty($ctx['recurring'])) {
+        if (!$paksaTanpaJadwal && !empty($ctx['recurring'])) {
             save_setting($pdo, 'wa_tagihan_last_sent_date', date('Y-m-d'));
         }
     }
-    if (!$paksaTanpaJadwal && $eligible > 0 && $failed === 0 && empty($ctx['recurring']) && count($santriRows) < $batchSize) {
+    $periodComplete = !$paksaTanpaJadwal
+        && !$hitWaveCap
+        && $processedAllRows
+        && count($santriRows) < $batchSize
+        && $eligible > 0
+        && $failed === 0
+        && empty($ctx['recurring']);
+    if ($periodComplete) {
         save_setting($pdo, 'wa_tagihan_last_period_key', (string) $ctx['send_key']);
         save_setting($pdo, 'wa_tagihan_last_sent_at', date('Y-m-d H:i:s'));
-        if ($sendKey !== '') {
-            wa_tagihan_sent_ids_clear($pdo, $sendKey);
-        }
-    } elseif (!$paksaTanpaJadwal && $eligible > 0 && $failed > 0) {
+        wa_tagihan_sent_ids_clear($pdo, $sendKey);
+        save_setting($pdo, $offsetKey, '0');
+    } elseif ($eligible > 0 && $failed > 0) {
         save_setting($pdo, 'wa_tagihan_last_partial_fail_at', date('Y-m-d H:i:s'));
         save_setting($pdo, 'wa_tagihan_last_partial_fail_stats', json_encode([
             'sent' => $sent,
@@ -568,6 +594,8 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         'failed' => $failed,
         'skipped' => $skipped,
         'eligible' => $eligible,
+        'wave_limit' => $waveLimit,
+        'hit_wave_cap' => $hitWaveCap,
         'paksa' => $paksaTanpaJadwal,
     ], JSON_UNESCAPED_UNICODE));
 
@@ -582,7 +610,10 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         $msg .= ' Gagal: ' . $failed . '.';
     }
     if ($skipped > 0) {
-        $msg .= ' Dilewati: ' . $skipped . ' (lunas/tanpa tarif).';
+        $msg .= ' Dilewati: ' . $skipped . ' (lunas/tanpa tarif/sudah dikirim).';
+    }
+    if ($hitWaveCap) {
+        $msg .= ' Gelombang ' . $waveLimit . ' pesan (jeda 12–20 detik). Klik lagi atau tunggu cron untuk gelombang berikutnya.';
     }
 
     return [

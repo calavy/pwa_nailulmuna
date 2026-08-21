@@ -158,6 +158,7 @@ declare(strict_types=1);
         <ul class="small mb-3 ps-3">
             <li>Gateway: <?= $waGatewayErr === null ? '<span class="text-success">OK</span>' : '<span class="text-danger">Error</span>' ?></li>
             <li>Master WA: <?= $waMasterOn ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
+            <li>Gateway personal: <?= ($waGatewayProvider ?? 'fonte') === 'meta' ? '<span class="text-success">Meta Cloud API</span> (grup tetap Fonte)' : '<span class="text-success">Fonte</span>' ?></li>
             <li>Mode notifikasi: <?= htmlspecialchars(match ($notifyMode) { 'push' => 'Push saja (izin WA off)', 'wa' => 'WA saja', default => 'WA + Push' }) ?></li>
             <li>Tagihan wali (jadwal): <?= ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Pembayaran tercatat → wali: <?= $waPembayaranWaliEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
@@ -184,7 +185,7 @@ declare(strict_types=1);
     <div class="card-body">
         <h2 class="h6 mb-2">Alur kerja (mudah dipahami)</h2>
         <ol class="small text-muted mb-0 ps-3">
-            <li class="mb-1"><strong>Gateway</strong> — isi token Fonnte &amp; tes kirim ke satu nomor.</li>
+            <li class="mb-1"><strong>Gateway</strong> — pilih Fonte atau Meta, isi kredensial, lalu tes kirim ke satu nomor.</li>
             <li class="mb-1"><strong>Tagihan Wali</strong> — atur jadwal &amp; aktifkan pengingat syahriyah.</li>
             <li class="mb-1"><strong>Cashless</strong> — transaksi/saldo rendah ke wali &amp; laporan harian ke pengurus.</li>
             <li class="mb-1"><strong>Presensi</strong> — pengingat scan, munawib, laporan kelas kosong.</li>

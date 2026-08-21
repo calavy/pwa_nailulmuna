@@ -1747,8 +1747,9 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
 /* Portal pembimbing — satu layar ponsel: semua tombol menu terlihat */
 @media (max-width: 767.98px) {
     body.pb-dash-home-mobile-fit.pb-dash-has-setoran-bottom main.app-content,
-    body.pb-dash-home-mobile-fit.pb-dash-has-setoran-bottom .app-main {
-        padding-bottom: 0.65rem !important;
+    body.pb-dash-home-mobile-fit.pb-dash-has-setoran-bottom .app-main,
+    body.pb-dash-home-mobile-fit .app-main {
+        padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)) !important;
     }
 
     body.pb-dash-home-mobile-fit .app-flash {
@@ -1784,13 +1785,18 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
 
     body.pb-dash-home-mobile-fit .pb-dash-hero-banner__name {
         font-size: 0.92rem;
-        line-height: 1.15;
-        max-width: 58%;
+        line-height: 1.2;
+        max-width: none;
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-hero-banner__name-row {
-        align-items: center;
+        align-items: flex-start;
         gap: 0.35rem;
+        min-width: 0;
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-hero-banner__name-row .badge {
@@ -1844,6 +1850,7 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card {
         min-height: 3.35rem;
+        min-width: 0;
         padding: 0.38rem 0.3rem;
         gap: 0.28rem;
         border-radius: 11px;
@@ -1858,6 +1865,9 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card__label {
         font-size: 0.64rem;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        max-width: 100%;
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card__label--wrap {
@@ -1866,35 +1876,36 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card--setoran-wide {
-        grid-column: 1 / -1;
-        flex-direction: row;
-        justify-content: flex-start;
+        grid-column: auto;
+        flex-direction: column;
+        justify-content: center;
         align-items: center;
-        gap: 0.55rem;
-        min-height: 3rem;
-        padding: 0.45rem 0.65rem;
+        gap: 0.28rem;
+        min-height: 3.35rem;
+        padding: 0.38rem 0.3rem;
         background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 55%, #fde68a 100%);
         border-color: rgba(217, 119, 6, 0.28);
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card--setoran-wide .pb-dash-menu-card__icon {
-        width: 2rem;
-        height: 2rem;
+        width: 1.85rem;
+        height: 1.85rem;
         color: #fff;
         background: linear-gradient(135deg, #b45309, #d97706);
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-card--setoran-wide .pb-dash-menu-card__label {
-        font-size: 0.72rem;
-        text-align: left;
-        flex: 1 1 auto;
+        font-size: 0.64rem;
+        text-align: center;
+        flex: 0 1 auto;
     }
 }
 
 
 @media (max-width: 380px) {
     body.pb-dash-home-mobile-fit .pb-dash-hero-banner__name {
-        max-width: 52%;
+        font-size: 0.84rem;
+        max-width: none;
     }
 
     body.pb-dash-home-mobile-fit .pb-dash-menu-cards--munawib {
@@ -1951,75 +1962,38 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     }
 }
 
-/* Portal banner dinamis (tema default / kajian / pkpps / jamaah) */
+/* Portal banner — mockup dua kartu (identitas hijau + jam navy) */
 .pb-portal-banner {
     position: relative;
     margin-bottom: 0.75rem;
-    border-radius: 16px;
-    overflow: hidden;
-    color: #ecfdf5;
-    background: linear-gradient(145deg, var(--pb-banner-from) 0%, var(--pb-banner-via) 48%, var(--pb-banner-to) 100%);
-    box-shadow: 0 12px 32px color-mix(in srgb, var(--pb-banner-from) 35%, transparent);
+    border-radius: 0;
+    overflow: visible;
+    color: inherit;
+    background: transparent;
+    box-shadow: none;
 }
 
 .pb-portal-banner__decor {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.22;
-    background-image: radial-gradient(circle at 20% 20%, var(--pb-banner-glow) 0, transparent 42%);
-}
-
-.pb-portal-banner--pattern-dots .pb-portal-banner__decor {
-    background-image:
-        radial-gradient(circle at 20% 30%, var(--pb-banner-glow) 0, transparent 35%),
-        radial-gradient(circle, rgba(255, 255, 255, 0.14) 1px, transparent 1px);
-    background-size: auto, 14px 14px;
-}
-
-.pb-portal-banner--pattern-grid .pb-portal-banner__decor {
-    background-image:
-        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-    background-size: 18px 18px;
-}
-
-.pb-portal-banner--pattern-rays .pb-portal-banner__decor {
-    background: conic-gradient(from 210deg at 80% 0%, var(--pb-banner-glow), transparent 35%, transparent);
-}
-
-.pb-portal-banner--pattern-waves .pb-portal-banner__decor {
-    background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 12px);
-}
-
-.pb-portal-banner--live {
-    box-shadow: 0 12px 36px color-mix(in srgb, var(--pb-banner-glow) 45%, transparent);
+    display: none;
 }
 
 .pb-portal-banner__inner {
     position: relative;
     z-index: 1;
-    padding: 0.85rem 0.95rem 0.9rem;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
 }
 
 .pb-portal-banner__head {
-    display: flex;
-    align-items: flex-start;
+    display: grid;
     gap: 0.75rem;
+    align-items: stretch;
 }
 
 .pb-portal-banner__logo-wrap,
 .pb-portal-banner__icon-wrap {
-    flex-shrink: 0;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
+    display: none;
 }
 
 .pb-portal-banner__logo {
@@ -2029,37 +2003,43 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     border-radius: 50%;
 }
 
-.pb-portal-banner__icon-wrap {
-    color: var(--pb-banner-from);
-    font-size: 1.25rem;
-}
-
 .pb-portal-banner__identity {
-    flex: 1;
     min-width: 0;
-}
-
-.pb-portal-banner__kicker {
-    font-size: 0.72rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: color-mix(in srgb, var(--pb-banner-accent) 85%, white);
-    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+    background: linear-gradient(145deg, #0f766e 0%, #0d9488 42%, #047857 78%, #065f46 100%);
+    color: #ecfdf5;
+    border-radius: 16px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 12px 28px rgba(6, 95, 70, 0.28);
+    border: none;
 }
 
 .pb-portal-banner__title-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.15rem;
+    gap: 0.5rem 0.65rem;
+    margin-top: 0;
 }
 
 .pb-portal-banner__title {
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-size: 1.2rem;
+    font-weight: 800;
     line-height: 1.25;
     color: #fff;
+    letter-spacing: -0.02em;
+}
+
+.pb-portal-banner__nip {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: rgba(236, 253, 245, 0.9);
 }
 
 .pb-portal-banner__badge {
@@ -2082,72 +2062,74 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     color: rgba(255, 255, 255, 0.85);
 }
 
-.pb-portal-banner__subtitle {
-    margin-top: 0.35rem;
-    font-size: 0.82rem;
-    color: rgba(236, 253, 245, 0.88);
-    line-height: 1.35;
-}
-
-.pb-portal-banner__tagline {
-    margin-top: 0.25rem;
-    font-size: 0.72rem;
-    color: var(--pb-banner-accent);
-    font-weight: 600;
-    letter-spacing: 0.03em;
-}
-
 .pb-portal-banner__clock {
-    flex-shrink: 0;
-    text-align: right;
-    min-width: 5.5rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    text-align: left;
+    background: #0b1220;
+    color: #e2e8f0;
+    border-radius: 16px;
+    padding: 1.15rem 1.25rem;
+    border: 1px solid #1e293b;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
 }
 
 .pb-portal-banner__clock-time {
-    font-size: 1.05rem;
-    font-weight: 700;
+    font-size: clamp(1.65rem, 3.4vw, 2.15rem);
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: #fff;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    color: #5eead4;
+    text-align: left;
 }
 
 .pb-portal-banner__clock-date,
 .pb-portal-banner__clock-hijri {
-    font-size: 0.68rem;
-    color: rgba(236, 253, 245, 0.82);
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    text-align: left;
 }
 
 .pb-portal-banner__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.65rem;
+    gap: 0.4rem;
+    margin-top: 0;
 }
 
 .pb-portal-banner__chip {
     display: inline-flex;
     align-items: center;
-    padding: 0.2rem 0.55rem;
+    padding: 0.28rem 0.7rem;
     border-radius: 999px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: rgba(255, 255, 255, 0.92);
+    background: #ecfdf5;
+    border: 1px solid #99f6e4;
+    color: #0f766e;
 }
 
 .pb-portal-banner__chip--pkpps {
-    background: color-mix(in srgb, var(--pb-banner-accent) 25%, transparent);
-    border-color: color-mix(in srgb, var(--pb-banner-accent) 40%, transparent);
+    background: #f0fdfa;
+    border-color: #5eead4;
+    color: #0f766e;
 }
 
 .pb-portal-banner__chip--live {
-    background: rgba(239, 68, 68, 0.22);
-    border-color: rgba(252, 165, 165, 0.35);
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
 }
 
 .pb-portal-banner__chip--live .fa-circle {
     font-size: 0.45rem;
-    color: #fca5a5;
+    color: #ef4444;
     animation: pb-banner-live-pulse 1.4s ease-in-out infinite;
 }
 
@@ -2160,22 +2142,63 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     margin-bottom: 1rem;
 }
 
-@media (max-width: 575px) {
+@media (min-width: 768px) {
     .pb-portal-banner__head {
-        flex-wrap: wrap;
+        grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.85fr);
+        gap: 1rem;
+    }
+
+    .pb-portal-banner__identity,
+    .pb-portal-banner__clock {
+        min-height: 7.25rem;
+    }
+
+    .pb-portal-banner__title {
+        font-size: clamp(1.2rem, 1.6vw, 1.45rem);
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pb-portal-banner {
+        overflow: visible;
+    }
+
+    .pb-portal-banner__inner {
+        overflow: visible;
+        gap: 0.65rem;
+    }
+
+    .pb-portal-banner__chips {
+        display: none;
+    }
+
+    .pb-portal-banner__head {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.65rem;
+    }
+
+    .pb-portal-banner__identity {
+        min-height: 4.5rem;
+        padding: 1rem 1.15rem;
+    }
+
+    .pb-portal-banner__title {
+        font-size: 1.12rem;
+    }
+
+    .pb-portal-banner__nip {
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
     }
 
     .pb-portal-banner__clock {
         width: 100%;
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 0.25rem 0.75rem;
-        text-align: left;
-        margin-top: 0.35rem;
-        padding-top: 0.35rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        box-sizing: border-box;
+        padding: 1rem 1.15rem;
+    }
+
+    .pb-portal-banner__clock-time {
+        font-size: 1.35rem;
     }
 }
 
@@ -2228,76 +2251,70 @@ body.pb-dash-has-setoran-bottom .pb-dash-setoran-bottom__btn {
     }
 }
 
-/* Dark mockup — portal pembimbing */
-[data-theme="dark"] .pb-portal-banner {
-    background: transparent;
-    box-shadow: none;
-    color: inherit;
+[data-theme="dark"] .pb-portal-banner__chip {
+    background: rgba(15, 118, 110, 0.22);
+    border-color: rgba(94, 234, 212, 0.35);
+    color: #99f6e4;
 }
 
-[data-theme="dark"] .pb-portal-banner__decor {
-    display: none;
+[data-theme="dark"] .pb-portal-banner__chip--pkpps {
+    background: rgba(13, 148, 136, 0.22);
+    border-color: rgba(45, 212, 191, 0.4);
+    color: #5eead4;
 }
 
-[data-theme="dark"] .pb-portal-banner__inner {
-    display: grid;
-    gap: 1rem;
+[data-theme="dark"] .pb-portal-banner__chip--live {
+    background: rgba(185, 28, 28, 0.22);
+    border-color: rgba(252, 165, 165, 0.35);
+    color: #fecaca;
 }
 
-@media (min-width: 768px) {
-    [data-theme="dark"] .pb-portal-banner__head {
-        display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(200px, 0.85fr);
-        gap: 1rem;
-        align-items: stretch;
-    }
+.pb-dash-admin-hero.dash-hero-split {
+    margin-bottom: 1rem;
 }
 
-[data-theme="dark"] .pb-portal-banner__identity {
-    background: linear-gradient(145deg, #0f766e 0%, #047857 55%, #065f46 100%);
-    color: #ecfdf5;
-    border-radius: 16px;
-    padding: 1rem 1.15rem;
-    box-shadow: 0 12px 28px rgba(6, 95, 70, 0.28);
-    border: none;
-}
-
-[data-theme="dark"] .pb-portal-banner__kicker,
-[data-theme="dark"] .pb-portal-banner__subtitle,
-[data-theme="dark"] .pb-portal-banner__tagline {
-    color: rgba(236, 253, 245, 0.82) !important;
-}
-
-[data-theme="dark"] .pb-portal-banner__title {
-    color: #fff !important;
-    font-weight: 800;
-}
-
-[data-theme="dark"] .pb-portal-banner__clock {
-    background: #0b1220;
-    color: #e2e8f0 !important;
-    border-radius: 16px;
-    padding: 1rem 1.15rem;
-    border: 1px solid #1e293b;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
-    display: flex;
-    flex-direction: column;
+.pb-dash-admin-hero .dash-identity-card {
     justify-content: center;
-    text-align: left;
-    align-items: stretch;
+    gap: 0.4rem;
 }
 
-[data-theme="dark"] .pb-portal-banner__clock-time {
-    color: #5eead4 !important;
+.pb-dash-admin-hero .dash-identity-card__greeting,
+[data-theme="dark"] .pb-dash-admin-hero .dash-identity-card__greeting {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.65rem;
+    margin-top: 0;
+}
+
+.pb-dash-admin-hero .dash-identity-card .dash-hero-title,
+[data-theme="dark"] .pb-dash-admin-hero .dash-identity-card .dash-hero-title {
+    color: #fff;
     font-weight: 800;
-    font-size: 1.85rem;
-    text-align: left;
+    font-size: clamp(1.2rem, 1.6vw, 1.45rem);
+    letter-spacing: -0.02em;
+    margin: 0;
 }
 
-[data-theme="dark"] .pb-portal-banner__clock-date,
-[data-theme="dark"] .pb-portal-banner__clock-hijri {
-    color: #cbd5e1 !important;
-    text-align: left;
+.pb-dash-admin-hero__nip {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: rgba(236, 253, 245, 0.9);
+}
+
+@media (max-width: 767.98px) {
+    .pb-dash-admin-hero.dash-hero-split {
+        grid-template-columns: 1fr;
+        gap: 0.65rem;
+    }
+
+    .pb-dash-admin-hero .dash-identity-card,
+    .pb-dash-admin-hero .dash-clock-card {
+        min-height: 0;
+    }
 }
 
 [data-theme="dark"] .pb-dash-menu-card {

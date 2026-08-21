@@ -1154,7 +1154,6 @@ if ($koperasiPortal) {
 
         async function startSantriScanner(preferredCameraId) {
             if (moneyPhase || pinEntryActive) return;
-            await ensureCamerasList();
             await stopMoneyScanner();
             await stopCurrentScanner();
             await waitReaderVisible(readerId);
@@ -1193,10 +1192,11 @@ if ($koperasiPortal) {
             try {
                 let useId = preferredCameraId || activeCameraId;
                 if (useId === 'environment' || useId === 'user') useId = null;
-                if (useId && !cameras.find(function (c) { return c.id === useId; })) useId = null;
+                if (useId && cameras.length > 0 && !cameras.find(function (c) { return c.id === useId; })) useId = null;
                 activeCameraId = await startScannerDevice(html5QrCode, scanConfigLocal, onSuccess, function () {}, useId || null);
                 rememberCameraId(activeCameraId);
                 scheduleTorchDetect();
+                ensureCamerasList().catch(function () {});
             } catch (e) {
                 try {
                     await stopCurrentScanner();
@@ -1462,7 +1462,6 @@ if ($koperasiPortal) {
                 notifyResult('danger', 'Scan uang nonaktif di pengaturan.');
                 return;
             }
-            await ensureCamerasList();
             await stopCurrentScanner();
             await stopMoneyScanner();
             if (!skipSwitch) {
@@ -1486,7 +1485,7 @@ if ($koperasiPortal) {
             try {
                 var useId = activeCameraId;
                 if (useId === 'environment' || useId === 'user') useId = null;
-                if (useId && !cameras.find(function (c) { return c.id === useId; })) useId = null;
+                if (useId && cameras.length > 0 && !cameras.find(function (c) { return c.id === useId; })) useId = null;
                 activeCameraId = await startScannerDevice(
                     moneyQr,
                     scanConfig(),
@@ -1496,6 +1495,7 @@ if ($koperasiPortal) {
                 );
                 rememberCameraId(activeCameraId);
                 scheduleTorchDetect();
+                ensureCamerasList().catch(function () {});
             } catch (e) {
                 try {
                     await stopMoneyScanner();
@@ -1510,6 +1510,7 @@ if ($koperasiPortal) {
                     );
                     rememberCameraId(activeCameraId);
                     scheduleTorchDetect();
+                    ensureCamerasList().catch(function () {});
                 } catch (e2) {
                     showCameraError('money', ScanCam.formatError(e2 || e));
                 }
@@ -1774,18 +1775,18 @@ if ($koperasiPortal) {
                 notifyResult('danger', ScanCam.secureContextMsg());
                 return;
             }
-            await ScanCam.primePermission();
-            await ensureCamerasList();
-            if (cameras.length === 0) {
-                notifyResult('danger', 'Tidak ada kamera terdeteksi. Izinkan kamera di browser lalu ketuk Ulangi.');
-                return;
-            }
+            try {
+                var savedId = localStorage.getItem(STORAGE_KEY);
+                if (savedId && savedId !== 'environment' && savedId !== 'user') {
+                    activeCameraId = savedId;
+                }
+            } catch (e) { /* abaikan */ }
             if (CFG.autoNominalAfterPin && CFG.scanUangEnabled) {
                 speak('PIN benar');
                 notifyResult('success', 'PIN benar. Arahkan ke QR nominal.');
                 await beginMoneyQrScan(santriChipName ? santriChipName.textContent : '');
             } else {
-                await startSantriScanner(null);
+                await startSantriScanner(activeCameraId);
             }
         }
 

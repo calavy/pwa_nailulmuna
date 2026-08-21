@@ -38,8 +38,6 @@ $penilaianBulanRow = is_array($keaktifanPenilaianBulan['row'] ?? null) ? $keakti
 
 require_once __DIR__ . '/includes/layout.php';
 wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
-$waliSwitcherRedirect = '/wali/keaktifan.php?tahun_h=' . (int) $bulanFilter['year'] . '&bulan_h=' . (int) $bulanFilter['month'];
-require __DIR__ . '/partials/anak_switcher.php';
 ?>
 
         <div class="d-flex justify-content-between align-items-start mb-3">

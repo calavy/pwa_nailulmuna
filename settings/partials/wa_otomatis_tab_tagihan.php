@@ -161,7 +161,15 @@ $waPembayaranSiap = $waMasterOn
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Kirim manual sekarang</h2>
-        <form method="post" class="d-flex flex-wrap gap-2 align-items-end" onsubmit="return confirm('Jalankan kirim WA tagihan sekarang?');">
+        <?php if (!empty($waFonteWarmupActive)): ?>
+            <div class="alert alert-info py-2 small">
+                Blast ditahan sampai <?= htmlspecialchars((string) $waFonteWarmupUntil) ?>.
+                Setelah itu maksimal <?= (int) $waFonteBulkLimit ?> pesan per gelombang, jeda 12–20 detik.
+            </div>
+        <?php else: ?>
+            <p class="small text-muted mb-2">Maksimal <?= (int) ($waFonteBulkLimit ?? 15) ?> pesan per klik, jeda 12–20 detik. Klik lagi untuk gelombang berikutnya.</p>
+        <?php endif; ?>
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end" onsubmit="return confirm('Kirim gelombang tagihan (maks. <?= (int) ($waFonteBulkLimit ?? 15) ?> pesan, jeda 12–20 detik)?');">
             <input type="hidden" name="action" value="jalankan_wa_tagihan">
             <div>
                 <label class="form-label small mb-0">Bulan tagihan</label>

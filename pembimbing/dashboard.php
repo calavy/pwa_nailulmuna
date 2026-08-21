@@ -380,30 +380,23 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         require __DIR__ . '/partials/dashboard_home_top.php';
         ?>
     <?php else: ?>
-    <div class="dash-hero-split mb-4">
+    <div class="dash-hero-split pb-dash-admin-hero mb-4">
         <section class="dash-identity-card">
-            <div class="dash-identity-card__meta">
-                <div class="dash-identity-card__role">
-                    <span class="dash-identity-card__role-kicker">Portal Pembimbing</span>
-                    <div class="dash-identity-card__role-value">
-                        <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?>" aria-hidden="true"></i>
-                        <?= $pbSudahHadir ? 'Hadir hari ini' : 'Belum scan' ?>
-                    </div>
-                </div>
-                <div class="dash-identity-card__greeting">
-                    <h1 class="h3 dash-hero-title mb-2 d-flex flex-wrap align-items-center gap-2">
-                        <?= htmlspecialchars($labelUser) ?>
-                    </h1>
-                    <p class="dash-hero-sub mb-0 small">
-                        <?php if ($modeMengajar): ?>
-                            <strong>Sedang mengajar</strong> — data santri &amp; laporan dibatasi kelas: <?= htmlspecialchars(implode(', ', $tingkatanMengajar)) ?>.
-                        <?php else: ?>
-                            Pantau santri pada tingkatan kajian<?= $hasPkppsJadwal ? ' &amp; PKPPS' : '' ?> Anda — jumlah, izin hari ini, dan keaktifan tahun <?= (int) $tahun ?>.
-                        <?php endif; ?>
-                    </p>
-                </div>
-                </div>
+            <div class="dash-identity-card__greeting">
+                <h1 class="h3 dash-hero-title mb-0"><?= htmlspecialchars($labelUser) ?></h1>
+                <span class="dash-identity-card__role-value">
+                    <i class="fa-solid <?= $pbSudahHadir ? 'fa-circle-check' : 'fa-clock' ?>" aria-hidden="true"></i>
+                    <?= $pbSudahHadir ? 'Hadir' : 'Belum scan' ?>
+                </span>
             </div>
+            <?php
+            $pbAdminNip = isset($pembimbingInfo) && is_array($pembimbingInfo)
+                ? trim((string) ($pembimbingInfo['nip'] ?? ''))
+                : '';
+            if ($pbAdminNip !== ''):
+            ?>
+                <p class="pb-dash-admin-hero__nip mb-0">NIP <?= htmlspecialchars($pbAdminNip) ?></p>
+            <?php endif; ?>
         </section>
         <section class="dash-clock-card" aria-live="polite">
             <div class="dash-hero-clock__top">

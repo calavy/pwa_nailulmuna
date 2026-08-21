@@ -177,14 +177,12 @@
             };
         }
         return {
-            fps: options.fps || 12,
+            fps: options.fps || 10,
             qrbox: qrbox,
             aspectRatio: options.aspectRatio || 1.333334,
             disableFlip: false,
             videoConstraints: {
                 facingMode: { ideal: 'environment' },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
             },
             experimentalFeatures: {
                 useBarCodeDetectorIfSupported: false,
@@ -193,17 +191,17 @@
     }
 
     async function waitReaderVisibleById(elementId) {
-        for (var i = 0; i < 40; i++) {
-            var el = document.getElementById(elementId);
-            if (el && el.offsetParent !== null && el.offsetHeight > 80) {
+        var el = document.getElementById(elementId);
+        if (el && el.offsetParent !== null && el.offsetHeight > 40) {
+            return;
+        }
+        for (var i = 0; i < 8; i++) {
+            await nextPaint();
+            el = document.getElementById(elementId);
+            if (el && el.offsetParent !== null && el.offsetHeight > 40) {
                 return;
             }
-            await nextPaint();
-            if (i % 5 === 4) {
-                await sleep(50);
-            }
         }
-        await sleep(120);
     }
 
     async function loadCameraList() {
@@ -222,6 +220,55 @@
             }
         }
         return list || [];
+    }
+
+    function ensureVideoPlaying(readerId) {
+        var video = document.querySelector('#' + readerId + ' video');
+        if (!video) {
+            return;
+        }
+        video.muted = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.setAttribute('muted', '');
+        video.setAttribute('autoplay', '');
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
+        try {
+            var playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(function () { /* gestur mungkin diperlukan */ });
+            }
+        } catch (e) {
+            /* abaikan */
+        }
+    }
+
+    function videoHasFrames(readerId) {
+        var video = document.querySelector('#' + readerId + ' video');
+        if (!video) {
+            return false;
+        }
+        return video.readyState >= 2 && video.videoWidth > 0;
+    }
+
+    async function waitForVideoFrames(readerId, timeoutMs) {
+        var deadline = Date.now() + (timeoutMs || 800);
+        while (Date.now() < deadline) {
+            if (videoHasFrames(readerId)) {
+                return true;
+            }
+            await sleep(80);
+        }
+        return videoHasFrames(readerId);
+    }
+    function readSavedCameraId() {
+        try {
+            var savedId = global.localStorage.getItem(STORAGE_KEY);
+            return savedId && savedId !== 'environment' && savedId !== 'user' ? savedId : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     async function startScannerOnDevice(qrInstance, config, onSuccess, onError, cameras, preferredCameraId) {
@@ -299,9 +346,13 @@
         this.lastSubmittedCode = '';
         this.lastTime = 0;
         this.hitCount = 0;
+        this.heldCode = '';
+        this.heldLastSeenAt = 0;
         this.torchOn = false;
         this.superFocusOn = false;
         this.focusInterval = null;
+        this._blackRetry = false;
+        this._cameraListTimer = null;
     }
 
     PresensiScanCamera.prototype.setStatus = function (state, text) {
@@ -358,6 +409,13 @@
 
     PresensiScanCamera.prototype.onScanSuccess = function (decodedText) {
         var now = Date.now();
+        if (this.heldCode) {
+            if (decodedText === this.heldCode) {
+                this.heldLastSeenAt = now;
+                return;
+            }
+            this.releaseHeldCode();
+        }
         if (decodedText === this.lastCode) {
             this.hitCount += 1;
         } else {
@@ -403,6 +461,44 @@
         this.hitCount = 0;
     };
 
+    PresensiScanCamera.prototype.clearSubmitDebounce = function () {
+        this.lastSubmittedCode = '';
+        this.lastTime = 0;
+        this.resetScanState();
+    };
+
+    PresensiScanCamera.prototype.releaseHeldCode = function () {
+        if (!this.heldCode) {
+            return;
+        }
+        this.heldCode = '';
+        this.heldLastSeenAt = 0;
+        this.lastSubmittedCode = '';
+        this.lastTime = 0;
+        this.resetScanState();
+    };
+
+    PresensiScanCamera.prototype.holdUntilCodeGone = function (code) {
+        var locked = String(code || '');
+        if (locked === '') {
+            return;
+        }
+        this.heldCode = locked;
+        this.heldLastSeenAt = Date.now();
+        this.lastSubmittedCode = locked;
+        this.lastTime = Date.now();
+        this.resetScanState();
+    };
+
+    PresensiScanCamera.prototype.onScanMiss = function () {
+        if (!this.heldCode) {
+            return;
+        }
+        if (Date.now() - this.heldLastSeenAt >= 800) {
+            this.releaseHeldCode();
+        }
+    };
+
     PresensiScanCamera.prototype.resumeScanning = async function () {
         this.resetScanState();
         if (this.scanning) {
@@ -412,10 +508,27 @@
         await this.runStart(this.selectedId);
     };
 
+    PresensiScanCamera.prototype.applyTorchConstraint = async function (track, on) {
+        var want = !!on;
+        try {
+            await track.applyConstraints({ advanced: [{ torch: want }] });
+            return true;
+        } catch (e1) {
+            try {
+                await track.applyConstraints({ torch: want });
+                return true;
+            } catch (e2) {
+                return false;
+            }
+        }
+    };
+
     PresensiScanCamera.prototype.detectTorch = async function () {
         if (!this.btnTorch) {
             return;
         }
+        this.btnTorch.style.display = '';
+        this.btnTorch.disabled = false;
         try {
             var video = document.querySelector('#' + this.readerId + ' video');
             if (!video || !video.srcObject) {
@@ -426,18 +539,19 @@
                 return;
             }
             var caps = track.getCapabilities ? track.getCapabilities() : {};
-            this.btnTorch.style.display = '';
-            this.btnTorch.disabled = false;
             if (caps.torch) {
+                this.btnTorch.classList.remove('is-unavailable');
                 if (this.torchOn) {
-                    await track.applyConstraints({ advanced: [{ torch: true }] });
+                    await this.applyTorchConstraint(track, true);
                 }
             } else {
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
+                this.btnTorch.classList.add('is-unavailable');
             }
         } catch (e) {
-            /* biarkan tombol flash tetap ada; perangkat tanpa torch akan disembunyikan di percobaan berikutnya */
+            this.btnTorch.style.display = '';
+            this.btnTorch.disabled = false;
         }
         if (typeof this.onCameraReady === 'function') {
             try {
@@ -457,6 +571,10 @@
     };
 
     PresensiScanCamera.prototype.stop = async function () {
+        if (this._cameraListTimer) {
+            global.clearTimeout(this._cameraListTimer);
+            this._cameraListTimer = null;
+        }
         if (this.focusInterval) {
             global.clearInterval(this.focusInterval);
             this.focusInterval = null;
@@ -528,14 +646,50 @@
 
     PresensiScanCamera.prototype.startScannerDevice = async function (preferredCameraId) {
         var self = this;
-        return startScannerOnDevice(
-            self.qr,
-            self.scanConfig(),
-            function (text) { self.onScanSuccess(text); },
-            function () {},
-            self.cameras,
-            preferredCameraId
-        );
+        var config = self.scanConfig();
+        var onSuccess = function (text) { self.onScanSuccess(text); };
+        var onError = function () { self.onScanMiss(); };
+        var cameras = self.cameras || [];
+
+        async function tryStart(cameraIdOrFacing) {
+            self.ensureQrInstance();
+            try {
+                await self.qr.start(cameraIdOrFacing, config, onSuccess, onError);
+                return true;
+            } catch (e) {
+                await self.resetQrInstance();
+                return false;
+            }
+        }
+
+        if (preferredCameraId && preferredCameraId !== 'environment' && preferredCameraId !== 'user') {
+            if (await tryStart(preferredCameraId)) {
+                return preferredCameraId;
+            }
+        }
+
+        if (await tryStart({ facingMode: 'environment' })) {
+            return 'environment';
+        }
+        if (await tryStart({ facingMode: 'user' })) {
+            return 'user';
+        }
+
+        var i;
+        for (i = 0; i < cameras.length; i += 1) {
+            var cam = cameras[i];
+            if (!cam || !cam.id) {
+                continue;
+            }
+            if (preferredCameraId && cam.id === preferredCameraId) {
+                continue;
+            }
+            if (await tryStart(cam.id)) {
+                return cam.id;
+            }
+        }
+
+        throw new Error('Semua kamera gagal dibuka');
     };
 
     PresensiScanCamera.prototype.start = async function (cameraId) {
@@ -554,20 +708,31 @@
         self.ensureQrInstance();
         self.setStatus('is-waiting', 'Menyiapkan kamera…');
 
-        var preferredId = cameraId || self.selectedId || null;
+        var preferredId = (cameraId && cameraId !== 'environment' && cameraId !== 'user') ? cameraId : null;
         try {
             var usedId = await self.startScannerDevice(preferredId);
             self.scanning = true;
             self.hideError();
             self.setStatus('', 'Memindai QR…');
+            self.selectedId = usedId;
+            ensureVideoPlaying(self.readerId);
             if (typeof usedId === 'string' && usedId !== 'environment' && usedId !== 'user') {
-                self.selectedId = usedId;
                 self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === usedId; }));
                 self.rememberCameraId(usedId);
                 if (self.cameraSelect) {
                     self.cameraSelect.value = usedId;
                 }
             }
+            if (!(await waitForVideoFrames(self.readerId, 800)) && !self._blackRetry) {
+                self._blackRetry = true;
+                ensureVideoPlaying(self.readerId);
+                if (!(await waitForVideoFrames(self.readerId, 400))) {
+                    await self.resetQrInstance();
+                    await self.start(null);
+                    return;
+                }
+            }
+            self._blackRetry = false;
             if (self.btnSuperFocus) {
                 self.btnSuperFocus.classList.toggle('is-active', self.superFocusOn);
             }
@@ -600,18 +765,22 @@
             }
         }
         if (self.scanning) {
+            ensureVideoPlaying(self.readerId);
             await self.detectTorch();
             global.setTimeout(function () {
+                ensureVideoPlaying(self.readerId);
                 self.detectTorch();
             }, 700);
+            global.setTimeout(function () {
+                self.detectTorch();
+            }, 1600);
         }
     };
 
     PresensiScanCamera.prototype.restart = async function () {
         this.hideError();
         try {
-            await this.prepareCameras();
-            await this.runStart(this.selectedId);
+            await this.runStart(this.cameras.length > 1 ? this.selectedId : null);
         } catch (e) {
             if (this.startBtn && this.deferStartOnMobile) {
                 this.showStartWrap();
@@ -651,6 +820,10 @@
 
     PresensiScanCamera.prototype.flipCamera = async function () {
         if (this.cameras.length < 2) {
+            await this.prepareCameras(true);
+        }
+        if (this.cameras.length < 2) {
+            this.setStatus('is-waiting', 'Hanya satu kamera tersedia');
             return;
         }
         await this.switchToIndex(this.currentIndex + 1);
@@ -662,6 +835,7 @@
             return;
         }
         this.btnTorch.style.display = '';
+        this.btnTorch.disabled = false;
         this.btnTorch.classList.toggle('is-active', this.torchOn);
         try {
             var video = document.querySelector('#' + this.readerId + ' video');
@@ -675,19 +849,28 @@
             if (!track) {
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
+                this.setStatus('is-waiting', 'Kamera belum siap');
                 return;
             }
             var caps = track.getCapabilities ? track.getCapabilities() : {};
             if (!caps.torch) {
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
-                this.setStatus('is-waiting', 'Flash tidak tersedia di kamera ini');
+                this.btnTorch.classList.add('is-unavailable');
+                this.setStatus('is-waiting', 'Flash tidak tersedia');
                 return;
             }
-            await track.applyConstraints({ advanced: [{ torch: this.torchOn }] });
+            this.btnTorch.classList.remove('is-unavailable');
+            var ok = await this.applyTorchConstraint(track, this.torchOn);
+            if (!ok) {
+                this.torchOn = false;
+                this.btnTorch.classList.remove('is-active');
+                this.setStatus('is-waiting', 'Flash gagal dinyalakan');
+            }
         } catch (e) {
             this.torchOn = false;
             this.btnTorch.classList.remove('is-active');
+            this.btnTorch.style.display = '';
             this.setStatus('is-waiting', 'Flash gagal dinyalakan');
         }
     };
@@ -711,7 +894,7 @@
     };
 
     /**
-     * Izin + daftar kamera. Di HP dipanggil setelah ketuk Mulai scan, bukan saat halaman terbuka.
+     * Daftar kamera setelah preview hidup. Prime hanya jika enumerasi masih kosong.
      *
      * @param {boolean} [force]
      */
@@ -721,21 +904,10 @@
             return;
         }
 
-        await primeCameraPermission();
         await self.loadCameras();
 
-        if (!self.cameras || self.cameras.length === 0) {
-            self.showError('Tidak ada kamera terdeteksi. Pastikan perangkat punya kamera dan izin sudah diizinkan.');
-            throw new Error('Tidak ada kamera terdeteksi');
-        }
-
-        var savedId = null;
-        try {
-            savedId = global.localStorage.getItem(STORAGE_KEY);
-        } catch (e) {
-            /* abaikan */
-        }
-        if (savedId && !self.cameras.some(function (c) { return c.id === savedId; })) {
+        var savedId = readSavedCameraId();
+        if (savedId && self.cameras.length > 0 && !self.cameras.some(function (c) { return c.id === savedId; })) {
             savedId = null;
             try {
                 global.localStorage.removeItem(STORAGE_KEY);
@@ -744,9 +916,13 @@
             }
         }
 
-        var preferred = pickPreferredCamera(self.cameras, savedId);
-        self.selectedId = preferred ? preferred.id : self.cameras[0].id;
-        self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === self.selectedId; }));
+        if (self.cameras.length > 0) {
+            var preferred = pickPreferredCamera(self.cameras, savedId || self.selectedId);
+            self.selectedId = preferred ? preferred.id : self.cameras[0].id;
+            self.currentIndex = Math.max(0, self.cameras.findIndex(function (c) { return c.id === self.selectedId; }));
+        } else if (!self.selectedId) {
+            self.selectedId = savedId || 'environment';
+        }
 
         self.fillCameraSelect();
 
@@ -840,7 +1016,6 @@
         });
 
         try {
-            await self.prepareCameras();
             await self.runStart(null);
         } catch (e) {
             /* error sudah ditampilkan */

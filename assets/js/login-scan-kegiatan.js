@@ -116,18 +116,25 @@
         });
     }
 
-    function continueScanning() {
-        if (scanner && typeof scanner.resetScanState === 'function') {
-            scanner.resetScanState();
-        }
+    function keepCameraReady() {
         if (scanner && !scanner.scanning && typeof scanner.resumeScanning === 'function') {
             scanner.resumeScanning().catch(function () {});
         }
     }
 
+    function holdCardUntilGone(qrCode) {
+        if (scanner && typeof scanner.holdUntilCodeGone === 'function') {
+            scanner.holdUntilCodeGone(qrCode);
+        } else if (scanner && typeof scanner.resetScanState === 'function') {
+            scanner.resetScanState();
+        }
+        keepCameraReady();
+    }
+
     function handleSmartResponse(data, qrCode) {
         if (data.munawib_pending) {
             showMunawibPick(data, qrCode);
+            holdCardUntilGone(qrCode);
             return;
         }
 
@@ -141,6 +148,7 @@
         var msg = data.message || '';
         showFeedback(type, msg);
         resetMunawibPick();
+        holdCardUntilGone(qrCode);
     }
 
     function submitOffline(code) {
@@ -160,10 +168,12 @@
                 url: formOffline.getAttribute('action') || '',
             }).then(function () {
                 showFeedback('info', 'Absensi disimpan offline. Masuk portal membutuhkan koneksi internet.');
+                holdCardUntilGone(code);
             });
         }
 
         showFeedback('warning', 'Tidak ada koneksi. Masuk portal membutuhkan internet.');
+        holdCardUntilGone(code);
         return Promise.resolve();
     }
 
@@ -172,6 +182,7 @@
             handleSmartResponse(data, qrCode);
         }).catch(function () {
             showFeedback('danger', 'Gagal memproses scan. Periksa koneksi lalu coba lagi.');
+            holdCardUntilGone(qrCode);
         });
     }
 
@@ -196,7 +207,6 @@
         work.finally(function () {
             clearInflight(code);
         });
-        continueScanning();
         return Promise.resolve();
     }
 
@@ -223,7 +233,6 @@
         }, pendingQrCode).finally(function () {
             clearInflight(pendingQrCode);
         });
-        continueScanning();
     }
 
     if (munawibConfirm) {

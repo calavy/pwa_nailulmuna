@@ -7,6 +7,102 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-22] Fonte: gelombang 15 + jeda setelah scan
+- **Apa yang diubah:** Blast tagihan/grup dibatasi 15 pesan per jalan dengan jeda 12–20 detik. Setelah perangkat putus lalu nyambung, atau tombol “Perangkat baru di-scan”, blast ditahan 3 jam (tes 1 nomor tetap boleh). Tombol kirim tagihan menyimpan progres gelombang.
+- **File:** `helpers/wa_otomatis.php`, `helpers/wa_tagihan.php`, `helpers/app.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_gateway.php`, `settings/partials/wa_otomatis_tab_tagihan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kirim ratusan tagihan sekaligus membuat WhatsApp memblokir nomor Fonte.
+- **Status:** belum diuji kirim massal / scan QR manual
+
+### [2026-08-22] Dashboard pembimbing admin: hero dua kartu
+- **Apa yang diubah:** Cabang admin/pengurus memakai dua kartu (hijau kiri: nama + status scan, jam kanan). Markup `</div>` berlebih dihapus; nama tidak lagi `display:none`. Dashboard utama admin tidak diubah.
+- **File:** `pembimbing/dashboard.php`, `assets/css/pembimbing-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Administrator melihat cabang `dash-hero-split`, bukan portal banner pembimbing; kartu hijau hampir kosong dan jam full width.
+- **Status:** belum diuji desktop manual
+
+### [2026-08-22] Banner pembimbing desktop: dua kartu mockup
+- **Apa yang diubah:** Desktop memakai layout mockup awal: kartu hijau kiri (nama, status scan, NIP) dan jam hitam kanan, chip statistik di bawah. Logo disembunyikan. Gaya tidak lagi tergantung tema gelap. HP tetap stacked (identitas lalu jam, tanpa chip).
+- **File:** `assets/css/pembimbing-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Di desktop logo merusak grid 2 kolom, dan dua kartu hanya tampil di tema gelap.
+- **Status:** belum diuji desktop/HP manual
+
+### [2026-08-22] Banner pembimbing: nama, status scan, NIP
+- **Apa yang diubah:** Kartu hijau di atas jam hanya menampilkan nama pembimbing, badge Hadir/Belum scan, dan NIP. Kicker Kajian, subtitle, dan tagline dihapus dari kartu itu.
+- **File:** `pembimbing/partials/portal_banner.php`, `assets/css/pembimbing-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kartu identitas terlalu ramai; yang dibutuhkan hanya identitas dan status kehadiran.
+- **Status:** belum diuji HP manual
+
+### [2026-08-22] Dashboard pembimbing HP: hapus logo/chip ganda, topbar pondok+aksi
+- **Apa yang diubah:** Di HP, logo di kartu hijau dan chip “tingkatan/santri” disembunyikan. Topbar: baris 1 logo+nama pondok kiri dan profil/logout kanan; baris 2 judul Dashboard Pembimbing di bawah nama pondok. Padding bawah tetap agar FAB unggah tidak menutupi menu setoran.
+- **File:** `assets/css/app.css`, `assets/css/pembimbing-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Logo dan statistik ganda membuat tampilan ramai; judul terpotong; tombol unggah menutupi kartu bawah.
+- **Status:** belum diuji HP manual
+
+### [2026-08-22] Dashboard pembimbing HP: topbar dua baris, banner, menu
+- **Apa yang diubah:** Topbar portal tanpa sidebar di HP dua baris (pondok lalu judul+profil). Banner: jam di bawah kartu hijau, chip tingkatan/santri tidak tertindih. Menu setoran sel 2 kolom seperti kartu lain. Padding bawah agar FAB unggah tidak menutupi menu. Teks deskripsi banner minimal 14px.
+- **File:** `assets/css/app.css`, `assets/css/pembimbing-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Di ponsel nama pondok berdempetan dengan Dashboard, jam menindih chip, kartu setoran terlalu lebar, dan tombol unggah menutupi konten.
+- **Status:** belum diuji HP manual
+
+### [2026-08-22] Dashboard: layout menyesuaikan layar ponsel
+- **Apa yang diubah:** Di HP, halaman dashboard tidak geser horizontal. Padding shell memakai safe-area. Hero/KPI/panel admin-pengasuh lebih rapat, pill status satu kolom. Tab pengasuh bisa digeser. Menu pembimbing dan kartu yayasan 2 kolom. Portal wali mencegah overflow.
+- **File:** `assets/css/app.css`, `assets/css/dashboard.css`, `assets/css/pengasuh-dashboard.css`, `assets/css/pembimbing-dashboard.css`, `assets/css/wali-portal.css`, `assets/css/yayasan-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tampilan dashboard di ponsel perlu mengikuti lebar perangkat tanpa pecah layout.
+- **Status:** belum diuji HP manual
+
+### [2026-08-22] Multi Scan: scan 1 jangan otomatis portal
+- **Apa yang diubah:** Setelah kehadiran pembimbing/munawib, kamera mengabaikan kartu yang sama selama masih di lensa. Portal hanya jika kartu dijauhkan lalu discan lagi. Kartu lain tetap bisa discan langsung.
+- **File:** `assets/js/login-scan-kegiatan.js`, `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Debounce direset setelah toast hadir, sehingga kartu yang masih di kamera terkirim sebagai scan kedua dan langsung masuk portal.
+- **Status:** belum diuji HP manual
+
+### [2026-08-22] Multi Scan: pembimbing/munawib kehadiran dulu, portal di scan kedua
+- **Apa yang diubah:** Jika ada jadwal aktif, scan pertama kartu pembimbing/munawib hanya kehadiran (kamera tetap, tanpa refresh). Scan kedua (sudah tercatat) masuk portal. Tanpa jadwal, sekali scan langsung portal. Debounce kamera direset agar kartu berikutnya atau scan portal segera bisa.
+- **File:** `api/scan/smart.php`, `assets/js/login-scan-kegiatan.js`, `assets/js/presensi-scan-camera.js`, `includes/partials/login_scan_kegiatan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Satu scan absensi+portal membuat petugas tidak bisa lanjut scan kartu lain; portal hanya dibutuhkan di scan kedua.
+- **Status:** belum diuji HP manual
+
+### [2026-08-21] WA otomatis: pilih Fonte atau Meta Cloud API
+- **Apa yang diubah:** Tab Gateway punya pilihan provider Fonte atau Meta. Kiriman ke nomor HP memakai provider yang dipilih. Grup WhatsApp tetap Fonte. Meta mengirim teks Cloud API; jika jendela 24 jam tertutup dan nama template diisi, fallback template satu parameter.
+- **File:** `helpers/wa_otomatis.php`, `helpers/app.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_gateway.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `settings/partials/wa_otomatis_tab_izin.php`, `settings/partials/wa_otomatis_tab_ringkasan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pondok ingin bisa memakai WhatsApp Cloud API Meta tanpa kehilangan kiriman grup Fonte.
+- **Status:** belum diuji kirim live (Fonte/Meta)
+
+### [2026-08-20] Portal wali: teks login PIN + pilih santri di beranda
+- **Apa yang diubah:** Teks login diganti menjadi petunjuk cari nama/NIS lalu isi PIN dari pengurus. Jika wali punya lebih dari satu anak, beranda menampilkan daftar pilih santri (layout switcher sebelumnya tidak tampil karena variabel di luar fungsi).
+- **File:** `wali/login.php`, `wali/index.php`, `wali/partials/anak_switcher.php`, `wali/includes/layout.php`, `wali/keaktifan.php`, `wali/izin.php`, `assets/css/wali-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Teks lama merujuk menu pengurus; wali dengan beberapa anak perlu memilih santri di beranda.
+- **Status:** belum diuji browser manual
+
+### [2026-08-20] Multi Scan: routing otomatis tanpa pill mode
+- **Apa yang diubah:** Pill Presensi / Portal / Setoran dihapus. Satu scan memakai smart API: santri = absensi, pembimbing/munawib = absensi jika jadwal aktif lalu masuk portal. `?dest=setoran` tetap langsung portal setoran. Perbaikan kamera dan Flash tidak diubah.
+- **File:** `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `api/scan/smart.php`, `scripts/_audit_scan_flow.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Multi Scan kembali ke routing otomatis seperti sebelumnya; pilih mode memotong alur absensi+portal.
+- **Status:** belum diuji browser/HP manual
+
+### [2026-08-20] UAT 41 Bagian 2: preview kamera, flash, 3 mode scan
+- **Apa yang diubah:** Overlay html5-qrcode (`#qr-shaded-region`) disembunyikan; bingkai scan lebih transparan agar preview tidak hitam pekat. Video tetap mengisi viewport. Flash tidak disembunyikan; `detectTorch` diulang setelah preview; `applyConstraints` torch dengan fallback. Pill Presensi / Portal / Setoran dikembalikan di Multi Scan (Presensi = smart API, Portal = login kartu tanpa absensi, Setoran = portal setoran).
+- **File:** `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `assets/js/presensi-scan-camera.js`, `assets/js/login-scan-kegiatan.js`, `includes/partials/login_scan_kegiatan.php`, `api/scan/smart.php`, `scripts/_audit_scan_flow.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** UAT Brief 41 Bagian 2 gagal: kamera hitam di 2 HP, tombol Flash tidak menyala, 3 mode scan tidak terlihat.
+- **Status:** belum diuji browser/HP manual
+
+### [2026-08-20] Scan: preview kamera tidak hitam
+- **Apa yang diubah:** Video dipaksa mengisi viewport (`object-fit: cover`, `min-height` 100%, opacity 1). Setelah start, `video.play()` + playsinline/muted. Enumerasi `getCameras` tidak lagi dipanggil otomatis setelah preview (hanya saat Ganti kamera).
+- **File:** `assets/js/presensi-scan-camera.js`, `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Scanner sudah “terbuka” tapi kotak tetap hitam karena elemen video collaps (`min-height: 0`) atau pause, plus overlay hitam.
+- **Status:** belum diuji browser manual
+
+### [2026-08-20] Scan: perbaiki kamera hitam Multi Scan
+- **Apa yang diubah:** Start pertama hanya kamera belakang (`facingMode: environment`), tanpa ID lama dan tanpa resolusi 640×480. Gagal start mereset instance sebelum fallback. Enumerasi kamera ditunda 2 detik. Jika video tanpa frame, restart sekali. CSS video login memakai `object-fit: cover`.
+- **File:** `assets/js/presensi-scan-camera.js`, `assets/css/presensi-scan.css`, `assets/css/auth-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Preview Multi Scan hitam karena device ID tersimpan, constraint VGA, dan getCameras merusak stream yang baru hidup.
+- **Status:** belum diuji browser manual
+
+### [2026-08-20] Scan: kamera dibuka ringan
+- **Apa yang diubah:** Kamera start sekali di 640×480 (10 fps), tanpa pre-open izin lalu ditutup. Daftar kamera diisi setelah preview (untuk Ganti kamera). Cashless sama; tombol Mulai scan cashless tetap.
+- **File:** `assets/js/presensi-scan-camera.js`, `keuangan/cashless_scan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** getUserMedia + enumerasi + start 1280×720 membuat kamera terasa berat dan lambat.
+- **Status:** belum diuji browser manual
+
 ### [2026-08-20] Scan: kamera auto-start, teks jadwal tanpa klik
 - **Apa yang diubah:** Tombol “Mulai scan kamera” tidak lagi menahan kamera di HP; kamera langsung menyala (gagal tetap pakai Coba lagi). Teks berjalan dan keterangan jadwal selalu tampil tanpa mengetuk kotak. Ketuk marquee tetap jeda/lanjut.
 - **File:** `assets/js/presensi-scan-camera.js`, `assets/js/presensi-scan-timer.js`, `includes/partials/presensi_scan_timer_strip.php`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`

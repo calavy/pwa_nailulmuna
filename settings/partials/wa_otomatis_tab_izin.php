@@ -94,7 +94,7 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
                     </div>
                     <label class="form-label" for="wa_izin_grup_fonte">ID / kode grup Fonte</label>
                     <input type="text" class="form-control font-monospace mb-1" id="wa_izin_grup_fonte" name="wa_izin_grup_fonte" value="<?= htmlspecialchars($waIzinGrupFonte) ?>" placeholder="120363xxxxx@g.us" autocomplete="off">
-                    <div class="form-text mb-3">Salin dari panel Fonte → Grup. Beberapa grup: pisah koma.</div>
+                    <div class="form-text mb-3">Salin dari panel Fonte → Grup. Beberapa grup: pisah koma. Meta Cloud API tidak mengirim ke grup — tetap memakai Fonte.</div>
                     <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan grup WA</button>
                 </form>
             </div>
