@@ -4,6 +4,10 @@
 (function (global) {
     'use strict';
 
+    if (global.PondokOfflineSync) {
+        return;
+    }
+
     var DB_NAME = 'pondok-offline-v1';
     var DB_VERSION = 3;
     var STORE_QUEUE = 'action_queue';

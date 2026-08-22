@@ -494,7 +494,7 @@
         if (!this.heldCode) {
             return;
         }
-        if (Date.now() - this.heldLastSeenAt >= 800) {
+        if (Date.now() - this.heldLastSeenAt >= 450) {
             this.releaseHeldCode();
         }
     };

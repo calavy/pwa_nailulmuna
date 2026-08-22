@@ -717,7 +717,8 @@
     display: none;
 }
 
-#btn-super-focus.is-active {
+#btn-super-focus.is-active,
+#login-scan-super-focus.is-active {
     background: rgba(16, 185, 129, 0.32);
     border-color: #34d399;
 }

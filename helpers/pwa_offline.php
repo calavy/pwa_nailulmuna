@@ -27,6 +27,10 @@ function pwa_cache_version(): string
         '/assets/js/presensi-scan-camera.js',
         '/assets/js/presensi-scan-feedback.js',
         '/assets/js/login-scan-kegiatan.js',
+        '/assets/js/login-offline.js',
+        '/login.php',
+        '/dashboard.php',
+        '/pembimbing/dashboard.php',
         '/keuangan/cashless_scan.php',
         '/koperasi/scan.php',
         '/keuangan/offline-data.php',
@@ -95,6 +99,8 @@ function pwa_ui_static_precache_relative_paths(): array
         '/assets/css/pwa-ui.css',
         '/assets/css/offline-sync.css',
         '/assets/css/auth-portal.css',
+        '/assets/css/dashboard.css',
+        '/assets/css/pembimbing-dashboard.css',
         '/assets/css/wali-portal.css',
         '/assets/css/ikhtibar-soal-arabic.css',
         '/assets/css/ikhtibar-kerjakan.css',
@@ -106,6 +112,7 @@ function pwa_ui_static_precache_relative_paths(): array
         '/assets/js/keuangan-offline-db.js',
         '/assets/js/pwa-media-cache.js',
         '/assets/js/pwa-register.js',
+        '/assets/js/login-offline.js',
         '/assets/js/app-datetime-24h.js',
         '/assets/images/avatar-default.svg',
         '/assets/images/avatar-default-laki.svg',
@@ -132,6 +139,8 @@ function pwa_scan_precache_relative_paths(): array
         '/assets/js/presensi-scan-feedback.js',
         '/assets/js/presensi-scan-timer.js',
         '/assets/js/presensi-scan-camera.js',
+        '/assets/js/login-scan-kegiatan.js',
+        '/assets/js/login-offline.js',
     ];
     foreach (app_vendor_scan_precache_relative_paths() as $rel) {
         $paths[] = $rel;
@@ -155,9 +164,15 @@ function pwa_scan_precache_relative_paths(): array
 function pwa_module_shell_precache_relative_paths(): array
 {
     $paths = [
+        '/login.php',
+        '/login.php?scan=1',
+        '/dashboard.php',
+        '/pembimbing/dashboard.php',
         '/presensi/scan.php',
         '/poin/input.php',
         '/assets/js/santri-select.js',
+        '/assets/js/login-scan-kegiatan.js',
+        '/assets/js/login-offline.js',
     ];
     foreach (pwa_scan_precache_relative_paths() as $rel) {
         $paths[] = $rel;
@@ -165,7 +180,8 @@ function pwa_module_shell_precache_relative_paths(): array
     $root = dirname(__DIR__);
     $out = [];
     foreach (array_values(array_unique($paths)) as $rel) {
-        if (str_ends_with($rel, '.php') || is_file($root . $rel)) {
+        $filePart = (string) (parse_url($rel, PHP_URL_PATH) ?: $rel);
+        if (str_ends_with($filePart, '.php') || is_file($root . $filePart)) {
             $out[] = $rel;
         }
     }
@@ -329,6 +345,14 @@ function pwaIsBrandMedia(url) {
     || p.indexOf('/assets/vendor/') >= 0;
 }
 
+function pwaIsAppRoot(p) {
+  var b = PWA_BASE || '';
+  if (p === '/' || p === '') {
+    return true;
+  }
+  return !!(b && (p === b || p === b + '/'));
+}
+
 function pwaIsOfflineNavAllowlist(url) {
   var p = url.pathname;
   if (p.endsWith('/offline.php')) {
@@ -337,7 +361,13 @@ function pwaIsOfflineNavAllowlist(url) {
   if (PWA_VARIANT === 'wali') {
     return p.indexOf('/wali/') >= 0;
   }
-  if (p.indexOf('/login.php') >= 0 && url.search.indexOf('scan=1') >= 0) {
+  if (pwaIsAppRoot(p)) {
+    return true;
+  }
+  if (p.indexOf('/login.php') >= 0) {
+    return true;
+  }
+  if (p.indexOf('/dashboard.php') >= 0) {
     return true;
   }
   return p.indexOf('/presensi/scan') >= 0
@@ -353,11 +383,69 @@ function pwaIsOfflineNavAllowlist(url) {
     || p.indexOf('/keuangan/cashless_laporan') >= 0;
 }
 
+function pwaKeepLoginQuery(request) {
+  try {
+    var u = new URL(request.url);
+    return u.pathname.indexOf('/login.php') >= 0 && u.search.indexOf('scan=1') >= 0;
+  } catch (e) {
+    return false;
+  }
+}
+
 function pwaNormalizeCacheUrl(request) {
   var u = new URL(request.url);
-  u.search = '';
+  if (!pwaKeepLoginQuery(request)) {
+    u.search = '';
+  }
   u.hash = '';
   return u.href;
+}
+
+function pwaMatchFirst(urls) {
+  var i = 0;
+  function next() {
+    if (i >= urls.length) {
+      return Promise.resolve(undefined);
+    }
+    var href = urls[i++];
+    return caches.match(href).then(function (hit) {
+      return hit || next();
+    });
+  }
+  return next();
+}
+
+function pwaOfflineNavFallback(req, url) {
+  return caches.match(req).then(function (pageHit) {
+    if (pageHit) {
+      return pageHit;
+    }
+    return pwaCacheMatch(req).then(function (normHit) {
+      if (normHit) {
+        return normHit;
+      }
+      var candidates = [];
+      if (url.search.indexOf('scan=1') >= 0) {
+        candidates.push(pwaUrl('/login.php?scan=1'));
+      }
+      if (url.pathname.indexOf('/login.php') >= 0 || pwaIsAppRoot(url.pathname)) {
+        candidates.push(pwaUrl('/login.php'));
+        candidates.push(pwaUrl('/login.php?scan=1'));
+      }
+      if (url.pathname.indexOf('/dashboard.php') >= 0) {
+        candidates.push(pwaUrl('/dashboard.php'));
+        candidates.push(pwaUrl('/pembimbing/dashboard.php'));
+        candidates.push(pwaUrl('/login.php'));
+      }
+      candidates.push(pwaUrl('/offline.php'));
+      return pwaMatchFirst(candidates);
+    });
+  }).then(function (cached) {
+    return cached || new Response('Tidak ada koneksi.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+  });
 }
 
 function pwaCacheMatch(request) {
@@ -484,17 +572,7 @@ self.addEventListener('fetch', function (event) {
         }
         return res;
       }).catch(function () {
-        return caches.match(req).then(function (pageHit) {
-          if (pageHit) {
-            return pageHit;
-          }
-          return caches.match(pwaUrl('/offline.php')).then(function (cached) {
-            return cached || new Response('Tidak ada koneksi.', {
-              status: 503,
-              headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-            });
-          });
-        });
+        return pwaOfflineNavFallback(req, url);
       })
     );
     return;

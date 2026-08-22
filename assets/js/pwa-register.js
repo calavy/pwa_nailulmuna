@@ -143,7 +143,13 @@
             '/assets/js/app-shell.js',
             '/assets/js/pwa-register.js',
             '/assets/js/offline-sync.js',
+            '/assets/js/login-offline.js',
+            '/assets/js/login-scan-kegiatan.js',
             '/assets/js/santri-select.js',
+            '/login.php',
+            '/login.php?scan=1',
+            '/dashboard.php',
+            '/pembimbing/dashboard.php',
             '/presensi/scan.php',
             '/poin/input.php',
         ];
@@ -154,7 +160,17 @@
         if (navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
                 type: 'PRECACHE_SCAN',
-                paths: ['/presensi/scan.php', '/poin/input.php', '/assets/js/santri-select.js'],
+                paths: [
+                    '/login.php',
+                    '/login.php?scan=1',
+                    '/dashboard.php',
+                    '/pembimbing/dashboard.php',
+                    '/presensi/scan.php',
+                    '/poin/input.php',
+                    '/assets/js/santri-select.js',
+                    '/assets/js/login-scan-kegiatan.js',
+                    '/assets/js/login-offline.js',
+                ],
             });
         }
     }

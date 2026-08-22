@@ -7,6 +7,24 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-23] Offline: login, Multi Scan, sinkron otomatis
+- **Apa yang diubah:** Service worker mem-precache dan mengizinkan navigasi ke beranda, `login.php` (password + Multi Scan), dan dashboard. Saat offline, halaman dari cache ditampilkan dulu, bukan langsung `offline.php`. Setelah login online, username + hash password disimpan di perangkat; offline, form login dicegat dan membuka dashboard cache jika cocok. `offline-sync.js` ikut di portal login dan dashboard supaya antrian scan terkirim sendiri saat internet kembali.
+- **File:** `helpers/pwa_offline.php`, `assets/js/login-offline.js`, `assets/js/offline-sync.js`, `assets/js/pwa-register.js`, `login.php`, `includes/auth_portal_layout.php`, `includes/footer.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Ketuk domain saat offline sering jatuh ke halaman offline; login user/pass dan dashboard belum ter-cache; antrian tidak ter-flush jika user hanya di halaman login.
+- **Status:** belum diuji HP manual (airplane mode setelah buka situs sekali online)
+
+### [2026-08-23] Multi Scan: kartu berikutnya tanpa refresh
+- **Apa yang diubah:** Setelah absensi santri, kamera langsung siap kartu lain (seperti scan presensi). Kunci “tahan sampai kartu pergi” hanya untuk pembimbing/munawib dengan `stay_on_scan` (supaya scan 1 tidak langsung jadi portal). Jeda lepas kunci dipercepat 450ms.
+- **File:** `assets/js/login-scan-kegiatan.js`, `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** `holdUntilCodeGone` dipasang di semua hasil scan, sehingga ganti kartu santri terasa macet sampai refresh.
+- **Status:** belum diuji HP manual
+
+### [2026-08-23] Multi Scan: Super Fokus seperti scan presensi
+- **Apa yang diubah:** Multi Scan mendapat tombol Super Fokus (ikon crosshairs) dan diikat ke `PresensiScanCamera` sama seperti scan presensi. Flash tetap. State aktif memakai CSS yang sama.
+- **File:** `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Flash sudah ada di Multi, tetapi Super Fokus belum terpasang sehingga fokus kartu tidak bisa dioptimalkan di gerbang.
+- **Status:** belum diuji HP manual
+
 ### [2026-08-22] Fonte: gelombang 15 + jeda setelah scan
 - **Apa yang diubah:** Blast tagihan/grup dibatasi 15 pesan per jalan dengan jeda 12–20 detik. Setelah perangkat putus lalu nyambung, atau tombol “Perangkat baru di-scan”, blast ditahan 3 jam (tes 1 nomor tetap boleh). Tombol kirim tagihan menyimpan progres gelombang.
 - **File:** `helpers/wa_otomatis.php`, `helpers/wa_tagihan.php`, `helpers/app.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_gateway.php`, `settings/partials/wa_otomatis_tab_tagihan.php`, `STATUS_PWA.md`

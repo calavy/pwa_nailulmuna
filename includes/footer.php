@@ -90,6 +90,7 @@ $deferPwaRegisterJs = $isScanKioskPage;
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/sdm-modals.js')) ?>" defer></script>
     <?php endif; ?>
     <?php if (isset($_SESSION['user'])): ?>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/login-offline.js')) ?>" defer></script>
     <?php if (!empty($loadSantriSelectJs)): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/santri-select.js')) ?>" defer></script>
     <?php endif; ?>

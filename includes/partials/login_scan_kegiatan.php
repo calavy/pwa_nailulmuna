@@ -51,6 +51,10 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
             <i class="fa-solid fa-camera-rotate"></i>
             <span>Ganti kamera</span>
         </button>
+        <button type="button" class="btn-scan-ctl" id="login-scan-super-focus" title="Optimalkan fokus kamera">
+            <i class="fa-solid fa-crosshairs"></i>
+            <span>Super Fokus</span>
+        </button>
         <button type="button" class="btn-scan-ctl btn-scan-ctl--secondary" id="login-scan-restart" title="Nyalakan ulang kamera">
             <i class="fa-solid fa-rotate-right"></i>
             <span>Ulangi</span>

@@ -559,7 +559,7 @@ $ok = get_flash('success');
 
 
 
-                <form method="post" class="auth-portal-form auth-portal-form--center" autocomplete="on">
+                <form method="post" id="login-staff-form" class="auth-portal-form auth-portal-form--center" autocomplete="on">
 
                     <?php if ($loginDest === 'setoran'): ?>
 

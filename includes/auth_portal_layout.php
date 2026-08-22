@@ -308,6 +308,9 @@ function auth_portal_layout_begin(array $ctx): void
     <meta name="pondok-pwa-logo-fallback" content="<?= htmlspecialchars($logoFallbackHref) ?>">
     <link rel="preload" href="<?= htmlspecialchars($cssHref) ?>" as="style">
     <link href="<?= htmlspecialchars($cssHref) ?>" rel="stylesheet">
+    <?php if (function_exists('app_asset_href')): ?>
+    <link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
+    <?php endif; ?>
     <style>
         :root {
             --ap-auth-accent: <?= $accentHex ?>;
@@ -531,6 +534,8 @@ function auth_portal_layout_end(array $footerLinks = [], bool $enableFcm = false
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/login-offline.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
     <?php endif; ?>
     <?php if ($enableFcm && (isset($_SESSION['santri_portal']) || isset($_SESSION['wali']))): ?>
