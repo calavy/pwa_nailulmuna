@@ -8,6 +8,8 @@ $loadOfflineSyncJs = ($loadOfflineSyncJs ?? true) && app_should_load_offline_syn
 $loadSdmModalsJs = ($loadSdmModalsJs ?? true) && app_should_load_sdm_modals($footerRequestPath);
 $loadAppShellJs = ($loadAppShellJs ?? true) && app_should_load_app_shell_js($footerRequestPath);
 $loadDateTimeJs = ($loadDateTimeJs ?? true) && !$isScanKioskPage;
+$loadPerizinanSubmitOnceJs = ($loadPerizinanSubmitOnceJs ?? true)
+    && app_should_load_perizinan_submit_once_js($footerRequestPath);
 $loadPwaMediaCacheJs = ($loadPwaMediaCacheJs ?? true) && !$isScanKioskPage;
 $deferPwaRegisterJs = $isScanKioskPage;
 ?>
@@ -85,6 +87,9 @@ $deferPwaRegisterJs = $isScanKioskPage;
     <?php endif; ?>
     <?php if ($loadDateTimeJs): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-datetime-24h.js')) ?>" defer></script>
+    <?php endif; ?>
+    <?php if ($loadPerizinanSubmitOnceJs): ?>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-submit-once.js')) ?>" defer></script>
     <?php endif; ?>
     <?php if (isset($_SESSION['user']) && $loadSdmModalsJs): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/sdm-modals.js')) ?>" defer></script>

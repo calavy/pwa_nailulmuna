@@ -158,6 +158,17 @@ function app_should_load_app_shell_js(string $requestPath): bool
     return !app_request_path_is_scan_kiosk($requestPath);
 }
 
+/** Kunci submit aksi perizinan (bukan filter GET) setelah satu klik. */
+function app_should_load_perizinan_submit_once_js(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+
+    return (bool) preg_match('#^/perizinan(/|$)#', $p)
+        || (bool) preg_match('#^/pengasuh/perizinan#', $p)
+        || (bool) preg_match('#^/pengasuh/dashboard#', $p)
+        || (bool) preg_match('#^/pembimbing/perizinan#', $p);
+}
+
 /** Hapus cache branding header (mis. setelah ubah logo/nama pondok). */
 function app_header_brand_invalidate(): void
 {

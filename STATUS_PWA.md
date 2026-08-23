@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-23] Perizinan: tombol aksi sekali klik
+- **Apa yang diubah:** Form POST perizinan (kirim, setujui, tolak, simpan, hapus, tandai kembali) terkunci setelah satu submit yang valid. Klik kedua ditolak. Filter GET, cetak, dan tombol bantu (Pilih semua, Batal) tetap bisa diulang. Confirm batal atau ALPA terhalang tidak mengunci tombol.
+- **File:** `assets/js/perizinan-submit-once.js`, `helpers/app.php`, `includes/footer.php`, `wali/includes/layout.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Ketuk cepat Setujui/Tolak/Kirim bisa mengirim form dua kali. Pencegahan sebelumnya hanya di modal setujui dan form pengasuh.
+- **Status:** belum diuji HP manual
+
 ### [2026-08-23] Offline: login, Multi Scan, sinkron otomatis
 - **Apa yang diubah:** Service worker mem-precache dan mengizinkan navigasi ke beranda, `login.php` (password + Multi Scan), dan dashboard. Saat offline, halaman dari cache ditampilkan dulu, bukan langsung `offline.php`. Setelah login online, username + hash password disimpan di perangkat; offline, form login dicegat dan membuka dashboard cache jika cocok. `offline-sync.js` ikut di portal login dan dashboard supaya antrian scan terkirim sendiri saat internet kembali.
 - **File:** `helpers/pwa_offline.php`, `assets/js/login-offline.js`, `assets/js/offline-sync.js`, `assets/js/pwa-register.js`, `login.php`, `includes/auth_portal_layout.php`, `includes/footer.php`, `STATUS_PWA.md`

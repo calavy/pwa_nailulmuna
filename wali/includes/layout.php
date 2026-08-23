@@ -204,6 +204,9 @@ function wali_layout_foot(bool $registerServiceWorker = false, ?string $navActiv
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/app-shell.js')) ?>" defer></script>
+    <?php if (wali_nav_resolve_active($navActive) === 'izin'): ?>
+    <script src="<?= htmlspecialchars(app_asset_href('/assets/js/perizinan-submit-once.js')) ?>" defer></script>
+    <?php endif; ?>
     <?php if ($registerServiceWorker): ?>
     <?php require_once __DIR__ . '/../../includes/partials/push_fcm_bootstrap.php'; ?>
     <?php endif; ?>
