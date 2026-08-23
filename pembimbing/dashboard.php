@@ -409,6 +409,7 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         </section>
     </div>
     <?php endif; ?>
+    <?php require __DIR__ . '/../includes/partials/dash_offline_status.php'; ?>
 
     <?php if ($bolehSemua): ?>
     <!-- Filter ringkas (tingkatan + tahun) -->

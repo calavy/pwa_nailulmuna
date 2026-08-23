@@ -415,6 +415,49 @@ function pwaMatchFirst(urls) {
   return next();
 }
 
+function pwaIsLoginHtmlUrl(href) {
+  try {
+    var u = new URL(href, self.location.origin);
+    return u.pathname.indexOf('/login.php') >= 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+function pwaIsProtectedShellPath(p) {
+  return p.indexOf('/presensi/scan') >= 0
+    || p.indexOf('/poin/input') >= 0
+    || p.indexOf('/dashboard.php') >= 0;
+}
+
+function pwaCanCacheNavResponse(req, res) {
+  if (!res || !res.ok || res.type !== 'basic' || res.redirected) {
+    return false;
+  }
+  try {
+    var reqUrl = new URL(req.url);
+    if (pwaIsProtectedShellPath(reqUrl.pathname) && pwaIsLoginHtmlUrl(res.url)) {
+      return false;
+    }
+    return pwaIsOfflineNavAllowlist(reqUrl);
+  } catch (e) {
+    return false;
+  }
+}
+
+function pwaCanCachePrecacheResponse(destHref, res) {
+  if (!res || !res.ok || res.redirected) {
+    return false;
+  }
+  try {
+    var destPath = new URL(destHref, self.location.origin).pathname;
+    if (pwaIsProtectedShellPath(destPath) && pwaIsLoginHtmlUrl(res.url)) {
+      return false;
+    }
+  } catch (e) {}
+  return true;
+}
+
 function pwaOfflineNavFallback(req, url) {
   return caches.match(req).then(function (pageHit) {
     if (pageHit) {
@@ -427,6 +470,12 @@ function pwaOfflineNavFallback(req, url) {
       var candidates = [];
       if (url.search.indexOf('scan=1') >= 0) {
         candidates.push(pwaUrl('/login.php?scan=1'));
+      }
+      if (url.pathname.indexOf('/presensi/scan') >= 0 || url.pathname.indexOf('/poin/input') >= 0) {
+        candidates.push(pwaUrl('/presensi/scan.php'));
+        candidates.push(pwaUrl('/poin/input.php'));
+        candidates.push(pwaUrl('/login.php?scan=1'));
+        candidates.push(pwaUrl('/login.php'));
       }
       if (url.pathname.indexOf('/login.php') >= 0 || pwaIsAppRoot(url.pathname)) {
         candidates.push(pwaUrl('/login.php'));
@@ -514,7 +563,7 @@ self.addEventListener('install', function (event) {
         PWA_PRECACHE.map(function (p) {
           var req = new Request(p, { credentials: 'same-origin', cache: 'no-cache' });
           return fetch(req).then(function (res) {
-            if (res && res.ok) {
+            if (pwaCanCachePrecacheResponse(req.url, res)) {
               return cache.put(req, res.clone()).then(function () {
                 var normHref = pwaNormalizeCacheUrl(req);
                 if (normHref !== req.url) {
@@ -567,7 +616,7 @@ self.addEventListener('fetch', function (event) {
     }
     event.respondWith(
       fetch(navReq).then(function (res) {
-        if (res && res.ok && res.type === 'basic' && pwaIsOfflineNavAllowlist(url)) {
+        if (pwaCanCacheNavResponse(req, res)) {
           pwaPutCache(req, res);
         }
         return res;
@@ -601,7 +650,7 @@ self.addEventListener('message', function (event) {
             var path = String(rel || '');
             if (path.indexOf('http://') === 0 || path.indexOf('https://') === 0) {
               return fetch(path, { credentials: 'same-origin' }).then(function (res) {
-                if (res && res.ok) {
+                if (pwaCanCachePrecacheResponse(path, res)) {
                   return cache.put(path, res);
                 }
               }).catch(function () {});
@@ -609,9 +658,10 @@ self.addEventListener('message', function (event) {
             if (path.charAt(0) !== '/') {
               path = '/' + path;
             }
-            return fetch(pwaUrl(path), { credentials: 'same-origin' }).then(function (res) {
-              if (res && res.ok) {
-                return cache.put(pwaUrl(path), res);
+            var dest = pwaUrl(path);
+            return fetch(dest, { credentials: 'same-origin' }).then(function (res) {
+              if (pwaCanCachePrecacheResponse(dest, res)) {
+                return cache.put(dest, res);
               }
             }).catch(function () {});
           })

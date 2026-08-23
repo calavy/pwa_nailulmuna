@@ -175,12 +175,18 @@
                 url: formOffline.getAttribute('action') || '',
             }).then(function () {
                 showFeedback('info', 'Absensi disimpan offline. Masuk portal membutuhkan koneksi internet.');
-                holdCardUntilGone(code);
+                if (scanner && typeof scanner.resetScanState === 'function') {
+                    scanner.resetScanState();
+                }
+                keepCameraReady();
             });
         }
 
         showFeedback('warning', 'Tidak ada koneksi. Masuk portal membutuhkan internet.');
-        holdCardUntilGone(code);
+        if (scanner && typeof scanner.resetScanState === 'function') {
+            scanner.resetScanState();
+        }
+        keepCameraReady();
         return Promise.resolve();
     }
 
@@ -251,8 +257,11 @@
         statusEl: statusEl,
         errorPanel: document.getElementById('login-scan-error'),
         errorText: document.getElementById('login-scan-error-text'),
+        cameraSelect: document.getElementById('login-scan-camera-select'),
+        settingsPanel: document.getElementById('login-scan-settings'),
         btnFlip: document.getElementById('login-scan-flip'),
         btnRestart: document.getElementById('login-scan-restart'),
+        btnSettings: document.getElementById('login-scan-settings-btn'),
         btnRetry: document.getElementById('login-scan-retry'),
         btnTorch: document.getElementById('login-scan-torch'),
         btnSuperFocus: document.getElementById('login-scan-super-focus'),

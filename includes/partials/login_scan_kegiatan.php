@@ -42,6 +42,11 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         </div>
     </div>
 
+    <div id="login-scan-settings" class="presensi-scan-settings">
+        <label class="form-label mb-1" for="login-scan-camera-select">Pilih kamera</label>
+        <select id="login-scan-camera-select" class="form-select form-select-sm" aria-label="Pilih kamera"></select>
+    </div>
+
     <div class="presensi-scan-controls login-scan-kegiatan__controls" id="login-scan-controls">
         <button type="button" class="btn-scan-ctl btn-scan-ctl--flash" id="login-scan-torch" title="Nyalakan/matikan flash kamera">
             <i class="fa-solid fa-bolt"></i>
@@ -54,6 +59,10 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         <button type="button" class="btn-scan-ctl" id="login-scan-super-focus" title="Optimalkan fokus kamera">
             <i class="fa-solid fa-crosshairs"></i>
             <span>Super Fokus</span>
+        </button>
+        <button type="button" class="btn-scan-ctl" id="login-scan-settings-btn" title="Pilih kamera">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Kamera</span>
         </button>
         <button type="button" class="btn-scan-ctl btn-scan-ctl--secondary" id="login-scan-restart" title="Nyalakan ulang kamera">
             <i class="fa-solid fa-rotate-right"></i>

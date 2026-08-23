@@ -508,19 +508,64 @@
         await this.runStart(this.selectedId);
     };
 
-    PresensiScanCamera.prototype.applyTorchConstraint = async function (track, on) {
-        var want = !!on;
-        try {
-            await track.applyConstraints({ advanced: [{ torch: want }] });
-            return true;
-        } catch (e1) {
-            try {
-                await track.applyConstraints({ torch: want });
-                return true;
-            } catch (e2) {
-                return false;
+    PresensiScanCamera.prototype.getLiveVideoTrack = function () {
+        var root = document.getElementById(this.readerId);
+        if (!root) {
+            return null;
+        }
+        var videos = root.querySelectorAll('video');
+        var fallback = null;
+        var i;
+        var j;
+        var tracks;
+        var track;
+        var caps;
+        for (i = 0; i < videos.length; i++) {
+            if (!videos[i].srcObject) {
+                continue;
+            }
+            tracks = videos[i].srcObject.getVideoTracks();
+            for (j = 0; j < tracks.length; j++) {
+                track = tracks[j];
+                if (track.readyState !== 'live') {
+                    continue;
+                }
+                if (!fallback) {
+                    fallback = track;
+                }
+                try {
+                    caps = track.getCapabilities ? (track.getCapabilities() || {}) : {};
+                    if (caps.torch) {
+                        return track;
+                    }
+                } catch (e) { /* coba track lain */ }
             }
         }
+        return fallback;
+    };
+
+    PresensiScanCamera.prototype.applyTorchConstraint = async function (track, on) {
+        var want = !!on;
+        var fill = want ? 'flash' : 'off';
+        var attempts = [
+            { advanced: [{ torch: want }] },
+            { torch: want },
+            { advanced: [{ torch: want, fillLightMode: fill }] },
+            { advanced: [{ fillLightMode: fill }] }
+        ];
+        var i;
+        var settings;
+        for (i = 0; i < attempts.length; i++) {
+            try {
+                await track.applyConstraints(attempts[i]);
+                settings = track.getSettings ? (track.getSettings() || {}) : {};
+                if (settings.torch === false && want) {
+                    continue;
+                }
+                return true;
+            } catch (e) { /* coba format constraint berikutnya */ }
+        }
+        return false;
     };
 
     PresensiScanCamera.prototype.detectTorch = async function () {
@@ -530,24 +575,13 @@
         this.btnTorch.style.display = '';
         this.btnTorch.disabled = false;
         try {
-            var video = document.querySelector('#' + this.readerId + ' video');
-            if (!video || !video.srcObject) {
-                return;
-            }
-            var track = video.srcObject.getVideoTracks()[0];
+            var track = this.getLiveVideoTrack();
             if (!track) {
                 return;
             }
-            var caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (caps.torch) {
-                this.btnTorch.classList.remove('is-unavailable');
-                if (this.torchOn) {
-                    await this.applyTorchConstraint(track, true);
-                }
-            } else {
-                this.torchOn = false;
-                this.btnTorch.classList.remove('is-active');
-                this.btnTorch.classList.add('is-unavailable');
+            this.btnTorch.classList.remove('is-unavailable');
+            if (this.torchOn) {
+                await this.applyTorchConstraint(track, true);
             }
         } catch (e) {
             this.btnTorch.style.display = '';
@@ -614,6 +648,9 @@
             var adv = {};
             if (Array.isArray(caps.focusMode) && caps.focusMode.indexOf('continuous') !== -1) {
                 adv.focusMode = 'continuous';
+            }
+            if (this.torchOn) {
+                adv.torch = true;
             }
             if (Object.keys(adv).length > 0) {
                 await track.applyConstraints({ advanced: [adv] });
@@ -838,26 +875,11 @@
         this.btnTorch.disabled = false;
         this.btnTorch.classList.toggle('is-active', this.torchOn);
         try {
-            var video = document.querySelector('#' + this.readerId + ' video');
-            if (!video || !video.srcObject) {
-                this.torchOn = false;
-                this.btnTorch.classList.remove('is-active');
-                this.setStatus('is-waiting', 'Kamera belum siap');
-                return;
-            }
-            var track = video.srcObject.getVideoTracks()[0];
+            var track = this.getLiveVideoTrack();
             if (!track) {
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
-                this.setStatus('is-waiting', 'Kamera belum siap');
-                return;
-            }
-            var caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (!caps.torch) {
-                this.torchOn = false;
-                this.btnTorch.classList.remove('is-active');
-                this.btnTorch.classList.add('is-unavailable');
-                this.setStatus('is-waiting', 'Flash tidak tersedia');
+                this.setStatus('is-waiting', 'Kamera belum siap — ketuk Flash lagi setelah gambar muncul');
                 return;
             }
             this.btnTorch.classList.remove('is-unavailable');
@@ -865,7 +887,9 @@
             if (!ok) {
                 this.torchOn = false;
                 this.btnTorch.classList.remove('is-active');
-                this.setStatus('is-waiting', 'Flash gagal dinyalakan');
+                this.setStatus('is-waiting', 'Flash gagal. Pastikan kamera belakang dan izinkan kamera.');
+            } else if (this.torchOn) {
+                this.setStatus('', 'Flash menyala');
             }
         } catch (e) {
             this.torchOn = false;

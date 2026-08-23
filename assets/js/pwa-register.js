@@ -157,21 +157,36 @@
             var url = (base === '' ? '' : base) + rel;
             fetch(url, { credentials: 'same-origin', cache: 'no-cache' }).catch(function () {});
         });
-        if (navigator.serviceWorker.controller) {
+        function postPrecache(paths) {
+            if (!navigator.serviceWorker.controller) {
+                return;
+            }
             navigator.serviceWorker.controller.postMessage({
                 type: 'PRECACHE_SCAN',
-                paths: [
-                    '/login.php',
+                paths: paths,
+            });
+        }
+        if (navigator.serviceWorker.controller) {
+            postPrecache([
+                '/login.php',
+                '/login.php?scan=1',
+                '/dashboard.php',
+                '/pembimbing/dashboard.php',
+                '/presensi/scan.php',
+                '/poin/input.php',
+                '/assets/js/santri-select.js',
+                '/assets/js/login-scan-kegiatan.js',
+                '/assets/js/login-offline.js',
+                '/assets/js/offline-sync.js',
+            ]);
+        } else if (navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready.then(function () {
+                postPrecache([
                     '/login.php?scan=1',
-                    '/dashboard.php',
-                    '/pembimbing/dashboard.php',
                     '/presensi/scan.php',
                     '/poin/input.php',
-                    '/assets/js/santri-select.js',
-                    '/assets/js/login-scan-kegiatan.js',
-                    '/assets/js/login-offline.js',
-                ],
-            });
+                ]);
+            }).catch(function () {});
         }
     }
 

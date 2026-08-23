@@ -61,6 +61,7 @@ function login_rate_limit_count_recent(PDO $pdo, string $ip, string $usernameNor
 
 function login_rate_limit_is_blocked(PDO $pdo, string $ip, string $username): bool
 {
+    login_rate_limit_ensure_schema($pdo);
     $usernameNorm = login_rate_limit_normalize_username($username);
 
     return login_rate_limit_count_recent($pdo, $ip, $usernameNorm) >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS;

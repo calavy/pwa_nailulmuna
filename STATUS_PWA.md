@@ -7,6 +7,26 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-23] Multi Scan: pilih kamera seperti scan presensi
+- **Apa yang diubah:** Multi Scan mendapat panel pilih kamera dan tombol Kamera, diikat ke `PresensiScanCamera` sama seperti scan presensi (`cameraSelect`, `settingsPanel`, `btnSettings`). Engine Flash tidak diganti.
+- **File:** `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Flash hidup di scan presensi tapi mati di Multi karena Multi tidak bisa memilih kamera belakang (lensa yang punya torch).
+- **Status:** belum diuji HP manual
+
+### [2026-08-23] Scan: flash tidak bergantung caps.torch
+- **Apa yang diubah:** Tombol Flash mencoba `applyConstraints` (torch + fillLightMode) meskipun `getCapabilities().torch` kosong. Track video dipilih yang live / yang punya torch. Super Fokus tidak mematikan torch. Pesan status jika kamera belum siap atau gagal.
+- **File:** `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Banyak HP Android tidak melapor `caps.torch`, sehingga tombol Flash langsung dianggap tidak tersedia dan lampu tidak pernah diminta.
+- **Status:** belum diuji HP manual
+
+### [2026-08-23] UAT Brief 41 + perbaikan offline
+- **Apa yang diubah:** Hasil UAT 23 Agu: 12/20 lulus (kamera, flash, 3 mode, menu peran, login arah). Belum lulus: rate-limit (belum terbukti) dan seluruh Bagian 4 offline. Perbaikan: tabel `login_attempt` dibuat saat buka login; SW tidak menyimpan HTML login sebagai `scan.php`; offline scan/poin fallback ke Multi Scan; Multi Scan offline mereset kamera (kartu berikutnya tanpa refresh); pill status online/offline di dashboard pembimbing; cashless tidak lagi masuk antrian (pesan butuh internet).
+- **UAT rate-limit:** 5× password salah, percobaan ke-6 harus tampil *Terlalu banyak percobaan login. Coba lagi dalam 15 menit.*
+- **UAT offline:** buka scan/Multi Scan saat online (login) → airplane → scan 2 kartu (antrian terlihat) → online → antrian terkirim; pill dashboard berubah; cashless offline tidak tersimpan.
+- **File:** `helpers/login_rate_limit.php`, `login.php`, `helpers/pwa_offline.php`, `assets/js/pwa-register.js`, `includes/partials/pwa_scan_precache_boot.php`, `assets/js/login-scan-kegiatan.js`, `assets/js/offline-sync.js`, `includes/partials/dash_offline_status.php`, `pembimbing/dashboard.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Precache scan tanpa sesi jadi halaman login; cashless ikut antrian padahal harus online-only; dashboard pembimbing tidak punya pill status.
+- **Status:** belum diuji HP manual (airplane + 5× login salah)
+
 ### [2026-08-23] Perizinan: tombol aksi sekali klik
 - **Apa yang diubah:** Form POST perizinan (kirim, setujui, tolak, simpan, hapus, tandai kembali) terkunci setelah satu submit yang valid. Klik kedua ditolak. Filter GET, cetak, dan tombol bantu (Pilih semua, Batal) tetap bisa diulang. Confirm batal atau ALPA terhalang tidak mengunci tombol.
 - **File:** `assets/js/perizinan-submit-once.js`, `helpers/app.php`, `includes/footer.php`, `wali/includes/layout.php`, `STATUS_PWA.md`

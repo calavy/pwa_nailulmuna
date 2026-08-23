@@ -37,6 +37,7 @@ if (app_is_wali_host()) {
 if ($pdo instanceof PDO && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 
     ensure_pondok_settings_defaults($pdo);
+    login_rate_limit_ensure_schema($pdo);
 
 }
 

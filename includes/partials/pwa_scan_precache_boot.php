@@ -5,7 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../helpers/pwa_offline.php';
 require_once __DIR__ . '/../../helpers/app_path.php';
 
-$scanPrecachePaths = [];
+$scanPrecachePaths = [
+    '/login.php?scan=1',
+    '/presensi/scan.php',
+    '/poin/input.php',
+];
 foreach (pwa_scan_precache_relative_paths() as $rel) {
     $scanPrecachePaths[] = $rel . '?v=' . app_asset_version($rel);
 }

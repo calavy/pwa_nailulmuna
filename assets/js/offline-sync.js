@@ -29,8 +29,11 @@
         { test: /\/pembimbing\/nilai_manual\.php$/i, module: 'nilai_manual', label: 'Nilai manual' },
         { test: /\/pembimbing\/tugas\/nilai\.php$/i, module: 'ikhtibar_nilai', label: 'Nilai ikhtibar' },
         { test: /\/perizinan\/kembali\.php$/i, module: 'izin_kembali', label: 'Izin kembali' },
-        { test: /\/keuangan\/cashless_scan\.php$/i, module: 'cashless', label: 'Cashless' },
-        { test: /\/koperasi\/scan\.php$/i, module: 'cashless', label: 'Cashless koperasi' },
+    ];
+
+    var CASHLESS_ONLINE_ONLY = [
+        /\/keuangan\/cashless_scan\.php$/i,
+        /\/koperasi\/scan\.php$/i,
     ];
 
     var REKAP_PAGES = {
@@ -70,6 +73,20 @@
             }
         }
         return null;
+    }
+
+    function isCashlessOnlineOnlyPath() {
+        var path = (global.location.pathname || '').replace(/\/+$/, '');
+        var base = appBase();
+        if (base && path.indexOf(base) === 0) {
+            path = path.slice(base.length) || '/';
+        }
+        for (var i = 0; i < CASHLESS_ONLINE_ONLY.length; i++) {
+            if (CASHLESS_ONLINE_ONLY[i].test(path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function routeForModule(module) {
@@ -761,6 +778,13 @@
                 return queuePurgeDone().then(refreshQueueUi);
             }
             var item = list[0];
+            if (item.module === 'cashless') {
+                item.status = 'done';
+                item.lastError = 'Cashless online-only';
+                return queueUpdate(item).then(function () {
+                    return queueListToSync(!!options.includeErrors).then(processNext);
+                });
+            }
             item.status = 'syncing';
             return queueUpdate(item).then(function () {
                 return postQueuedItem(item);
@@ -824,6 +848,10 @@
     function enqueueFields(fields, options) {
         options = options || {};
         var module = options.module || 'generic';
+        if (module === 'cashless') {
+            toast('Cashless membutuhkan internet. Transaksi tidak disimpan lokal.', 'warning');
+            return Promise.resolve();
+        }
         var route = routeForModule(module);
         if (module === 'presensi_scan' || module === 'cashless') {
             // Selalu stamp ulang di momen masuk antrian (= waktu scan offline).
@@ -914,6 +942,22 @@
     }
 
     function bindWriteForms() {
+        if (isCashlessOnlineOnlyPath()) {
+            document.querySelectorAll('form[method="post"], form[method="POST"]').forEach(function (form) {
+                if (form.dataset.offlineBound === '1') {
+                    return;
+                }
+                form.dataset.offlineBound = '1';
+                form.addEventListener('submit', function (ev) {
+                    if (navigator.onLine) {
+                        return;
+                    }
+                    ev.preventDefault();
+                    toast('Cashless membutuhkan internet. Transaksi tidak disimpan lokal.', 'warning');
+                });
+            });
+            return;
+        }
         var route = routeInfo();
         if (!route) {
             return;
