@@ -122,13 +122,8 @@ $ok = get_flash('success');
 </form>
 
 <?php
-$kat = strtoupper((string) ($summary['kategori'] ?? ''));
-$badgeClass = match (true) {
-    $kat === 'BAIK' || $kat === 'BAGUS' => 'badge-kat-bagus',
-    $kat === 'SEDANG' => 'badge-kat-sedang',
-    $kat === 'BURUK' || $kat === 'JELEK' => 'badge-kat-buruk',
-    default => 'text-bg-secondary',
-};
+require_once __DIR__ . '/../helpers/penilaian_kehadiran.php';
+$badgeClass = penilaian_kehadiran_badge_class((string) ($summary['label'] ?? $summary['kategori'] ?? ''));
 require __DIR__ . '/partials/keaktifan_santri_detail.php';
 ?>
 

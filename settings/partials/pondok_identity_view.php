@@ -84,6 +84,8 @@
     </div>
 </div>
 
+<?php require __DIR__ . '/../../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
+
 <div class="card shadow-sm">
     <div class="card-body">
         <h2 class="h5 mb-3">Operasional presensi &amp; izin</h2>
@@ -97,14 +99,6 @@
                 <label class="form-label">Password petugas presensi</label>
                 <input type="password" class="form-control" name="presensi_password" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password">
                 <div class="form-text">Hanya password. Akun pengurus di menu Pengguna.</div>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Kategori baik (max alpa)</label>
-                <input type="number" min="0" class="form-control" name="kategori_baik_max" value="<?= htmlspecialchars($values['kategori_baik_max']) ?>">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Kategori sedang (max alpa)</label>
-                <input type="number" min="0" class="form-control" name="kategori_sedang_max" value="<?= htmlspecialchars($values['kategori_sedang_max']) ?>">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Tanggal mulai scan keaktivan</label>

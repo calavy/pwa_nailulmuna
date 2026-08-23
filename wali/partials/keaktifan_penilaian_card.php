@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Kartu penilaian keaktifan Baik / Sedang / Buruk (tahunan atau bulanan).
+ * Kartu penilaian keaktifan PRESNA 5 kategori (tahunan atau bulanan).
  *
  * @var array<string,mixed> $keaktifanPenilaian
  * @var bool $waliKeaktifanPenilaianCompact ringkas untuk dashboard
@@ -26,7 +26,9 @@ $sumber = $row ? (string) ($row['sumber'] ?? '') : '';
 $badgeClass = $row ? santri_riwayat_keaktifan_badge_class($label) : 'text-bg-secondary';
 $cardTone = match ($label) {
     'Baik' => 'baik',
+    'Cukup' => 'cukup',
     'Sedang' => 'sedang',
+    'Kurang' => 'kurang',
     'Buruk' => 'buruk',
     default => 'netral',
 };
@@ -92,19 +94,25 @@ $riwayatToggleLabel = $isBulan
 
         <?php if ($row && $persenHadir !== null): ?>
             <div class="row g-2 text-center small mb-0">
-                <div class="col-4">
+                <div class="col-3">
                     <div class="rounded-2 bg-white bg-opacity-75 py-2">
                         <div class="text-muted">Hadir</div>
                         <div class="fw-bold text-success"><?= (int) ($row['hadir'] ?? 0) ?></div>
                     </div>
                 </div>
-                <div class="col-4">
+                <div class="col-3">
+                    <div class="rounded-2 bg-white bg-opacity-75 py-2">
+                        <div class="text-muted">Telat</div>
+                        <div class="fw-bold"><?= (int) ($row['telat'] ?? 0) ?></div>
+                    </div>
+                </div>
+                <div class="col-3">
                     <div class="rounded-2 bg-white bg-opacity-75 py-2">
                         <div class="text-muted">Alpa</div>
                         <div class="fw-bold text-danger"><?= (int) ($row['alpa'] ?? 0) ?></div>
                     </div>
                 </div>
-                <div class="col-4">
+                <div class="col-3">
                     <div class="rounded-2 bg-white bg-opacity-75 py-2">
                         <div class="text-muted">%</div>
                         <div class="fw-bold"><?= htmlspecialchars($persenHadir) ?>%</div>

@@ -7,17 +7,56 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-24] Template WA laporan kegiatan kosong
+- **Apa yang diubah:** Teks laporan kelas/kegiatan kosong bisa diedit di tab Template WA. Dua slug: `kelas_kosong_pengurus` (petugas/pengurus) dan `kelas_kosong_pembimbing`. Default sama dengan teks lama. Tab Presensi punya tautan ke Template.
+- **File:** `helpers/wa_templates.php`, `helpers/wa_kegiatan_kosong.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pesan sebelumnya tertulis di kode; admin tidak bisa mengubah redaksi tanpa deploy.
+- **Status:** terpasang; uji kirim WA / simpan template manual
+
+### [2026-08-24] UAT Brief 41: sisa cek lulus
+- **Apa yang diubah:** Uji HP 24 Agu mengonfirmasi sisa cek yang ditahan setelah UAT 23 Agu (12/20). Tidak ada perubahan kode.
+- **UAT rate-limit:** 5× password salah, percobaan ke-6 tampil *Terlalu banyak percobaan login. Coba lagi dalam 15 menit.* — **lulus**
+- **UAT offline:** buka scan/Multi Scan saat online → airplane → scan 2 kartu (antrian terlihat) → online → antrian terkirim; pill dashboard berubah; cashless offline tidak tersimpan — **lulus**
+- **UAT Multi Scan:** flash, pilih kamera, Super Fokus — **lulus**
+- **File:** `STATUS_PWA.md`
+- **Alasan/konteks:** Skor resmi 23 Agu tetap 12/20 (daftar 20 butir Brief 41 tidak ada di repo). Tiga sisa yang ditahan (rate-limit, Bagian 4 offline, kamera Multi Scan) sudah lulus. Pekerjaan 24 Agu (PRESNA 5 jenjang, saklar ALPA, SKBT/pengasuh) bukan bagian Brief 41.
+- **Status:** lulus uji HP 24 Agu
+
+### [2026-08-24] Predikat 3 jenjang disamakan ke PRESNA (5 kategori)
+- **Apa yang diubah:** Field “Kategori baik/sedang (max alpa)” dihapus dari kartu Operasional presensi (setting DB tetap untuk setoran/PKPPS). SKBT predikat otomatis memakai rumus PRESNA: HADIR lewat batas = Telat, N.HARI = slot terhitung, 5 jenjang (Baik/Cukup/Sedang/Kurang/Buruk). Override pengasuh (`santri_nilai_keaktifan.nilai`) diperluas ENUM + form jadi 5 pilihan. Nilai ujian/ikhtibar/manual angka tidak diubah.
+- **File:** `settings/partials/pondok_identity_view.php`, `helpers/akademik_skbt.php`, `helpers/penilaian_kehadiran.php`, `helpers/santri_keaktifan_nilai.php`, `pengasuh/nilai_keaktifan.php`, `includes/partials/santri_keaktifan_nilai_view.php`, `includes/partials/santri_buku_induk.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Keaktifan rekap sudah 5 jenjang PRESNA; SKBT dan penilaian pengasuh masih 3 (Baik/Sedang/Buruk) dari hitungan GHOIB.
+- **Status:** terpasang; uji form pengasuh + cetak SKBT manual
+
+### [2026-08-24] Penilaian kehadiran: rumus PRESNA asli
+- **Apa yang diubah:** Rekap keaktifan memakai rumus PRESNA: AKUMULASI = Alpa×4 + Izin×2 + Sakit×1 + Telat×3; N.HARI = jumlah slot kegiatan terhitung (bukan 100); ABSENSI = max(0, N.HARI − AKUMULASI); % kehadiran = ABSENSI ÷ N.HARI. Predikat: Buruk ≤20%, Kurang 21–40%, Sedang 41–60%, Cukup 61–80%, Baik 81–100%. Spek draft dasar-100 / Alpa×3 / Baik >94% diarsipkan. Status Keluar PRESNA ("K") tidak ditambah di presensi — santri boyong/keluar sudah NONAKTIF dan tidak dinilai. Override pengasuh tetap Baik/Sedang/Buruk. Akademik tidak diubah.
+- **File:** `helpers/penilaian_kehadiran.php`, `helpers/rekap_keaktifan.php`, `helpers/santri_riwayat.php`, `helpers/wali_portal.php`, `wali/keaktifan.php`, `santri_portal/keaktifan.php`, `includes/partials/santri_keaktifan_nilai_view.php`, `rekap/santri_bagus.php`, `yayasan/partials/keaktifan_bulan_panel.php`, `rekap/partials/alur_presensi_rekap_panduan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Draft spek lebih ketat dari spreadsheet PRESNA 52; rumus asli dipakai agar predikat Cukup/Baik tidak tertarik jadi Buruk.
+- **Status:** rumus terpasang; uji rekap/portal manual
+
+### [2026-08-24] Saklar ALPA jika Jama'ah/Ta'lim tanpa scan
+- **Apa yang diubah:** Setting `keaktifan_alpa_jika_tanpa_scan` (default ON). OFF: slot Jama'ah/Ta'lim tanpa satu pun HADIR tidak ditulis/dihitung ALPA (historis tidak dihapus). Laporan tanpa scan = Jama'ah + Ta'lim, 1 per kegiatan/waktu. Saklar hanya super admin (dashboard pengasuh, rekap tanpa scan, rekap keaktifan, profil pondok). Dashboard/laporan hari pengasuh hanya super admin dan pengasuh (kiai); disembunyikan dari menu admin/pengurus.
+- **File:** `helpers/keaktifan_alpa_tanpa_scan.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `includes/auth.php`, `helpers/app.php`, `helpers/rekap_keaktifan.php`, `helpers/presensi_jadwal.php`, `pengasuh/dashboard.php`, `pengasuh/laporan_hari.php`, `presensi/rekap_tanpa_scan.php`, `rekap/santri_bagus.php`, `settings/pesantren.php`, `settings/partials/pondok_identity_view.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kegiatan tanpa scan petugas jangan otomatis menandai seluruh santri ALPA; akses dashboard pengasuh dipersempit.
+- **Status:** belum diuji browser manual
+
+### [2026-08-24] Penilaian kehadiran: bobot Alpa/Izin/Telat/Sakit — TIDAK BERLAKU / DIARSIPKAN
+- **Apa yang diubah:** Draft spek (dasar 100, Alpa×3, Baik >94%). **Tidak dipakai.** Diganti rumus PRESNA asli (entri di atas).
+- **File:** (arsip catatan saja)
+- **Alasan/konteks:** Ambang draft terlalu ketat dibanding spreadsheet PRESNA 52.
+- **Status:** diarsipkan
+
 ### [2026-08-23] Multi Scan: pilih kamera seperti scan presensi
 - **Apa yang diubah:** Multi Scan mendapat panel pilih kamera dan tombol Kamera, diikat ke `PresensiScanCamera` sama seperti scan presensi (`cameraSelect`, `settingsPanel`, `btnSettings`). Engine Flash tidak diganti.
 - **File:** `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `STATUS_PWA.md`
 - **Alasan/konteks:** Flash hidup di scan presensi tapi mati di Multi karena Multi tidak bisa memilih kamera belakang (lensa yang punya torch).
-- **Status:** belum diuji HP manual
+- **Status:** lulus uji HP 24 Agu (lihat entri UAT Brief 41: sisa cek lulus)
 
 ### [2026-08-23] Scan: flash tidak bergantung caps.torch
 - **Apa yang diubah:** Tombol Flash mencoba `applyConstraints` (torch + fillLightMode) meskipun `getCapabilities().torch` kosong. Track video dipilih yang live / yang punya torch. Super Fokus tidak mematikan torch. Pesan status jika kamera belum siap atau gagal.
 - **File:** `assets/js/presensi-scan-camera.js`, `STATUS_PWA.md`
 - **Alasan/konteks:** Banyak HP Android tidak melapor `caps.torch`, sehingga tombol Flash langsung dianggap tidak tersedia dan lampu tidak pernah diminta.
-- **Status:** belum diuji HP manual
+- **Status:** lulus uji HP 24 Agu (lihat entri UAT Brief 41: sisa cek lulus)
 
 ### [2026-08-23] UAT Brief 41 + perbaikan offline
 - **Apa yang diubah:** Hasil UAT 23 Agu: 12/20 lulus (kamera, flash, 3 mode, menu peran, login arah). Belum lulus: rate-limit (belum terbukti) dan seluruh Bagian 4 offline. Perbaikan: tabel `login_attempt` dibuat saat buka login; SW tidak menyimpan HTML login sebagai `scan.php`; offline scan/poin fallback ke Multi Scan; Multi Scan offline mereset kamera (kartu berikutnya tanpa refresh); pill status online/offline di dashboard pembimbing; cashless tidak lagi masuk antrian (pesan butuh internet).
@@ -25,7 +64,7 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 - **UAT offline:** buka scan/Multi Scan saat online (login) → airplane → scan 2 kartu (antrian terlihat) → online → antrian terkirim; pill dashboard berubah; cashless offline tidak tersimpan.
 - **File:** `helpers/login_rate_limit.php`, `login.php`, `helpers/pwa_offline.php`, `assets/js/pwa-register.js`, `includes/partials/pwa_scan_precache_boot.php`, `assets/js/login-scan-kegiatan.js`, `assets/js/offline-sync.js`, `includes/partials/dash_offline_status.php`, `pembimbing/dashboard.php`, `STATUS_PWA.md`
 - **Alasan/konteks:** Precache scan tanpa sesi jadi halaman login; cashless ikut antrian padahal harus online-only; dashboard pembimbing tidak punya pill status.
-- **Status:** belum diuji HP manual (airplane + 5× login salah)
+- **Status:** perbaikan terpasang; sisa cek lulus uji HP 24 Agu (lihat entri UAT Brief 41: sisa cek lulus)
 
 ### [2026-08-23] Perizinan: tombol aksi sekali klik
 - **Apa yang diubah:** Form POST perizinan (kirim, setujui, tolak, simpan, hapus, tandai kembali) terkunci setelah satu submit yang valid. Klik kedua ditolak. Filter GET, cetak, dan tombol bantu (Pilih semua, Batal) tetap bisa diulang. Confirm batal atau ALPA terhalang tidak mengunci tombol.
@@ -37,7 +76,7 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 - **Apa yang diubah:** Service worker mem-precache dan mengizinkan navigasi ke beranda, `login.php` (password + Multi Scan), dan dashboard. Saat offline, halaman dari cache ditampilkan dulu, bukan langsung `offline.php`. Setelah login online, username + hash password disimpan di perangkat; offline, form login dicegat dan membuka dashboard cache jika cocok. `offline-sync.js` ikut di portal login dan dashboard supaya antrian scan terkirim sendiri saat internet kembali.
 - **File:** `helpers/pwa_offline.php`, `assets/js/login-offline.js`, `assets/js/offline-sync.js`, `assets/js/pwa-register.js`, `login.php`, `includes/auth_portal_layout.php`, `includes/footer.php`, `STATUS_PWA.md`
 - **Alasan/konteks:** Ketuk domain saat offline sering jatuh ke halaman offline; login user/pass dan dashboard belum ter-cache; antrian tidak ter-flush jika user hanya di halaman login.
-- **Status:** belum diuji HP manual (airplane mode setelah buka situs sekali online)
+- **Status:** lulus uji HP 24 Agu (lihat entri UAT Brief 41: sisa cek lulus)
 
 ### [2026-08-23] Multi Scan: kartu berikutnya tanpa refresh
 - **Apa yang diubah:** Setelah absensi santri, kamera langsung siap kartu lain (seperti scan presensi). Kunci “tahan sampai kartu pergi” hanya untuk pembimbing/munawib dengan `stay_on_scan` (supaya scan 1 tidak langsung jadi portal). Jeda lepas kunci dipercepat 450ms.
@@ -49,7 +88,7 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 - **Apa yang diubah:** Multi Scan mendapat tombol Super Fokus (ikon crosshairs) dan diikat ke `PresensiScanCamera` sama seperti scan presensi. Flash tetap. State aktif memakai CSS yang sama.
 - **File:** `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
 - **Alasan/konteks:** Flash sudah ada di Multi, tetapi Super Fokus belum terpasang sehingga fokus kartu tidak bisa dioptimalkan di gerbang.
-- **Status:** belum diuji HP manual
+- **Status:** lulus uji HP 24 Agu (lihat entri UAT Brief 41: sisa cek lulus)
 
 ### [2026-08-22] Fonte: gelombang 15 + jeda setelah scan
 - **Apa yang diubah:** Blast tagihan/grup dibatasi 15 pesan per jalan dengan jeda 12–20 detik. Setelah perangkat putus lalu nyambung, atau tombol “Perangkat baru di-scan”, blast ditahan 3 jam (tes 1 nomor tetap boleh). Tombol kirim tagihan menyimpan progres gelombang.

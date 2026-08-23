@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/datetime_display.php';
+require_once __DIR__ . '/penilaian_kehadiran.php';
 
 /** Tanggal mulai scan resmi untuk rekap keaktivan (Y-m-d) atau kosong = semua riwayat. */
 function rekap_keaktifan_tanggal_mulai_scan(PDO $pdo): string
@@ -124,8 +125,9 @@ function rekap_keaktifan_rekap_footnote(PDO $pdo): string
  * @param list<array<string, mixed>> $rows presensi terfilter (eligible)
  * @return list<array<string, mixed>>
  */
-function rekap_keaktifan_build_per_santri(array $rows, int $goodMax, int $mediumMax): array
+function rekap_keaktifan_build_per_santri(array $rows, int $goodMax = 1, int $mediumMax = 3, int $lateTolerance = 15): array
 {
+    unset($goodMax, $mediumMax);
     $bySantri = [];
     foreach ($rows as $row) {
         $sid = (int) ($row['santri_id'] ?? 0);
@@ -142,61 +144,45 @@ function rekap_keaktifan_build_per_santri(array $rows, int $goodMax, int $medium
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'telat' => 0,
                 'total' => 0,
                 'per_kegiatan' => [],
             ];
         }
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
         $kgLabel = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Tanpa Kegiatan';
         if (!isset($bySantri[$sid]['per_kegiatan'][$kgLabel])) {
-            $bySantri[$sid]['per_kegiatan'][$kgLabel] = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+            $bySantri[$sid]['per_kegiatan'][$kgLabel] = penilaian_kehadiran_counts_empty();
         }
         $bySantri[$sid]['total']++;
         $bySantri[$sid]['per_kegiatan'][$kgLabel]['total']++;
-        if ($status === 'HADIR') {
-            $bySantri[$sid]['hadir']++;
-            $bySantri[$sid]['per_kegiatan'][$kgLabel]['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $bySantri[$sid]['izin']++;
-            $bySantri[$sid]['per_kegiatan'][$kgLabel]['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $bySantri[$sid]['sakit']++;
-            $bySantri[$sid]['per_kegiatan'][$kgLabel]['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $bySantri[$sid]['alpa']++;
-            $bySantri[$sid]['per_kegiatan'][$kgLabel]['alpa']++;
+        $bucket = penilaian_kehadiran_row_bucket($row, $lateTolerance);
+        if ($bucket !== '' && isset($bySantri[$sid][$bucket])) {
+            $bySantri[$sid][$bucket]++;
+            $bySantri[$sid]['per_kegiatan'][$kgLabel][$bucket]++;
         }
     }
 
     $ranked = [];
     foreach ($bySantri as $item) {
-        $total = (int) $item['total'];
-        $hadir = (int) $item['hadir'];
-        $alpa = (int) $item['alpa'];
-        $persen = $total > 0 ? round(($hadir / $total) * 100, 2) : 0;
-        $kategori = santri_category($alpa, $goodMax, $mediumMax);
-        $skor = ($persen * 10) - ($alpa * 5);
-        $item['persen_hadir'] = $persen;
-        $item['kategori'] = $kategori;
-        $item['skor'] = $skor;
+        $item = penilaian_kehadiran_apply_to_stats($item);
         foreach ($item['per_kegiatan'] as $kgName => $kgStats) {
-            $kgTotal = (int) $kgStats['total'];
-            $kgHadir = (int) $kgStats['hadir'];
-            $kgAlpa = (int) $kgStats['alpa'];
-            $kgPersen = $kgTotal > 0 ? round(($kgHadir / $kgTotal) * 100, 2) : 0.0;
-            $item['per_kegiatan'][$kgName]['persen_hadir'] = $kgPersen;
-            $item['per_kegiatan'][$kgName]['kategori'] = santri_category($kgAlpa, $goodMax, $mediumMax);
+            $item['per_kegiatan'][$kgName] = penilaian_kehadiran_apply_to_stats($kgStats);
         }
         ksort($item['per_kegiatan']);
         $ranked[] = $item;
     }
 
     usort($ranked, static function (array $a, array $b): int {
-        if ($a['skor'] === $b['skor']) {
-            return strcmp((string) $a['nama_santri'], (string) $b['nama_santri']);
+        $cmp = ((int) ($b['skor'] ?? 0)) <=> ((int) ($a['skor'] ?? 0));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+        $cmpAlpa = ((int) ($a['alpa'] ?? 0)) <=> ((int) ($b['alpa'] ?? 0));
+        if ($cmpAlpa !== 0) {
+            return $cmpAlpa;
         }
 
-        return $b['skor'] <=> $a['skor'];
+        return strcmp((string) $a['nama_santri'], (string) $b['nama_santri']);
     });
 
     return $ranked;
@@ -204,30 +190,32 @@ function rekap_keaktifan_build_per_santri(array $rows, int $goodMax, int $medium
 
 /**
  * @param list<array<string, mixed>> $rows
- * @return array<string, array{hadir:int,izin:int,sakit:int,alpa:int,total:int,santri_count:int}>
+ * @return array<string, array{hadir:int,izin:int,sakit:int,alpa:int,telat:int,total:int,santri_count:int}>
  */
-function rekap_keaktifan_build_per_kegiatan(array $rows): array
+function rekap_keaktifan_build_per_kegiatan(array $rows, int $lateTolerance = 15): array
 {
     $out = [];
     foreach ($rows as $row) {
         $kgLabel = trim((string) ($row['nama_kegiatan'] ?? '')) !== '' ? (string) $row['nama_kegiatan'] : 'Tanpa Kegiatan';
         if (!isset($out[$kgLabel])) {
-            $out[$kgLabel] = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0, 'santri_ids' => []];
+            $out[$kgLabel] = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'telat' => 0,
+                'total' => 0,
+                'santri_ids' => [],
+            ];
         }
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
         $out[$kgLabel]['total']++;
         $sid = (int) ($row['santri_id'] ?? 0);
         if ($sid > 0) {
             $out[$kgLabel]['santri_ids'][$sid] = true;
         }
-        if ($status === 'HADIR') {
-            $out[$kgLabel]['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $out[$kgLabel]['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $out[$kgLabel]['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $out[$kgLabel]['alpa']++;
+        $bucket = penilaian_kehadiran_row_bucket($row, $lateTolerance);
+        if ($bucket !== '' && isset($out[$kgLabel][$bucket])) {
+            $out[$kgLabel][$bucket]++;
         }
     }
     foreach ($out as $label => $data) {
@@ -295,6 +283,15 @@ function rekap_keaktifan_fetch_eligible_rows(
     }
 
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $selectExtra = column_exists($pdo, 'presensi', 'catatan') ? ', p.catatan' : ', "" AS catatan';
+    $selectExtra .= column_exists($pdo, 'presensi', 'jam_presensi') ? ', p.jam_presensi' : ', NULL AS jam_presensi';
+    $joinJadwal = '';
+    if (column_exists($pdo, 'presensi', 'jadwal_kegiatan_id') && table_exists($pdo, 'jadwal_kegiatan')) {
+        $selectExtra .= ', COALESCE(j.jam_mulai, "") AS jam_mulai_jadwal';
+        $joinJadwal = ' LEFT JOIN jadwal_kegiatan j ON j.id = p.jadwal_kegiatan_id';
+    } else {
+        $selectExtra .= ', "" AS jam_mulai_jadwal';
+    }
     $stmt = $pdo->prepare('
         SELECT
             p.id,
@@ -307,36 +304,35 @@ function rekap_keaktifan_fetch_eligible_rows(
             s.tingkatan,
             COALESCE(k.nama_kegiatan, "Tanpa Kegiatan") AS nama_kegiatan,
             COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
+            ' . $selectExtra . '
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
         LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        ' . $joinJadwal . '
         WHERE ' . $where . '
         ORDER BY s.' . $nameCol . ' ASC, p.tanggal_presensi ASC
     ');
     $stmt->execute($params);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $rows = presensi_filter_rows_eligible($pdo, $rows, $startDate, $endDate);
+    require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
+    $rows = keaktifan_exclude_alpa_slot_kosong($pdo, $rows);
 
-    return presensi_filter_rows_eligible($pdo, $rows, $startDate, $endDate);
+    return penilaian_kehadiran_annotate_rows($rows, penilaian_kehadiran_batas_telat($pdo));
 }
 
 /**
  * @param list<array<string, mixed>> $rows baris eligible
- * @return array{hadir:int,izin:int,sakit:int,alpa:int,total:int}
+ * @return array{hadir:int,izin:int,sakit:int,alpa:int,telat:int,total:int}
  */
-function rekap_keaktifan_totals_from_rows(array $rows): array
+function rekap_keaktifan_totals_from_rows(array $rows, int $lateTolerance = 15): array
 {
-    $totals = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+    $totals = penilaian_kehadiran_counts_empty();
     foreach ($rows as $row) {
         $totals['total']++;
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
-        if ($status === 'HADIR') {
-            $totals['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $totals['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $totals['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $totals['alpa']++;
+        $bucket = penilaian_kehadiran_row_bucket($row, $lateTolerance);
+        if ($bucket !== '' && isset($totals[$bucket])) {
+            $totals[$bucket]++;
         }
     }
 
@@ -347,11 +343,11 @@ function rekap_keaktifan_totals_from_rows(array $rows): array
  * Rekap per kegiatan dari baris eligible (format daftar untuk portal).
  *
  * @param list<array<string, mixed>> $rows
- * @return list<array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}>
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,telat:int,total:int}>
  */
-function rekap_keaktifan_kegiatan_list_from_rows(array $rows): array
+function rekap_keaktifan_kegiatan_list_from_rows(array $rows, int $lateTolerance = 15): array
 {
-    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,total:int}> $byKey */
+    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,kategori_kegiatan:string,hadir:int,izin:int,sakit:int,alpa:int,telat:int,total:int}> $byKey */
     $byKey = [];
     foreach ($rows as $row) {
         $kid = (int) ($row['kegiatan_id'] ?? 0);
@@ -367,19 +363,14 @@ function rekap_keaktifan_kegiatan_list_from_rows(array $rows): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'telat' => 0,
                 'total' => 0,
             ];
         }
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
         $byKey[$key]['total']++;
-        if ($status === 'HADIR') {
-            $byKey[$key]['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $byKey[$key]['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $byKey[$key]['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $byKey[$key]['alpa']++;
+        $bucket = penilaian_kehadiran_row_bucket($row, $lateTolerance);
+        if ($bucket !== '' && isset($byKey[$key][$bucket])) {
+            $byKey[$key][$bucket]++;
         }
     }
 
@@ -395,7 +386,7 @@ function rekap_keaktifan_kegiatan_list_from_rows(array $rows): array
  */
 function rekap_keaktifan_build_per_tingkatan(array $ranked): array
 {
-    $kategoriKeys = ['Bagus', 'Baik', 'Sedang', 'Buruk'];
+    $kategoriKeys = penilaian_kehadiran_predikat_urutan();
     $out = [];
     foreach ($ranked as $row) {
         $tg = trim((string) ($row['tingkatan'] ?? '')) !== '' ? (string) $row['tingkatan'] : '-';
@@ -405,8 +396,10 @@ function rekap_keaktifan_build_per_tingkatan(array $ranked): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'telat' => 0,
                 'total' => 0,
                 'santri_count' => 0,
+                'sum_persen' => 0.0,
                 'kategori' => array_fill_keys($kategoriKeys, 0),
                 'santri_by_kategori' => array_fill_keys($kategoriKeys, []),
             ];
@@ -415,8 +408,10 @@ function rekap_keaktifan_build_per_tingkatan(array $ranked): array
         $out[$tg]['izin'] += (int) $row['izin'];
         $out[$tg]['sakit'] += (int) $row['sakit'];
         $out[$tg]['alpa'] += (int) $row['alpa'];
+        $out[$tg]['telat'] += (int) ($row['telat'] ?? 0);
         $out[$tg]['total'] += (int) $row['total'];
         $out[$tg]['santri_count']++;
+        $out[$tg]['sum_persen'] += (float) ($row['persen_hadir'] ?? 0);
 
         $kat = (string) ($row['kategori'] ?? 'Buruk');
         if (!isset($out[$tg]['kategori'][$kat])) {
@@ -432,14 +427,16 @@ function rekap_keaktifan_build_per_tingkatan(array $ranked): array
             'alpa' => (int) $row['alpa'],
             'izin' => (int) $row['izin'],
             'sakit' => (int) $row['sakit'],
+            'telat' => (int) ($row['telat'] ?? 0),
             'total' => (int) $row['total'],
             'persen_hadir' => (float) ($row['persen_hadir'] ?? 0),
             'kategori' => $kat,
         ];
     }
     foreach ($out as $tg => $data) {
-        $total = (int) $data['total'];
-        $out[$tg]['persen_hadir'] = $total > 0 ? round(((int) $data['hadir'] / $total) * 100, 2) : 0.0;
+        $cnt = max(1, (int) $data['santri_count']);
+        $out[$tg]['persen_hadir'] = round(((float) $data['sum_persen']) / $cnt, 1);
+        unset($out[$tg]['sum_persen']);
         foreach ($kategoriKeys as $katKey) {
             usort($out[$tg]['santri_by_kategori'][$katKey], static function (array $a, array $b): int {
                 return strcmp((string) $a['nama_santri'], (string) $b['nama_santri']);
@@ -501,9 +498,10 @@ function rekap_keaktifan_prepare_periode_presensi(PDO $pdo, string $startDate, s
  * @param list<array<string, mixed>> $rows
  * @return list<array<string, mixed>>
  */
-function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int $mediumMax, bool $includeSantriList = true): array
+function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax = 1, int $mediumMax = 3, bool $includeSantriList = true, int $lateTolerance = 15): array
 {
-    $kategoriKeys = ['Bagus', 'Baik', 'Sedang', 'Buruk'];
+    unset($goodMax, $mediumMax);
+    $kategoriKeys = penilaian_kehadiran_predikat_urutan();
     $bySantri = [];
     foreach ($rows as $row) {
         $sid = (int) ($row['santri_id'] ?? 0);
@@ -520,24 +518,20 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'telat' => 0,
                 'total' => 0,
             ];
         }
-        $status = strtoupper((string) ($row['status_presensi'] ?? ''));
         $bySantri[$sid]['total']++;
-        if ($status === 'HADIR') {
-            $bySantri[$sid]['hadir']++;
-        } elseif ($status === 'IZIN') {
-            $bySantri[$sid]['izin']++;
-        } elseif ($status === 'SAKIT') {
-            $bySantri[$sid]['sakit']++;
-        } elseif ($status === 'ALPA') {
-            $bySantri[$sid]['alpa']++;
+        $bucket = penilaian_kehadiran_row_bucket($row, $lateTolerance);
+        if ($bucket !== '' && isset($bySantri[$sid][$bucket])) {
+            $bySantri[$sid][$bucket]++;
         }
     }
 
     $byTingkatan = [];
     foreach ($bySantri as $item) {
+        $item = penilaian_kehadiran_apply_to_stats($item);
         $tg = (string) ($item['tingkatan'] ?? '-');
         if (!isset($byTingkatan[$tg])) {
             $byTingkatan[$tg] = [
@@ -545,13 +539,15 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'telat' => 0,
                 'total' => 0,
                 'santri_count' => 0,
+                'sum_persen' => 0.0,
                 'kategori' => array_fill_keys($kategoriKeys, 0),
                 'santri_list' => [],
             ];
         }
-        $kat = santri_category((int) $item['alpa'], $goodMax, $mediumMax);
+        $kat = (string) ($item['kategori'] ?? 'Buruk');
         if (!isset($byTingkatan[$tg]['kategori'][$kat])) {
             $byTingkatan[$tg]['kategori'][$kat] = 0;
         }
@@ -560,8 +556,10 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
         $byTingkatan[$tg]['izin'] += (int) $item['izin'];
         $byTingkatan[$tg]['sakit'] += (int) $item['sakit'];
         $byTingkatan[$tg]['alpa'] += (int) $item['alpa'];
+        $byTingkatan[$tg]['telat'] += (int) ($item['telat'] ?? 0);
         $byTingkatan[$tg]['total'] += $totalSantri;
         $byTingkatan[$tg]['santri_count']++;
+        $byTingkatan[$tg]['sum_persen'] += (float) ($item['persen_hadir'] ?? 0);
         $byTingkatan[$tg]['kategori'][$kat]++;
         if ($includeSantriList) {
             $byTingkatan[$tg]['santri_list'][] = [
@@ -572,15 +570,17 @@ function rekap_keaktifan_rank_tingkatan_from_rows(array $rows, int $goodMax, int
                 'izin' => (int) $item['izin'],
                 'sakit' => (int) $item['sakit'],
                 'alpa' => (int) $item['alpa'],
+                'telat' => (int) ($item['telat'] ?? 0),
                 'total' => $totalSantri,
-                'persen_hadir' => $totalSantri > 0 ? round(((int) $item['hadir'] / $totalSantri) * 100, 2) : 0.0,
+                'persen_hadir' => (float) ($item['persen_hadir'] ?? 0),
                 'kategori' => $kat,
             ];
         }
     }
     foreach ($byTingkatan as $tg => $data) {
-        $total = (int) $data['total'];
-        $byTingkatan[$tg]['persen_hadir'] = $total > 0 ? round(((int) $data['hadir'] / $total) * 100, 2) : 0.0;
+        $cnt = max(1, (int) $data['santri_count']);
+        $byTingkatan[$tg]['persen_hadir'] = round(((float) $data['sum_persen']) / $cnt, 1);
+        unset($byTingkatan[$tg]['sum_persen']);
         if ($includeSantriList && !empty($byTingkatan[$tg]['santri_list'])) {
             usort($byTingkatan[$tg]['santri_list'], static function (array $a, array $b): int {
             $cmp = ($b['persen_hadir'] ?? 0) <=> ($a['persen_hadir'] ?? 0);
@@ -639,12 +639,22 @@ function rekap_keaktifan_rank_tingkatan_chart_payload(array $ranking): array
     $labels = [];
     $persen = [];
     $colors = [];
-    $stacked = [
-        ['label' => 'Bagus', 'data' => [], 'backgroundColor' => 'rgba(25, 135, 84, 0.85)', 'stack' => 'kat'],
-        ['label' => 'Baik', 'data' => [], 'backgroundColor' => 'rgba(13, 110, 253, 0.85)', 'stack' => 'kat'],
-        ['label' => 'Sedang', 'data' => [], 'backgroundColor' => 'rgba(255, 193, 7, 0.9)', 'stack' => 'kat'],
-        ['label' => 'Buruk', 'data' => [], 'backgroundColor' => 'rgba(220, 53, 69, 0.85)', 'stack' => 'kat'],
+    $stackedColors = [
+        'Baik' => 'rgba(25, 135, 84, 0.85)',
+        'Cukup' => 'rgba(13, 202, 240, 0.85)',
+        'Sedang' => 'rgba(255, 193, 7, 0.9)',
+        'Kurang' => 'rgba(253, 126, 20, 0.9)',
+        'Buruk' => 'rgba(220, 53, 69, 0.85)',
     ];
+    $stacked = [];
+    foreach (penilaian_kehadiran_predikat_urutan() as $katLabel) {
+        $stacked[] = [
+            'label' => $katLabel,
+            'data' => [],
+            'backgroundColor' => $stackedColors[$katLabel] ?? 'rgba(148, 163, 184, 0.85)',
+            'stack' => 'kat',
+        ];
+    }
     $max = max(1, count($ranking));
     foreach ($ranking as $i => $row) {
         $labels[] = (string) ($row['tingkatan'] ?? '-');
@@ -655,10 +665,9 @@ function rekap_keaktifan_rank_tingkatan_chart_payload(array $ranking): array
 
         $kat = (array) ($row['kategori'] ?? []);
         $cnt = max(1, (int) ($row['santri_count'] ?? 0));
-        $stacked[0]['data'][] = round(((int) ($kat['Bagus'] ?? 0) / $cnt) * 100, 1);
-        $stacked[1]['data'][] = round(((int) ($kat['Baik'] ?? 0) / $cnt) * 100, 1);
-        $stacked[2]['data'][] = round(((int) ($kat['Sedang'] ?? 0) / $cnt) * 100, 1);
-        $stacked[3]['data'][] = round(((int) ($kat['Buruk'] ?? 0) / $cnt) * 100, 1);
+        foreach ($stacked as $si => $stackRow) {
+            $stacked[$si]['data'][] = round(((int) ($kat[$stackRow['label']] ?? 0) / $cnt) * 100, 1);
+        }
     }
 
     return [
@@ -686,7 +695,9 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
     bool $summaryOnly = false
 ): array {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
-    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey)
+    require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
+    $alpaTanpaScanOn = keaktifan_alpa_jika_tanpa_scan_enabled($pdo);
+    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey, $alpaTanpaScanOn)
         . ($summaryOnly ? '_sum' : '_full');
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 600;
@@ -703,7 +714,7 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
     $rows = rekap_keaktifan_fetch_eligible_rows($pdo, $startDate, $endDate, [], 0, false, $kalenderHijriyahKey);
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
     $rows = rekap_keaktifan_filter_rows_by_kategori($rows, $katNorm);
-    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, !$summaryOnly);
+    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, !$summaryOnly, penilaian_kehadiran_batas_telat($pdo));
 
     $_SESSION[$cacheKey] = $ranking;
     $_SESSION[$cacheTsKey] = time();
@@ -718,12 +729,26 @@ function rekap_keaktifan_rank_tingkatan_cache_key(
     int $goodMax,
     int $mediumMax,
     ?string $kategoriKegiatan,
-    ?string $kalenderHijriyahKey
+    ?string $kalenderHijriyahKey,
+    bool $alpaTanpaScanOn = true
 ): string {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
 
-    return 'rekap_rank_tingkatan_v4_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? ''));
+    return 'rekap_rank_tingkatan_v8_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . ($alpaTanpaScanOn ? '1' : '0'));
+}
+
+/** Hapus cache ranking keaktifan di sesi (setelah saklar ALPA tanpa scan berubah). */
+function rekap_keaktifan_rank_tingkatan_cache_invalidate(): void
+{
+    foreach (array_keys($_SESSION ?? []) as $key) {
+        if (!is_string($key)) {
+            continue;
+        }
+        if (str_starts_with($key, 'rekap_rank_tingkatan_')) {
+            unset($_SESSION[$key]);
+        }
+    }
 }
 
 /**
@@ -763,7 +788,7 @@ function rekap_keaktifan_rank_tingkatan_santri_list(
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
     $needle = trim($tingkatan);
-    $cacheKey = 'rekap_rank_tg_santri_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . strtolower($needle));
+    $cacheKey = 'rekap_rank_tg_santri_v3_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . strtolower($needle));
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 120;
     if (
@@ -781,7 +806,7 @@ function rekap_keaktifan_rank_tingkatan_santri_list(
     $rows = array_values(array_filter($rows, static function (array $row) use ($needle): bool {
         return strcasecmp((string) ($row['tingkatan'] ?? ''), $needle) === 0;
     }));
-    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, true);
+    $ranking = rekap_keaktifan_rank_tingkatan_from_rows($rows, $goodMax, $mediumMax, true, penilaian_kehadiran_batas_telat($pdo));
     $santriList = [];
     foreach ($ranking as $row) {
         if (strcasecmp((string) ($row['tingkatan'] ?? ''), $needle) === 0) {
@@ -811,7 +836,7 @@ function rekap_keaktifan_by_tingkatan_for_periode(
     ?string $kalenderHijriyahKey = null,
     bool $forceRefresh = false
 ): array {
-    $cacheKey = 'rekap_by_tingkatan_v1_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . $kegiatanId . '|' . ($kalenderHijriyahKey ?? ''));
+    $cacheKey = 'rekap_by_tingkatan_v3_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . $kegiatanId . '|' . ($kalenderHijriyahKey ?? ''));
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 120;
     if (
@@ -836,25 +861,19 @@ function rekap_keaktifan_by_tingkatan_for_periode(
 
 function rekap_keaktifan_kategori_badge_class(string $kategori): string
 {
-    return match ($kategori) {
-        'Bagus' => 'success',
-        'Baik' => 'info',
-        'Sedang' => 'warning',
-        'Buruk' => 'danger',
-        default => 'secondary',
-    };
+    return penilaian_kehadiran_badge_tone($kategori);
 }
 
 /** @return list<string> */
 function rekap_keaktifan_kategori_urutan(): array
 {
-    return ['Bagus', 'Baik', 'Sedang', 'Buruk'];
+    return penilaian_kehadiran_predikat_urutan();
 }
 
-/** Kategori utama perbandingan antar tingkatan (selain Bagus). */
+/** Kategori perbandingan antar tingkatan (selain Baik). */
 function rekap_keaktifan_kategori_perbandingan(): array
 {
-    return ['Baik', 'Sedang', 'Buruk'];
+    return ['Cukup', 'Sedang', 'Kurang', 'Buruk'];
 }
 
 /**
@@ -898,9 +917,10 @@ function rekap_keaktifan_chart_tingkatan_kategori(array $persenPerTingkatan): ar
 {
     $labels = array_keys($persenPerTingkatan);
     $colors = [
-        'Bagus' => '#16a34a',
-        'Baik' => '#0ea5e9',
+        'Baik' => '#16a34a',
+        'Cukup' => '#0ea5e9',
         'Sedang' => '#f59e0b',
+        'Kurang' => '#fd7e14',
         'Buruk' => '#ef4444',
     ];
     $grouped = [];
@@ -1080,6 +1100,7 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
 ): array {
     require_once __DIR__ . '/presensi_jadwal.php';
     require_once __DIR__ . '/santri_operasional.php';
+    require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
 
     if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan') || !table_exists($pdo, 'presensi')) {
         return [];
@@ -1142,12 +1163,19 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
     $kids = array_keys($kidSet);
     /** @var array<int, string> $namaMap */
     $namaMap = [];
+    /** @var array<int, string> $katMap */
+    $katMap = [];
     if ($kids !== []) {
         $placeholders = implode(',', array_fill(0, count($kids), '?'));
-        $nameStmt = $pdo->prepare('SELECT id, nama_kegiatan FROM kegiatan WHERE id IN (' . $placeholders . ')');
+        $nameStmt = $pdo->prepare('
+            SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan
+            FROM kegiatan WHERE id IN (' . $placeholders . ')
+        ');
         $nameStmt->execute($kids);
         foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $nameRow) {
-            $namaMap[(int) ($nameRow['id'] ?? 0)] = (string) ($nameRow['nama_kegiatan'] ?? '');
+            $id = (int) ($nameRow['id'] ?? 0);
+            $namaMap[$id] = (string) ($nameRow['nama_kegiatan'] ?? '');
+            $katMap[$id] = (string) ($nameRow['kategori_kegiatan'] ?? 'TAALIM');
         }
     }
 
@@ -1170,6 +1198,9 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
             continue;
         }
         if ($tkFilter !== '' && $tk !== '*' && strtolower($tk) !== $tkLower) {
+            continue;
+        }
+        if (!keaktifan_tanpa_scan_kategori_dihitung((string) ($katMap[$kid] ?? 'TAALIM'))) {
             continue;
         }
 

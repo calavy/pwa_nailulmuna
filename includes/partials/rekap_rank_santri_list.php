@@ -49,6 +49,7 @@ $santriLastRank = count($santriList);
             </div>
             <div class="yp-rank-santri-mini">
                 <span>H <strong><?= (int) ($santri['hadir'] ?? 0) ?></strong></span>
+                <span>T <strong><?= (int) ($santri['telat'] ?? 0) ?></strong></span>
                 <span>I <strong><?= (int) ($santri['izin'] ?? 0) ?></strong></span>
                 <span>S <strong><?= (int) ($santri['sakit'] ?? 0) ?></strong></span>
                 <span class="text-danger">A <strong><?= (int) ($santri['alpa'] ?? 0) ?></strong></span>

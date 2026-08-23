@@ -32,6 +32,32 @@ function wa_template_definitions(): array
             'placeholders' => '{nama_pembimbing}, {nama_kegiatan}',
             'default' => 'Nyuwun pangapunten, {nama_pembimbing} ngemutaken bilih panjenengan dereng scan kehadiran {nama_kegiatan}.',
         ],
+        'kelas_kosong_pengurus' => [
+            'label' => 'Laporan kegiatan kosong → petugas / pengurus',
+            'hint' => 'Dikirim setelah jam kegiatan selesai jika slot kosong (tanpa scan santri dan/atau pembimbing belum hadir). Blok {baris_eskalasi}, {baris_kelas}, {baris_tempat}, {detail} menyesuaikan jumlah tingkatan.',
+            'placeholders' => '{counter}, {batas_kali}, {tanggal}, {nama_kegiatan}, {jam}, {jam_mulai}, {jam_selesai}, {tingkatan}, {tempat}, {nama_pembimbing}, {alasan}, {id_jadwal}, {nama_ponpes}, {baris_eskalasi}, {baris_kelas}, {baris_tempat}, {detail}',
+            'default' => "⚠️ Laporan kegiatan kosong (deteksi ke-{counter})\n"
+                . '{baris_eskalasi}'
+                . "Tanggal: {tanggal}\n"
+                . "Kegiatan: {nama_kegiatan}\n"
+                . "Jam: {jam}\n"
+                . "{baris_kelas}\n"
+                . '{baris_tempat}'
+                . '{detail}',
+        ],
+        'kelas_kosong_pembimbing' => [
+            'label' => 'Laporan kegiatan kosong → pembimbing jadwal',
+            'hint' => 'Dikirim ke pembimbing yang slotnya kosong, bersamaan dengan laporan ke petugas/pengurus. {baris_eskalasi} kosong jika belum eskalasi.',
+            'placeholders' => '{counter}, {batas_kali}, {tanggal}, {nama_kegiatan}, {jam}, {jam_mulai}, {jam_selesai}, {tingkatan}, {alasan}, {baris_eskalasi}, {nama_pembimbing}, {nama_ponpes}',
+            'default' => "⚠️ Jadwal Anda belum terpenuhi (deteksi ke-{counter})\n"
+                . '{baris_eskalasi}'
+                . "Tanggal: {tanggal}\n"
+                . "Kegiatan: {nama_kegiatan}\n"
+                . "Jam: {jam}\n"
+                . "Tingkatan: {tingkatan}\n"
+                . "Alasan: {alasan}\n"
+                . 'Silakan koordinasi scan/hadir segera.',
+        ],
         'rekap_alpa' => [
             'label' => 'Laporan ALPA kelipatan → pengurus',
             'hint' => 'Pesan WA otomatis saat santri mencapai ambang/kelipatan poin ALPA. Placeholder {daftar_santri} atau alias {daftar_santri_alpa} diisi otomatis (dikelompokkan per tingkatan). Jangan hapus salah satu placeholder jika ingin daftar ikut terkirim.',

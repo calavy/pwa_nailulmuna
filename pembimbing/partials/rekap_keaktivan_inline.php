@@ -105,7 +105,9 @@ $rekapJenis = trim((string) ($rekapJenis ?? ''));
                     $kat = strtoupper((string) ($r['kategori'] ?? ''));
                     $badgeClass = match (true) {
                         $kat === 'BAIK' || $kat === 'BAGUS' => 'badge-kat-bagus',
+                        $kat === 'CUKUP' => 'badge-kat-cukup',
                         $kat === 'SEDANG' => 'badge-kat-sedang',
+                        $kat === 'KURANG' => 'badge-kat-kurang',
                         $kat === 'BURUK' || $kat === 'JELEK' => 'badge-kat-buruk',
                         default => 'text-bg-secondary',
                     };

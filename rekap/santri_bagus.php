@@ -13,6 +13,8 @@ $rekapKeaktifanPagePath = (string) ($rekapKeaktifanBasePath ?? '/rekap/santri_ba
 $rekapKeaktifanModulKicker = (string) ($rekapKeaktifanModulLabel ?? 'Modul Kajian · Poin & Keaktifan');
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
+require_once __DIR__ . '/../helpers/keaktifan_alpa_tanpa_scan.php';
+keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
@@ -107,8 +109,11 @@ $totalHadir = array_sum(array_column($ranked, 'hadir'));
 $totalIzin = array_sum(array_column($ranked, 'izin'));
 $totalSakit = array_sum(array_column($ranked, 'sakit'));
 $totalAlpa = array_sum(array_column($ranked, 'alpa'));
+$totalTelat = array_sum(array_column($ranked, 'telat'));
 $totalPresensi = array_sum(array_column($ranked, 'total'));
-$rataHadir = $totalPresensi > 0 ? round(($totalHadir / $totalPresensi) * 100, 2) : 0;
+$rataHadir = $totalSantriRekap > 0
+    ? round(array_sum(array_column($ranked, 'persen_hadir')) / $totalSantriRekap, 1)
+    : 0;
 
 $cakupanLabel = 'Semua Santri';
 if ($selectedSantri) {
@@ -310,14 +315,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card shadow-sm mb-4 keaktifan-kriteria-legend print-controls">
     <div class="card-body py-3">
-        <h2 class="h6 mb-2">Kriteria kategori keaktifan</h2>
+        <h2 class="h6 mb-2">Kriteria penilaian kehadiran</h2>
         <div class="d-flex flex-wrap gap-2">
-            <span class="badge text-bg-success">Bagus: Alpa = 0</span>
-            <span class="badge text-bg-info">Baik: Alpa 1–<?= (int) $goodMax ?></span>
-            <span class="badge text-bg-warning">Sedang: Alpa <?= (int) ($goodMax + 1) ?>–<?= (int) $mediumMax ?></span>
-            <span class="badge text-bg-danger">Buruk: Alpa &gt; <?= (int) $mediumMax ?></span>
+            <span class="badge text-bg-success">Baik: 81–100%</span>
+            <span class="badge text-bg-info">Cukup: 61–80%</span>
+            <span class="badge text-bg-warning">Sedang: 41–60%</span>
+            <span class="badge text-bg-kurang">Kurang: 21–40%</span>
+            <span class="badge text-bg-danger">Buruk: ≤ 20%</span>
         </div>
-        <p class="small text-muted mb-0 mt-2">Ambang batas dapat diubah di Pengaturan Pondok (kategori baik/sedang max alpa).</p>
+        <p class="small text-muted mb-0 mt-2">ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0. N.HARI = jumlah slot kegiatan terhitung. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat.</p>
     </div>
 </div>
 
@@ -337,13 +343,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <tr>
                     <th>Tingkatan</th>
                     <th class="text-center">Santri</th>
-                    <th class="text-center text-success">Bagus</th>
-                    <th class="text-center text-info">Baik</th>
-                    <th class="text-center text-warning">Sedang</th>
-                    <th class="text-center text-danger">Buruk</th>
-                    <th class="text-center text-info">% Baik</th>
-                    <th class="text-center text-warning">% Sedang</th>
-                    <th class="text-center text-danger">% Buruk</th>
+                    <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                        <th class="text-center text-<?= htmlspecialchars(rekap_keaktifan_kategori_badge_class($katKey)) ?>"><?= htmlspecialchars($katKey) ?></th>
+                    <?php endforeach; ?>
+                    <?php foreach (rekap_keaktifan_kategori_perbandingan() as $katKey): ?>
+                        <th class="text-center text-<?= htmlspecialchars(rekap_keaktifan_kategori_badge_class($katKey)) ?>">% <?= htmlspecialchars($katKey) ?></th>
+                    <?php endforeach; ?>
                 </tr>
                 </thead>
                 <tbody>
@@ -379,6 +384,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <?php endif; ?>
+
+<?php require __DIR__ . '/../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
 
 <?php if ($showKegiatanTanpaScan): ?>
 <div class="card shadow-sm mb-4 keaktifan-kegiatan-kosong-card print-controls">
@@ -502,25 +509,31 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                                 <div class="col">
                                     <div class="row g-2 text-center keaktifan-stat-row">
-                                        <div class="col-3">
+                                        <div class="col">
                                             <div class="keaktifan-stat keaktifan-stat--hadir">
                                                 <div class="keaktifan-stat-n"><?= (int) $row['hadir'] ?></div>
                                                 <div class="keaktifan-stat-l">Hadir</div>
                                             </div>
                                         </div>
-                                        <div class="col-3">
+                                        <div class="col">
+                                            <div class="keaktifan-stat keaktifan-stat--telat">
+                                                <div class="keaktifan-stat-n"><?= (int) ($row['telat'] ?? 0) ?></div>
+                                                <div class="keaktifan-stat-l">Telat</div>
+                                            </div>
+                                        </div>
+                                        <div class="col">
                                             <div class="keaktifan-stat keaktifan-stat--alpa">
                                                 <div class="keaktifan-stat-n"><?= (int) $row['alpa'] ?></div>
                                                 <div class="keaktifan-stat-l">Alpa</div>
                                             </div>
                                         </div>
-                                        <div class="col-3">
+                                        <div class="col">
                                             <div class="keaktifan-stat keaktifan-stat--izin">
                                                 <div class="keaktifan-stat-n"><?= (int) $row['izin'] ?></div>
                                                 <div class="keaktifan-stat-l">Izin</div>
                                             </div>
                                         </div>
-                                        <div class="col-3">
+                                        <div class="col">
                                             <div class="keaktifan-stat keaktifan-stat--sakit">
                                                 <div class="keaktifan-stat-n"><?= (int) $row['sakit'] ?></div>
                                                 <div class="keaktifan-stat-l">Sakit</div>
@@ -538,6 +551,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             <tr>
                                                 <th>Kegiatan</th>
                                                 <th class="text-center">Hadir</th>
+                                                <th class="text-center">Telat</th>
                                                 <th class="text-center">Alpa</th>
                                                 <th class="text-center">Izin</th>
                                                 <th class="text-center">Sakit</th>
@@ -552,6 +566,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <tr>
                                                     <td class="fw-semibold"><?= htmlspecialchars($namaKg) ?></td>
                                                     <td class="text-center text-success"><?= (int) $kg['hadir'] ?></td>
+                                                    <td class="text-center"><?= (int) ($kg['telat'] ?? 0) ?></td>
                                                     <td class="text-center text-danger"><?= (int) $kg['alpa'] ?></td>
                                                     <td class="text-center"><?= (int) $kg['izin'] ?></td>
                                                     <td class="text-center"><?= (int) $kg['sakit'] ?></td>
@@ -585,6 +600,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>Kegiatan</th>
                         <th class="text-center">Santri</th>
                         <th class="text-center">Hadir</th>
+                        <th class="text-center">Telat</th>
                         <th class="text-center">Alpa</th>
                         <th class="text-center">Izin</th>
                         <th class="text-center">Sakit</th>
@@ -599,6 +615,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="fw-semibold"><?= htmlspecialchars($namaKg) ?></td>
                             <td class="text-center"><?= (int) $kg['santri_count'] ?></td>
                             <td class="text-center text-success"><?= (int) $kg['hadir'] ?></td>
+                            <td class="text-center"><?= (int) ($kg['telat'] ?? 0) ?></td>
                             <td class="text-center text-danger"><?= (int) $kg['alpa'] ?></td>
                             <td class="text-center"><?= (int) $kg['izin'] ?></td>
                             <td class="text-center"><?= (int) $kg['sakit'] ?></td>
@@ -607,7 +624,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($byKegiatan === []): ?>
-                        <tr><td colspan="8" class="text-center text-muted">Tidak ada data.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">Tidak ada data.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -629,18 +646,18 @@ require_once __DIR__ . '/../includes/header.php';
                             <th>Tingkatan</th>
                             <th class="text-center">Santri</th>
                             <th class="text-center">Hadir</th>
+                            <th class="text-center">Telat</th>
                             <th class="text-center">Alpa</th>
                             <th class="text-center">Izin</th>
                             <th class="text-center">Sakit</th>
                             <th class="text-center">Total</th>
                             <th class="text-center">% Hadir</th>
-                            <th class="text-center text-success">Bagus</th>
-                            <th class="text-center text-info">Baik</th>
-                            <th class="text-center text-warning">Sedang</th>
-                            <th class="text-center text-danger">Buruk</th>
-                            <th class="text-center text-info">% Baik</th>
-                            <th class="text-center text-warning">% Sedang</th>
-                            <th class="text-center text-danger">% Buruk</th>
+                            <?php foreach (rekap_keaktifan_kategori_urutan() as $katKey): ?>
+                                <th class="text-center text-<?= htmlspecialchars(rekap_keaktifan_kategori_badge_class($katKey)) ?>"><?= htmlspecialchars($katKey) ?></th>
+                            <?php endforeach; ?>
+                            <?php foreach (rekap_keaktifan_kategori_perbandingan() as $katKey): ?>
+                                <th class="text-center text-<?= htmlspecialchars(rekap_keaktifan_kategori_badge_class($katKey)) ?>">% <?= htmlspecialchars($katKey) ?></th>
+                            <?php endforeach; ?>
                         </tr>
                         </thead>
                         <tbody>
@@ -653,6 +670,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <td class="fw-semibold"><?= htmlspecialchars($tg) ?></td>
                                 <td class="text-center"><?= $tkTotal ?></td>
                                 <td class="text-center text-success"><?= (int) $data['hadir'] ?></td>
+                                <td class="text-center"><?= (int) ($data['telat'] ?? 0) ?></td>
                                 <td class="text-center text-danger"><?= (int) $data['alpa'] ?></td>
                                 <td class="text-center"><?= (int) $data['izin'] ?></td>
                                 <td class="text-center"><?= (int) $data['sakit'] ?></td>
@@ -727,6 +745,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <th>Nama</th>
                         <th>Tingkatan</th>
                         <th>Hadir</th>
+                        <th>Telat</th>
                         <th>Alpa</th>
                         <th>Izin</th>
                         <th>Sakit</th>
@@ -745,6 +764,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td><?= htmlspecialchars((string) $row['nama_santri']) ?></td>
                             <td><?= htmlspecialchars((string) $row['tingkatan']) ?></td>
                             <td class="text-center"><?= (int) $row['hadir'] ?></td>
+                            <td class="text-center"><?= (int) ($row['telat'] ?? 0) ?></td>
                             <td class="text-center"><?= (int) $row['alpa'] ?></td>
                             <td class="text-center"><?= (int) $row['izin'] ?></td>
                             <td class="text-center"><?= (int) $row['sakit'] ?></td>
@@ -757,7 +777,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($ranked === []): ?>
-                        <tr><td colspan="12" class="text-center text-muted">Tidak ada data pada filter ini.</td></tr>
+                        <tr><td colspan="13" class="text-center text-muted">Tidak ada data pada filter ini.</td></tr>
                     <?php endif; ?>
                     </tbody>
                     <?php if ($ranked !== []): ?>
@@ -765,6 +785,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <tr>
                             <th colspan="4">Total</th>
                             <th><?= (int) $totalHadir ?></th>
+                            <th><?= (int) $totalTelat ?></th>
                             <th><?= (int) $totalAlpa ?></th>
                             <th><?= (int) $totalIzin ?></th>
                             <th><?= (int) $totalSakit ?></th>
@@ -835,6 +856,7 @@ require_once __DIR__ . '/../includes/header.php';
     .keaktifan-stat-n { font-weight: 700; font-size: 1.05rem; }
     .keaktifan-stat-l { font-size: 0.65rem; color: #6c757d; text-transform: uppercase; }
     .keaktifan-stat--hadir .keaktifan-stat-n { color: #198754; }
+    .keaktifan-stat--telat .keaktifan-stat-n { color: #6f42c1; }
     .keaktifan-stat--alpa .keaktifan-stat-n { color: #dc3545; }
     .keaktifan-stat--izin .keaktifan-stat-n { color: #0d6efd; }
     .keaktifan-stat--sakit .keaktifan-stat-n { color: #fd7e14; }

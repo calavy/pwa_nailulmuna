@@ -121,7 +121,7 @@ $podiumSlots = [
                             </h3>
                             <div class="yp-rank-tingkatan__meta">
                                 <?= (int) ($row['santri_count'] ?? 0) ?> santri
-                                · Bagus <?= (int) ($kat['Bagus'] ?? 0) ?>
+                                · Baik <?= (int) ($kat['Baik'] ?? 0) ?>
                                 · Buruk <?= (int) ($kat['Buruk'] ?? 0) ?>
                             </div>
                         </div>
@@ -134,6 +134,7 @@ $podiumSlots = [
                     </div>
                     <div class="yp-rank-tingkatan__counts">
                         <span class="yp-rank-count yp-rank-count--h">H <?= (int) ($row['hadir'] ?? 0) ?></span>
+                        <span class="yp-rank-count">T <?= (int) ($row['telat'] ?? 0) ?></span>
                         <span class="yp-rank-count">I <?= (int) ($row['izin'] ?? 0) ?></span>
                         <span class="yp-rank-count">S <?= (int) ($row['sakit'] ?? 0) ?></span>
                         <span class="yp-rank-count yp-rank-count--a">A <?= (int) ($row['alpa'] ?? 0) ?></span>

@@ -7,8 +7,6 @@ declare(strict_types=1);
  *
  * @var PDO $pdo
  */
-$goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-$mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 $lateTolerance = (int) app_setting($pdo, 'batas_telat_menit', '15');
 ?>
 <div class="rekap-panduan">
@@ -161,8 +159,9 @@ $lateTolerance = (int) app_setting($pdo, 'batas_telat_menit', '15');
                         <li>Finalisasi seluruh bulan</li>
                         <li>Query tabel <code>presensi</code> (mode Masehi atau Hijriyah via <code>kalender_hijriyah</code>)</li>
                         <li>Filter eligible + agregasi per tingkatan, santri, kegiatan</li>
-                        <li>TELAT dihitung dari <code>catatan</code> yang mengandung &quot;terlambat&quot;</li>
-                        <li>Kategori santri: 0 ALPA = Bagus; ≤ <?= (int) $goodMax ?> = Baik; ≤ <?= (int) $mediumMax ?> = Sedang; di atasnya = Buruk</li>
+                        <li>TELAT: HADIR lewat batas telat (catatan &quot;Terlambat N menit&quot; atau jam vs jadwal + <?= (int) $lateTolerance ?> menit)</li>
+                        <li>ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0; % kehadiran = ABSENSI ÷ N.HARI (N.HARI = slot terhitung)</li>
+                        <li>Predikat: Baik 81–100%; Cukup 61–80%; Sedang 41–60%; Kurang 21–40%; Buruk ≤20%</li>
                     </ol>
 
                     <p class="fw-semibold mb-1">C. Rekap spesialis</p>

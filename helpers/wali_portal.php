@@ -783,7 +783,7 @@ function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $sta
 
     $empty = [
         'tingkatan' => '',
-        'totals' => ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0],
+        'totals' => ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'telat' => 0, 'total' => 0],
         'kegiatan' => [],
     ];
     if ($santriId <= 0 || !table_exists($pdo, 'presensi')) {
@@ -820,7 +820,7 @@ function wali_portal_keaktifan_per_kegiatan(PDO $pdo, int $santriId, string $sta
 }
 
 /**
- * Penilaian keaktifan tahunan (Baik / Sedang / Buruk) untuk portal wali.
+ * Penilaian keaktifan tahunan (5 kategori PRESNA) untuk portal wali.
  *
  * @return array{
  *   tahun:int,
@@ -858,55 +858,60 @@ function wali_portal_hijri_month_step_back(int $tahunH, int $bulanH): array
 }
 
 /**
- * Baris penilaian Baik/Sedang/Buruk dari total presensi.
+ * Baris penilaian dari total presensi (rumus nilai absensi).
  *
- * @param array{hadir:int,izin:int,sakit:int,alpa:int,total:int} $totals
+ * @param array{hadir:int,izin?:int,sakit?:int,alpa?:int,telat?:int,total:int} $totals
  * @return array<string,mixed>|null
  */
 function wali_portal_keaktifan_penilaian_row_dari_totals(PDO $pdo, array $totals): ?array
 {
     require_once __DIR__ . '/santri_riwayat.php';
+    require_once __DIR__ . '/penilaian_kehadiran.php';
 
     $hadir = (int) ($totals['hadir'] ?? 0);
     $izin = (int) ($totals['izin'] ?? 0);
     $sakit = (int) ($totals['sakit'] ?? 0);
     $alpa = (int) ($totals['alpa'] ?? 0);
+    $telat = (int) ($totals['telat'] ?? 0);
     $total = (int) ($totals['total'] ?? 0);
     if ($total <= 0) {
         return null;
     }
 
-    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-    $persen = round($hadir / $total * 100, 1);
-    $kategori = santri_category($alpa, $goodMax, $mediumMax);
-    $label = santri_riwayat_keaktifan_label_ringkas($kategori);
+    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $total);
+    $label = santri_riwayat_keaktifan_label_ringkas($hit['predikat']);
 
     return [
         'hadir' => $hadir,
         'izin' => $izin,
         'sakit' => $sakit,
         'alpa' => $alpa,
+        'telat' => $telat,
         'total' => $total,
-        'persen_hadir' => $persen,
-        'kategori' => $kategori,
+        'persen_hadir' => $hit['persen'],
+        'nilai' => $hit['nilai'],
+        'kategori' => $hit['predikat'],
         'label' => $label,
         'sumber' => 'presensi',
         'catatan_pengasuh' => '',
-        'keterangan' => sprintf(
-            'Kehadiran %s%% · Hadir %d · Izin %d · Sakit %d · ALPA %d (dari %d presensi)',
-            number_format($persen, 1, ',', '.'),
-            $hadir,
-            $izin,
-            $sakit,
-            $alpa,
-            $total
+        'keterangan' => penilaian_kehadiran_keterangan(
+            [
+                'hadir' => $hadir,
+                'telat' => $telat,
+                'izin' => $izin,
+                'sakit' => $sakit,
+                'alpa' => $alpa,
+                'total' => $total,
+            ],
+            $hit['persen'],
+            $hit['nilai'],
+            'presensi'
         ),
     ];
 }
 
 /**
- * Penilaian keaktifan per bulan Hijriyah (Baik / Sedang / Buruk) untuk portal wali.
+ * Penilaian keaktifan per bulan Hijriyah (5 kategori PRESNA) untuk portal wali.
  *
  * @param array{year:int,month:int,start:string,end:string,label:string} $bulanFilter
  * @return array{

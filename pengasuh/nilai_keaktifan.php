@@ -98,7 +98,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h1 class="h4 mb-1">Nilai Keaktifan</h1>
-            <p class="text-muted small mb-0">Baik / Sedang / Buruk — penilaian pengasuh pondok per tahun kalender.</p>
+            <p class="text-muted small mb-0">Baik / Cukup / Sedang / Kurang / Buruk — penilaian pengasuh pondok per tahun kalender (5 kategori PRESNA).</p>
         </div>
         <a href="<?= htmlspecialchars(app_href('/dashboard.php')) ?>" class="btn btn-outline-secondary btn-sm">Dashboard</a>
     </div>
@@ -185,7 +185,8 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
 
     <p class="small text-muted mt-2 mb-0">
-        Kosongkan pilihan nilai untuk menghapus penilaian pengasuh; santri akan melihat nilai dari presensi (jika ada data).
+        Kosongkan pilihan nilai untuk menghapus penilaian pengasuh; santri akan melihat predikat PRESNA dari presensi
+        (Baik 81–100%, Cukup 61–80%, Sedang 41–60%, Kurang 21–40%, Buruk ≤20%).
     </p>
 </div>
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

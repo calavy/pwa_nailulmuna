@@ -29,9 +29,15 @@ $rekapBulan = wali_portal_keaktifan_per_kegiatan(
 );
 $totalsBulan = $rekapBulan['totals'];
 $kegiatanBulan = $rekapBulan['kegiatan'];
-$persenBulan = (int) ($totalsBulan['total'] ?? 0) > 0
-    ? round(((int) $totalsBulan['hadir'] / (int) $totalsBulan['total']) * 100, 1)
-    : 0;
+require_once __DIR__ . '/../helpers/penilaian_kehadiran.php';
+$hitBulan = penilaian_kehadiran_hitung(
+    (int) ($totalsBulan['alpa'] ?? 0),
+    (int) ($totalsBulan['izin'] ?? 0),
+    (int) ($totalsBulan['telat'] ?? 0),
+    (int) ($totalsBulan['sakit'] ?? 0),
+    (int) ($totalsBulan['total'] ?? 0)
+);
+$persenBulan = (int) ($totalsBulan['total'] ?? 0) > 0 ? $hitBulan['persen'] : 0;
 
 require_once __DIR__ . '/includes/layout.php';
 santri_portal_layout_head('Nilai Keaktifan — Portal Santri', 'keaktifan');
@@ -68,22 +74,23 @@ santri_portal_layout_head('Nilai Keaktifan — Portal Santri', 'keaktifan');
             — <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>.
         </p>
         <div class="row g-2 text-center small mb-3">
-            <div class="col-3"><div class="text-muted">Hadir</div><div class="fw-bold text-success"><?= (int) ($totalsBulan['hadir'] ?? 0) ?></div></div>
-            <div class="col-3"><div class="text-muted">Izin</div><div class="fw-bold"><?= (int) ($totalsBulan['izin'] ?? 0) ?></div></div>
-            <div class="col-3"><div class="text-muted">ALPA</div><div class="fw-bold text-danger"><?= (int) ($totalsBulan['alpa'] ?? 0) ?></div></div>
-            <div class="col-3"><div class="text-muted">% Hadir</div><div class="fw-bold"><?= number_format($persenBulan, 1, ',', '.') ?>%</div></div>
+            <div class="col"><div class="text-muted">Hadir</div><div class="fw-bold text-success"><?= (int) ($totalsBulan['hadir'] ?? 0) ?></div></div>
+            <div class="col"><div class="text-muted">Telat</div><div class="fw-bold"><?= (int) ($totalsBulan['telat'] ?? 0) ?></div></div>
+            <div class="col"><div class="text-muted">ALPA</div><div class="fw-bold text-danger"><?= (int) ($totalsBulan['alpa'] ?? 0) ?></div></div>
+            <div class="col"><div class="text-muted">% Hadir</div><div class="fw-bold"><?= number_format($persenBulan, 1, ',', '.') ?>%</div></div>
         </div>
         <?php if ($kegiatanBulan === []): ?>
             <p class="small text-muted mb-0 text-center py-2">Belum ada data presensi jadwal pada periode ini.</p>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Kegiatan</th><th class="text-center">Hadir</th><th class="text-center">ALPA</th></tr></thead>
+                    <thead><tr><th>Kegiatan</th><th class="text-center">Hadir</th><th class="text-center">Telat</th><th class="text-center">ALPA</th></tr></thead>
                     <tbody>
                     <?php foreach ($kegiatanBulan as $kg): ?>
                         <tr>
                             <td><?= htmlspecialchars((string) ($kg['nama_kegiatan'] ?? '')) ?></td>
                             <td class="text-center"><?= (int) ($kg['hadir'] ?? 0) ?></td>
+                            <td class="text-center"><?= (int) ($kg['telat'] ?? 0) ?></td>
                             <td class="text-center text-danger"><?= (int) ($kg['alpa'] ?? 0) ?></td>
                         </tr>
                     <?php endforeach; ?>

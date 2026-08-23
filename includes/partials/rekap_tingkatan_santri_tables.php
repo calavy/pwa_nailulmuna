@@ -31,6 +31,7 @@ if (!isset($buildQuery) || !is_callable($buildQuery)) {
                     <th>NIS</th>
                     <th>Nama</th>
                     <th class="text-center">Hadir</th>
+                    <th class="text-center">Telat</th>
                     <th class="text-center">Alpa</th>
                     <th class="text-center">Izin</th>
                     <th class="text-center">Sakit</th>
@@ -45,6 +46,7 @@ if (!isset($buildQuery) || !is_callable($buildQuery)) {
                         <td><?= htmlspecialchars((string) $sRow['nis']) ?></td>
                         <td class="fw-semibold"><?= htmlspecialchars((string) $sRow['nama_santri']) ?></td>
                         <td class="text-center text-success"><?= (int) $sRow['hadir'] ?></td>
+                        <td class="text-center"><?= (int) ($sRow['telat'] ?? 0) ?></td>
                         <td class="text-center text-danger"><?= (int) $sRow['alpa'] ?></td>
                         <td class="text-center"><?= (int) $sRow['izin'] ?></td>
                         <td class="text-center"><?= (int) $sRow['sakit'] ?></td>

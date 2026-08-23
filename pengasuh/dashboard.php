@@ -14,7 +14,9 @@ require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/dashboard_insights.php';
 
-require_roles(['admin', 'pengurus', 'kiai']);
+require_pengasuh_dashboard();
+require_once __DIR__ . '/../helpers/keaktifan_alpa_tanpa_scan.php';
+keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
 
 $today = date('Y-m-d');
 $nowTime = date('H:i:s');
@@ -161,6 +163,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="dash-page">
+    <?php require __DIR__ . '/../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
     <div class="dash-hero-split mb-3">
         <section class="dash-identity-card">
             <div class="dash-identity-card__brand">

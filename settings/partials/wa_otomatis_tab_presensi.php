@@ -87,6 +87,7 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                     Sistem mengecek slot jadwal setelah jam kegiatan selesai, dalam jendela N menit berikutnya.
                     Deteksi ke-1 dikirim ke petugas pendidikan (+ grup jika diaktifkan); setelah berturut-turut N kali (default 3) dikirim ke
                     <strong>nomor pengurus</strong> (tab Alpa) kecuali diisi override di bawah.
+                    <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Edit teks di tab Template</a>.
                 </p>
             </div>
             <div class="col-md-3">

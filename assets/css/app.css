@@ -2061,6 +2061,15 @@ body {
     font-weight: 600;
 }
 
+.text-bg-kurang,
+.badge.text-bg-kurang {
+    background-color: #fd7e14 !important;
+    color: #fff !important;
+}
+.text-kurang {
+    color: #fd7e14 !important;
+}
+
 /* Mode tampilan: tanpa transisi saat pertama buka (cegah layout "loncat") */
 html:not(.theme-ready) *,
 html:not(.theme-ready) *::before,

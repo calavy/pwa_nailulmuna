@@ -8,8 +8,6 @@ require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 $bulanFilter = wali_portal_keaktifan_bulan_parse($pdo, $_GET);
 $hijriBulanList = hijri_nama_bulan_list();
-$goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-$mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
 
 $rekap = wali_portal_keaktifan_per_kegiatan(
     $pdo,
@@ -21,9 +19,15 @@ $rekap = wali_portal_keaktifan_per_kegiatan(
 $totals = $rekap['totals'];
 $kegiatanRows = $rekap['kegiatan'];
 $tingkatanTampil = trim((string) ($rekap['tingkatan'] ?? ''));
-$persenHadir = $totals['total'] > 0
-    ? round(($totals['hadir'] / $totals['total']) * 100, 1)
-    : 0;
+require_once __DIR__ . '/../helpers/penilaian_kehadiran.php';
+$hitBulan = penilaian_kehadiran_hitung(
+    (int) ($totals['alpa'] ?? 0),
+    (int) ($totals['izin'] ?? 0),
+    (int) ($totals['telat'] ?? 0),
+    (int) ($totals['sakit'] ?? 0),
+    (int) ($totals['total'] ?? 0)
+);
+$persenHadir = (int) ($totals['total'] ?? 0) > 0 ? $hitBulan['persen'] : 0;
 
 $keaktifanPenilaianTahun = wali_portal_keaktifan_penilaian($pdo, $waliSantriId);
 $keaktifanPenilaianBulan = wali_portal_keaktifan_penilaian_bulan(
@@ -163,6 +167,7 @@ wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
                                     <tr>
                                         <th>Kegiatan</th>
                                         <th class="text-center">H</th>
+                                        <th class="text-center">T</th>
                                         <th class="text-center">I</th>
                                         <th class="text-center">S</th>
                                         <th class="text-center">A</th>
@@ -176,8 +181,10 @@ wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
                                     $kgTotal = (int) ($kg['total'] ?? 0);
                                     $kgHadir = (int) ($kg['hadir'] ?? 0);
                                     $kgAlpa = (int) ($kg['alpa'] ?? 0);
-                                    $kgPersen = $kgTotal > 0 ? round(($kgHadir / $kgTotal) * 100, 1) : 0;
-                                    $kategori = santri_category($kgAlpa, $goodMax, $mediumMax);
+                                    $kgTelat = (int) ($kg['telat'] ?? 0);
+                                    $kgHit = penilaian_kehadiran_hitung($kgAlpa, (int) ($kg['izin'] ?? 0), $kgTelat, (int) ($kg['sakit'] ?? 0), $kgTotal);
+                                    $kgPersen = $kgTotal > 0 ? $kgHit['persen'] : 0;
+                                    $kategori = $kgHit['predikat'];
                                     ?>
                                     <tr>
                                         <td>
@@ -185,6 +192,7 @@ wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
                                             <div class="text-muted" style="font-size:0.72rem;">Kategori: <?= htmlspecialchars($kategori) ?></div>
                                         </td>
                                         <td class="text-center text-success"><?= $kgHadir ?></td>
+                                        <td class="text-center"><?= $kgTelat ?></td>
                                         <td class="text-center text-warning"><?= (int) ($kg['izin'] ?? 0) ?></td>
                                         <td class="text-center text-primary"><?= (int) ($kg['sakit'] ?? 0) ?></td>
                                         <td class="text-center text-danger"><?= $kgAlpa ?></td>
@@ -197,6 +205,7 @@ wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
                                     <tr>
                                         <td>Jumlah bulan ini</td>
                                         <td class="text-center text-success"><?= (int) $totals['hadir'] ?></td>
+                                        <td class="text-center"><?= (int) ($totals['telat'] ?? 0) ?></td>
                                         <td class="text-center text-warning"><?= (int) $totals['izin'] ?></td>
                                         <td class="text-center text-primary"><?= (int) $totals['sakit'] ?></td>
                                         <td class="text-center text-danger"><?= (int) $totals['alpa'] ?></td>

@@ -777,8 +777,9 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
         $izin = $row ? (int) ($row['izin'] ?? 0) : 0;
         $sakit = $row ? (int) ($row['sakit'] ?? 0) : 0;
         $alpa = $row ? (int) ($row['alpa'] ?? 0) : 0;
+        $telat = $row ? (int) ($row['telat'] ?? 0) : 0;
         $total = $row ? (int) ($row['total'] ?? 0) : 0;
-        $persen = $total > 0 ? round($hadir / $total * 100, 1) : 0.0;
+        $persen = $row ? (float) ($row['persen_hadir'] ?? 0) : 0.0;
         $kategori = $row ? (string) ($row['kategori'] ?? '') : '';
         $label = $kategori !== '' ? $kategori : 'Belum ada data';
         $sumber = 'presensi';
@@ -801,6 +802,7 @@ function pembimbing_dashboard_keaktivan_santri(PDO $pdo, array $tingkatanList, i
             'izin' => $izin,
             'sakit' => $sakit,
             'alpa' => $alpa,
+            'telat' => $telat,
             'total' => $total,
             'persen_hadir' => $persen,
             'kategori' => $kategori,
@@ -891,8 +893,9 @@ function pembimbing_dashboard_keaktifan_santri_detail(
     $izin = $row ? (int) ($row['izin'] ?? 0) : 0;
     $sakit = $row ? (int) ($row['sakit'] ?? 0) : 0;
     $alpa = $row ? (int) ($row['alpa'] ?? 0) : 0;
+    $telat = $row ? (int) ($row['telat'] ?? 0) : 0;
     $total = $row ? (int) ($row['total'] ?? 0) : 0;
-    $persen = $total > 0 ? round($hadir / $total * 100, 1) : 0.0;
+    $persen = $row ? (float) ($row['persen_hadir'] ?? 0) : 0.0;
     $kategori = $row ? (string) ($row['kategori'] ?? '') : '';
     $label = $kategori !== '' ? $kategori : 'Belum ada data';
     $sumber = 'presensi';
@@ -941,6 +944,7 @@ function pembimbing_dashboard_keaktifan_santri_detail(
                 'izin' => (int) ($kgStats['izin'] ?? 0),
                 'sakit' => (int) ($kgStats['sakit'] ?? 0),
                 'alpa' => (int) ($kgStats['alpa'] ?? 0),
+                'telat' => (int) ($kgStats['telat'] ?? 0),
                 'total' => (int) ($kgStats['total'] ?? 0),
                 'persen_hadir' => (float) ($kgStats['persen_hadir'] ?? 0),
                 'kategori' => (string) ($kgStats['kategori'] ?? ''),
@@ -962,6 +966,7 @@ function pembimbing_dashboard_keaktifan_santri_detail(
             'izin' => $izin,
             'sakit' => $sakit,
             'alpa' => $alpa,
+            'telat' => $telat,
             'total' => $total,
             'persen_hadir' => $persen,
             'kategori' => $kategori,
@@ -987,11 +992,11 @@ function pembimbing_dashboard_ringkasan_kategori(array $rows): array
     $out = ['bagus' => 0, 'sedang' => 0, 'buruk' => 0, 'belum' => 0];
     foreach ($rows as $r) {
         $kat = strtoupper((string) ($r['kategori'] ?? ''));
-        if ($kat === 'BAIK' || $kat === 'BAGUS') {
+        if ($kat === 'BAIK' || $kat === 'BAGUS' || $kat === 'CUKUP') {
             $out['bagus']++;
         } elseif ($kat === 'SEDANG') {
             $out['sedang']++;
-        } elseif ($kat === 'BURUK' || $kat === 'JELEK') {
+        } elseif ($kat === 'KURANG' || $kat === 'BURUK' || $kat === 'JELEK') {
             $out['buruk']++;
         } else {
             $out['belum']++;

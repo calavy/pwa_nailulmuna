@@ -927,7 +927,9 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                                     $kat = strtoupper((string) ($r['kategori'] ?? ''));
                                     $badge = match (true) {
                                         $kat === 'BAIK' || $kat === 'BAGUS' => 'success',
+                                        $kat === 'CUKUP' => 'info',
                                         $kat === 'SEDANG' => 'warning',
+                                        $kat === 'KURANG' => 'kurang',
                                         $kat === 'BURUK' || $kat === 'JELEK' => 'danger',
                                         default => 'secondary',
                                     };

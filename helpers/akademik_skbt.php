@@ -7,6 +7,7 @@ require_once __DIR__ . '/akademik.php';
 require_once __DIR__ . '/hijri_kalender.php';
 require_once __DIR__ . '/santri_operasional.php';
 require_once __DIR__ . '/presensi_jadwal.php';
+require_once __DIR__ . '/penilaian_kehadiran.php';
 
 /** Urutan bulan TA hijriyah: Syawal → … → Ramadhan (tahun berikutnya). */
 function skbt_bulan_urutan_ta(): array
@@ -232,6 +233,16 @@ function skbt_fetch_presensi_filtered(
     $santriTingkatan = trim($santriTingkatan);
     $jadwalKegiatan = skbt_kegiatan_jadwal_untuk_tingkatan($pdo, $santriTingkatan);
 
+    $selectExtra = column_exists($pdo, 'presensi', 'catatan') ? ', p.catatan' : ', "" AS catatan';
+    $selectExtra .= column_exists($pdo, 'presensi', 'jam_presensi') ? ', p.jam_presensi' : ', NULL AS jam_presensi';
+    $joinJadwal = '';
+    if (column_exists($pdo, 'presensi', 'jadwal_kegiatan_id') && table_exists($pdo, 'jadwal_kegiatan')) {
+        $selectExtra .= ', COALESCE(j.jam_mulai, "") AS jam_mulai_jadwal';
+        $joinJadwal = ' LEFT JOIN jadwal_kegiatan j ON j.id = p.jadwal_kegiatan_id';
+    } else {
+        $selectExtra .= ', "" AS jam_mulai_jadwal';
+    }
+
     $st = $pdo->prepare('
         SELECT
             p.kegiatan_id,
@@ -240,8 +251,10 @@ function skbt_fetch_presensi_filtered(
             UPPER(TRIM(p.status_presensi)) AS status_presensi,
             COALESCE(k.nama_kegiatan, CONCAT("Kegiatan #", p.kegiatan_id)) AS nama_kegiatan,
             COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan
+            ' . $selectExtra . '
         FROM presensi p
         LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        ' . $joinJadwal . '
         WHERE p.santri_id = :sid
           AND p.tanggal_presensi BETWEEN :start AND :end
           AND p.kegiatan_id IS NOT NULL
@@ -292,6 +305,7 @@ function skbt_kegmap_dari_jadwal(array $kegiatanJadwal, array $ymKeys): array
             'total_hadir' => 0,
             'total_izin' => 0,
             'total_sakit' => 0,
+            'total_telat' => 0,
             'total_ghoib' => 0,
             'total' => 0,
         ];
@@ -301,6 +315,7 @@ function skbt_kegmap_dari_jadwal(array $kegiatanJadwal, array $ymKeys): array
                 'hadir' => 0,
                 'izin' => 0,
                 'sakit' => 0,
+                'telat' => 0,
                 'ghoib' => 0,
                 'total' => 0,
                 'jml_hari_aktiv' => 0,
@@ -319,43 +334,69 @@ function skbt_kegmap_dari_jadwal(array $kegiatanJadwal, array $ymKeys): array
  * @param list<array<string,mixed>> $kegiatanList
  * @return array<string,mixed>
  */
-function skbt_ringkasan_penilaian(array $kegiatanList, int $goodMax, int $mediumMax): array
+function skbt_ringkasan_penilaian(array $kegiatanList): array
 {
-    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'ghoib' => 0, 'kuota' => 0];
+    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'telat' => 0, 'ghoib' => 0, 'kuota' => 0];
     $perKat = [];
     foreach ($kegiatanList as $kg) {
         $kat = (string) ($kg['kategori'] ?? 'TAALIM');
         if (!isset($perKat[$kat])) {
-            $perKat[$kat] = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'ghoib' => 0, 'kuota' => 0, 'jumlah_kegiatan' => 0];
+            $perKat[$kat] = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'telat' => 0, 'ghoib' => 0, 'kuota' => 0, 'jumlah_kegiatan' => 0];
         }
         $perKat[$kat]['jumlah_kegiatan']++;
         $perKat[$kat]['hadir'] += (int) ($kg['total_hadir'] ?? 0);
         $perKat[$kat]['izin'] += (int) ($kg['total_izin'] ?? 0);
         $perKat[$kat]['sakit'] += (int) ($kg['total_sakit'] ?? 0);
+        $perKat[$kat]['telat'] += (int) ($kg['total_telat'] ?? 0);
         $perKat[$kat]['ghoib'] += (int) ($kg['total_ghoib'] ?? 0);
         $perKat[$kat]['kuota'] += (int) ($kg['total'] ?? 0);
         $tot['hadir'] += (int) ($kg['total_hadir'] ?? 0);
         $tot['izin'] += (int) ($kg['total_izin'] ?? 0);
         $tot['sakit'] += (int) ($kg['total_sakit'] ?? 0);
+        $tot['telat'] += (int) ($kg['total_telat'] ?? 0);
         $tot['ghoib'] += (int) ($kg['total_ghoib'] ?? 0);
         $tot['kuota'] += (int) ($kg['total'] ?? 0);
     }
     foreach ($perKat as $kat => &$row) {
-        $row['nilai'] = skbt_nilai_form_kode((int) $row['ghoib'], $goodMax, $mediumMax);
+        $row['nilai'] = skbt_nilai_form_kode(
+            (int) $row['ghoib'],
+            (int) $row['izin'],
+            (int) $row['telat'],
+            (int) $row['sakit'],
+            (int) $row['kuota']
+        );
         $row['label_nilai'] = skbt_nilai_label_human((string) $row['nilai']);
         $row['jml_hari_aktiv'] = (int) $row['kuota'];
-        $row['persen'] = skbt_hitung_persen_hadir((int) $row['hadir'], (int) $row['kuota']);
+        $row['persen'] = skbt_hitung_persen_presna(
+            (int) $row['ghoib'],
+            (int) $row['izin'],
+            (int) $row['telat'],
+            (int) $row['sakit'],
+            (int) $row['kuota']
+        );
     }
     unset($row);
-    $tot['nilai'] = skbt_nilai_form_kode((int) $tot['ghoib'], $goodMax, $mediumMax);
+    $tot['nilai'] = skbt_nilai_form_kode(
+        (int) $tot['ghoib'],
+        (int) $tot['izin'],
+        (int) $tot['telat'],
+        (int) $tot['sakit'],
+        (int) $tot['kuota']
+    );
     $tot['label_nilai'] = skbt_nilai_label_human((string) $tot['nilai']);
     $tot['jml_hari_aktiv'] = (int) $tot['kuota'];
-    $tot['persen'] = skbt_hitung_persen_hadir((int) $tot['hadir'], (int) $tot['kuota']);
+    $tot['persen'] = skbt_hitung_persen_presna(
+        (int) $tot['ghoib'],
+        (int) $tot['izin'],
+        (int) $tot['telat'],
+        (int) $tot['sakit'],
+        (int) $tot['kuota']
+    );
 
     return ['total' => $tot, 'per_kategori' => $perKat];
 }
 
-/** Persentase kehadiran (hadir / jumlah hari aktiv). */
+/** Persentase kehadiran lama (hadir / jumlah hari aktiv) — tidak dipakai predikat PRESNA. */
 function skbt_hitung_persen_hadir(int $hadir, int $jmlHariAktiv): ?float
 {
     if ($jmlHariAktiv <= 0) {
@@ -365,50 +406,61 @@ function skbt_hitung_persen_hadir(int $hadir, int $jmlHariAktiv): ?float
     return round($hadir / $jmlHariAktiv * 100, 1);
 }
 
+/** Persentase kehadiran PRESNA (ABSENSI ÷ N.HARI). */
+function skbt_hitung_persen_presna(int $alpa, int $izin, int $telat, int $sakit, int $nHari): ?float
+{
+    if ($nHari <= 0) {
+        return null;
+    }
+
+    return penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari)['persen'];
+}
+
 /** @param array<string,mixed> $bm */
 function skbt_enrich_metrik_bulan(array &$bm): void
 {
     $jml = (int) ($bm['total'] ?? 0);
-    $hadir = (int) ($bm['hadir'] ?? 0);
     $bm['jml_hari_aktiv'] = $jml;
-    $bm['persen'] = skbt_hitung_persen_hadir($hadir, $jml);
+    $bm['persen'] = skbt_hitung_persen_presna(
+        (int) ($bm['ghoib'] ?? 0),
+        (int) ($bm['izin'] ?? 0),
+        (int) ($bm['telat'] ?? 0),
+        (int) ($bm['sakit'] ?? 0),
+        $jml
+    );
 }
 
 function skbt_nilai_label_human(string $kode): string
 {
     return match (strtoupper(trim($kode))) {
         'BAIK' => 'Baik',
+        'CUKUP' => 'Cukup',
         'SEDANG' => 'Sedang',
+        'KURANG' => 'Kurang',
         default => 'Buruk',
     };
 }
 
-/** Nilai form penilaian keaktifan: BAIK / SEDANG / BURUK (dari jumlah GHOIB). */
-function skbt_nilai_form_kode(int $ghoib, int $goodMax, int $mediumMax): string
+/** Nilai form kehadiran SKBT: BAIK|CUKUP|SEDANG|KURANG|BURUK (rumus PRESNA). */
+function skbt_nilai_form_kode(int $alpa, int $izin, int $telat, int $sakit, int $nHari): string
 {
-    $cat = strtolower(santri_category($ghoib, $goodMax, $mediumMax));
+    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari);
+    $kode = penilaian_kehadiran_kode_dari_predikat((string) $hit['predikat']);
 
-    return match ($cat) {
-        'bagus', 'baik' => 'BAIK',
-        'sedang' => 'SEDANG',
-        default => 'BURUK',
-    };
+    return $kode !== '' ? $kode : 'BAIK';
 }
 
 /** @return array{baik_max:int,sedang_max:int,legend:string} */
 function skbt_penilaian_legend(PDO $pdo): array
 {
-    $baikMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-    $sedangMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-    $legend = sprintf(
-        'BAIK: 0–%d GHOIB · SEDANG: %d–%d GHOIB · BURUK: lebih dari %d GHOIB',
-        $baikMax,
-        $baikMax + 1,
-        $sedangMax,
-        $sedangMax
-    );
+    unset($pdo);
 
-    return ['baik_max' => $baikMax, 'sedang_max' => $sedangMax, 'legend' => $legend];
+    return [
+        'baik_max' => 0,
+        'sedang_max' => 0,
+        'legend' => 'PRESNA: ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0; % = ABSENSI ÷ N.HARI. '
+            . 'Baik 81–100% · Cukup 61–80% · Sedang 41–60% · Kurang 21–40% · Buruk ≤20%.',
+    ];
 }
 
 /**
@@ -502,8 +554,7 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
     $tingkatan = trim($tingkatan ?? skbt_santri_tingkatan($pdo, $santriId));
     $kegiatanJadwal = skbt_kegiatan_jadwal_untuk_tingkatan($pdo, $tingkatan);
     $penilaian = skbt_penilaian_legend($pdo);
-    $goodMax = $penilaian['baik_max'];
-    $mediumMax = $penilaian['sedang_max'];
+    $lateTolerance = penilaian_kehadiran_batas_telat($pdo);
     $ymKeys = [];
     foreach ($periode['bulan_list'] as $bl) {
         $ymKeys[$bl['ym']] = $bl;
@@ -558,21 +609,22 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
         if ($ym === '' || !isset($kegMap[$key]['bulan'][$ym])) {
             continue;
         }
-        $stPres = strtoupper(trim((string) ($row['status_presensi'] ?? '')));
-        if (!in_array($stPres, ['HADIR', 'IZIN', 'SAKIT', 'ALPA'], true)) {
+        $bucket = penilaian_kehadiran_status_bucket($row, $lateTolerance);
+        if ($bucket === '') {
             continue;
         }
-        $bucket = $stPres === 'ALPA' ? 'ghoib' : strtolower($stPres);
-        $kegMap[$key]['bulan'][$ym][$bucket]++;
+        $bulanKey = $bucket === 'alpa' ? 'ghoib' : $bucket;
+        $kegMap[$key]['bulan'][$ym][$bulanKey]++;
         $kegMap[$key]['bulan'][$ym]['total']++;
         $kegMap[$key]['total']++;
-        if ($stPres === 'HADIR') {
+        if ($bucket === 'hadir') {
             $kegMap[$key]['total_hadir']++;
-            $kegMap[$key]['bulan'][$ym]['hadir']++;
-        } elseif ($stPres === 'IZIN') {
+        } elseif ($bucket === 'izin') {
             $kegMap[$key]['total_izin']++;
-        } elseif ($stPres === 'SAKIT') {
+        } elseif ($bucket === 'sakit') {
             $kegMap[$key]['total_sakit']++;
+        } elseif ($bucket === 'telat') {
+            $kegMap[$key]['total_telat']++;
         } else {
             $kegMap[$key]['total_ghoib']++;
         }
@@ -582,7 +634,13 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
         $kg['bulan_aktif'] = [];
         foreach ($kg['bulan'] as $ym => &$bm) {
             skbt_enrich_metrik_bulan($bm);
-            $bm['nilai'] = skbt_nilai_form_kode((int) $bm['ghoib'], $goodMax, $mediumMax);
+            $bm['nilai'] = skbt_nilai_form_kode(
+                (int) ($bm['ghoib'] ?? 0),
+                (int) ($bm['izin'] ?? 0),
+                (int) ($bm['telat'] ?? 0),
+                (int) ($bm['sakit'] ?? 0),
+                (int) ($bm['total'] ?? 0)
+            );
             $bm['label_nilai'] = skbt_nilai_label_human((string) $bm['nilai']);
             if ((int) ($bm['total'] ?? 0) > 0) {
                 $kg['bulan_aktif'][$ym] = $bm;
@@ -590,8 +648,20 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
         }
         unset($bm);
         $kg['jml_hari_aktiv'] = (int) ($kg['total'] ?? 0);
-        $kg['persen'] = skbt_hitung_persen_hadir((int) ($kg['total_hadir'] ?? 0), (int) ($kg['total'] ?? 0));
-        $kg['nilai_keseluruhan'] = skbt_nilai_form_kode((int) $kg['total_ghoib'], $goodMax, $mediumMax);
+        $kg['persen'] = skbt_hitung_persen_presna(
+            (int) ($kg['total_ghoib'] ?? 0),
+            (int) ($kg['total_izin'] ?? 0),
+            (int) ($kg['total_telat'] ?? 0),
+            (int) ($kg['total_sakit'] ?? 0),
+            (int) ($kg['total'] ?? 0)
+        );
+        $kg['nilai_keseluruhan'] = skbt_nilai_form_kode(
+            (int) ($kg['total_ghoib'] ?? 0),
+            (int) ($kg['total_izin'] ?? 0),
+            (int) ($kg['total_telat'] ?? 0),
+            (int) ($kg['total_sakit'] ?? 0),
+            (int) ($kg['total'] ?? 0)
+        );
         $kg['label_nilai'] = skbt_nilai_label_human((string) $kg['nilai_keseluruhan']);
         $kg['subjudul'] = sprintf(
             'Aktiv %d · Hadir %d · Persen %s · Kriteria %s',
@@ -627,7 +697,7 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
     }
 
     $semuaKegiatan = array_values($kegMap);
-    $ringkasan = skbt_ringkasan_penilaian($semuaKegiatan, $goodMax, $mediumMax);
+    $ringkasan = skbt_ringkasan_penilaian($semuaKegiatan);
     $ikhtibarNilai = skbt_ikhtibar_nilai($pdo, $santriId, $periode);
     $manualNilai = skbt_nilai_manual($pdo, $santriId, $periode);
 
@@ -668,9 +738,10 @@ function skbt_urutan_kegiatan(string $nama, string $kategori): int
 function skbt_format_bulan_presensi_line(array $bulanRow): string
 {
     return sprintf(
-        '%s : HADIR %d, IJIN %d, SAKIT %d, GHOIB %d, NILAI %s.',
+        '%s : HADIR %d, TELAT %d, IJIN %d, SAKIT %d, GHOIB %d, NILAI %s.',
         (string) ($bulanRow['label'] ?? ''),
         (int) ($bulanRow['hadir'] ?? 0),
+        (int) ($bulanRow['telat'] ?? 0),
         (int) ($bulanRow['izin'] ?? 0),
         (int) ($bulanRow['sakit'] ?? 0),
         (int) ($bulanRow['ghoib'] ?? 0),
@@ -728,9 +799,10 @@ function skbt_kegiatan_ringkasan_line_cetak(array $kg): string
     }
 
     return sprintf(
-        'jumlah hari %d, HADIR %d, IJIN %d, SAKIT %d, GHOIB %d, NILAI %s.',
+        'jumlah hari %d, HADIR %d, TELAT %d, IJIN %d, SAKIT %d, GHOIB %d, NILAI %s.',
         (int) ($kg['jml_hari_aktiv'] ?? $kg['total'] ?? 0),
         (int) ($kg['total_hadir'] ?? 0),
+        (int) ($kg['total_telat'] ?? 0),
         (int) ($kg['total_izin'] ?? 0),
         (int) ($kg['total_sakit'] ?? 0),
         (int) ($kg['total_ghoib'] ?? 0),
@@ -1125,7 +1197,7 @@ function skbt_laporan_cache_key(int $santriId, array $periode, string $tingkatan
         . ($periode['end_date'] ?? '') . '|'
         . strtolower($tingkatan);
 
-    return 'skbt_laporan_v12_' . $santriId . '_' . md5($payload);
+    return 'skbt_laporan_v13_' . $santriId . '_' . md5($payload);
 }
 
 /**

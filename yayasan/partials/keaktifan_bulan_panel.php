@@ -117,11 +117,13 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
             <?php endif; ?>
 
             <div class="d-flex flex-wrap gap-2 mb-3">
-                <span class="badge text-bg-success">Bagus: Alpa = 0</span>
-                <span class="badge text-bg-info">Baik: Alpa 1–<?= $kbGoodMax ?></span>
-                <span class="badge text-bg-warning">Sedang: Alpa <?= $kbGoodMax + 1 ?>–<?= $kbMediumMax ?></span>
-                <span class="badge text-bg-danger">Buruk: Alpa &gt; <?= $kbMediumMax ?></span>
+                <span class="badge text-bg-success">Baik: 81–100%</span>
+                <span class="badge text-bg-info">Cukup: 61–80%</span>
+                <span class="badge text-bg-warning">Sedang: 41–60%</span>
+                <span class="badge text-bg-kurang">Kurang: 21–40%</span>
+                <span class="badge text-bg-danger">Buruk: ≤ 20%</span>
             </div>
+            <p class="small text-muted mb-3">ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat.</p>
 
             <div class="alert alert-light border mb-3 py-3">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">

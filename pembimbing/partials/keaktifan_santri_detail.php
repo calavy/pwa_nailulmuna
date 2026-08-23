@@ -6,6 +6,7 @@ declare(strict_types=1);
 /** @var array<string,mixed> $summary */
 /** @var list<array<string,mixed>> $perKegiatan */
 /** @var string $badgeClass */
+require_once __DIR__ . '/../../helpers/penilaian_kehadiran.php';
 ?>
 <div class="pb-keaktifan-kpi mb-3" role="list" aria-label="Ringkasan keaktifan santri">
     <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--bagus" role="listitem">
@@ -19,6 +20,10 @@ declare(strict_types=1);
     <div class="pb-keaktifan-kpi__card" role="listitem">
         <div class="pb-keaktifan-kpi__label">Sakit</div>
         <div class="pb-keaktifan-kpi__value"><?= (int) ($summary['sakit'] ?? 0) ?></div>
+    </div>
+    <div class="pb-keaktifan-kpi__card" role="listitem">
+        <div class="pb-keaktifan-kpi__label">Telat</div>
+        <div class="pb-keaktifan-kpi__value"><?= (int) ($summary['telat'] ?? 0) ?></div>
     </div>
     <div class="pb-keaktifan-kpi__card pb-keaktifan-kpi__card--alpa" role="listitem">
         <div class="pb-keaktifan-kpi__label">Alpa</div>
@@ -54,6 +59,7 @@ declare(strict_types=1);
                         <tr>
                             <th class="ps-3">Kegiatan</th>
                             <th class="text-center">Hadir</th>
+                            <th class="text-center">Telat</th>
                             <th class="text-center">Izin</th>
                             <th class="text-center">Sakit</th>
                             <th class="text-center">Alpa</th>
@@ -64,17 +70,12 @@ declare(strict_types=1);
                     </thead>
                     <tbody>
                     <?php foreach ($perKegiatan as $kg):
-                        $kgKat = strtoupper((string) ($kg['kategori'] ?? ''));
-                        $kgBadge = match (true) {
-                            $kgKat === 'BAIK' || $kgKat === 'BAGUS' => 'badge-kat-bagus',
-                            $kgKat === 'SEDANG' => 'badge-kat-sedang',
-                            $kgKat === 'BURUK' || $kgKat === 'JELEK' => 'badge-kat-buruk',
-                            default => 'text-bg-secondary',
-                        };
+                        $kgBadge = penilaian_kehadiran_badge_class((string) ($kg['kategori'] ?? ''));
                     ?>
                         <tr>
                             <td class="ps-3 small fw-semibold"><?= htmlspecialchars((string) ($kg['nama_kegiatan'] ?? '—')) ?></td>
                             <td class="text-center small text-success"><?= (int) ($kg['hadir'] ?? 0) ?></td>
+                            <td class="text-center small"><?= (int) ($kg['telat'] ?? 0) ?></td>
                             <td class="text-center small"><?= (int) ($kg['izin'] ?? 0) ?></td>
                             <td class="text-center small"><?= (int) ($kg['sakit'] ?? 0) ?></td>
                             <td class="text-center small text-danger"><?= (int) ($kg['alpa'] ?? 0) ?></td>

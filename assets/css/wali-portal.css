@@ -67,9 +67,17 @@ body.santri-portal {
     border-color: rgba(22, 163, 74, 0.35);
     background: linear-gradient(145deg, rgba(240, 253, 244, 0.95) 0%, #fff 55%);
 }
+.wali-nilai-card--cukup {
+    border-color: rgba(14, 165, 233, 0.35);
+    background: linear-gradient(145deg, rgba(240, 249, 255, 0.95) 0%, #fff 55%);
+}
 .wali-nilai-card--sedang {
     border-color: rgba(217, 119, 6, 0.35);
     background: linear-gradient(145deg, rgba(255, 251, 235, 0.95) 0%, #fff 55%);
+}
+.wali-nilai-card--kurang {
+    border-color: rgba(253, 126, 20, 0.4);
+    background: linear-gradient(145deg, rgba(255, 247, 237, 0.95) 0%, #fff 55%);
 }
 .wali-nilai-card--buruk {
     border-color: rgba(220, 38, 38, 0.35);

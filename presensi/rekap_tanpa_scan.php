@@ -10,6 +10,8 @@ require_once __DIR__ . '/../helpers/rekap_periode.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
+require_once __DIR__ . '/../helpers/keaktifan_alpa_tanpa_scan.php';
+keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
@@ -136,6 +138,8 @@ require_once __DIR__ . '/../includes/header.php';
     <strong>Artinya:</strong> setiap hitungan = satu waktu kegiatan (tanggal + jam) yang sudah lewat tetapi belum ada scan hadir sama sekali.
     Jika Subuh tanpa scan 5 hari dalam bulan ini, angka rekap = <strong>5</strong> (bukan dikali jumlah tingkatan/santri).
 </div>
+
+<?php require __DIR__ . '/../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
 
 <form method="get" action="<?= htmlspecialchars(app_href('/presensi/rekap_tanpa_scan.php')) ?>" class="rts-filter mb-3">
     <div class="row g-2 align-items-end">

@@ -15,7 +15,7 @@ function ensure_santri_nilai_keaktifan_table(PDO $pdo): void
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             santri_id INT NOT NULL,
             tahun SMALLINT NOT NULL,
-            nilai ENUM("BAIK","SEDANG","BURUK") NOT NULL,
+            nilai ENUM("BAIK","CUKUP","SEDANG","KURANG","BURUK") NOT NULL,
             catatan VARCHAR(500) NULL,
             updated_by INT UNSIGNED NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,12 +25,37 @@ function ensure_santri_nilai_keaktifan_table(PDO $pdo): void
             CONSTRAINT fk_snk_santri FOREIGN KEY (santri_id) REFERENCES santri(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ');
+    santri_keaktifan_nilai_ensure_enum_presna($pdo);
+}
+
+/** Perluas ENUM lama (3 jenjang) ke 5 kategori PRESNA. Data BAIK/SEDANG/BURUK tetap valid. */
+function santri_keaktifan_nilai_ensure_enum_presna(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'santri_nilai_keaktifan')) {
+        return;
+    }
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM santri_nilai_keaktifan LIKE 'nilai'");
+        $col = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
+        $type = strtoupper((string) ($col['Type'] ?? ''));
+        if (str_contains($type, 'CUKUP') && str_contains($type, 'KURANG')) {
+            return;
+        }
+        $pdo->exec('ALTER TABLE santri_nilai_keaktifan MODIFY nilai ENUM("BAIK","CUKUP","SEDANG","KURANG","BURUK") NOT NULL');
+    } catch (Throwable $e) {
+        $done = false;
+    }
 }
 
 /** @return list<string> */
 function santri_keaktifan_nilai_kode_options(): array
 {
-    return ['BAIK', 'SEDANG', 'BURUK'];
+    return ['BAIK', 'CUKUP', 'SEDANG', 'KURANG', 'BURUK'];
 }
 
 function santri_keaktifan_nilai_normalize_kode(string $raw): ?string
@@ -47,7 +72,10 @@ function santri_keaktifan_nilai_label_dari_kode(string $kode): string
 {
     return match (santri_keaktifan_nilai_normalize_kode($kode) ?? '') {
         'BAIK' => 'Baik',
+        'CUKUP' => 'Cukup',
         'SEDANG' => 'Sedang',
+        'KURANG' => 'Kurang',
+        'BURUK' => 'Buruk',
         default => 'Buruk',
     };
 }
@@ -57,7 +85,9 @@ function santri_keaktifan_nilai_pilihan_form(): array
 {
     return [
         'BAIK' => 'Baik',
+        'CUKUP' => 'Cukup',
         'SEDANG' => 'Sedang',
+        'KURANG' => 'Kurang',
         'BURUK' => 'Buruk',
     ];
 }
@@ -209,6 +239,7 @@ function santri_keaktifan_tampilan_per_tahun(PDO $pdo, int $santriId): array
             'izin' => 0,
             'sakit' => 0,
             'alpa' => 0,
+            'telat' => 0,
             'total' => 0,
             'persen_hadir' => 0.0,
             'kategori' => $m['nilai'],

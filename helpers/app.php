@@ -668,6 +668,7 @@ function pondok_settings_defaults(): array
         'kategori_baik_max' => '1',
         'kategori_sedang_max' => '3',
         'keaktifan_tanggal_mulai_scan' => '',
+        'keaktifan_alpa_jika_tanpa_scan' => '1',
         'izin_perpanjangan_max_hari' => '7',
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
         'izin_alpa_batas_enabled' => '1',
@@ -3181,6 +3182,12 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
                 if (presensi_alpa_bebas_is_set($activePdo, $santriId, $kegiatanIdInt, $tanggal)) {
                     continue;
                 }
+                if (!function_exists('keaktifan_skip_alpa_karena_tanpa_scan')) {
+                    require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
+                }
+                if (keaktifan_skip_alpa_karena_tanpa_scan($activePdo, $kegiatanIdInt, $tanggal)) {
+                    continue;
+                }
             }
 
             $existing = $existingMap[$santriId] ?? null;
@@ -4033,6 +4040,18 @@ function filter_menu_items_hide_kiai_permohonan_izin(array $menuItems): array
     return $menuItems;
 }
 
+/** Dashboard/laporan hari pengasuh: hanya super admin dan kiai. */
+function filter_menu_items_hide_pengasuh_dashboard(array $menuItems): array
+{
+    require_once __DIR__ . '/../includes/auth.php';
+    if (user_can_view_pengasuh_dashboard()) {
+        return $menuItems;
+    }
+    unset($menuItems['/pengasuh/dashboard.php'], $menuItems['/pengasuh/laporan_hari.php']);
+
+    return $menuItems;
+}
+
 function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionPathMap): array
 {
     $userId = (int) ($_SESSION['user']['id'] ?? 0);
@@ -4046,12 +4065,16 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
         && is_array($_SESSION[$cacheKey])
         && (string) $_SESSION[$sigKey] === $menuSig
     ) {
-        return filter_menu_items_hide_kiai_permohonan_izin($_SESSION[$cacheKey]);
+        return filter_menu_items_hide_pengasuh_dashboard(
+            filter_menu_items_hide_kiai_permohonan_izin($_SESSION[$cacheKey])
+        );
     }
 
     $allowedMap = get_allowed_permission_key_map($pdo);
     if ($allowedMap === null) {
-        return filter_menu_items_hide_kiai_permohonan_izin($menuItems);
+        return filter_menu_items_hide_pengasuh_dashboard(
+            filter_menu_items_hide_kiai_permohonan_izin($menuItems)
+        );
     }
 
     $filtered = array_filter(
@@ -4063,12 +4086,20 @@ function filter_menu_items_by_acl(PDO $pdo, array $menuItems, array $permissionP
                 return app_acl_menu_path_allowed($path, $permissionPathMap, $allowedMap)
                     && user_can_edit_keaktifan_nilai();
             }
+            if ($path === '/pengasuh/dashboard.php' || $path === '/pengasuh/laporan_hari.php') {
+                require_once __DIR__ . '/../includes/auth.php';
+
+                return app_acl_menu_path_allowed($path, $permissionPathMap, $allowedMap)
+                    && user_can_view_pengasuh_dashboard();
+            }
 
             return app_acl_menu_path_allowed($path, $permissionPathMap, $allowedMap);
         },
         ARRAY_FILTER_USE_BOTH
     );
-    $filtered = filter_menu_items_hide_kiai_permohonan_izin($filtered);
+    $filtered = filter_menu_items_hide_pengasuh_dashboard(
+        filter_menu_items_hide_kiai_permohonan_izin($filtered)
+    );
     if ($userId > 0) {
         $_SESSION[$cacheKey] = $filtered;
         $_SESSION[$sigKey] = $menuSig;

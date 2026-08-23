@@ -852,15 +852,21 @@ function santri_riwayat_pelanggaran_per_tahun(PDO $pdo, int $santriId): array
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-/** Label keaktifan ringkas: Baik / Sedang / Buruk. */
+/** Label keaktifan ringkas: Baik / Cukup / Sedang / Kurang / Buruk. */
 function santri_riwayat_keaktifan_label_ringkas(string $kategoriRekap): string
 {
     $k = trim($kategoriRekap);
     if ($k === 'Bagus' || $k === 'Baik') {
         return 'Baik';
     }
+    if ($k === 'Cukup') {
+        return 'Cukup';
+    }
     if ($k === 'Sedang') {
         return 'Sedang';
+    }
+    if ($k === 'Kurang') {
+        return 'Kurang';
     }
 
     return 'Buruk';
@@ -869,33 +875,31 @@ function santri_riwayat_keaktifan_label_ringkas(string $kategoriRekap): string
 /** Badge Bootstrap untuk label keaktifan. */
 function santri_riwayat_keaktifan_badge_class(string $label): string
 {
-    return match ($label) {
-        'Baik' => 'text-bg-success',
-        'Sedang' => 'text-bg-warning',
-        default => 'text-bg-danger',
-    };
+    require_once __DIR__ . '/penilaian_kehadiran.php';
+
+    return penilaian_kehadiran_badge_class($label);
 }
 
 /**
- * @param array{hadir:int,izin:int,sakit:int,alpa:int,total:int} $totals
- * @return array{th:int,hadir:int,izin:int,sakit:int,alpa:int,total:int,persen_hadir:float,kategori:string,label:string,keterangan:string}|null
+ * @param array{hadir:int,izin?:int,sakit?:int,alpa?:int,telat?:int,total:int} $totals
+ * @return array{th:int,hadir:int,izin:int,sakit:int,alpa:int,telat:int,total:int,persen_hadir:float,nilai:int,kategori:string,label:string,keterangan:string}|null
  */
 function santri_riwayat_keaktifan_row_from_totals(PDO $pdo, int $th, array $totals): ?array
 {
+    require_once __DIR__ . '/penilaian_kehadiran.php';
+
     $hadir = (int) ($totals['hadir'] ?? 0);
     $izin = (int) ($totals['izin'] ?? 0);
     $sakit = (int) ($totals['sakit'] ?? 0);
     $alpa = (int) ($totals['alpa'] ?? 0);
+    $telat = (int) ($totals['telat'] ?? 0);
     $total = (int) ($totals['total'] ?? 0);
     if ($total <= 0) {
         return null;
     }
 
-    $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
-    $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
-    $persen = round($hadir / $total * 100, 1);
-    $kat = santri_category($alpa, $goodMax, $mediumMax);
-    $label = santri_riwayat_keaktifan_label_ringkas($kat);
+    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $total);
+    $label = santri_riwayat_keaktifan_label_ringkas($hit['predikat']);
 
     return [
         'th' => $th,
@@ -903,18 +907,23 @@ function santri_riwayat_keaktifan_row_from_totals(PDO $pdo, int $th, array $tota
         'izin' => $izin,
         'sakit' => $sakit,
         'alpa' => $alpa,
+        'telat' => $telat,
         'total' => $total,
-        'persen_hadir' => $persen,
-        'kategori' => $kat,
+        'persen_hadir' => $hit['persen'],
+        'nilai' => $hit['nilai'],
+        'kategori' => $hit['predikat'],
         'label' => $label,
-        'keterangan' => sprintf(
-            'Kehadiran %s%% · Hadir %d · Izin %d · Sakit %d · ALPA %d (dari %d jadwal terhitung)',
-            number_format($persen, 1, ',', '.'),
-            $hadir,
-            $izin,
-            $sakit,
-            $alpa,
-            $total
+        'keterangan' => penilaian_kehadiran_keterangan(
+            [
+                'hadir' => $hadir,
+                'telat' => $telat,
+                'izin' => $izin,
+                'sakit' => $sakit,
+                'alpa' => $alpa,
+                'total' => $total,
+            ],
+            $hit['persen'],
+            $hit['nilai']
         ),
     ];
 }

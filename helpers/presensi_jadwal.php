@@ -439,6 +439,15 @@ function presensi_apply_status_efektif_rows(PDO $pdo, array $rows, string $tangg
         $jamSelesai = presensi_jadwal_jam_selesai_for($pdo, $tanggal, $kid, $tk, $map);
         $raw = (string) ($row['status_hari_ini'] ?? $row['status_presensi'] ?? '');
         $efektif = presensi_status_efektif($raw, $tanggal, $jamSelesai, $asOfDatetime);
+        if ($efektif === 'ALPA') {
+            if (!function_exists('keaktifan_skip_alpa_karena_tanpa_scan')) {
+                require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
+            }
+            $kat = isset($row['kategori_kegiatan']) ? (string) $row['kategori_kegiatan'] : null;
+            if (keaktifan_skip_alpa_karena_tanpa_scan($pdo, $kid, $tanggal, $kat)) {
+                $efektif = '';
+            }
+        }
         if (isset($row['status_hari_ini'])) {
             $row['status_hari_ini'] = $efektif;
         }

@@ -226,7 +226,9 @@
 }
 
 .pb-keaktifan-table .badge-kat-bagus { background: #047857 !important; color: #fff !important; }
+.pb-keaktifan-table .badge-kat-cukup { background: #0284c7 !important; color: #fff !important; }
 .pb-keaktifan-table .badge-kat-sedang { background: #0e7490 !important; color: #fff !important; }
+.pb-keaktifan-table .badge-kat-kurang { background: #ea580c !important; color: #fff !important; }
 .pb-keaktifan-table .badge-kat-buruk { background: #c2410c !important; color: #fff !important; }
 
 [data-theme="dark"] .pb-keaktifan-hari-panel {

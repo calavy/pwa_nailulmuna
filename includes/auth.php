@@ -330,6 +330,34 @@ function require_lihat_audit_operasional(): void
     }
 }
 
+/** Dashboard / laporan hari pengasuh — hanya super admin & pengasuh (role kiai). */
+function user_can_view_pengasuh_dashboard(): bool
+{
+    if (isset($_SESSION['wali']) || isset($_SESSION['mukimin'])) {
+        return false;
+    }
+    if (isset($_SESSION['santri_portal'])) {
+        return false;
+    }
+    if (!isset($_SESSION['user'])) {
+        return false;
+    }
+    if (is_super_admin()) {
+        return true;
+    }
+
+    return strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'kiai';
+}
+
+function require_pengasuh_dashboard(): void
+{
+    require_login();
+    if (!user_can_view_pengasuh_dashboard()) {
+        set_flash('error', 'Dashboard pengasuh hanya untuk super admin dan pengasuh.');
+        auth_redirect_access_denied();
+    }
+}
+
 /** Nilai keaktifan (Baik/Sedang/Buruk) — hanya super admin & pengasuh (role kiai). */
 function user_can_view_keaktifan_nilai(): bool
 {

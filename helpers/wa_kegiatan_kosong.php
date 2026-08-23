@@ -193,54 +193,82 @@ function wa_kegiatan_kosong_group_slots(PDO $pdo, array $rows, string $tanggal):
 
 /**
  * @param array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,jadwal_id:int}>} $group
+ * @return array<string, string>
  */
-function wa_kegiatan_kosong_format_message(array $group, int $counter, int $batasKali, string $levelLabel): string
+function wa_kegiatan_kosong_pengurus_vars(PDO $pdo, array $group, int $counter, int $batasKali, string $levelLabel): array
 {
     $jamMulai = substr((string) ($group['jam_mulai'] ?? '00:00:00'), 0, 5);
     $jamSelesai = substr((string) ($group['jam_selesai'] ?? '00:00:00'), 0, 5);
-    $lines = [];
-    $lines[] = '⚠️ Laporan kegiatan kosong (deteksi ke-' . $counter . ')';
-    if ($levelLabel === 'eskalasi') {
-        $lines[] = 'Eskalasi ke pengurus — batas ' . $batasKali . 'x deteksi berturut-turut.';
-    }
-    $lines[] = 'Tanggal: ' . date('d/m/Y');
-    $lines[] = 'Kegiatan: ' . (string) ($group['nama_kegiatan'] ?? 'Kegiatan');
-    $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
-
     $empty = $group['empty'] ?? [];
-    if (count($empty) === 1) {
-        $lines[] = 'Kelas/Tingkatan: ' . (string) ($empty[0]['tingkatan'] ?? '-');
-    } else {
-        $tingkatanList = array_map(static fn(array $e): string => (string) ($e['tingkatan'] ?? '-'), $empty);
-        $lines[] = 'Tingkatan kosong (' . count($empty) . '): ' . implode(', ', $tingkatanList);
-    }
-
     $tempat = trim((string) ($group['tempat'] ?? ''));
-    if ($tempat !== '') {
-        $lines[] = 'Tempat: ' . $tempat;
-    }
+    $tingkatanSatu = (string) ($empty[0]['tingkatan'] ?? '-');
+    $namaPb = (string) ($empty[0]['nama_pembimbing'] ?? '-');
+    $alasan = implode('; ', (array) ($empty[0]['reasons'] ?? []));
+    $jadwalId = (int) ($empty[0]['jadwal_id'] ?? 0);
 
     if (count($empty) === 1) {
-        $lines[] = 'Pembimbing jadwal: ' . (string) ($empty[0]['nama_pembimbing'] ?? '-');
-        $lines[] = 'Alasan: ' . implode('; ', (array) ($empty[0]['reasons'] ?? []));
-        $jadwalId = (int) ($empty[0]['jadwal_id'] ?? 0);
+        $barisKelas = 'Kelas/Tingkatan: ' . $tingkatanSatu;
+        $detailLines = [
+            'Pembimbing jadwal: ' . $namaPb,
+            'Alasan: ' . $alasan,
+        ];
         if ($jadwalId > 0) {
-            $lines[] = 'ID Jadwal: #' . $jadwalId;
+            $detailLines[] = 'ID Jadwal: #' . $jadwalId;
         }
+        $idJadwalTampil = $jadwalId > 0 ? '#' . $jadwalId : '';
     } else {
-        $lines[] = 'Detail per tingkatan:';
+        $tingkatanList = array_map(static fn (array $e): string => (string) ($e['tingkatan'] ?? '-'), $empty);
+        $barisKelas = 'Tingkatan kosong (' . count($empty) . '): ' . implode(', ', $tingkatanList);
+        $detailLines = ['Detail per tingkatan:'];
         foreach ($empty as $entry) {
-            $lines[] = '• ' . (string) ($entry['tingkatan'] ?? '-')
+            $detailLines[] = '• ' . (string) ($entry['tingkatan'] ?? '-')
                 . ' — ' . (string) ($entry['nama_pembimbing'] ?? '-')
                 . ': ' . implode('; ', (array) ($entry['reasons'] ?? []));
         }
-        $jadwalIds = array_values(array_filter(array_map(static fn(array $e): int => (int) ($e['jadwal_id'] ?? 0), $empty)));
-        if ($jadwalIds !== []) {
-            $lines[] = 'ID Jadwal: #' . implode(', #', $jadwalIds);
+        $jadwalIds = array_values(array_filter(array_map(static fn (array $e): int => (int) ($e['jadwal_id'] ?? 0), $empty)));
+        $idJadwalTampil = $jadwalIds !== [] ? '#' . implode(', #', $jadwalIds) : '';
+        if ($idJadwalTampil !== '') {
+            $detailLines[] = 'ID Jadwal: ' . $idJadwalTampil;
         }
+        $tingkatanSatu = implode(', ', $tingkatanList);
+        $namaPb = '';
+        $alasan = '';
     }
 
-    return implode("\n", $lines);
+    return [
+        'counter' => (string) $counter,
+        'batas_kali' => (string) $batasKali,
+        'tanggal' => date('d/m/Y'),
+        'nama_kegiatan' => (string) ($group['nama_kegiatan'] ?? 'Kegiatan'),
+        'jam' => $jamMulai . ' - ' . $jamSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'tingkatan' => $tingkatanSatu,
+        'tempat' => $tempat,
+        'nama_pembimbing' => $namaPb,
+        'alasan' => $alasan,
+        'id_jadwal' => $idJadwalTampil,
+        'nama_ponpes' => function_exists('app_brand_nama_ponpes') ? app_brand_nama_ponpes($pdo) : '',
+        'baris_eskalasi' => $levelLabel === 'eskalasi'
+            ? 'Eskalasi ke pengurus — batas ' . $batasKali . "x deteksi berturut-turut.\n"
+            : '',
+        'baris_kelas' => $barisKelas,
+        'baris_tempat' => $tempat !== '' ? 'Tempat: ' . $tempat . "\n" : '',
+        'detail' => implode("\n", $detailLines),
+    ];
+}
+
+/**
+ * @param array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,jadwal_id:int}>} $group
+ */
+function wa_kegiatan_kosong_format_message(PDO $pdo, array $group, int $counter, int $batasKali, string $levelLabel): string
+{
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
+    $msg = wa_template_render($pdo, 'kelas_kosong_pengurus', wa_kegiatan_kosong_pengurus_vars($pdo, $group, $counter, $batasKali, $levelLabel));
+
+    return trim($msg);
 }
 
 /**
@@ -249,11 +277,18 @@ function wa_kegiatan_kosong_format_message(array $group, int $counter, int $bata
  * @param array{slot_key:string,kegiatan_id:int,jam_mulai:string,jam_selesai:string,nama_kegiatan:string,tempat:string,empty:list<array{tingkatan:string,reasons:list<string>,nama_pembimbing:string,pembimbing_id:int,jadwal_id:int}>} $group
  * @return array<int, string>
  */
-function wa_kegiatan_kosong_pembimbing_messages(array $group, int $counter, int $batasKali, string $levelLabel): array
+function wa_kegiatan_kosong_pembimbing_messages(PDO $pdo, array $group, int $counter, int $batasKali, string $levelLabel): array
 {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
     $jamMulai = substr((string) ($group['jam_mulai'] ?? '00:00:00'), 0, 5);
     $jamSelesai = substr((string) ($group['jam_selesai'] ?? '00:00:00'), 0, 5);
     $kegiatan = (string) ($group['nama_kegiatan'] ?? 'Kegiatan');
+    $namaPonpes = function_exists('app_brand_nama_ponpes') ? app_brand_nama_ponpes($pdo) : '';
+    $barisEskalasi = $levelLabel === 'eskalasi'
+        ? 'Eskalasi ke pengurus — batas ' . $batasKali . "x deteksi.\n"
+        : '';
     $out = [];
 
     foreach ($group['empty'] ?? [] as $entry) {
@@ -262,19 +297,21 @@ function wa_kegiatan_kosong_pembimbing_messages(array $group, int $counter, int 
             continue;
         }
 
-        $lines = [];
-        $lines[] = '⚠️ Jadwal Anda belum terpenuhi (deteksi ke-' . $counter . ')';
-        if ($levelLabel === 'eskalasi') {
-            $lines[] = 'Eskalasi ke pengurus — batas ' . $batasKali . 'x deteksi.';
-        }
-        $lines[] = 'Tanggal: ' . date('d/m/Y');
-        $lines[] = 'Kegiatan: ' . $kegiatan;
-        $lines[] = 'Jam: ' . $jamMulai . ' - ' . $jamSelesai;
-        $lines[] = 'Tingkatan: ' . (string) ($entry['tingkatan'] ?? '-');
-        $lines[] = 'Alasan: ' . implode('; ', (array) ($entry['reasons'] ?? []));
-        $lines[] = 'Silakan koordinasi scan/hadir segera.';
-
-        $out[$pbId] = implode("\n", $lines);
+        $msg = wa_template_render($pdo, 'kelas_kosong_pembimbing', [
+            'counter' => (string) $counter,
+            'batas_kali' => (string) $batasKali,
+            'tanggal' => date('d/m/Y'),
+            'nama_kegiatan' => $kegiatan,
+            'jam' => $jamMulai . ' - ' . $jamSelesai,
+            'jam_mulai' => $jamMulai,
+            'jam_selesai' => $jamSelesai,
+            'tingkatan' => (string) ($entry['tingkatan'] ?? '-'),
+            'alasan' => implode('; ', (array) ($entry['reasons'] ?? [])),
+            'baris_eskalasi' => $barisEskalasi,
+            'nama_pembimbing' => (string) ($entry['nama_pembimbing'] ?? '-'),
+            'nama_ponpes' => $namaPonpes,
+        ]);
+        $out[$pbId] = trim($msg);
     }
 
     return $out;
@@ -393,6 +430,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
 
         foreach ($levels as $lv) {
             $message = wa_kegiatan_kosong_format_message(
+                $pdo,
                 $group,
                 $counter,
                 $batasKali,
@@ -413,7 +451,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
                 save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
                 save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);
 
-                $pbMessages = wa_kegiatan_kosong_pembimbing_messages($group, $counter, $batasKali, (string) ($lv['label'] ?? ''));
+                $pbMessages = wa_kegiatan_kosong_pembimbing_messages($pdo, $group, $counter, $batasKali, (string) ($lv['label'] ?? ''));
                 presensi_wa_kirim_ke_pembimbing($pdo, $pbMessages, [
                     'kind' => 'presensi',
                     'dedup_key' => $dedupKey,

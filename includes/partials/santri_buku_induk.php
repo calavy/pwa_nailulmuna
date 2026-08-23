@@ -182,7 +182,7 @@ if ($tabHidden !== null && $tabHidden !== '') {
 
     <?php if ($showKeaktifanNilai): ?>
     <section class="buku-section" aria-labelledby="buku-keaktifan">
-        <h2 class="buku-section-title" id="buku-keaktifan">D. Nilai Keaktifan <span class="fw-normal text-muted">(Baik / Sedang / Buruk)</span></h2>
+        <h2 class="buku-section-title" id="buku-keaktifan">D. Nilai Keaktifan <span class="fw-normal text-muted">(Baik / Cukup / Sedang / Kurang / Buruk)</span></h2>
         <div class="table-responsive">
             <table class="table table-buku table-striped table-hover mb-0">
                 <thead>
@@ -220,7 +220,7 @@ if ($tabHidden !== null && $tabHidden !== '') {
             </table>
         </div>
         <p class="small text-muted px-2 py-1 mb-0">
-            Nilai ditetapkan pengasuh pondok; tanpa penilaian pengasuh, nilai mengikuti rekap presensi (ALPA per tahun kalender).
+            Nilai ditetapkan pengasuh pondok; tanpa penilaian pengasuh, nilai mengikuti rumus PRESNA (5 kategori).
             <?php if (!$readOnly && function_exists('user_can_edit_keaktifan_nilai') && user_can_edit_keaktifan_nilai()): ?>
                 <a href="<?= htmlspecialchars(app_href('/pengasuh/nilai_keaktifan.php')) ?>" class="ms-1">Kelola penilaian</a>
             <?php endif; ?>
