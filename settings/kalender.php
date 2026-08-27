@@ -227,9 +227,9 @@ render_kalender_page_hero([
                 <div class="mb-2">
                     <label class="form-label" for="mode-presensi-libur">Mode presensi saat libur</label>
                     <select class="form-select" name="akademik_libur_presensi_mode" id="mode-presensi-libur">
-                        <option value="ALL_BLOCKED" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'ALL_BLOCKED' ? 'selected' : '' ?>>Semua jalur presensi libur</option>
-                        <option value="TAALIM_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'TAALIM_ONLY' ? 'selected' : '' ?>>Ta'lim/Ta'alum libur, Jama'ah aktif</option>
-                        <option value="JAMAAH_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY') === 'JAMAAH_ONLY' ? 'selected' : '' ?>>Jama'ah libur, Ta'lim/Ta'alum aktif</option>
+                        <option value="ALL_BLOCKED" <?= ($v['akademik_libur_presensi_mode'] ?? 'ALL_BLOCKED') === 'ALL_BLOCKED' ? 'selected' : '' ?>>Semua jalur presensi libur</option>
+                        <option value="TAALIM_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'ALL_BLOCKED') === 'TAALIM_ONLY' ? 'selected' : '' ?>>Ta'lim/Ta'alum libur, Jama'ah aktif</option>
+                        <option value="JAMAAH_ONLY" <?= ($v['akademik_libur_presensi_mode'] ?? 'ALL_BLOCKED') === 'JAMAAH_ONLY' ? 'selected' : '' ?>>Jama'ah libur, Ta'lim/Ta'alum aktif</option>
                     </select>
                 </div>
                 <div class="form-check mb-2">

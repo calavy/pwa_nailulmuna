@@ -627,6 +627,100 @@ function akademik_libur_info(PDO $pdo, string $tanggal, string $jenis): ?array
     return null;
 }
 
+/**
+ * Libur presensi untuk banner/notif: null jika tidak libur atau blokir presensi dimatikan.
+ *
+ * @return array{
+ *   nama:string,
+ *   sumber:string,
+ *   tanggal_mulai:?string,
+ *   tanggal_selesai:?string,
+ *   hari_ke:?int,
+ *   mode:string
+ * }|null
+ */
+function akademik_libur_presensi_tampilan(PDO $pdo, ?string $tanggal = null): ?array
+{
+    $tanggal = $tanggal ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal) || !akademik_blokir_presensi_libur($pdo)) {
+        return null;
+    }
+    if (akademik_libur_info($pdo, $tanggal, 'presensi') === null) {
+        return null;
+    }
+
+    $mode = function_exists('akademik_libur_presensi_mode')
+        ? akademik_libur_presensi_mode($pdo)
+        : 'ALL_BLOCKED';
+
+    ensure_akademik_libur_table($pdo);
+    ensure_akademik_kalender_hari_table($pdo);
+
+    $stH = $pdo->prepare('
+        SELECT tanggal_masehi, nama_libur
+        FROM akademik_kalender_hari
+        WHERE tanggal_masehi = :d AND is_libur = 1 AND affects_presensi = 1
+        LIMIT 1
+    ');
+    $stH->execute(['d' => $tanggal]);
+    $hRow = $stH->fetch(PDO::FETCH_ASSOC);
+    if ($hRow) {
+        $nama = trim((string) ($hRow['nama_libur'] ?? ''));
+        $tgl = (string) ($hRow['tanggal_masehi'] ?? $tanggal);
+
+        return [
+            'nama' => $nama !== '' ? $nama : 'Libur (kalender harian)',
+            'sumber' => 'harian',
+            'tanggal_mulai' => $tgl,
+            'tanggal_selesai' => $tgl,
+            'hari_ke' => null,
+            'mode' => $mode,
+        ];
+    }
+
+    $st = $pdo->prepare('
+        SELECT nama, tanggal_mulai, tanggal_selesai
+        FROM akademik_libur
+        WHERE tanggal_mulai <= :d AND tanggal_selesai >= :d AND affects_presensi = 1
+        ORDER BY tanggal_mulai ASC, id ASC
+        LIMIT 1
+    ');
+    $st->execute(['d' => $tanggal]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if ($r) {
+        $mulai = (string) ($r['tanggal_mulai'] ?? $tanggal);
+        $selesai = (string) ($r['tanggal_selesai'] ?? $tanggal);
+
+        return [
+            'nama' => (string) ($r['nama'] ?? 'Hari libur'),
+            'sumber' => 'rentang',
+            'tanggal_mulai' => $mulai,
+            'tanggal_selesai' => $selesai,
+            'hari_ke' => null,
+            'mode' => $mode,
+        ];
+    }
+
+    $ts = strtotime($tanggal);
+    $hariKe = $ts !== false ? (int) date('N', $ts) : 0;
+    foreach (akademik_libur_mingguan_rows($pdo) as $lm) {
+        if ((int) ($lm['hari_ke'] ?? 0) !== $hariKe || empty($lm['affects_presensi'])) {
+            continue;
+        }
+
+        return [
+            'nama' => (string) ($lm['nama'] ?? 'Libur mingguan'),
+            'sumber' => 'mingguan',
+            'tanggal_mulai' => null,
+            'tanggal_selesai' => null,
+            'hari_ke' => $hariKe,
+            'mode' => $mode,
+        ];
+    }
+
+    return null;
+}
+
 function akademik_blokir_presensi_libur(PDO $pdo): bool
 {
     return app_setting($pdo, 'akademik_blokir_presensi_libur', '1') !== '0';

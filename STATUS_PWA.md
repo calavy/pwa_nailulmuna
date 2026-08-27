@@ -7,6 +7,18 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-25] Libur: Jama’ah ikut nonaktif
+- **Apa yang diubah:** Mode default presensi saat libur menjadi semua jalur libur (Ta’lim dan Jama’ah). Nilai lama `TAALIM_ONLY` di database diganti sekali ke `ALL_BLOCKED`. Dropdown di pengaturan kalender tetap ada jika suatu saat Jama’ah perlu jalan.
+- **File:** `helpers/app.php`, `helpers/akademik.php`, `helpers/kalender_pengaturan.php`, `settings/kalender.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Libur sebelumnya hanya menahan Ta’lim; Jama’ah masih bisa di-scan dan memicu notifikasi WA.
+- **Status:** terpasang; uji hari libur (scan Jama’ah ditolak, banner tanpa “Jama’ah tetap berjalan”)
+
+### [2026-08-25] Libur: diamkan notif WA + banner wali
+- **Apa yang diubah:** Notifikasi WA kelas kosong dan pengingat scan pembimbing/munawib mengikuti mode libur presensi (semua diblokir, atau hanya Ta’lim / Jama’ah). Beranda portal wali menampilkan banner nama libur dan sampai tanggal berapa (rentang), atau setiap hari untuk libur mingguan. Jadwal di database tidak dihapus.
+- **File:** `helpers/akademik.php`, `helpers/wa_kegiatan_kosong.php`, `helpers/wa_pembimbing_scan.php`, `wali/partials/libur_banner.php`, `wali/index.php`, `assets/css/wali-portal.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Libur menahan scan tapi notif WA masih menganggap kegiatan wajib; wali tidak melihat keterangan libur di beranda.
+- **Status:** terpasang; uji hari libur (banner + tidak ada WA kegiatan yang diliburkan)
+
 ### [2026-08-24] Template WA laporan kegiatan kosong
 - **Apa yang diubah:** Teks laporan kelas/kegiatan kosong bisa diedit di tab Template WA. Dua slug: `kelas_kosong_pengurus` (petugas/pengurus) dan `kelas_kosong_pembimbing`. Default sama dengan teks lama. Tab Presensi punya tautan ke Template.
 - **File:** `helpers/wa_templates.php`, `helpers/wa_kegiatan_kosong.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `STATUS_PWA.md`

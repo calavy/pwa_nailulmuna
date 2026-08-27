@@ -83,9 +83,9 @@ function kalender_pengaturan_simpan(PDO $pdo, array $post): array
     save_setting($pdo, 'akademik_kalender_default_view', $dv);
 
     save_setting($pdo, 'akademik_blokir_presensi_libur', isset($post['blok_presensi']) ? '1' : '0');
-    $modePresensi = strtoupper(trim((string) ($post['akademik_libur_presensi_mode'] ?? 'TAALIM_ONLY')));
+    $modePresensi = strtoupper(trim((string) ($post['akademik_libur_presensi_mode'] ?? 'ALL_BLOCKED')));
     if (!in_array($modePresensi, ['ALL_BLOCKED', 'TAALIM_ONLY', 'JAMAAH_ONLY'], true)) {
-        $modePresensi = 'TAALIM_ONLY';
+        $modePresensi = 'ALL_BLOCKED';
     }
     save_setting($pdo, 'akademik_libur_presensi_mode', $modePresensi);
     // legacy key tetap disimpan agar kompatibel

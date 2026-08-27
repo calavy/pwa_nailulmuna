@@ -41,6 +41,36 @@ body.santri-portal {
     line-height: 1.45;
 }
 
+.wali-libur-banner {
+    border-radius: 1.1rem;
+    border: 1px solid rgba(194, 65, 12, 0.22);
+    background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+    padding: 0.85rem 1rem;
+    box-shadow: var(--wali-card-shadow);
+}
+
+.wali-libur-banner__kicker {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #c2410c;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+}
+
+.wali-libur-banner__title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #9a3412;
+    line-height: 1.4;
+}
+
+.wali-libur-banner__detail {
+    font-size: 0.85rem;
+    color: #9a3412;
+    line-height: 1.45;
+}
+
 .wali-kicker {
     font-size: 0.7rem;
     text-transform: uppercase;

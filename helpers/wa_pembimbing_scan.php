@@ -51,6 +51,17 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
     $jamSekarang = date('H:i:s');
     $hariKe = (int) date('N', strtotime($tanggal));
 
+    $modeLibur = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
+    if ($modeLibur === 'ALL_BLOCKED') {
+        return;
+    }
+    if (function_exists('ensure_kegiatan_kategori_column')) {
+        ensure_kegiatan_kategori_column($pdo);
+    }
+    $kategoriFilterSql = $modeLibur !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLibur, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+
     $sql = '
         SELECT
             j.id AS jadwal_id,
@@ -58,6 +69,7 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
             j.pembimbing_id,
             j.jam_selesai,
             COALESCE(k.nama_kegiatan, "Kegiatan") AS nama_kegiatan,
+            COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan,
             b.nama_pembimbing,
             b.no_wa,
             COALESCE(b.wa_scan_reminder, 1) AS wa_scan_reminder
@@ -69,6 +81,7 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
           AND COALESCE(b.is_aktif, 1) = 1
           AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND :jam_now BETWEEN ADDTIME(j.jam_selesai, SEC_TO_TIME(-:menit * 60)) AND j.jam_selesai
+          ' . $kategoriFilterSql . '
         ORDER BY j.jam_selesai ASC
     ';
     $st = $pdo->prepare($sql);
@@ -132,10 +145,10 @@ function trigger_wa_pembimbing_belum_scan(PDO $pdo): void
         }
     }
 
-    wa_pembimbing_belum_scan_munawib($pdo, $menitSebelum, $tanggal, $jamSekarang, $hariKe);
+    wa_pembimbing_belum_scan_munawib($pdo, $menitSebelum, $tanggal, $jamSekarang, $hariKe, $kategoriFilterSql);
 }
 
-function wa_pembimbing_belum_scan_munawib(PDO $pdo, int $menitSebelum, string $tanggal, string $jamSekarang, int $hariKe): void
+function wa_pembimbing_belum_scan_munawib(PDO $pdo, int $menitSebelum, string $tanggal, string $jamSekarang, int $hariKe, string $kategoriFilterSql = ''): void
 {
     if (!table_exists($pdo, 'munawib') || !table_exists($pdo, 'munawib_penugasan') || !table_exists($pdo, 'presensi_munawib')) {
         return;
@@ -162,6 +175,7 @@ function wa_pembimbing_belum_scan_munawib(PDO $pdo, int $menitSebelum, string $t
         INNER JOIN munawib m ON m.id = mp.munawib_id AND COALESCE(m.is_aktif, 1) = 1
         WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND :jam_now BETWEEN ADDTIME(j.jam_selesai, SEC_TO_TIME(-:menit * 60)) AND j.jam_selesai
+          ' . $kategoriFilterSql . '
     ';
     if (!table_exists($pdo, 'perizinan_pembimbing')) {
         return;

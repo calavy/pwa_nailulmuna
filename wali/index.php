@@ -45,6 +45,7 @@ wali_layout_head('Beranda Wali', true, 'beranda');
 
 ?>
         <?php require __DIR__ . '/partials/greeting.php'; ?>
+        <?php require __DIR__ . '/partials/libur_banner.php'; ?>
         <?php
         $portalProfileRow = $waliSantriRow;
         $portalProfileContext = 'wali';

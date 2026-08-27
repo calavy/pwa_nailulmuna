@@ -358,6 +358,20 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
     $jamSekarang = date('H:i:s');
     $hariKe = (int) date('N', strtotime($tanggal));
 
+    if (!function_exists('akademik_libur_presensi_mode_aktif_di_tanggal')) {
+        require_once __DIR__ . '/app.php';
+    }
+    $modeLibur = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
+    if ($modeLibur === 'ALL_BLOCKED') {
+        return;
+    }
+    if (function_exists('ensure_kegiatan_kategori_column')) {
+        ensure_kegiatan_kategori_column($pdo);
+    }
+    $kategoriFilterSql = $modeLibur !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLibur, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+
     $sql = '
         SELECT
             j.id AS jadwal_id,
@@ -368,6 +382,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
             COALESCE(j.tingkatan, "") AS tingkatan,
             COALESCE(j.tempat, "") AS tempat,
             COALESCE(k.nama_kegiatan, "Kegiatan") AS nama_kegiatan,
+            COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan,
             COALESCE(b.nama_pembimbing, "-") AS nama_pembimbing
         FROM jadwal_kegiatan j
         INNER JOIN kegiatan k ON k.id = j.kegiatan_id
@@ -376,6 +391,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
           AND (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
           AND :jam_now >= j.jam_selesai
           AND :jam_now <= ADDTIME(j.jam_selesai, SEC_TO_TIME(:batas_sec))
+          ' . $kategoriFilterSql . '
         ORDER BY j.jam_mulai ASC, j.id ASC
     ';
     $st = $pdo->prepare($sql);

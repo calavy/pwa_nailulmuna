@@ -708,21 +708,41 @@ function pondok_settings_defaults(): array
         'app_tahun_masehi_tetap' => (string) (int) date('Y'),
         'pondok_ta_bulan_awal_hijri' => '1',
         'pondok_ta_bulan_awal_masehi' => '7',
-        'akademik_libur_presensi_mode' => 'TAALIM_ONLY',
-        'akademik_libur_taalim_only' => '1',
+        'akademik_libur_presensi_mode' => 'ALL_BLOCKED',
+        'akademik_libur_taalim_only' => '0',
+        'akademik_libur_presensi_jamaah_ikut_migrated' => '0',
     ];
+}
+
+/** Satu kali: default lama TAALIM_ONLY (Jama’ah tetap jalan) → ALL_BLOCKED. */
+function akademik_libur_presensi_migrate_jamaah_ikut(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    if (app_setting($pdo, 'akademik_libur_presensi_jamaah_ikut_migrated', '0') === '1') {
+        return;
+    }
+    $mode = strtoupper(trim((string) app_setting($pdo, 'akademik_libur_presensi_mode', '')));
+    if ($mode === '' || $mode === 'TAALIM_ONLY') {
+        save_setting($pdo, 'akademik_libur_presensi_mode', 'ALL_BLOCKED');
+        save_setting($pdo, 'akademik_libur_taalim_only', '0');
+    }
+    save_setting($pdo, 'akademik_libur_presensi_jamaah_ikut_migrated', '1');
 }
 
 function akademik_libur_presensi_mode(PDO $pdo): string
 {
-    $mode = strtoupper(trim((string) app_setting($pdo, 'akademik_libur_presensi_mode', '')));
+    akademik_libur_presensi_migrate_jamaah_ikut($pdo);
+    $mode = strtoupper(trim((string) app_setting($pdo, 'akademik_libur_presensi_mode', 'ALL_BLOCKED')));
     if ($mode === '') {
-        // kompatibilitas pengaturan lama
-        $legacyTaalimOnly = app_setting($pdo, 'akademik_libur_taalim_only', '1') !== '0';
+        $legacyTaalimOnly = app_setting($pdo, 'akademik_libur_taalim_only', '0') !== '0';
         return $legacyTaalimOnly ? 'TAALIM_ONLY' : 'ALL_BLOCKED';
     }
     if (!in_array($mode, ['ALL_BLOCKED', 'TAALIM_ONLY', 'JAMAAH_ONLY'], true)) {
-        return 'TAALIM_ONLY';
+        return 'ALL_BLOCKED';
     }
     return $mode;
 }
@@ -736,7 +756,7 @@ function akademik_libur_presensi_diizinkan(PDO $pdo, string $kategoriKegiatan): 
         'ALL_BLOCKED' => false,
         'TAALIM_ONLY' => $isJamaah,      // saat libur: hanya jalur jama'ah yang jalan
         'JAMAAH_ONLY' => !$isJamaah,     // saat libur: hanya jalur ta'lim/ta'alum yang jalan
-        default => $isJamaah,
+        default => false,
     };
 }
 
@@ -746,7 +766,7 @@ function akademik_libur_presensi_mode_label(PDO $pdo): string
         'ALL_BLOCKED' => 'Semua presensi libur',
         'TAALIM_ONLY' => 'Ta\'lim/Ta\'alum libur, Jama\'ah aktif',
         'JAMAAH_ONLY' => 'Jama\'ah libur, Ta\'lim/Ta\'alum aktif',
-        default => 'Ta\'lim/Ta\'alum libur, Jama\'ah aktif',
+        default => 'Semua presensi libur',
     };
 }
 
