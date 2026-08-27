@@ -126,12 +126,14 @@ function keaktifan_alpa_tanpa_scan_try_save(PDO $pdo): bool
         return false;
     }
     if (!function_exists('is_super_admin') || !is_super_admin()) {
-        set_flash('error', 'Hanya super admin yang dapat mengubah pengaturan ALPA tanpa scan.');
+        set_flash('error', 'Hanya super admin yang dapat mengubah pengaturan keaktifan.');
 
         return true;
     }
     $on = trim((string) ($_POST['keaktifan_alpa_jika_tanpa_scan'] ?? '0')) === '1' ? '1' : '0';
+    $telatHadir = trim((string) ($_POST['keaktifan_telat_dihitung_hadir'] ?? '0')) === '1' ? '1' : '0';
     save_setting($pdo, 'keaktifan_alpa_jika_tanpa_scan', $on);
+    save_setting($pdo, 'keaktifan_telat_dihitung_hadir', $telatHadir);
     if (function_exists('app_settings_cache_reset')) {
         app_settings_cache_reset($pdo);
     }
@@ -139,12 +141,18 @@ function keaktifan_alpa_tanpa_scan_try_save(PDO $pdo): bool
         require_once __DIR__ . '/rekap_keaktifan.php';
     }
     rekap_keaktifan_rank_tingkatan_cache_invalidate();
-    set_flash(
-        'success',
-        $on === '1'
-            ? 'Jama\'ah/Ta\'lim tanpa scan dihitung ALPA.'
-            : 'Jama\'ah/Ta\'lim tanpa scan tidak dihitung ALPA.'
-    );
+    foreach (array_keys($_SESSION ?? []) as $sk) {
+        if (is_string($sk) && str_starts_with($sk, 'skbt_laporan_')) {
+            unset($_SESSION[$sk]);
+        }
+    }
+    $pesanAlpa = $on === '1'
+        ? 'Jama\'ah/Ta\'lim tanpa scan dihitung ALPA.'
+        : 'Jama\'ah/Ta\'lim tanpa scan tidak dihitung ALPA.';
+    $pesanTelat = $telatHadir === '1'
+        ? 'Telat dihitung Hadir di penilaian.'
+        : 'Telat tetap dihitung Telat di penilaian.';
+    set_flash('success', $pesanAlpa . ' ' . $pesanTelat);
 
     return true;
 }

@@ -697,7 +697,9 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
     $alpaTanpaScanOn = keaktifan_alpa_jika_tanpa_scan_enabled($pdo);
-    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey, $alpaTanpaScanOn)
+    require_once __DIR__ . '/penilaian_kehadiran.php';
+    $telatHadir = penilaian_kehadiran_telat_dihitung_hadir($pdo);
+    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey, $alpaTanpaScanOn, $telatHadir)
         . ($summaryOnly ? '_sum' : '_full');
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 600;
@@ -730,12 +732,13 @@ function rekap_keaktifan_rank_tingkatan_cache_key(
     int $mediumMax,
     ?string $kategoriKegiatan,
     ?string $kalenderHijriyahKey,
-    bool $alpaTanpaScanOn = true
+    bool $alpaTanpaScanOn = true,
+    bool $telatDihitungHadir = false
 ): string {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
 
-    return 'rekap_rank_tingkatan_v8_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . ($alpaTanpaScanOn ? '1' : '0'));
+    return 'rekap_rank_tingkatan_v9_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . ($alpaTanpaScanOn ? '1' : '0') . '|' . ($telatDihitungHadir ? '1' : '0'));
 }
 
 /** Hapus cache ranking keaktifan di sesi (setelah saklar ALPA tanpa scan berubah). */

@@ -669,6 +669,7 @@ function pondok_settings_defaults(): array
         'kategori_sedang_max' => '3',
         'keaktifan_tanggal_mulai_scan' => '',
         'keaktifan_alpa_jika_tanpa_scan' => '1',
+        'keaktifan_telat_dihitung_hadir' => '0',
         'izin_perpanjangan_max_hari' => '7',
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
         'izin_alpa_batas_enabled' => '1',

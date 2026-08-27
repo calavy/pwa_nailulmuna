@@ -113,7 +113,20 @@ function penilaian_kehadiran_batas_telat(PDO $pdo): int
     return max(0, (int) app_setting($pdo, 'batas_telat_menit', '15'));
 }
 
-/** HADIR lewat batas telat (catatan atau jam vs jadwal). */
+/** Saklar penilaian: HADIR lewat batas dihitung Hadir (bukan Telat ×3). Default OFF. */
+function penilaian_kehadiran_telat_dihitung_hadir(?PDO $pdo = null): bool
+{
+    if (!($pdo instanceof PDO)) {
+        $pdo = $GLOBALS['pdo'] ?? null;
+    }
+    if (!($pdo instanceof PDO)) {
+        return false;
+    }
+
+    return trim((string) app_setting($pdo, 'keaktifan_telat_dihitung_hadir', '0')) === '1';
+}
+
+/** HADIR lewat batas telat (catatan atau jam vs jadwal). Tidak dipengaruhi saklar penilaian. */
 function penilaian_kehadiran_row_is_telat(array $row, int $lateTolerance): bool
 {
     $status = strtoupper(trim((string) ($row['status_presensi'] ?? '')));
@@ -131,6 +144,10 @@ function penilaian_kehadiran_status_bucket(array $row, int $lateTolerance): stri
 {
     $status = strtoupper(trim((string) ($row['status_presensi'] ?? '')));
     if ($status === 'HADIR') {
+        if (penilaian_kehadiran_telat_dihitung_hadir()) {
+            return 'hadir';
+        }
+
         return penilaian_kehadiran_row_is_telat($row, $lateTolerance) ? 'telat' : 'hadir';
     }
     if ($status === 'IZIN') {

@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-28] Saklar: Telat dihitung Hadir
+- **Apa yang diubah:** Super admin punya saklar penilaian: aktif = HADIR lewat batas telat tidak kena penalti ×3 (dihitung Hadir); nonaktif = tetap Telat. Default nonaktif. Daftar operasional siapa yang telat tidak diubah. Scan tetap tersimpan HADIR.
+- **File:** `helpers/penilaian_kehadiran.php`, `helpers/app.php`, `helpers/keaktifan_alpa_tanpa_scan.php`, `helpers/rekap_keaktifan.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Predikat PRESNA memakai Telat×3; pondok ingin opsi memperlakukan telat sebagai hadir tanpa menghapus catatan jam.
+- **Status:** terpasang; uji saklar ON (predikat naik, daftar telat tetap ada) dan OFF (penalti telat kembali)
+
 ### [2026-08-25] Libur: Jama’ah ikut nonaktif
 - **Apa yang diubah:** Mode default presensi saat libur menjadi semua jalur libur (Ta’lim dan Jama’ah). Nilai lama `TAALIM_ONLY` di database diganti sekali ke `ALL_BLOCKED`. Dropdown di pengaturan kalender tetap ada jika suatu saat Jama’ah perlu jalan.
 - **File:** `helpers/app.php`, `helpers/akademik.php`, `helpers/kalender_pengaturan.php`, `settings/kalender.php`, `STATUS_PWA.md`
