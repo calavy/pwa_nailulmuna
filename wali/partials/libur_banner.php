@@ -30,9 +30,10 @@ if ($sumber === 'mingguan') {
 }
 
 $sisa = '';
-if ($mode === 'TAALIM_ONLY') {
+$blokir = !empty($liburBanner['blokir_presensi']);
+if ($blokir && $mode === 'TAALIM_ONLY') {
     $sisa = "Jama'ah tetap berjalan.";
-} elseif ($mode === 'JAMAAH_ONLY') {
+} elseif ($blokir && $mode === 'JAMAAH_ONLY') {
     $sisa = "Ta'lim/Ta'alum tetap berjalan.";
 }
 ?>

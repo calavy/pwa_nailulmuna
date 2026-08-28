@@ -363,7 +363,8 @@ function skbt_ringkasan_penilaian(array $kegiatanList): array
             (int) $row['izin'],
             (int) $row['telat'],
             (int) $row['sakit'],
-            (int) $row['kuota']
+            (int) $row['kuota'],
+            (int) $row['hadir']
         );
         $row['label_nilai'] = skbt_nilai_label_human((string) $row['nilai']);
         $row['jml_hari_aktiv'] = (int) $row['kuota'];
@@ -372,7 +373,8 @@ function skbt_ringkasan_penilaian(array $kegiatanList): array
             (int) $row['izin'],
             (int) $row['telat'],
             (int) $row['sakit'],
-            (int) $row['kuota']
+            (int) $row['kuota'],
+            (int) $row['hadir']
         );
     }
     unset($row);
@@ -381,7 +383,8 @@ function skbt_ringkasan_penilaian(array $kegiatanList): array
         (int) $tot['izin'],
         (int) $tot['telat'],
         (int) $tot['sakit'],
-        (int) $tot['kuota']
+        (int) $tot['kuota'],
+        (int) $tot['hadir']
     );
     $tot['label_nilai'] = skbt_nilai_label_human((string) $tot['nilai']);
     $tot['jml_hari_aktiv'] = (int) $tot['kuota'];
@@ -390,7 +393,8 @@ function skbt_ringkasan_penilaian(array $kegiatanList): array
         (int) $tot['izin'],
         (int) $tot['telat'],
         (int) $tot['sakit'],
-        (int) $tot['kuota']
+        (int) $tot['kuota'],
+        (int) $tot['hadir']
     );
 
     return ['total' => $tot, 'per_kategori' => $perKat];
@@ -407,13 +411,13 @@ function skbt_hitung_persen_hadir(int $hadir, int $jmlHariAktiv): ?float
 }
 
 /** Persentase kehadiran PRESNA (ABSENSI ÷ N.HARI). */
-function skbt_hitung_persen_presna(int $alpa, int $izin, int $telat, int $sakit, int $nHari): ?float
+function skbt_hitung_persen_presna(int $alpa, int $izin, int $telat, int $sakit, int $nHari, int $hadir = 0): ?float
 {
     if ($nHari <= 0) {
         return null;
     }
 
-    return penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari)['persen'];
+    return penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari, $hadir)['persen'];
 }
 
 /** @param array<string,mixed> $bm */
@@ -426,7 +430,8 @@ function skbt_enrich_metrik_bulan(array &$bm): void
         (int) ($bm['izin'] ?? 0),
         (int) ($bm['telat'] ?? 0),
         (int) ($bm['sakit'] ?? 0),
-        $jml
+        $jml,
+        (int) ($bm['hadir'] ?? 0)
     );
 }
 
@@ -442,9 +447,9 @@ function skbt_nilai_label_human(string $kode): string
 }
 
 /** Nilai form kehadiran SKBT: BAIK|CUKUP|SEDANG|KURANG|BURUK (rumus PRESNA). */
-function skbt_nilai_form_kode(int $alpa, int $izin, int $telat, int $sakit, int $nHari): string
+function skbt_nilai_form_kode(int $alpa, int $izin, int $telat, int $sakit, int $nHari, int $hadir = 0): string
 {
-    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari);
+    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $nHari, $hadir);
     $kode = penilaian_kehadiran_kode_dari_predikat((string) $hit['predikat']);
 
     return $kode !== '' ? $kode : 'BAIK';
@@ -453,12 +458,10 @@ function skbt_nilai_form_kode(int $alpa, int $izin, int $telat, int $sakit, int 
 /** @return array{baik_max:int,sedang_max:int,legend:string} */
 function skbt_penilaian_legend(PDO $pdo): array
 {
-    unset($pdo);
-
     return [
         'baik_max' => 0,
         'sedang_max' => 0,
-        'legend' => 'PRESNA: ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0; % = ABSENSI ÷ N.HARI. '
+        'legend' => 'PRESNA: ' . penilaian_kehadiran_rumus_absensi($pdo) . '; % = ABSENSI ÷ N.HARI. '
             . 'Baik 81–100% · Cukup 61–80% · Sedang 41–60% · Kurang 21–40% · Buruk ≤20%.',
     ];
 }
@@ -639,7 +642,8 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
                 (int) ($bm['izin'] ?? 0),
                 (int) ($bm['telat'] ?? 0),
                 (int) ($bm['sakit'] ?? 0),
-                (int) ($bm['total'] ?? 0)
+                (int) ($bm['total'] ?? 0),
+                (int) ($bm['hadir'] ?? 0)
             );
             $bm['label_nilai'] = skbt_nilai_label_human((string) $bm['nilai']);
             if ((int) ($bm['total'] ?? 0) > 0) {
@@ -653,14 +657,16 @@ function skbt_build_laporan(PDO $pdo, int $santriId, int $tahunSyawal, ?string $
             (int) ($kg['total_izin'] ?? 0),
             (int) ($kg['total_telat'] ?? 0),
             (int) ($kg['total_sakit'] ?? 0),
-            (int) ($kg['total'] ?? 0)
+            (int) ($kg['total'] ?? 0),
+            (int) ($kg['total_hadir'] ?? 0)
         );
         $kg['nilai_keseluruhan'] = skbt_nilai_form_kode(
             (int) ($kg['total_ghoib'] ?? 0),
             (int) ($kg['total_izin'] ?? 0),
             (int) ($kg['total_telat'] ?? 0),
             (int) ($kg['total_sakit'] ?? 0),
-            (int) ($kg['total'] ?? 0)
+            (int) ($kg['total'] ?? 0),
+            (int) ($kg['total_hadir'] ?? 0)
         );
         $kg['label_nilai'] = skbt_nilai_label_human((string) $kg['nilai_keseluruhan']);
         $kg['subjudul'] = sprintf(

@@ -7,7 +7,22 @@ require_once __DIR__ . '/kegiatan_kategori.php';
 
 function keaktifan_alpa_jika_tanpa_scan_enabled(PDO $pdo): bool
 {
-    return trim((string) app_setting($pdo, 'keaktifan_alpa_jika_tanpa_scan', '1')) !== '0';
+    return trim((string) app_setting($pdo, 'keaktifan_alpa_jika_tanpa_scan', '0')) !== '0';
+}
+
+function keaktifan_tanpa_scan_dihitung_hadir(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'keaktifan_tanpa_scan_dihitung_hadir', '0')) === '1';
+}
+
+function keaktifan_catatan_hadir_tanpa_scan(): string
+{
+    return 'tanpa_scan:hadir';
+}
+
+function keaktifan_hadir_baris_asli(?string $catatan): bool
+{
+    return !str_starts_with(trim((string) $catatan), 'tanpa_scan:');
 }
 
 /** Jama'ah dan Ta'lim masuk laporan tanpa scan (bukan EXTRA/PKPPS). */
@@ -31,11 +46,16 @@ function keaktifan_kegiatan_tanggal_punya_hadir(PDO $pdo, int $kegiatanId, strin
     if (!table_exists($pdo, 'presensi')) {
         return $cache[$key] = false;
     }
+    $catatanSql = '';
+    if (column_exists($pdo, 'presensi', 'catatan')) {
+        $catatanSql = ' AND (catatan IS NULL OR catatan NOT LIKE "tanpa_scan:%")';
+    }
     $st = $pdo->prepare('
         SELECT 1 FROM presensi
         WHERE kegiatan_id = :kid
           AND tanggal_presensi = :tgl
           AND status_presensi = "HADIR"
+          ' . $catatanSql . '
         LIMIT 1
     ');
     $st->execute(['kid' => $kegiatanId, 'tgl' => $tanggal]);
@@ -44,14 +64,11 @@ function keaktifan_kegiatan_tanggal_punya_hadir(PDO $pdo, int $kegiatanId, strin
 }
 
 /**
- * Saklar OFF + slot Jamaah/Ta'lim tanpa satu pun HADIR → jangan hitung/tulis ALPA.
+ * Slot Jamaah/Ta'lim tanpa scan petugas (tidak ada HADIR asli) → jangan tulis ALPA.
  */
 function keaktifan_skip_alpa_karena_tanpa_scan(PDO $pdo, int $kegiatanId, string $tanggal, ?string $kategori = null): bool
 {
     if ($kegiatanId <= 0 || $tanggal === '') {
-        return false;
-    }
-    if (keaktifan_alpa_jika_tanpa_scan_enabled($pdo)) {
         return false;
     }
     if ($kategori === null || trim($kategori) === '') {
@@ -65,19 +82,23 @@ function keaktifan_skip_alpa_karena_tanpa_scan(PDO $pdo, int $kegiatanId, string
 }
 
 /**
- * Buang baris ALPA dari slot Jamaah/Ta'lim yang tidak ada HADIR (saklar OFF).
+ * Saklar nyala: ALPA slot kosong → Hadir. Saklar mati: buang ALPA slot kosong dari N.HARI.
  *
  * @param list<array<string, mixed>> $rows
  * @return list<array<string, mixed>>
  */
 function keaktifan_exclude_alpa_slot_kosong(PDO $pdo, array $rows): array
 {
-    if ($rows === [] || keaktifan_alpa_jika_tanpa_scan_enabled($pdo)) {
+    if ($rows === []) {
         return $rows;
     }
+    $hadirAsli = keaktifan_tanpa_scan_dihitung_hadir($pdo);
     $hadirKeys = [];
     foreach ($rows as $row) {
         if (strtoupper(trim((string) ($row['status_presensi'] ?? ''))) !== 'HADIR') {
+            continue;
+        }
+        if (!keaktifan_hadir_baris_asli(isset($row['catatan']) ? (string) $row['catatan'] : null)) {
             continue;
         }
         $kid = (int) ($row['kegiatan_id'] ?? 0);
@@ -108,9 +129,15 @@ function keaktifan_exclude_alpa_slot_kosong(PDO $pdo, array $rows): array
             continue;
         }
         $slotKey = $kid . '|' . $tgl;
-        if (isset($hadirKeys[$slotKey]) || keaktifan_kegiatan_tanggal_punya_hadir($pdo, $kid, $tgl)) {
+        $kelasAdaScan = isset($hadirKeys[$slotKey]) || keaktifan_kegiatan_tanggal_punya_hadir($pdo, $kid, $tgl);
+        if ($kelasAdaScan) {
             $out[] = $row;
             continue;
+        }
+        if ($hadirAsli) {
+            $row['status_presensi'] = 'HADIR';
+            unset($row['_bucket']);
+            $out[] = $row;
         }
     }
 
@@ -130,10 +157,24 @@ function keaktifan_alpa_tanpa_scan_try_save(PDO $pdo): bool
 
         return true;
     }
-    $on = trim((string) ($_POST['keaktifan_alpa_jika_tanpa_scan'] ?? '0')) === '1' ? '1' : '0';
+    $hadirKosong = trim((string) ($_POST['keaktifan_tanpa_scan_dihitung_hadir'] ?? '0')) === '1' ? '1' : '0';
     $telatHadir = trim((string) ($_POST['keaktifan_telat_dihitung_hadir'] ?? '0')) === '1' ? '1' : '0';
-    save_setting($pdo, 'keaktifan_alpa_jika_tanpa_scan', $on);
+    require_once __DIR__ . '/penilaian_kehadiran.php';
+    $bobot = [
+        'alpa' => penilaian_kehadiran_bobot_clamp((int) ($_POST['penilaian_bobot_alpa'] ?? PENILAIAN_KEHADIRAN_BOBOT_ALPA)),
+        'izin' => penilaian_kehadiran_bobot_clamp((int) ($_POST['penilaian_bobot_izin'] ?? PENILAIAN_KEHADIRAN_BOBOT_IZIN)),
+        'sakit' => penilaian_kehadiran_bobot_clamp((int) ($_POST['penilaian_bobot_sakit'] ?? PENILAIAN_KEHADIRAN_BOBOT_SAKIT)),
+        'telat' => penilaian_kehadiran_bobot_clamp((int) ($_POST['penilaian_bobot_telat'] ?? PENILAIAN_KEHADIRAN_BOBOT_TELAT)),
+        'hadir' => penilaian_kehadiran_bobot_clamp((int) ($_POST['penilaian_bobot_hadir'] ?? PENILAIAN_KEHADIRAN_BOBOT_HADIR)),
+    ];
+    save_setting($pdo, 'keaktifan_tanpa_scan_dihitung_hadir', $hadirKosong);
+    save_setting($pdo, 'keaktifan_alpa_jika_tanpa_scan', '0');
     save_setting($pdo, 'keaktifan_telat_dihitung_hadir', $telatHadir);
+    save_setting($pdo, 'penilaian_bobot_alpa', (string) $bobot['alpa']);
+    save_setting($pdo, 'penilaian_bobot_izin', (string) $bobot['izin']);
+    save_setting($pdo, 'penilaian_bobot_sakit', (string) $bobot['sakit']);
+    save_setting($pdo, 'penilaian_bobot_telat', (string) $bobot['telat']);
+    save_setting($pdo, 'penilaian_bobot_hadir', (string) $bobot['hadir']);
     if (function_exists('app_settings_cache_reset')) {
         app_settings_cache_reset($pdo);
     }
@@ -146,13 +187,21 @@ function keaktifan_alpa_tanpa_scan_try_save(PDO $pdo): bool
             unset($_SESSION[$sk]);
         }
     }
-    $pesanAlpa = $on === '1'
-        ? 'Jama\'ah/Ta\'lim tanpa scan dihitung ALPA.'
-        : 'Jama\'ah/Ta\'lim tanpa scan tidak dihitung ALPA.';
+    $pesanKosong = $hadirKosong === '1'
+        ? 'Kegiatan tanpa scan (kendala petugas) dihitung Hadir.'
+        : 'Kegiatan tanpa scan tidak dihitung ALPA dan tidak masuk N.HARI.';
     $pesanTelat = $telatHadir === '1'
         ? 'Telat dihitung Hadir di penilaian.'
         : 'Telat tetap dihitung Telat di penilaian.';
-    set_flash('success', $pesanAlpa . ' ' . $pesanTelat);
+    set_flash(
+        'success',
+        $pesanKosong . ' ' . $pesanTelat
+        . ' Bobot: Alpa×' . $bobot['alpa']
+        . ', Izin×' . $bobot['izin']
+        . ', Sakit×' . $bobot['sakit']
+        . ', Telat×' . $bobot['telat']
+        . ', Hadir×' . $bobot['hadir'] . '.'
+    );
 
     return true;
 }

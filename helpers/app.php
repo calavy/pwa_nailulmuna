@@ -668,8 +668,14 @@ function pondok_settings_defaults(): array
         'kategori_baik_max' => '1',
         'kategori_sedang_max' => '3',
         'keaktifan_tanggal_mulai_scan' => '',
-        'keaktifan_alpa_jika_tanpa_scan' => '1',
+        'keaktifan_alpa_jika_tanpa_scan' => '0',
+        'keaktifan_tanpa_scan_dihitung_hadir' => '0',
         'keaktifan_telat_dihitung_hadir' => '0',
+        'penilaian_bobot_alpa' => '4',
+        'penilaian_bobot_izin' => '2',
+        'penilaian_bobot_sakit' => '1',
+        'penilaian_bobot_telat' => '3',
+        'penilaian_bobot_hadir' => '1',
         'izin_perpanjangan_max_hari' => '7',
         'izin_perpanjangan_jenis' => 'SAKIT,KELUAR',
         'izin_alpa_batas_enabled' => '1',
@@ -3169,6 +3175,7 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
         $izinTetapMap,
         $existingMap
     ): void {
+        $hasCatatan = column_exists($activePdo, 'presensi', 'catatan');
         $insertStmt = $activePdo->prepare('
             INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by)
             VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by)
@@ -3178,6 +3185,24 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
             SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by
             WHERE id = :id
         ');
+        $insertStmtCatatan = null;
+        $updateStmtCatatan = null;
+        if ($hasCatatan) {
+            $insertStmtCatatan = $activePdo->prepare('
+                INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
+                VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
+            ');
+            $updateStmtCatatan = $activePdo->prepare('
+                UPDATE presensi
+                SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by, catatan = :catatan
+                WHERE id = :id
+            ');
+        }
+
+        require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
+        $slotKosongTanpaScan = keaktifan_skip_alpa_karena_tanpa_scan($activePdo, $kegiatanIdInt, $tanggal);
+        $isiHadirKosong = $slotKosongTanpaScan && keaktifan_tanpa_scan_dihitung_hadir($activePdo);
+        $catatanHadirKosong = keaktifan_catatan_hadir_tanpa_scan();
 
         $n = 0;
         foreach ($ids as $santriId) {
@@ -3203,42 +3228,58 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
                 if (presensi_alpa_bebas_is_set($activePdo, $santriId, $kegiatanIdInt, $tanggal)) {
                     continue;
                 }
-                if (!function_exists('keaktifan_skip_alpa_karena_tanpa_scan')) {
-                    require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
-                }
-                if (keaktifan_skip_alpa_karena_tanpa_scan($activePdo, $kegiatanIdInt, $tanggal)) {
-                    continue;
+                if ($slotKosongTanpaScan) {
+                    if ($isiHadirKosong) {
+                        $desiredStatus = 'HADIR';
+                    } else {
+                        continue;
+                    }
                 }
             }
 
             $existing = $existingMap[$santriId] ?? null;
-            if ($existing && strtoupper((string) $existing['status_presensi']) === 'HADIR') {
+            $existingSt = $existing ? strtoupper(trim((string) ($existing['status_presensi'] ?? ''))) : '';
+            if (in_array($existingSt, ['HADIR', 'IZIN', 'SAKIT'], true)) {
                 continue;
             }
 
+            $pakaiCatatanHadir = $isiHadirKosong && $desiredStatus === 'HADIR' && $insertStmtCatatan instanceof PDOStatement;
+            $payload = [
+                'santri_id' => $santriId,
+                'kegiatan_id' => $kegiatanIdInt,
+                'jadwal_kegiatan_id' => $jadwalKegiatanId,
+                'tanggal_presensi' => $tanggal,
+                'jam_presensi' => $jam,
+                'status_presensi' => $desiredStatus,
+                'kalender_hijriyah' => $hijri,
+                'created_by' => $createdBy,
+            ];
+
             try {
                 if (!$existing) {
-                    $insertStmt->execute([
-                        'santri_id' => $santriId,
-                        'kegiatan_id' => $kegiatanIdInt,
-                        'jadwal_kegiatan_id' => $jadwalKegiatanId,
-                        'tanggal_presensi' => $tanggal,
-                        'jam_presensi' => $jam,
-                        'status_presensi' => $desiredStatus,
-                        'kalender_hijriyah' => $hijri,
-                        'created_by' => $createdBy,
-                    ]);
+                    if ($pakaiCatatanHadir) {
+                        $payload['catatan'] = $catatanHadirKosong;
+                        $insertStmtCatatan->execute($payload);
+                    } else {
+                        $insertStmt->execute($payload);
+                    }
                     continue;
                 }
 
                 if (strtoupper((string) $existing['status_presensi']) !== $desiredStatus) {
-                    $updateStmt->execute([
+                    $upd = [
                         'id' => (int) $existing['id'],
                         'status_presensi' => $desiredStatus,
                         'jam_presensi' => $jam,
                         'kalender_hijriyah' => $hijri,
                         'created_by' => $createdBy,
-                    ]);
+                    ];
+                    if ($pakaiCatatanHadir && $updateStmtCatatan instanceof PDOStatement) {
+                        $upd['catatan'] = $catatanHadirKosong;
+                        $updateStmtCatatan->execute($upd);
+                    } else {
+                        $updateStmt->execute($upd);
+                    }
                 }
             } catch (PDOException $e) {
                 if (!pondok_pdo_is_gone_away($e)) {
@@ -3254,25 +3295,39 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
                     SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by
                     WHERE id = :id
                 ');
+                if ($hasCatatan) {
+                    $insertStmtCatatan = $activePdo->prepare('
+                        INSERT INTO presensi (santri_id, kegiatan_id, jadwal_kegiatan_id, tanggal_presensi, jam_presensi, status_presensi, kalender_hijriyah, created_by, catatan)
+                        VALUES (:santri_id, :kegiatan_id, :jadwal_kegiatan_id, :tanggal_presensi, :jam_presensi, :status_presensi, :kalender_hijriyah, :created_by, :catatan)
+                    ');
+                    $updateStmtCatatan = $activePdo->prepare('
+                        UPDATE presensi
+                        SET status_presensi = :status_presensi, jam_presensi = :jam_presensi, kalender_hijriyah = :kalender_hijriyah, created_by = :created_by, catatan = :catatan
+                        WHERE id = :id
+                    ');
+                }
                 if (!$existing) {
-                    $insertStmt->execute([
-                        'santri_id' => $santriId,
-                        'kegiatan_id' => $kegiatanIdInt,
-                        'jadwal_kegiatan_id' => $jadwalKegiatanId,
-                        'tanggal_presensi' => $tanggal,
-                        'jam_presensi' => $jam,
-                        'status_presensi' => $desiredStatus,
-                        'kalender_hijriyah' => $hijri,
-                        'created_by' => $createdBy,
-                    ]);
+                    if ($pakaiCatatanHadir && $insertStmtCatatan instanceof PDOStatement) {
+                        $payload['catatan'] = $catatanHadirKosong;
+                        $insertStmtCatatan->execute($payload);
+                    } else {
+                        unset($payload['catatan']);
+                        $insertStmt->execute($payload);
+                    }
                 } elseif (strtoupper((string) $existing['status_presensi']) !== $desiredStatus) {
-                    $updateStmt->execute([
+                    $upd = [
                         'id' => (int) $existing['id'],
                         'status_presensi' => $desiredStatus,
                         'jam_presensi' => $jam,
                         'kalender_hijriyah' => $hijri,
                         'created_by' => $createdBy,
-                    ]);
+                    ];
+                    if ($pakaiCatatanHadir && $updateStmtCatatan instanceof PDOStatement) {
+                        $upd['catatan'] = $catatanHadirKosong;
+                        $updateStmtCatatan->execute($upd);
+                    } else {
+                        $updateStmt->execute($upd);
+                    }
                 }
             }
         }

@@ -696,10 +696,20 @@ function rekap_keaktifan_rank_tingkatan_for_periode(
 ): array {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     require_once __DIR__ . '/keaktifan_alpa_tanpa_scan.php';
-    $alpaTanpaScanOn = keaktifan_alpa_jika_tanpa_scan_enabled($pdo);
+    $tanpaScanHadir = keaktifan_tanpa_scan_dihitung_hadir($pdo);
     require_once __DIR__ . '/penilaian_kehadiran.php';
     $telatHadir = penilaian_kehadiran_telat_dihitung_hadir($pdo);
-    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key($startDate, $endDate, $goodMax, $mediumMax, $kategoriKegiatan, $kalenderHijriyahKey, $alpaTanpaScanOn, $telatHadir)
+    $cacheKey = rekap_keaktifan_rank_tingkatan_cache_key(
+        $startDate,
+        $endDate,
+        $goodMax,
+        $mediumMax,
+        $kategoriKegiatan,
+        $kalenderHijriyahKey,
+        $tanpaScanHadir,
+        $telatHadir,
+        penilaian_kehadiran_bobot_fingerprint($pdo)
+    )
         . ($summaryOnly ? '_sum' : '_full');
     $cacheTsKey = $cacheKey . '_ts';
     $ttl = 600;
@@ -732,13 +742,14 @@ function rekap_keaktifan_rank_tingkatan_cache_key(
     int $mediumMax,
     ?string $kategoriKegiatan,
     ?string $kalenderHijriyahKey,
-    bool $alpaTanpaScanOn = true,
-    bool $telatDihitungHadir = false
+    bool $tanpaScanHadir = false,
+    bool $telatDihitungHadir = false,
+    string $bobotFingerprint = ''
 ): string {
     require_once __DIR__ . '/rekap_keaktifan_hari.php';
     $katNorm = rekap_keaktifan_hari_normalize_kategori($kategoriKegiatan);
 
-    return 'rekap_rank_tingkatan_v9_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . ($alpaTanpaScanOn ? '1' : '0') . '|' . ($telatDihitungHadir ? '1' : '0'));
+    return 'rekap_rank_tingkatan_v11_' . md5($startDate . '|' . $endDate . '|' . $goodMax . '|' . $mediumMax . '|' . ($katNorm ?? '') . '|' . ($kalenderHijriyahKey ?? '') . '|' . ($tanpaScanHadir ? '1' : '0') . '|' . ($telatDihitungHadir ? '1' : '0') . '|' . $bobotFingerprint);
 }
 
 /** Hapus cache ranking keaktifan di sesi (setelah saklar ALPA tanpa scan berubah). */
@@ -1125,12 +1136,17 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
     $jadwalByKid = rekap_keaktifan_jadwal_rows_by_kegiatan($pdo);
 
     $sqlAktif = santri_sql_aktif_only('s');
+    $hadirAsliSql = '';
+    if (column_exists($pdo, 'presensi', 'catatan')) {
+        $hadirAsliSql = ' AND (p.catatan IS NULL OR p.catatan NOT LIKE "tanpa_scan:%")';
+    }
     $stmt = $pdo->prepare('
         SELECT p.kegiatan_id, p.tanggal_presensi, s.tingkatan
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
         WHERE p.tanggal_presensi BETWEEN ? AND ?
           AND p.status_presensi = "HADIR"
+          ' . $hadirAsliSql . '
     ');
     $stmt->execute([$startDate, $endDate]);
 
@@ -1495,12 +1511,16 @@ function rekap_keaktifan_santri_tanpa_scan_bulan(
         return [];
     }
 
+    $hadirAsliSql = '';
+    if (column_exists($pdo, 'presensi', 'catatan')) {
+        $hadirAsliSql = ' AND (p.catatan IS NULL OR p.catatan NOT LIKE "tanpa_scan:%")';
+    }
     $hadirStmt = $pdo->prepare('
         SELECT p.santri_id, p.kegiatan_id, p.tanggal_presensi, s.tingkatan
         FROM presensi p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $sqlAktif . '
         WHERE p.tanggal_presensi BETWEEN :start AND :end
-          AND p.status_presensi = "HADIR"' . ($tkFilter !== '' ? ' AND LOWER(TRIM(s.tingkatan)) = LOWER(:tk)' : '') . '
+          AND p.status_presensi = "HADIR"' . $hadirAsliSql . ($tkFilter !== '' ? ' AND LOWER(TRIM(s.tingkatan)) = LOWER(:tk)' : '') . '
     ');
     $hadirParams = ['start' => $startDate, 'end' => $endDate];
     if ($tkFilter !== '') {

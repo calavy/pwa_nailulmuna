@@ -7,6 +7,24 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-28] Banner libur wali: sama dengan kalender
+- **Apa yang diubah:** Banner beranda portal wali tampil jika hari ini libur di grid kalender (rentang, mingguan, atau hari `is_libur`), tanpa mensyaratkan saklar “Blokir presensi” atau centang affects_presensi. Kalimat “Jama’ah/Ta’lim tetap berjalan” hanya jika blokir nyala dan mode parsial. Skip WA kelas kosong tidak diubah.
+- **File:** `helpers/akademik.php`, `wali/partials/libur_banner.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kalender oranye tapi beranda wali kosong karena banner sebelumnya hanya muncul jika blokir presensi nyala dan baris mencentang presensi.
+- **Status:** terpasang; uji HP (pull-to-refresh beranda wali pada hari yang sudah libur di kalender)
+
+### [2026-08-28] Bobot penilaian PRESNA di satu kartu
+- **Apa yang diubah:** Super admin mengatur pengali Alpa, Izin, Sakit, Telat (penalti) dan Hadir (kredit) 0–10 di kartu yang sama dengan saklar tanpa scan / telat. Default 4, 2, 1, 3, dan Hadir ×1 sehingga persen tidak berubah sampai diubah. Rumus: nilai = Hadir×H + (N.HARI − Hadir) − penalti. Predikat 20/40/60/80 dan `batas_telat_menit` tidak diubah. Rekap, portal wali/santri, dan SKBT otomatis memakai bobot tersimpan.
+- **File:** `helpers/app.php`, `helpers/penilaian_kehadiran.php`, `helpers/keaktifan_alpa_tanpa_scan.php`, `helpers/rekap_keaktifan.php`, `helpers/wali_portal.php`, `helpers/santri_riwayat.php`, `helpers/akademik_skbt.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `wali/keaktifan.php`, `santri_portal/keaktifan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengali PRESNA sebelumnya kaku di kode; pondok ingin menyesuaikan tanpa deploy (mis. turunkan Alpa agar 0% lebih jarang, atau naikkan Hadir sebagai kredit).
+- **Status:** terpasang; uji simpan bobot default (persen sama) lalu ubah Hadir/Alpa dan cek rekap/portal/SKBT
+
+### [2026-08-28] Tanpa scan: nyala = Hadir
+- **Apa yang diubah:** Saklar “Kegiatan tanpa scan dihitung Hadir”: nyala = slot Jama’ah/Ta’lim tanpa petugas dihitung Hadir (N.HARI tetap); mati = tidak ALPA dan slot tidak masuk N.HARI. Mode lama kelas kosong = ALPA dimatikan. Izin/Sakit tidak diubah. Portal wali ikut rekap yang sama.
+- **File:** `helpers/keaktifan_alpa_tanpa_scan.php`, `helpers/app.php`, `helpers/presensi_jadwal.php`, `helpers/rekap_keaktifan.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tidak ada petugas bukan kesalahan santri; penilaian PRESNA tetap jalan untuk ALPA/izin di kelas yang benar-benar discan.
+- **Status:** terpasang; uji saklar nyala (ALPA slot kosong jadi Hadir) dan mati (N.HARI turun)
+
 ### [2026-08-28] Saklar: Telat dihitung Hadir
 - **Apa yang diubah:** Super admin punya saklar penilaian: aktif = HADIR lewat batas telat tidak kena penalti ×3 (dihitung Hadir); nonaktif = tetap Telat. Default nonaktif. Daftar operasional siapa yang telat tidak diubah. Scan tetap tersimpan HADIR.
 - **File:** `helpers/penilaian_kehadiran.php`, `helpers/app.php`, `helpers/keaktifan_alpa_tanpa_scan.php`, `helpers/rekap_keaktifan.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `STATUS_PWA.md`

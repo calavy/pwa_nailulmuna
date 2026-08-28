@@ -323,7 +323,7 @@ require_once __DIR__ . '/../includes/header.php';
             <span class="badge text-bg-kurang">Kurang: 21–40%</span>
             <span class="badge text-bg-danger">Buruk: ≤ 20%</span>
         </div>
-        <p class="small text-muted mb-0 mt-2">ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0. N.HARI = jumlah slot kegiatan terhitung. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat.</p>
+        <p class="small text-muted mb-0 mt-2"><?= htmlspecialchars(penilaian_kehadiran_rumus_absensi($pdo)) ?>. N.HARI = jumlah slot kegiatan terhitung. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat (kecuali saklar Telat dihitung Hadir aktif).</p>
     </div>
 </div>
 

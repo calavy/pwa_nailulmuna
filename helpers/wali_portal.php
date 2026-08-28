@@ -878,7 +878,7 @@ function wali_portal_keaktifan_penilaian_row_dari_totals(PDO $pdo, array $totals
         return null;
     }
 
-    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $total);
+    $hit = penilaian_kehadiran_hitung($alpa, $izin, $telat, $sakit, $total, $hadir);
     $label = santri_riwayat_keaktifan_label_ringkas($hit['predikat']);
 
     return [

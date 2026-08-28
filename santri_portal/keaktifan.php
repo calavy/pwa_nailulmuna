@@ -35,7 +35,8 @@ $hitBulan = penilaian_kehadiran_hitung(
     (int) ($totalsBulan['izin'] ?? 0),
     (int) ($totalsBulan['telat'] ?? 0),
     (int) ($totalsBulan['sakit'] ?? 0),
-    (int) ($totalsBulan['total'] ?? 0)
+    (int) ($totalsBulan['total'] ?? 0),
+    (int) ($totalsBulan['hadir'] ?? 0)
 );
 $persenBulan = (int) ($totalsBulan['total'] ?? 0) > 0 ? $hitBulan['persen'] : 0;
 

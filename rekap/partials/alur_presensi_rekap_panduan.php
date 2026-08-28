@@ -8,6 +8,7 @@ declare(strict_types=1);
  * @var PDO $pdo
  */
 $lateTolerance = (int) app_setting($pdo, 'batas_telat_menit', '15');
+require_once __DIR__ . '/../../helpers/penilaian_kehadiran.php';
 ?>
 <div class="rekap-panduan">
     <div class="alert alert-light border mb-4 small">
@@ -160,7 +161,7 @@ $lateTolerance = (int) app_setting($pdo, 'batas_telat_menit', '15');
                         <li>Query tabel <code>presensi</code> (mode Masehi atau Hijriyah via <code>kalender_hijriyah</code>)</li>
                         <li>Filter eligible + agregasi per tingkatan, santri, kegiatan</li>
                         <li>TELAT: HADIR lewat batas telat (catatan &quot;Terlambat N menit&quot; atau jam vs jadwal + <?= (int) $lateTolerance ?> menit)</li>
-                        <li>ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0; % kehadiran = ABSENSI ÷ N.HARI (N.HARI = slot terhitung)</li>
+                        <li><?= htmlspecialchars(penilaian_kehadiran_rumus_absensi($pdo)) ?>; % kehadiran = ABSENSI ÷ N.HARI (N.HARI = slot terhitung)</li>
                         <li>Predikat: Baik 81–100%; Cukup 61–80%; Sedang 41–60%; Kurang 21–40%; Buruk ≤20%</li>
                     </ol>
 

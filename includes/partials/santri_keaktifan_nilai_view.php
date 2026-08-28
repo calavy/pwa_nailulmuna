@@ -70,4 +70,4 @@ $rows = santri_keaktifan_tampilan_per_tahun($pdo, $santriId);
         <?php endif; ?>
     </div>
 </div>
-        <p class="small text-muted mt-2 mb-0">Pengasuh dapat menetapkan <strong>Baik</strong>, <strong>Cukup</strong>, <strong>Sedang</strong>, <strong>Kurang</strong>, atau <strong>Buruk</strong>. Tanpa penilaian pengasuh, rumus PRESNA: ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0; % kehadiran = ABSENSI ÷ N.HARI. Predikat: Baik 81–100%, Cukup 61–80%, Sedang 41–60%, Kurang 21–40%, Buruk ≤20%. Sumber: <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>.</p>
+        <p class="small text-muted mt-2 mb-0">Pengasuh dapat menetapkan <strong>Baik</strong>, <strong>Cukup</strong>, <strong>Sedang</strong>, <strong>Kurang</strong>, atau <strong>Buruk</strong>. Tanpa penilaian pengasuh, rumus PRESNA: <?= htmlspecialchars(penilaian_kehadiran_rumus_absensi($pdo)) ?>; % kehadiran = ABSENSI ÷ N.HARI. Predikat: Baik 81–100%, Cukup 61–80%, Sedang 41–60%, Kurang 21–40%, Buruk ≤20%. Sumber: <?= htmlspecialchars(rekap_keaktifan_rekap_footnote($pdo)) ?>.</p>

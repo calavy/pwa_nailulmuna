@@ -445,7 +445,7 @@ function presensi_apply_status_efektif_rows(PDO $pdo, array $rows, string $tangg
             }
             $kat = isset($row['kategori_kegiatan']) ? (string) $row['kategori_kegiatan'] : null;
             if (keaktifan_skip_alpa_karena_tanpa_scan($pdo, $kid, $tanggal, $kat)) {
-                $efektif = '';
+                $efektif = keaktifan_tanpa_scan_dihitung_hadir($pdo) ? 'HADIR' : '';
             }
         }
         if (isset($row['status_hari_ini'])) {

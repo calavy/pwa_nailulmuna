@@ -25,7 +25,8 @@ $hitBulan = penilaian_kehadiran_hitung(
     (int) ($totals['izin'] ?? 0),
     (int) ($totals['telat'] ?? 0),
     (int) ($totals['sakit'] ?? 0),
-    (int) ($totals['total'] ?? 0)
+    (int) ($totals['total'] ?? 0),
+    (int) ($totals['hadir'] ?? 0)
 );
 $persenHadir = (int) ($totals['total'] ?? 0) > 0 ? $hitBulan['persen'] : 0;
 
@@ -182,7 +183,7 @@ wali_layout_head('Keaktivan — Portal Wali', true, 'keaktifan');
                                     $kgHadir = (int) ($kg['hadir'] ?? 0);
                                     $kgAlpa = (int) ($kg['alpa'] ?? 0);
                                     $kgTelat = (int) ($kg['telat'] ?? 0);
-                                    $kgHit = penilaian_kehadiran_hitung($kgAlpa, (int) ($kg['izin'] ?? 0), $kgTelat, (int) ($kg['sakit'] ?? 0), $kgTotal);
+                                    $kgHit = penilaian_kehadiran_hitung($kgAlpa, (int) ($kg['izin'] ?? 0), $kgTelat, (int) ($kg['sakit'] ?? 0), $kgTotal, $kgHadir);
                                     $kgPersen = $kgTotal > 0 ? $kgHit['persen'] : 0;
                                     $kategori = $kgHit['predikat'];
                                     ?>

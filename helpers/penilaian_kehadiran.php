@@ -8,15 +8,67 @@ require_once __DIR__ . '/rekap_telat.php';
  * Rumus PRESNA (spreadsheet PRESNA 52).
  * Spek draft 24 Agu 2026 (dasar 100, Alpa×3, Baik >94%) diarsipkan — tidak dipakai.
  *
- * AKUMULASI = Alpa×4 + Izin×2 + Sakit×1 + Telat×3
- * N.HARI    = jumlah slot kegiatan terhitung di periode (bukan 100)
- * ABSENSI   = max(0, N.HARI − AKUMULASI)
- * KEHADIRAN = ABSENSI ÷ N.HARI × 100%
+ * Penalti = Alpa×A + Izin×I + Sakit×S + Telat×T (default 4, 2, 1, 3)
+ * Nilai   = Hadir×H + (N.HARI − Hadir) − penalti (Hadir default ×1 = N.HARI − penalti)
+ * Persen  = Nilai ÷ N.HARI
  */
 const PENILAIAN_KEHADIRAN_BOBOT_ALPA = 4;
 const PENILAIAN_KEHADIRAN_BOBOT_IZIN = 2;
 const PENILAIAN_KEHADIRAN_BOBOT_SAKIT = 1;
 const PENILAIAN_KEHADIRAN_BOBOT_TELAT = 3;
+const PENILAIAN_KEHADIRAN_BOBOT_HADIR = 1;
+
+function penilaian_kehadiran_bobot_clamp(int $n): int
+{
+    return max(0, min(10, $n));
+}
+
+/**
+ * @return array{alpa:int,izin:int,sakit:int,telat:int,hadir:int}
+ */
+function penilaian_kehadiran_bobot(?PDO $pdo = null): array
+{
+    if (!($pdo instanceof PDO)) {
+        $pdo = $GLOBALS['pdo'] ?? null;
+    }
+    $defaults = [
+        'alpa' => PENILAIAN_KEHADIRAN_BOBOT_ALPA,
+        'izin' => PENILAIAN_KEHADIRAN_BOBOT_IZIN,
+        'sakit' => PENILAIAN_KEHADIRAN_BOBOT_SAKIT,
+        'telat' => PENILAIAN_KEHADIRAN_BOBOT_TELAT,
+        'hadir' => PENILAIAN_KEHADIRAN_BOBOT_HADIR,
+    ];
+    if (!($pdo instanceof PDO)) {
+        return $defaults;
+    }
+
+    return [
+        'alpa' => penilaian_kehadiran_bobot_clamp((int) app_setting($pdo, 'penilaian_bobot_alpa', (string) $defaults['alpa'])),
+        'izin' => penilaian_kehadiran_bobot_clamp((int) app_setting($pdo, 'penilaian_bobot_izin', (string) $defaults['izin'])),
+        'sakit' => penilaian_kehadiran_bobot_clamp((int) app_setting($pdo, 'penilaian_bobot_sakit', (string) $defaults['sakit'])),
+        'telat' => penilaian_kehadiran_bobot_clamp((int) app_setting($pdo, 'penilaian_bobot_telat', (string) $defaults['telat'])),
+        'hadir' => penilaian_kehadiran_bobot_clamp((int) app_setting($pdo, 'penilaian_bobot_hadir', (string) $defaults['hadir'])),
+    ];
+}
+
+function penilaian_kehadiran_bobot_fingerprint(?PDO $pdo = null): string
+{
+    $b = penilaian_kehadiran_bobot($pdo);
+
+    return $b['alpa'] . ',' . $b['izin'] . ',' . $b['sakit'] . ',' . $b['telat'] . ',' . $b['hadir'];
+}
+
+/** Teks rumus ABSENSI sesuai bobot tersimpan (Hadir ×1 = N.HARI − penalti). */
+function penilaian_kehadiran_rumus_absensi(?PDO $pdo = null): string
+{
+    $b = penilaian_kehadiran_bobot($pdo);
+    $penalti = sprintf('Alpa×%d + Izin×%d + Sakit×%d + Telat×%d', $b['alpa'], $b['izin'], $b['sakit'], $b['telat']);
+    if ($b['hadir'] === 1) {
+        return 'ABSENSI = N.HARI − (' . $penalti . '), minimum 0';
+    }
+
+    return sprintf('ABSENSI = Hadir×%d + (N.HARI − Hadir) − (%s), minimum 0', $b['hadir'], $penalti);
+}
 
 /** @return list<string> */
 function penilaian_kehadiran_predikat_urutan(): array
@@ -60,16 +112,21 @@ function penilaian_kehadiran_predikat(float $persen): string
 }
 
 /**
+ * @param array{alpa?:int,izin?:int,sakit?:int,telat?:int,hadir?:int}|null $bobot
  * @return array{akumulasi:int,penalti:int,n_hari:int,nilai:int,persen:float,predikat:string}
  */
-function penilaian_kehadiran_hitung(int $alpa, int $izin, int $telat, int $sakit, int $nHari = 0): array
+function penilaian_kehadiran_hitung(int $alpa, int $izin, int $telat, int $sakit, int $nHari = 0, int $hadir = 0, ?array $bobot = null): array
 {
-    $akumulasi = ($alpa * PENILAIAN_KEHADIRAN_BOBOT_ALPA)
-        + ($izin * PENILAIAN_KEHADIRAN_BOBOT_IZIN)
-        + ($sakit * PENILAIAN_KEHADIRAN_BOBOT_SAKIT)
-        + ($telat * PENILAIAN_KEHADIRAN_BOBOT_TELAT);
+    $bobot = $bobot ?? penilaian_kehadiran_bobot();
+    $wAlpa = penilaian_kehadiran_bobot_clamp((int) ($bobot['alpa'] ?? PENILAIAN_KEHADIRAN_BOBOT_ALPA));
+    $wIzin = penilaian_kehadiran_bobot_clamp((int) ($bobot['izin'] ?? PENILAIAN_KEHADIRAN_BOBOT_IZIN));
+    $wSakit = penilaian_kehadiran_bobot_clamp((int) ($bobot['sakit'] ?? PENILAIAN_KEHADIRAN_BOBOT_SAKIT));
+    $wTelat = penilaian_kehadiran_bobot_clamp((int) ($bobot['telat'] ?? PENILAIAN_KEHADIRAN_BOBOT_TELAT));
+    $wHadir = penilaian_kehadiran_bobot_clamp((int) ($bobot['hadir'] ?? PENILAIAN_KEHADIRAN_BOBOT_HADIR));
+    $akumulasi = ($alpa * $wAlpa) + ($izin * $wIzin) + ($sakit * $wSakit) + ($telat * $wTelat);
     $nHari = max(0, $nHari);
-    $nilai = $nHari > 0 ? max(0, $nHari - $akumulasi) : 0;
+    $hadir = max(0, $hadir);
+    $nilai = $nHari > 0 ? max(0, ($hadir * $wHadir) + ($nHari - $hadir) - $akumulasi) : 0;
     $persen = $nHari > 0 ? round(($nilai / $nHari) * 100, 1) : 0.0;
 
     return [
@@ -113,7 +170,7 @@ function penilaian_kehadiran_batas_telat(PDO $pdo): int
     return max(0, (int) app_setting($pdo, 'batas_telat_menit', '15'));
 }
 
-/** Saklar penilaian: HADIR lewat batas dihitung Hadir (bukan Telat ×3). Default OFF. */
+/** Saklar penilaian: HADIR lewat batas dihitung Hadir (bukan Telat berpenalti). Default OFF. */
 function penilaian_kehadiran_telat_dihitung_hadir(?PDO $pdo = null): bool
 {
     if (!($pdo instanceof PDO)) {
@@ -190,7 +247,8 @@ function penilaian_kehadiran_apply_to_stats(array $stats): array
         (int) ($stats['izin'] ?? 0),
         (int) ($stats['telat'] ?? 0),
         (int) ($stats['sakit'] ?? 0),
-        (int) ($stats['total'] ?? 0)
+        (int) ($stats['total'] ?? 0),
+        (int) ($stats['hadir'] ?? 0)
     );
     $stats['akumulasi'] = $hit['akumulasi'];
     $stats['penalti'] = $hit['penalti'];

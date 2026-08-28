@@ -16,6 +16,9 @@ if (empty($kb['ready'])) {
 if (!function_exists('yayasan_home_href')) {
     require_once __DIR__ . '/../../helpers/yayasan.php';
 }
+if (!function_exists('penilaian_kehadiran_rumus_absensi')) {
+    require_once __DIR__ . '/../../helpers/penilaian_kehadiran.php';
+}
 
 $kbMonth = (int) ($kb['month'] ?? 1);
 $kbYear = (int) ($kb['year'] ?? 1400);
@@ -123,7 +126,7 @@ $kbSaran = $kbSaran ?? yayasan_keaktifan_bulan_saran($kb);
                 <span class="badge text-bg-kurang">Kurang: 21–40%</span>
                 <span class="badge text-bg-danger">Buruk: ≤ 20%</span>
             </div>
-            <p class="small text-muted mb-3">ABSENSI = N.HARI − (Alpa×4 + Izin×2 + Sakit×1 + Telat×3), minimum 0. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat.</p>
+            <p class="small text-muted mb-3"><?= htmlspecialchars(penilaian_kehadiran_rumus_absensi($pdo ?? null)) ?>. % kehadiran = ABSENSI ÷ N.HARI. HADIR lewat batas telat dihitung Telat (kecuali saklar Telat dihitung Hadir aktif).</p>
 
             <div class="alert alert-light border mb-3 py-3">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
