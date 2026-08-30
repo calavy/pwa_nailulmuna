@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-08-31] Kartu PRESNA pindah ke Peraturan poin
+- **Apa yang diubah:** Kartu saklar tanpa scan / telat + bobot PRESNA hanya di Pengaturan → Peraturan poin (`settings/peraturan.php`). Dihapus dari rekap keaktifan, rekap tanpa scan, dashboard pengasuh, dan profil pondok. Tetap super admin.
+- **File:** `settings/peraturan.php`, `settings/includes/poin_settings_logic.php`, `settings/partials/poin_settings_view.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `rekap/santri_bagus.php`, `presensi/rekap_tanpa_scan.php`, `pengasuh/dashboard.php`, `settings/pesantren.php`, `settings/partials/pondok_identity_view.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengaturan penilaian kehadiran campur di banyak halaman operasional; satu tempat bersama pengaturan poin.
+- **Status:** terpasang; uji login super admin di Peraturan poin (simpan saklar + bobot)
+
 ### [2026-08-28] Banner libur wali: sama dengan kalender
 - **Apa yang diubah:** Banner beranda portal wali tampil jika hari ini libur di grid kalender (rentang, mingguan, atau hari `is_libur`), tanpa mensyaratkan saklar “Blokir presensi” atau centang affects_presensi. Kalimat “Jama’ah/Ta’lim tetap berjalan” hanya jika blokir nyala dan mode parsial. Skip WA kelas kosong tidak diubah.
 - **File:** `helpers/akademik.php`, `wali/partials/libur_banner.php`, `STATUS_PWA.md`

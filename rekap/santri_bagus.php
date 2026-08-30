@@ -13,8 +13,6 @@ $rekapKeaktifanPagePath = (string) ($rekapKeaktifanBasePath ?? '/rekap/santri_ba
 $rekapKeaktifanModulKicker = (string) ($rekapKeaktifanModulLabel ?? 'Modul Kajian · Poin & Keaktifan');
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
-require_once __DIR__ . '/../helpers/keaktifan_alpa_tanpa_scan.php';
-keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
 
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
@@ -384,8 +382,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 <?php endif; ?>
-
-<?php require __DIR__ . '/../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
 
 <?php if ($showKegiatanTanpaScan): ?>
 <div class="card shadow-sm mb-4 keaktifan-kegiatan-kosong-card print-controls">

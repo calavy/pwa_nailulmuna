@@ -1,4 +1,6 @@
-﻿<div class="row g-3 mb-4">
+﻿<?php require __DIR__ . '/../../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
+
+<div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
         <div class="app-mini-stat h-100">
             <div class="app-mini-stat-label">Rule poin</div>

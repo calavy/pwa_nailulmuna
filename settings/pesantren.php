@@ -8,9 +8,6 @@ require_once __DIR__ . '/../helpers/pengaturan_acl.php';
 require_roles(['admin', 'pengurus']);
 migrate_legacy_permissions_to_pengaturan($pdo);
 
-require_once __DIR__ . '/../helpers/keaktifan_alpa_tanpa_scan.php';
-keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
-
 require_once __DIR__ . '/includes/pondok_settings_logic.php';
 require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 $keaktifanScanSuggest = rekap_keaktifan_suggest_tanggal_mulai_scan($pdo);

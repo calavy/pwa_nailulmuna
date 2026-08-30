@@ -84,8 +84,6 @@
     </div>
 </div>
 
-<?php require __DIR__ . '/../../includes/partials/keaktifan_alpa_tanpa_scan_toggle.php'; ?>
-
 <div class="card shadow-sm">
     <div class="card-body">
         <h2 class="h5 mb-3">Operasional presensi &amp; izin</h2>

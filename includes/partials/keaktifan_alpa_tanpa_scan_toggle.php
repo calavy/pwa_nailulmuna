@@ -16,8 +16,9 @@ $tanpaScanHadir = keaktifan_tanpa_scan_dihitung_hadir($pdo);
 $telatDihitungHadir = penilaian_kehadiran_telat_dihitung_hadir($pdo);
 $bobot = penilaian_kehadiran_bobot($pdo);
 ?>
-<form method="post" class="card border-0 shadow-sm mb-3">
+<form method="post" class="card shadow-sm mb-4">
     <div class="card-body py-3">
+        <h2 class="h6 mb-2">Penilaian kehadiran PRESNA</h2>
         <input type="hidden" name="action" value="save_keaktifan_alpa_tanpa_scan">
         <input type="hidden" name="keaktifan_tanpa_scan_dihitung_hadir" value="0">
         <input type="hidden" name="keaktifan_telat_dihitung_hadir" value="0">

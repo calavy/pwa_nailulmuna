@@ -7,6 +7,9 @@ require_once __DIR__ . '/../../helpers/app.php';
 require_roles(['admin', 'pengurus']);
 ensure_point_tables($pdo);
 
+require_once __DIR__ . '/../../helpers/keaktifan_alpa_tanpa_scan.php';
+keaktifan_alpa_tanpa_scan_redirect_if_saved($pdo);
+
 $poinPostActions = ['save_auto', 'add_rule', 'delete_rule', 'add_sanction', 'delete_sanction'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string) ($_POST['action'] ?? '');
