@@ -10,22 +10,27 @@ declare(strict_types=1);
  * @var string $today
  * @var array{agenda:list,presensi:array,jadwal_berikutnya:list} $idleData
  * @var bool $canJadwalLink
+ * @var array{nama?:string}|null $liburTampil
  */
 $idleContext = (string) ($idleContext ?? 'admin');
 $jamLabel = trim((string) ($jamLabel ?? substr(date('H:i:s'), 0, 5)));
 $today = trim((string) ($today ?? date('Y-m-d')));
 $idleData = is_array($idleData ?? null) ? $idleData : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
 $canJadwalLink = !empty($canJadwalLink);
+$liburTampil = is_array($liburTampil ?? null) ? $liburTampil : null;
+$liburNama = trim((string) (is_array($liburTampil) ? ($liburTampil['nama'] ?? '') : ''));
 
 $agenda = is_array($idleData['agenda'] ?? null) ? $idleData['agenda'] : [];
 $presensi = is_array($idleData['presensi'] ?? null) ? $idleData['presensi'] : [];
 $nextSlots = is_array($idleData['jadwal_berikutnya'] ?? null) ? $idleData['jadwal_berikutnya'] : [];
 
-$emptyTitle = match ($idleContext) {
-    'pembimbing' => 'Tidak ada kegiatan di jam ini.',
-    'pengasuh' => 'Tidak ada kegiatan berlangsung pukul ' . $jamLabel . '.',
-    default => 'Tidak ada kegiatan pukul ' . $jamLabel . '.',
-};
+$emptyTitle = $liburNama !== ''
+    ? 'Hari libur: ' . $liburNama
+    : match ($idleContext) {
+        'pembimbing' => 'Tidak ada kegiatan di jam ini.',
+        'pengasuh' => 'Tidak ada kegiatan berlangsung pukul ' . $jamLabel . '.',
+        default => 'Tidak ada kegiatan pukul ' . $jamLabel . '.',
+    };
 
 $hadir = (int) ($presensi['hadir'] ?? 0);
 $alpa = (int) ($presensi['alpa'] ?? 0);

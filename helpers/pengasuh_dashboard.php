@@ -19,8 +19,10 @@ function pengasuh_dashboard_kegiatan_aktif(PDO $pdo, ?string $jamNow = null): ar
         return [];
     }
     ensure_jadwal_kegiatan_tempat($pdo);
+    ensure_kegiatan_kategori_column($pdo);
     $jamNow = $jamNow ?? date('H:i:s');
     $hariKe = (int) date('N');
+    $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, date('Y-m-d'));
 
     $pbSelect = '';
     $pbJoin = '';
@@ -38,6 +40,7 @@ function pengasuh_dashboard_kegiatan_aktif(PDO $pdo, ?string $jamNow = null): ar
          WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
            AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
            AND k.is_active = 1
+           ' . $liburFilterSql . '
          ORDER BY j.jam_mulai ASC, j.tingkatan ASC'
     );
     $st->execute(['hari_ke' => $hariKe, 'jam_now' => $jamNow]);

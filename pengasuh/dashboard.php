@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
+require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/hijri_kalender.php';
 require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/akademik_pasaran.php';
@@ -84,6 +85,7 @@ $dashServerClockMs = (int) round(microtime(true) * 1000);
 $pgIdleData = !$adaKegiatanLive
     ? dashboard_idle_panel_data($pdo, $today, $nowTime)
     : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+$liburTampil = akademik_libur_presensi_tampilan($pdo, $today);
 
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Pengasuh';

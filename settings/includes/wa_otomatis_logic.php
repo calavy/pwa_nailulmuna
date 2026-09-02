@@ -237,6 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = wa_template_save_all($pdo, $_POST);
         save_setting($pdo, 'wa_rapor_pesantren_enabled', isset($_POST['wa_rapor_pesantren_enabled']) ? '1' : '0');
         save_setting($pdo, 'wa_rapor_pkpps_enabled', isset($_POST['wa_rapor_pkpps_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_kedatangan_libur_wali_enabled', isset($_POST['wa_kedatangan_libur_wali_enabled']) ? '1' : '0');
         wa_otomatis_save_delay_from_post($pdo, 'rapor');
         if (function_exists('app_settings_cache_reset')) {
             app_settings_cache_reset($pdo);
@@ -520,6 +521,7 @@ foreach ($tplDefs as $slug => $meta) {
 }
 $waRaporPesantrenOn = wa_rapor_auto_enabled($pdo, 'pesantren');
 $waRaporPkppsOn = wa_rapor_auto_enabled($pdo, 'pkpps');
+$waKedatanganWaliOn = trim((string) app_setting($pdo, 'wa_kedatangan_libur_wali_enabled', '1')) === '1';
 
 // Alpa
 $periodeMode = alpa_tier_periode_mode($pdo);

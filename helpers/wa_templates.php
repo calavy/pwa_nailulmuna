@@ -379,6 +379,40 @@ function wa_template_definitions(): array
                 . 'Terima kasih.\n'
                 . '_{nama_ponpes}_',
         ],
+        'kedatangan_libur_wali' => [
+            'label' => 'Kedatangan setelah libur → wali santri',
+            'hint' => 'Dikirim otomatis sekali per santri per sesi saat kartu discan. {tanggal} = hari dan tanggal Indonesia; {jam} tanpa WIB (kata WIB ada di template).',
+            'placeholders' => '{nama_santri}, {nis}, {tingkatan}, {nama_libur}, {tanggal}, {jam}, {nama_ponpes}',
+            'default' => "✨ INFO KEDATANGAN SANTRI ✨\n\n"
+                . "Ananda *{nama_santri}* ({nis}) telah tiba di pondok dengan selamat setelah *{nama_libur}* pada:\n\n"
+                . "📅 Hari/Tgl: {tanggal}\n\n"
+                . "⏰ Pukul: {jam} WIB\n\n"
+                . "🌟 Kondisi: Sehat walafiat\n\n"
+                . "Mohon doa Bapak/Ibu Wali Santri sekalian, semoga Ananda senantiasa diberikan kemudahan dan kelancaran dalam menuntut ilmu di *{nama_ponpes}*. 🤲✨\n\n"
+                . "Terima kasih banyak atas kerja sama dan kepercayaan Bapak/Ibu. 🙏😊\n\n"
+                . "— Pengurus {nama_ponpes}\n\n"
+                . 'NB: Pesan ini dikirim otomatis oleh SIPNA (Sistem Informasi Pesantren Nailul Muna), mohon untuk tidak membalas pesan ini.',
+        ],
+        'kedatangan_libur_pengurus' => [
+            'label' => 'Kedatangan libur — sudah datang → pengurus',
+            'hint' => 'Dikirim petugas dari tombol “Kirim yang sudah datang”. Putra/putri terpisah. Baris: Nama (NIS) — jam hadir; jika setelah jam selesai sesi: · telat … (durasi).',
+            'placeholders' => '{nama_libur}, {tanggal}, {jam_mulai}, {jam_selesai}, {jumlah_datang}, {daftar_datang}, {nama_ponpes}',
+            'default' => "Laporan kedatangan *{nama_libur}*\n"
+                . "Tanggal {tanggal} · jam {jam_mulai}–{jam_selesai}\n"
+                . "Sudah datang: *{jumlah_datang}*\n\n"
+                . "{daftar_datang}\n\n"
+                . '_{nama_ponpes}_',
+        ],
+        'kedatangan_libur_belum_pengurus' => [
+            'label' => 'Kedatangan libur — belum datang → pengurus',
+            'hint' => 'Dikirim petugas dari tombol “Kirim yang belum datang”. Santri aktif tanpa scan. Baris: Nama (NIS) · tingkatan.',
+            'placeholders' => '{nama_libur}, {tanggal}, {jam_mulai}, {jam_selesai}, {jumlah_belum}, {daftar_belum}, {nama_ponpes}',
+            'default' => "Laporan belum datang *{nama_libur}*\n"
+                . "Tanggal {tanggal} · jam {jam_mulai}–{jam_selesai}\n"
+                . "Belum datang: *{jumlah_belum}*\n\n"
+                . "{daftar_belum}\n\n"
+                . '_{nama_ponpes}_',
+        ],
     ];
 }
 

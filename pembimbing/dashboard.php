@@ -307,6 +307,7 @@ $pbIdleEmpty = $kegiatanAktifGrouped === [] && ($kegiatanAktifPresensi ?? []) ==
 $pbIdleData = $pbIdleEmpty
     ? dashboard_idle_panel_data($pdo, $today, $nowTime, $tingkatanAsuhan !== [] ? $tingkatanAsuhan : null)
     : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+$liburTampil = akademik_libur_presensi_tampilan($pdo, $today);
 $pbJamLabel = substr($nowTime, 0, 5);
 
 $labelUser = $pembimbingNama !== '' ? $pembimbingNama : 'Pembimbing';

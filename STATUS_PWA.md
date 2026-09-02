@@ -7,6 +7,42 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-02] CSV rekap kedatangan setelah liburan
+- **Apa yang diubah:** Halaman Absen kedatangan punya tombol Unduh CSV per sesi. Satu file (UTF-8 BOM) memuat info libur/tanggal/jam lalu daftar sudah datang dan belum datang (NIS, nama, tingkatan, kelompok, jam, telat/luar jam). WA dan scan tidak diubah.
+- **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Rekap gerbang perlu dibuka di Excel, bukan hanya dikirim WA.
+- **Status:** terpasang; uji unduh CSV dari sesi terbuka, cek jumlah Datang/Belum sama dengan tabel
+
+### [2026-09-02] Dashboard: sembunyikan kegiatan berlangsung saat libur
+- **Apa yang diubah:** Kartu Kegiatan berlangsung (admin, pembimbing, pengasuh) dan daftar jadwal berikutnya di panel idle mengikuti kalender oranye. Hari libur menampilkan judul “Hari libur: {nama}” alih-alih slot rutin. Mode parsial (Ta’lim/Jama’ah) tetap menampilkan kategori yang diizinkan scan. Jadwal di database tidak dihapus.
+- **File:** `helpers/app.php`, `dashboard.php`, `helpers/pembimbing_dashboard.php`, `helpers/pengasuh_dashboard.php`, `helpers/dashboard_insights.php`, `includes/partials/dashboard_kegiatan_idle.php`, `pembimbing/dashboard.php`, `pengasuh/dashboard.php`, `pengasuh/partials/dashboard_keaktivan_kategori_panel.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Query dashboard hanya cek hari-ke + jam, jadi slot tetap tampil padahal kalender sudah libur.
+- **Status:** terpasang; uji dashboard admin/pembimbing/pengasuh pada hari libur vs hari biasa
+
+### [2026-09-01] Template WA kedatangan ke wali
+- **Apa yang diubah:** Default pesan WA wali saat scan kedatangan mengikuti teks INFO KEDATANGAN SANTRI (hari/tanggal Indonesia, jam WIB, NB SIPNA). Laporan pengurus tidak diubah. Jika template sudah disimpan di pengaturan, teks lama tetap; kosongkan lalu simpan untuk memakai default baru.
+- **File:** `helpers/wa_templates.php`, `helpers/kedatangan_libur.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Wali perlu kabar kedatangan yang ramah dan lengkap, bukan satu kalimat pendek.
+- **Status:** terpasang; uji scan kedatangan (WA wali) dan cek Pengaturan WA → Template
+
+### [2026-09-01] Laporan kedatangan: jam + durasi telat
+- **Apa yang diubah:** Daftar “sudah datang” (halaman dan WA pengurus) tetap memuat semua yang discan beserta jam hadir. Yang scan setelah jam selesai sesi ditandai telat plus durasi (mis. telat 1 jam 5 menit). Datang lebih awal tetap “Luar jam” tanpa durasi telat.
+- **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan.php`, `helpers/wa_templates.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengurus perlu tahu siapa yang terlambat dan berapa lama, tanpa mengeluarkan mereka dari daftar kehadiran.
+- **Status:** terpasang; uji kirim WA sudah datang (baris biasa vs setelah jam selesai) dan cek kolom jam di Absen kedatangan
+
+### [2026-09-01] Foto santri di notif scan kedatangan
+- **Apa yang diubah:** Overlay berhasil (dan scan ulang) di Scan kedatangan menampilkan foto profil santri plus nama. Tanpa foto, ikon centang tetap. Scan Presensi kegiatan tidak berubah.
+- **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan_scan.php`, `assets/js/presensi-scan-feedback.js`, `assets/css/presensi-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Petugas gerbang perlu memastikan identitas saat kartu discan.
+- **Status:** terpasang; uji scan kedatangan santri yang punya foto profil, lalu santri tanpa foto, lalu scan ulang
+
+### [2026-09-01] Absen kedatangan setelah liburan
+- **Apa yang diubah:** Menu Ketertiban punya section Absen kedatangan (bukan di dalam Jadwal & Scan): buka sesi dari rentang `akademik_libur` yang baru selesai, jam mulai–selesai, scan kartu di halaman kamera terpisah. Tidak menulis tabel `presensi`, tidak Multi Scan, tidak PRESNA. Scan di luar jam tetap dicatat bertanda. WA wali otomatis sekali per santri per sesi; tombol kirim daftar sudah datang (nama+jam) dan belum datang (nama) ke pengurus putra/putri.
+- **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan.php`, `presensi/kedatangan_scan.php`, `helpers/wa_templates.php`, `helpers/wa_nomor.php`, `helpers/app.php`, `helpers/user_permissions.php`, `includes/menu_data.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_template.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pulang liburan perlu catatan gerbang/asrama dan kabar ke wali/pengurus tanpa mencampur presensi kegiatan harian.
+- **Status:** terpasang; uji buka sesi dari rentang libur, scan kartu di Scan kedatangan, cek daftar luar jam, WA wali, tombol kirim sudah/belum datang
+
 ### [2026-08-31] Kartu PRESNA pindah ke Peraturan poin
 - **Apa yang diubah:** Kartu saklar tanpa scan / telat + bobot PRESNA hanya di Pengaturan → Peraturan poin (`settings/peraturan.php`). Dihapus dari rekap keaktifan, rekap tanpa scan, dashboard pengasuh, dan profil pondok. Tetap super admin.
 - **File:** `settings/peraturan.php`, `settings/includes/poin_settings_logic.php`, `settings/partials/poin_settings_view.php`, `includes/partials/keaktifan_alpa_tanpa_scan_toggle.php`, `rekap/santri_bagus.php`, `presensi/rekap_tanpa_scan.php`, `pengasuh/dashboard.php`, `settings/pesantren.php`, `settings/partials/pondok_identity_view.php`, `STATUS_PWA.md`

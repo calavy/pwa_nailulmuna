@@ -110,12 +110,14 @@ $kegiatanAktifGrouped = [];
 $kegiatanAktifPresensi = [];
 if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
     ensure_jadwal_kegiatan_tempat($pdo);
+    ensure_kegiatan_kategori_column($pdo);
     $pbSelect = '';
     $pbJoin = '';
     if (column_exists($pdo, 'jadwal_kegiatan', 'pembimbing_id') && table_exists($pdo, 'pembimbing')) {
         $pbSelect = ', j.pembimbing_id, p.nama_pembimbing';
         $pbJoin = ' LEFT JOIN pembimbing p ON p.id = j.pembimbing_id';
     }
+    $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, $today);
     $stmt = $pdo->prepare(
         'SELECT k.id AS kegiatan_id, k.nama_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, j.tempat'
         . $pbSelect . '
@@ -125,6 +127,7 @@ if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
          WHERE (j.hari_ke = 0 OR j.hari_ke = :hari_ke)
            AND :jam_now BETWEEN j.jam_mulai AND j.jam_selesai
            AND k.is_active = 1
+           ' . $liburFilterSql . '
          ORDER BY j.jam_mulai ASC, j.tingkatan ASC'
     );
     $stmt->execute(['hari_ke' => $hariKe, 'jam_now' => $nowTime]);
@@ -204,6 +207,7 @@ $dashSearchItems = dashboard_build_search_items($dashMenuItems, $iconForPath);
 $sideQuickActions = dashboard_filter_quick_actions($dashMenuItems);
 $sideQuickCount = count($sideQuickActions);
 
+$liburTampil = akademik_libur_presensi_tampilan($pdo, $today);
 $canJadwal = user_can_access_menu_path('/jadwal/index.php', $dashMenuItems);
 $canPerizinan = user_can_access_menu_path('/perizinan/index.php', $dashMenuItems);
 $dashKpiTrends = dashboard_kpi_trends($pdo, $today);

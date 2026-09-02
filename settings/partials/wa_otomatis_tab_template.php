@@ -6,6 +6,7 @@ declare(strict_types=1);
 /** @var array<string, string> $tplValues */
 /** @var bool $waRaporPesantrenOn */
 /** @var bool $waRaporPkppsOn */
+/** @var bool $waKedatanganWaliOn */
 
 $raporSlugs = ['rapor_terbit_pesantren', 'rapor_terbit_pkpps'];
 
@@ -30,6 +31,16 @@ $raporSlugs = ['rapor_terbit_pesantren', 'rapor_terbit_pkpps'];
                 $delayFieldValue = (string) ($values['wa_delay_rapor'] ?? '');
                 require __DIR__ . '/wa_otomatis_delay_field.php';
                 ?>
+            </div>
+        </div>
+    </div>
+    <div class="card shadow-sm border-0 mb-3 border-start border-4 border-primary">
+        <div class="card-body">
+            <h2 class="h6 mb-2">WA kedatangan setelah libur</h2>
+            <p class="small text-muted mb-2">Scan di menu Ketertiban → Absen kedatangan. Laporan ke pengurus dikirim tombol di halaman itu. Nomor pengurus: Akun/nomor peran kedatangan, atau fallback izin putra/putri.</p>
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" name="wa_kedatangan_libur_wali_enabled" id="wa_kedatangan_libur_wali_enabled" value="1" <?= !empty($waKedatanganWaliOn) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="wa_kedatangan_libur_wali_enabled">Kirim WA ke wali saat scan kedatangan berhasil</label>
             </div>
         </div>
     </div>

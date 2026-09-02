@@ -697,6 +697,11 @@ function pondok_settings_defaults(): array
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
         'wa_izin_wali_enabled' => '1',
+        'kedatangan_libur_jam_mulai' => '07:00',
+        'kedatangan_libur_jam_selesai' => '16:00',
+        'wa_kedatangan_libur_wali_enabled' => '1',
+        'wa_kedatangan_pengurus_putra' => '',
+        'wa_kedatangan_pengurus_putri' => '',
         'wa_pembayaran_wali_enabled' => '1',
         'stampel_surat_path' => '',
         'stampel_kuitansi_path' => '',
@@ -805,6 +810,30 @@ function akademik_libur_presensi_filter_sql_by_mode(string $mode, string $katego
         return ' AND 1 = 0 ';
     }
     return '';
+}
+
+/**
+ * Filter slot dashboard saat hari libur di grid kalender.
+ * Mode parsial (blokir nyala) mengikuti scan; libur kalender tanpa blokir disembunyikan semua.
+ */
+function akademik_libur_dashboard_filter_sql(
+    PDO $pdo,
+    string $tanggal,
+    string $kategoriExpr = 'COALESCE(k.kategori_kegiatan, "TAALIM")'
+): string {
+    if (!function_exists('akademik_libur_presensi_tampilan')) {
+        require_once __DIR__ . '/akademik.php';
+    }
+    $tampil = akademik_libur_presensi_tampilan($pdo, $tanggal);
+    if ($tampil === null) {
+        return '';
+    }
+    $mode = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
+    if ($mode === null) {
+        $mode = 'ALL_BLOCKED';
+    }
+
+    return akademik_libur_presensi_filter_sql_by_mode($mode, $kategoriExpr);
 }
 
 /** Nomor penerima notifikasi alpa otomatis per kelompok putra/putri. */

@@ -56,7 +56,12 @@ $heroId = 'khHero-' . $panelSlug;
             <div class="dash-empty-chart__inner">
                 <div class="dash-empty-chart__icon display-6 opacity-50" aria-hidden="true"><i class="fa-regular fa-calendar"></i></div>
                 <?php if ($panelIsLive): ?>
+                    <?php $liburNamaPanel = trim((string) (is_array($liburTampil ?? null) ? ($liburTampil['nama'] ?? '') : '')); ?>
+                    <?php if ($liburNamaPanel !== ''): ?>
+                    <p class="mb-0 fw-semibold"><?= htmlspecialchars('Hari libur: ' . $liburNamaPanel) ?></p>
+                    <?php else: ?>
                     <p class="mb-0 fw-semibold">Tidak ada kegiatan <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> pukul <span data-pg-sync-clock="hm"><?= htmlspecialchars($jamServerLabel) ?></span>.</p>
+                    <?php endif; ?>
                 <?php elseif ($panelIsProgress): ?>
                     <p class="mb-0 fw-semibold">Belum ada presensi <?= htmlspecialchars((string) ($panel['label'] ?? '')) ?> yang selesai hari ini.</p>
                 <?php else: ?>

@@ -844,6 +844,32 @@
     border: 2px solid transparent;
 }
 
+.presensi-scan-result-card.has-photo {
+    align-items: center;
+}
+
+.presensi-scan-result-photo {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid rgba(22, 163, 74, 0.4);
+    background: #fff;
+}
+
+.presensi-scan-result--duplicate .presensi-scan-result-photo {
+    border-color: rgba(234, 88, 12, 0.4);
+}
+
+.presensi-scan-result-nama {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-top: 0.2rem;
+    opacity: 0.92;
+}
+
 .presensi-scan-result--success {
     background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
     border-color: #16a34a;

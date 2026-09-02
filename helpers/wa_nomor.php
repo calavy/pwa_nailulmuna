@@ -64,6 +64,18 @@ function wa_nomor_peran_definitions(): array
             'desc' => 'Pengurus izin khusus putri',
             'group' => 'Perizinan',
         ],
+        'kedatangan_putra' => [
+            'label' => 'Kedatangan libur putra',
+            'setting' => 'wa_kedatangan_pengurus_putra',
+            'desc' => 'Laporan sudah/belum datang (putra); kosong = nomor izin putra',
+            'group' => 'Ketertiban',
+        ],
+        'kedatangan_putri' => [
+            'label' => 'Kedatangan libur putri',
+            'setting' => 'wa_kedatangan_pengurus_putri',
+            'desc' => 'Laporan sudah/belum datang (putri); kosong = nomor izin putri',
+            'group' => 'Ketertiban',
+        ],
         'cashless' => [
             'label' => 'Cashless / laporan',
             'setting' => 'cashless_laporan_harian_wa_targets',

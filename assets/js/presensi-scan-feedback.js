@@ -460,10 +460,14 @@
         var message = speakAttr || (textEl ? textEl.textContent : '');
 
         var normalized = normalizeType(type, message);
+        var extra = {
+            photoUrl: (el.getAttribute('data-foto') || '').trim(),
+            nama: (el.getAttribute('data-nama') || '').trim(),
+        };
         runWhenUnlocked(function () {
             playFeedback(type, message);
         });
-        showOverlayResult(normalized, message);
+        showOverlayResult(normalized, message, extra);
         setBanner(normalized, message);
         setFlashMessage(message, normalized);
     }
@@ -560,7 +564,25 @@
         }, type === 'success' ? 5500 : 6500);
     }
 
-    function showOverlayResult(type, message) {
+    function overlayExtra(extra) {
+        extra = extra && typeof extra === 'object' ? extra : {};
+        return {
+            photoUrl: String(extra.photoUrl || extra.foto_url || '').trim(),
+            nama: String(extra.nama || extra.nama_santri || '').trim(),
+        };
+    }
+
+    function overlayVisualHtml(type, extra, meta) {
+        var showPhoto = extra.photoUrl && (type === 'success' || type === 'duplicate');
+        if (showPhoto) {
+            return '<img class="presensi-scan-result-photo" src="' + escapeHtml(extra.photoUrl)
+                + '" alt="" width="96" height="96" onerror="this.style.display=\'none\'">';
+        }
+        return '<span class="presensi-scan-result-icon"><i class="fa-solid ' + meta.icon + '"></i></span>';
+    }
+
+    function showOverlayResult(type, message, extra) {
+        extra = overlayExtra(extra);
         type = normalizeType(type, message);
         var old = document.getElementById('presensi-result-overlay');
         if (old && old.parentNode) {
@@ -574,10 +596,16 @@
         wrap.style.pointerEvents = 'none';
         var duration = type === 'success' ? 3500 : (type === 'duplicate' ? 3500 : (type === 'info' ? 3800 : 4200));
         var displayMessage = shortDisplayMessage(type, message);
+        var cardClass = 'presensi-scan-result-card ' + meta.toneClass + (extra.photoUrl && (type === 'success' || type === 'duplicate') ? ' has-photo' : '');
+        var textHtml = '<div class="presensi-scan-result-text">' + escapeHtml(displayMessage);
+        if (extra.nama && (type === 'success' || type === 'duplicate')) {
+            textHtml += '<div class="presensi-scan-result-nama">' + escapeHtml(extra.nama) + '</div>';
+        }
+        textHtml += '</div>';
         wrap.innerHTML = ''
-            + '<div class="presensi-scan-result-card ' + meta.toneClass + '">'
-            + '  <span class="presensi-scan-result-icon"><i class="fa-solid ' + meta.icon + '"></i></span>'
-            + '  <div class="presensi-scan-result-text">' + escapeHtml(displayMessage) + '</div>'
+            + '<div class="' + cardClass + '">'
+            + overlayVisualHtml(type, extra, meta)
+            + textHtml
             + '</div>';
         document.body.appendChild(wrap);
         setTimeout(function () {
@@ -590,9 +618,9 @@
         }, duration);
     }
 
-    function showResult(type, message) {
+    function showResult(type, message, extra) {
         playFeedback(type, message);
-        showOverlayResult(type, message);
+        showOverlayResult(type, message, extra);
         setBanner(type, message);
         setFlashMessage(message, type);
     }

@@ -235,6 +235,8 @@ function user_permission_path_map_base(): array
         '/data/wali.php' => 'santri_index',
         '/settings/akses_mukimin.php' => 'santri_index',
         '/presensi/scan.php' => 'presensi_scan',
+        '/presensi/kedatangan.php' => 'presensi_scan',
+        '/presensi/kedatangan_scan.php' => 'presensi_scan',
         '/presensi/kegiatan_khusus.php' => 'presensi_scan',
         '/presensi/rekap_tanpa_scan.php' => 'rekap_keaktifan',
         '/api/presensi/kegiatan_slot_santri.php' => 'rekap_keaktifan',

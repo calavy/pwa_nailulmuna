@@ -253,6 +253,7 @@ function dashboard_idle_panel_data(
     $out['presensi'] = yayasan_dashboard_presensi_hari($pdo, $today);
 
     if (table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        ensure_kegiatan_kategori_column($pdo);
         $hariKe = (int) date('N', strtotime($today));
         $whereTk = '';
         $params = [$hariKe, $nowTime];
@@ -263,12 +264,13 @@ function dashboard_idle_panel_data(
                 $params[] = $tk;
             }
         }
+        $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, $today);
         $st = $pdo->prepare(
             'SELECT k.nama_kegiatan, j.tingkatan, j.jam_mulai, j.jam_selesai, COALESCE(j.tempat, "") AS tempat
              FROM jadwal_kegiatan j
              INNER JOIN kegiatan k ON k.id = j.kegiatan_id AND k.is_active = 1
              WHERE (j.hari_ke = 0 OR j.hari_ke = ?)
-               AND j.jam_mulai > ?' . $whereTk . '
+               AND j.jam_mulai > ?' . $whereTk . $liburFilterSql . '
              ORDER BY j.jam_mulai ASC
              LIMIT 3'
         );

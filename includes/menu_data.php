@@ -71,6 +71,8 @@ return [
         '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
         '/pembimbing/perizinan.php' => 'Izin pembimbing',
         '/presensi/scan.php' => 'Scan Presensi',
+        '/presensi/kedatangan.php' => 'Absen kedatangan',
+        '/presensi/kedatangan_scan.php' => 'Scan kedatangan',
         '/presensi/kegiatan_khusus.php' => 'Kegiatan Khusus (Sekali Pakai)',
         '/presensi/rekap_tanpa_scan.php' => 'Jadwal Tanpa Scan',
         '/jadwal/index.php' => 'Jadwal',
@@ -261,6 +263,10 @@ return [
                 '/presensi/scan.php',
                 '/presensi/kegiatan_khusus.php',
                 '/presensi/rekap_tanpa_scan.php',
+            ]],
+            ['title' => 'Absen kedatangan', 'paths' => [
+                '/presensi/kedatangan.php',
+                '/presensi/kedatangan_scan.php',
             ]],
             ['title' => 'Rekap', 'paths' => [
                 '/rekap/presensi.php',

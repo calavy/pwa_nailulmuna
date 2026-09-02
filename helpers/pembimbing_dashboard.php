@@ -1177,7 +1177,10 @@ function pembimbing_dashboard_kegiatan_aktif(
     ?int $pembimbingId = null
 ): array {
     $out = [];
+    $tanggal = date('Y-m-d');
+    $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, $tanggal);
     if ($tingkatanList !== [] && table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        ensure_kegiatan_kategori_column($pdo);
         [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
         $params['hari'] = $hariKe;
         $params['jam'] = $jamSekarang;
@@ -1198,6 +1201,7 @@ function pembimbing_dashboard_kegiatan_aktif(
               AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
               AND COALESCE(k.is_active, 1) = 1
               AND (j.tingkatan = "Semua Tingkatan" OR j.tingkatan IN (' . $inSql . '))
+              ' . $liburFilterSql . '
             ORDER BY j.jam_mulai ASC, j.tingkatan ASC
         ';
         $st = $pdo->prepare($sql);
@@ -1208,6 +1212,7 @@ function pembimbing_dashboard_kegiatan_aktif(
     if ($pembimbingId !== null && $pembimbingId > 0 && table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'kegiatan')) {
         require_once __DIR__ . '/pembimbing_pkpps.php';
         pkpps_ensure_schema($pdo);
+        ensure_kegiatan_kategori_column($pdo);
         $stPk = $pdo->prepare('
             SELECT k.id AS kegiatan_id, k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat,
                    j.pembimbing_id, p.nama_pembimbing
@@ -1219,6 +1224,7 @@ function pembimbing_dashboard_kegiatan_aktif(
               AND (j.hari_ke = 0 OR j.hari_ke = :hari)
               AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
               AND COALESCE(k.is_active, 1) = 1
+              ' . $liburFilterSql . '
             ORDER BY j.jam_mulai ASC, t.urutan ASC
         ');
         $stPk->execute(['pid' => $pembimbingId, 'hari' => $hariKe, 'jam' => $jamSekarang]);
@@ -1418,7 +1424,10 @@ function pembimbing_dashboard_kegiatan_mendekati(
     ?int $pembimbingId = null
 ): array {
     $out = [];
+    $tanggal = date('Y-m-d');
+    $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, $tanggal);
     if ($tingkatanList !== [] && table_exists($pdo, 'jadwal_kegiatan') && table_exists($pdo, 'kegiatan')) {
+        ensure_kegiatan_kategori_column($pdo);
         [$inSql, $params] = pembimbing_dashboard_in_clause($tingkatanList, 'tk');
         $params['hari'] = $hariKe;
         $params['jam'] = $jamSekarang;
@@ -1435,6 +1444,7 @@ function pembimbing_dashboard_kegiatan_mendekati(
               AND j.jam_mulai > :jam
               AND COALESCE(k.is_active, 1) = 1
               AND (j.tingkatan = "Semua Tingkatan" OR j.tingkatan IN (' . $inSql . '))
+              ' . $liburFilterSql . '
             ORDER BY j.jam_mulai ASC, j.tingkatan ASC
             LIMIT ' . max(1, min(20, $limit)) . '
         ';
@@ -1446,6 +1456,7 @@ function pembimbing_dashboard_kegiatan_mendekati(
     if ($pembimbingId !== null && $pembimbingId > 0 && table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'kegiatan')) {
         require_once __DIR__ . '/pembimbing_pkpps.php';
         pkpps_ensure_schema($pdo);
+        ensure_kegiatan_kategori_column($pdo);
         $stPk = $pdo->prepare('
             SELECT k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat
             FROM pkpps_jadwal j
@@ -1455,6 +1466,7 @@ function pembimbing_dashboard_kegiatan_mendekati(
               AND (j.hari_ke = 0 OR j.hari_ke = :hari)
               AND j.jam_mulai > :jam
               AND COALESCE(k.is_active, 1) = 1
+              ' . $liburFilterSql . '
             ORDER BY j.jam_mulai ASC, t.urutan ASC
             LIMIT ' . max(1, min(20, $limit)) . '
         ');
