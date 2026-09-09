@@ -3065,8 +3065,36 @@ body.app-page-leaving .app-main {
 .table-responsive {
     border-radius: var(--radius-md);
     border: 1px solid var(--card-border);
-    overflow: hidden;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
     background: rgba(255, 255, 255, 0.45);
+}
+
+.kedatangan-daftar-scroll {
+    max-height: min(28rem, 70dvh);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.pg-pengasuh-izin-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    min-width: 8.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.pg-pengasuh-izin-actions .btn {
+    min-height: 44px;
+    font-weight: 600;
+}
+
+@media (min-width: 768px) {
+    .pg-pengasuh-izin-actions {
+        align-items: flex-end;
+    }
 }
 
 [data-theme="dark"] .table-responsive {

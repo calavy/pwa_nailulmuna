@@ -401,27 +401,29 @@ function kedatangan_libur_keterangan_scan(array $row, array $sesi): string
     return '';
 }
 
-/** CSV rekap satu sesi (UTF-8 BOM): sudah datang + belum datang. */
-function kedatangan_libur_export_csv(PDO $pdo, int $sesiId): string
+/**
+ * Baris rekap satu sesi: info libur/tanggal/jam lalu sudah datang + belum datang.
+ *
+ * @return list<list<string>>
+ */
+function kedatangan_libur_export_rows(PDO $pdo, int $sesiId): array
 {
     $sesi = kedatangan_libur_sesi_by_id($pdo, $sesiId);
     if ($sesi === null) {
-        return '';
+        return [];
     }
     $datang = kedatangan_libur_daftar_datang($pdo, $sesiId);
     $belum = kedatangan_libur_daftar_belum($pdo, $sesiId);
-    $out = fopen('php://temp', 'r+');
-    if ($out === false) {
-        return '';
-    }
     $namaLibur = trim((string) ($sesi['nama_libur'] ?? $sesi['nama'] ?? 'Sesi'));
-    fputcsv($out, ['Libur', $namaLibur]);
-    fputcsv($out, ['Tanggal', app_format_tanggal_id((string) ($sesi['tanggal'] ?? ''))]);
-    fputcsv($out, ['Jam', app_format_jam_rentang((string) ($sesi['jam_mulai'] ?? ''), (string) ($sesi['jam_selesai'] ?? ''))]);
-    fputcsv($out, []);
-    fputcsv($out, ['Status', 'NIS', 'Nama', 'Tingkatan', 'Kelompok', 'Jam', 'Keterangan']);
+    $rows = [
+        ['Libur', $namaLibur],
+        ['Tanggal', app_format_tanggal_id((string) ($sesi['tanggal'] ?? ''))],
+        ['Jam', app_format_jam_rentang((string) ($sesi['jam_mulai'] ?? ''), (string) ($sesi['jam_selesai'] ?? ''))],
+        [],
+        ['Status', 'NIS', 'Nama', 'Tingkatan', 'Kelompok', 'Jam', 'Keterangan'],
+    ];
     foreach ($datang as $row) {
-        fputcsv($out, [
+        $rows[] = [
             'Datang',
             (string) ($row['nis'] ?? ''),
             (string) ($row['nama_santri'] ?? ''),
@@ -429,10 +431,10 @@ function kedatangan_libur_export_csv(PDO $pdo, int $sesiId): string
             kedatangan_libur_is_putri((string) ($row['jenis_kelamin'] ?? '')) ? 'Putri' : 'Putra',
             app_format_jam((string) ($row['jam'] ?? '')),
             kedatangan_libur_keterangan_scan($row, $sesi),
-        ]);
+        ];
     }
     foreach ($belum as $row) {
-        fputcsv($out, [
+        $rows[] = [
             'Belum',
             (string) ($row['nis'] ?? ''),
             (string) ($row['nama_santri'] ?? ''),
@@ -440,7 +442,25 @@ function kedatangan_libur_export_csv(PDO $pdo, int $sesiId): string
             kedatangan_libur_is_putri((string) ($row['jenis_kelamin'] ?? '')) ? 'Putri' : 'Putra',
             '',
             '',
-        ]);
+        ];
+    }
+
+    return $rows;
+}
+
+/** CSV rekap satu sesi (UTF-8 BOM): sudah datang + belum datang. */
+function kedatangan_libur_export_csv(PDO $pdo, int $sesiId): string
+{
+    $rows = kedatangan_libur_export_rows($pdo, $sesiId);
+    if ($rows === []) {
+        return '';
+    }
+    $out = fopen('php://temp', 'r+');
+    if ($out === false) {
+        return '';
+    }
+    foreach ($rows as $row) {
+        fputcsv($out, $row);
     }
     rewind($out);
     $csv = stream_get_contents($out);

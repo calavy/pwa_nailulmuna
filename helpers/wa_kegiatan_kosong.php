@@ -477,3 +477,217 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
         }
     }
 }
+
+function wa_rekap_tanpa_scan_pengurus_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_enabled', '1')) === '1';
+}
+
+function wa_rekap_tanpa_scan_pengurus_jam(PDO $pdo): string
+{
+    $raw = trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_jam', '21:00'));
+    if (!function_exists('app_normalize_jam_hm')) {
+        require_once __DIR__ . '/datetime_display.php';
+    }
+    $jam = app_normalize_jam_hm($raw);
+
+    return $jam !== '' ? $jam : '21:00';
+}
+
+function wa_rekap_tanpa_scan_pengurus_targets(PDO $pdo): string
+{
+    require_once __DIR__ . '/wa_nomor.php';
+    $fromTable = wa_nomor_targets($pdo, 'pengurus');
+    if ($fromTable !== '') {
+        return $fromTable;
+    }
+    $pengurus = trim((string) app_setting($pdo, 'wa_pengurus', ''));
+    if ($pengurus !== '') {
+        return $pengurus;
+    }
+
+    return wa_petugas_pendidikan_target($pdo);
+}
+
+function wa_rekap_tanpa_scan_pengurus_jam_ok(PDO $pdo, ?string $nowHm = null): bool
+{
+    $nowHm = $nowHm ?? date('H:i');
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', $nowHm, $nm)) {
+        return false;
+    }
+    if (!preg_match('/^(\d{1,2}):(\d{2})$/', wa_rekap_tanpa_scan_pengurus_jam($pdo), $jm)) {
+        return false;
+    }
+    $nowMinutes = ((int) $nm[1]) * 60 + (int) $nm[2];
+    $jamMinutes = ((int) $jm[1]) * 60 + (int) $jm[2];
+
+    return $nowMinutes >= $jamMinutes;
+}
+
+/**
+ * @param array{jam?:string,nama_kegiatan?:string,nama_pembimbing?:string} $row
+ */
+function wa_rekap_tanpa_scan_format_baris(array $row): string
+{
+    $jam = trim((string) ($row['jam'] ?? ''));
+    $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+    $pb = trim((string) ($row['nama_pembimbing'] ?? ''));
+    $line = $jam !== '' ? ($jam . ' ' . $nama) : $nama;
+    if ($pb !== '' && $pb !== '-') {
+        $line .= ' — ' . $pb;
+    }
+
+    return '- ' . trim($line);
+}
+
+/**
+ * @param list<array<string, mixed>> $baris
+ */
+function wa_rekap_tanpa_scan_format_kelompok(array $baris): string
+{
+    if ($baris === []) {
+        return '(tidak ada)';
+    }
+    $lines = [];
+    foreach ($baris as $row) {
+        $lines[] = wa_rekap_tanpa_scan_format_baris($row);
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Teks penuh {daftar_kegiatan}: Ta'lim lalu Jama'ah.
+ *
+ * @param array{TAALIM?:list<array<string,mixed>>,JAMAAH?:list<array<string,mixed>>} $kelompok
+ */
+function wa_rekap_tanpa_scan_pengurus_format_daftar_kelompok(array $kelompok): string
+{
+    $taalim = $kelompok['TAALIM'] ?? [];
+    $jamaah = $kelompok['JAMAAH'] ?? [];
+    $parts = [];
+    $parts[] = "*Ta'lim* (" . count($taalim) . ")\n" . wa_rekap_tanpa_scan_format_kelompok($taalim);
+    $parts[] = "*Jama'ah* (" . count($jamaah) . ")\n" . wa_rekap_tanpa_scan_format_kelompok($jamaah);
+
+    return implode("\n\n", $parts);
+}
+
+/**
+ * @param list<string> $namaList
+ */
+function wa_rekap_tanpa_scan_pengurus_format_daftar(array $namaList): string
+{
+    if ($namaList === []) {
+        return '(tidak ada)';
+    }
+    $lines = [];
+    foreach ($namaList as $nama) {
+        $nama = trim($nama);
+        if ($nama === '') {
+            continue;
+        }
+        $lines[] = '- ' . $nama;
+    }
+
+    return $lines !== [] ? implode("\n", $lines) : '(tidak ada)';
+}
+
+/**
+ * @return array{ok:bool, message:string, sent?:int, skipped?:bool}
+ */
+function wa_kirim_rekap_kegiatan_tanpa_scan_pengurus(PDO $pdo, string $tanggal, bool $paksa = false): array
+{
+    $tanggal = trim($tanggal);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return ['ok' => false, 'message' => 'Tanggal rekap tidak valid.'];
+    }
+    if (!wa_otomatis_should_run($pdo, 'presensi') && !wa_otomatis_should_run($pdo, 'general')) {
+        return ['ok' => false, 'message' => 'WA otomatis sedang nonaktif.'];
+    }
+    $gwErr = wa_otomatis_gateway_error($pdo);
+    if ($gwErr !== null) {
+        return ['ok' => false, 'message' => 'Gateway WA belum siap.'];
+    }
+
+    require_once __DIR__ . '/rekap_keaktifan.php';
+    require_once __DIR__ . '/wa_templates.php';
+
+    $baris = rekap_kegiatan_tanpa_scan_baris_hari($pdo, $tanggal);
+    if ($baris === [] && !$paksa) {
+        return [
+            'ok' => true,
+            'message' => 'Tidak ada kegiatan tanpa scan pada ' . app_format_tanggal_id($tanggal) . '.',
+            'sent' => 0,
+            'skipped' => true,
+        ];
+    }
+
+    $targets = wa_rekap_tanpa_scan_pengurus_targets($pdo);
+    if ($targets === '') {
+        return ['ok' => false, 'message' => 'Nomor pengurus belum diatur (WA → Akun/nomor peran Pengurus, atau fallback petugas pendidikan).'];
+    }
+
+    $kelompok = rekap_kegiatan_tanpa_scan_kelompokkan($baris);
+    $taalim = $kelompok['TAALIM'] ?? [];
+    $jamaah = $kelompok['JAMAAH'] ?? [];
+    $msg = wa_template_render($pdo, 'rekap_kegiatan_tanpa_scan_pengurus', [
+        'tanggal' => app_format_tanggal_id($tanggal),
+        'jumlah' => (string) count($baris),
+        'jumlah_taalim' => (string) count($taalim),
+        'jumlah_jamaah' => (string) count($jamaah),
+        'daftar_taalim' => wa_rekap_tanpa_scan_format_kelompok($taalim),
+        'daftar_jamaah' => wa_rekap_tanpa_scan_format_kelompok($jamaah),
+        'daftar_kegiatan' => wa_rekap_tanpa_scan_pengurus_format_daftar_kelompok($kelompok),
+        'nama_ponpes' => app_brand_nama_ponpes($pdo),
+    ]);
+    $opts = [
+        'kind' => 'presensi',
+        'dedup_key' => 'rekap_tanpa_scan:' . $tanggal,
+        'dedup_key_once' => true,
+    ];
+    if ($paksa) {
+        $opts['skip_dedup'] = true;
+    }
+    $res = wa_otomatis_send_bulk($pdo, $targets, $msg, $opts);
+    $sent = (int) ($res['sent'] ?? 0);
+    $failed = (int) ($res['failed'] ?? 0);
+    if ($sent > 0) {
+        save_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_date', $tanggal);
+        save_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_sent_at', date('Y-m-d H:i:s'));
+        save_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_error', '');
+    } elseif ($failed > 0 || !empty($res['error'])) {
+        save_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_error', trim((string) ($res['error'] ?? 'Gagal mengirim.')));
+    }
+
+    if ($sent === 0) {
+        $blocked = trim((string) ($res['error'] ?? ''));
+
+        return [
+            'ok' => false,
+            'message' => $blocked !== '' ? $blocked : 'Gagal mengirim rekap ke pengurus.',
+            'sent' => 0,
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'Rekap ' . app_format_tanggal_id($tanggal) . ' terkirim (' . count($baris) . ' kegiatan) ke ' . $sent . ' nomor.',
+        'sent' => $sent,
+    ];
+}
+
+function wa_cron_rekap_kegiatan_tanpa_scan_pengurus(PDO $pdo): void
+{
+    if (!wa_rekap_tanpa_scan_pengurus_enabled($pdo)) {
+        return;
+    }
+    if (!wa_rekap_tanpa_scan_pengurus_jam_ok($pdo)) {
+        return;
+    }
+    $today = date('Y-m-d');
+    $last = trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_date', ''));
+    if ($last === $today) {
+        return;
+    }
+    wa_kirim_rekap_kegiatan_tanpa_scan_pengurus($pdo, $today, false);
+}

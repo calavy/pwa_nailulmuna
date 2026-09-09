@@ -1308,11 +1308,13 @@ function rekap_keaktifan_kegiatan_tanpa_scan_bulan(
         $out[] = [
             'kegiatan_id' => $kid,
             'nama_kegiatan' => (string) ($slot['nama_kegiatan'] ?? ('Kegiatan #' . $kid)),
+            'kategori_kegiatan' => (string) ($katMap[$kid] ?? 'TAALIM'),
             'tanggal' => $tanggal,
             'tanggal_tampil' => (string) ($slot['tanggal_tampil'] ?? ''),
             'tanggal_hijri' => (string) ($slot['tanggal_hijri'] ?? ''),
             'hari' => (string) ($slot['hari'] ?? ''),
             'jam' => (string) ($slot['jam'] ?? ''),
+            'jam_mulai' => (string) ($slot['jam_mulai'] ?? ''),
             'hari_terjadwal' => 1,
             'slot_jadwal' => 1,
             'jumlah_tidak_scan' => 1,
@@ -1410,6 +1412,189 @@ function rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan(array $slotRows):
     unset($row);
 
     return $out;
+}
+
+/**
+ * Pembimbing per kegiatan+jam pada tanggal (hari_ke jadwal).
+ *
+ * @param list<int> $kegiatanIds
+ * @return array<string, list<string>> kunci kegiatan_id|HH:MM
+ */
+function rekap_kegiatan_tanpa_scan_pembimbing_map(PDO $pdo, string $tanggal, array $kegiatanIds): array
+{
+    $ids = [];
+    foreach ($kegiatanIds as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    $ids = array_values($ids);
+    if ($ids === [] || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    $joinPb = '';
+    $selectPb = '"" AS nama_pembimbing';
+    if (table_exists($pdo, 'pembimbing') && column_exists($pdo, 'jadwal_kegiatan', 'pembimbing_id')) {
+        $joinPb = 'LEFT JOIN pembimbing p ON p.id = j.pembimbing_id';
+        $selectPb = 'COALESCE(p.nama_pembimbing, "") AS nama_pembimbing';
+    }
+    $hariKe = (int) date('N', strtotime($tanggal) ?: time());
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $sql = '
+        SELECT j.kegiatan_id, j.jam_mulai, ' . $selectPb . '
+        FROM jadwal_kegiatan j
+        ' . $joinPb . '
+        WHERE j.kegiatan_id IN (' . $ph . ')
+          AND (j.hari_ke = 0 OR j.hari_ke = ?)
+    ';
+    $st = $pdo->prepare($sql);
+    $st->execute([...$ids, $hariKe]);
+    /** @var array<string, list<string>> $map */
+    $map = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        $jamKey = substr((string) ($row['jam_mulai'] ?? ''), 0, 5);
+        if ($kid <= 0 || $jamKey === '') {
+            continue;
+        }
+        $nama = trim((string) ($row['nama_pembimbing'] ?? ''));
+        if ($nama === '' || $nama === '-') {
+            continue;
+        }
+        $key = $kid . '|' . $jamKey;
+        if (!isset($map[$key])) {
+            $map[$key] = [];
+        }
+        if (!in_array($nama, $map[$key], true)) {
+            $map[$key][] = $nama;
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * Baris rekap 1 hari: kegiatan + jam + pembimbing, unik per kegiatan/jam.
+ *
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,jam:string,jam_sort:string,nama_pembimbing:string,kategori:string}>
+ */
+function rekap_kegiatan_tanpa_scan_baris_hari(PDO $pdo, string $tanggal): array
+{
+    $tanggal = trim($tanggal);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return [];
+    }
+    if (!function_exists('kegiatan_kategori_normalize')) {
+        require_once __DIR__ . '/kegiatan_kategori.php';
+    }
+    $slots = rekap_keaktifan_kegiatan_tanpa_scan_bulan($pdo, $tanggal, $tanggal);
+    $kids = [];
+    foreach ($slots as $slot) {
+        $kid = (int) ($slot['kegiatan_id'] ?? 0);
+        if ($kid > 0) {
+            $kids[$kid] = $kid;
+        }
+    }
+    $pbMap = rekap_kegiatan_tanpa_scan_pembimbing_map($pdo, $tanggal, array_values($kids));
+
+    /** @var array<string, array{kegiatan_id:int,nama_kegiatan:string,jam:string,jam_sort:string,nama_pembimbing:string,kategori:string,pb:list<string>}> $byKey */
+    $byKey = [];
+    foreach ($slots as $slot) {
+        $kid = (int) ($slot['kegiatan_id'] ?? 0);
+        $nama = trim((string) ($slot['nama_kegiatan'] ?? ''));
+        if ($kid <= 0 || $nama === '') {
+            continue;
+        }
+        $jamSort = substr((string) ($slot['jam_mulai'] ?? $slot['jam'] ?? ''), 0, 5);
+        $jamLabel = trim((string) ($slot['jam'] ?? $jamSort));
+        $kat = kegiatan_kategori_normalize((string) ($slot['kategori_kegiatan'] ?? 'TAALIM'));
+        if ($kat !== 'JAMAAH') {
+            $kat = 'TAALIM';
+        }
+        $key = $kid . '|' . $jamSort;
+        if (!isset($byKey[$key])) {
+            $byKey[$key] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => $nama,
+                'jam' => $jamLabel !== '' ? $jamLabel : $jamSort,
+                'jam_sort' => $jamSort,
+                'nama_pembimbing' => '',
+                'kategori' => $kat,
+                'pb' => [],
+            ];
+        }
+        foreach ($pbMap[$key] ?? [] as $pbNama) {
+            if (!in_array($pbNama, $byKey[$key]['pb'], true)) {
+                $byKey[$key]['pb'][] = $pbNama;
+            }
+        }
+    }
+
+    $out = [];
+    foreach ($byKey as $row) {
+        $row['nama_pembimbing'] = $row['pb'] !== [] ? implode(', ', $row['pb']) : '-';
+        unset($row['pb']);
+        $out[] = $row;
+    }
+    usort($out, static function (array $a, array $b): int {
+        $katOrd = ['TAALIM' => 0, 'JAMAAH' => 1];
+        $cmp = ($katOrd[$a['kategori'] ?? 'TAALIM'] ?? 2) <=> ($katOrd[$b['kategori'] ?? 'TAALIM'] ?? 2);
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+        $cmp = strcmp((string) ($a['jam_sort'] ?? ''), (string) ($b['jam_sort'] ?? ''));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+
+        return strcmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+
+    return $out;
+}
+
+/**
+ * @param list<array{kategori?:string}> $baris
+ * @return array{TAALIM:list<array<string,mixed>>,JAMAAH:list<array<string,mixed>>}
+ */
+function rekap_kegiatan_tanpa_scan_kelompokkan(array $baris): array
+{
+    $out = ['TAALIM' => [], 'JAMAAH' => []];
+    foreach ($baris as $row) {
+        $kat = (string) ($row['kategori'] ?? 'TAALIM');
+        if ($kat !== 'JAMAAH') {
+            $kat = 'TAALIM';
+        }
+        $out[$kat][] = $row;
+    }
+
+    return $out;
+}
+
+/**
+ * Nama kegiatan unik tanpa scan hadir pada satu tanggal (slot jam sudah lewat).
+ *
+ * @return list<string>
+ */
+function rekap_kegiatan_tanpa_scan_nama_hari(PDO $pdo, string $tanggal): array
+{
+    $names = [];
+    $seen = [];
+    foreach (rekap_kegiatan_tanpa_scan_baris_hari($pdo, $tanggal) as $row) {
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            continue;
+        }
+        $key = function_exists('mb_strtolower') ? mb_strtolower($nama, 'UTF-8') : strtolower($nama);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $names[] = $nama;
+    }
+
+    return $names;
 }
 
 /** Total slot waktu tanpa scan (bukan jumlah kegiatan, tingkatan, atau santri). */

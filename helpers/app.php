@@ -652,6 +652,8 @@ function pondok_settings_defaults(): array
         'wa_kelas_kosong_batas_kali' => '3',
         'wa_kelas_kosong_target_1' => '',
         'wa_kelas_kosong_target_3' => '',
+        'wa_rekap_tanpa_scan_pengurus_enabled' => '1',
+        'wa_rekap_tanpa_scan_pengurus_jam' => '21:00',
         'wa_presensi_grup_fonte' => '',
         'wa_presensi_grup_fonte_enabled' => '1',
         'wa_presensi_kirim_pembimbing_enabled' => '1',

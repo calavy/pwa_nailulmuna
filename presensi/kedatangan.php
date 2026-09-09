@@ -65,16 +65,22 @@ if ($sesi !== null) {
     $sesiId = 0;
 }
 
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+$exportKind = strtolower(trim((string) ($_GET['export'] ?? '')));
+if ($exportKind === 'csv' || $exportKind === 'xlsx') {
     if ($sesi === null) {
-        set_flash('error', 'Pilih sesi kedatangan dulu sebelum mengunduh CSV.');
+        set_flash('error', 'Pilih sesi kedatangan dulu sebelum mengunduh rekap.');
         header('Location: ' . app_href('/presensi/kedatangan.php'));
         exit;
     }
     $tglFile = preg_replace('/[^0-9\-]/', '', (string) ($sesi['tanggal'] ?? '')) ?: date('Y-m-d');
-    $fn = 'kedatangan-libur-' . $sesiId . '-' . $tglFile . '.csv';
+    $fnBase = 'kedatangan-libur-' . $sesiId . '-' . $tglFile;
+    if ($exportKind === 'xlsx') {
+        require_once __DIR__ . '/../helpers/excel.php';
+        send_xlsx_download($fnBase . '.xlsx', kedatangan_libur_export_rows($pdo, $sesiId), 'Kedatangan');
+        exit;
+    }
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="' . $fn . '"');
+    header('Content-Disposition: attachment; filename="' . $fnBase . '.csv"');
     echo kedatangan_libur_export_csv($pdo, $sesiId);
     exit;
 }
@@ -225,6 +231,9 @@ require_once __DIR__ . '/../includes/header.php';
             <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/presensi/kedatangan.php?sesi=' . $sesiId . '&export=csv')) ?>">
                 <i class="fa-solid fa-file-csv me-1"></i>Unduh CSV
             </a>
+            <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/presensi/kedatangan.php?sesi=' . $sesiId . '&export=xlsx')) ?>">
+                <i class="fa-solid fa-file-excel me-1"></i>Unduh Excel
+            </a>
         </div>
         <p class="small text-muted mt-2 mb-0">Nomor pengurus: pengaturan WA → Akun/nomor (peran kedatangan), atau fallback nomor izin putra/putri. Template bisa diedit di tab Template.</p>
     </div>
@@ -238,7 +247,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($datang === []): ?>
                     <p class="small text-muted mb-0">Belum ada scan.</p>
                 <?php else: ?>
-                    <div class="table-responsive" style="max-height: 28rem;">
+                    <div class="table-responsive kedatangan-daftar-scroll">
                         <table class="table table-sm align-middle mb-0">
                             <thead><tr><th>Nama</th><th>Tingkatan</th><th>Jam</th></tr></thead>
                             <tbody>
@@ -279,7 +288,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($belum === []): ?>
                     <p class="small text-muted mb-0">Semua santri aktif sudah dicatat, atau belum ada data santri aktif.</p>
                 <?php else: ?>
-                    <div class="table-responsive" style="max-height: 28rem;">
+                    <div class="table-responsive kedatangan-daftar-scroll">
                         <table class="table table-sm align-middle mb-0">
                             <thead><tr><th>Nama</th><th>Tingkatan</th></tr></thead>
                             <tbody>

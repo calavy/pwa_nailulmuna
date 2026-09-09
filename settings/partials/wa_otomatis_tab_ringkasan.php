@@ -116,6 +116,7 @@ declare(strict_types=1);
                     'alpa' => 'ALPA',
                     'tagihan' => 'Tagihan wali',
                     'kelas_kosong' => 'Kelas kosong',
+                    'rekap_tanpa_scan' => 'Rekap tanpa scan',
                     'cashless_laporan' => 'Laporan cashless',
                     'poin_ambang' => 'Poin ambang',
                 ];
@@ -164,6 +165,7 @@ declare(strict_types=1);
             <li>Pembayaran tercatat → wali: <?= $waPembayaranWaliEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Scan pembimbing: <?= trim((string) app_setting($pdo, 'wa_pembimbing_scan_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Kelas kosong: <?= trim((string) app_setting($pdo, 'wa_kelas_kosong_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
+            <li>Rekap tanpa scan (harian): <?= trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_enabled', '1')) === '1' ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Grup presensi: <?= ($waPresensiGrupFonte ?? '') !== '' && ($waPresensiGrupFonteEnabled ?? false) ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>WA pembimbing terkait: <?= ($waPresensiKirimPembimbingEnabled ?? true) ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
             <li>Cashless laporan: <?= $cashlessLaporanHarianWaEnabled ? '<span class="text-success">Aktif</span>' : '<span class="text-muted">Nonaktif</span>' ?></li>
@@ -188,7 +190,7 @@ declare(strict_types=1);
             <li class="mb-1"><strong>Gateway</strong> — pilih Fonte atau Meta, isi kredensial, lalu tes kirim ke satu nomor.</li>
             <li class="mb-1"><strong>Tagihan Wali</strong> — atur jadwal &amp; aktifkan pengingat syahriyah.</li>
             <li class="mb-1"><strong>Cashless</strong> — transaksi/saldo rendah ke wali &amp; laporan harian ke pengurus.</li>
-            <li class="mb-1"><strong>Presensi</strong> — pengingat scan, munawib, laporan kelas kosong.</li>
+            <li class="mb-1"><strong>Presensi</strong> — pengingat scan, munawib, laporan kelas kosong, rekap kegiatan tanpa scan ke pengurus.</li>
             <li class="mb-1"><strong>Alpa</strong> — tier penerima &amp; nomor fallback alpa otomatis.</li>
             <li class="mb-1"><strong>Izin</strong> — permohonan baru (PENDING) &amp; notifikasi saat izin disetujui.</li>
             <li><strong>Template</strong> — sesuaikan teks pesan bila perlu.</li>

@@ -1381,6 +1381,7 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
         'alpa' => ['ran' => false, 'note' => ''],
         'tagihan' => ['ran' => false, 'note' => ''],
         'kelas_kosong' => ['ran' => false, 'note' => ''],
+        'rekap_tanpa_scan' => ['ran' => false, 'note' => ''],
         'cashless_laporan' => ['ran' => false, 'note' => ''],
         'poin_ambang' => ['ran' => false, 'note' => ''],
     ];
@@ -1410,6 +1411,16 @@ function wa_auto_run_scheduled_wa(PDO $pdo): void
     require_once __DIR__ . '/wa_kegiatan_kosong.php';
     trigger_wa_kelas_kosong_bertahap($pdo);
     $results['kelas_kosong']['ran'] = true;
+
+    wa_cron_rekap_kegiatan_tanpa_scan_pengurus($pdo);
+    $results['rekap_tanpa_scan']['ran'] = true;
+    $rekapLast = trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_date', ''));
+    $rekapErr = trim((string) app_setting($pdo, 'wa_rekap_tanpa_scan_pengurus_last_error', ''));
+    if ($rekapErr !== '') {
+        $results['rekap_tanpa_scan']['note'] = $rekapErr;
+    } elseif ($rekapLast === date('Y-m-d')) {
+        $results['rekap_tanpa_scan']['note'] = 'sent=' . $rekapLast;
+    }
 
     cashless_wa_cron_laporan_harian($pdo);
     $results['cashless_laporan']['ran'] = true;

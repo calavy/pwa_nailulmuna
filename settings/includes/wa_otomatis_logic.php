@@ -26,13 +26,13 @@ $pondokWaFields = [
         'wa_pengurus', 'wa_alpa_pengurus_putra', 'wa_alpa_pengurus_putri', 'wa_permohonan_izin', 'wa_permohonan_izin_enabled',
     'wa_petugas_pendidikan',
     'wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali',
-    'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_presensi_grup_fonte', 'wa_presensi_grup_fonte_enabled', 'wa_presensi_kirim_pembimbing_enabled',
+    'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_rekap_tanpa_scan_pengurus_enabled', 'wa_rekap_tanpa_scan_pengurus_jam', 'wa_presensi_grup_fonte', 'wa_presensi_grup_fonte_enabled', 'wa_presensi_kirim_pembimbing_enabled',
     'jam_kirim_wa_auto', 'wa_tagihan_auto_enabled',
     'wa_musyawarah_enabled', 'wa_musyawarah_target', 'wa_musyawarah_auto_selesai',
     'keterangan_pengurus_bidang_keuangan', 'batas_alpa_notif', 'batas_telat_menit',
 ];
 $values = [];
-foreach (array_merge($pondokWaFields, ['wa_kelas_kosong_last_sent_at', 'wa_kelas_kosong_last_level']) as $key) {
+foreach (array_merge($pondokWaFields, ['wa_kelas_kosong_last_sent_at', 'wa_kelas_kosong_last_level', 'wa_rekap_tanpa_scan_pengurus_last_sent_at', 'wa_rekap_tanpa_scan_pengurus_last_date']) as $key) {
     $values[$key] = app_setting($pdo, $key, $pondokDefaults[$key] ?? '');
 }
 $values['wa_tagihan_auto_enabled'] = ($values['wa_tagihan_auto_enabled'] ?? '') === '1' ? '1' : '0';
@@ -185,10 +185,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
     } elseif ($action === 'save_presensi') {
-        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_musyawarah_target'] as $field) {
+        foreach (['wa_notif_mudabir_enabled', 'mudabir_batas_menit', 'wa_kelas_kosong_enabled', 'wa_kelas_kosong_batas_menit', 'wa_kelas_kosong_batas_kali', 'wa_kelas_kosong_target_1', 'wa_kelas_kosong_target_3', 'wa_rekap_tanpa_scan_pengurus_enabled', 'wa_rekap_tanpa_scan_pengurus_jam', 'wa_musyawarah_target'] as $field) {
             if (array_key_exists($field, $_POST)) {
                 if ($field === 'wa_kelas_kosong_batas_kali') {
                     save_setting($pdo, $field, (string) max(2, min(10, (int) $_POST[$field])));
+                } elseif ($field === 'wa_rekap_tanpa_scan_pengurus_jam') {
+                    require_once __DIR__ . '/../../helpers/datetime_display.php';
+                    $jam = app_normalize_jam_hm(trim((string) $_POST[$field]));
+                    save_setting($pdo, $field, $jam !== '' ? $jam : '21:00');
                 } else {
                     save_setting($pdo, $field, trim((string) $_POST[$field]));
                 }

@@ -13,7 +13,7 @@ function wa_nomor_peran_definitions(): array
         'pengurus' => [
             'label' => 'Pengurus (umum)',
             'setting' => 'wa_pengurus',
-            'desc' => 'Fallback umum; bukan penerima ALPA utama',
+            'desc' => 'Fallback umum; rekap kegiatan tanpa scan (1 hari)',
             'group' => 'Presensi & Alpa',
         ],
         'alpa_putra' => [

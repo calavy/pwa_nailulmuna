@@ -11,6 +11,25 @@ require_once __DIR__ . '/../helpers/rekap_keaktifan.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && trim((string) ($_POST['action'] ?? '')) === 'kirim_rekap_tanpa_scan') {
+    require_once __DIR__ . '/../helpers/wa_kegiatan_kosong.php';
+    $hariKirim = trim((string) ($_POST['tanggal'] ?? date('Y-m-d')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hariKirim)) {
+        $hariKirim = date('Y-m-d');
+    }
+    $res = wa_kirim_rekap_kegiatan_tanpa_scan_pengurus($pdo, $hariKirim, true);
+    set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
+    $q = ['hari' => $hariKirim];
+    foreach (['mode', 'month', 'year', 'tingkatan'] as $k) {
+        $v = trim((string) ($_POST[$k] ?? ''));
+        if ($v !== '') {
+            $q[$k] = $v;
+        }
+    }
+    header('Location: ' . app_href('/presensi/rekap_tanpa_scan.php?' . http_build_query($q)));
+    exit;
+}
+
 if (!table_exists($pdo, 'presensi')) {
     set_flash('error', 'Tabel presensi belum ada.');
     header('Location: ' . app_href('/dashboard.php'));
@@ -73,6 +92,18 @@ try {
     $queryError = 'Gagal memuat data rekap. Coba bulan lain atau hubungi admin.';
 }
 
+$hariKirim = trim((string) ($_GET['hari'] ?? date('Y-m-d')));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hariKirim)) {
+    $hariKirim = date('Y-m-d');
+}
+$barisTanpaScanHari = [];
+try {
+    $barisTanpaScanHari = rekap_kegiatan_tanpa_scan_baris_hari($pdo, $hariKirim);
+} catch (Throwable $e) {
+    error_log('[presensi/rekap_tanpa_scan] hari: ' . $e->getMessage());
+}
+$kelompokTanpaScanHari = rekap_kegiatan_tanpa_scan_kelompokkan($barisTanpaScanHari);
+
 $jumlahTanpaScan = rekap_keaktifan_kegiatan_tanpa_scan_total_jadwal($kegiatanTanpaScan);
 $jumlahKegiatanTanpaScan = count(rekap_keaktifan_kegiatan_tanpa_scan_group_by_kegiatan($kegiatanTanpaScan));
 $tglAwal = date('d/m/Y', strtotime($startDate) ?: time());
@@ -130,6 +161,65 @@ require_once __DIR__ . '/../includes/header.php';
         Hitung <strong>per waktu kegiatan</strong> (tanggal + jam): 1 slot waktu tanpa scan hadir = <strong>1</strong>, tidak dikalikan tingkatan atau jumlah santri.
         Periode mengikuti bulan <?= $mode === 'hijriyah' ? 'Hijriyah' : 'Masehi' ?> yang dipilih.
     </p>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-3">
+        <h2 class="h6 mb-2">Kirim rekap 1 hari ke pengurus</h2>
+        <p class="small text-muted mb-2">Jam, nama kegiatan, dan pembimbing — dikelompokkan Ta'lim dan Jama'ah. Template di Pengaturan WA → Template.</p>
+        <form method="get" action="<?= htmlspecialchars(app_href('/presensi/rekap_tanpa_scan.php')) ?>" class="row g-2 align-items-end mb-2">
+            <input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
+            <input type="hidden" name="month" value="<?= (int) $month ?>">
+            <input type="hidden" name="year" value="<?= (int) $year ?>">
+            <?php if ($tingkatan !== ''): ?>
+                <input type="hidden" name="tingkatan" value="<?= htmlspecialchars($tingkatan) ?>">
+            <?php endif; ?>
+            <div class="col-auto">
+                <label class="form-label small mb-1" for="hari_rekap">Tanggal</label>
+                <input class="form-control form-control-sm" type="date" id="hari_rekap" name="hari" value="<?= htmlspecialchars($hariKirim) ?>">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-secondary" type="submit">Tampil nama</button>
+            </div>
+        </form>
+        <?php if ($barisTanpaScanHari === []): ?>
+            <p class="small text-muted mb-2">Tidak ada kegiatan tanpa scan pada <?= htmlspecialchars(app_format_tanggal_id($hariKirim)) ?>.</p>
+        <?php else: ?>
+            <?php foreach (['TAALIM' => "Ta'lim", 'JAMAAH' => "Jama'ah"] as $katKey => $katLabel):
+                $kelompokRows = $kelompokTanpaScanHari[$katKey] ?? [];
+                ?>
+                <p class="small fw-semibold mb-1"><?= htmlspecialchars($katLabel) ?> (<?= count($kelompokRows) ?>)</p>
+                <?php if ($kelompokRows === []): ?>
+                    <p class="small text-muted mb-2">Tidak ada.</p>
+                <?php else: ?>
+                    <ul class="small mb-2 ps-3">
+                        <?php foreach ($kelompokRows as $rowKg): ?>
+                            <li>
+                                <?= htmlspecialchars((string) ($rowKg['jam'] ?? '')) ?>
+                                <?= htmlspecialchars((string) ($rowKg['nama_kegiatan'] ?? '')) ?>
+                                <?php if (trim((string) ($rowKg['nama_pembimbing'] ?? '')) !== '' && trim((string) ($rowKg['nama_pembimbing'] ?? '')) !== '-'): ?>
+                                    — <?= htmlspecialchars((string) $rowKg['nama_pembimbing']) ?>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        <form method="post" onsubmit="return confirm('Kirim daftar nama kegiatan tanpa scan ke pengurus?');">
+            <input type="hidden" name="action" value="kirim_rekap_tanpa_scan">
+            <input type="hidden" name="tanggal" value="<?= htmlspecialchars($hariKirim) ?>">
+            <input type="hidden" name="mode" value="<?= htmlspecialchars($mode) ?>">
+            <input type="hidden" name="month" value="<?= (int) $month ?>">
+            <input type="hidden" name="year" value="<?= (int) $year ?>">
+            <?php if ($tingkatan !== ''): ?>
+                <input type="hidden" name="tingkatan" value="<?= htmlspecialchars($tingkatan) ?>">
+            <?php endif; ?>
+            <button class="btn btn-sm btn-primary" type="submit" <?= $barisTanpaScanHari === [] ? 'disabled' : '' ?>>
+                <i class="fa-brands fa-whatsapp me-1"></i>Kirim ke pengurus
+            </button>
+        </form>
+    </div>
 </div>
 
 <div class="rts-info mb-3">

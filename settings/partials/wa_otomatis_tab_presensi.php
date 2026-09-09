@@ -125,6 +125,42 @@ $kelasKosongLastLevel = trim((string) ($values['wa_kelas_kosong_last_level'] ?? 
                     · <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=log')) ?>">Lihat riwayat</a>
                 </div>
             </div>
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12"><h3 class="h6 text-primary mb-2">Rekap kegiatan tanpa scan (1 hari) → pengurus</h3></div>
+            <div class="col-12">
+                <p class="small text-muted mb-2">
+                    Satu pesan per hari: nama kegiatan, jam, dan pembimbing, dikelompokkan Ta'lim dan Jama'ah.
+                    Nomor: peran Pengurus (Akun/nomor), atau fallback petugas pendidikan.
+                    <a href="<?= htmlspecialchars(app_href('/settings/wa_otomatis.php?tab=template')) ?>">Edit teks di tab Template</a>
+                    · <a href="<?= htmlspecialchars(app_href('/presensi/rekap_tanpa_scan.php')) ?>">Kirim manual</a>.
+                </p>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Aktifkan otomatis</label>
+                <select class="form-select" name="wa_rekap_tanpa_scan_pengurus_enabled">
+                    <option value="1" <?= ($values['wa_rekap_tanpa_scan_pengurus_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Aktif</option>
+                    <option value="0" <?= ($values['wa_rekap_tanpa_scan_pengurus_enabled'] ?? '1') !== '1' ? 'selected' : '' ?>>Nonaktif</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Jam kirim</label>
+                <input type="time" class="form-control" name="wa_rekap_tanpa_scan_pengurus_jam" value="<?= htmlspecialchars((string) (($values['wa_rekap_tanpa_scan_pengurus_jam'] ?? '') !== '' ? $values['wa_rekap_tanpa_scan_pengurus_jam'] : '21:00')) ?>">
+            </div>
+            <div class="col-md-6">
+                <div class="alert alert-secondary py-2 small mb-0 mt-md-4">
+                    Kirim terakhir rekap harian:
+                    <?php
+                    $rekapLastAt = trim((string) ($values['wa_rekap_tanpa_scan_pengurus_last_sent_at'] ?? ''));
+                    $rekapLastDate = trim((string) ($values['wa_rekap_tanpa_scan_pengurus_last_date'] ?? ''));
+                    ?>
+                    <?php if ($rekapLastAt !== ''): ?>
+                        <?= htmlspecialchars(date('d/m/Y H:i', strtotime($rekapLastAt) ?: time())) ?>
+                        <?= $rekapLastDate !== '' ? ' · data ' . htmlspecialchars($rekapLastDate) : '' ?>
+                    <?php else: ?>
+                        belum pernah
+                    <?php endif; ?>
+                </div>
+            </div>
             <div class="col-md-6">
                 <?php
                 $delayFieldName = 'wa_delay_presensi';

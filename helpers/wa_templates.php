@@ -379,6 +379,18 @@ function wa_template_definitions(): array
                 . 'Terima kasih.\n'
                 . '_{nama_ponpes}_',
         ],
+        'rekap_kegiatan_tanpa_scan_pengurus' => [
+            'label' => 'Rekap kegiatan tanpa scan (1 hari) → pengurus',
+            'hint' => 'Dikirim otomatis tiap hari (jam di tab Presensi) atau tombol di Jadwal Tanpa Scan. Dikelompokkan Ta\'lim dan Jama\'ah; tiap baris: jam, nama kegiatan, pembimbing. Jangan hapus {daftar_taalim} / {daftar_jamaah} (atau {daftar_kegiatan} jika memakai template lama).',
+            'placeholders' => '{tanggal}, {jumlah}, {jumlah_taalim}, {jumlah_jamaah}, {daftar_taalim}, {daftar_jamaah}, {daftar_kegiatan}, {nama_ponpes}',
+            'default' => "*REKAP KEGIATAN TANPA SCAN*\n"
+                . "Tanggal: {tanggal}\n\n"
+                . "*Ta'lim* ({jumlah_taalim})\n"
+                . "{daftar_taalim}\n\n"
+                . "*Jama'ah* ({jumlah_jamaah})\n"
+                . "{daftar_jamaah}\n\n"
+                . '_{nama_ponpes}_',
+        ],
         'kedatangan_libur_wali' => [
             'label' => 'Kedatangan setelah libur → wali santri',
             'hint' => 'Dikirim otomatis sekali per santri per sesi saat kartu discan. {tanggal} = hari dan tanggal Indonesia; {jam} tanpa WIB (kata WIB ada di template).',

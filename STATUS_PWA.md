@@ -7,6 +7,36 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-09] Rekap tanpa scan: jam, pembimbing, kelompok Ta'lim/Jama'ah
+- **Apa yang diubah:** Laporan 1 hari ke pengurus memuat jam dan nama pembimbing, dikelompokkan Ta'lim lalu Jama'ah. Template WA punya `{daftar_taalim}` / `{daftar_jamaah}` (template lama `{daftar_kegiatan}` tetap terisi teks lengkap). Pratinjau di Jadwal Tanpa Scan mengikuti format yang sama.
+- **File:** `helpers/rekap_keaktifan.php`, `helpers/wa_kegiatan_kosong.php`, `helpers/wa_templates.php`, `presensi/rekap_tanpa_scan.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengurus perlu tahu kapan slot kosong dan siapa pembimbingnya, terpisah antara Ta'lim dan Jama'ah.
+- **Status:** terpasang; uji pratinjau tanggal yang punya Ta'lim dan Jama'ah kosong, lalu kirim WA / cek template
+
+### [2026-09-09] Rekap kegiatan tanpa scan 1 hari ke pengurus
+- **Apa yang diubah:** Laporan WA ke pengurus berisi nama kegiatan tanpa scan hadir dalam satu hari (bukan per slot/tingkatan). Template bisa diedit di Pengaturan WA → Template. Kirim otomatis tiap hari (jam di tab Presensi, default 21:00) atau tombol di Jadwal Tanpa Scan. Nomor: peran Pengurus, fallback petugas pendidikan.
+- **File:** `helpers/rekap_keaktifan.php`, `helpers/wa_kegiatan_kosong.php`, `helpers/wa_templates.php`, `helpers/wa_otomatis.php`, `helpers/app.php`, `helpers/wa_nomor.php`, `presensi/rekap_tanpa_scan.php`, `settings/includes/wa_otomatis_logic.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `settings/partials/wa_otomatis_tab_ringkasan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengurus perlu ringkasan harian nama kegiatan yang kosong, terpisah dari notifikasi per slot kelas kosong.
+- **Status:** terpasang; uji tampil nama di Jadwal Tanpa Scan, kirim tombol, cek template, dan jam otomatis
+
+### [2026-09-09] Excel rekap kedatangan per sesi
+- **Apa yang diubah:** Halaman Absen kedatangan punya tombol Unduh Excel (.xlsx) per sesi, isi sama dengan CSV (libur/tanggal/jam, daftar sudah datang dan belum datang). CSV tetap ada.
+- **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Rekap gerbang perlu dibuka langsung di Excel tanpa lewat CSV.
+- **Status:** terpasang; uji unduh Excel dari sesi terbuka, cek jumlah Datang/Belum sama dengan tabel
+
+### [2026-09-09] Persetujuan izin pengasuh: tombol bisa diklik
+- **Apa yang diubah:** `.table-responsive` memakai `overflow: auto` (bukan hidden), jadi kolom Aksi Setujui/Tolak bisa digulir ke layar. Tombol di halaman Persetujuan Izin Pengasuh disusun vertikal (tinggi tap 44px) agar tidak tertutup tabel lebar.
+- **File:** `assets/css/app.css`, `pengasuh/perizinan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tabel izin 8 kolom terpotong; tombol di kanan tidak bisa disentuh di HP/desktop sempit.
+- **Status:** terpasang; uji halaman Persetujuan Izin Pengasuh — gulir tabel ke kanan, ketuk Setujui dan Tolak
+
+### [2026-09-05] Scroll daftar kedatangan sudah/belum datang
+- **Apa yang diubah:** Daftar Sudah datang dan Belum datang di Absen kedatangan bisa digulir (kelas `kedatangan-daftar-scroll`: overflow auto, tinggi max 28rem / 70dvh). Sebelumnya terpotong karena `.table-responsive` memakai overflow hidden.
+- **File:** `assets/css/app.css`, `presensi/kedatangan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Nama di bawah batas tinggi tidak terlihat di HP maupun desktop.
+- **Status:** terpasang; uji sesi dengan banyak nama — gulir di dalam kartu, bukan hanya halaman
+
 ### [2026-09-02] CSV rekap kedatangan setelah liburan
 - **Apa yang diubah:** Halaman Absen kedatangan punya tombol Unduh CSV per sesi. Satu file (UTF-8 BOM) memuat info libur/tanggal/jam lalu daftar sudah datang dan belum datang (NIS, nama, tingkatan, kelompok, jam, telat/luar jam). WA dan scan tidak diubah.
 - **File:** `helpers/kedatangan_libur.php`, `presensi/kedatangan.php`, `STATUS_PWA.md`

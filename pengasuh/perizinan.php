@@ -343,7 +343,9 @@ require_once __DIR__ . '/../includes/header.php';
 
                         <td class="text-end">
 
-                            <form method="post" class="d-inline pg-pengasuh-approve-form" data-alpa-blocked="<?= $blokirR ? '1' : '0' ?>">
+                            <div class="pg-pengasuh-izin-actions">
+
+                            <form method="post" class="pg-pengasuh-approve-form" data-alpa-blocked="<?= $blokirR ? '1' : '0' ?>">
 
                                 <input type="hidden" name="action" value="setujui_rombongan_pengasuh">
 
@@ -365,7 +367,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                             </form>
 
-                            <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak izin rombongan ini?');">
+                            <form method="post" onsubmit="return confirm('Tolak izin rombongan ini?');">
 
                                 <input type="hidden" name="action" value="tolak_rombongan_pengasuh">
 
@@ -374,6 +376,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
 
                             </form>
+
+                            </div>
 
                         </td>
 
@@ -508,7 +512,9 @@ require_once __DIR__ . '/../includes/header.php';
 
                         <td class="text-end">
 
-                            <form method="post" class="d-inline pg-pengasuh-approve-form" data-alpa-blocked="<?= $blokirAlpa ? '1' : '0' ?>">
+                            <div class="pg-pengasuh-izin-actions">
+
+                            <form method="post" class="pg-pengasuh-approve-form" data-alpa-blocked="<?= $blokirAlpa ? '1' : '0' ?>">
 
                                 <input type="hidden" name="action" value="setujui_pengasuh">
 
@@ -530,7 +536,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                             </form>
 
-                            <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak permohonan izin ini?');">
+                            <form method="post" onsubmit="return confirm('Tolak permohonan izin ini?');">
 
                                 <input type="hidden" name="action" value="tolak_pengasuh">
 
@@ -539,6 +545,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
 
                             </form>
+
+                            </div>
 
                         </td>
 
