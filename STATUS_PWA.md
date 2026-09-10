@@ -7,6 +7,18 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-10] Kartu keaktivan pengasuh bisa disembunyikan
+- **Apa yang diubah:** Tombol **Sembunyikan kartu** / **Tampil kartu** di kartu Keaktivan hari ini. Tabel per tingkatan tetap tampil. Pilihan tersimpan di browser (localStorage).
+- **File:** `pengasuh/partials/dashboard_keaktivan_berlangsung.php`, `pengasuh/partials/dashboard_keaktivan_kategori_panel.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh ingin ringkasan tabel tanpa kartu kegiatan memenuhi layar.
+- **Status:** terpasang; uji dashboard pengasuh — sembunyikan kartu, ganti tab Ta'lim/Jama'ah, muat ulang halaman
+
+### [2026-09-10] Tabel keaktivan per tingkatan di dashboard pengasuh
+- **Apa yang diubah:** Kartu Keaktivan hari ini (tab Ta'lim / Jama'ah) punya tabel ringkasan per tingkatan (Hadir, Izin, Sakit, Alpa, %). Kartu kegiatan per tingkatan tetap di bawah tabel.
+- **File:** `pengasuh/partials/dashboard_keaktivan_kategori_panel.php`, `assets/css/pengasuh-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh perlu melihat ringkasan per tingkatan dalam satu tabel, tanpa kehilangan kartu detail kegiatan.
+- **Status:** terpasang; uji dashboard pengasuh — tab Ta'lim dan Jama'ah, cek angka tabel sama dengan jumlah kartu di bawahnya
+
 ### [2026-09-09] Rekap tanpa scan: jam, pembimbing, kelompok Ta'lim/Jama'ah
 - **Apa yang diubah:** Laporan 1 hari ke pengurus memuat jam dan nama pembimbing, dikelompokkan Ta'lim lalu Jama'ah. Template WA punya `{daftar_taalim}` / `{daftar_jamaah}` (template lama `{daftar_kegiatan}` tetap terisi teks lengkap). Pratinjau di Jadwal Tanpa Scan mengikuti format yang sama.
 - **File:** `helpers/rekap_keaktifan.php`, `helpers/wa_kegiatan_kosong.php`, `helpers/wa_templates.php`, `presensi/rekap_tanpa_scan.php`, `settings/partials/wa_otomatis_tab_presensi.php`, `STATUS_PWA.md`

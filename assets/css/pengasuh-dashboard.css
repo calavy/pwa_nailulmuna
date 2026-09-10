@@ -241,6 +241,28 @@
     background: rgba(13, 110, 253, 0.12);
 }
 
+.pg-dash-tk-table-wrap {
+    overflow: auto;
+    max-height: min(22rem, 55dvh);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+}
+
+.pg-dash-tk-table {
+    font-size: 0.875rem;
+}
+
+.pg-dash-tk-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+}
+
+.pg-dash-tk-table__row--attn {
+    background: rgba(220, 53, 69, 0.06);
+}
+
 .pg-dash-tk-groups {
     display: flex;
     flex-direction: column;

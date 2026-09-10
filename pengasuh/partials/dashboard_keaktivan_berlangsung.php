@@ -26,6 +26,13 @@ $barPct = $barPct ?? static fn (int $n, int $total): float => $total > 0 ? round
 $previewNames = $previewNames ?? static fn (array $s): string => '';
 
 $panelOrder = ['TAALIM', 'JAMAAH'];
+$hasTkCards = false;
+foreach ($keaktivanPanels as $pCheck) {
+    if (!empty($pCheck['keaktivanByTingkatan']) && is_array($pCheck['keaktivanByTingkatan'])) {
+        $hasTkCards = true;
+        break;
+    }
+}
 ?>
 <section class="pg-dash-keaktivan mb-4" id="pg-dash-keaktivan">
     <div class="card border-0 shadow-sm dash-panel dash-panel--lift">
@@ -43,9 +50,16 @@ $panelOrder = ['TAALIM', 'JAMAAH'];
                         <?php endif; ?>
                     </p>
                 </div>
-                <a href="<?= htmlspecialchars(app_href('/pengasuh/laporan_hari.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill">
-                    Laporan lengkap
-                </a>
+                <div class="d-flex flex-wrap gap-2">
+                    <?php if ($hasTkCards): ?>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="pg-dash-tk-cards-toggle" aria-pressed="false" aria-controls="pg-dash-keaktivan">
+                        <i class="fa-solid fa-eye-slash me-1"></i>Sembunyikan kartu
+                    </button>
+                    <?php endif; ?>
+                    <a href="<?= htmlspecialchars(app_href('/pengasuh/laporan_hari.php')) ?>" class="btn btn-sm btn-outline-primary rounded-pill">
+                        Laporan lengkap
+                    </a>
+                </div>
             </div>
 
             <div class="pg-dash-kat-tabs" role="tablist" aria-label="Kategori kegiatan">
@@ -112,6 +126,34 @@ $panelOrder = ['TAALIM', 'JAMAAH'];
                 panel.classList.toggle('d-none', panel.getAttribute('data-pg-kat-panel') !== key);
             });
         });
+    });
+})();
+(function () {
+    var KEY = 'pgDashTkCardsHidden';
+    var btn = document.getElementById('pg-dash-tk-cards-toggle');
+    var cards = document.querySelectorAll('.pg-dash-tk-cards');
+    if (!btn || !cards.length) {
+        return;
+    }
+    function apply(hidden) {
+        cards.forEach(function (el) {
+            el.classList.toggle('d-none', hidden);
+        });
+        btn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+        btn.innerHTML = hidden
+            ? '<i class="fa-solid fa-eye me-1"></i>Tampil kartu'
+            : '<i class="fa-solid fa-eye-slash me-1"></i>Sembunyikan kartu';
+        try {
+            localStorage.setItem(KEY, hidden ? '1' : '0');
+        } catch (e) {}
+    }
+    var stored = false;
+    try {
+        stored = localStorage.getItem(KEY) === '1';
+    } catch (e) {}
+    apply(stored);
+    btn.addEventListener('click', function () {
+        apply(btn.getAttribute('aria-pressed') !== 'true');
     });
 })();
 </script>

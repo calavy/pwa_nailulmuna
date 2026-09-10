@@ -131,6 +131,49 @@ $heroId = 'khHero-' . $panelSlug;
         </div>
         <?php endif; ?>
 
+        <div class="table-responsive pg-dash-tk-table-wrap mb-4">
+            <table class="table table-sm align-middle mb-0 pg-dash-tk-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tingkatan</th>
+                        <th class="text-end">Hadir</th>
+                        <th class="text-end">Izin</th>
+                        <th class="text-end">Sakit</th>
+                        <th class="text-end">Alpa</th>
+                        <th class="text-end">%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($keaktivanByTingkatan as $tkSum):
+                    $tkKeg = is_array($tkSum['kegiatan'] ?? null) ? $tkSum['kegiatan'] : [];
+                    $tkHadir = 0;
+                    $tkIzin = 0;
+                    $tkSakit = 0;
+                    $tkAlpa = 0;
+                    $tkTotal = 0;
+                    foreach ($tkKeg as $dkSum) {
+                        $tkHadir += (int) ($dkSum['hadir'] ?? 0);
+                        $tkIzin += (int) ($dkSum['izin'] ?? 0);
+                        $tkSakit += (int) ($dkSum['sakit'] ?? 0);
+                        $tkAlpa += (int) ($dkSum['alpa'] ?? 0);
+                        $tkTotal += (int) ($dkSum['total'] ?? 0);
+                    }
+                    $tkPct = $tkTotal > 0 ? round(100 * $tkHadir / $tkTotal, 1) : 0.0;
+                    ?>
+                    <tr<?= $tkAlpa > 0 ? ' class="pg-dash-tk-table__row--attn"' : '' ?>>
+                        <td class="fw-semibold"><?= htmlspecialchars((string) ($tkSum['tingkatan'] ?? '-')) ?></td>
+                        <td class="text-end"><?= $tkHadir ?></td>
+                        <td class="text-end"><?= $tkIzin ?></td>
+                        <td class="text-end"><?= $tkSakit ?></td>
+                        <td class="text-end<?= $tkAlpa > 0 ? ' text-danger fw-semibold' : '' ?>"><?= $tkAlpa ?></td>
+                        <td class="text-end"><?= number_format($tkPct, 1, ',', '.') ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pg-dash-tk-cards">
         <div class="pg-dash-tk-groups">
             <?php foreach ($keaktivanByTingkatan as $tkGroup):
                 $tk = (string) ($tkGroup['tingkatan'] ?? '-');
@@ -276,6 +319,7 @@ $heroId = 'khHero-' . $panelSlug;
                 </div>
             </div>
             <?php endforeach; ?>
+        </div>
         </div>
 
         <?php
