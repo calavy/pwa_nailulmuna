@@ -1628,6 +1628,19 @@ function wa_auto_run_tick(PDO $pdo): array
         }
 
         if ($gwErr === null) {
+            $reqPath = function_exists('app_normalize_request_path')
+                ? app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''))
+                : (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+            $isCronWa = PHP_SAPI === 'cli' || str_contains($reqPath, '/cron/wa_auto.php');
+            if ($isCronWa) {
+                if (!function_exists('perizinan_notif_queue_proses')) {
+                    require_once __DIR__ . '/perizinan_approval.php';
+                }
+                if (function_exists('perizinan_notif_queue_proses')) {
+                    perizinan_notif_queue_proses($pdo, 8);
+                }
+            }
+
             if (!function_exists('trigger_wa_pembimbing_belum_scan')) {
                 require_once __DIR__ . '/wa_pembimbing_scan.php';
             }

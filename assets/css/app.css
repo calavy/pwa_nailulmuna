@@ -3091,6 +3091,53 @@ body.app-page-leaving .app-main {
     font-weight: 600;
 }
 
+.pg-izin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.pg-izin-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid rgba(202, 138, 4, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 251, 235, 0.65);
+}
+
+.pg-izin-card--rombongan {
+    background: rgba(253, 230, 138, 0.35);
+}
+
+.pg-izin-card__body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pg-izin-card__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+}
+
+.pg-izin-card__actions form {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.pg-izin-card__actions .btn {
+    width: auto;
+    min-height: 0;
+    padding: 0.2rem 0.55rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 @media (min-width: 768px) {
     .pg-pengasuh-izin-actions {
         align-items: flex-end;

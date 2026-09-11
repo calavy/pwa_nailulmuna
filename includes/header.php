@@ -60,7 +60,8 @@ if (isset($_SESSION['user'])) {
         santri_list_sort_mode((string) $_GET['santri_sort']);
     }
     require_once __DIR__ . '/../helpers/app_cache.php';
-    if (!$isScanKioskPage) {
+    $skipCachePrune = str_contains($requestPath, '/pengasuh/perizinan.php');
+    if (!$isScanKioskPage && !$skipCachePrune) {
         app_performance_cache_prune_expired();
     }
     try {
@@ -95,7 +96,12 @@ if (isset($_SESSION['user'])) {
         $_SESSION['acl_keuangan_split_checked'] = 1;
     }
     try {
-        if (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip()) {
+        $skipWaFallback = str_contains($requestPath, '/pengasuh/perizinan.php')
+            || str_contains($requestPath, '/pengasuh/izin_aksi.php');
+        if (
+            !$skipWaFallback
+            && (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip())
+        ) {
             require_once __DIR__ . '/../helpers/wa_otomatis.php';
             wa_auto_web_fallback_tick($pdo);
         }

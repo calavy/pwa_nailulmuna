@@ -7,6 +7,78 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-11] Tombol izin kecil di samping
+- **Apa yang diubah:** Kartu izin pengasuh: nama + tanggal di kiri, Setujui/Tolak `btn-sm` bersebelahan di kanan (bukan penuh lebar di bawah).
+- **File:** `assets/css/pengasuh-dashboard.css`, `assets/css/app.css`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tombol besar di bawah kartu memakan ruang; pengasuh ingin tombol kecil di samping.
+- **Status:** terpasang; uji dashboard dan Persetujuan Izin — tombol kecil di kanan nama
+
+### [2026-09-11] Setujui tampil kriteria ALPA dulu
+- **Apa yang diubah:** Klik Setujui di dashboard/Persetujuan Izin membuka dialog kriteria ALPA. Centang Lewati syarat ALPA hanya jika terhalang; tombol Setujui terkunci sampai dicentang. Konfirmasi tetap fetch (kartu hilang + pita). Server menolak terhalang tanpa bypass.
+- **File:** `includes/partials/pengasuh_izin_setujui_modal.php`, `assets/js/pengasuh-izin-setujui.js`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `helpers/perizinan_approval.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh ingin melihat kriteria ALPA saat Setujui, lalu memilih centang hanya jika syarat belum terpenuhi — bukan langsung menyetujui.
+- **Status:** terpasang; uji Setujui — dialog kriteria; jika masih boleh langsung konfirmasi; jika terhalang wajib centang; Batal tidak mengubah izin; sukses pita hijau + kartu hilang
+
+### [2026-09-11] ALPA kartu pengasuh satu baris
+- **Apa yang diubah:** Ketentuan ALPA di kartu pengasuh dipadatkan: badge Masih boleh/Terhalang + `0 ALPA / 4 hari · batas 2`. Daftar Persetujuan Izin memakai fetch seperti dashboard: kartu hilang + pita, tanpa reload yang masih menampilkan blok aturan.
+- **File:** `includes/partials/perizinan_alpa_ringkas.php`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Setelah klik Setujui masih terlihat blok ALPA lengkap (aturan, progress) sehingga terasa proses belum selesai.
+- **Status:** terpasang; uji kartu — satu baris ALPA sebelum klik; Setujui menghapus kartu + pita hijau
+
+### [2026-09-11] Kartu izin tampilkan ALPA
+- **Apa yang diubah:** Kartu izin di dashboard dan Persetujuan Izin menampilkan ketentuan ALPA (badge, jumlah, batas) dari satu query batch saat halaman dibuka. Setujui/Tolak tidak mengecek ALPA lagi — pengasuh tetap yang memutuskan.
+- **File:** `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** ALPA dilepas dari klik agar cepat; pengasuh tetap perlu melihat syarat ALPA sebelum mempertimbangkan izin.
+- **Status:** terpasang; uji dashboard dan daftar izin — kartu nama + tanggal + status ALPA; Setujui tetap menghapus kartu tanpa pindah
+
+### [2026-09-11] Setujui di dashboard tanpa pindah
+- **Apa yang diubah:** Setujui/Tolak di dashboard memakai `fetch` + JSON. Kartu hilang di tempat, dashboard tidak pindah. Setujui UPDATE tanpa SHOW COLUMNS dan tanpa UPDATE santri di request klik (is_aktif menyusul saat cron kirim notif).
+- **File:** `pengasuh/dashboard.php`, `pengasuh/izin_aksi.php`, `helpers/perizinan_approval.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Klik Setujui di dashboard tertahan *Memproses…* karena menunggu redirect ke halaman Persetujuan Izin.
+- **Status:** terpasang; uji dashboard — Setujui singkat, kartu hilang, pita hijau, tetap di dashboard
+
+### [2026-09-11] Setujui setipis Tolak
+- **Apa yang diubah:** Setujui pengasuh tanpa cek ALPA dan tanpa memuat push_events. UPDATE hanya status/QR/stamp jika kolom ada. Kartu daftar dan dashboard: nama, tanggal, Setujui/Tolak.
+- **File:** `helpers/perizinan_approval.php`, `pengasuh/perizinan.php`, `pengasuh/dashboard.php`, `assets/css/app.css`, `assets/css/pengasuh-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tolak sudah cepat (UPDATE saja). Setujui tertahan/gagal karena ALPA, push_events, dan kolom UPDATE ekstra.
+- **Status:** terpasang; uji Setujui dan Tolak — sama cepat, pita tampil, kartu hilang; kartu hanya nama + tanggal + dua tombol
+
+### [2026-09-11] Daftar izin: SELECT lalu tampil
+- **Apa yang diubah:** GET Persetujuan Izin hanya SELECT antrian. Tanpa hitung ALPA, tanpa query meta/anggota rombongan, tanpa ensure kategori. Header halaman itu tidak prune cache. Tolak hanya UPDATE.
+- **File:** `pengasuh/perizinan.php`, `includes/header.php`, `helpers/perizinan_approval.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Setelah Setujui, daftar masih menunggu ALPA/rombongan/ensure sebelum HTML, jadi pita hijau dan kartu berikutnya belum tampil.
+- **Status:** terpasang; uji Setujui — *Memproses…* singkat, Persetujuan Izin tampil, pita hijau, kartu hilang
+
+### [2026-09-11] Daftar izin tampil setelah Setujui
+- **Apa yang diubah:** Daftar Persetujuan Izin tidak lagi menjalankan ensure/backfill schema. Header halaman itu dan `izin_aksi.php` tidak memicu fallback WA. Setujui/Tolak individu tidak memuat helper rombongan.
+- **File:** `helpers/perizinan_approval.php`, `includes/header.php`, `pengasuh/izin_aksi.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Setelah klik, GET daftar menunggu backfill + tick WA (di XAMPP shutdown menahan HTML), jadi halaman berikutnya tidak tampil.
+- **Status:** terpasang; uji Setujui/Tolak — *Memproses…* singkat, daftar izin langsung tampil, kartu itu hilang
+
+### [2026-09-11] Setujui izin: klik instan
+- **Apa yang diubah:** Setujui hanya UPDATE + INSERT antrian, tanpa kick HTTP ke cron. Antrian WA diproses cron `wa_auto` (CLI/HTTP cron), bukan saat staf buka halaman. Form Setujui/Tolak POST ke `pengasuh/izin_aksi.php` lalu 303 ke daftar izin (bukan dashboard).
+- **File:** `pengasuh/izin_aksi.php`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `helpers/perizinan_approval.php`, `helpers/perizinan_rombongan.php`, `helpers/wa_otomatis.php`, `helpers/user_permissions.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Kick cron menunggu gateway WA di request yang sama; redirect ke dashboard memuat keaktivan sehingga klik terasa masih lama.
+- **Status:** terpasang; uji Setujui — *Memproses…* singkat, pindah ke daftar izin, kartu itu hilang, WA menyusul via cron
+
+### [2026-09-11] Perizinan pengasuh: respon cepat
+- **Apa yang diubah:** POST Setujui/Tolak di dashboard jalan sebelum query keaktivan. WA/FCM masuk tabel `perizinan_notif_queue` lalu diproses cron `wa_auto` (kick 200 ms, tidak menahan browser). Halaman Persetujuan Izin memakai kartu + ALPA batch, tanpa ensure/backfill sebelum aksi.
+- **File:** `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `helpers/perizinan_approval.php`, `helpers/perizinan_rombongan.php`, `helpers/wa_otomatis.php`, `assets/css/app.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Klik Setujui masih lama: dashboard menghitung keaktivan dulu, lalu Apache menunggu WA di request yang sama.
+- **Status:** terpasang; uji Setujui dari dashboard dan Persetujuan Izin — halaman kembali cepat, izin hilang dari antrian, WA menyusul
+
+### [2026-09-11] Setujui izin tanpa nunggu WA
+- **Apa yang diubah:** Klik Setujui di dashboard/halaman pengasuh menyimpan izin dulu, lalu redirect. WA dan FCM dikirim setelah response (session ditutup). Flash: notifikasi sedang dikirim. Isi pesan dan penerima WA tidak berubah. Tolak tidak diubah.
+- **File:** `helpers/perizinan_approval.php`, `helpers/perizinan_rombongan.php`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Browser menunggu gateway WA/FCM (timeout 20 dtk per nomor) sebelum halaman kembali.
+- **Status:** terpasang; uji Setujui — tombol Memproses singkat, izin hilang dari antrian, WA wali/pembimbing menyusul
+
+### [2026-09-11] Persetujuan izin tampil di dashboard pengasuh
+- **Apa yang diubah:** Kartu Persetujuan izin di dashboard pengasuh menampilkan semua izin syar'i yang masih PENDING (bukan hanya pengajuan portal wali). Daftar memakai kartu dengan tombol Setujui/Tolak selalu terlihat. Layout `dash-home-mobile-fit` dilepas agar kartu tidak terpotong.
+- **File:** `helpers/perizinan_approval.php`, `pengasuh/dashboard.php`, `assets/css/pengasuh-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Antrian tidak muncul karena filter `pengajuan_sumber = wali` (baris lama/default admin tersembunyi) dan tabel Aksi terpotong overflow.
+- **Status:** terpasang; uji dashboard pengasuh — kartu izin di bawah hero, ketuk Setujui/Tolak tanpa gulir samping
+
 ### [2026-09-10] Kartu keaktivan pengasuh bisa disembunyikan
 - **Apa yang diubah:** Tombol **Sembunyikan kartu** / **Tampil kartu** di kartu Keaktivan hari ini. Tabel per tingkatan tetap tampil. Pilihan tersimpan di browser (localStorage).
 - **File:** `pengasuh/partials/dashboard_keaktivan_berlangsung.php`, `pengasuh/partials/dashboard_keaktivan_kategori_panel.php`, `STATUS_PWA.md`

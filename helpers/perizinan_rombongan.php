@@ -327,10 +327,9 @@ function perizinan_rombongan_by_qr(PDO $pdo, string $qrToken): ?array
  *
  * @return array{ok:bool,message:string}
  */
-function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId, bool $bypassAlpa = false, bool $stampPengasuh = false): array
+function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, int $userId, bool $bypassAlpa = false, bool $stampPengasuh = false, bool $deferNotif = false): array
 {
     require_once __DIR__ . '/perizinan_approval.php';
-    perizinan_approval_ensure_schema($pdo);
 
     $meta = perizinan_rombongan_meta($pdo, $rombonganId);
     if (!$meta) {
@@ -433,6 +432,27 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         $pdo->commit();
 
         $alasanMeta = (string) ($meta['alasan'] ?? '');
+        $msg = $stampPengasuh
+            ? 'Izin syar\'i rombongan disetujui pengasuh (' . count($anggota) . ' santri). Pengurus tinggal cetak surat rombongan.'
+            : 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
+        if ($bypassAlpa) {
+            $msg .= ' (Syarat ALPA dilewati.)';
+        }
+        if ($deferNotif) {
+            perizinan_notif_queue_push($pdo, 'rombongan', [
+                'anggota' => $anggota,
+                'jenis_izin' => $jenisIzin,
+                'alasan' => $alasanMeta,
+                'tgl_mulai' => $tglMulai,
+                'tgl_selesai' => $tglSelesai,
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'user_id' => $userId,
+            ]);
+            $msg .= ' Notifikasi sedang dikirim.';
+
+            return ['ok' => true, 'message' => $msg];
+        }
         $waRingkasan = perizinan_kirim_wa_rombongan_disetujui(
             $pdo,
             $anggota,
@@ -444,12 +464,6 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $jamSelesai,
             $userId
         );
-        $msg = $stampPengasuh
-            ? 'Izin syar\'i rombongan disetujui pengasuh (' . count($anggota) . ' santri). Pengurus tinggal cetak surat rombongan.'
-            : 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
-        if ($bypassAlpa) {
-            $msg .= ' (Syarat ALPA dilewati.)';
-        }
         $msg .= perizinan_wa_flash_kirim_disetujui($waRingkasan);
 
         return ['ok' => true, 'message' => $msg];

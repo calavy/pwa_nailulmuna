@@ -130,34 +130,26 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
 
 $tglLabel = (string) ($konteks['tgl_label'] ?? $today);
 
-$izinPengasuhAntrian = perizinan_pengasuh_antrian($pdo, 6);
+$izinPengasuhAntrian = perizinan_pengasuh_antrian($pdo, 8);
 $izinPengasuhPendingCount = (int) ($izinPengasuhAntrian['total'] ?? 0);
 $izinPengasuhIndividu = $izinPengasuhAntrian['individu'] ?? [];
 $izinPengasuhRombongan = $izinPengasuhAntrian['rombongan'] ?? [];
-
-$userId = (int) ($_SESSION['user']['id'] ?? 0);
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = (string) ($_POST['action'] ?? '');
-    if ($action === 'setujui_pengasuh') {
-        $res = perizinan_pengasuh_setujui($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, false);
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/pengasuh/dashboard.php'));
-        exit;
-    }
-    if ($action === 'tolak_pengasuh') {
-        $res = perizinan_tolak_izin_satu($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, 'pengasuh');
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/pengasuh/dashboard.php'));
-        exit;
+$izinDashAlpaRows = $izinPengasuhIndividu;
+foreach ($izinPengasuhRombongan as $rmAlpa) {
+    foreach ($rmAlpa['anggota_rows'] ?? [] as $arAlpa) {
+        $izinDashAlpaRows[] = $arAlpa;
     }
 }
+$izinDashAlpaMap = perizinan_alpa_map_for_rows($pdo, $izinDashAlpaRows);
+$izinAksiHref = app_href('/pengasuh/izin_aksi.php');
 
 $pageTitle = 'Dashboard Pengasuh';
-$bodyClass = 'dash-page dash-home-mobile-fit page-pengasuh-dashboard kh-wrap';
+$bodyClass = 'dash-page page-pengasuh-dashboard kh-wrap';
 $pageStylesheets = [
     app_asset_href('/assets/css/keaktifan-hari.css'),
     app_asset_href('/assets/css/pengasuh-dashboard.css'),
 ];
+$pageScripts = [app_asset_href('/assets/js/pengasuh-izin-setujui.js')];
 $loadPushFcm = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -206,14 +198,15 @@ require_once __DIR__ . '/../includes/header.php';
         </section>
     </div>
 
-    <div class="mb-4">
-        <div class="card border-warning shadow-sm dash-panel<?= $izinPengasuhPendingCount > 0 ? '' : ' border-opacity-50' ?>">
+    <div class="mb-4" id="pg-dash-izin">
+        <div class="card border-warning shadow-sm dash-panel pg-dash-izin-panel<?= $izinPengasuhPendingCount > 0 ? '' : ' border-opacity-50' ?>">
             <div class="card-body">
+                <div id="pg-dash-izin-flash" class="d-none"></div>
                 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
                     <div>
                         <h2 class="h6 fw-bold mb-1 text-warning">
                             <i class="fa-solid fa-file-signature me-1"></i>
-                            Persetujuan izin syar'i
+                            Persetujuan izin
                             <?php if ($izinPengasuhPendingCount > 0): ?>
                                 <span class="badge text-bg-warning ms-1"><?= (int) $izinPengasuhPendingCount ?></span>
                             <?php endif; ?>
@@ -222,95 +215,96 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php if ($izinPengasuhPendingCount > 0): ?>
                                 <strong><?= (int) $izinPengasuhPendingCount ?></strong> permohonan menunggu persetujuan pengasuh.
                             <?php else: ?>
-                                Tidak ada permohonan izin syar'i yang menunggu saat ini.
+                                Tidak ada permohonan izin yang menunggu saat ini.
                             <?php endif; ?>
                         </p>
                     </div>
                     <a href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>" class="btn btn-sm btn-warning">
-                        <i class="fa-solid fa-check-double me-1"></i> Buka persetujuan
+                        <i class="fa-solid fa-check-double me-1"></i> Buka semua
                     </a>
                 </div>
 
                 <?php if ($izinPengasuhRombongan !== []): ?>
-                <div class="mb-3">
+                <div class="pg-dash-izin-list mb-3">
                     <div class="small fw-semibold text-warning mb-2">Izin rombongan</div>
-                    <div class="d-flex flex-column gap-2">
-                        <?php foreach ($izinPengasuhRombongan as $rm): ?>
-                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 border rounded-3 px-3 py-2 bg-warning-subtle">
-                                <div class="small">
-                                    <strong>Rombongan #<?= (int) $rm['id'] ?></strong>
-                                    · <?= (int) ($rm['jumlah'] ?? 0) ?> santri
-                                    · <?= htmlspecialchars(app_format_izin_rentang(
-                                        (string) ($rm['tanggal_mulai'] ?? ''),
-                                        (string) ($rm['tanggal_selesai'] ?? ''),
-                                        substr((string) ($rm['jam_mulai'] ?? ''), 0, 5),
-                                        substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)
-                                    )) ?>
-                                </div>
-                                <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>">Setujui</a>
+                    <?php foreach ($izinPengasuhRombongan as $rm):
+                        $rmRingkas = perizinan_alpa_pilih_rombongan($izinDashAlpaMap, $rm['izin_ids'] ?? []);
+                        $alpaCek = $rmRingkas['cek'];
+                        $blokirR = (int) $rmRingkas['blokir'];
+                        $rmJudul = 'Rombongan #' . (int) $rm['id'] . ' · ' . (int) ($rm['jumlah'] ?? 0) . ' santri';
+                        $rmTanggal = app_format_izin_rentang(
+                            (string) ($rm['tanggal_mulai'] ?? ''),
+                            (string) ($rm['tanggal_selesai'] ?? ''),
+                            substr((string) ($rm['jam_mulai'] ?? ''), 0, 5),
+                            substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)
+                        );
+                        $rmNote = $blokirR > 0
+                            ? ($blokirR . ' dari ' . (int) ($rm['jumlah'] ?? 0) . ' santri terhalang ALPA')
+                            : '';
+                        ?>
+                        <article class="pg-dash-izin-card pg-dash-izin-card--rombongan">
+                            <div class="pg-dash-izin-card__body">
+                                <div class="fw-semibold"><?= htmlspecialchars($rmJudul) ?></div>
+                                <div class="small text-muted"><?= htmlspecialchars($rmTanggal) ?></div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
+                            <div class="pg-dash-izin-card__actions">
+                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
+                                    data-judul="<?= htmlspecialchars($rmJudul) ?>"
+                                    data-tanggal="<?= htmlspecialchars($rmTanggal) ?>"
+                                    <?= perizinan_alpa_html_data_attrs($alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
+                                    <input type="hidden" name="action" value="setujui_rombongan_pengasuh">
+                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
+                                    <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>
+                                </form>
+                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-tolak-form" data-confirm="Tolak izin rombongan ini?">
+                                    <input type="hidden" name="action" value="tolak_rombongan_pengasuh">
+                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm pg-dash-izin-btn">Tolak</button>
+                                </form>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
 
                 <?php if ($izinPengasuhIndividu !== []): ?>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0 pg-dash-izin-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Santri</th>
-                                <th>Alasan</th>
-                                <th>Periode</th>
-                                <th class="text-end">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($izinPengasuhIndividu as $ip):
-                            $izinIdRow = (int) ($ip['id'] ?? 0);
-                            $alasanSingkat = trim((string) ($ip['alasan'] ?? ''));
-                            if (mb_strlen($alasanSingkat) > 80) {
-                                $alasanSingkat = mb_substr($alasanSingkat, 0, 77) . '…';
-                            }
-                            if ($alasanSingkat === '') {
-                                $alasanSingkat = '—';
-                            }
-                            ?>
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold small"><?= htmlspecialchars((string) ($ip['nama_santri'] ?? '')) ?></div>
-                                    <div class="text-muted font-monospace" style="font-size:.72rem"><?= htmlspecialchars((string) ($ip['nis'] ?? '')) ?></div>
-                                </td>
-                                <td class="small text-muted"><?= htmlspecialchars($alasanSingkat) ?></td>
-                                <td class="small text-nowrap">
-                                    <?= htmlspecialchars(app_format_izin_rentang(
-                                        (string) ($ip['tanggal_mulai'] ?? ''),
-                                        (string) ($ip['tanggal_selesai'] ?? ''),
-                                        substr((string) ($ip['jam_mulai'] ?? ''), 0, 5),
-                                        substr((string) ($ip['jam_selesai'] ?? ''), 0, 5)
-                                    )) ?>
-                                </td>
-                                <td class="text-end">
-                                    <div class="pg-dash-izin-actions">
-                                        <form method="post" class="d-inline">
-                                            <input type="hidden" name="action" value="setujui_pengasuh">
-                                            <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
-                                            <button type="submit" class="btn btn-success btn-lg pg-dash-izin-btn">Setujui</button>
-                                        </form>
-                                        <form method="post" class="d-inline" onsubmit="return confirm('Tolak permohonan izin ini?');">
-                                            <input type="hidden" name="action" value="tolak_pengasuh">
-                                            <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
-                                            <button type="submit" class="btn btn-outline-danger btn-lg pg-dash-izin-btn">Tolak</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="pg-dash-izin-list">
+                    <?php foreach ($izinPengasuhIndividu as $ip):
+                        $izinIdRow = (int) ($ip['id'] ?? 0);
+                        $alpaCek = $izinDashAlpaMap[$izinIdRow] ?? ['subject' => false, 'allowed' => true];
+                        $ipNama = (string) ($ip['nama_santri'] ?? '');
+                        $ipTanggal = app_format_izin_rentang(
+                            (string) ($ip['tanggal_mulai'] ?? ''),
+                            (string) ($ip['tanggal_selesai'] ?? ''),
+                            substr((string) ($ip['jam_mulai'] ?? ''), 0, 5),
+                            substr((string) ($ip['jam_selesai'] ?? ''), 0, 5)
+                        );
+                        ?>
+                        <article class="pg-dash-izin-card">
+                            <div class="pg-dash-izin-card__body">
+                                <div class="fw-semibold"><?= htmlspecialchars($ipNama) ?></div>
+                                <div class="small text-muted"><?= htmlspecialchars($ipTanggal) ?></div>
+                            </div>
+                            <div class="pg-dash-izin-card__actions">
+                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
+                                    data-judul="<?= htmlspecialchars($ipNama) ?>"
+                                    data-tanggal="<?= htmlspecialchars($ipTanggal) ?>"
+                                    <?= perizinan_alpa_html_data_attrs($alpaCek) ?>>
+                                    <input type="hidden" name="action" value="setujui_pengasuh">
+                                    <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
+                                    <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>
+                                </form>
+                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-tolak-form" data-confirm="Tolak permohonan izin ini?">
+                                    <input type="hidden" name="action" value="tolak_pengasuh">
+                                    <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm pg-dash-izin-btn">Tolak</button>
+                                </form>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
                 <?php elseif ($izinPengasuhPendingCount === 0): ?>
-                    <div class="small text-muted text-center py-2">Permohonan baru dari wali santri akan muncul di sini.</div>
+                    <div class="small text-muted text-center py-2">Permohonan izin yang menunggu akan muncul di sini.</div>
                 <?php endif; ?>
             </div>
         </div>
@@ -380,28 +374,7 @@ require_once __DIR__ . '/../includes/header.php';
         });
     })();
 </script>
-<script>
-(function () {
-    document.querySelectorAll('form').forEach(function (form) {
-        var actionInput = form.querySelector('input[name="action"]');
-        if (!actionInput || actionInput.value !== 'setujui_pengasuh') {
-            return;
-        }
-        form.addEventListener('submit', function (e) {
-            if (form.getAttribute('data-submitting') === '1') {
-                e.preventDefault();
-                return;
-            }
-            form.setAttribute('data-submitting', '1');
-            var btn = form.querySelector('.pg-dash-izin-btn[type="submit"]');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Memproses…';
-            }
-        });
-    });
-})();
-</script>
+<?php require __DIR__ . '/../includes/partials/pengasuh_izin_setujui_modal.php'; ?>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/keaktifan-hari.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

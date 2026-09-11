@@ -16,6 +16,25 @@ if (empty($alpaCek['subject'])) {
     return;
 }
 
+if ($mode === 'pengasuh') {
+    $allowedPg = !empty($alpaCek['allowed']);
+    $countPg = (int) ($alpaCek['alpa_count'] ?? 0);
+    $hariPg = (int) ($alpaCek['hari'] ?? 0);
+    $maxPg = (int) ($alpaCek['max'] ?? 0);
+    $batasAmanPg = max(0, $maxPg - 1);
+    $labelPg = $allowedPg ? 'Masih boleh' : 'Terhalang';
+    $classPg = $allowedPg ? 'success' : 'danger';
+    $detailPg = $countPg . ' ALPA / ' . $hariPg . ' hari';
+    if ($maxPg > 0) {
+        $detailPg .= ' · batas ' . $batasAmanPg;
+    }
+    echo '<div class="small">';
+    echo '<span class="badge text-bg-' . $classPg . '">' . htmlspecialchars($labelPg) . '</span>';
+    echo ' <span class="text-muted">' . htmlspecialchars($detailPg) . '</span>';
+    echo '</div>';
+    return;
+}
+
 $allowed = !empty($alpaCek['allowed']);
 $status = (string) ($alpaCek['status'] ?? ($allowed ? 'ok' : 'blocked'));
 $statusClass = $status === 'ok' ? 'success' : 'danger';

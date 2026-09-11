@@ -423,39 +423,64 @@
     }
 }
 
-/* Antrean izin — tombol Setujui/Tolak mudah di-tap di HP */
+/* Antrean izin — kartu, tombol selalu terlihat */
+.pg-dash-izin-panel {
+    flex-shrink: 0;
+}
+
+.pg-dash-izin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.pg-dash-izin-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid rgba(202, 138, 4, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 251, 235, 0.65);
+}
+
+.pg-dash-izin-card--rombongan {
+    background: rgba(253, 230, 138, 0.35);
+}
+
+.pg-dash-izin-card__body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pg-dash-izin-card__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+}
+
+.pg-dash-izin-card__actions form {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.pg-dash-izin-btn {
+    width: auto;
+    min-height: 0;
+    padding: 0.2rem 0.55rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .pg-dash-izin-actions {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     align-items: stretch;
     min-width: 7.5rem;
-}
-
-@media (min-width: 768px) {
-    .pg-dash-izin-actions {
-        flex-direction: row;
-        justify-content: flex-end;
-        align-items: center;
-    }
-}
-
-.pg-dash-izin-btn {
-    min-height: 44px;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-@media (max-width: 767.98px) {
-    .pg-dash-izin-table .pg-dash-izin-actions {
-        width: 100%;
-    }
-
-    .pg-dash-izin-table .pg-dash-izin-btn {
-        width: 100%;
-    }
 }
 
 /* Dark mockup — dashboard pengasuh */
@@ -475,28 +500,12 @@
     color: #fde68a !important;
 }
 
-/* Single-view clip (dash-home-mobile-fit) memotong isi pengasuh — izinkan scroll halaman */
-@media (min-width: 992px) {
-    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-frame-main {
-        overflow: auto;
-    }
-
-    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-shell,
-    body.page-pengasuh-dashboard.dash-home-mobile-fit .app-main {
-        display: block;
-        overflow: visible;
-        flex: none;
-        max-height: none;
-        min-height: 0;
-    }
-
-    body.page-pengasuh-dashboard.dash-home-mobile-fit .dash-page {
-        display: block;
-        overflow: visible;
-        flex: none;
-        max-height: none;
-        min-height: 0;
-    }
+body.page-pengasuh-dashboard .app-frame-main,
+body.page-pengasuh-dashboard .app-shell,
+body.page-pengasuh-dashboard .app-main,
+body.page-pengasuh-dashboard .dash-page {
+    overflow: visible;
+    max-height: none;
 }
 
 body.page-pengasuh-dashboard .app-main,
@@ -526,11 +535,6 @@ body.page-pengasuh-dashboard .dash-page {
 
     body.page-pengasuh-dashboard .dash-clock-card .dash-hero-clock__time {
         font-size: 1.5rem;
-    }
-
-    body.page-pengasuh-dashboard .pg-dash-izin-table td.text-nowrap,
-    body.page-pengasuh-dashboard .pg-dash-izin-table .text-nowrap {
-        white-space: normal;
     }
 
     body.page-pengasuh-dashboard .pg-dash-keg-live-summary .card-body.px-4 {

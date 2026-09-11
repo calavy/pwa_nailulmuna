@@ -353,6 +353,7 @@ function user_permission_path_map_base(): array
         '/pengasuh/dashboard.php' => 'rekap_keaktifan_hari',
         '/pengasuh/laporan_hari.php' => 'rekap_keaktifan_hari',
         '/pengasuh/perizinan.php' => 'rekap_keaktifan_hari',
+        '/pengasuh/izin_aksi.php' => 'rekap_keaktifan_hari',
         '/pengasuh/sdm_hari.php' => 'rekap_keaktifan_hari',
         '/pengasuh/nilai_keaktifan.php' => 'rekap_keaktifan',
         '/rekap/index.php' => 'rekap',
@@ -535,6 +536,12 @@ function user_permission_alt_keys_for_path(string $requestPath): array
             'rekap_keaktifan_hari',
         ],
         '/pengasuh/perizinan.php' => [
+            'perizinan',
+            'perizinan_permohonan',
+            'rekap_keaktifan',
+            'rekap',
+        ],
+        '/pengasuh/izin_aksi.php' => [
             'perizinan',
             'perizinan_permohonan',
             'rekap_keaktifan',
