@@ -97,7 +97,8 @@ if (isset($_SESSION['user'])) {
     }
     try {
         $skipWaFallback = str_contains($requestPath, '/pengasuh/perizinan.php')
-            || str_contains($requestPath, '/pengasuh/izin_aksi.php');
+            || str_contains($requestPath, '/pengasuh/izin_aksi.php')
+            || str_contains($requestPath, '/perizinan/index.php');
         if (
             !$skipWaFallback
             && (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip())

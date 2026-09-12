@@ -278,14 +278,18 @@ body:has(> header.koperasi-topbar):has(.cashless-scan-app) > main {
 .cashless-viewport,
 .cashless-viewport--uang {
     position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    border-radius: 0;
+    flex: 0 1 auto;
+    width: calc(100% - 1.5rem);
+    max-width: 26rem;
+    height: 52vh;
+    max-height: 52vh;
+    min-height: 180px;
+    margin: 0.45rem auto;
+    border-radius: 16px;
     overflow: hidden;
     background: #000;
-    box-shadow: none;
-    border: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .cashless-viewport #reader,
@@ -312,7 +316,7 @@ body:has(> header.koperasi-topbar):has(.cashless-scan-app) > main {
     object-fit: cover !important;
     width: 100% !important;
     height: 100% !important;
-    border-radius: 0 !important;
+    border-radius: 16px !important;
     display: block !important;
     min-height: 0 !important;
 }
@@ -416,7 +420,7 @@ body:has(> header.koperasi-topbar):has(.cashless-scan-app) > main {
 }
 
 .cashless-viewport--uang {
-    margin: 0;
+    margin: 0.45rem auto;
 }
 
 .cashless-scan-wrap.is-confirming .cashless-viewport--uang {
@@ -716,7 +720,8 @@ body:has(> header.koperasi-topbar):has(.cashless-scan-app) > main {
 
     .cashless-viewport,
     .cashless-viewport--uang {
-        min-height: 140px;
-        max-height: none;
+        min-height: 180px;
+        max-height: 52vh;
+        height: 52vh;
     }
 }

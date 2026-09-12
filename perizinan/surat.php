@@ -32,13 +32,14 @@ if (!$izin) {
     exit('Data izin tidak ditemukan.');
 }
 
-perizinan_syari_backfill_finalize($pdo, $id);
-
-$statement->execute(['id' => $id]);
-$izin = $statement->fetch();
-
-if (!$izin) {
-    exit('Data izin tidak ditemukan.');
+$approvalStatusEarly = strtoupper((string) ($izin['approval_status'] ?? ''));
+if ($approvalStatusEarly !== 'DISETUJUI') {
+    perizinan_syari_backfill_finalize($pdo, $id);
+    $statement->execute(['id' => $id]);
+    $izin = $statement->fetch();
+    if (!$izin) {
+        exit('Data izin tidak ditemukan.');
+    }
 }
 
 $approvalStatus = strtoupper((string) ($izin['approval_status'] ?? ''));

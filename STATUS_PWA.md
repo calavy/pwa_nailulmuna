@@ -7,6 +7,24 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-12] Kamera scan cashless lebih kecil
+- **Apa yang diubah:** Kotak kamera scan cashless dibatasi ~52vh, ada jarak samping dan sudut membulat — tidak lagi memenuhi sisa layar.
+- **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tampilan kamera terlalu besar di halaman scan cashless.
+- **Status:** terpasang; uji scan cashless — kotak kamera lebih kecil di tengah, QR tetap terbaca
+
+### [2026-09-12] Setujui pengurus lebih cepat
+- **Apa yang diubah:** POST Setujui tidak memuat push_events/keuangan. Surat yang sudah DISETUJUI tidak menjalankan backfill/ensure_schema. Modal fetch JSON dulu, baru pindah ke surat — *Memproses* hanya menunggu UPDATE.
+- **File:** `perizinan/index.php`, `perizinan/surat.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Setelah WA ditunda, *Memproses…* masih lama karena bootstrap berat + menunggu halaman surat (schema ulang).
+- **Status:** terpasang; uji Setujui izin sakit — *Memproses* singkat, lalu surat tampil
+
+### [2026-09-12] Setujui pengurus tidak tertahan Memproses
+- **Apa yang diubah:** Setujui di modul pengurus: schema hanya saat GET; WA/FCM mengantri ke cron (`deferNotif`); header tidak menjalankan fallback WA di `/perizinan/index.php`. Redirect ke surat tetap.
+- **File:** `perizinan/index.php`, `includes/header.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Dialog Setujui & atur jadwal tertahan *Memproses…* karena POST menunggu schema, fallback WA, dan kirim WA sinkron.
+- **Status:** terpasang; uji Setujui izin sakit — *Memproses…* singkat, pindah ke surat, WA menyusul via cron
+
 ### [2026-09-11] Tombol izin kecil di samping
 - **Apa yang diubah:** Kartu izin pengasuh: nama + tanggal di kiri, Setujui/Tolak `btn-sm` bersebelahan di kanan (bukan penuh lebar di bawah).
 - **File:** `assets/css/pengasuh-dashboard.css`, `assets/css/app.css`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `STATUS_PWA.md`

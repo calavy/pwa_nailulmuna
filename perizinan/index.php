@@ -3,17 +3,43 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
-require_once __DIR__ . '/../helpers/push_events.php';
-require_once __DIR__ . '/../helpers/santri_operasional.php';
-require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/perizinan_jenis.php';
 require_once __DIR__ . '/../helpers/perizinan_syari_kategori.php';
 
 require_roles(['admin', 'pengurus', 'petugas_absensi']);
-perizinan_rombongan_ensure_schema($pdo);
-perizinan_approval_ensure_schema($pdo);
+
+$isPost = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
+$postAction = $isPost ? (string) ($_POST['action'] ?? 'create_izin') : '';
+$wantJson = $isPost && (
+    strtolower(trim((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''))) === 'xmlhttprequest'
+    || (str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json')
+        && !str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'text/html'))
+);
+
+if (!$isPost) {
+    require_once __DIR__ . '/../helpers/santri_operasional.php';
+    require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
+    perizinan_rombongan_ensure_schema($pdo);
+    perizinan_approval_ensure_schema($pdo);
+} elseif (in_array($postAction, ['approve_rombongan', 'reject_rombongan'], true)) {
+    require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
+} elseif ($postAction === 'create_health') {
+    require_once __DIR__ . '/../helpers/santri_operasional.php';
+}
+
 $hideCetakSurat = user_is_pengasuh_kiai();
+
+$respondPengurus = static function (bool $ok, string $message, string $redirect) use ($wantJson): void {
+    if ($wantJson) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => $ok, 'message' => $message, 'redirect' => $redirect], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    set_flash($ok ? 'success' : 'error', $message);
+    header('Location: ' . $redirect, true, 303);
+    exit;
+};
 
 if (!table_exists($pdo, 'perizinan')) {
     set_flash('error', 'Tabel perizinan belum ada. Jalankan schema_presensi.sql.');
@@ -46,19 +72,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rid = (int) ($_POST['rombongan_id'] ?? 0);
         $metaRombongan = $rid > 0 ? perizinan_rombongan_meta($pdo, $rid) : null;
         if (is_array($metaRombongan) && perizinan_memerlukan_persetujuan_pengasuh((string) ($metaRombongan['jenis_izin'] ?? ''))) {
-            set_flash('error', 'Izin syar\'i rombongan disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A4.');
-            header('Location: ' . app_href('/perizinan/index.php'));
-            exit;
+            $respondPengurus(false, 'Izin syar\'i rombongan disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A4.', app_href('/perizinan/index.php'));
         }
         $bypassRombongan = perizinan_request_bypass_alpa($pdo, $_POST);
-        $res = perizinan_rombongan_approve($pdo, $rid, $_POST, (int) ($_SESSION['user']['id'] ?? 0), $bypassRombongan);
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        if ($res['ok'] && $rid > 0) {
-            header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . $rid));
-            exit;
-        }
-        header('Location: ' . app_href('/perizinan/index.php'));
-        exit;
+        $res = perizinan_rombongan_approve($pdo, $rid, $_POST, (int) ($_SESSION['user']['id'] ?? 0), $bypassRombongan, false, true);
+        $okR = !empty($res['ok']);
+        $redirectR = ($okR && $rid > 0)
+            ? app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . $rid)
+            : app_href('/perizinan/index.php');
+        $respondPengurus($okR, (string) ($res['message'] ?? 'Aksi gagal.'), $redirectR);
     }
     if ($action === 'approve_izin') {
         $id = (int) ($_POST['izin_id'] ?? 0);
@@ -74,35 +96,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ');
             $izinInfoStmt->execute(['id' => $id]);
             $izinInfo = $izinInfoStmt->fetch();
+            $backIndex = app_href('/perizinan/index.php');
             if (!$izinInfo) {
-                set_flash('error', 'Data permohonan tidak ditemukan.');
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(false, 'Data permohonan tidak ditemukan.', $backIndex);
             }
 
             if (strtoupper((string) ($izinInfo['approval_status'] ?? '')) !== 'PENDING') {
-                set_flash('info', 'Izin sudah disetujui sebelumnya.');
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(true, 'Izin sudah disetujui sebelumnya.', app_rewrite_internal_url('/perizinan/surat.php?id=' . $id));
             }
 
             $santriId = (int) ($izinInfo['santri_id'] ?? 0);
             $jenisIzinRaw = strtoupper((string) ($izinInfo['jenis_izin'] ?? ''));
             if (perizinan_memerlukan_persetujuan_pengasuh($jenisIzinRaw)) {
-                set_flash('error', 'Izin syar\'i disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A5.');
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(false, 'Izin syar\'i disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A5.', $backIndex);
             }
             $alpaErr = perizinan_validasi_setujui_alpa($pdo, $santriId, $jenisIzinRaw, $bypassAlpa);
             if ($alpaErr !== null) {
-                set_flash('error', $alpaErr);
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(false, $alpaErr, $backIndex);
             }
             if (perizinan_izin_menunggu_persetujuan_pengasuh($pdo, is_array($izinInfo) ? $izinInfo : [])) {
-                set_flash('error', 'Izin syar\'i belum disetujui pengasuh. Minta pengasuh meninjau di menu Persetujuan Izin Pengasuh terlebih dahulu.');
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(false, 'Izin syar\'i belum disetujui pengasuh. Minta pengasuh meninjau di menu Persetujuan Izin Pengasuh terlebih dahulu.', $backIndex);
             }
 
             $tglMulai = trim((string) ($_POST['tanggal_mulai'] ?? ''));
@@ -129,16 +142,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'durasi_jam' => $durasi,
                 ],
                 false,
-                perizinan_parse_wa_pembimbing_post($_POST)
+                perizinan_parse_wa_pembimbing_post($_POST),
+                true
             );
             if (!$res['ok']) {
-                set_flash('error', $res['message']);
-                header('Location: ' . app_href('/perizinan/index.php'));
-                exit;
+                $respondPengurus(false, (string) ($res['message'] ?? 'Aksi gagal.'), $backIndex);
             }
-            set_flash('success', $res['message']);
-            header('Location: ' . app_rewrite_internal_url('/perizinan/surat.php?id=' . $id));
-            exit;
+            $respondPengurus(true, (string) $res['message'], app_rewrite_internal_url('/perizinan/surat.php?id=' . $id));
         }
         header('Location: ' . app_href('/perizinan/index.php'));
         exit;
@@ -931,16 +941,51 @@ require_once __DIR__ . '/../includes/header.php';
     var approveForm = approveModal.querySelector('form');
     if (approveForm) {
         approveForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
             if (approveForm.getAttribute('data-submitting') === '1') {
-                e.preventDefault();
                 return;
             }
             approveForm.setAttribute('data-submitting', '1');
             var submitBtn = document.getElementById('approve-submit-btn');
+            var oldLabel = submitBtn ? submitBtn.textContent : 'Setujui & cetak surat';
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Memproses…';
             }
+            fetch(approveForm.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: new FormData(approveForm),
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    return data || {};
+                }, function () {
+                    return { ok: false, message: 'Tidak dapat memproses. Coba lagi.' };
+                });
+            }).then(function (data) {
+                if (!data.ok) {
+                    approveForm.removeAttribute('data-submitting');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = oldLabel;
+                    }
+                    window.alert(data.message || 'Setujui gagal.');
+                    return;
+                }
+                window.location.href = data.redirect || window.location.href;
+            }).catch(function () {
+                approveForm.removeAttribute('data-submitting');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = oldLabel;
+                }
+                window.alert('Tidak dapat memproses. Coba lagi.');
+            });
         });
     }
 })();
