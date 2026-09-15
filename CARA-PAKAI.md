@@ -112,6 +112,42 @@ schtasks /Delete /TN "PWA_NailulMuna_WA_Auto" /F
 
 ---
 
+## Cron snapshot laporan ke Google Sheet
+
+Setiap hari (default jam **05:00** WIB), sistem menulis snapshot 7 laporan keuangan ke satu Google Spreadsheet (data tabular, bukan PDF).
+
+**Setup Google Cloud (sekali):**
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → buat project → aktifkan **Google Sheets API** + **Google Drive API**
+2. Buat **Service Account** → unduh JSON key
+3. Salin ke `config/google_service_account.json` (lihat `config/google_service_account.json.example`)
+4. Opsional: buat spreadsheet kosong → share **Editor** ke email service account (`...@...iam.gserviceaccount.com`)
+
+**Di aplikasi:**
+
+1. **Pengaturan → Snapshot Laporan Google Sheet**
+2. Isi email penerima (Viewer), jam snapshot, path JSON
+3. Centang **Aktifkan snapshot harian otomatis** → Simpan (cron otomatis pakai data **as_of = kemarin**)
+4. **Kirim snapshot sekarang** — pilih tanggal **as_of** (default kemarin) lalu kirim; berguna untuk backfill tanggal tertentu tanpa menunggu cron
+5. Cek spreadsheet: tab `Neraca_Pondok`, `Rekap_Kas_Bulanan`, `Tunggakan_Syahriyah`, `Syahriyah_12Bulan`, `Payroll_Pembimbing`, `BOS_BKU`, `BOS_LRA` (7 tab tetap, di-overwrite setiap kirim)
+
+**Tombol kirim tidak jalan?** Cek badge **Kredensial SA** di kartu Status (bukan badge **Aktif**). Setelah ubah path JSON, klik **Simpan** dulu. Tombol tetap bisa diklik; jika kredensial belum siap, pesan error muncul di atas form.
+
+**Jadwalkan cron (Windows/XAMPP):**
+
+1. Klik kanan **`setup-cron-laporan-snapshot.bat`** → **Run as administrator**
+2. Task `PWA_NailulMuna_Laporan_Snapshot` memanggil `php cron/laporan_snapshot.php` setiap 1 menit (guard: hanya sekali sehari setelah jam setting)
+
+**Uji manual:**
+
+```powershell
+C:\xampp\php\php.exe C:\xampp\htdocs\pwa_nailulmuna\cron\laporan_snapshot.php
+```
+
+**Hosting:** `* * * * * curl -s "https://domain/cron/laporan_snapshot.php?key=..."` (kunci di halaman pengaturan snapshot).
+
+---
+
 ## Pembayaran Saku → Saldo Cashless
 
 Jika pembayaran pos **Saku** sudah dicatat tetapi saldo cashless santri tidak bertambah:

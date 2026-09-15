@@ -6,8 +6,11 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
+
+perizinan_rombongan_ensure_schema($pdo);
 
 $isPengasuhOnly = user_is_pengasuh_kiai() && !is_super_admin() && strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'kiai';
 $izinAksiHref = app_href('/pengasuh/izin_aksi.php');
@@ -29,12 +32,17 @@ foreach ($pendingRows as $row) {
         continue;
     }
     if (!isset($rombonganById[$rid])) {
+        $meta = perizinan_rombongan_meta($pdo, $rid) ?: [];
         $rombonganById[$rid] = [
             'id' => $rid,
-            'tanggal_mulai' => (string) ($row['tanggal_mulai'] ?? ''),
-            'tanggal_selesai' => (string) ($row['tanggal_selesai'] ?? ''),
-            'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
-            'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
+            'jenis_izin' => (string) ($meta['jenis_izin'] ?? $row['jenis_izin'] ?? ''),
+            'syari_kategori' => (string) ($meta['syari_kategori'] ?? $row['syari_kategori'] ?? ''),
+            'tanggal_mulai' => (string) ($meta['tanggal_mulai'] ?? $row['tanggal_mulai'] ?? ''),
+            'tanggal_selesai' => (string) ($meta['tanggal_selesai'] ?? $row['tanggal_selesai'] ?? ''),
+            'jam_mulai' => (string) ($meta['jam_mulai'] ?? $row['jam_mulai'] ?? ''),
+            'jam_selesai' => (string) ($meta['jam_selesai'] ?? $row['jam_selesai'] ?? ''),
+            'alasan' => (string) ($meta['alasan'] ?? ''),
+            'tujuan' => (string) ($meta['tujuan'] ?? ''),
             'jumlah' => 0,
             'izin_ids' => [],
         ];
@@ -45,7 +53,10 @@ foreach ($pendingRows as $row) {
 $rombonganPending = array_values($rombonganById);
 
 $pageTitle = 'Persetujuan Izin — Pengasuh';
-$pageScripts = [app_asset_href('/assets/js/pengasuh-izin-setujui.js')];
+$pageScripts = [
+    app_asset_href('/assets/js/izin-alpa-modal.js'),
+    app_asset_href('/assets/js/pengasuh-izin-setujui.js'),
+];
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -80,17 +91,20 @@ require_once __DIR__ . '/../includes/header.php';
             $rmNote = $blokirR > 0
                 ? ($blokirR . ' dari ' . (int) $rm['jumlah'] . ' santri terhalang ALPA')
                 : '';
+            $rmAlasan = trim((string) ($rm['alasan'] ?? ''));
+            $rmMeta = $rmTanggal;
+            if ($rmAlasan !== '') {
+                $rmMeta .= ' · ' . $rmAlasan;
+            }
             ?>
             <article class="pg-izin-card pg-izin-card--rombongan">
                 <div class="pg-izin-card__body">
                     <div class="fw-semibold"><?= htmlspecialchars($rmJudul) ?></div>
-                    <div class="small text-muted"><?= htmlspecialchars($rmTanggal) ?></div>
+                    <div class="small text-muted pg-izin-card__meta"<?= $rmAlasan !== '' ? ' title="' . htmlspecialchars($rmMeta) . '"' : '' ?>><?= htmlspecialchars($rmMeta) ?></div>
                 </div>
                 <div class="pg-izin-card__actions">
                     <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                        data-judul="<?= htmlspecialchars($rmJudul) ?>"
-                        data-tanggal="<?= htmlspecialchars($rmTanggal) ?>"
-                        <?= perizinan_alpa_html_data_attrs($alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
+                        <?= perizinan_pengasuh_setujui_form_attrs($pdo, $rm, $rmJudul, $rmTanggal, $alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
                         <input type="hidden" name="action" value="setujui_rombongan_pengasuh">
                         <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
                         <button type="submit" class="btn btn-success btn-sm pg-pengasuh-submit">Setujui</button>
@@ -129,17 +143,20 @@ require_once __DIR__ . '/../includes/header.php';
                     substr((string) ($iz['jam_mulai'] ?? ''), 0, 5),
                     substr((string) ($iz['jam_selesai'] ?? ''), 0, 5)
                 );
+                $izAlasan = trim((string) ($iz['alasan'] ?? ''));
+                $izMeta = $izTanggal;
+                if ($izAlasan !== '') {
+                    $izMeta .= ' · ' . $izAlasan;
+                }
                 ?>
                 <article class="pg-izin-card">
                     <div class="pg-izin-card__body">
                         <div class="fw-semibold"><?= htmlspecialchars($izNama) ?></div>
-                        <div class="small text-muted"><?= htmlspecialchars($izTanggal) ?></div>
+                        <div class="small text-muted pg-izin-card__meta"<?= $izAlasan !== '' ? ' title="' . htmlspecialchars($izMeta) . '"' : '' ?>><?= htmlspecialchars($izMeta) ?></div>
                     </div>
                     <div class="pg-izin-card__actions">
                         <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                            data-judul="<?= htmlspecialchars($izNama) ?>"
-                            data-tanggal="<?= htmlspecialchars($izTanggal) ?>"
-                            <?= perizinan_alpa_html_data_attrs($alpaCek) ?>>
+                            <?= perizinan_pengasuh_setujui_form_attrs($pdo, $iz, $izNama, $izTanggal, $alpaCek) ?>>
                             <input type="hidden" name="action" value="setujui_pengasuh">
                             <input type="hidden" name="izin_id" value="<?= (int) $iz['id'] ?>">
                             <button type="submit" class="btn btn-success btn-sm pg-pengasuh-submit">Setujui</button>

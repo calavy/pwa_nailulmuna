@@ -7,6 +7,48 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-15] Modal Setujui izin — tampilkan pemohon
+- **Apa yang diubah:** Modal Setujui izin pengasuh menampilkan baris **Pemohon** (dari `pemberi_izin`). Query antrian pengasuh dan meta rombongan ikut membawa field ini; disembunyikan jika kosong.
+- **File:** `helpers/perizinan_approval.php`, `includes/partials/pengasuh_izin_setujui_modal.php`, `assets/js/pengasuh-izin-setujui.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh perlu tahu siapa wali/petugas yang mengajukan izin sebelum menyetujui.
+- **Status:** terpasang; uji Setujui — modal tampil Pemohon di atas Jenis
+
+### [2026-09-15] Snapshot laporan — tombol kirim selalu aktif
+- **Apa yang diubah:** Tombol **Kirim snapshot sekarang** tidak lagi `disabled` di browser. Helper `laporan_snapshot_sa_status()` mengecek file, JSON valid, dan placeholder. Alert merah/hijau di form manual; validasi server-side sebelum push. Badge **Kredensial SA** menampilkan siap / file ada tapi invalid / tidak ditemukan.
+- **File:** `helpers/laporan_snapshot.php`, `settings/laporan_snapshot.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Tombol abu-abu membingungkan; pengguna perlu feedback jelas jika path belum disimpan atau JSON belum asli.
+- **Status:** terpasang; uji: klik tombol tanpa JSON → flash error; dengan JSON asli → snapshot jalan
+
+### [2026-09-15] Snapshot laporan — kirim manual per tanggal
+- **Apa yang diubah:** Form kirim manual snapshot menambah pemilih tanggal **as_of** (default kemarin). Tombol diperjelas menjadi **Kirim snapshot sekarang**. Helper `laporan_snapshot_normalize_as_of()` validasi format dan tolak tanggal masa depan. Cron harian otomatis tidak berubah (tetap as_of kemarin).
+- **File:** `helpers/laporan_snapshot.php`, `settings/laporan_snapshot.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Admin perlu backfill snapshot untuk tanggal tertentu tanpa menunggu cron, sambil tetap bisa aktifkan jadwal harian otomatis.
+- **Status:** terpasang; uji: pilih tanggal → Kirim snapshot sekarang → baris meta `as_of` di Sheet sesuai tanggal
+
+### [2026-09-15] Modal Setujui izin — detail alasan & jenis rapi
+- **Apa yang diubah:** Modal Setujui izin pengasuh menampilkan blok detail terstruktur (NIS/tingkatan, jenis, waktu, alasan penuh, tujuan opsional) sebelum panel ALPA. Kartu perizinan pengasuh ikut menampilkan tanggal · alasan.
+- **File:** `helpers/perizinan_approval.php`, `includes/partials/pengasuh_izin_setujui_modal.php`, `assets/js/pengasuh-izin-setujui.js`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `assets/css/pengasuh-dashboard.css`, `assets/css/app.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Alasan hanya terpotong di kartu; pengasuh perlu melihat detail lengkap sebelum setujui.
+- **Status:** terpasang; uji Setujui — modal tampil jenis/waktu/alasan wrap + ALPA ringkas
+
+### [2026-09-15] Modal Setujui izin — ALPA lebih ringkas
+- **Apa yang diubah:** Panel ALPA di modal Setujui izin (pengasuh & pengurus) dirapikan: status → statistik → progress bar → syarat satu baris → catatan opsional → glosarium footnote. Menghapus paragraf penjelasan duplikat.
+- **File:** `helpers/perizinan_approval.php`, `assets/js/izin-alpa-modal.js`, `assets/js/pengasuh-izin-setujui.js`, `assets/css/app.css`, `pengasuh/dashboard.php`, `pengasuh/perizinan.php`, `perizinan/index.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Informasi ALPA di modal terlalu panjang dan berulang; pengasuh butuh ringkasan jelas sebelum setujui.
+- **Status:** terpasang; uji Setujui izin — modal ALPA ~5 baris terstruktur tanpa teks ganda
+
+### [2026-09-15] Cron snapshot laporan ke Google Sheet
+- **Apa yang diubah:** Cron harian terpisah (`cron/laporan_snapshot.php`) menulis 7 tab laporan keuangan (Neraca Pondok, Rekap Kas, Tunggakan Syahriyah, Syahriyah 12 bulan, Payroll dibayar, BOS BKU & LRA) ke satu Google Spreadsheet via Service Account. Pengaturan: jam, email Viewer, spreadsheet ID, tes manual.
+- **File:** `helpers/google_sheets_client.php`, `helpers/laporan_snapshot.php`, `cron/laporan_snapshot.php`, `settings/laporan_snapshot.php`, `setup-cron-laporan-snapshot.bat`, `config/google_service_account.json.example`, `includes/menu_data.php`, `helpers/app.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Arsip laporan keuangan harian otomatis dalam format tabular mentah di Google Sheet untuk dibaca sistem lain.
+- **Status:** terpasang; uji: upload JSON SA → Pengaturan → Tes snapshot → 7 tab terisi; jadwalkan `setup-cron-laporan-snapshot.bat`
+
+### [2026-09-15] Dashboard izin tampilkan alasan
+- **Apa yang diubah:** Kartu permohonan izin di dashboard pengasuh menampilkan alasan sebaris dengan rentang tanggal (`tanggal · alasan`). Alasan panjang dipotong ellipsis; tooltip title menampilkan teks penuh.
+- **File:** `pengasuh/dashboard.php`, `assets/css/pengasuh-dashboard.css`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh perlu melihat alasan izin langsung di dashboard tanpa buka halaman lain.
+- **Status:** terpasang; uji dashboard — kartu nama + tanggal · alasan + tombol Setujui/Tolak
+
 ### [2026-09-12] Kamera scan cashless lebih kecil
 - **Apa yang diubah:** Kotak kamera scan cashless dibatasi ~52vh, ada jarak samping dan sudut membulat — tidak lagi memenuhi sisa layar.
 - **File:** `assets/css/cashless-scan.css`, `STATUS_PWA.md`

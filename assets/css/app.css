@@ -4926,6 +4926,89 @@ html {
     margin-bottom: 0.75rem;
 }
 
+.izin-alpa-panel-modal {
+    line-height: 1.45;
+}
+
+.izin-alpa-modal__status {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.izin-alpa-modal__stat {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.izin-alpa-modal__progress-label {
+    font-size: 0.72rem;
+    margin-top: 0.2rem;
+}
+
+.izin-alpa-modal__syarat {
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.izin-alpa-modal__note {
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.izin-alpa-modal__glossary {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    border-top: 1px solid rgba(var(--bs-border-color-rgb, 0, 0, 0), 0.35);
+    padding-top: 0.65rem;
+    line-height: 1.35;
+}
+
+.izin-alpa-modal--na {
+    color: var(--bs-secondary-color);
+}
+
+.pg-izin-card__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pg-izin-setujui-detail__title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 1.35;
+}
+
+.pg-izin-setujui-detail__sub {
+    margin-top: 0.15rem;
+    margin-bottom: 0.65rem;
+}
+
+.pg-izin-setujui-detail__rows {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+
+.pg-izin-setujui-detail__row {
+    display: grid;
+    grid-template-columns: 4.5rem 1fr;
+    gap: 0.5rem;
+    align-items: start;
+}
+
+.pg-izin-setujui-detail__row dt {
+    color: var(--bs-secondary-color);
+    font-weight: 500;
+    margin: 0;
+}
+
+.pg-izin-setujui-detail__row dd {
+    margin: 0;
+    word-break: break-word;
+    white-space: normal;
+}
+
 /* —— Jadwal focus layout (aksi kartu; sidebar sama seperti halaman lain) —— */
 @media (min-width: 992px) {
     .jadwal-page--focus .jadwal-slot-card__actions {

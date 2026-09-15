@@ -149,7 +149,10 @@ $pageStylesheets = [
     app_asset_href('/assets/css/keaktifan-hari.css'),
     app_asset_href('/assets/css/pengasuh-dashboard.css'),
 ];
-$pageScripts = [app_asset_href('/assets/js/pengasuh-izin-setujui.js')];
+$pageScripts = [
+    app_asset_href('/assets/js/izin-alpa-modal.js'),
+    app_asset_href('/assets/js/pengasuh-izin-setujui.js'),
+];
 $loadPushFcm = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -241,17 +244,20 @@ require_once __DIR__ . '/../includes/header.php';
                         $rmNote = $blokirR > 0
                             ? ($blokirR . ' dari ' . (int) ($rm['jumlah'] ?? 0) . ' santri terhalang ALPA')
                             : '';
+                        $rmAlasan = trim((string) ($rm['alasan'] ?? ''));
+                        $rmMeta = $rmTanggal;
+                        if ($rmAlasan !== '') {
+                            $rmMeta .= ' · ' . $rmAlasan;
+                        }
                         ?>
                         <article class="pg-dash-izin-card pg-dash-izin-card--rombongan">
                             <div class="pg-dash-izin-card__body">
                                 <div class="fw-semibold"><?= htmlspecialchars($rmJudul) ?></div>
-                                <div class="small text-muted"><?= htmlspecialchars($rmTanggal) ?></div>
+                                <div class="small text-muted pg-dash-izin-card__meta"<?= $rmAlasan !== '' ? ' title="' . htmlspecialchars($rmMeta) . '"' : '' ?>><?= htmlspecialchars($rmMeta) ?></div>
                             </div>
                             <div class="pg-dash-izin-card__actions">
                                 <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                                    data-judul="<?= htmlspecialchars($rmJudul) ?>"
-                                    data-tanggal="<?= htmlspecialchars($rmTanggal) ?>"
-                                    <?= perizinan_alpa_html_data_attrs($alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
+                                    <?= perizinan_pengasuh_setujui_form_attrs($pdo, $rm, $rmJudul, $rmTanggal, $alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
                                     <input type="hidden" name="action" value="setujui_rombongan_pengasuh">
                                     <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
                                     <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>
@@ -279,17 +285,20 @@ require_once __DIR__ . '/../includes/header.php';
                             substr((string) ($ip['jam_mulai'] ?? ''), 0, 5),
                             substr((string) ($ip['jam_selesai'] ?? ''), 0, 5)
                         );
+                        $ipAlasan = trim((string) ($ip['alasan'] ?? ''));
+                        $ipMeta = $ipTanggal;
+                        if ($ipAlasan !== '') {
+                            $ipMeta .= ' · ' . $ipAlasan;
+                        }
                         ?>
                         <article class="pg-dash-izin-card">
                             <div class="pg-dash-izin-card__body">
                                 <div class="fw-semibold"><?= htmlspecialchars($ipNama) ?></div>
-                                <div class="small text-muted"><?= htmlspecialchars($ipTanggal) ?></div>
+                                <div class="small text-muted pg-dash-izin-card__meta"<?= $ipAlasan !== '' ? ' title="' . htmlspecialchars($ipMeta) . '"' : '' ?>><?= htmlspecialchars($ipMeta) ?></div>
                             </div>
                             <div class="pg-dash-izin-card__actions">
                                 <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                                    data-judul="<?= htmlspecialchars($ipNama) ?>"
-                                    data-tanggal="<?= htmlspecialchars($ipTanggal) ?>"
-                                    <?= perizinan_alpa_html_data_attrs($alpaCek) ?>>
+                                    <?= perizinan_pengasuh_setujui_form_attrs($pdo, $ip, $ipNama, $ipTanggal, $alpaCek) ?>>
                                     <input type="hidden" name="action" value="setujui_pengasuh">
                                     <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
                                     <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>

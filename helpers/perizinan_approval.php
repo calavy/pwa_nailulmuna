@@ -549,6 +549,92 @@ function perizinan_alpa_penjelasan_plain(array $cek): string
 }
 
 /**
+ * Payload ringkas untuk modal Setujui (tanpa teks duplikat).
+ *
+ * @param array<string, mixed> $cek
+ * @return array<string, mixed>
+ */
+function perizinan_alpa_modal_payload(array $cek): array
+{
+    $glossary = 'ALPA = tidak hadir ke kegiatan wajib tanpa izin/sakit resmi.';
+
+    if (empty($cek['subject'])) {
+        return [
+            'subject' => false,
+            'allowed' => true,
+            'status_label' => '',
+            'stat_line' => '',
+            'syarat_line' => '',
+            'progress_pct' => 0,
+            'progress_label' => '',
+            'note' => '',
+            'glossary' => '',
+            'na_message' => 'Syarat ALPA tidak berlaku untuk permohonan ini.',
+        ];
+    }
+
+    $allowed = !empty($cek['allowed']);
+    $count = (int) ($cek['alpa_count'] ?? 0);
+    $max = (int) ($cek['max'] ?? 0);
+    $hari = (int) ($cek['hari'] ?? 0);
+    $jenisLabel = trim((string) ($cek['jenis_label'] ?? 'izin'));
+    if ($jenisLabel === '') {
+        $jenisLabel = 'izin';
+    }
+
+    $mulai = (string) ($cek['periode_mulai'] ?? '');
+    $selesai = (string) ($cek['periode_selesai'] ?? '');
+    $periodeShort = '';
+    if ($mulai !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $mulai)
+        && $selesai !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $selesai)) {
+        if ($mulai !== $selesai) {
+            $periodeShort = ' (' . date('d/m', strtotime($mulai)) . '–' . date('d/m', strtotime($selesai)) . ')';
+        } else {
+            $periodeShort = ' (' . date('d/m', strtotime($selesai)) . ')';
+        }
+    }
+
+    $statLine = $count . ' ALPA · ' . $hari . ' hari' . $periodeShort;
+
+    $batasBlokir = $max;
+    $batasAman = max(0, $max - 1);
+    if ($max > 0) {
+        $syaratLine = 'Syarat ' . $jenisLabel . ': maks. ' . $batasAman . ' kali ALPA · terhalang dari ' . $batasBlokir . ' kali';
+        $progressPct = (int) min(100, round(($count / max(1, $batasBlokir)) * 100));
+        $progressLabel = $count . ' / ' . $batasBlokir;
+    } else {
+        $syaratLine = 'Tidak ada batas ALPA untuk ' . $jenisLabel;
+        $progressPct = 0;
+        $progressLabel = '';
+    }
+
+    $note = '';
+    if (!$allowed) {
+        $note = 'Centang "Lewati syarat ALPA" di bawah untuk tetap setujui.';
+    } elseif ($max > 0) {
+        $sisa = max(0, $batasBlokir - $count - 1);
+        if ($sisa === 0 && $count < $batasBlokir) {
+            $note = 'Perhatian: 1 ALPA lagi akan terhalang.';
+        } elseif ($sisa > 0 && $count > 0) {
+            $note = 'Toleransi tersisa ' . $sisa . ' kali.';
+        }
+    }
+
+    return [
+        'subject' => true,
+        'allowed' => $allowed,
+        'status_label' => (string) ($cek['status_label'] ?? ($allowed ? 'Masih boleh disetujui' : 'Terhalang syarat ALPA')),
+        'stat_line' => $statLine,
+        'syarat_line' => $syaratLine,
+        'progress_pct' => $progressPct,
+        'progress_label' => $progressLabel,
+        'note' => $note,
+        'glossary' => $glossary,
+        'na_message' => '',
+    ];
+}
+
+/**
  * Atribut data-* untuk dialog Setujui pengasuh (tanpa query ulang).
  *
  * @param array<string, mixed> $alpaCek
@@ -570,6 +656,7 @@ function perizinan_alpa_html_data_attrs(array $alpaCek, array $extra = []): stri
         'data-alpa-progress' => (string) ($alpaCek['progress_label'] ?? ''),
         'data-alpa-catatan' => (string) ($alpaCek['catatan'] ?? ''),
         'data-alpa-penjelasan' => perizinan_alpa_penjelasan_plain($alpaCek),
+        'data-alpa-modal' => (string) json_encode(perizinan_alpa_modal_payload($alpaCek), JSON_UNESCAPED_UNICODE),
     ];
     foreach ($extra as $k => $v) {
         $map[(string) $k] = (string) $v;
@@ -580,6 +667,61 @@ function perizinan_alpa_html_data_attrs(array $alpaCek, array $extra = []): stri
     }
 
     return $html;
+}
+
+/** Label jenis izin + kategori syar'i untuk tampilan modal pengasuh. */
+function perizinan_pengasuh_jenis_label_tampilan(PDO $pdo, array $row): string
+{
+    $jenis = trim((string) ($row['jenis_izin'] ?? ''));
+    $label = jenis_izin_label($jenis);
+    $syariKat = trim((string) ($row['syari_kategori'] ?? ''));
+    if ($syariKat !== '') {
+        require_once __DIR__ . '/perizinan_syari_kategori.php';
+        $katLabel = perizinan_syari_kategori_label($pdo, $syariKat);
+        if ($katLabel !== '') {
+            $label .= ' · ' . $katLabel;
+        }
+    }
+
+    return $label;
+}
+
+/**
+ * Atribut data-* gabungan: detail izin + ALPA untuk form Setujui pengasuh.
+ *
+ * @param array<string, mixed> $row
+ * @param array<string, mixed> $alpaCek
+ * @param array<string, string|int> $extra
+ */
+function perizinan_pengasuh_setujui_form_attrs(
+    PDO $pdo,
+    array $row,
+    string $judul,
+    string $tanggal,
+    array $alpaCek,
+    array $extra = []
+): string {
+    $subParts = [];
+    $nis = trim((string) ($row['nis'] ?? ''));
+    if ($nis !== '') {
+        $subParts[] = 'NIS ' . $nis;
+    }
+    $tingkatan = trim((string) ($row['tingkatan'] ?? ''));
+    if ($tingkatan !== '') {
+        $subParts[] = $tingkatan;
+    }
+
+    $detailExtra = array_merge([
+        'data-judul' => $judul,
+        'data-sub' => implode(' · ', $subParts),
+        'data-jenis-label' => perizinan_pengasuh_jenis_label_tampilan($pdo, $row),
+        'data-tanggal' => $tanggal,
+        'data-alasan' => trim((string) ($row['alasan'] ?? '')),
+        'data-tujuan' => trim((string) ($row['tujuan'] ?? '')),
+        'data-pemohon' => trim((string) ($row['pemberi_izin'] ?? '')),
+    ], $extra);
+
+    return perizinan_alpa_html_data_attrs($alpaCek, $detailExtra);
 }
 
 /**
@@ -2631,6 +2773,7 @@ function perizinan_pengasuh_antrian(PDO $pdo, int $limitIndividu = 8): array
                         'jam_mulai' => (string) ($meta['jam_mulai'] ?? ''),
                         'jam_selesai' => (string) ($meta['jam_selesai'] ?? ''),
                         'alasan' => (string) ($meta['alasan'] ?? ''),
+                        'pemberi_izin' => (string) ($meta['pemberi_izin'] ?? ''),
                         'jumlah' => count($anggota),
                         'izin_ids' => [],
                         'anggota_rows' => [],
@@ -2681,11 +2824,12 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
     $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
     $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
     $tujuanCol = column_exists($pdo, 'perizinan', 'tujuan') ? 'i.tujuan,' : "'' AS tujuan,";
+    $pemohonCol = column_exists($pdo, 'perizinan', 'pemberi_izin') ? 'i.pemberi_izin,' : "'' AS pemberi_izin,";
     $limit = max(1, min(200, $limit));
     $orderCol = column_exists($pdo, 'perizinan', 'created_at') ? 'i.created_at DESC' : 'i.id DESC';
     $st = $pdo->query("
         SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai,
-               i.jam_mulai, i.jam_selesai, i.alasan, {$tujuanCol} i.created_at, i.rombongan_id,
+               i.jam_mulai, i.jam_selesai, i.alasan, {$tujuanCol} {$pemohonCol} i.created_at, i.rombongan_id,
                s.{$nameCol} AS nama_santri, s.nis, s.tingkatan
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}

@@ -1,10 +1,4 @@
 (function () {
-    function esc(text) {
-        var el = document.createElement('div');
-        el.textContent = text == null ? '' : String(text);
-        return el.innerHTML;
-    }
-
     function flashEls() {
         return [
             document.getElementById('pg-dash-izin-flash'),
@@ -108,47 +102,75 @@
         });
     }
 
-    function fillAlpa(form) {
-        var panel = document.getElementById('pg-izin-setujui-alpa');
+    function setRowVisible(wrapEl, visible) {
+        if (wrapEl) {
+            wrapEl.classList.toggle('d-none', !visible);
+        }
+    }
+
+    function fillIzinDetail(form) {
         var judulEl = document.getElementById('pg-izin-setujui-judul');
+        var subEl = document.getElementById('pg-izin-setujui-sub');
+        var pemohonEl = document.getElementById('pg-izin-setujui-pemohon');
+        var pemohonWrap = document.getElementById('pg-izin-setujui-pemohon-wrap');
+        var jenisEl = document.getElementById('pg-izin-setujui-jenis');
+        var jenisWrap = document.getElementById('pg-izin-setujui-jenis-wrap');
         var tglEl = document.getElementById('pg-izin-setujui-tanggal');
-        var wrap = document.getElementById('pg-izin-setujui-bypass-wrap');
-        var cb = document.getElementById('pg-izin-setujui-bypass');
-        var submitBtn = document.getElementById('pg-izin-setujui-submit');
+        var alasanEl = document.getElementById('pg-izin-setujui-alasan');
+        var tujuanEl = document.getElementById('pg-izin-setujui-tujuan');
+        var tujuanWrap = document.getElementById('pg-izin-setujui-tujuan-wrap');
+
         if (judulEl) {
             judulEl.textContent = form.getAttribute('data-judul') || 'Permohonan izin';
         }
-        if (tglEl) {
-            tglEl.textContent = form.getAttribute('data-tanggal') || '';
+        var sub = (form.getAttribute('data-sub') || '').trim();
+        if (subEl) {
+            subEl.textContent = sub;
+            subEl.classList.toggle('d-none', sub === '');
         }
+        var pemohon = (form.getAttribute('data-pemohon') || '').trim();
+        if (pemohonEl) {
+            pemohonEl.textContent = pemohon;
+        }
+        setRowVisible(pemohonWrap, pemohon !== '');
+        var jenis = (form.getAttribute('data-jenis-label') || '').trim();
+        if (jenisEl) {
+            jenisEl.textContent = jenis;
+        }
+        setRowVisible(jenisWrap, jenis !== '');
+        if (tglEl) {
+            tglEl.textContent = form.getAttribute('data-tanggal') || '—';
+        }
+        if (alasanEl) {
+            var alasan = (form.getAttribute('data-alasan') || '').trim();
+            alasanEl.textContent = alasan !== '' ? alasan : '—';
+        }
+        var tujuan = (form.getAttribute('data-tujuan') || '').trim();
+        if (tujuanEl) {
+            tujuanEl.textContent = tujuan;
+        }
+        setRowVisible(tujuanWrap, tujuan !== '');
+    }
+
+    function fillAlpa(form) {
+        fillIzinDetail(form);
+        var panel = document.getElementById('pg-izin-setujui-alpa');
+        var wrap = document.getElementById('pg-izin-setujui-bypass-wrap');
+        var cb = document.getElementById('pg-izin-setujui-bypass');
+        var submitBtn = document.getElementById('pg-izin-setujui-submit');
         var subject = form.getAttribute('data-alpa-subject') === '1';
         var allowed = form.getAttribute('data-alpa-allowed') === '1';
         var rombonganNote = form.getAttribute('data-alpa-rombongan-note') || '';
-        if (panel) {
-            if (!subject) {
-                panel.className = 'alert alert-secondary py-2 small mb-3 izin-alpa-panel-modal';
-                panel.innerHTML = 'Syarat ALPA tidak berlaku untuk permohonan ini.';
-            } else {
-                var statusLabel = form.getAttribute('data-alpa-status-label') || (allowed ? 'Masih boleh disetujui' : 'Terhalang syarat ALPA');
-                var jumlah = form.getAttribute('data-alpa-jumlah') || ((form.getAttribute('data-alpa-count') || '0') + ' kali ALPA');
-                var periode = form.getAttribute('data-alpa-periode') || ((form.getAttribute('data-alpa-hari') || '0') + ' hari');
-                var aturan = form.getAttribute('data-alpa-aturan') || '';
-                var blokir = form.getAttribute('data-alpa-blokir') || '';
-                var progress = form.getAttribute('data-alpa-progress') || '';
-                var catatan = form.getAttribute('data-alpa-catatan') || '';
-                var penjelasan = form.getAttribute('data-alpa-penjelasan') || '';
-                panel.className = 'alert py-2 small mb-3 izin-alpa-panel-modal ' + (allowed ? 'alert-success' : 'alert-danger');
-                panel.innerHTML =
-                    '<div class="izin-alpa-glosarium mb-2"><strong>ALPA</strong> = tidak hadir ke kegiatan wajib tanpa izin/sakit resmi.</div>' +
-                    (rombonganNote ? '<div class="fw-semibold mb-2">' + esc(rombonganNote) + '</div>' : '') +
-                    '<div class="fw-semibold mb-1">' + (allowed ? '✓ ' : '✗ ') + esc(statusLabel) + '</div>' +
-                    '<div class="mb-1"><strong>' + esc(jumlah) + '</strong> dalam ' + esc(periode) + '</div>' +
-                    (aturan ? '<div class="text-muted">' + esc(aturan) + '</div>' : '') +
-                    (blokir ? '<div class="text-muted">' + esc(blokir) + '</div>' : '') +
-                    (progress ? '<div class="text-muted mt-1">' + esc(progress) + '</div>' : '') +
-                    (catatan ? '<div class="mt-2">' + esc(catatan) + '</div>' : '') +
-                    (penjelasan ? '<div class="mt-2 small text-muted">' + esc(penjelasan) + '</div>' : '');
-            }
+        if (panel && typeof window.renderIzinAlpaModal === 'function') {
+            var payload = typeof window.parseIzinAlpaModalPayload === 'function'
+                ? window.parseIzinAlpaModalPayload(form)
+                : null;
+            window.renderIzinAlpaModal(panel, payload, { rombonganNote: rombonganNote });
+        } else if (panel) {
+            panel.className = 'alert alert-secondary py-2 small mb-3 izin-alpa-panel-modal';
+            panel.textContent = subject
+                ? 'Syarat ALPA — muat ulang halaman jika panel kosong.'
+                : 'Syarat ALPA tidak berlaku untuk permohonan ini.';
         }
         var needBypass = subject && !allowed;
         if (wrap) {

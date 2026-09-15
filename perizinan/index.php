@@ -566,6 +566,7 @@ require_once __DIR__ . '/../includes/header.php';
                                             data-alpa-status-label="<?= htmlspecialchars((string) ($alpaCekBtn['status_label'] ?? '')) ?>"
                                             data-alpa-progress="<?= htmlspecialchars((string) ($alpaCekBtn['progress_label'] ?? '')) ?>"
                                             data-alpa-penjelasan="<?= htmlspecialchars(perizinan_alpa_penjelasan_plain($alpaCekBtn)) ?>"
+                                            data-alpa-modal="<?= htmlspecialchars((string) json_encode(perizinan_alpa_modal_payload($alpaCekBtn), JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>"
                                             <?= ($blokirAlpa || $blokirPengasuh) ? 'disabled title="' . htmlspecialchars($blokirTitle) . '"' : '' ?>>
                                         Setujui
                                     </button>
@@ -793,6 +794,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 <?php endforeach; ?>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/izin-alpa-modal.js')) ?>"></script>
 <script>
 (function () {
     var approveModal = document.getElementById('approveIzinModal');
@@ -898,25 +900,13 @@ require_once __DIR__ . '/../includes/header.php';
         var allowed = btn.getAttribute('data-alpa-allowed') === '1';
         if (alpaPanel) {
             if (subject) {
-                var statusLabel = btn.getAttribute('data-alpa-status-label') || (allowed ? 'Masih boleh disetujui' : 'Terhalang syarat ALPA');
-                var jumlah = btn.getAttribute('data-alpa-jumlah') || (btn.getAttribute('data-alpa-count') || '0') + ' kali ALPA';
-                var periode = btn.getAttribute('data-alpa-periode') || (btn.getAttribute('data-alpa-hari') || '0') + ' hari';
-                var aturan = btn.getAttribute('data-alpa-aturan') || '';
-                var blokir = btn.getAttribute('data-alpa-blokir') || '';
-                var progress = btn.getAttribute('data-alpa-progress') || '';
-                var catatan = btn.getAttribute('data-alpa-catatan') || '';
-                var penjelasan = btn.getAttribute('data-alpa-penjelasan') || btn.getAttribute('data-alpa-message') || '';
-                alpaPanel.classList.remove('d-none', 'alert-success', 'alert-warning', 'alert-danger');
-                alpaPanel.classList.add(allowed ? 'alert-success' : 'alert-danger');
-                alpaPanel.innerHTML =
-                    '<div class="izin-alpa-glosarium mb-2"><strong>ALPA</strong> = tidak hadir ke kegiatan wajib tanpa izin/sakit resmi.</div>' +
-                    '<div class="fw-semibold mb-1">' + (allowed ? '✓ ' : '✗ ') + statusLabel + '</div>' +
-                    '<div class="mb-1"><strong>' + jumlah + '</strong> dalam ' + periode + '</div>' +
-                    (aturan ? '<div class="text-muted">' + aturan + '</div>' : '') +
-                    (blokir ? '<div class="text-muted">' + blokir + '</div>' : '') +
-                    (progress ? '<div class="text-muted mt-1">' + progress + '</div>' : '') +
-                    (catatan ? '<div class="mt-2 ' + (allowed ? 'text-warning-emphasis' : '') + '">' + catatan + '</div>' : '') +
-                    (penjelasan ? '<div class="mt-2 small text-muted">' + penjelasan + '</div>' : '');
+                alpaPanel.classList.remove('d-none');
+                if (typeof window.renderIzinAlpaModal === 'function') {
+                    var alpaPayload = typeof window.parseIzinAlpaModalPayload === 'function'
+                        ? window.parseIzinAlpaModalPayload(btn)
+                        : null;
+                    window.renderIzinAlpaModal(alpaPanel, alpaPayload, {});
+                }
             } else {
                 alpaPanel.classList.add('d-none');
                 alpaPanel.innerHTML = '';
