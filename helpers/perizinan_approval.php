@@ -669,21 +669,12 @@ function perizinan_alpa_html_data_attrs(array $alpaCek, array $extra = []): stri
     return $html;
 }
 
-/** Label jenis izin + kategori syar'i untuk tampilan modal pengasuh. */
+/** Label jenis izin untuk tampilan modal pengasuh (keperluan syar'i di baris terpisah). */
 function perizinan_pengasuh_jenis_label_tampilan(PDO $pdo, array $row): string
 {
-    $jenis = trim((string) ($row['jenis_izin'] ?? ''));
-    $label = jenis_izin_label($jenis);
-    $syariKat = trim((string) ($row['syari_kategori'] ?? ''));
-    if ($syariKat !== '') {
-        require_once __DIR__ . '/perizinan_syari_kategori.php';
-        $katLabel = perizinan_syari_kategori_label($pdo, $syariKat);
-        if ($katLabel !== '') {
-            $label .= ' · ' . $katLabel;
-        }
-    }
+    unset($pdo);
 
-    return $label;
+    return jenis_izin_label(trim((string) ($row['jenis_izin'] ?? '')));
 }
 
 /**
@@ -711,12 +702,16 @@ function perizinan_pengasuh_setujui_form_attrs(
         $subParts[] = $tingkatan;
     }
 
+    require_once __DIR__ . '/perizinan_syari_kategori.php';
+    $pecah = perizinan_syari_kategori_pecah_alasan($pdo, $row);
+
     $detailExtra = array_merge([
         'data-judul' => $judul,
         'data-sub' => implode(' · ', $subParts),
         'data-jenis-label' => perizinan_pengasuh_jenis_label_tampilan($pdo, $row),
         'data-tanggal' => $tanggal,
-        'data-alasan' => trim((string) ($row['alasan'] ?? '')),
+        'data-keperluan' => (string) ($pecah['keperluan'] ?? ''),
+        'data-keterangan' => (string) ($pecah['keterangan'] ?? ''),
         'data-tujuan' => trim((string) ($row['tujuan'] ?? '')),
         'data-pemohon' => trim((string) ($row['pemberi_izin'] ?? '')),
     ], $extra);

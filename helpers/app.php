@@ -3805,6 +3805,14 @@ function get_allowed_permission_key_map(PDO $pdo): ?array
         return null;
     }
 
+    if ($role === 'kiai' && !$aclExplicit) {
+        foreach (['rekap_keaktifan_hari', 'rekap_keaktifan'] as $kiaiKey) {
+            if (!in_array($kiaiKey, $allowedKeys, true)) {
+                $allowedKeys[] = $kiaiKey;
+            }
+        }
+    }
+
     $map = app_acl_normalize_allowed_map(array_flip($allowedKeys));
     $_SESSION[$cacheKey] = $map;
     $_SESSION[$revKey] = $aclRevision;
@@ -3828,6 +3836,26 @@ function app_acl_normalize_allowed_map(array $map): array
     $map['dashboard'] = 1;
 
     return $map;
+}
+
+/** Rute portal pengasuh (role kiai) — bypass ACL granular agar tidak loop ke dashboard.php. */
+function app_acl_is_pengasuh_route(string $requestPath): bool
+{
+    static $paths = [
+        '/pengasuh/dashboard.php',
+        '/pengasuh/laporan_hari.php',
+        '/pengasuh/nilai_keaktifan.php',
+        '/pengasuh/sdm_hari.php',
+        '/pengasuh/perizinan.php',
+        '/pengasuh/izin_aksi.php',
+    ];
+    foreach ($paths as $path) {
+        if (app_acl_request_paths_equal($requestPath, $path)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** Rute yang selalu boleh diakses user login (profil, keluar, dll.). */
@@ -4233,6 +4261,11 @@ function enforce_route_acl_or_redirect(PDO $pdo, string $requestPath, array $per
         return;
     }
     if (app_acl_is_public_route($requestPath)) {
+        return;
+    }
+
+    $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    if ($role === 'kiai' && app_acl_is_pengasuh_route($requestPath)) {
         return;
     }
 

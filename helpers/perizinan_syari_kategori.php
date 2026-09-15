@@ -304,3 +304,46 @@ function perizinan_syari_kategori_susun_alasan(PDO $pdo, string $kode, string $k
 
     return $detail !== '' ? $label . ' — ' . $detail : $label;
 }
+
+/**
+ * @param array<string, mixed> $row minimal: alasan, syari_kategori (opsional)
+ * @return array{keperluan:string, keterangan:string}
+ */
+function perizinan_syari_kategori_pecah_alasan(PDO $pdo, array $row): array
+{
+    $alasan = trim((string) ($row['alasan'] ?? ''));
+    $syariKat = trim((string) ($row['syari_kategori'] ?? ''));
+
+    if ($syariKat !== '') {
+        $keperluan = perizinan_syari_kategori_label($pdo, $syariKat);
+        if ($keperluan === '') {
+            $keperluan = $syariKat;
+        }
+        $keterangan = $alasan;
+        $prefix = $keperluan . ' — ';
+        if ($alasan !== '' && str_starts_with($alasan, $prefix)) {
+            $keterangan = trim(substr($alasan, strlen($prefix)));
+        } elseif ($alasan === $keperluan) {
+            $keterangan = '';
+        }
+
+        return [
+            'keperluan' => $keperluan,
+            'keterangan' => $keterangan,
+        ];
+    }
+
+    if ($alasan !== '' && str_contains($alasan, ' — ')) {
+        $parts = explode(' — ', $alasan, 2);
+
+        return [
+            'keperluan' => trim($parts[0]),
+            'keterangan' => trim($parts[1]),
+        ];
+    }
+
+    return [
+        'keperluan' => '',
+        'keterangan' => $alasan,
+    ];
+}

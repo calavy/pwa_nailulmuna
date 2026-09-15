@@ -187,14 +187,15 @@ function auth_redirect_access_denied(): void
         app_redirect('koperasi/scan.php');
     }
     if ($role === 'kiai') {
+        if (!function_exists('app_acl_is_pengasuh_route')) {
+            require_once __DIR__ . '/../helpers/app.php';
+        }
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
-        if (!app_acl_request_paths_equal($requestPath, '/pengasuh/dashboard.php')
-            && !app_acl_request_paths_equal($requestPath, '/pengasuh/laporan_hari.php')
-            && !app_acl_request_paths_equal($requestPath, '/pengasuh/nilai_keaktifan.php')
-            && !app_acl_request_paths_equal($requestPath, '/pengasuh/sdm_hari.php')
-            && !app_acl_request_paths_equal($requestPath, '/pengasuh/perizinan.php')) {
+        if (!app_acl_is_pengasuh_route($requestPath)) {
             app_redirect('pengasuh/dashboard.php');
         }
+
+        return;
     }
     if ($role === 'pembimbing') {
         $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));

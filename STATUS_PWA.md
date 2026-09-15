@@ -7,6 +7,18 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-15] Perbaiki redirect loop pengasuh (kiai)
+- **Apa yang diubah:** Loop `dashboard.php` ↔ `pengasuh/dashboard.php` untuk role kiai diperbaiki: bypass ACL di rute pengasuh (`app_acl_is_pengasuh_route`), default key `rekap_keaktifan_hari`/`rekap_keaktifan`, `auth_redirect_access_denied()` return setelah rute pengasuh.
+- **File:** `helpers/app.php`, `includes/auth.php`, `STATUS_PWA.md`
+- **Alasan/konteks:** Pengasuh tanpa ACL rekap terhalang header → fallback dashboard → redirect kiai → ERR_TOO_MANY_REDIRECTS.
+- **Status:** terpasang; uji login pengasuh — landing dashboard pengasuh tanpa loop
+
+### [2026-09-15] Modal Setujui izin — pisah keperluan & keterangan
+- **Apa yang diubah:** Modal Setujui izin pengasuh memisahkan **Keperluan** (kategori syar'i) dan **Keterangan / alasan** (teks bebas). Jenis hanya menampilkan tipe izin (mis. Izin). Helper `perizinan_syari_kategori_pecah_alasan()` memecah kolom `alasan` gabungan.
+- **File:** `helpers/perizinan_syari_kategori.php`, `helpers/perizinan_approval.php`, `includes/partials/pengasuh_izin_setujui_modal.php`, `assets/js/pengasuh-izin-setujui.js`, `STATUS_PWA.md`
+- **Alasan/konteks:** Selaras form wali; pengasuh melihat keperluan dan keterangan tanpa duplikasi di baris Jenis/Alasan.
+- **Status:** terpasang; uji Setujui izin syar'i — Keperluan + Keterangan terpisah
+
 ### [2026-09-15] Modal Setujui izin — tampilkan pemohon
 - **Apa yang diubah:** Modal Setujui izin pengasuh menampilkan baris **Pemohon** (dari `pemberi_izin`). Query antrian pengasuh dan meta rombongan ikut membawa field ini; disembunyikan jika kosong.
 - **File:** `helpers/perizinan_approval.php`, `includes/partials/pengasuh_izin_setujui_modal.php`, `assets/js/pengasuh-izin-setujui.js`, `STATUS_PWA.md`

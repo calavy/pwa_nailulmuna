@@ -22,13 +22,17 @@ declare(strict_types=1);
                             <dt>Jenis</dt>
                             <dd id="pg-izin-setujui-jenis"></dd>
                         </div>
+                        <div class="pg-izin-setujui-detail__row d-none" id="pg-izin-setujui-keperluan-wrap">
+                            <dt>Keperluan</dt>
+                            <dd id="pg-izin-setujui-keperluan"></dd>
+                        </div>
                         <div class="pg-izin-setujui-detail__row">
                             <dt>Waktu</dt>
                             <dd id="pg-izin-setujui-tanggal"></dd>
                         </div>
-                        <div class="pg-izin-setujui-detail__row">
-                            <dt>Alasan</dt>
-                            <dd id="pg-izin-setujui-alasan"></dd>
+                        <div class="pg-izin-setujui-detail__row d-none" id="pg-izin-setujui-keterangan-wrap">
+                            <dt>Keterangan / alasan</dt>
+                            <dd id="pg-izin-setujui-keterangan"></dd>
                         </div>
                         <div class="pg-izin-setujui-detail__row d-none" id="pg-izin-setujui-tujuan-wrap">
                             <dt>Tujuan</dt>

@@ -115,8 +115,11 @@
         var pemohonWrap = document.getElementById('pg-izin-setujui-pemohon-wrap');
         var jenisEl = document.getElementById('pg-izin-setujui-jenis');
         var jenisWrap = document.getElementById('pg-izin-setujui-jenis-wrap');
+        var keperluanEl = document.getElementById('pg-izin-setujui-keperluan');
+        var keperluanWrap = document.getElementById('pg-izin-setujui-keperluan-wrap');
         var tglEl = document.getElementById('pg-izin-setujui-tanggal');
-        var alasanEl = document.getElementById('pg-izin-setujui-alasan');
+        var keteranganEl = document.getElementById('pg-izin-setujui-keterangan');
+        var keteranganWrap = document.getElementById('pg-izin-setujui-keterangan-wrap');
         var tujuanEl = document.getElementById('pg-izin-setujui-tujuan');
         var tujuanWrap = document.getElementById('pg-izin-setujui-tujuan-wrap');
 
@@ -138,13 +141,19 @@
             jenisEl.textContent = jenis;
         }
         setRowVisible(jenisWrap, jenis !== '');
+        var keperluan = (form.getAttribute('data-keperluan') || '').trim();
+        if (keperluanEl) {
+            keperluanEl.textContent = keperluan;
+        }
+        setRowVisible(keperluanWrap, keperluan !== '');
         if (tglEl) {
             tglEl.textContent = form.getAttribute('data-tanggal') || '—';
         }
-        if (alasanEl) {
-            var alasan = (form.getAttribute('data-alasan') || '').trim();
-            alasanEl.textContent = alasan !== '' ? alasan : '—';
+        var keterangan = (form.getAttribute('data-keterangan') || '').trim();
+        if (keteranganEl) {
+            keteranganEl.textContent = keterangan !== '' ? keterangan : (keperluan !== '' ? '—' : '');
         }
+        setRowVisible(keteranganWrap, keterangan !== '' || keperluan !== '');
         var tujuan = (form.getAttribute('data-tujuan') || '').trim();
         if (tujuanEl) {
             tujuanEl.textContent = tujuan;
