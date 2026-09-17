@@ -7,6 +7,7 @@ declare(strict_types=1);
  *
  *   php scripts/laporan_snapshot_bootstrap.php apply
  *   php scripts/laporan_snapshot_bootstrap.php push [--as-of=YYYY-MM-DD]
+ *   php scripts/laporan_snapshot_bootstrap.php tick
  *
  * Env opsional: PONDOK_DB_PROFILE=hosting, LAPORAN_SNAPSHOT_SHARE_EMAILS=...
  */
@@ -84,5 +85,13 @@ if ($action === 'push') {
     }
 }
 
-fwrite(STDERR, "Usage: apply | push [--as-of=YYYY-MM-DD]\n");
+if ($action === 'tick') {
+    $tick = laporan_snapshot_run_tick($pdo);
+    echo 'tick_ran=' . (($tick['ran'] ?? false) ? '1' : '0') . "\n";
+    echo 'tick_mode=' . (string) ($tick['mode'] ?? '') . "\n";
+    echo 'tick_note=' . (string) ($tick['note'] ?? '') . "\n";
+    exit(0);
+}
+
+fwrite(STDERR, "Usage: apply | push [--as-of=YYYY-MM-DD] | tick\n");
 exit(1);

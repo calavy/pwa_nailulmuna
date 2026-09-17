@@ -28,7 +28,7 @@ echo Membuat/mengganti task Windows Scheduler: %TASK_NAME%
 echo Perintah: "%PHP_EXE%" "%CRON_SCRIPT%"
 echo.
 echo Catatan: snapshot hanya jalan sekali sehari setelah jam yang diatur
-echo          di Pengaturan -^> Snapshot Laporan Google Sheet (default 05:00).
+echo          di Pengaturan -^> Snapshot Laporan Google Sheet (default 00:00).
 echo.
 
 schtasks /Create /TN "%TASK_NAME%" /TR "\"%PHP_EXE%\" \"%CRON_SCRIPT%\"" /SC MINUTE /MO 1 /F

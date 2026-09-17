@@ -6,6 +6,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/excel.php';
 require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
 require_once __DIR__ . '/../helpers/cashless_koperasi.php';
+require_once __DIR__ . '/../helpers/laporan_snapshot.php';
 
 require_roles(['admin', 'pengurus']);
 require_once __DIR__ . '/../helpers/santri_list_sort.php';
@@ -14,40 +15,7 @@ keuangan_ensure_schema_deferred($pdo);
 santri_list_sort_mode($_GET['santri_sort'] ?? null);
 
 if (($_GET['download'] ?? '') === 'xlsx') {
-    $rekapExport = cashless_rekap_saldo_santri($pdo);
-    $rowsExport = $rekapExport['rows'] ?? [];
-    $summaryExport = $rekapExport['summary'] ?? [];
-    $dailyLimitExport = (int) ($rekapExport['daily_limit'] ?? 10000);
-    $jamResetExport = cashless_daily_reset_jam($pdo);
-    $xlsxRows = [
-        ['nis', 'nama_santri', 'tingkatan', 'saldo', 'total_topup', 'total_belanja', 'keluar_manual', 'terpakai_hari_ini', 'sisa_jatah_hari', 'status_pin', 'batas_harian', 'jam_reset_harian'],
-    ];
-    foreach ($rowsExport as $sr) {
-        $pinOk = (int) ($sr['pin_terpasang'] ?? 0) === 1;
-        $xlsxRows[] = [
-            (string) ($sr['nis'] ?? ''),
-            (string) ($sr['nama_santri'] ?? ''),
-            (string) ($sr['tingkatan'] ?? ''),
-            (int) ($sr['saldo'] ?? 0),
-            (int) ($sr['total_topup'] ?? 0),
-            (int) ($sr['total_debit'] ?? 0),
-            (int) ($sr['total_pengeluaran'] ?? 0),
-            (int) ($sr['debit_hari_ini'] ?? 0),
-            (int) ($sr['sisa_jatah_hari'] ?? 0),
-            $pinOk ? 'Sudah' : 'Belum',
-            $dailyLimitExport,
-            $jamResetExport,
-        ];
-    }
-    $xlsxRows[] = [];
-    $xlsxRows[] = [
-        'RINGKASAN',
-        'total_santri=' . (int) ($summaryExport['total_santri'] ?? 0),
-        'bersaldo=' . (int) ($summaryExport['jumlah_bersaldo'] ?? 0),
-        'total_saldo=' . (int) ($summaryExport['total_saldo'] ?? 0),
-        'pin_sudah=' . (int) ($summaryExport['pin_sudah'] ?? 0),
-        'pin_belum=' . (int) ($summaryExport['pin_belum'] ?? 0),
-    ];
+    $xlsxRows = laporan_snapshot_uang_saku_to_rows($pdo);
     $fn = 'rekap_saldo_pin_cashless_' . date('Ymd_His') . '.xlsx';
     send_xlsx_download($fn, $xlsxRows, 'Rekap Saldo PIN');
     exit;

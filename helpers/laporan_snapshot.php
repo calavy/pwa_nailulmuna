@@ -5,18 +5,123 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 require_once __DIR__ . '/google_sheets_client.php';
 
+/** @return array<string, string> internal key => default Google Sheet tab title (PNM10) */
+function laporan_snapshot_default_tab_titles(): array
+{
+    return [
+        'Neraca_Pondok' => 'Neraca',
+        'Rekap_Kas_Bulanan' => 'Rekap Kas Bulanan',
+        'Pemasukan_Detail' => 'Pemasukan (Detail)',
+        'Pengeluaran_Detail' => 'Pengeluaran (Detail)',
+        'Tunggakan_Syahriyah' => 'Tunggakan Syahriyah',
+        'Syahriyah_12Bulan' => 'Laporan Syahriyah',
+        'Uang_Saku_Titipan' => 'Uang Saku Santri (Titipan)',
+        'Payroll_Pembimbing' => 'Payroll Pembimbing',
+        'BOS_BKU' => 'BOS - BKU',
+        'BOS_LRA' => 'BOS - LRA',
+        'Data_Master_Santri' => 'Data Master Santri',
+    ];
+}
+
+function laporan_snapshot_normalize_spreadsheet_id(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return '';
+    }
+    if (preg_match('#/spreadsheets/d/([a-zA-Z0-9-_]+)#', $raw, $m)) {
+        return (string) $m[1];
+    }
+
+    return $raw;
+}
+
+/** @return list<string> */
+function laporan_snapshot_tab_keys(): array
+{
+    return array_keys(laporan_snapshot_default_tab_titles());
+}
+
 /** @return list<string> */
 function laporan_snapshot_tab_names(): array
 {
-    return [
-        'Neraca_Pondok',
-        'Rekap_Kas_Bulanan',
-        'Tunggakan_Syahriyah',
-        'Syahriyah_12Bulan',
-        'Payroll_Pembimbing',
-        'BOS_BKU',
-        'BOS_LRA',
+    return laporan_snapshot_tab_keys();
+}
+
+/**
+ * @return array<string, string> internal key => sheet tab title
+ */
+function laporan_snapshot_tab_titles(PDO $pdo): array
+{
+    $titles = laporan_snapshot_default_tab_titles();
+    $raw = trim((string) app_setting($pdo, 'laporan_snapshot_tab_titles', ''));
+    if ($raw === '') {
+        return $titles;
+    }
+    $overrides = json_decode($raw, true);
+    if (!is_array($overrides)) {
+        return $titles;
+    }
+    foreach ($overrides as $key => $label) {
+        $key = (string) $key;
+        $label = trim((string) $label);
+        if ($label !== '' && array_key_exists($key, $titles)) {
+            $titles[$key] = $label;
+        }
+    }
+
+    return $titles;
+}
+
+function laporan_snapshot_sheet_title(PDO $pdo, string $internalKey): string
+{
+    $titles = laporan_snapshot_tab_titles($pdo);
+
+    return (string) ($titles[$internalKey] ?? $internalKey);
+}
+
+/** @return list<list<string|int|null>> */
+function laporan_snapshot_uang_saku_to_rows(PDO $pdo): array
+{
+    require_once __DIR__ . '/cashless_koperasi.php';
+
+    $rekap = cashless_rekap_saldo_santri($pdo);
+    $rowsExport = (array) ($rekap['rows'] ?? []);
+    $summaryExport = (array) ($rekap['summary'] ?? []);
+    $dailyLimitExport = (int) ($rekap['daily_limit'] ?? 10000);
+    $jamResetExport = cashless_daily_reset_jam($pdo);
+
+    $xlsxRows = [
+        ['nis', 'nama_santri', 'tingkatan', 'saldo', 'total_topup', 'total_belanja', 'keluar_manual', 'terpakai_hari_ini', 'sisa_jatah_hari', 'status_pin', 'batas_harian', 'jam_reset_harian'],
     ];
+    foreach ($rowsExport as $sr) {
+        $pinOk = (int) ($sr['pin_terpasang'] ?? 0) === 1;
+        $xlsxRows[] = [
+            (string) ($sr['nis'] ?? ''),
+            (string) ($sr['nama_santri'] ?? ''),
+            (string) ($sr['tingkatan'] ?? ''),
+            (int) ($sr['saldo'] ?? 0),
+            (int) ($sr['total_topup'] ?? 0),
+            (int) ($sr['total_debit'] ?? 0),
+            (int) ($sr['total_pengeluaran'] ?? 0),
+            (int) ($sr['debit_hari_ini'] ?? 0),
+            (int) ($sr['sisa_jatah_hari'] ?? 0),
+            $pinOk ? 'Sudah' : 'Belum',
+            $dailyLimitExport,
+            $jamResetExport,
+        ];
+    }
+    $xlsxRows[] = [];
+    $xlsxRows[] = [
+        'RINGKASAN',
+        'total_santri=' . (int) ($summaryExport['total_santri'] ?? 0),
+        'bersaldo=' . (int) ($summaryExport['jumlah_bersaldo'] ?? 0),
+        'total_saldo=' . (int) ($summaryExport['total_saldo'] ?? 0),
+        'pin_sudah=' . (int) ($summaryExport['pin_sudah'] ?? 0),
+        'pin_belum=' . (int) ($summaryExport['pin_belum'] ?? 0),
+    ];
+
+    return $xlsxRows;
 }
 
 function laporan_snapshot_enabled(PDO $pdo): bool
@@ -26,12 +131,12 @@ function laporan_snapshot_enabled(PDO $pdo): bool
 
 function laporan_snapshot_jam(PDO $pdo): string
 {
-    $jam = trim((string) app_setting($pdo, 'laporan_snapshot_jam', '05:00'));
+    $jam = trim((string) app_setting($pdo, 'laporan_snapshot_jam', '00:00'));
     if (preg_match('/^(\d{1,2}):(\d{2})/', $jam, $m)) {
         return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
     }
 
-    return '05:00';
+    return '00:00';
 }
 
 function laporan_snapshot_send_time_ok(PDO $pdo, ?string $nowHm = null): bool
@@ -508,7 +613,21 @@ function laporan_snapshot_collect_all(PDO $pdo, string $asOf): array
         $ts = (int) $keuanganTa['selesai'];
         $taLabel = pondok_tahun_ajaran_label($pdo, ['mulai' => $tm, 'selesai' => $ts]);
         $bulanSlots = pondok_bulan_slots_tahun_ajaran($pdo, $tm, $ts);
-        $laporan12 = tagihan_laporan_12bulan_compute($pdo, $tm, $ts, $bulanSlots);
+        $bulanList = [];
+        foreach ($bulanSlots as $slot) {
+            $bSlot = (int) ($slot['bulan_tagihan'] ?? 0);
+            if ($bSlot >= 1 && $bSlot <= 12) {
+                $bulanList[$bSlot] = true;
+            }
+        }
+        $bulanList = array_map('intval', array_keys($bulanList));
+        sort($bulanList);
+        $sqlSantri = 'SELECT id, tingkatan, kategori_kelas FROM santri';
+        if (column_exists($pdo, 'santri', 'is_aktif')) {
+            $sqlSantri .= ' WHERE COALESCE(is_aktif, 1) = 1';
+        }
+        $santriRows = table_exists($pdo, 'santri') ? ($pdo->query($sqlSantri)->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+        $laporan12 = tagihan_laporan_12bulan_compute($pdo, $tm, $ts, $bulanSlots, $bulanList, $santriRows);
         $expectedByMonth = (array) ($laporan12['expected_by_month'] ?? []);
         $paidByMonth = (array) ($laporan12['paid_by_month'] ?? []);
         $rowsLaporan = [];
@@ -570,6 +689,37 @@ function laporan_snapshot_collect_all(PDO $pdo, string $asOf): array
         $out['BOS_LRA'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];
     }
 
+    try {
+        require_once __DIR__ . '/keuangan_impor_ekspor.php';
+        $rows = keuangan_impor_ekspor_build_masuk_rows($pdo);
+        $out['Pemasukan_Detail'] = ['rows' => $rows, 'rows_count' => count($rows)];
+    } catch (Throwable $e) {
+        $out['Pemasukan_Detail'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];
+    }
+
+    try {
+        require_once __DIR__ . '/keuangan_impor_ekspor.php';
+        $rows = keuangan_impor_ekspor_build_keluar_rows($pdo);
+        $out['Pengeluaran_Detail'] = ['rows' => $rows, 'rows_count' => count($rows)];
+    } catch (Throwable $e) {
+        $out['Pengeluaran_Detail'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];
+    }
+
+    try {
+        $rows = laporan_snapshot_uang_saku_to_rows($pdo);
+        $out['Uang_Saku_Titipan'] = ['rows' => $rows, 'rows_count' => count($rows)];
+    } catch (Throwable $e) {
+        $out['Uang_Saku_Titipan'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];
+    }
+
+    try {
+        require_once __DIR__ . '/santri_export.php';
+        $rows = santri_master_export_rows($pdo, true);
+        $out['Data_Master_Santri'] = ['rows' => $rows, 'rows_count' => count($rows)];
+    } catch (Throwable $e) {
+        $out['Data_Master_Santri'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];
+    }
+
     return $out;
 }
 
@@ -588,23 +738,30 @@ function laporan_snapshot_push_to_google(PDO $pdo, array $collected, bool $force
         save_setting($pdo, 'laporan_snapshot_spreadsheet_id', $spreadsheetId);
     }
 
-    $tabNames = laporan_snapshot_tab_names();
-    google_sheets_ensure_tabs($token, $spreadsheetId, $tabNames);
+    $tabKeys = laporan_snapshot_tab_keys();
+    $sheetTitles = [];
+    foreach ($tabKeys as $key) {
+        $sheetTitles[] = laporan_snapshot_sheet_title($pdo, $key);
+    }
+    google_sheets_ensure_tabs($token, $spreadsheetId, $sheetTitles);
 
     $tabResults = [];
-    foreach ($tabNames as $tab) {
-        $pack = (array) ($collected[$tab] ?? []);
+    foreach ($tabKeys as $key) {
+        $sheetTitle = laporan_snapshot_sheet_title($pdo, $key);
+        $pack = (array) ($collected[$key] ?? []);
         $rows = (array) ($pack['rows'] ?? []);
         try {
-            $written = google_sheets_write_tab($token, $spreadsheetId, $tab, $rows);
-            $tabResults[$tab] = [
+            $written = google_sheets_write_tab($token, $spreadsheetId, $sheetTitle, $rows);
+            $tabResults[$sheetTitle] = [
                 'rows_count' => $written,
                 'error' => (string) ($pack['error'] ?? ''),
+                'internal_key' => $key,
             ];
         } catch (Throwable $e) {
-            $tabResults[$tab] = [
+            $tabResults[$sheetTitle] = [
                 'rows_count' => 0,
                 'error' => $e->getMessage(),
+                'internal_key' => $key,
             ];
         }
     }
