@@ -28,6 +28,7 @@ declare(strict_types=1);
                 </dl>
             </div>
             <div class="modal-footer py-2 flex-wrap gap-2">
+                <a href="#" class="btn btn-outline-secondary btn-sm d-none" id="jd-link-day"><i class="fa-solid fa-list me-1"></i>Semua jadwal hari ini</a>
                 <button type="button" class="btn btn-primary btn-sm jadwal-detail-edit"><i class="fa-solid fa-pen me-1"></i>Edit</button>
                 <a href="#" class="btn btn-outline-secondary btn-sm jadwal-detail-full" id="jd-link-full"><i class="fa-solid fa-up-right-from-square me-1"></i>Form lengkap</a>
                 <button type="button" class="btn btn-outline-danger btn-sm jadwal-detail-delete jadwal-delete-one"><i class="fa-solid fa-trash me-1"></i>Hapus</button>

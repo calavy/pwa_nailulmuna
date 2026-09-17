@@ -92,6 +92,41 @@
         if (fullLink) {
             fullLink.href = data.editUrl || '#';
         }
+        var dayLink = document.getElementById('jd-link-day');
+        if (dayLink) {
+            var hariList = [];
+            try {
+                hariList = JSON.parse(data.hari || '[]');
+            } catch (e) {
+                hariList = [];
+            }
+            var hk = 0;
+            for (var hi = 0; hi < hariList.length; hi += 1) {
+                var n = parseInt(hariList[hi], 10);
+                if (n >= 1 && n <= 7) {
+                    hk = n;
+                    break;
+                }
+            }
+            if (hk >= 1 && hk <= 7) {
+                try {
+                    var dayUrl = new URL(window.location.href);
+                    dayUrl.searchParams.set('tab', 'daftar');
+                    dayUrl.searchParams.set('filter_hari', String(hk));
+                    if (document.body.classList.contains('jadwal-page--full')) {
+                        dayUrl.searchParams.set('density', 'full');
+                    } else {
+                        dayUrl.searchParams.delete('density');
+                    }
+                    dayLink.href = dayUrl.toString();
+                    dayLink.classList.remove('d-none');
+                } catch (e2) {
+                    dayLink.classList.add('d-none');
+                }
+            } else {
+                dayLink.classList.add('d-none');
+            }
+        }
         var delBtn = detailModalEl.querySelector('.jadwal-detail-delete');
         if (delBtn) {
             delBtn.setAttribute('data-delete-ids', data.deleteIds || '');
@@ -252,7 +287,8 @@
             if (!data || !data.editId) {
                 return;
             }
-            if (DESKTOP_MQ.matches) {
+            var comfortView = document.body.classList.contains('jadwal-page--comfort');
+            if (DESKTOP_MQ.matches && !comfortView) {
                 openQuickEditFromData(data);
             } else if (detailModal) {
                 fillDetailModal(data);
@@ -291,7 +327,8 @@
             if (!data) {
                 return;
             }
-            if (DESKTOP_MQ.matches) {
+            var comfortView = document.body.classList.contains('jadwal-page--comfort');
+            if (DESKTOP_MQ.matches && !comfortView) {
                 openQuickEditFromData(data);
             } else if (detailModal) {
                 fillDetailModal(data);
@@ -409,6 +446,39 @@
             modal.show();
         });
     }
+
+    function initJadwalDensityPref() {
+        if (!document.body.classList.contains('jadwal-page--focus')) {
+            return;
+        }
+        try {
+            var url = new URL(window.location.href);
+            if (url.searchParams.has('density')) {
+                localStorage.setItem('jadwal_density', url.searchParams.get('density') === 'full' ? 'full' : 'comfort');
+                return;
+            }
+            if (url.searchParams.has('view')) {
+                return;
+            }
+            var saved = localStorage.getItem('jadwal_density');
+            if (saved !== 'full' && saved !== 'comfort') {
+                return;
+            }
+            var current = document.body.classList.contains('jadwal-page--full') ? 'full' : 'comfort';
+            if (saved !== current) {
+                if (saved === 'full') {
+                    url.searchParams.set('density', 'full');
+                } else {
+                    url.searchParams.delete('density');
+                }
+                window.location.replace(url.toString());
+            }
+        } catch (e) {
+            /* abaikan */
+        }
+    }
+
+    initJadwalDensityPref();
 
     document.addEventListener('DOMContentLoaded', function () {
         initHariTabs();

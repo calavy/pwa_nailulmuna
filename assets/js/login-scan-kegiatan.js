@@ -28,6 +28,9 @@
     var scanner = null;
     var pendingQrCode = '';
     var pendingMunawibId = 0;
+    var loginScanDecoderMode = 'native';
+    var loginScanDecoderFallbackDone = false;
+    var loginScanDecoderWatchTimer = null;
 
     function stampClientAt(body) {
         body.scan_client_at = new Date().toISOString();
@@ -199,10 +202,43 @@
         });
     }
 
+    function clearLoginScanDecoderWatch() {
+        if (loginScanDecoderWatchTimer) {
+            clearTimeout(loginScanDecoderWatchTimer);
+            loginScanDecoderWatchTimer = null;
+        }
+    }
+
+    function resetLoginScanDecoderState() {
+        loginScanDecoderMode = 'native';
+        loginScanDecoderFallbackDone = false;
+        clearLoginScanDecoderWatch();
+    }
+
+    function armLoginScanDecoderWatch() {
+        clearLoginScanDecoderWatch();
+        if (loginScanDecoderFallbackDone || loginScanDecoderMode !== 'native') {
+            return;
+        }
+        loginScanDecoderWatchTimer = setTimeout(function () {
+            loginScanDecoderWatchTimer = null;
+            if (!scanner || !scanner.scanning || loginScanDecoderFallbackDone) {
+                return;
+            }
+            loginScanDecoderFallbackDone = true;
+            loginScanDecoderMode = 'js';
+            showFeedback('info', 'Mode scan alternatif…');
+            if (typeof scanner.restart === 'function') {
+                scanner.restart().catch(function () {});
+            }
+        }, 8000);
+    }
+
     function submitScan(code) {
         if (!code || isInflight(code)) {
             return Promise.resolve();
         }
+        clearLoginScanDecoderWatch();
         markInflight(code);
         pendingQrCode = code;
 
@@ -252,6 +288,24 @@
         munawibConfirm.addEventListener('click', submitMunawibPick);
     }
 
+    function loginScanQrBox(vw, vh) {
+        var w = Math.max(1, vw || 0);
+        var h = Math.max(1, vh || 0);
+        var s = Math.floor(Math.min(w, h) * 0.88);
+        s = Math.max(120, Math.min(300, s));
+        return { width: s, height: s };
+    }
+
+    function loginScanBuildConfig() {
+        return window.PresensiScanCamera.buildScanConfig({
+            fps: 12,
+            qrbox: loginScanQrBox,
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: loginScanDecoderMode === 'native',
+            },
+        });
+    }
+
     scanner = new window.PresensiScanCamera({
         readerId: 'login-scan-reader',
         statusEl: statusEl,
@@ -267,7 +321,38 @@
         btnSuperFocus: document.getElementById('login-scan-super-focus'),
         startWrap: document.getElementById('login-scan-start-wrap'),
         startBtn: document.getElementById('btn-start-login-scan'),
+        getScanConfig: loginScanBuildConfig,
+        confirmHits: 1,
+        cameraStorageKey: 'login_scan_camera_id',
+        onCameraReady: armLoginScanDecoderWatch,
         onSubmit: submitScan,
     });
     scanner.init();
+
+    var loginScanRestartBtn = document.getElementById('login-scan-restart');
+    var loginScanRetryBtn = document.getElementById('login-scan-retry');
+    if (loginScanRestartBtn) {
+        loginScanRestartBtn.addEventListener('click', resetLoginScanDecoderState, true);
+    }
+    if (loginScanRetryBtn) {
+        loginScanRetryBtn.addEventListener('click', resetLoginScanDecoderState, true);
+    }
+
+    var loginScanResizeTimer = null;
+    function scheduleLoginScanRestart() {
+        if (!scanner || !scanner.scanning) {
+            return;
+        }
+        if (loginScanResizeTimer) {
+            clearTimeout(loginScanResizeTimer);
+        }
+        loginScanResizeTimer = setTimeout(function () {
+            loginScanResizeTimer = null;
+            if (scanner && scanner.scanning && typeof scanner.restart === 'function') {
+                scanner.restart().catch(function () {});
+            }
+        }, 300);
+    }
+    window.addEventListener('resize', scheduleLoginScanRestart);
+    window.addEventListener('orientationchange', scheduleLoginScanRestart);
 })();

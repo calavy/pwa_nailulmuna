@@ -234,6 +234,9 @@ $pageScripts = [
     app_asset_href('/assets/js/dashboard-aside.js'),
 ];
 require_once __DIR__ . '/includes/header.php';
+
+$dashIzinListLimit = 24;
+$dashIzinKpiClickable = $izinAktifCount > 0 && $izinAktifRows !== [];
 ?>
 
 <div class="dash-page">
@@ -303,6 +306,22 @@ require_once __DIR__ . '/includes/header.php';
             </div>
         </div>
         <div class="dash-kpi-grid__item" role="listitem">
+            <?php if ($dashIzinKpiClickable): ?>
+            <button
+                type="button"
+                class="dash-kpi-box dash-kpi-box--izin dash-kpi-box--trigger h-100 w-100"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#dashIzinOffcanvas"
+                aria-controls="dashIzinOffcanvas"
+                aria-label="Lihat daftar santri sedang izin, <?= (int) $izinAktifCount ?> santri"
+            >
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-walking-luggage"></i></div>
+                <div class="dash-kpi-box__label">Sedang izin</div>
+                <div class="dash-kpi-box__value"><?= (int) $izinAktifCount ?></div>
+                <?php $dashKpiTrend = $dashKpiTrends['izin'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
+                <div class="dash-kpi-box__hint">Ketuk untuk daftar</div>
+            </button>
+            <?php else: ?>
             <div class="dash-kpi-box dash-kpi-box--izin h-100">
                 <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-person-walking-luggage"></i></div>
                 <div class="dash-kpi-box__label">Sedang izin</div>
@@ -310,6 +329,7 @@ require_once __DIR__ . '/includes/header.php';
                 <?php $dashKpiTrend = $dashKpiTrends['izin'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
                 <div class="dash-kpi-box__hint">Hari ini</div>
             </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -442,42 +462,53 @@ require_once __DIR__ . '/includes/header.php';
         </aside>
     </div>
 
-    <?php if ($izinAktifRows !== []): ?>
-        <div class="card border-0 shadow-sm mb-4 dash-panel dash-panel--lift">
-            <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4 px-4 pb-0">
-                <div>
-                    <h2 class="h5 mb-1">Santri sedang izin</h2>
-                    <p class="small text-muted mb-0">Disetujui · hari ini</p>
-                </div>
-                <?php if ($canPerizinan): ?>
-                <a href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>" class="btn btn-sm btn-outline-secondary rounded-pill">Kelola perizinan</a>
-                <?php endif; ?>
+    <?php if ($dashIzinKpiClickable): ?>
+    <div class="offcanvas offcanvas-end dash-izin-offcanvas" tabindex="-1" id="dashIzinOffcanvas" aria-labelledby="dashIzinOffcanvasLabel">
+        <div class="offcanvas-header border-bottom">
+            <div class="min-w-0">
+                <h2 class="offcanvas-title h5 mb-1" id="dashIzinOffcanvasLabel">
+                    Santri sedang izin
+                    <span class="badge text-bg-warning-subtle text-dark border border-warning-subtle ms-1"><?= (int) $izinAktifCount ?></span>
+                </h2>
+                <p class="small text-muted mb-0">
+                    Disetujui · hari ini
+                    <?php if ($izinAktifCount > $dashIzinListLimit): ?>
+                        · menampilkan <?= (int) $dashIzinListLimit ?> pertama
+                    <?php endif; ?>
+                </p>
             </div>
-            <div class="card-body px-4 pb-4 pt-2">
-                <div class="table-responsive rounded-3 border">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup daftar izin"></button>
+        </div>
+        <div class="offcanvas-body pt-2 pb-3">
+            <div class="table-responsive rounded-3 border dash-izin-offcanvas__scroll">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Nama</th>
+                            <th>NIS</th>
+                            <th>Tingkatan</th>
+                            <th class="pe-3">Jenis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($izinAktifRows as $ir): ?>
                             <tr>
-                                <th class="ps-3">Nama</th>
-                                <th>NIS</th>
-                                <th>Tingkatan</th>
-                                <th class="pe-3">Jenis</th>
+                                <td class="ps-3 fw-semibold"><?= htmlspecialchars((string) ($ir['nama_santri'] ?? '')) ?></td>
+                                <td><?= htmlspecialchars((string) ($ir['nis'] ?? '')) ?></td>
+                                <td><?= htmlspecialchars((string) ($ir['tingkatan'] ?? '')) ?></td>
+                                <td class="pe-3"><span class="badge text-bg-light border"><?= htmlspecialchars(jenis_izin_label((string) ($ir['jenis_izin'] ?? ''))) ?></span></td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($izinAktifRows as $ir): ?>
-                                <tr>
-                                    <td class="ps-3 fw-semibold"><?= htmlspecialchars((string) ($ir['nama_santri'] ?? '')) ?></td>
-                                    <td><?= htmlspecialchars((string) ($ir['nis'] ?? '')) ?></td>
-                                    <td><?= htmlspecialchars((string) ($ir['tingkatan'] ?? '')) ?></td>
-                                    <td class="pe-3"><span class="badge text-bg-light border"><?= htmlspecialchars(jenis_izin_label((string) ($ir['jenis_izin'] ?? ''))) ?></span></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
+        <?php if ($canPerizinan): ?>
+        <div class="offcanvas-footer border-top p-3">
+            <a href="<?= htmlspecialchars(app_href('/perizinan/index.php')) ?>" class="btn btn-outline-secondary btn-sm rounded-pill w-100">Kelola perizinan</a>
+        </div>
+        <?php endif; ?>
+    </div>
     <?php endif; ?>
 
 </div>

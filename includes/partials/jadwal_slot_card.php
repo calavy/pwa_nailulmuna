@@ -10,12 +10,14 @@ declare(strict_types=1);
  * @var bool $showActions
  * @var bool $compact
  * @var bool $mobileLayout
+ * @var bool $practicalCompact
  */
 $slot = $slot ?? [];
 $hari = $hari ?? [];
 $showActions = $showActions ?? true;
 $compact = $compact ?? false;
 $mobileLayout = $mobileLayout ?? false;
+$practicalCompact = $practicalCompact ?? false;
 
 $editId = (int) ($slot['id'] ?? 0);
 $namaKg = trim((string) ($slot['nama_kegiatan'] ?? '—'));
@@ -44,6 +46,7 @@ $tkRingkas = jadwal_tingkatan_tampilan_ringkas($tingkatanList, $mobileLayout ? 1
 $jamTampil = jadwal_jam_ringkas($slot);
 $cardClasses = 'jadwal-slot-card'
     . ($compact ? ' jadwal-slot-card--compact' : '')
+    . ($practicalCompact ? ' jadwal-slot-card--practical' : '')
     . ($mobileLayout ? ' jadwal-slot-card--mobile' : '')
     . (strtolower($kat) === 'jamaah' ? ' jadwal-slot-card--jamaah' : '')
     . ($showActions && $editId > 0 ? ' jadwal-slot-card--clickable' : '');

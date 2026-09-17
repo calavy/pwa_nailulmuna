@@ -1272,13 +1272,13 @@ body.auth-portal-page--pb-scan {
     background: #0f172a;
     display: flex;
     flex-direction: column;
-    flex: 1;
+    flex: 1 1 auto;
     width: 100%;
     max-width: none;
     margin: 0 !important;
     min-height: 0;
-    height: auto;
-    max-height: none;
+    height: 100%;
+    max-height: 100%;
 }
 
 .login-scan-kegiatan__head.presensi-scan-top {
@@ -1293,8 +1293,8 @@ body.auth-portal-page--pb-scan {
 }
 
 .login-scan-kegiatan__viewport.presensi-scan-viewport {
-    flex: 1 1 12rem;
-    min-height: 12rem;
+    flex: 1 1 auto;
+    min-height: min(14rem, 28dvh);
     width: 100%;
     max-width: none;
     aspect-ratio: unset;
@@ -1339,6 +1339,14 @@ body.auth-portal-page--pb-scan {
 
 @media (max-height: 760px) {
     .login-scan-kegiatan__hint {
+        display: none;
+    }
+
+    .login-scan-kegiatan .presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-inner {
+        padding: 0.35rem 0.5rem 0.3rem;
+    }
+
+    .login-scan-kegiatan .presensi-scan-timer.has-marquee .presensi-scan-timer-wall {
         display: none;
     }
 

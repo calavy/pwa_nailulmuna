@@ -176,17 +176,23 @@
                 return { width: s, height: s };
             };
         }
+        var experimental = {
+            useBarCodeDetectorIfSupported: false,
+        };
+        if (options.experimentalFeatures && typeof options.experimentalFeatures === 'object') {
+            Object.keys(options.experimentalFeatures).forEach(function (key) {
+                experimental[key] = options.experimentalFeatures[key];
+            });
+        }
         return {
             fps: options.fps || 10,
             qrbox: qrbox,
             aspectRatio: options.aspectRatio || 1.333334,
             disableFlip: false,
-            videoConstraints: {
+            videoConstraints: options.videoConstraints || {
                 facingMode: { ideal: 'environment' },
             },
-            experimentalFeatures: {
-                useBarCodeDetectorIfSupported: false,
-            },
+            experimentalFeatures: experimental,
         };
     }
 
@@ -262,12 +268,22 @@
         }
         return videoHasFrames(readerId);
     }
-    function readSavedCameraId() {
+    function readSavedCameraId(storageKey) {
+        var key = storageKey || STORAGE_KEY;
         try {
-            var savedId = global.localStorage.getItem(STORAGE_KEY);
+            var savedId = global.localStorage.getItem(key);
             return savedId && savedId !== 'environment' && savedId !== 'user' ? savedId : null;
         } catch (e) {
             return null;
+        }
+    }
+
+    function removeSavedCameraId(storageKey) {
+        var key = storageKey || STORAGE_KEY;
+        try {
+            global.localStorage.removeItem(key);
+        } catch (e) {
+            /* abaikan */
         }
     }
 
@@ -336,6 +352,11 @@
         this.deferStartOnMobile = options.deferStartOnMobile === true;
         this.continuousScan = options.continuousScan !== false;
         this.onCameraReady = options.onCameraReady || null;
+        this.getScanConfig = typeof options.getScanConfig === 'function' ? options.getScanConfig : null;
+        var confirmHits = parseInt(options.confirmHits, 10);
+        this.confirmHits = confirmHits >= 1 ? confirmHits : 2;
+        var storageKeyOpt = options.cameraStorageKey ? String(options.cameraStorageKey).trim() : '';
+        this.cameraStorageKey = storageKeyOpt !== '' ? storageKeyOpt : STORAGE_KEY;
 
         this.qr = null;
         this.scanning = false;
@@ -404,6 +425,9 @@
     };
 
     PresensiScanCamera.prototype.scanConfig = function () {
+        if (this.getScanConfig) {
+            return this.getScanConfig();
+        }
         return buildScanConfig({});
     };
 
@@ -422,7 +446,7 @@
             this.hitCount = 1;
             this.lastCode = decodedText;
         }
-        if (this.hitCount < 2) {
+        if (this.hitCount < this.confirmHits) {
             return;
         }
         if (decodedText === this.lastSubmittedCode && now - this.lastTime < 2500) {
@@ -675,7 +699,7 @@
             return;
         }
         try {
-            global.localStorage.setItem(STORAGE_KEY, cameraId);
+            global.localStorage.setItem(this.cameraStorageKey, cameraId);
         } catch (e) {
             /* abaikan */
         }
@@ -930,14 +954,10 @@
 
         await self.loadCameras();
 
-        var savedId = readSavedCameraId();
+        var savedId = readSavedCameraId(self.cameraStorageKey);
         if (savedId && self.cameras.length > 0 && !self.cameras.some(function (c) { return c.id === savedId; })) {
             savedId = null;
-            try {
-                global.localStorage.removeItem(STORAGE_KEY);
-            } catch (e) {
-                /* abaikan */
-            }
+            removeSavedCameraId(self.cameraStorageKey);
         }
 
         if (self.cameras.length > 0) {

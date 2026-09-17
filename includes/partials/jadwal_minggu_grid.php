@@ -10,12 +10,16 @@ declare(strict_types=1);
  * @var bool $showJadwalAksi
  * @var int $filterHari 0 = semua kolom
  * @var string $filterTingkatan
+ * @var string $jadwalDensity comfort|full
+ * @var callable $jadwalTabQs
  */
 $jadwalList = $jadwalList ?? [];
 $hari = $hari ?? [];
 $showJadwalAksi = $showJadwalAksi ?? true;
 $filterHari = (int) ($filterHari ?? 0);
 $filterTingkatan = trim((string) ($filterTingkatan ?? ''));
+$jadwalDensity = ($jadwalDensity ?? 'comfort') === 'full' ? 'full' : 'comfort';
+$maxShowComfort = 6;
 
 $byHari = jadwal_kelompokkan_per_hari_tampilan($jadwalList);
 $kolom = jadwal_minggu_kolom();
@@ -38,10 +42,11 @@ $todayCol = (int) date('N');
             $label = jadwal_hari_singkat($hk, $hari);
             $isToday = $hk > 0 && $hk === $todayCol;
             $isFiltered = $filterHari >= 1 && $filterHari <= 7 && $filterHari !== $hk && $hk !== 0;
-            $maxShow = 18;
+            $maxShow = $jadwalDensity === 'full' ? 18 : $maxShowComfort;
             $totalItems = count($items);
             $visibleItems = $totalItems > $maxShow ? array_slice($items, 0, $maxShow) : $items;
             $hiddenCount = $totalItems - count($visibleItems);
+            $practicalCompact = $jadwalDensity !== 'full';
             ?>
             <section class="jadwal-minggu-col<?= $isToday ? ' jadwal-minggu-col--today' : '' ?><?= $isFiltered ? ' jadwal-minggu-col--dim' : '' ?>"
                 aria-label="Jadwal <?= htmlspecialchars($label) ?>">
@@ -52,7 +57,7 @@ $todayCol = (int) date('N');
                 </header>
                 <div class="jadwal-minggu-col__body">
                     <?php if ($visibleItems === []): ?>
-                        <div class="jadwal-minggu-col__empty small text-muted">—</div>
+                        <div class="jadwal-minggu-col__empty small text-muted">Kosong</div>
                     <?php else: ?>
                         <?php foreach ($visibleItems as $slot):
                             $tampilanHk = (int) ($slot['_tampilan_hari'] ?? $hk);
@@ -70,15 +75,9 @@ $todayCol = (int) date('N');
                             require __DIR__ . '/jadwal_slot_card.php';
                             ?>
                         <?php endforeach; ?>
-                        <?php if ($hiddenCount > 0 && $hk >= 1 && $hk <= 7): ?>
-                            <?php
-                            $moreQs = ['tab' => 'minggu', 'filter_hari' => (string) $hk];
-                            if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
-                                $moreQs['filter_tingkatan'] = $filterTingkatan;
-                            }
-                            ?>
-                            <a class="jadwal-minggu-col__more small" href="<?= htmlspecialchars(app_href('/jadwal/index.php?' . http_build_query($moreQs))) ?>">
-                                +<?= (int) $hiddenCount ?> lainnya
+                        <?php if ($hiddenCount > 0 && $hk >= 1 && $hk <= 7 && is_callable($jadwalTabQs ?? null)): ?>
+                            <a class="jadwal-minggu-col__more small" href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs('daftar', ['filter_hari' => $hk]))) ?>">
+                                Lihat semua (<?= (int) $totalItems ?>)
                             </a>
                         <?php endif; ?>
                     <?php endif; ?>

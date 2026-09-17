@@ -64,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $ok = 0;
     $skip = 0;
+    $importedIds = [];
     foreach ($rows as $raw) {
         $namaKeg = trim((string) ($raw['nama_kegiatan'] ?? ''));
         $kategoriKeg = kegiatan_kategori_normalize((string) ($raw['kategori_kegiatan'] ?? 'TAALIM'));
@@ -106,7 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'k' => $kegId, 't' => $tingkatan, 'h' => max(0, min(7, $hariKe)),
             'jm' => $jamMulai, 'js' => $jamSelesai, 'tp' => $tempat !== '' ? $tempat : null, 'pb' => $pbId,
         ]);
+        $importedIds[] = (int) $pdo->lastInsertId();
         $ok++;
+    }
+    if (!empty($importedIds)) {
+        require_once __DIR__ . '/../helpers/google_calendar_sync.php';
+        google_calendar_push_jadwal_slots($pdo, $importedIds);
     }
     set_flash('success', "Import selesai: {$ok} baris jadwal, {$skip} dilewati.");
     header('Location: ' . app_href('/jadwal/index.php'));

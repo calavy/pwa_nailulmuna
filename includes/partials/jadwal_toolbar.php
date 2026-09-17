@@ -7,7 +7,7 @@ declare(strict_types=1);
  *
  * @var string $activeTab
  * @var callable $jadwalTabQs
- * @var bool $viewRingkas
+ * @var string $jadwalDensity comfort|full
  * @var bool $jadwalPembimbingScope
  * @var int $totalKegiatan
  * @var int $totalJadwal
@@ -119,7 +119,7 @@ $filterKatLabel = match ($filterKat) {
                 <div class="dropdown-menu dropdown-menu-end jadwal-filter-menu p-3 shadow">
                     <form method="get" class="jadwal-filter-form">
                         <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
-                        <?php if ($viewRingkas): ?><input type="hidden" name="view" value="ringkas"><?php endif; ?>
+                        <?php if (($jadwalDensity ?? 'comfort') === 'full'): ?><input type="hidden" name="density" value="full"><?php endif; ?>
                         <div class="mb-2">
                             <label class="form-label small mb-0">Kategori</label>
                             <select name="filter_kat" class="form-select form-select-sm">
@@ -183,10 +183,10 @@ $filterKatLabel = match ($filterKat) {
                     <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs('jamaah_munawib'))) ?>"><i class="fa-solid fa-user-check me-2 text-muted"></i>Munawib Jama'ah</a></li>
                     <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/kegiatan.php')) ?>"><i class="fa-solid fa-bookmark me-2 text-muted"></i>Kegiatan Ta'lim / Jama'ah</a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <?php if ($viewRingkas): ?>
-                        <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>"><i class="fa-solid fa-table me-2 text-muted"></i>Tampilan lengkap</a></li>
+                    <?php if (($jadwalDensity ?? 'comfort') === 'full'): ?>
+                        <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, ['density' => 'comfort']))) ?>"><i class="fa-solid fa-compress me-2 text-muted"></i>Tampilan praktis</a></li>
                     <?php else: ?>
-                        <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php?view=ringkas')) ?>"><i class="fa-solid fa-bars me-2 text-muted"></i>Tampilan ringkas</a></li>
+                        <li><a class="dropdown-item" href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, ['density' => 'full']))) ?>"><i class="fa-solid fa-table me-2 text-muted"></i>Tampilan lengkap</a></li>
                     <?php endif; ?>
                 </ul>
             </div>

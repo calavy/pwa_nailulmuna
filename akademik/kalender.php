@@ -9,6 +9,7 @@ require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/akademik_kalender_ui.php';
 require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/kalender_agenda.php';
+require_once __DIR__ . '/../helpers/google_calendar_sync.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../includes/auth_portal_layout.php';
 require_once __DIR__ . '/../includes/partials/kalender_page_hero.php';
@@ -46,7 +47,7 @@ function akad_cal_state_from_request(): array
     if ($view === 'tahun') {
         $view = 'atur';
     }
-    if (!in_array($view, ['bulan', 'masehi', 'atur', 'rencana'], true)) {
+    if (!in_array($view, ['bulan', 'masehi', 'atur', 'rencana', 'google'], true)) {
         $view = 'bulan';
     }
     $mode = strtolower(trim((string) ($_GET['mode'] ?? 'hijri')));
@@ -94,7 +95,7 @@ function akad_cal_back_state(): array
             continue;
         }
         $v = strtolower(trim($_POST[$pk]));
-        if ($k === 'view' && in_array($v, ['bulan', 'masehi', 'atur', 'rencana'], true)) {
+        if ($k === 'view' && in_array($v, ['bulan', 'masehi', 'atur', 'rencana', 'google'], true)) {
             $st['view'] = $v;
         }
         if ($k === 'mode' && in_array($v, ['hijri', 'masehi'], true)) {
@@ -456,8 +457,11 @@ render_kalender_page_hero([
                    class="btn btn-outline-secondary<?= $view === 'atur' ? ' active' : '' ?>"><i class="fa-solid fa-sliders me-1"></i> Atur tahun H.</a>
                 <a href="<?= htmlspecialchars(akad_cal_url(['view' => 'rencana'])) ?>"
                    class="btn btn-outline-primary<?= $view === 'rencana' ? ' active' : '' ?>"><i class="fa-solid fa-list-check me-1"></i> Rencana Kerja</a>
+                <a href="<?= htmlspecialchars(akad_cal_url(['view' => 'google'])) ?>"
+                   class="btn btn-outline-primary<?= $view === 'google' ? ' active' : '' ?>"><i class="fa-brands fa-google me-1"></i> Google Calendar</a>
             </div>
-            <a class="btn btn-outline-secondary btn-sm ms-auto" href="/settings/kalender.php"><i class="fa-solid fa-gear me-1"></i> Pengaturan</a>
+            <a class="btn btn-outline-secondary btn-sm ms-auto" href="/settings/google_calendar.php"><i class="fa-solid fa-link me-1"></i> Sync Google</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/settings/kalender.php"><i class="fa-solid fa-gear me-1"></i> Pengaturan</a>
         </div>
 
         <div class="akad-cal-legend">
@@ -479,7 +483,41 @@ render_kalender_page_hero([
     </div>
 </div>
 
-<?php if ($view === 'rencana'): ?>
+<?php
+$gcalOpenPublic = google_calendar_open_url_public($pdo);
+$gcalOpenInternal = google_calendar_open_url_internal($pdo);
+$gcalHasOpenLinks = google_calendar_has_open_links($pdo);
+?>
+<?php if ($view === 'google'): ?>
+    <div class="card akad-cal-main-card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-2"><i class="fa-brands fa-google me-1"></i> Google Calendar</h2>
+            <p class="small text-muted mb-3">
+                Buka kalender di tab browser baru (tampilan penuh Google). Perubahan di Google dan di PWA tetap
+                tersinkron lewat API bila diaktifkan di
+                <a href="<?= htmlspecialchars(app_href('/settings/google_calendar.php')) ?>">Pengaturan Google Calendar</a>.
+            </p>
+            <?php if ($gcalHasOpenLinks): ?>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars($gcalOpenPublic) ?>" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-solid fa-up-right-from-square me-1"></i> Buka kalender publik
+                    </a>
+                    <?php if (trim((string) google_calendar_settings($pdo)['internal_id']) !== ''): ?>
+                    <a class="btn btn-outline-primary btn-sm" href="<?= htmlspecialchars($gcalOpenInternal) ?>" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-solid fa-up-right-from-square me-1"></i> Buka kalender internal
+                    </a>
+                    <?php endif; ?>
+                </div>
+                <p class="small text-muted mb-0">Login Google diperlukan untuk kalender internal. Agenda dan jadwal pondok muncul setelah sync/push.</p>
+            <?php else: ?>
+                <div class="alert alert-warning mb-0">
+                    Calendar ID belum diisi. Buka
+                    <a href="<?= htmlspecialchars(app_href('/settings/google_calendar.php')) ?>">Pengaturan Google Calendar</a>.
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php elseif ($view === 'rencana'): ?>
     <?php require __DIR__ . '/../includes/partials/kalender_rencana_kerja.php'; ?>
 <?php elseif ($view === 'bulan'): ?>
     <div class="akad-cal-main-card mb-4">

@@ -492,7 +492,13 @@ function akademik_agenda_insert_from_post(PDO $pdo, array $post, int $userId): i
         'uid' => $userId > 0 ? $userId : null,
     ]);
 
-    return (int) $pdo->lastInsertId();
+    $newId = (int) $pdo->lastInsertId();
+    if ($newId > 0) {
+        require_once __DIR__ . '/google_calendar_sync.php';
+        google_calendar_push_agenda($pdo, $newId);
+    }
+
+    return $newId;
 }
 
 function akademik_agenda_delete(PDO $pdo, int $id, int $userId, string $role, bool $isSuperAdmin = false): bool
@@ -507,6 +513,8 @@ function akademik_agenda_delete(PDO $pdo, int $id, int $userId, string $role, bo
     if (!akademik_agenda_user_can_manage($row, $userId, $role, $isSuperAdmin)) {
         return false;
     }
+    require_once __DIR__ . '/google_calendar_sync.php';
+    google_calendar_delete_entity($pdo, 'agenda', $id);
     $pdo->prepare('DELETE FROM akademik_agenda WHERE id = :id')->execute(['id' => $id]);
 
     return true;

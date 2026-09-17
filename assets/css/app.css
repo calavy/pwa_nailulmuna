@@ -4316,6 +4316,38 @@ html {
     text-decoration: underline;
 }
 
+.jadwal-page--comfort .jadwal-minggu-col__more {
+    font-weight: 600;
+}
+
+.jadwal-slot-card--practical {
+    padding: 0.35rem 0.45rem;
+    padding-right: 0.5rem;
+}
+
+.jadwal-slot-card--practical .jadwal-slot-card__tingkatan,
+.jadwal-slot-card--practical .jadwal-slot-card__meta,
+.jadwal-slot-card--practical .jadwal-kat-badge,
+.jadwal-slot-card--practical .jadwal-slot-card__actions {
+    display: none !important;
+}
+
+.jadwal-slot-card--practical.jadwal-slot-card--clickable {
+    cursor: pointer;
+}
+
+.jadwal-slot-card--practical .jadwal-slot-card__title {
+    margin-bottom: 0;
+}
+
+.jadwal-legend__toggle {
+    color: var(--bs-secondary);
+}
+
+.jadwal-page--full .jadwal-legend__toggle {
+    display: none;
+}
+
 .jadwal-slot-card {
     position: relative;
     border: 1px solid rgba(226, 232, 240, 0.95);

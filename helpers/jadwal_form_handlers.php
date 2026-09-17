@@ -191,6 +191,10 @@ function jadwal_handle_tambah_jadwal(PDO $pdo, int $auditUserId, bool $jadwalPem
         $auditUserId,
         'Penambahan jadwal (' . $created . ' baris)'
     );
+    if ($createdIds !== []) {
+        require_once __DIR__ . '/google_calendar_sync.php';
+        google_calendar_push_jadwal_slots($pdo, $createdIds);
+    }
     set_flash('success', 'Jadwal berhasil ditambahkan: ' . $created . ' slot.');
     header('Location: ' . app_href('/jadwal/index.php'));
     exit;

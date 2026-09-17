@@ -12,8 +12,12 @@ require_once __DIR__ . '/../helpers/jadwal_jamaah_pembimbing.php';
 require_once __DIR__ . '/../helpers/munawib.php';
 require_once __DIR__ . '/../helpers/entity_list_sort.php';
 require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
+require_once __DIR__ . '/../helpers/google_calendar_sync.php';
 
 jadwal_require_module_access();
+$gcalJadwalOpenPublic = google_calendar_open_url_public($pdo);
+$gcalJadwalOpenInternal = google_calendar_open_url_internal($pdo);
+$gcalJadwalShowLinks = google_calendar_has_open_links($pdo);
 $auditUserId = (int) ($_SESSION['user']['id'] ?? 0);
 $jadwalPembimbingScope = jadwal_is_pembimbing_scope();
 $pembimbingScopeId = $jadwalPembimbingScope ? jadwal_current_pembimbing_id($pdo) : 0;
@@ -75,6 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus
         header('Location: ' . app_href('/jadwal/index.php'));
         exit;
     }
+    require_once __DIR__ . '/../helpers/google_calendar_sync.php';
+    google_calendar_delete_entity($pdo, 'jadwal_slot', $id);
     $result = jadwal_hapus_satu($pdo, $id, $auditUserId);
     if ($result['ok']) {
         $msg = 'Jadwal berhasil dihapus.';
@@ -112,11 +118,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'hapus
     $terhapus = 0;
     $presensiTotal = 0;
     $gagal = 0;
+    require_once __DIR__ . '/../helpers/google_calendar_sync.php';
     foreach ($ids as $id) {
         if ($jadwalPembimbingScope && !jadwal_slot_owned_by_pembimbing($pdo, $id, $pembimbingScopeId)) {
             $gagal++;
             continue;
         }
+        google_calendar_delete_entity($pdo, 'jadwal_slot', $id);
         $result = jadwal_hapus_satu($pdo, $id, $auditUserId);
         if ($result['ok']) {
             $terhapus++;
@@ -148,8 +156,10 @@ if (isset($_GET['grup'])) {
         jadwal_simpan_tampilan_grup($pdo, $g);
     }
     $redir = '/jadwal/index.php';
-    if (($_GET['view'] ?? '') === 'ringkas') {
-        $redir .= '?view=ringkas';
+    if (strtolower(trim((string) ($_GET['density'] ?? ''))) === 'full') {
+        $redir .= '?density=full';
+    } elseif (($_GET['view'] ?? '') === 'ringkas') {
+        $redir .= '?density=comfort';
     }
     header('Location: ' . app_href($redir));
     exit;
@@ -267,13 +277,18 @@ if ($activeTab === 'daftar') {
     }
 }
 
-$viewRingkas = (($_GET['view'] ?? '') === 'ringkas');
-if (isset($_GET['view']) && $_GET['view'] === 'ringkas') {
+$jadwalDensityRaw = strtolower(trim((string) ($_GET['density'] ?? '')));
+if ($jadwalDensityRaw === 'full') {
+    $jadwalDensity = 'full';
+} elseif (($_GET['view'] ?? '') === 'ringkas') {
+    $jadwalDensity = 'comfort';
     jadwal_simpan_tampilan_grup($pdo, 'kegiatan');
+} else {
+    $jadwalDensity = 'comfort';
 }
 
 $pageTitle = 'Jadwal Kegiatan';
-$bodyClass = 'jadwal-page jadwal-page--focus' . ($viewRingkas ? ' jadwal-page--ringkas' : '');
+$bodyClass = 'jadwal-page jadwal-page--focus jadwal-page--' . ($jadwalDensity === 'full' ? 'full' : 'comfort');
 $pageScripts = [app_asset_href('/assets/js/jadwal-ui.js')];
 $showJadwalAksi = !$jadwalPembimbingScope;
 $kegiatanListEdit = array_map(
@@ -284,10 +299,21 @@ $kegiatanListEdit = array_map(
     ],
     $kegiatanRows
 );
-$jadwalTabQs = static function (string $tab, array $extra = []) use ($viewRingkas, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId): string {
-    $q = array_merge(['tab' => $tab], $extra);
-    if ($viewRingkas) {
-        $q['view'] = 'ringkas';
+$jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDensity, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId): string {
+    $extraCopy = $extra;
+    $hariOverride = null;
+    if (array_key_exists('filter_hari', $extraCopy)) {
+        $hariOverride = (int) $extraCopy['filter_hari'];
+        unset($extraCopy['filter_hari']);
+    }
+    $densityOverride = null;
+    if (array_key_exists('density', $extraCopy)) {
+        $densityOverride = strtolower(trim((string) $extraCopy['density']));
+        unset($extraCopy['density']);
+    }
+    $q = array_merge(['tab' => $tab], $extraCopy);
+    if ($densityOverride === 'full' || ($densityOverride === null && $jadwalDensity === 'full')) {
+        $q['density'] = 'full';
     }
     if ($filterKat !== '') {
         $q['filter_kat'] = $filterKat;
@@ -298,8 +324,9 @@ $jadwalTabQs = static function (string $tab, array $extra = []) use ($viewRingka
     if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
         $q['filter_tingkatan'] = $filterTingkatan;
     }
-    if ($filterHari >= 1 && $filterHari <= 7) {
-        $q['filter_hari'] = (string) $filterHari;
+    $useHari = $hariOverride !== null ? $hariOverride : $filterHari;
+    if ($useHari >= 1 && $useHari <= 7) {
+        $q['filter_hari'] = (string) $useHari;
     }
 
     return '?' . http_build_query($q);
@@ -314,6 +341,27 @@ $ok = get_flash('success');
 
 <?php require __DIR__ . '/../includes/partials/jadwal_toolbar.php'; ?>
 
+<?php if ($gcalJadwalShowLinks): ?>
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="small text-muted mb-0">
+            <i class="fa-brands fa-google me-1"></i> Jadwal tersinkron dengan Google Calendar ·
+            <a href="<?= htmlspecialchars(app_href('/settings/google_calendar.php')) ?>">Pengaturan</a>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($gcalJadwalOpenPublic) ?>" target="_blank" rel="noopener noreferrer">
+                <i class="fa-solid fa-up-right-from-square me-1"></i> Buka kalender publik
+            </a>
+            <?php if (trim((string) google_calendar_settings($pdo)['internal_id']) !== ''): ?>
+            <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars($gcalJadwalOpenInternal) ?>" target="_blank" rel="noopener noreferrer">
+                Buka internal
+            </a>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php require __DIR__ . '/../includes/partials/jadwal_inline_panels.php'; ?>
 
 <div class="card shadow-sm mb-4 border-0 jadwal-view-card">
@@ -327,6 +375,12 @@ $ok = get_flash('success');
             <?php require __DIR__ . '/../includes/partials/jadwal_minggu_grid.php'; ?>
         <?php elseif ($activeTab === 'daftar'): ?>
             <?php require __DIR__ . '/../includes/partials/jadwal_legend.php'; ?>
+            <?php if ($filterHari >= 1 && $filterHari <= 7): ?>
+            <div class="alert alert-light border py-2 px-3 small mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <span class="mb-0">Menampilkan jadwal <strong><?= htmlspecialchars($hari[$filterHari] ?? ('Hari ' . $filterHari)) ?></strong></span>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs('daftar', ['filter_hari' => 0]))) ?>">Tampilkan semua hari</a>
+            </div>
+            <?php endif; ?>
             <p class="text-muted small mb-3 d-none d-lg-block">
                 Dikelompokkan per <?= $tampilanGrup === 'pembimbing' ? 'pembimbing' : ($tampilanGrup === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
                 Satu baris = satu slot waktu (hari & tingkatan digabung).

@@ -1747,6 +1747,53 @@
     color: #c2410c;
 }
 
+button.dash-kpi-box--trigger {
+    cursor: pointer;
+    text-align: inherit;
+    font: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+button.dash-kpi-box--trigger:focus {
+    outline: none;
+}
+
+button.dash-kpi-box--trigger:focus-visible {
+    outline: 2px solid rgba(217, 119, 6, 0.65);
+    outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    button.dash-kpi-box--trigger:hover {
+        box-shadow: 0 10px 26px rgba(217, 119, 6, 0.18);
+        border-color: rgba(217, 119, 6, 0.35);
+    }
+}
+
+.dash-izin-offcanvas {
+    --bs-offcanvas-width: min(420px, 100vw);
+    display: flex;
+    flex-direction: column;
+}
+
+.dash-izin-offcanvas .offcanvas-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.dash-izin-offcanvas__scroll {
+    max-height: calc(100vh - 12rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.dash-izin-offcanvas .offcanvas-footer {
+    flex-shrink: 0;
+    background: var(--bs-offcanvas-bg, #fff);
+}
+
 .dash-kpi-box__label {
     position: relative;
     z-index: 1;

@@ -320,6 +320,7 @@ function user_permission_path_map_base(): array
         '/settings/kamar_ranjang.php' => 'pengaturan',
         '/settings/index.php' => 'pengaturan',
         '/settings/kalender.php' => 'pengaturan',
+        '/settings/google_calendar.php' => 'pengaturan',
         '/settings/kalender_ta.php' => 'pengaturan',
         '/settings/hijri_mappings.php' => 'pengaturan',
         '/perizinan/index.php' => 'perizinan',
