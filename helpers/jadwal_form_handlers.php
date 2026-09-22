@@ -61,6 +61,11 @@ function jadwal_handle_tambah_kegiatan(PDO $pdo): void
     $pdo->prepare('INSERT INTO kegiatan (nama_kegiatan, kategori_kegiatan, is_active) VALUES (:nama, :kat, 1)')
         ->execute(['nama' => $namaKegiatan, 'kat' => $kategoriKegiatan]);
     $newId = (int) $pdo->lastInsertId();
+    $sameName = jadwal_kegiatan_same_nama_others($pdo, $namaKegiatan, $newId);
+    if ($sameName !== []) {
+        $ids = implode(', ', array_map(static fn (array $r): string => '#' . (int) ($r['id'] ?? 0), $sameName));
+        set_flash('warning', 'Nama sudah dipakai master kegiatan ' . $ids . '. Hindari jadwal tingkatan yang sama.');
+    }
     set_flash('success', 'Kegiatan "' . $namaKegiatan . '" berhasil ditambahkan.');
     header('Location: ' . app_href('/jadwal/index.php?panel=jadwal&kegiatan_id=' . $newId));
     exit;
@@ -142,6 +147,12 @@ function jadwal_handle_tambah_jadwal(PDO $pdo, int $auditUserId, bool $jadwalPem
     }
 
     foreach ($tingkatanDipilih as $tingkatan) {
+        $dupNama = jadwal_would_duplicate_nama_tingkatan($pdo, $kegiatanId, $tingkatan);
+        if ($dupNama !== null) {
+            set_flash('error', jadwal_pesan_duplicate_nama_tingkatan($dupNama));
+            header('Location: ' . app_href('/jadwal/index.php?panel=jadwal'));
+            exit;
+        }
         foreach ($hariDipilih as $hariKe) {
             $bentrok = jadwal_cek_bentrok($pdo, $tingkatan, $hariKe, $jamMulai, $jamSelesai);
             if ($bentrok !== null) {

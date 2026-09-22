@@ -666,6 +666,152 @@ function jadwal_tingkatan_bentrok(string $tingkatanA, string $tingkatanB): bool
     return strcasecmp($a, $b) === 0;
 }
 
+function jadwal_normalize_nama_kegiatan(string $nama): string
+{
+    $nama = trim($nama);
+    if ($nama === '') {
+        return '';
+    }
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower($nama, 'UTF-8');
+    }
+
+    return strtolower($nama);
+}
+
+/**
+ * Master kegiatan lain (id berbeda) dengan nama sama — case-insensitive.
+ *
+ * @return list<array{id:int,nama_kegiatan:string}>
+ */
+function jadwal_kegiatan_same_nama_others(PDO $pdo, string $namaKegiatan, int $excludeKegiatanId = 0): array
+{
+    if (!table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    $norm = jadwal_normalize_nama_kegiatan($namaKegiatan);
+    if ($norm === '') {
+        return [];
+    }
+    $rows = $pdo->query('SELECT id, nama_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $out = [];
+    foreach ($rows as $row) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id <= 0 || $id === $excludeKegiatanId) {
+            continue;
+        }
+        if (jadwal_normalize_nama_kegiatan((string) ($row['nama_kegiatan'] ?? '')) !== $norm) {
+            continue;
+        }
+        $out[] = ['id' => $id, 'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '')];
+    }
+
+    return $out;
+}
+
+/**
+ * Grup dobel: nama kegiatan sama + tingkatan sama, ≥2 master kegiatan.id.
+ *
+ * @return list<array<string, mixed>>
+ */
+function jadwal_find_duplicate_nama_tingkatan(PDO $pdo): array
+{
+    if (!table_exists($pdo, 'jadwal_kegiatan') || !table_exists($pdo, 'kegiatan')) {
+        return [];
+    }
+    $st = $pdo->query('
+        SELECT LOWER(TRIM(k.nama_kegiatan)) AS nama_norm,
+               j.tingkatan,
+               COUNT(DISTINCT j.kegiatan_id) AS jumlah_kegiatan,
+               GROUP_CONCAT(DISTINCT k.id ORDER BY k.id) AS kegiatan_ids,
+               MIN(k.nama_kegiatan) AS nama_tampil
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        WHERE COALESCE(k.is_active, 1) = 1
+        GROUP BY nama_norm, j.tingkatan
+        HAVING COUNT(DISTINCT j.kegiatan_id) > 1
+        ORDER BY nama_norm, j.tingkatan
+    ');
+
+    return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+}
+
+/** @param array<string, mixed> $group */
+function jadwal_duplicate_nama_tingkatan_message(array $group): string
+{
+    $nama = trim((string) ($group['nama_tampil'] ?? $group['nama_norm'] ?? 'Kegiatan'));
+    $ting = trim((string) ($group['tingkatan'] ?? '-'));
+    $ids = trim((string) ($group['kegiatan_ids'] ?? ''));
+
+    return '"' . $nama . '" · tingkatan ' . $ting . ' · ID kegiatan: ' . ($ids !== '' ? $ids : '?');
+}
+
+function jadwal_kegiatan_has_jadwal_tingkatan(PDO $pdo, int $kegiatanId, string $tingkatan): bool
+{
+    if ($kegiatanId <= 0 || !table_exists($pdo, 'jadwal_kegiatan')) {
+        return false;
+    }
+    $st = $pdo->prepare('SELECT tingkatan FROM jadwal_kegiatan WHERE kegiatan_id = :kid');
+    $st->execute(['kid' => $kegiatanId]);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $t) {
+        if (jadwal_tingkatan_bentrok($tingkatan, (string) $t)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Slot baru memperparah duplikat nama+tingkatan (master beda ID, nama sama).
+ *
+ * @return array<string, mixed>|null
+ */
+function jadwal_would_duplicate_nama_tingkatan(PDO $pdo, int $kegiatanId, string $tingkatan): ?array
+{
+    if ($kegiatanId <= 0 || trim($tingkatan) === '') {
+        return null;
+    }
+    $stN = $pdo->prepare('SELECT nama_kegiatan FROM kegiatan WHERE id = :id LIMIT 1');
+    $stN->execute(['id' => $kegiatanId]);
+    $nama = (string) ($stN->fetchColumn() ?: '');
+    if ($nama === '') {
+        return null;
+    }
+    if (jadwal_kegiatan_has_jadwal_tingkatan($pdo, $kegiatanId, $tingkatan)) {
+        return null;
+    }
+    $others = jadwal_kegiatan_same_nama_others($pdo, $nama, $kegiatanId);
+    foreach ($others as $other) {
+        $oid = (int) ($other['id'] ?? 0);
+        if ($oid <= 0) {
+            continue;
+        }
+        if (jadwal_kegiatan_has_jadwal_tingkatan($pdo, $oid, $tingkatan)) {
+            return [
+                'kegiatan_id' => $kegiatanId,
+                'other_kegiatan_id' => $oid,
+                'nama_kegiatan' => $nama,
+                'tingkatan' => $tingkatan,
+            ];
+        }
+    }
+
+    return null;
+}
+
+/** @param array<string, mixed> $conflict */
+function jadwal_pesan_duplicate_nama_tingkatan(array $conflict): string
+{
+    $nama = (string) ($conflict['nama_kegiatan'] ?? 'Kegiatan');
+    $ting = (string) ($conflict['tingkatan'] ?? '-');
+    $otherId = (int) ($conflict['other_kegiatan_id'] ?? 0);
+    $selfId = (int) ($conflict['kegiatan_id'] ?? 0);
+
+    return 'Jadwal dobel: nama "' . $nama . '" sudah dipakai kegiatan #' . $otherId
+        . ' untuk tingkatan ' . $ting . '. Gabung master, rename, atau hapus salah satu jadwal sebelum menambah slot untuk kegiatan #' . $selfId . '.';
+}
+
 /**
  * Cari jadwal yang bentrok (tingkatan + hari + jam tumpang).
  *
@@ -1011,6 +1157,8 @@ function jadwal_simpan_perubahan_massal(
     $updated = 0;
     $created = 0;
     $usedIds = [];
+    /** @var array<string, true> $dupGuardTingkatan */
+    $dupGuardTingkatan = [];
 
     foreach ($desired as $key => $spec) {
         $payload = [
@@ -1027,6 +1175,20 @@ function jadwal_simpan_perubahan_massal(
             $usedIds[(int) $existingByKey[$key]] = true;
             $updated++;
         } else {
+            $tingKey = (string) $spec['tingkatan'];
+            if (!isset($dupGuardTingkatan[$tingKey])) {
+                $dupGuardTingkatan[$tingKey] = true;
+                $dupNama = jadwal_would_duplicate_nama_tingkatan($pdo, $kegiatanId, $tingKey);
+                if ($dupNama !== null) {
+                    return [
+                        'ok' => false,
+                        'message' => jadwal_pesan_duplicate_nama_tingkatan($dupNama),
+                        'updated' => 0,
+                        'created' => 0,
+                        'deleted' => 0,
+                    ];
+                }
+            }
             $ins->execute($payload);
             $newId = (int) $pdo->lastInsertId();
             if ($newId > 0) {

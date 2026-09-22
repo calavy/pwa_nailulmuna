@@ -254,12 +254,12 @@ $dashIzinKpiClickable = $izinAktifCount > 0 && $izinAktifRows !== [];
             </div>
         </div>
         <div class="dash-kpi-grid__item" role="listitem">
-            <div class="dash-kpi-box dash-kpi-box--mukimin h-100">
-                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-book-open-reader"></i></div>
-                <div class="dash-kpi-box__label">Data Mukimin</div>
+            <div class="dash-kpi-box dash-kpi-box--keluar h-100">
+                <div class="dash-kpi-box__icon" aria-hidden="true"><i class="fa-solid fa-right-from-bracket"></i></div>
+                <div class="dash-kpi-box__label">Keluar</div>
                 <div class="dash-kpi-box__value"><?= (int) $mukiminCount ?></div>
                 <?php $dashKpiTrend = $dashKpiTrends['mukimin'] ?? null; require __DIR__ . '/includes/partials/dashboard_kpi_trend.php'; ?>
-                <div class="dash-kpi-box__hint">Santri non aktif</div>
+                <div class="dash-kpi-box__hint">Data alumni / keluar</div>
             </div>
         </div>
         <div class="dash-kpi-grid__item" role="listitem">

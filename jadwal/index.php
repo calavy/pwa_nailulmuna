@@ -331,6 +331,7 @@ $jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDens
 
     return '?' . http_build_query($q);
 };
+$jadwalDuplicateGroups = jadwal_find_duplicate_nama_tingkatan($pdo);
 require_once __DIR__ . '/../includes/header.php';
 $err = get_flash('error');
 $ok = get_flash('success');
@@ -338,6 +339,8 @@ $ok = get_flash('success');
 
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+
+<?php require __DIR__ . '/../includes/partials/jadwal_duplicate_warning.php'; ?>
 
 <?php require __DIR__ . '/../includes/partials/jadwal_toolbar.php'; ?>
 

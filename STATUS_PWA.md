@@ -7,6 +7,12 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-22] Jadwal dobel nama + tingkatan (peringatan)
+- **Apa yang diubah:** Deteksi ≥2 master kegiatan (nama sama, ID beda) dengan jadwal tingkatan sama; banner di Jadwal/Kegiatan; tolak tambah slot yang memperparah; warning soft saat tambah/edit master nama duplikat; `scripts/_diag_jadwal_duplicate.php`.
+- **File:** `helpers/jadwal_ui.php`, `helpers/jadwal_form_handlers.php`, `includes/partials/jadwal_duplicate_warning.php`, `jadwal/index.php`, `jadwal/kegiatan.php`, `scripts/_diag_jadwal_duplicate.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Duplikat master membuat absensi Multi Scan ambigu.
+- **Status:** terpasang; uji banner + block tambah jadwal
+
 ### [2026-09-22] Multi Scan — jadwal vs tingkatan santri (pesan “ditolak”)
 - **Apa yang diubah:** Pesan luar jadwal santri diawali *Kartu terbaca* + daftar kegiatan berlangsung; JSON `scan_clock` / `active_slots`; jam HP skew &gt;5 menit → waktu server; strip timer menonjolkan tingkatan; `scripts/_diag_scan_santri_jadwal.php`.
 - **File:** `helpers/presensi_scan_post.inc.php`, `helpers/presensi_scan_client.php`, `helpers/presensi_scan_jadwal.php`, `api/scan/smart.php`, `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `scripts/_diag_scan_santri_jadwal.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`

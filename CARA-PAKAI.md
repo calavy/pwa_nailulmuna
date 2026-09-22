@@ -248,6 +248,14 @@ C:\xampp\php\php.exe scripts\_diag_scan_santri_jadwal.php KODE_QR_KARTU
 
 Jam HP yang melenceng &gt;5 menit otomatis diganti waktu server saat validasi jadwal.
 
+**Jadwal dobel (nama + tingkatan):** jika dua master kegiatan **nama sama** (ID beda) sama-sama punya jadwal **tingkatan sama**, absensi santri bisa ambigu. Cek banner kuning di **Jadwal** / **Kegiatan**, atau:
+
+```powershell
+C:\xampp\php\php.exe scripts\_diag_jadwal_duplicate.php
+```
+
+Penambahan slot jadwal yang memperparah duplikat ditolak otomatis.
+
 ---
 
 ## Performa di hosting (pwa.nailulmuna.id)

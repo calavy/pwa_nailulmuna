@@ -1705,12 +1705,92 @@
     }
 }
 
-.dash-kpi-box--putra,
-.dash-kpi-box--putri,
-.dash-kpi-box--mukimin,
-.dash-kpi-box--izin {
-    background: #fff;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+/* KPI grid: selang-seling teal muda (ganjil) + navy gelap (genap) — selaras hero */
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box {
+    border: 1px solid rgba(13, 148, 136, 0.38);
+    border-left-width: 4px;
+    border-left-color: #0d9488;
+    background: linear-gradient(165deg, #ecfdf5 0%, #f0fdfa 42%, #fff 100%);
+    box-shadow: 0 8px 22px rgba(6, 95, 70, 0.12);
+    color: #0f172a;
+}
+
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__label {
+    color: #0f766e;
+}
+
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__hint,
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-trend {
+    color: #64748b;
+}
+
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__value {
+    color: #0f172a;
+}
+
+.dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__icon {
+    background: rgba(15, 118, 110, 0.14);
+    color: #0f766e;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box {
+    border: 1px solid #1e293b;
+    border-left-width: 4px;
+    border-left-color: #5eead4;
+    background: #0b1220;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+    color: #e2e8f0;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__label {
+    color: #94a3b8;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__hint,
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-trend {
+    color: #cbd5e1;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__value {
+    color: #5eead4;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__trend--up {
+    color: #6ee7b7;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__trend--down {
+    color: #fca5a5;
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__trend--flat {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__icon {
+    background: rgba(94, 234, 212, 0.18);
+    color: #5eead4;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box:hover {
+        box-shadow: 0 10px 26px rgba(6, 95, 70, 0.18);
+    }
+
+    .dash-kpi-grid__item:nth-child(even) .dash-kpi-box:hover {
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.45);
+        filter: brightness(1.03);
+    }
+
+    .dash-kpi-grid__item:nth-child(odd) button.dash-kpi-box--trigger:hover {
+        border-color: rgba(13, 148, 136, 0.45);
+        box-shadow: 0 10px 26px rgba(6, 95, 70, 0.2);
+    }
+
+    .dash-kpi-grid__item:nth-child(even) button.dash-kpi-box--trigger:hover {
+        border-color: rgba(94, 234, 212, 0.45);
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.5);
+    }
 }
 
 .dash-kpi-box__icon {
@@ -1727,26 +1807,6 @@
     order: 0;
 }
 
-.dash-kpi-box--putra .dash-kpi-box__icon {
-    background: #ccfbf1;
-    color: #0f766e;
-}
-
-.dash-kpi-box--putri .dash-kpi-box__icon {
-    background: #ccfbf1;
-    color: #0f766e;
-}
-
-.dash-kpi-box--mukimin .dash-kpi-box__icon {
-    background: #e2e8f0;
-    color: #475569;
-}
-
-.dash-kpi-box--izin .dash-kpi-box__icon {
-    background: #ffedd5;
-    color: #c2410c;
-}
-
 button.dash-kpi-box--trigger {
     cursor: pointer;
     text-align: inherit;
@@ -1759,16 +1819,14 @@ button.dash-kpi-box--trigger:focus {
     outline: none;
 }
 
-button.dash-kpi-box--trigger:focus-visible {
-    outline: 2px solid rgba(217, 119, 6, 0.65);
+.dash-kpi-grid__item:nth-child(odd) button.dash-kpi-box--trigger:focus-visible {
+    outline: 2px solid rgba(13, 148, 136, 0.65);
     outline-offset: 2px;
 }
 
-@media (hover: hover) and (pointer: fine) {
-    button.dash-kpi-box--trigger:hover {
-        box-shadow: 0 10px 26px rgba(217, 119, 6, 0.18);
-        border-color: rgba(217, 119, 6, 0.35);
-    }
+.dash-kpi-grid__item:nth-child(even) button.dash-kpi-box--trigger:focus-visible {
+    outline: 2px solid rgba(94, 234, 212, 0.65);
+    outline-offset: 2px;
 }
 
 .dash-izin-offcanvas {
@@ -4189,24 +4247,66 @@ body.dash-page .app-shell--wide {
     order: 0;
 }
 
-[data-theme="dark"] .dash-kpi-box--putra .dash-kpi-box__icon {
-    background: #ccfbf1;
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box {
+    background: linear-gradient(165deg, #ecfdf5 0%, #f0fdfa 42%, #fff 100%) !important;
+    border: 1px solid rgba(13, 148, 136, 0.38) !important;
+    border-left-width: 4px !important;
+    border-left-color: #0d9488 !important;
+    box-shadow: 0 8px 22px rgba(6, 95, 70, 0.12) !important;
+    color: #0f172a;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__label {
+    color: #0f766e !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__value {
+    color: #0f172a !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__hint,
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-trend {
+    color: #64748b !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(odd) .dash-kpi-box .dash-kpi-box__icon {
+    background: rgba(15, 118, 110, 0.14);
     color: #0f766e;
 }
 
-[data-theme="dark"] .dash-kpi-box--putri .dash-kpi-box__icon {
-    background: #ccfbf1;
-    color: #0f766e;
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box {
+    background: #0b1220 !important;
+    border: 1px solid #1e293b !important;
+    border-left-width: 4px !important;
+    border-left-color: #5eead4 !important;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35) !important;
+    color: #e2e8f0;
 }
 
-[data-theme="dark"] .dash-kpi-box--mukimin .dash-kpi-box__icon {
-    background: #e2e8f0;
-    color: #475569;
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__label {
+    color: #94a3b8 !important;
 }
 
-[data-theme="dark"] .dash-kpi-box--izin .dash-kpi-box__icon {
-    background: #ffedd5;
-    color: #c2410c;
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__value {
+    color: #5eead4 !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__hint,
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-trend {
+    color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__trend--up {
+    color: #6ee7b7 !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__trend--down {
+    color: #fca5a5 !important;
+}
+
+[data-theme="dark"] .dash-kpi-grid__item:nth-child(even) .dash-kpi-box .dash-kpi-box__icon {
+    background: rgba(94, 234, 212, 0.18);
+    color: #5eead4;
 }
 
 [data-theme="dark"] body.dash-page .dash-panel,

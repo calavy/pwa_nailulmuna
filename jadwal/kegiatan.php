@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/jadwal_pembimbing.php';
 require_once __DIR__ . '/../helpers/kegiatan_kategori.php';
+require_once __DIR__ . '/../helpers/jadwal_ui.php';
 
 jadwal_require_module_access();
 
@@ -89,7 +90,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $pdo->prepare('UPDATE kegiatan SET nama_kegiatan = :nama, kategori_kegiatan = :kat, is_active = :aktif WHERE id = :id')
             ->execute(['nama' => $namaKegiatan, 'kat' => $kategoriKegiatan, 'aktif' => $isActive, 'id' => $idEditPost]);
-        set_flash('success', 'Kegiatan "' . $namaKegiatan . '" diperbarui (' . kegiatan_kategori_label($kategoriKegiatan) . ').');
+        $msg = 'Kegiatan "' . $namaKegiatan . '" diperbarui (' . kegiatan_kategori_label($kategoriKegiatan) . ').';
+        $sameName = jadwal_kegiatan_same_nama_others($pdo, $namaKegiatan, $idEditPost);
+        if ($sameName !== []) {
+            $ids = implode(', ', array_map(static fn (array $r): string => '#' . (int) ($r['id'] ?? 0), $sameName));
+            set_flash('warning', 'Nama sudah dipakai master kegiatan ' . $ids . '. Hindari jadwal tingkatan yang sama agar absensi tidak ambigu.');
+        }
+        set_flash('success', $msg);
         header('Location: ' . app_href('/jadwal/kegiatan.php'));
         exit;
     }
@@ -98,6 +105,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare('INSERT INTO kegiatan (nama_kegiatan, kategori_kegiatan, is_active) VALUES (:nama, :kat, 1)')
             ->execute(['nama' => $namaKegiatan, 'kat' => $kategoriKegiatan]);
         $newId = (int) $pdo->lastInsertId();
+        $sameName = jadwal_kegiatan_same_nama_others($pdo, $namaKegiatan, $newId);
+        if ($sameName !== []) {
+            $ids = implode(', ', array_map(static fn (array $r): string => '#' . (int) ($r['id'] ?? 0), $sameName));
+            set_flash('warning', 'Nama sudah dipakai master kegiatan ' . $ids . '. Hindari jadwal tingkatan yang sama agar absensi tidak ambigu.');
+        }
         set_flash('success', 'Kegiatan "' . $namaKegiatan . '" ditambahkan. Lanjut buat jadwal jika perlu.');
         header('Location: ' . app_href('/jadwal/index.php?panel=jadwal&kegiatan_id=' . $newId));
         exit;
@@ -159,8 +171,10 @@ function jadwal_kegiatan_filter_qs(array $extra = []): string
 
 $pageTitle = 'Kegiatan — Ta\'lim, Jama\'ah & Extra';
 $bodyClass = 'jadwal-page jadwal-kegiatan-page';
+$jadwalDuplicateGroups = jadwal_find_duplicate_nama_tingkatan($pdo);
 require_once __DIR__ . '/../includes/header.php';
 $err = get_flash('error');
+$warn = get_flash('warning');
 $ok = get_flash('success');
 ?>
 <div class="page-intro mb-3">
@@ -188,7 +202,9 @@ $ok = get_flash('success');
     </p>
 </div>
 
+<?php require __DIR__ . '/../includes/partials/jadwal_duplicate_warning.php'; ?>
 <?php if ($err): ?><div class="alert alert-danger py-2 small"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+<?php if ($warn): ?><div class="alert alert-warning py-2 small"><?= htmlspecialchars($warn) ?></div><?php endif; ?>
 <?php if ($ok): ?><div class="alert alert-success py-2 small"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
 
 <div class="row g-3 mb-3">
