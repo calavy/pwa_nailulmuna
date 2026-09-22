@@ -55,20 +55,40 @@ function perizinan_push_setelah_pengajuan(
     }
 
     $alasanWa = $alasanSnippet !== '' ? $alasanSnippet : '—';
-    perizinan_wa_kirim_permohonan_baru(
-        $pdo,
-        $jenisKode,
-        $namaSantri,
-        $nis,
-        (string) ($waDetail['tingkatan'] ?? ''),
-        $tanggalMulai,
-        $tanggalSelesai,
-        (string) ($waDetail['jam_mulai'] ?? ''),
-        (string) ($waDetail['jam_selesai'] ?? ''),
-        $alasanWa,
-        (string) ($waDetail['tujuan'] ?? ''),
-        (int) ($waDetail['izin_id'] ?? 0)
-    );
+    $izinId = (int) ($waDetail['izin_id'] ?? 0);
+    if (perizinan_memerlukan_persetujuan_pengasuh($jenisKode)) {
+        $waResult = perizinan_wa_kirim_permohonan_ke_pengasuh(
+            $pdo,
+            $jenisKode,
+            $namaSantri,
+            $nis,
+            (string) ($waDetail['tingkatan'] ?? ''),
+            $tanggalMulai,
+            $tanggalSelesai,
+            (string) ($waDetail['jam_mulai'] ?? ''),
+            (string) ($waDetail['jam_selesai'] ?? ''),
+            $alasanWa,
+            (string) ($waDetail['tujuan'] ?? ''),
+            $izinId
+        );
+        perizinan_wa_log_kirim_gagal('pengajuan_pengasuh', $izinId, $waResult);
+    } else {
+        $waResult = perizinan_wa_kirim_permohonan_baru(
+            $pdo,
+            $jenisKode,
+            $namaSantri,
+            $nis,
+            (string) ($waDetail['tingkatan'] ?? ''),
+            $tanggalMulai,
+            $tanggalSelesai,
+            (string) ($waDetail['jam_mulai'] ?? ''),
+            (string) ($waDetail['jam_selesai'] ?? ''),
+            $alasanWa,
+            (string) ($waDetail['tujuan'] ?? ''),
+            $izinId
+        );
+        perizinan_wa_log_kirim_gagal('pengajuan_pengurus', $izinId, $waResult);
+    }
 }
 
 /** Notifikasi perpanjangan izin (portal wali / pengurus). */
@@ -80,7 +100,8 @@ function perizinan_push_setelah_perpanjangan(
     string $tanggalMulai,
     string $tanggalSelesaiLama,
     string $tanggalSelesaiBaru,
-    string $alasanPerpanjangan
+    string $alasanPerpanjangan,
+    int $izinId = 0
 ): void {
     $label = jenis_izin_label($jenisKode);
     $title = 'Perpanjangan izin';
@@ -94,7 +115,39 @@ function perizinan_push_setelah_perpanjangan(
         push_notify_all_kiai($pdo, 'izin_perpanjangan', $title, $body, [
             'jenis' => perizinan_jenis_izin_normalize($jenisKode),
         ], '/pengasuh/perizinan.php');
+        $waResult = perizinan_wa_kirim_permohonan_ke_pengasuh(
+            $pdo,
+            $jenisKode,
+            $namaSantri,
+            $nis,
+            '',
+            $tanggalMulai,
+            $tanggalSelesaiBaru,
+            '',
+            '',
+            $alasanPerpanjangan,
+            '',
+            $izinId,
+            'Perpanjangan izin: selesai ' . $tanggalSelesaiLama . ' → ' . $tanggalSelesaiBaru
+        );
+        perizinan_wa_log_kirim_gagal('perpanjangan_pengasuh', $izinId, $waResult);
     }
+}
+
+/** @param array{sent:int,skipped?:bool,reason?:string} $result */
+function perizinan_wa_log_kirim_gagal(string $context, int $izinId, array $result): void
+{
+    if ((int) ($result['sent'] ?? 0) > 0) {
+        return;
+    }
+    $reason = trim((string) ($result['reason'] ?? ''));
+    if ($reason === '') {
+        $reason = !empty($result['skipped']) ? 'skipped' : 'send_failed';
+    }
+    if ($reason === 'duplicate') {
+        return;
+    }
+    error_log('[wa_izin] context=' . $context . ' izin_id=' . $izinId . ' reason=' . $reason);
 }
 
 /**
@@ -159,10 +212,91 @@ function perizinan_wa_kirim_permohonan_baru(
         $waOpts['dedup_key_once'] = true;
     }
 
+    $sent = send_wa_bulk($pdo, $target, $msg, $waOpts);
+
     return [
-        'sent' => send_wa_bulk($pdo, $target, $msg, $waOpts),
-        'skipped' => false,
-        'reason' => '',
+        'sent' => $sent,
+        'skipped' => $sent === 0,
+        'reason' => $sent === 0 ? 'send_failed' : '',
+    ];
+}
+
+/**
+ * WA ke pengasuh (kiai) saat izin syar'i menunggu persetujuan.
+ *
+ * @return array{sent:int,skipped:bool,reason:string}
+ */
+function perizinan_wa_kirim_permohonan_ke_pengasuh(
+    PDO $pdo,
+    string $jenisIzin,
+    string $namaSantri,
+    string $nis = '',
+    string $tingkatan = '',
+    string $tanggalMulai = '',
+    string $tanggalSelesai = '',
+    string $jamMulai = '',
+    string $jamSelesai = '',
+    string $alasan = '',
+    string $tujuan = '',
+    int $izinId = 0,
+    string $judulExtra = ''
+): array {
+    if (!function_exists('wa_izin_pengasuh_pending_enabled')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!wa_izin_pengasuh_pending_enabled($pdo)) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'disabled'];
+    }
+    if (trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'master_off'];
+    }
+
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'gateway'];
+    }
+
+    if (!function_exists('wa_pengasuh_pending_targets')) {
+        require_once __DIR__ . '/perizinan_approval.php';
+    }
+    $target = wa_pengasuh_pending_targets($pdo);
+    if ($target === '') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_pengasuh_wa'];
+    }
+
+    $jm1 = substr($jamMulai, 0, 5) !== '' ? substr($jamMulai, 0, 5) : date('H:i');
+    $jm2 = substr($jamSelesai, 0, 5) !== '' ? substr($jamSelesai, 0, 5) : date('H:i');
+    $msg = wa_format_pengajuan_izin_pengasuh(
+        $pdo,
+        $namaSantri,
+        $nis,
+        $tingkatan,
+        $jenisIzin,
+        $tanggalMulai,
+        $tanggalSelesai,
+        $jm1,
+        $jm2,
+        $alasan,
+        $tujuan,
+        $judulExtra
+    );
+
+    $waOpts = ['kind' => 'general'];
+    if ($izinId > 0) {
+        $suffix = $judulExtra !== '' ? ':perpanjang' : ':submit';
+        $waOpts['dedup_key'] = 'izin:' . $izinId . ':pengasuh' . $suffix;
+        $waOpts['dedup_key_once'] = true;
+    } else {
+        $waOpts['dedup_key'] = 'izin:pengasuh:' . md5($nis . '|' . $tanggalMulai . '|' . $tanggalSelesai . '|' . mb_substr($alasan, 0, 80));
+        $waOpts['dedup_key_once'] = true;
+    }
+
+    $sent = send_wa_bulk($pdo, $target, $msg, $waOpts);
+
+    return [
+        'sent' => $sent,
+        'skipped' => $sent === 0,
+        'reason' => $sent === 0 ? 'send_failed' : '',
     ];
 }
 

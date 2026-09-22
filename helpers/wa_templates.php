@@ -104,6 +104,23 @@ function wa_template_definitions(): array
                 . "_Hormat kami,_\n"
                 . "_{nama_ponpes}_",
         ],
+        'pengajuan_izin_pengasuh' => [
+            'label' => 'Pengajuan izin syar\'i → pengasuh (PENDING)',
+            'hint' => 'Antrean persetujuan pengasuh (portal wali / izin syar\'i). {judul_extra_baris} untuk perpanjangan.',
+            'placeholders' => '{nama_santri}, {nis}, {nis_baris}, {tingkatan}, {tingkatan_baris}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {tujuan}, {tujuan_baris}, {judul_extra}, {judul_extra_baris}, {nama_ponpes}',
+            'default' => "*PERMOHONAN IZIN SYAR'I*\n"
+                . "{judul_extra_baris}"
+                . "Menunggu persetujuan pengasuh:\n\n"
+                . "• Nama santri: *{nama_santri}*\n"
+                . "{nis_baris}{tingkatan_baris}"
+                . "• Jenis: *{jenis_izin}*\n"
+                . "• Tanggal: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Waktu: *{jam_mulai}* – *{jam_selesai}*\n"
+                . "• {label_alasan}: _{alasan}_\n"
+                . "{tujuan_baris}\n"
+                . "Mohon tinjau di menu *Pengasuh → Perizinan*.\n\n"
+                . "_{nama_ponpes}_",
+        ],
         'izin_disetujui_pengasuh_info' => [
             'label' => 'Izin disetujui pengurus → pengasuh (info)',
             'hint' => 'Notifikasi informatif ke pengasuh saat izin non-wali disetujui pengurus (bukan antrean persetujuan).',

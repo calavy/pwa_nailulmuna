@@ -28,6 +28,8 @@ function presensi_scan_portal_json(PDO $pdo, array $input): array
     $scanRedirect = null;
     /** @var string $izinSelesaiMsgPreset */
     $izinSelesaiMsgPreset = '';
+    /** @var array<string, mixed> $scanPortalJsonExtra */
+    $scanPortalJsonExtra = [];
 
     $savedPost = $_POST;
     $_POST = array_merge([
@@ -60,5 +62,5 @@ function presensi_scan_portal_json(PDO $pdo, array $input): array
         'ok' => $type === 'success',
         'type' => $type,
         'message' => $resultMessage ?: 'OK',
-    ], $extra);
+    ], $extra, $scanPortalJsonExtra);
 }

@@ -85,7 +85,7 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         </div>
     </div>
 
-    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau. Santri: absensi. Pembimbing/munawib: kehadiran dulu, scan lagi untuk portal. Tanpa jadwal, portal otomatis.</p>
+    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau. <strong>Absensi santri</strong> mengikuti <strong>tingkatan pada kartu</strong>, bukan hanya nama kegiatan di strip jadwal. Pembimbing/munawib: kehadiran dulu, scan lagi untuk portal.</p>
 
     <form method="post" id="login-scan-form-offline" class="visually-hidden" action="<?= htmlspecialchars(app_href('/presensi/scan.php?portal=1')) ?>" autocomplete="off">
         <input type="hidden" name="scan_source" value="camera">
@@ -100,14 +100,14 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
 </div>
 <?php endif; ?>
 
-<link href="<?= htmlspecialchars(app_url('assets/css/presensi-scan.css')) ?>" rel="stylesheet">
-<link href="<?= htmlspecialchars(app_url('assets/css/offline-sync.css')) ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/presensi-scan.css')) ?>" rel="stylesheet">
+<link href="<?= htmlspecialchars(app_asset_href('/assets/css/offline-sync.css')) ?>" rel="stylesheet">
 <?php require_once __DIR__ . '/../../helpers/app_vendor.php'; require __DIR__ . '/app_html5_qrcode_script.php'; ?>
 <script>window.PONDOK_APP_BASE = <?= json_encode(app_base_path(), JSON_UNESCAPED_SLASHES) ?>;</script>
 <?php if (function_exists('app_offline_queue_flush_script')) { app_offline_queue_flush_script(); } ?>
-<script src="<?= htmlspecialchars(app_url('assets/js/pwa-register.js')) ?>" defer></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/offline-sync.js')) ?>" defer></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-feedback.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-timer.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/presensi-scan-camera.js')) ?>"></script>
-<script src="<?= htmlspecialchars(app_url('assets/js/login-scan-kegiatan.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-register.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-feedback.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-timer.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/presensi-scan-camera.js')) ?>"></script>
+<script src="<?= htmlspecialchars(app_asset_href('/assets/js/login-scan-kegiatan.js')) ?>"></script>

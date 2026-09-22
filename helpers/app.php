@@ -9,8 +9,22 @@ function app_settings_cache(PDO $pdo, bool $forceReload = false): array
     if ($forceReload) {
         $cache = null;
         $cachePdoId = null;
+        if (!function_exists('app_settings_shared_cache_bust')) {
+            require_once __DIR__ . '/app_cache.php';
+        }
+        app_settings_shared_cache_bust($pdo);
     }
     if (is_array($cache) && $cachePdoId === $pdoId) {
+        return $cache;
+    }
+    if (!function_exists('app_settings_shared_cache_read')) {
+        require_once __DIR__ . '/app_cache.php';
+    }
+    $shared = $forceReload ? null : app_settings_shared_cache_read($pdo);
+    if (is_array($shared)) {
+        $cachePdoId = $pdoId;
+        $cache = $shared;
+
         return $cache;
     }
     $cachePdoId = $pdoId;
@@ -25,6 +39,7 @@ function app_settings_cache(PDO $pdo, bool $forceReload = false): array
                 $cache[$k] = (string) ($row['setting_value'] ?? '');
             }
         }
+        app_settings_shared_cache_write($pdo, $cache);
     } catch (PDOException $e) {
         $cache = [];
     }
@@ -123,6 +138,32 @@ function app_request_path_is_scan_kiosk(string $requestPath): bool
         || str_contains($p, '/presensi/kiosk');
 }
 
+/** Cache avatar/logo PWA — modul dengan foto; skip halaman pengaturan ringan. */
+function app_should_load_pwa_media_cache_js(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+    if (preg_match('#^/settings/(?!presensi)#', $p)) {
+        return false;
+    }
+
+    return app_should_load_dashboard_css($requestPath)
+        || (bool) preg_match('#^/(presensi|poin|perizinan|santri|wali|pembimbing|pengasuh)/#', $p);
+}
+
+/** FCM push bootstrap — hanya halaman yang butuh notifikasi real-time (hemat JS di modul lain). */
+function app_should_load_push_fcm(string $requestPath): bool
+{
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+    if (function_exists('app_request_path_is_scan_kiosk') && app_request_path_is_scan_kiosk($p)) {
+        return false;
+    }
+    if (preg_match('#^/(dashboard\.php|pembimbing/dashboard|pengasuh/dashboard|settings/push\.php)(/|$)#', $p)) {
+        return true;
+    }
+
+    return (bool) preg_match('#^/wali/#', $p);
+}
+
 /** Muat CSS dashboard hanya di halaman beranda/dashboard. */
 function app_should_load_dashboard_css(string $requestPath): bool
 {
@@ -199,6 +240,31 @@ function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailu
     return $_SESSION[$sessionKey];
 }
 
+/**
+ * Hosting/production: lewati ALTER otomatis jika DB sudah lengkap (impor/migrasi).
+ * Aktifkan: env PONDOK_SCHEMA_READY=1 atau setting pondok_schema_deploy_ready=1.
+ */
+function app_skip_deferred_schema_migrations(PDO $pdo): bool
+{
+    if (
+        !table_exists($pdo, 'santri')
+        || !column_exists($pdo, 'santri', 'status_santri')
+        || !table_exists($pdo, 'user_access_permissions')
+    ) {
+        return false;
+    }
+
+    if (function_exists('app_is_local_dev') && app_is_local_dev()) {
+        return true;
+    }
+
+    if (trim((string) getenv('PONDOK_SCHEMA_READY')) === '1') {
+        return true;
+    }
+
+    return trim((string) app_setting($pdo, 'pondok_schema_deploy_ready', '0')) === '1';
+}
+
 /** Migrasi skema ringan — sekali per sesi login, bukan tiap request. */
 function app_ensure_schema_deferred(PDO $pdo): void
 {
@@ -209,12 +275,7 @@ function app_ensure_schema_deferred(PDO $pdo): void
         return;
     }
 
-    // Lokal (XAMPP): DB dari impor SQL sudah lengkap — lewati puluhan ALTER TABLE per login.
-    if (
-        function_exists('app_is_local_dev') && app_is_local_dev()
-        && table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'status_santri')
-        && table_exists($pdo, 'user_access_permissions')
-    ) {
+    if (app_skip_deferred_schema_migrations($pdo)) {
         $_SESSION['app_schema_ready_v1'] = 1;
 
         return;
@@ -324,7 +385,9 @@ function app_run_deferred_maintenance(PDO $pdo, int $userId): void
         sync_presence_for_ended_schedules($pdo, $today, $jamNow, $userId);
     }
     ensure_point_tables($pdo);
-    sync_points_from_presensi($pdo, $userId);
+    if (app_setting($pdo, 'point_presensi_auto_sync', '0') === '1') {
+        sync_points_from_presensi($pdo, $userId);
+    }
     trigger_auto_wa_notifications($pdo);
     trigger_auto_wa_tagihan_wali($pdo);
     require_once __DIR__ . '/wa_kegiatan_kosong.php';
@@ -699,6 +762,9 @@ function pondok_settings_defaults(): array
         'wa_izin_pengurus_enabled' => '1',
         'wa_izin_selesai_enabled' => '1',
         'wa_izin_wali_enabled' => '1',
+        'wa_izin_pengasuh_pending_enabled' => '1',
+        'wa_izin_pengasuh_pending_extra' => '',
+        'pondok_schema_deploy_ready' => '0',
         'kedatangan_libur_jam_mulai' => '07:00',
         'kedatangan_libur_jam_selesai' => '16:00',
         'wa_kedatangan_libur_wali_enabled' => '1',
@@ -709,6 +775,12 @@ function pondok_settings_defaults(): array
         'stampel_kuitansi_path' => '',
         'cashless_saldo_rendah_wa_enabled' => '1',
         'poin_wa_notif_enabled' => '1',
+        'point_auto_alpa' => '5',
+        'point_auto_telat' => '1',
+        'point_presensi_auto_sync' => '0',
+        'point_presensi_periode' => 'bulan',
+        'point_rule_id_alpa' => '',
+        'point_rule_id_telat' => '',
         'cashless_saldo_rendah_wa_ambang' => '30000',
         'cashless_transaksi_wa_enabled' => '1',
         'cashless_laporan_harian_wa_enabled' => '0',
@@ -1020,6 +1092,11 @@ function wa_izin_selesai_enabled(PDO $pdo): bool
 function wa_izin_wali_enabled(PDO $pdo): bool
 {
     return trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
+}
+
+function wa_izin_pengasuh_pending_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_enabled', '1')) === '1';
 }
 
 /**
@@ -1892,6 +1969,75 @@ function ensure_point_tables(PDO $pdo): void
                 'tindakan' => $item[1],
                 'urutan' => $item[2],
             ]);
+        }
+    }
+
+    ensure_point_modifier_schema($pdo);
+}
+
+function ensure_point_modifier_schema(PDO $pdo): void
+{
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS point_peringan (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kode VARCHAR(20) NOT NULL UNIQUE,
+            nama VARCHAR(150) NOT NULL,
+            efek_persen INT NOT NULL DEFAULT 0,
+            urutan INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ');
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS point_pemberat (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            kode VARCHAR(20) NOT NULL UNIQUE,
+            nama VARCHAR(150) NOT NULL,
+            efek_persen INT NOT NULL DEFAULT 0,
+            urutan INT NOT NULL DEFAULT 0,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ');
+    if (function_exists('column_exists') && table_exists($pdo, 'point_ledger')) {
+        if (!column_exists($pdo, 'point_ledger', 'point_base')) {
+            try {
+                $pdo->exec('ALTER TABLE point_ledger ADD COLUMN point_base INT NULL AFTER point_delta');
+            } catch (PDOException $e) {
+            }
+        }
+        if (!column_exists($pdo, 'point_ledger', 'peringan_id')) {
+            try {
+                $pdo->exec('ALTER TABLE point_ledger ADD COLUMN peringan_id INT NULL AFTER point_base');
+            } catch (PDOException $e) {
+            }
+        }
+        if (!column_exists($pdo, 'point_ledger', 'pemberat_id')) {
+            try {
+                $pdo->exec('ALTER TABLE point_ledger ADD COLUMN pemberat_id INT NULL AFTER peringan_id');
+            } catch (PDOException $e) {
+            }
+        }
+    }
+
+    $peringanCount = (int) $pdo->query('SELECT COUNT(*) FROM point_peringan')->fetchColumn();
+    if ($peringanCount === 0) {
+        $ins = $pdo->prepare('INSERT INTO point_peringan (kode, nama, efek_persen, urutan) VALUES (:kode, :nama, :efek, :urutan)');
+        foreach ([
+            ['P01', 'Diajak — menerima langsung', 0, 10],
+            ['P02', 'Diajak — di bawah tekanan relasional', -50, 20],
+        ] as $row) {
+            $ins->execute(['kode' => $row[0], 'nama' => $row[1], 'efek' => $row[2], 'urutan' => $row[3]]);
+        }
+    }
+    $pemberatCount = (int) $pdo->query('SELECT COUNT(*) FROM point_pemberat')->fetchColumn();
+    if ($pemberatCount === 0) {
+        $ins = $pdo->prepare('INSERT INTO point_pemberat (kode, nama, efek_persen, urutan) VALUES (:kode, :nama, :efek, :urutan)');
+        foreach ([
+            ['M01', 'Mengajak / menginisiasi / menyediakan', 50, 10],
+            ['M02', 'Pelanggaran berulang (kategori sama, 2× atau lebih)', 50, 20],
+        ] as $row) {
+            $ins->execute(['kode' => $row[0], 'nama' => $row[1], 'efek' => $row[2], 'urutan' => $row[3]]);
         }
     }
 }
@@ -3655,6 +3801,58 @@ function wa_format_pengajuan_izin_baru(
     return wa_template_render($pdo, 'pengajuan_izin_baru', [
         'salam' => '',
         'kop' => '',
+        'nama_santri' => $namaSantri,
+        'nis' => $nisT,
+        'nis_baris' => $nisT !== '' ? '• NIS: *' . $nisT . "*\n" : '',
+        'tingkatan' => $tgT,
+        'tingkatan_baris' => $tgT !== '' ? '• Tingkatan: *' . $tgT . "*\n" : '',
+        'jenis_izin' => $jenis,
+        'label_alasan' => $labelAlasan,
+        'tanggal_mulai' => $tanggalMulai,
+        'tanggal_selesai' => $tanggalSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'alasan' => trim($alasan) !== '' ? trim($alasan) : '—',
+        'tujuan' => $tujuanT,
+        'tujuan_baris' => $tujuanT !== '' ? '• Tujuan: *' . $tujuanT . "*\n" : '',
+        'nama_ponpes' => $namaPonpes !== '' ? $namaPonpes : 'Sistem Informasi',
+    ]);
+}
+
+function wa_format_pengajuan_izin_pengasuh(
+    PDO $pdo,
+    string $namaSantri,
+    string $nis,
+    string $tingkatan,
+    string $jenisKode,
+    string $tanggalMulai,
+    string $tanggalSelesai,
+    string $jamMulai,
+    string $jamSelesai,
+    string $alasan,
+    string $tujuan = '',
+    string $judulExtra = ''
+): string {
+    if (!function_exists('wa_template_render')) {
+        require_once __DIR__ . '/wa_templates.php';
+    }
+    if (!function_exists('perizinan_jenis_wa_label')) {
+        require_once __DIR__ . '/perizinan_jenis.php';
+    }
+
+    $jenis = perizinan_jenis_wa_label($jenisKode);
+    $labelAlasan = perizinan_jenis_wa_label_alasan($jenisKode);
+    $nisT = trim($nis);
+    $tgT = trim($tingkatan);
+    $tujuanT = trim($tujuan);
+    $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
+    $judulExtraT = trim($judulExtra);
+
+    return wa_template_render($pdo, 'pengajuan_izin_pengasuh', [
+        'salam' => '',
+        'kop' => '',
+        'judul_extra' => $judulExtraT,
+        'judul_extra_baris' => $judulExtraT !== '' ? $judulExtraT . "\n\n" : '',
         'nama_santri' => $namaSantri,
         'nis' => $nisT,
         'nis_baris' => $nisT !== '' ? '• NIS: *' . $nisT . "*\n" : '',

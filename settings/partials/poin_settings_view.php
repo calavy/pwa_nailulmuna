@@ -34,16 +34,30 @@
     <div class="col-lg-4">
         <div class="card shadow-sm">
             <div class="card-body">
-                <h1 class="h6">Setting Auto Poin dari Presensi</h1>
+                <h1 class="h6">Poin dari Presensi (tarik manual)</h1>
+                <p class="small text-muted">Default: petugas menarik alpa/telat lewat form Input Poin. Angka di bawah = bobot per kejadian saat tombol <strong>Tarik ke poin</strong>.</p>
                 <form method="post" class="row g-2">
                     <input type="hidden" name="action" value="save_auto">
                     <div class="col-12">
-                        <label class="form-label">ALPA otomatis (+)</label>
+                        <label class="form-label">Poin per ALPA (+)</label>
                         <input type="number" min="0" class="form-control" name="point_auto_alpa" value="<?= $pointAutoAlpa ?>">
                     </div>
                     <div class="col-12">
-                        <label class="form-label">TELAT otomatis (+)</label>
+                        <label class="form-label">Poin per TELAT (+)</label>
                         <input type="number" min="0" class="form-control" name="point_auto_telat" value="<?= $pointAutoTelat ?>">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Periode ringkasan di form</label>
+                        <select class="form-select" name="point_presensi_periode">
+                            <option value="bulan" <?= ($pointPresensiPeriode ?? 'bulan') === 'bulan' ? 'selected' : '' ?>>Bulan berjalan</option>
+                            <option value="minggu" <?= ($pointPresensiPeriode ?? '') === 'minggu' ? 'selected' : '' ?>>Minggu berjalan</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="point_presensi_auto_sync" name="point_presensi_auto_sync" value="1" <?= ($pointPresensiAutoSync ?? false) ? 'checked' : '' ?>>
+                            <label class="form-check-label small" for="point_presensi_auto_sync">Legacy: auto-sync background (tidak disarankan)</label>
+                        </div>
                     </div>
                     <div class="col-12">
                         <button class="btn btn-primary">Simpan</button>
@@ -138,6 +152,76 @@
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h2 class="h6">Master Peringan (efek %, form Sedang+)</h2>
+                <form method="post" class="row g-2 mb-3">
+                    <input type="hidden" name="action" value="add_peringan">
+                    <div class="col-md-2"><input type="text" class="form-control" name="kode" placeholder="Kode" required></div>
+                    <div class="col-md-5"><input type="text" class="form-control" name="nama" placeholder="Nama" required></div>
+                    <div class="col-md-2"><input type="number" class="form-control" name="efek_persen" placeholder="Efek %" value="0"></div>
+                    <div class="col-md-1"><input type="number" class="form-control" name="urutan" placeholder="#"></div>
+                    <div class="col-md-2"><button class="btn btn-success btn-sm w-100">Tambah</button></div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Kode</th><th>Nama</th><th>Efek %</th><th></th></tr></thead>
+                        <tbody>
+                        <?php foreach ($peringanRows ?? [] as $pr): ?>
+                            <tr>
+                                <td><?= htmlspecialchars((string) $pr['kode']) ?></td>
+                                <td><?= htmlspecialchars((string) $pr['nama']) ?></td>
+                                <td><?= (int) $pr['efek_persen'] ?></td>
+                                <td class="text-end">
+                                    <form method="post" class="d-inline" onsubmit="return confirm('Hapus?')">
+                                        <input type="hidden" name="action" value="delete_peringan">
+                                        <input type="hidden" name="id" value="<?= (int) $pr['id'] ?>">
+                                        <button class="btn btn-outline-danger btn-sm">Hapus</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-4">
+            <div class="card-body">
+                <h2 class="h6">Master Pemberat (efek %, form Sedang+)</h2>
+                <form method="post" class="row g-2 mb-3">
+                    <input type="hidden" name="action" value="add_pemberat">
+                    <div class="col-md-2"><input type="text" class="form-control" name="kode" placeholder="Kode" required></div>
+                    <div class="col-md-5"><input type="text" class="form-control" name="nama" placeholder="Nama" required></div>
+                    <div class="col-md-2"><input type="number" class="form-control" name="efek_persen" placeholder="Efek %" value="50"></div>
+                    <div class="col-md-1"><input type="number" class="form-control" name="urutan" placeholder="#"></div>
+                    <div class="col-md-2"><button class="btn btn-success btn-sm w-100">Tambah</button></div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Kode</th><th>Nama</th><th>Efek %</th><th></th></tr></thead>
+                        <tbody>
+                        <?php foreach ($pemberatRows ?? [] as $pb): ?>
+                            <tr>
+                                <td><?= htmlspecialchars((string) $pb['kode']) ?></td>
+                                <td><?= htmlspecialchars((string) $pb['nama']) ?></td>
+                                <td><?= (int) $pb['efek_persen'] ?></td>
+                                <td class="text-end">
+                                    <form method="post" class="d-inline" onsubmit="return confirm('Hapus?')">
+                                        <input type="hidden" name="action" value="delete_pemberat">
+                                        <input type="hidden" name="id" value="<?= (int) $pb['id'] ?>">
+                                        <button class="btn btn-outline-danger btn-sm">Hapus</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

@@ -149,6 +149,12 @@
 
         var type = data.type || (data.ok ? 'success' : 'warning');
         var msg = data.message || '';
+        if (type === 'danger' && msg && /Kartu terbaca/i.test(msg)) {
+            type = 'warning';
+        }
+        if (data.scan_clock && data.scan_clock.from_client_skew && msg.indexOf('Jam HP') === -1) {
+            msg += ' (Jam HP tidak sinkron — dipakai waktu server.)';
+        }
         showFeedback(type, msg);
         resetMunawibPick();
         if (data.stay_on_scan) {
@@ -323,6 +329,7 @@
         startBtn: document.getElementById('btn-start-login-scan'),
         getScanConfig: loginScanBuildConfig,
         confirmHits: 1,
+        deferStartOnMobile: true,
         cameraStorageKey: 'login_scan_camera_id',
         onCameraReady: armLoginScanDecoderWatch,
         onSubmit: submitScan,

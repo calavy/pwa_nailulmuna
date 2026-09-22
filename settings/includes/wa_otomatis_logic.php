@@ -249,6 +249,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? ''));
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=template'));
         exit;
+    } elseif ($action === 'save_izin_pengasuh_pending_wa') {
+        save_setting($pdo, 'wa_izin_pengasuh_pending_enabled', isset($_POST['wa_izin_pengasuh_pending_enabled']) ? '1' : '0');
+        save_setting($pdo, 'wa_izin_pengasuh_pending_extra', trim((string) ($_POST['wa_izin_pengasuh_pending_extra'] ?? '')));
+        if (function_exists('app_settings_cache_reset')) {
+            app_settings_cache_reset($pdo);
+        }
+        set_flash('success', 'Pengaturan WA pengasuh (izin syar\'i) disimpan.');
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=izin'));
+        exit;
     } elseif ($action === 'save_permohonan_izin_wa') {
         save_setting($pdo, 'wa_permohonan_izin_enabled', isset($_POST['wa_permohonan_izin_enabled']) ? '1' : '0');
         if (array_key_exists('wa_permohonan_izin', $_POST)) {
@@ -569,6 +578,10 @@ $waIzinGrupAktifOtomatis = $waIzinGrupFonte !== '' && $waIzinGrupFonteEnabled;
 $waIzinPengurusEnabled = trim((string) app_setting($pdo, 'wa_izin_pengurus_enabled', '1')) === '1';
 $waIzinSelesaiEnabled = trim((string) app_setting($pdo, 'wa_izin_selesai_enabled', '1')) === '1';
 $waIzinWaliEnabled = trim((string) app_setting($pdo, 'wa_izin_wali_enabled', '1')) === '1';
+$waIzinPengasuhPendingEnabled = trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_enabled', '1')) === '1';
+$waIzinPengasuhPendingExtra = trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_extra', ''));
+require_once __DIR__ . '/../../helpers/perizinan_approval.php';
+$waIzinPengasuhPendingTargetPreview = wa_pengasuh_pending_targets($pdo);
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
 $waIzinPengurusPutra = trim((string) app_setting($pdo, 'wa_izin_pengurus_putra', ''));
 $waIzinPengurusPutri = trim((string) app_setting($pdo, 'wa_izin_pengurus_putri', ''));

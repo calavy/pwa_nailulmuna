@@ -151,12 +151,15 @@ if ($class['entity'] === 'unknown') {
 
 if ($class['entity'] === 'santri') {
     $presensiResult = presensi_scan_portal_json($pdo, array_merge($input, ['kode_qr' => $qrCode]));
+    $santriExtra = [
+        'munawib_pending' => $presensiResult['munawib_pending'] ?? false,
+        'scan_clock' => $presensiResult['scan_clock'] ?? null,
+        'active_slots' => $presensiResult['active_slots'] ?? null,
+    ];
     offline_sync_json_response(
         (string) ($presensiResult['type'] ?? 'success'),
         (string) ($presensiResult['message'] ?? 'OK'),
-        array_filter([
-            'munawib_pending' => $presensiResult['munawib_pending'] ?? false,
-        ], static fn($v): bool => $v !== false && $v !== null)
+        array_filter($santriExtra, static fn($v): bool => $v !== false && $v !== null && $v !== [])
     );
 }
 

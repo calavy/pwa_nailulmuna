@@ -122,6 +122,32 @@ require_once __DIR__ . '/includes/settings_nav.php';
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-white fw-semibold small">Status</div>
     <div class="card-body small">
+        <?php
+        $sheetCronEnabled = (bool) ($status['enabled'] ?? false);
+        $sheetCronStale = (bool) ($status['cron_stale'] ?? false);
+        $sheetCronActive = $sheetCronEnabled && !($status['cron_stale'] ?? true);
+        $sheetLastRun = trim((string) ($status['last_run_at'] ?? ''));
+        ?>
+        <?php if ($sheetCronEnabled): ?>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span class="badge <?= $sheetCronActive ? 'bg-success' : ($sheetLastRun === '' ? 'bg-secondary' : 'bg-danger') ?>">
+                <?= $sheetCronActive ? 'Cron snapshot OK' : ($sheetLastRun === '' ? 'Belum pernah push otomatis' : 'Perlu cek cron (lewat window harian)') ?>
+            </span>
+            <?php if ($status['send_time_ok'] ?? false): ?>
+                <span class="badge bg-primary">Window jam push aktif</span>
+            <?php else: ?>
+                <span class="badge bg-light text-dark border">Menunggu jam <?= htmlspecialchars((string) ($status['jam'] ?? '00:00')) ?></span>
+            <?php endif; ?>
+        </div>
+        <?php if ($sheetCronStale && $sheetLastRun !== ''): ?>
+            <div class="alert alert-warning py-2 small mb-3">
+                <strong>Cron belum terlihat sehat.</strong> Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key).
+                Tes: <code>php cron/laporan_snapshot.php</code> atau URL di bagian Perintah cron.
+            </div>
+        <?php endif; ?>
+        <?php else: ?>
+        <p class="text-muted small mb-3 mb-md-0">Snapshot otomatis nonaktif — hanya kirim manual di bawah.</p>
+        <?php endif; ?>
         <dl class="row mb-0">
             <dt class="col-sm-4">Aktif</dt>
             <dd class="col-sm-8"><?= ($status['enabled'] ?? false) ? '<span class="badge text-bg-success">Ya</span>' : '<span class="badge text-bg-secondary">Tidak</span>' ?></dd>

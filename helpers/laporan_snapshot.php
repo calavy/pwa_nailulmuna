@@ -868,6 +868,48 @@ function laporan_snapshot_run_tick(PDO $pdo): array
     return laporan_snapshot_run($pdo, false);
 }
 
+/** Cron snapshot harian dianggap stale jika tidak ada tick push lebih lama dari ini (detik). */
+function laporan_snapshot_cron_stale_after_sec(): int
+{
+    return 36 * 3600;
+}
+
+/**
+ * Snapshot otomatis sehat: sukses hari ini, atau masih menunggu jam push hari ini dengan sukses kemarin.
+ */
+function laporan_snapshot_cron_recently_active(PDO $pdo, ?int $maxAgeSec = null): bool
+{
+    if (!laporan_snapshot_enabled($pdo)) {
+        return false;
+    }
+    $maxAgeSec ??= laporan_snapshot_cron_stale_after_sec();
+    $today = date('Y-m-d');
+    $lastDate = trim((string) app_setting($pdo, 'laporan_snapshot_last_date', ''));
+    if ($lastDate === $today) {
+        return true;
+    }
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    if ($lastDate === $yesterday && !laporan_snapshot_send_time_ok($pdo)) {
+        return true;
+    }
+    $lastRun = trim((string) app_setting($pdo, 'laporan_snapshot_last_run_at', ''));
+    if ($lastRun === '') {
+        return false;
+    }
+    $ts = strtotime($lastRun);
+
+    return $ts !== false && (time() - $ts) <= $maxAgeSec;
+}
+
+function laporan_snapshot_cron_is_stale(PDO $pdo, ?int $maxAgeSec = null): bool
+{
+    if (!laporan_snapshot_enabled($pdo)) {
+        return false;
+    }
+
+    return !laporan_snapshot_cron_recently_active($pdo, $maxAgeSec);
+}
+
 /**
  * @return array<string, mixed>
  */
@@ -886,5 +928,7 @@ function laporan_snapshot_status(PDO $pdo): array
         'share_emails' => trim((string) app_setting($pdo, 'laporan_snapshot_share_emails', '')),
         'sa_json_path' => laporan_snapshot_sa_json_path($pdo),
         'last_result' => is_array($lastResult) ? $lastResult : null,
+        'cron_recently_active' => laporan_snapshot_cron_recently_active($pdo),
+        'cron_stale' => laporan_snapshot_cron_is_stale($pdo),
     ];
 }

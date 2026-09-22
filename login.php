@@ -434,6 +434,8 @@ $loginScanDest = $loginDest === 'setoran' ? 'setoran' : '';
 
 if ($scanMode) {
 
+    app_scan_page_no_cache_headers();
+
     require_once __DIR__ . '/helpers/presensi_admin.php';
     require_once __DIR__ . '/helpers/presensi_scan_jadwal.php';
     $scanJadwalCtx = ($pdo instanceof PDO) ? presensi_scan_jadwal_context_cached($pdo) : ['state' => 'none'];

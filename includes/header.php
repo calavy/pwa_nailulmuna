@@ -148,7 +148,7 @@ $showTopbarRoleBadge = false;
 $pageTitleHeader = trim((string) ($pageTitle ?? 'Dashboard'));
 
 if (isset($_SESSION['user']) && !isset($loadPushFcm)) {
-    $loadPushFcm = true;
+    $loadPushFcm = app_should_load_push_fcm($requestPath);
 }
 
 $topbarBackHref = '';
@@ -310,10 +310,6 @@ if (!function_exists('render_app_sidebar_nav')) {
     <link rel="manifest" href="<?= htmlspecialchars(app_href('/manifest.php')) ?>">
     <?= app_pwa_icon_link_tags(isset($pdo) && $pdo instanceof PDO ? $pdo : null) ?>
     <title><?= htmlspecialchars($pageTitle ?? 'Manajemen Santri') ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
     <?php require __DIR__ . '/partials/app_vendor_assets.php'; ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/app.css')) ?>" rel="stylesheet">
     <?php if (isset($_SESSION['user'])): ?>

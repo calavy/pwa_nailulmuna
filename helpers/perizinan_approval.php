@@ -1671,6 +1671,28 @@ function wa_pengasuh_info_targets(PDO $pdo): string
     return implode(',', array_values($phones));
 }
 
+/** Nomor WA pengasuh untuk antrean izin syar'i (kiai + nomor cadangan setting). */
+function wa_pengasuh_pending_targets(PDO $pdo): string
+{
+    require_once __DIR__ . '/wa_otomatis.php';
+    $phones = [];
+    foreach (wa_otomatis_parse_targets(wa_pengasuh_info_targets($pdo)) as $phone) {
+        if ($phone !== '') {
+            $phones[$phone] = $phone;
+        }
+    }
+    $extra = trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_extra', ''));
+    if ($extra !== '') {
+        foreach (wa_otomatis_parse_targets($extra) as $phone) {
+            if ($phone !== '') {
+                $phones[$phone] = $phone;
+            }
+        }
+    }
+
+    return implode(',', array_values($phones));
+}
+
 /**
  * WA informatif ke pengasuh saat izin non-wali disetujui pengurus.
  *

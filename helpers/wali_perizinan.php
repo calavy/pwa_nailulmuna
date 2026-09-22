@@ -332,7 +332,8 @@ function wali_perizinan_ajukan_perpanjangan(
         (string) ($row['tanggal_mulai'] ?? ''),
         (string) ($row['tanggal_selesai'] ?? ''),
         trim($tanggalSelesaiBaru),
-        $alasanPerpanjangan
+        $alasanPerpanjangan,
+        $izinId
     );
 
     return $result;

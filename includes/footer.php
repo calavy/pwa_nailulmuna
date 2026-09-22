@@ -10,7 +10,8 @@ $loadAppShellJs = ($loadAppShellJs ?? true) && app_should_load_app_shell_js($foo
 $loadDateTimeJs = ($loadDateTimeJs ?? true) && !$isScanKioskPage;
 $loadPerizinanSubmitOnceJs = ($loadPerizinanSubmitOnceJs ?? true)
     && app_should_load_perizinan_submit_once_js($footerRequestPath);
-$loadPwaMediaCacheJs = ($loadPwaMediaCacheJs ?? true) && !$isScanKioskPage;
+$loadPwaMediaCacheJs = ($loadPwaMediaCacheJs ?? true) && !$isScanKioskPage
+    && app_should_load_pwa_media_cache_js($footerRequestPath);
 $deferPwaRegisterJs = $isScanKioskPage;
 ?>
 <?php if (isset($_SESSION['user']) && $loadSdmModalsJs): ?>

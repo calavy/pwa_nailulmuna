@@ -6,6 +6,10 @@ declare(strict_types=1);
     presensi_scan_jadwal_context_invalidate();
     kegiatan_khusus_ensure_schema_deferred($pdo);
     $scanClock = presensi_scan_resolve_clock($_POST);
+    /** @var array<string, mixed> $scanResponseMeta */
+    $scanResponseMeta = [
+        'scan_clock' => presensi_scan_clock_meta($scanClock),
+    ];
     $action = trim((string) ($_POST['action'] ?? ''));
     if ($action === 'munawib_pick_schedule') {
         $pending = $_SESSION['munawib_scan_pending'] ?? null;
@@ -128,15 +132,27 @@ declare(strict_types=1);
             if (!$kegiatan) {
                 if ($kegiatanKhusus === null) {
                     $resultType = 'warning';
+                    $tingkatanSantri = trim((string) ($santri['tingkatan'] ?? '')) ?: '-';
+                    $activeSlots = presensi_scan_active_slots_at($pdo, $tanggal, $jam);
+                    $scanResponseMeta['active_slots'] = presensi_scan_active_slots_compact($activeSlots);
+                    $activeList = presensi_scan_format_active_slots_list($activeSlots);
+                    $jamShort = substr($jam, 0, 5);
                     if ($modeLiburAktif !== null) {
-                        $resultMessage = 'Hari libur akademik: ' . ($liburP['nama'] ?? 'Libur') . ' — mode saat libur: ' . akademik_libur_presensi_mode_label($pdo) . '.';
+                        $resultMessage = 'Kartu terbaca. Hari libur akademik: ' . ($liburP['nama'] ?? 'Libur') . ' — mode saat libur: ' . akademik_libur_presensi_mode_label($pdo) . '.';
                     } else {
                         $pkppsLabel = pkpps_tingkatan_nama_for_santri($pdo, (int) $santri['id']);
+                        $resultMessage = 'Kartu terbaca. Tidak ada jadwal aktif untuk tingkatan ' . $tingkatanSantri . ' pukul ' . $jamShort . '.';
                         if ($pkppsLabel !== '') {
-                            $resultMessage = 'Peringatan: scan di luar jadwal PKPPS (' . $pkppsLabel . ') dan jadwal kajian untuk tingkatan ' . ($santri['tingkatan'] ?: '-') . '.';
-                        } else {
-                            $resultMessage = 'Peringatan: scan di luar jadwal aktif untuk tingkatan ' . ($santri['tingkatan'] ?: '-') . '.';
+                            $resultMessage .= ' (PKPPS: ' . $pkppsLabel . '.)';
                         }
+                        if ($activeList !== '') {
+                            $resultMessage .= ' Yang berlangsung sekarang: ' . $activeList . '.';
+                        } elseif ($activeSlots === []) {
+                            $resultMessage .= ' Belum ada kegiatan berlangsung di sistem untuk jam ini.';
+                        }
+                    }
+                    if (!empty($scanClock['from_client_skew'])) {
+                        $resultMessage .= ' Jam HP tidak sinkron — absensi memakai waktu server.';
                     }
                     goto end_scan_process;
                 }
@@ -437,10 +453,21 @@ declare(strict_types=1);
     }
 end_scan_process:
 
+/** @var array<string, mixed> $scanPortalJsonExtra */
+$scanPortalJsonExtra = [];
+if (isset($scanResponseMeta['scan_clock'])) {
+    $scanPortalJsonExtra['scan_clock'] = $scanResponseMeta['scan_clock'];
+}
+if (!empty($scanResponseMeta['active_slots'])) {
+    $scanPortalJsonExtra['active_slots'] = $scanResponseMeta['active_slots'];
+}
+
 if ($resultMessage !== null && $resultMessage !== '' && $resultType === 'warning') {
     $pendingForClassify = $_SESSION['munawib_scan_pending'] ?? null;
     if (is_array($pendingForClassify) && !empty($pendingForClassify['slots'])) {
         $resultType = 'info';
+    } elseif (preg_match('/Kartu terbaca|luar jadwal|tidak ada jadwal aktif|Santri tidak aktif|Hari libur akademik/i', $resultMessage)) {
+        $resultType = 'warning';
     } elseif (preg_match('/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal|Duplikat/i', $resultMessage)) {
         $resultType = 'duplicate';
     } else {

@@ -102,9 +102,12 @@ foreach ($cases as $case) {
 $html = (string) (file_get_contents($loginScanUrl) ?: '');
 $assets = [
     'login-scan-kegiatan.js' => str_contains($html, 'login-scan-kegiatan.js'),
+    'login-scan-kegiatan.js?v=' => (bool) preg_match('/login-scan-kegiatan\.js\?(?:[^"\']*&)?v=\d+/', $html),
+    'presensi-scan-camera.js?v=' => (bool) preg_match('/presensi-scan-camera\.js\?(?:[^"\']*&)?v=\d+/', $html),
     'login-scan-smart-url' => str_contains($html, 'login-scan-smart-url'),
     'login-scan-mode-bar' => !str_contains($html, 'login-scan-mode-bar'),
     'login-scan-munawib-pick' => str_contains($html, 'login-scan-munawib-pick'),
+    'btn-start-login-scan' => str_contains($html, 'btn-start-login-scan'),
     'hint_otomatis' => str_contains($html, 'absensi') && str_contains($html, 'portal otomatis'),
 ];
 foreach ($assets as $k => $v) {

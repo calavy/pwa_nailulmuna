@@ -338,3 +338,69 @@ function presensi_scan_timer_prepare(array $scanJadwalCtx): array
         'clock' => presensi_scan_timer_format_clock($timerSec),
     ];
 }
+
+/** Slot jadwal yang sedang aktif (semua tingkatan) pada tanggal & jam tertentu. */
+function presensi_scan_active_slots_at(PDO $pdo, string $tanggal, string $jam): array
+{
+    $ctx = presensi_scan_jadwal_context($pdo, $tanggal, $jam);
+
+    return presensi_scan_marquee_slots($ctx);
+}
+
+function presensi_scan_jadwal_slot_matches_tingkatan(array $slot, string $tingkatanSantri): bool
+{
+    $slotTing = trim((string) ($slot['tingkatan'] ?? ''));
+    $santriTing = trim($tingkatanSantri);
+    if ($slotTing === '' || strcasecmp($slotTing, 'Semua Tingkatan') === 0) {
+        return true;
+    }
+    if ($santriTing === '') {
+        return false;
+    }
+
+    return strcasecmp($slotTing, $santriTing) === 0;
+}
+
+/** Teks ringkas slot aktif untuk pesan scan (nama · jam · tingkatan). */
+function presensi_scan_format_active_slots_list(array $slots, int $max = 4): string
+{
+    if ($slots === []) {
+        return '';
+    }
+    $parts = [];
+    foreach (array_slice($slots, 0, max(1, $max)) as $slot) {
+        if (!is_array($slot)) {
+            continue;
+        }
+        $label = presensi_scan_marquee_slot_label($slot);
+        if ($label !== '') {
+            $parts[] = $label;
+        }
+    }
+    if (count($slots) > $max) {
+        $parts[] = '+' . (count($slots) - $max) . ' lainnya';
+    }
+
+    return implode('; ', $parts);
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function presensi_scan_active_slots_compact(array $slots, int $max = 6): array
+{
+    $out = [];
+    foreach (array_slice($slots, 0, max(1, $max)) as $slot) {
+        if (!is_array($slot)) {
+            continue;
+        }
+        $out[] = [
+            'nama_kegiatan' => (string) ($slot['nama_kegiatan'] ?? ''),
+            'tingkatan' => (string) ($slot['tingkatan'] ?? ''),
+            'jam_mulai' => substr(trim((string) ($slot['jam_mulai'] ?? '')), 0, 5),
+            'jam_selesai' => substr(trim((string) ($slot['jam_selesai'] ?? '')), 0, 5),
+        ];
+    }
+
+    return $out;
+}

@@ -7,6 +7,18 @@ File ini mencatat setiap potong pekerjaan di proyek PWA Nailul Muna.
 
 ## Entri
 
+### [2026-09-22] Multi Scan — jadwal vs tingkatan santri (pesan “ditolak”)
+- **Apa yang diubah:** Pesan luar jadwal santri diawali *Kartu terbaca* + daftar kegiatan berlangsung; JSON `scan_clock` / `active_slots`; jam HP skew &gt;5 menit → waktu server; strip timer menonjolkan tingkatan; `scripts/_diag_scan_santri_jadwal.php`.
+- **File:** `helpers/presensi_scan_post.inc.php`, `helpers/presensi_scan_client.php`, `helpers/presensi_scan_jadwal.php`, `api/scan/smart.php`, `includes/partials/presensi_scan_timer_strip.php`, `includes/partials/login_scan_kegiatan.php`, `assets/js/login-scan-kegiatan.js`, `scripts/_diag_scan_santri_jadwal.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Strip menampilkan kegiatan aktif global; absensi santri per tingkatan — petugas mengira kamera gagal.
+- **Status:** terpasang; uji Multi Scan santri beda tingkatan + diag QR
+
+### [2026-09-22] Multi Scan — deploy cache-bust & gate kamera HP
+- **Apa yang diubah:** Script/CSS Multi Scan memakai `app_asset_href` (?v=mtime); `login.php?scan=1` no-cache header; `deferStartOnMobile` + tombol Mulai scan kamera (izin Android); skrip `scripts/_diag_multi_scan_deploy.php` dan `_uat_multi_scan_readiness.php`.
+- **File:** `includes/partials/login_scan_kegiatan.php`, `login.php`, `assets/js/login-scan-kegiatan.js`, `assets/js/presensi-scan-camera.js`, `scripts/_diag_multi_scan_deploy.php`, `scripts/_uat_multi_scan_readiness.php`, `scripts/_audit_scan_flow.php`, `CARA-PAKAI.md`, `STATUS_PWA.md`
+- **Alasan/konteks:** Perbaikan qrbox/decoder September harus sampai ke hosting; sebagian HP butuh tap sebelum `getUserMedia`.
+- **Status:** terpasang; uji deploy diag + UAT HP bermasalah
+
 ### [2026-09-15] Perbaiki redirect loop pengasuh (kiai)
 - **Apa yang diubah:** Loop `dashboard.php` ↔ `pengasuh/dashboard.php` untuk role kiai diperbaiki: bypass ACL di rute pengasuh (`app_acl_is_pengasuh_route`), default key `rekap_keaktifan_hari`/`rekap_keaktifan`, `auth_redirect_access_denied()` return setelah rute pengasuh.
 - **File:** `helpers/app.php`, `includes/auth.php`, `STATUS_PWA.md`

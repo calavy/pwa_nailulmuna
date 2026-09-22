@@ -48,12 +48,14 @@ $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 presensi_scan_ensure_schema_deferred($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    /** @var array<string, mixed> $scanPortalJsonExtra */
+    $scanPortalJsonExtra = [];
     require __DIR__ . '/../helpers/presensi_scan_post.inc.php';
 
     require_once __DIR__ . '/../helpers/offline_sync_http.php';
     if (offline_sync_wants_json()) {
         $pending = $_SESSION['munawib_scan_pending'] ?? null;
-        $extra = [];
+        $extra = is_array($scanPortalJsonExtra ?? null) ? $scanPortalJsonExtra : [];
         if (is_array($pending)) {
             $extra['munawib_pending'] = true;
             $extra['munawib_id'] = (int) ($pending['munawib_id'] ?? 0);

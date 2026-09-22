@@ -15,6 +15,7 @@ require_once __DIR__ . '/helpers/jadwal_ui.php';
 require_once __DIR__ . '/helpers/user_profil.php';
 require_once __DIR__ . '/helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/helpers/dashboard_insights.php';
+require_once __DIR__ . '/helpers/dashboard_kpi_cache.php';
 
 // Pembimbing & pengasuh punya dashboard khusus.
 if (isset($_SESSION['user'])) {
@@ -54,56 +55,12 @@ $dashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal(
 $nowTime = date('H:i:s');
 $hariKe = (int) date('N');
 
-$putra = 0;
-$putri = 0;
-if (table_exists($pdo, 'santri') && column_exists($pdo, 'santri', 'jenis_kelamin')) {
-    $aktifSql = '';
-    if (column_exists($pdo, 'santri', 'status_santri')) {
-        $aktifSql = ' WHERE ' . santri_sql_aktif_only('santri');
-    } elseif (column_exists($pdo, 'santri', 'is_aktif')) {
-        $aktifSql = ' WHERE COALESCE(is_aktif, 1) = 1';
-    }
-    $row = $pdo->query(
-        'SELECT
-            SUM(CASE WHEN TRIM(jenis_kelamin) = "Laki-laki" THEN 1 ELSE 0 END) AS putra,
-            SUM(CASE WHEN TRIM(jenis_kelamin) = "Perempuan" THEN 1 ELSE 0 END) AS putri
-         FROM santri' . $aktifSql
-    )->fetch(PDO::FETCH_ASSOC) ?: [];
-    $putra = (int) ($row['putra'] ?? 0);
-    $putri = (int) ($row['putri'] ?? 0);
-}
-
-$mukiminCount = mukimin_count($pdo);
-
-$izinAktifCount = 0;
-$izinAktifRows = [];
-$sqlAktifSantri = santri_sql_aktif_only('s');
-if (table_exists($pdo, 'perizinan') && table_exists($pdo, 'santri')) {
-    $approvalSql = '';
-    if (column_exists($pdo, 'perizinan', 'approval_status')) {
-        $approvalSql = ' AND i.approval_status = "DISETUJUI"';
-    }
-    $cntStmt = $pdo->prepare(
-        'SELECT COUNT(*) FROM perizinan i
-         INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifSantri . '
-         WHERE i.status_izin = "IZIN"
-           AND :today BETWEEN i.tanggal_mulai AND i.tanggal_selesai' . $approvalSql
-    );
-    $cntStmt->execute(['today' => $today]);
-    $izinAktifCount = (int) $cntStmt->fetchColumn();
-
-    $stmt = $pdo->prepare(
-        'SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, s.nama_santri, s.nis, s.tingkatan
-         FROM perizinan i
-         INNER JOIN santri s ON s.id = i.santri_id AND ' . $sqlAktifSantri . '
-         WHERE i.status_izin = "IZIN"
-           AND :today2 BETWEEN i.tanggal_mulai AND i.tanggal_selesai' . $approvalSql . '
-         ORDER BY s.nama_santri ASC
-         LIMIT 24'
-    );
-    $stmt->execute(['today2' => $today]);
-    $izinAktifRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
+$dashKpi = dashboard_admin_kpi_snapshot($pdo, $today);
+$putra = (int) ($dashKpi['putra'] ?? 0);
+$putri = (int) ($dashKpi['putri'] ?? 0);
+$mukiminCount = (int) ($dashKpi['mukimin'] ?? 0);
+$izinAktifCount = (int) ($dashKpi['izin_aktif_count'] ?? 0);
+$izinAktifRows = $dashKpi['izin_aktif_rows'] ?? [];
 
 $kegiatanAktif = [];
 $kegiatanAktifGrouped = [];

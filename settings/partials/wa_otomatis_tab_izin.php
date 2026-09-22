@@ -27,12 +27,37 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
 <?php $delayKind = 'izin'; require __DIR__ . '/wa_otomatis_delay_card.php'; ?>
 <div class="row g-3">
     <div class="col-12 col-xl-6">
+        <div class="card shadow-sm border-0 h-100 border-warning-subtle">
+            <div class="card-body">
+                <h2 class="h6 mb-2"><i class="fa-solid fa-mosque text-warning me-1"></i> Izin syar'i menunggu pengasuh (PENDING)</h2>
+                <p class="small text-muted mb-3">
+                    Portal wali mengajukan <strong>Izin (syar'i)</strong> → WA otomatis ke pengasuh (<code>role kiai</code>, kolom <strong>No. WA</strong> di data pengguna).
+                    Bukan ke nomor permohonan pengurus di bawah.
+                </p>
+                <?php if (($waIzinPengasuhPendingTargetPreview ?? '') === ''): ?>
+                    <div class="alert alert-warning py-2 small">Belum ada nomor pengasuh — isi No. WA pada akun pengasuh atau nomor cadangan di bawah.</div>
+                <?php endif; ?>
+                <form method="post">
+                    <input type="hidden" name="action" value="save_izin_pengasuh_pending_wa">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="wa_izin_pengasuh_pending_enabled" name="wa_izin_pengasuh_pending_enabled" value="1" <?= ($waIzinPengasuhPendingEnabled ?? true) ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-semibold" for="wa_izin_pengasuh_pending_enabled">Kirim WA ke pengasuh saat ada pengajuan izin syar'i</label>
+                    </div>
+                    <label class="form-label" for="wa_izin_pengasuh_pending_extra">Nomor cadangan (opsional)</label>
+                    <input type="text" class="form-control mb-1" id="wa_izin_pengasuh_pending_extra" name="wa_izin_pengasuh_pending_extra" value="<?= htmlspecialchars($waIzinPengasuhPendingExtra ?? '') ?>" placeholder="628xxxxxxxxxx" inputmode="tel" autocomplete="off">
+                    <div class="form-text mb-3">Beberapa nomor: pisah koma. Digabung dengan no. WA akun pengasuh.</div>
+                    <button type="submit" class="btn btn-success btn-sm w-100 w-sm-auto">Simpan pengasuh pending</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
-                <h2 class="h6 mb-2">Permohonan izin baru (PENDING)</h2>
+                <h2 class="h6 mb-2">Permohonan izin baru → petugas (sakit/keluar/tugas)</h2>
                 <p class="small text-muted mb-3">
-                    WA dikirim saat wali/petugas mengajukan izin <strong>menurut jenis yang dicentang</strong>.
-                    Default: hanya <strong>Izin</strong> (syar'i) — bukan sakit, keluar, atau tugas.
+                    WA ke petugas/pengurus saat pengajuan <strong>sakit, keluar, atau tugas</strong> (bukan antrean izin syar'i wali — itu ke pengasuh di kartu kiri).
                     Terpisah dari notifikasi alpa (tab Alpa).
                 </p>
                 <form method="post">

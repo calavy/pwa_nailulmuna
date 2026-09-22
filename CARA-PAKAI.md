@@ -212,3 +212,75 @@ C:\xampp\php\php.exe scripts\_diag_tagihan_baru_lama.php 42
 ```
 
 Baris `[OK]` untuk santri baru: expected bulan 1 = 0, expected bulan masuk > 0. Bagian akhir membandingkan target laporan 12 bulan vs rekap kas (harus `OK` per bulan).
+
+---
+
+## Input poin (form pengurus)
+
+Menu **Poin → Input**. Alur singkat:
+
+1. **Pilih santri** — panel presensi menampilkan ringkasan alpa/telat periode (bulan/minggu, sesuai Pengaturan Peraturan). Kejadian yang belum masuk ledger bisa **Tarik ke poin** (bobot per alpa/telat di setting yang sama). Auto-sync background **mati** secara default; jangan centang legacy kecuali pondok sengaja ingin perilaku lama.
+2. **Cari pelanggaran** — ketik min. 2 huruf (nama, kode, contoh pelanggaran). Rule **Ringan (1 poin / D. Ringan)** tidak bisa pakai peringan/pemberat.
+3. **Peringan atau pemberat** — hanya untuk rule **Sedang ke atas** (bobot ≥ 3); efek **persen** terhadap poin dasar; maksimal satu jenis. Preview **Poin final** di form sebelum simpan.
+4. **Master Peringan/Pemberat** — kelola di **Pengaturan → Peraturan** (bagian bawah halaman poin).
+
+Uji cepat: cari kata kunci contoh pelanggaran → pilih rule berat → pemberat +50% → simpan → cek rekap poin santri; tarik presensi pending → maintenance jalan → tidak double (unique per `reference_presensi_id`).
+
+---
+
+## Multi Scan — deploy & UAT kamera
+
+Setelah upload ke hosting, pastikan browser/PWA tidak memakai JS lama:
+
+```powershell
+C:\xampp\php\php.exe scripts\_diag_multi_scan_deploy.php
+C:\xampp\php\php.exe scripts\_diag_multi_scan_deploy.php https://pwa.nailulmuna.id
+C:\xampp\php\php.exe scripts\_uat_multi_scan_readiness.php
+```
+
+Di HP: buka **Multi Scan** → ketuk **Mulai scan kamera** → scan kartu (harus ada feedback). Asset scan memakai `?v=mtime` otomatis; halaman `login.php?scan=1` tidak di-cache browser.
+
+**QR terbaca vs “ditolak”:** jika **tidak ada bip/getar** sama sekali → masalah kamera/decode (lihat diag deploy di atas). Jika ada **“Kartu terbaca…”** lalu peringatan → QR sudah terbaca; absensi mengikuti **tingkatan santri** dan jam (strip jadwal bisa menampilkan kegiatan tingkatan lain). Cek data:
+
+```powershell
+C:\xampp\php\php.exe scripts\_diag_scan_santri_jadwal.php KODE_QR_KARTU
+```
+
+Jam HP yang melenceng &gt;5 menit otomatis diganti waktu server saat validasi jadwal.
+
+---
+
+## Performa di hosting (pwa.nailulmuna.id)
+
+Setelah deploy DB lengkap (impor/migrasi), aktifkan **skip migrasi otomatis per login**:
+
+- Di panel hosting: environment **`PONDOK_SCHEMA_READY=1`**, **atau**
+- phpMyAdmin: `INSERT INTO app_settings (setting_key, setting_value) VALUES ('pondok_schema_deploy_ready','1') ON DUPLICATE KEY UPDATE setting_value='1';`
+
+Diagnostik (CLI di server atau lokal):
+
+```powershell
+C:\xampp\php\php.exe scripts\_diag_hosting_perf.php
+C:\xampp\php\php.exe scripts\_diag_perf_bootstrap.php
+```
+
+Operasional: jalankan **cron** `cron/wa_auto.php`; matikan **Fallback cron saat buka app** di WA Otomatis → Gateway jika cron sudah jalan. Pastikan **OPcache** PHP aktif di hosting.
+
+### WA otomatis & Google Sheet tanpa buka aplikasi
+
+Keduanya jalan lewat **cron hosting** (CLI atau URL HTTP + key), bukan lewat staf yang login.
+
+| Fitur | Script cron | Cek di UI |
+|--------|-------------|-----------|
+| WA otomatis | `cron/wa_auto.php` (1–5 menit) | Pengaturan → WA Otomatis → **Ringkasan** — *Terakhir tick cron* harus **&lt;10 menit** |
+| Snapshot Sheet | `cron/laporan_snapshot.php` (tiap menit; push sekali/hari setelah jam setting) | Pengaturan → **Snapshot Laporan Google Sheet** — badge cron + `last_date` / `last_error` |
+
+Optimasi performa (cache `app_settings`, lazy FCM, dll.) **tidak** mematikan cron. Fallback WA saat browsing default **mati**; setiap hit cron HTTP/CLI mematikan fallback otomatis agar tidak dobel.
+
+Verifikasi CLI (server atau lokal ke DB yang sama):
+
+```powershell
+C:\xampp\php\php.exe scripts\_diag_cron_wa_sheet.php
+C:\xampp\php\php.exe cron\wa_auto.php
+C:\xampp\php\php.exe cron\laporan_snapshot.php
+```

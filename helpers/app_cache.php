@@ -159,3 +159,99 @@ function app_performance_cache_clear(PDO $pdo, array $options = []): array
 
     return ['cleared' => $cleared, 'pruned' => $pruned, 'opcache' => $opcacheOk];
 }
+
+/** TTL cache app_settings antar-request (hosting). Override: env PONDOK_SETTINGS_CACHE_SEC (30–600). */
+function app_settings_shared_cache_ttl(): int
+{
+    $raw = getenv('PONDOK_SETTINGS_CACHE_SEC');
+    if ($raw !== false && trim((string) $raw) !== '') {
+        return max(30, min(600, (int) $raw));
+    }
+
+    return 120;
+}
+
+function app_settings_shared_cache_id(PDO $pdo): string
+{
+    static $id = null;
+    if ($id !== null) {
+        return $id;
+    }
+    $db = '';
+    try {
+        $db = (string) ($pdo->query('SELECT DATABASE()')->fetchColumn() ?: '');
+    } catch (Throwable $e) {
+        $db = 'default';
+    }
+    $id = md5($db . '|' . (string) (getenv('PONDOK_SETTINGS_CACHE_SALT') ?: 'pondok'));
+
+    return $id;
+}
+
+/** @return array<string, string>|null */
+function app_settings_shared_cache_read(PDO $pdo): ?array
+{
+    $ttl = app_settings_shared_cache_ttl();
+    $cacheId = app_settings_shared_cache_id($pdo);
+    $apcuKey = 'pondok_app_settings_' . $cacheId;
+
+    if (function_exists('apcu_fetch')) {
+        $ok = false;
+        $payload = apcu_fetch($apcuKey, $ok);
+        if ($ok && is_array($payload) && isset($payload['expires'], $payload['data']) && is_array($payload['data'])) {
+            if ((int) $payload['expires'] >= time()) {
+                return $payload['data'];
+            }
+            apcu_delete($apcuKey);
+        }
+    }
+
+    $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pondok_settings_' . $cacheId . '.json';
+    if (!is_readable($path)) {
+        return null;
+    }
+    $raw = @file_get_contents($path);
+    if ($raw === false || $raw === '') {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded) || !isset($decoded['expires'], $decoded['data']) || !is_array($decoded['data'])) {
+        return null;
+    }
+    if ((int) $decoded['expires'] < time()) {
+        @unlink($path);
+
+        return null;
+    }
+
+    return $decoded['data'];
+}
+
+/** @param array<string, string> $data */
+function app_settings_shared_cache_write(PDO $pdo, array $data): void
+{
+    $ttl = app_settings_shared_cache_ttl();
+    $cacheId = app_settings_shared_cache_id($pdo);
+    $payload = ['expires' => time() + $ttl, 'data' => $data];
+    $apcuKey = 'pondok_app_settings_' . $cacheId;
+
+    if (function_exists('apcu_store')) {
+        apcu_store($apcuKey, $payload, $ttl + 30);
+    }
+
+    $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pondok_settings_' . $cacheId . '.json';
+    @file_put_contents($path, json_encode($payload, JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+function app_settings_shared_cache_bust(PDO $pdo): void
+{
+    $cacheId = app_settings_shared_cache_id($pdo);
+    $apcuKey = 'pondok_app_settings_' . $cacheId;
+    if (function_exists('apcu_delete')) {
+        apcu_delete($apcuKey);
+    }
+    $path = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'pondok_settings_' . $cacheId . '.json';
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}

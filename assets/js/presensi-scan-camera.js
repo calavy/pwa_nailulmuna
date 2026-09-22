@@ -1059,6 +1059,13 @@
             }
         });
 
+        self.bindStartBtn();
+        if (self.deferStartOnMobile && self.startBtn) {
+            self.showStartWrap();
+            self.setStatus('is-waiting', 'Ketuk Mulai scan kamera');
+            return;
+        }
+
         try {
             await self.runStart(null);
         } catch (e) {

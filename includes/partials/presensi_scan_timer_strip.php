@@ -44,7 +44,11 @@ $scanMarqueeTrackHtml = $showScanMarquee ? presensi_scan_marquee_track_html($act
                 if ($timerState === 'libur') {
                     echo 'Hari libur';
                 } elseif ($showScanMarquee) {
-                    echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: $scanTimerActiveFallback));
+                    if ($activeSlotCount > 1) {
+                        echo htmlspecialchars((string) $activeSlotCount . ' kegiatan berlangsung');
+                    } else {
+                        echo htmlspecialchars((string) ($scanJadwalCtx['nama_kegiatan'] ?: $scanTimerActiveFallback));
+                    }
                 } elseif ($timerState === 'upcoming') {
                     echo 'Kegiatan yang akan berlangsung';
                 } else {
@@ -75,11 +79,13 @@ $scanMarqueeTrackHtml = $showScanMarquee ? presensi_scan_marquee_track_html($act
             <div class="presensi-scan-timer-remain">
             <span id="presensi-scan-timer-hint" class="presensi-scan-timer-hint" aria-live="polite"><?php
                 if ($timerState === 'active') {
-                    echo 'Sisa waktu scan';
+                    echo $activeSlotCount > 1
+                        ? 'Marquee: tiap baris ada tingkatan — absensi santri mengikuti tingkatan kartu'
+                        : 'Sisa waktu scan · perhatikan tingkatan di strip';
                 } elseif ($timerState === 'upcoming') {
                     echo 'Mulai scan dalam';
                 } elseif ($timerState === 'libur') {
-                    echo 'Hari libur — scan ditolak';
+                    echo 'Hari libur — presensi terbatas';
                 } else {
                     echo 'Belum ada kegiatan berlangsung';
                 }
