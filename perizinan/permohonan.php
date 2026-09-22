@@ -101,6 +101,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . app_href('/perizinan/permohonan.php'));
             exit;
         }
+
+        $gejalaErr = perizinan_validasi_alasan_sakit($gejalaCheck);
+        if ($gejalaErr !== null) {
+            set_flash('error', 'Gejala: ' . $gejalaErr);
+            header('Location: ' . app_href('/perizinan/permohonan.php'));
+            exit;
+        }
+
+        $alasanErr = perizinan_validasi_alasan_sakit($alasanPost);
+        if ($alasanErr !== null) {
+            $gejalaAsAlasanErr = perizinan_validasi_alasan_sakit($gejalaCheck);
+            if ($gejalaAsAlasanErr === null) {
+                $alasanPost = $gejalaCheck;
+            } else {
+                set_flash('error', $alasanErr);
+                header('Location: ' . app_href('/perizinan/permohonan.php'));
+                exit;
+            }
+        }
     }
 
     $tujuanPost = perizinan_tujuan_normalize((string) ($_POST['tujuan'] ?? ''));
@@ -322,7 +341,8 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                     <div class="col-12">
                         <label class="form-label">Alasan</label>
-                        <textarea class="form-control" name="alasan" rows="2" required placeholder="Contoh: menjenguk orang tua sakit"></textarea>
+                        <textarea class="form-control" name="alasan" id="alasan-permohonan" rows="2" required placeholder="Contoh: menjenguk orang tua sakit"></textarea>
+                        <div class="form-text d-none" id="alasan-sakit-hint">Untuk izin sakit, wajib menyebut nama penyakit, diagnosis, atau gejala spesifik (bukan hanya «sakit»).</div>
                     </div>
                     <?php
                     $tujuanWrapId = 'wrap-tujuan-permohonan';
@@ -338,7 +358,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <div class="row g-2">
                             <div class="col-12">
                                 <label class="form-label">Gejala <span class="text-danger ehealth-req-mark d-none">*</span></label>
-                                <textarea class="form-control ehealth-field" name="gejala" rows="2" placeholder="Gejala" autocomplete="off"></textarea>
+                                <textarea class="form-control ehealth-field" name="gejala" id="gejala-permohonan" rows="2" placeholder="Contoh: batuk berdahak, demam 39°C, mual" autocomplete="off"></textarea>
                             </div>
                             <div class="col-6">
                                 <label class="form-label">Suhu tubuh (°C) <span class="text-danger ehealth-req-mark d-none">*</span></label>
@@ -480,6 +500,13 @@ require_once __DIR__ . '/../includes/header.php';
     if (!jenis || !panel) {
         return;
     }
+    var alasanEl = document.getElementById('alasan-permohonan');
+    var alasanHint = document.getElementById('alasan-sakit-hint');
+    var gejalaEl = document.getElementById('gejala-permohonan');
+    var placeholderAlasanDefault = 'Contoh: menjenguk orang tua sakit';
+    var placeholderAlasanSakit = 'Contoh: flu, demam typhoid, radang amandel';
+    var placeholderGejalaSakit = 'Contoh: batuk berdahak, demam 39°C, mual';
+
     function syncPermohonanEhealth() {
         var sakit = jenis.value === 'SAKIT';
         panel.classList.toggle('d-none', !sakit);
@@ -492,6 +519,15 @@ require_once __DIR__ . '/../includes/header.php';
                 el.required = sakit;
             }
         });
+        if (alasanEl) {
+            alasanEl.placeholder = sakit ? placeholderAlasanSakit : placeholderAlasanDefault;
+        }
+        if (alasanHint) {
+            alasanHint.classList.toggle('d-none', !sakit);
+        }
+        if (gejalaEl) {
+            gejalaEl.placeholder = sakit ? placeholderGejalaSakit : 'Gejala';
+        }
         if (!sakit) {
             panel.querySelectorAll('textarea, input[type="number"]').forEach(function (el) { el.value = ''; });
             var cb = document.getElementById('notifikasi_wali_p');

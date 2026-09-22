@@ -194,6 +194,77 @@ function perizinan_validasi_tujuan(string $jenis, string $tujuan): ?string
     return null;
 }
 
+function perizinan_pesan_alasan_sakit_tidak_spesifik(): string
+{
+    return 'Untuk izin sakit, alasan harus menyebutkan nama penyakit, diagnosis, atau gejala spesifik (bukan hanya «sakit»). Contoh: flu, demam typhoid, radang tenggorokan.';
+}
+
+function perizinan_normalisasi_teks_alasan_sakit(string $teks): string
+{
+    $teks = mb_strtolower(trim($teks));
+    $teks = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $teks) ?? $teks;
+    $teks = preg_replace('/\s+/u', ' ', $teks) ?? $teks;
+
+    return trim($teks);
+}
+
+/** @return list<string> */
+function perizinan_alasan_sakit_frasa_generik(): array
+{
+    return [
+        'sakit',
+        'izin sakit',
+        'lagi sakit',
+        'sedang sakit',
+        'merasa sakit',
+        'anak sakit',
+        'santri sakit',
+        'tidak enak badan',
+        'kurang sehat',
+        'demam',
+        'pusing',
+        'mual',
+        'batuk',
+        'pilek',
+    ];
+}
+
+function perizinan_validasi_alasan_sakit(string $alasan): ?string
+{
+    $raw = trim($alasan);
+    if ($raw === '') {
+        return 'Alasan wajib diisi.';
+    }
+    if (mb_strlen($raw) < 8) {
+        return perizinan_pesan_alasan_sakit_tidak_spesifik();
+    }
+
+    $norm = perizinan_normalisasi_teks_alasan_sakit($raw);
+    if ($norm === '') {
+        return perizinan_pesan_alasan_sakit_tidak_spesifik();
+    }
+
+    foreach (perizinan_alasan_sakit_frasa_generik() as $frasa) {
+        if ($norm === $frasa) {
+            return perizinan_pesan_alasan_sakit_tidak_spesifik();
+        }
+    }
+
+    if (preg_match('/^(izin\s+)?sakit$/u', $norm)) {
+        return perizinan_pesan_alasan_sakit_tidak_spesifik();
+    }
+
+    $stopwords = ['sakit', 'izin', 'merasa', 'lagi', 'sedang', 'anak', 'santri', 'karena', 'dan', 'atau', 'yang', 'di', 'ke', 'dari', 'pada', 'dengan', 'adalah', 'ini', 'itu'];
+    $tokens = preg_split('/\s+/u', $norm, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $specific = array_values(array_filter($tokens, static fn(string $w): bool => !in_array($w, $stopwords, true)));
+    $remainder = trim(implode(' ', $specific));
+    if (mb_strlen($remainder) < 3) {
+        return perizinan_pesan_alasan_sakit_tidak_spesifik();
+    }
+
+    return null;
+}
+
 function perizinan_tujuan_ensure_schema(PDO $pdo): void
 {
     static $done = false;

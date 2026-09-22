@@ -35,6 +35,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $alasanEdit = trim((string) ($_POST['alasan'] ?? ''));
+    if ($jenisEdit === 'SAKIT') {
+        $alasanSakitErr = perizinan_validasi_alasan_sakit($alasanEdit);
+        if ($alasanSakitErr !== null) {
+            set_flash('error', $alasanSakitErr);
+            header('Location: ' . app_href('/perizinan/edit.php?id=' . $id));
+            exit;
+        }
+    }
+
     $data = [
         'id' => $id,
         'jenis_izin' => $jenisEdit,
@@ -43,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'jam_mulai' => $_POST['jam_mulai'] ?? date('H:i'),
         'jam_selesai' => $_POST['jam_selesai'] ?? date('H:i'),
         'durasi_jam' => (float) ($_POST['durasi_jam'] ?? 0),
-        'alasan' => trim($_POST['alasan'] ?? ''),
+        'alasan' => $alasanEdit,
         'tujuan' => $tujuanEdit !== '' ? $tujuanEdit : null,
         'pemberi_izin' => trim($_POST['pemberi_izin'] ?? ''),
         'penandatangan_pengasuh' => trim($_POST['penandatangan_pengasuh'] ?? ''),
