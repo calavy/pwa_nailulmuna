@@ -11,6 +11,9 @@ require_once __DIR__ . '/../helpers/keuangan_typography.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
+require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+keuangan_hub_maybe_preload($pdo);
+
 keuangan_ensure_schema_deferred($pdo);
 
 $formatRupiah = static fn(int $n): string => keuangan_format_rupiah($n);

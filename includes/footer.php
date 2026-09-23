@@ -1,8 +1,11 @@
 <?php
-if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY'])) {
+if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY']) || !empty($GLOBALS['APP_FRAGMENT_ONLY'])) {
     return;
 }
 $footerRequestPath = $requestPath ?? app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+if (!empty($pbPortalShell)) {
+    $loadKeuanganOfflineDb = false;
+}
 $isScanKioskPage = app_request_path_is_scan_kiosk($footerRequestPath);
 $loadOfflineSyncJs = ($loadOfflineSyncJs ?? true) && app_should_load_offline_sync_js($footerRequestPath);
 $loadSdmModalsJs = ($loadSdmModalsJs ?? true) && app_should_load_sdm_modals($footerRequestPath);
@@ -12,6 +15,8 @@ $loadPerizinanSubmitOnceJs = ($loadPerizinanSubmitOnceJs ?? true)
     && app_should_load_perizinan_submit_once_js($footerRequestPath);
 $loadPwaMediaCacheJs = ($loadPwaMediaCacheJs ?? true) && !$isScanKioskPage
     && app_should_load_pwa_media_cache_js($footerRequestPath);
+$deferOfflineSyncJs = $loadOfflineSyncJs && function_exists('app_should_defer_offline_sync_js')
+    && app_should_defer_offline_sync_js($footerRequestPath);
 $deferPwaRegisterJs = $isScanKioskPage;
 ?>
 <?php if (isset($_SESSION['user']) && $loadSdmModalsJs): ?>
@@ -53,7 +58,27 @@ $deferPwaRegisterJs = $isScanKioskPage;
     <?php if ($loadPwaMediaCacheJs): ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/pwa-media-cache.js')) ?>" defer></script>
     <?php endif; ?>
+    <?php if ($deferOfflineSyncJs): ?>
+    <script>
+    (function () {
+        function loadOfflineSync() {
+            if (document.getElementById('pondok-offline-sync-loader')) return;
+            var s = document.createElement('script');
+            s.id = 'pondok-offline-sync-loader';
+            s.src = <?= json_encode(app_asset_href('/assets/js/offline-sync.js'), JSON_UNESCAPED_SLASHES) ?>;
+            s.defer = true;
+            document.body.appendChild(s);
+        }
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(loadOfflineSync, { timeout: 8000 });
+        } else {
+            setTimeout(loadOfflineSync, 2500);
+        }
+    })();
+    </script>
+    <?php else: ?>
     <script src="<?= htmlspecialchars(app_asset_href('/assets/js/offline-sync.js')) ?>" defer></script>
+    <?php endif; ?>
     <?php
     $loadKeuanganOfflineDb = ($loadKeuanganOfflineDb ?? true)
         && preg_match('#^/keuangan(/|$)#', strtolower(str_replace('\\', '/', $footerRequestPath)));

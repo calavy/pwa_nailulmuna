@@ -25,7 +25,7 @@ require_once __DIR__ . '/pkpps.php';
  *   day_slots: list<array<string, mixed>>
  * }
  */
-function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string $jam = null): array
+function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string $jam = null, ?array $prefer = null): array
 {
     $empty = [
         'state' => 'none',
@@ -152,6 +152,21 @@ function presensi_scan_jadwal_context(PDO $pdo, ?string $tanggal = null, ?string
     if ($active !== []) {
         usort($active, static fn(array $a, array $b): int => ($a['seconds_remaining'] ?? 0) <=> ($b['seconds_remaining'] ?? 0));
         $primary = $active[0];
+        if (is_array($prefer)) {
+            $prefKid = (int) ($prefer['kegiatan_id'] ?? 0);
+            $prefTk = trim((string) ($prefer['tingkatan'] ?? ''));
+            foreach ($active as $slot) {
+                $kid = (int) ($slot['kegiatan_id'] ?? 0);
+                if ($prefKid > 0 && $kid !== $prefKid) {
+                    continue;
+                }
+                if ($prefTk !== '' && strcasecmp(trim((string) ($slot['tingkatan'] ?? '')), $prefTk) !== 0) {
+                    continue;
+                }
+                $primary = $slot;
+                break;
+            }
+        }
 
         return [
             'state' => 'active',

@@ -1,0 +1,495 @@
+/* Shell portal pembimbing — topbar teal (override app.css pengurus) */
+
+body.app-portal-pembimbing-shell .app-topbar.app-topbar--pembimbing {
+    background: linear-gradient(135deg, #0f766e 0%, #115e59 55%, #134e4a 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.25);
+    color: rgba(255, 255, 255, 0.92);
+    font-family: var(--font-sans);
+}
+
+body.app-portal-pembimbing-shell .app-topbar.app-topbar--pembimbing::before {
+    opacity: 0.28;
+}
+
+body.app-portal-pembimbing-shell.app-body-shell--no-sidebar .app-topbar-inner.app-topbar-inner--pembimbing:not(.app-topbar-inner--pb-home) {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    grid-template-areas: "left center right" !important;
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0;
+    min-height: 5rem;
+    padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.65rem 0.6rem !important;
+    flex-wrap: nowrap !important;
+}
+
+body.app-portal-pembimbing-shell.app-body-shell--no-sidebar .app-topbar-inner.app-topbar-inner--pb-home {
+    display: flex !important;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    min-height: 5.5rem;
+    padding: max(0.65rem, env(safe-area-inset-top, 0px)) 0.75rem 0.65rem !important;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-home-top {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-home-top .app-topbar-pb-context-pill {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: calc(100% - 4.25rem);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-home-top .app-topbar-right--pb-home {
+    grid-area: unset;
+    flex: 0 0 auto;
+    margin-left: auto;
+    align-self: center;
+    justify-content: flex-end;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-context-pill {
+    align-self: auto;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.3;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-home-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-home-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand--home {
+    flex-shrink: 0;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand__logo--home,
+body.app-portal-pembimbing-shell .app-topbar-pb-brand__mark--home {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 3px;
+    box-sizing: border-box;
+    object-fit: contain;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand__mark--home {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #0f766e;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-identity--home {
+    gap: 0.12rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-inner--pb-home .app-topbar-pb-pondok-kicker {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: 0;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-name--home {
+    font-size: clamp(1.35rem, 5.5vw, 1.75rem);
+    font-weight: 800;
+    line-height: 1.15;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-dateline--home {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
+    margin-top: 0.15rem;
+    padding-top: 0.2rem;
+    opacity: 1;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-dateline--home .app-topbar-pb-clock__time {
+    flex: 0 0 auto;
+    min-width: 0;
+    font-size: clamp(0.92rem, 3.2vw, 1.05rem);
+    font-weight: 800;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-dateline--home .app-topbar-pb-clock__date {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-align: right;
+    line-height: 1.3;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-right--pb-home {
+    flex-shrink: 0;
+    align-self: auto;
+    padding-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-actions--pb-home-compact {
+    gap: 0.15rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-actions--pb-home-compact .app-topbar-pb-avatar {
+    min-width: 1.6rem;
+    min-height: 1.6rem;
+    border-width: 1px;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-actions--pb-home-compact .app-topbar-pb-avatar .app-user-avatar--sm {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-actions--pb-home-compact .app-topbar-pb-logout {
+    min-width: 1.6rem;
+    min-height: 1.6rem;
+    font-size: 0.75rem;
+    border-radius: 8px;
+}
+
+@media (min-width: 992px) {
+    body.app-portal-pembimbing-shell.app-body-shell--no-sidebar .app-topbar-inner.app-topbar-inner--pembimbing:not(.app-topbar-inner--pb-home) {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto !important;
+        padding-left: 1rem !important;
+        padding-right: 0.85rem !important;
+    }
+
+    body.app-portal-pembimbing-shell.app-body-shell--no-sidebar .app-topbar-inner.app-topbar-inner--pb-home {
+        padding-left: 1rem !important;
+        padding-right: 0.85rem !important;
+    }
+}
+
+body.app-portal-pembimbing-shell.app-body-shell--no-sidebar .app-topbar-right--pembimbing {
+    padding-right: 0.15rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-left--pembimbing {
+    grid-area: left;
+    min-width: 0;
+    flex: none !important;
+    width: auto !important;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-center--pembimbing {
+    grid-area: center;
+    min-width: 0;
+    text-align: left;
+    flex: none !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    justify-content: flex-start !important;
+    display: flex;
+    align-items: stretch;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-right--pembimbing {
+    grid-area: right;
+    flex: none !important;
+    margin-left: 0 !important;
+    align-self: center !important;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: #fff;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand__logo {
+    width: 2.9rem;
+    height: 2.9rem;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.15));
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-brand__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.5rem;
+    padding: 0.35rem 0.65rem 0.35rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    max-width: 100%;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-back:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-back:active {
+    transform: scale(0.98);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-back__label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 6.5rem;
+}
+
+@media (max-width: 399.98px) {
+    body.app-portal-pembimbing-shell .app-topbar-pb-back__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+    }
+
+    body.app-portal-pembimbing-shell .app-topbar-pb-back {
+        min-width: 2.5rem;
+        justify-content: center;
+        padding: 0.4rem 0.55rem;
+    }
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    min-width: 0;
+    width: 100%;
+    font-family: var(--font-sans);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-dateline {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.45rem;
+    width: 100%;
+    min-width: 0;
+    margin-top: 0.12rem;
+    opacity: 0.92;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-pondok-kicker {
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.25;
+    margin-top: 0.08rem;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-module-title {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 255, 255, 0.72);
+    line-height: 1.2;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-clock__time {
+    flex: 0 0 auto;
+    min-width: 4.35rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.95);
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-name {
+    font-size: clamp(1.08rem, 4vw, 1.2rem);
+    font-weight: 700;
+    line-height: 1.25;
+    color: #fff;
+    width: 100%;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-presence {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.3;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-presence--scan-done {
+    color: #052e16;
+    font-weight: 700;
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 55%, #16a34a 100%);
+    border-color: rgba(187, 247, 208, 0.9);
+    box-shadow: 0 0 12px rgba(74, 222, 128, 0.55), 0 0 24px rgba(34, 197, 94, 0.25);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-presence--scan-pending {
+    color: #fff;
+    font-weight: 700;
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 55%, #b91c1c 100%);
+    border-color: rgba(254, 202, 202, 0.85);
+    box-shadow: 0 0 12px rgba(248, 113, 113, 0.5), 0 0 20px rgba(220, 38, 38, 0.35);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-presence--scan-none {
+    color: rgba(255, 255, 255, 0.88);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-clock__date {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.88);
+    line-height: 1.35;
+    text-align: left;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-actions--pembimbing {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-avatar:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-avatar::after {
+    display: none;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-avatar .app-user-avatar--sm {
+    width: 1.65rem;
+    height: 1.65rem;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    min-height: 2rem;
+    font-size: 0.9rem;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+}
+
+body.app-portal-pembimbing-shell .app-topbar-pb-logout:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+body.app-portal-pembimbing-shell .app-main {
+    padding-top: 0.85rem;
+}

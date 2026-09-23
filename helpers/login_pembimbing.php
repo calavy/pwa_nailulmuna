@@ -222,27 +222,38 @@ function login_pembimbing_setoran_entry_url(): string
 /**
  * Tautan & label tombol masuk portal penerima setoran (scan atau langsung jika sudah aktif).
  *
- * @return array{href:string,title:string,desc:string,icon:string}
+ * @return array{href:string,title:string,desc:string,icon:string,portal_ok:bool,reason:string}
  */
 function login_pembimbing_setoran_entry_meta(?PDO $pdo = null): array
 {
     require_once __DIR__ . '/app_path.php';
 
+    $loggedIn = isset($_SESSION['user']);
     $meta = [
         'href' => app_href('/login.php?dest=setoran'),
         'title' => 'Input setoran hafalan',
         'desc' => 'Masuk untuk input setoran',
         'icon' => 'fa-book-quran',
+        'portal_ok' => false,
+        'reason' => '',
     ];
 
     if ($pdo instanceof PDO) {
         require_once __DIR__ . '/akademik_setoran.php';
         $portalSt = akademik_setoran_portal_access_status($pdo);
-        if (!empty($portalSt['ok'])) {
-            $meta['href'] = app_href('/pembimbing/setoran_dashboard.php');
+        $meta['portal_ok'] = !empty($portalSt['ok']);
+        $meta['reason'] = (string) ($portalSt['reason'] ?? '');
+
+        if ($meta['portal_ok']) {
+            $meta['href'] = $loggedIn
+                ? app_href('/pembimbing/setoran.php')
+                : app_href('/login.php?dest=setoran');
             $meta['title'] = 'Portal setoran hafalan';
             $meta['desc'] = 'Scan santri · perolehan · keaktivan';
             $meta['icon'] = 'fa-book-quran';
+        } elseif ($loggedIn) {
+            $meta['href'] = app_href('/pembimbing/dashboard.php?refresh_menu=1');
+            $meta['desc'] = akademik_setoran_portal_denial_message($portalSt);
         }
     }
 

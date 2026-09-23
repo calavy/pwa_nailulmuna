@@ -104,6 +104,22 @@ function wa_template_definitions(): array
                 . "_Hormat kami,_\n"
                 . "_{nama_ponpes}_",
         ],
+        'pb_munawib_pengajuan_pengasuh' => [
+            'label' => 'Pengajuan munawib multi-hari → pengasuh',
+            'hint' => 'Dikirim otomatis saat pembimbing mengajukan pengganti munawib lebih dari satu hari. Memakai nomor yang sama dengan WA antrean izin syar\'i pengasuh.',
+            'placeholders' => '{nama_pembimbing}, {nip_pembimbing}, {nip_baris}, {nama_kegiatan}, {tanggal_mulai}, {tanggal_selesai}, {munawib_nama}, {materi_ringkas}, {alasan}, {nama_ponpes}',
+            'default' => "*PENGAJUAN MUNAWIB PEMBIMBING (MULTI-HARI)*\n\n"
+                . "Menunggu persetujuan pengasuh:\n\n"
+                . "• Pembimbing: *{nama_pembimbing}*\n"
+                . "{nip_baris}"
+                . "• Kegiatan: *{nama_kegiatan}*\n"
+                . "• Rentang: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Munawib: *{munawib_nama}*\n"
+                . "• Tugas: {materi_ringkas}\n"
+                . "• Alasan: _{alasan}_\n\n"
+                . "Mohon tinjau di *Pengasuh → Perizinan* (bagian munawib pembimbing).\n\n"
+                . "_{nama_ponpes}_",
+        ],
         'pengajuan_izin_pengasuh' => [
             'label' => 'Pengajuan izin syar\'i → pengasuh (PENDING)',
             'hint' => 'Antrean persetujuan pengasuh (portal wali / izin syar\'i). {judul_extra_baris} untuk perpanjangan.',

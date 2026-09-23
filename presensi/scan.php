@@ -47,6 +47,16 @@ $pendingMunawibPick = $_SESSION['munawib_scan_pending'] ?? null;
 
 presensi_scan_ensure_schema_deferred($pdo);
 
+$scanHintKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
+$scanHintTingkatan = trim((string) ($_GET['tingkatan'] ?? ''));
+if ($scanHintKegiatanId > 0 || $scanHintTingkatan !== '') {
+    $_SESSION['presensi_scan_prefer'] = [
+        'kegiatan_id' => $scanHintKegiatanId,
+        'tingkatan' => $scanHintTingkatan,
+    ];
+    presensi_scan_jadwal_context_invalidate();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     /** @var array<string, mixed> $scanPortalJsonExtra */
     $scanPortalJsonExtra = [];

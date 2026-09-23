@@ -7,17 +7,9 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/keuangan_defs.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan.php';
-require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
-require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
-require_once __DIR__ . '/../helpers/pkpps.php';
 require_once __DIR__ . '/../helpers/pondok_kalender.php';
 require_once __DIR__ . '/../helpers/keuangan_typography.php';
-require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
-require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
-require_once __DIR__ . '/../helpers/keuangan_kelas_makan.php';
 require_once __DIR__ . '/../helpers/keuangan_pengaturan_sections.php';
-require_once __DIR__ . '/../helpers/santri_opsional_pengaturan.php';
-require_once __DIR__ . '/../helpers/keuangan_syahriyah_potongan_pengaturan.php';
 
 require_login();
 require_roles(['admin', 'pengurus']);
@@ -43,6 +35,13 @@ if (!in_array($santriBulananSub, ['opsional', 'potongan'], true)) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_once __DIR__ . '/../helpers/keuangan_transaksi.php';
+    require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
+    require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
+    require_once __DIR__ . '/../helpers/pkpps.php';
+    require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
+    require_once __DIR__ . '/../helpers/keuangan_kelas_makan.php';
+    require_once __DIR__ . '/../helpers/santri_opsional_pengaturan.php';
+    require_once __DIR__ . '/../helpers/keuangan_syahriyah_potongan_pengaturan.php';
     keuangan_ensure_schema_deferred($pdo);
     $action = (string) ($_POST['action'] ?? '');
     if (in_array($action, ['save_table', 'bulk_aktif', 'bulk_nonaktif'], true)) {
@@ -129,10 +128,16 @@ $totalOpening = 0;
 $tanpaAkun = 0;
 
 if ($section === 'umum') {
+    require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
     $taMeta = pondok_ta_form_meta($pdo);
     $tagihanMulaiMasuk = keuangan_tagihan_mulai_masuk_enabled($pdo);
     $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
 } elseif ($section === 'tarif') {
+    require_once __DIR__ . '/../helpers/keuangan_tarif_bulanan.php';
+    require_once __DIR__ . '/../helpers/keuangan_pkpps_syahriyah.php';
+    require_once __DIR__ . '/../helpers/pkpps.php';
+    require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
+    require_once __DIR__ . '/../helpers/keuangan_kelas_makan.php';
     ensure_keuangan_tarif_bulanan_table($pdo);
     pkpps_ensure_schema($pdo);
     ensure_kelas_keuangan_table($pdo);
@@ -172,9 +177,11 @@ if ($section === 'umum') {
     $awalTahunBedakan = keuangan_awal_tahun_bedakan_baru_lama($pdo);
 } elseif ($section === 'santri_bulanan') {
     if ($santriBulananSub === 'opsional') {
+        require_once __DIR__ . '/../helpers/santri_opsional_pengaturan.php';
         $ops = santri_opsional_pengaturan_load($pdo, $_GET);
         $opsEmbedBase = 'bagian=santri_bulanan&sub=opsional';
     } else {
+        require_once __DIR__ . '/../helpers/keuangan_syahriyah_potongan_pengaturan.php';
         $potongan = keuangan_syahriyah_potongan_pengaturan_load($pdo, $_GET);
         $loadSantriSelectJs = true;
     }
@@ -193,6 +200,7 @@ if ($section === 'umum') {
     }
 } elseif ($section === 'alokasi') {
     require_once __DIR__ . '/../helpers/keuangan_alokasi.php';
+    require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
     ensure_keuangan_alokasi_jenis_dana($pdo);
     $keuanganTa = keuangan_ta_resolve($pdo);
     $periode = ['mulai' => (int) $keuanganTa['mulai'], 'selesai' => (int) $keuanganTa['selesai']];

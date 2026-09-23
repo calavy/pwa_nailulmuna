@@ -50,9 +50,11 @@ function ensure_akademik_setoran_penerima_schema(PDO $pdo): void
     ');
 
     if (app_setting($pdo, 'akademik_penerima_setoran_backfill_v1') !== '1') {
-        akademik_setoran_penerima_backfill($pdo);
+        akademik_setoran_penerima_sync_from_tingkatan($pdo);
         save_setting($pdo, 'akademik_penerima_setoran_backfill_v1', '1');
     }
+
+    akademik_setoran_penerima_sync_from_tingkatan($pdo);
 }
 
 function ensure_akademik_setoran_extended_schema(PDO $pdo): void
@@ -284,26 +286,36 @@ function akademik_setoran_sync_pembimbing_tingkatan(PDO $pdo, int $pembimbingId,
     }
 }
 
-/** Sinkronkan registry penerima dari penugasan tingkatan yang sudah ada. */
-function akademik_setoran_penerima_backfill(PDO $pdo): void
+/** Sinkronkan registry penerima aktif dari baris penugasan tingkatan (idempotent). */
+function akademik_setoran_penerima_sync_from_tingkatan(PDO $pdo): void
 {
     if (!table_exists($pdo, 'akademik_penerima_setoran')) {
         return;
     }
-    $pbIds = $pdo->query('SELECT DISTINCT pembimbing_id FROM akademik_setoran_pembimbing_tingkatan')->fetchAll(PDO::FETCH_COLUMN) ?: [];
-    foreach ($pbIds as $id) {
-        $rid = (int) $id;
-        if ($rid > 0) {
-            akademik_setoran_penerima_upsert($pdo, 'pembimbing', $rid, true);
+    if (table_exists($pdo, 'akademik_setoran_pembimbing_tingkatan')) {
+        $pbIds = $pdo->query('SELECT DISTINCT pembimbing_id FROM akademik_setoran_pembimbing_tingkatan')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($pbIds as $id) {
+            $rid = (int) $id;
+            if ($rid > 0) {
+                akademik_setoran_penerima_upsert($pdo, 'pembimbing', $rid, true);
+            }
         }
     }
-    $mwIds = $pdo->query('SELECT DISTINCT munawib_id FROM akademik_setoran_munawib_tingkatan')->fetchAll(PDO::FETCH_COLUMN) ?: [];
-    foreach ($mwIds as $id) {
-        $rid = (int) $id;
-        if ($rid > 0) {
-            akademik_setoran_penerima_upsert($pdo, 'munawib', $rid, true);
+    if (table_exists($pdo, 'akademik_setoran_munawib_tingkatan')) {
+        $mwIds = $pdo->query('SELECT DISTINCT munawib_id FROM akademik_setoran_munawib_tingkatan')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        foreach ($mwIds as $id) {
+            $rid = (int) $id;
+            if ($rid > 0) {
+                akademik_setoran_penerima_upsert($pdo, 'munawib', $rid, true);
+            }
         }
     }
+}
+
+/** @deprecated Gunakan akademik_setoran_penerima_sync_from_tingkatan */
+function akademik_setoran_penerima_backfill(PDO $pdo): void
+{
+    akademik_setoran_penerima_sync_from_tingkatan($pdo);
 }
 
 function akademik_setoran_penerima_upsert(PDO $pdo, string $peran, int $refId, bool $aktif = true): void
@@ -739,6 +751,9 @@ function akademik_setoran_portal_access_status(PDO $pdo): array
 {
     require_once __DIR__ . '/munawib_portal.php';
 
+    ensure_akademik_setoran_penerima_schema($pdo);
+    akademik_setoran_penerima_sync_from_tingkatan($pdo);
+
     $munawibId = munawib_session_id();
     if ($munawibId > 0) {
         if (akademik_setoran_penerima_is_aktif($pdo, 'munawib', $munawibId)) {
@@ -759,6 +774,8 @@ function akademik_setoran_portal_access_status(PDO $pdo): array
     }
 
     if (akademik_setoran_penerima_is_aktif($pdo, 'pembimbing', $pembimbingId)) {
+        akademik_setoran_session_set_pembimbing_id($pembimbingId);
+
         return ['ok' => true, 'reason' => '', 'peran' => 'pembimbing', 'ref_id' => $pembimbingId];
     }
 
@@ -1119,6 +1136,107 @@ function akademik_setoran_hari_wajib_count(PDO $pdo, string $mulai, string $sele
 }
 
 /** @return 'SETOR'|'IZIN'|'BELUM'|'LIBUR' */
+/**
+ * Ringkasan jumlah setoran hari ini untuk scope penerima (tanpa loop per santri).
+ *
+ * @param array{pembimbing_id?:int,tingkatan_allowed?:list<string>} $ctx
+ * @return array{ok:bool,setor:int,belum:int,izin:int,sakit:int,total:int}
+ */
+function akademik_setoran_ringkas_counts_hari_ini(PDO $pdo, array $ctx, string $tanggal): array
+{
+    require_once __DIR__ . '/santri_operasional.php';
+    $empty = ['ok' => true, 'setor' => 0, 'belum' => 0, 'izin' => 0, 'sakit' => 0, 'total' => 0];
+    $tingkatanFilter = array_values(array_filter(array_map('strval', $ctx['tingkatan_allowed'] ?? [])));
+    if ($tingkatanFilter === [] || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return ['ok' => false, 'setor' => 0, 'belum' => 0, 'izin' => 0, 'sakit' => 0, 'total' => 0];
+    }
+    if (!table_exists($pdo, 'santri')) {
+        return ['ok' => false, 'setor' => 0, 'belum' => 0, 'izin' => 0, 'sakit' => 0, 'total' => 0];
+    }
+
+    $hariLiburSetoran = akademik_libur_info($pdo, $tanggal, 'setoran') !== null && akademik_blokir_setoran_libur($pdo);
+
+    $ph = implode(',', array_fill(0, count($tingkatanFilter), '?'));
+    $aktifSql = santri_sql_aktif_only('s');
+    $stIds = $pdo->prepare('SELECT id FROM santri s WHERE ' . $aktifSql . ' AND s.tingkatan IN (' . $ph . ')');
+    $stIds->execute($tingkatanFilter);
+    $santriIds = array_map('intval', $stIds->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    $santriIds = array_values(array_filter($santriIds, static fn (int $id): bool => $id > 0));
+    $total = count($santriIds);
+    if ($total === 0) {
+        return $empty;
+    }
+
+    if ($hariLiburSetoran) {
+        return ['ok' => true, 'setor' => 0, 'belum' => 0, 'izin' => 0, 'sakit' => 0, 'total' => $total];
+    }
+
+    ensure_akademik_setoran_extended_schema($pdo);
+
+    $inPh = implode(',', array_fill(0, count($santriIds), '?'));
+    $setorIds = [];
+    if (table_exists($pdo, 'akademik_hafalan_setoran')) {
+        $stSetor = $pdo->prepare(
+            'SELECT DISTINCT santri_id FROM akademik_hafalan_setoran WHERE tanggal_setoran = ? AND santri_id IN (' . $inPh . ')'
+        );
+        $stSetor->execute(array_merge([$tanggal], $santriIds));
+        $setorIds = array_map('intval', $stSetor->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+    $setorIdsFlip = array_fill_keys($setorIds, true);
+    $setor = count($setorIds);
+
+    $izinIds = [];
+    $sakitIds = [];
+    if (table_exists($pdo, 'presensi')) {
+        $stPres = $pdo->prepare(
+            'SELECT DISTINCT santri_id, status_presensi FROM presensi
+             WHERE tanggal_presensi = ? AND santri_id IN (' . $inPh . ') AND status_presensi IN ("IZIN", "SAKIT")'
+        );
+        $stPres->execute(array_merge([$tanggal], $santriIds));
+        foreach ($stPres->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $sid = (int) ($row['santri_id'] ?? 0);
+            if ($sid <= 0 || isset($setorIdsFlip[$sid])) {
+                continue;
+            }
+            if (strtoupper((string) ($row['status_presensi'] ?? '')) === 'SAKIT') {
+                $sakitIds[$sid] = true;
+            } else {
+                $izinIds[$sid] = true;
+            }
+        }
+    }
+    if (table_exists($pdo, 'perizinan')) {
+        $stPer = $pdo->prepare(
+            'SELECT DISTINCT santri_id FROM perizinan
+             WHERE santri_id IN (' . $inPh . ')
+               AND ? BETWEEN tanggal_mulai AND tanggal_selesai
+               AND approval_status IN ("DISETUJUI", "PENDING")
+               AND jenis_izin IN ("SAKIT", "KELUAR", "PULANG")'
+        );
+        $stPer->execute(array_merge($santriIds, [$tanggal]));
+        foreach ($stPer->fetchAll(PDO::FETCH_COLUMN) ?: [] as $sidRaw) {
+            $sid = (int) $sidRaw;
+            if ($sid <= 0 || isset($setorIdsFlip[$sid])) {
+                continue;
+            }
+            $izinIds[$sid] = true;
+        }
+    }
+
+    $izin = count($izinIds);
+    $sakit = count($sakitIds);
+    $belum = max(0, $total - $setor - $izin - $sakit);
+
+    return [
+        'ok' => true,
+        'setor' => $setor,
+        'belum' => $belum,
+        'izin' => $izin,
+        'sakit' => $sakit,
+        'total' => $total,
+    ];
+}
+
 function akademik_setoran_status_today(PDO $pdo, int $santriId, string $tanggal): string
 {
     if ($santriId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {

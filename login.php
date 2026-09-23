@@ -57,6 +57,8 @@ if (isset($_SESSION['user']) && $pdo instanceof PDO) {
 
         require_once __DIR__ . '/helpers/akademik_setoran.php';
 
+        ensure_akademik_setoran_penerima_schema($pdo);
+
         $portalGate = akademik_setoran_portal_access_status($pdo);
 
         if ($portalGate['ok']) {
@@ -67,7 +69,7 @@ if (isset($_SESSION['user']) && $pdo instanceof PDO) {
 
         set_flash('error', akademik_setoran_portal_denial_message($portalGate));
 
-        header('Location: ' . app_url('login.php?dest=setoran' . ($scanMode ? '&scan=1' : '')));
+        app_redirect('pembimbing/dashboard.php');
 
         exit;
 

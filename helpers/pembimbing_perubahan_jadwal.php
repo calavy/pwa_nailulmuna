@@ -7,6 +7,7 @@ require_once __DIR__ . '/jadwal_ui.php';
 require_once __DIR__ . '/munawib.php';
 
 const PB_JADWAL_BATAS_JAM_SEBELUM = 3;
+const PB_JADWAL_BATAS_HARI_PENGAJUAN = 3;
 const PB_JADWAL_MAX_PINDAH_BULAN = 3;
 
 /**
@@ -159,6 +160,62 @@ function pb_jadwal_cek_batas_waktu(string $tanggal, string $jamMulaiAsli): array
     return ['ok' => true, 'pesan' => '', 'batas' => date('Y-m-d H:i', $batasTs)];
 }
 
+/**
+ * Batas pengajuan baru (pindah waktu / munawib): minimal N hari kalender sebelum jadwal.
+ *
+ * @return array{ok:bool,pesan:string,batas?:string}
+ */
+function pb_jadwal_cek_batas_pengajuan(string $tanggal, string $jamMulaiAsli): array
+{
+    $startTs = strtotime($tanggal . ' ' . jadwal_norm_jam($jamMulaiAsli));
+    if ($startTs === false) {
+        return ['ok' => false, 'pesan' => 'Waktu kegiatan tidak valid.'];
+    }
+    $batasTs = $startTs - (PB_JADWAL_BATAS_HARI_PENGAJUAN * 86400);
+    $now = time();
+    if ($now >= $batasTs) {
+        return [
+            'ok' => false,
+            'pesan' => 'Pengajuan hanya bisa dilakukan minimal ' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' hari sebelum jadwal terlaksana.',
+            'batas' => date('Y-m-d H:i', $batasTs),
+        ];
+    }
+
+    return ['ok' => true, 'pesan' => '', 'batas' => date('Y-m-d H:i', $batasTs)];
+}
+
+function pb_munawib_pengajuan_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS pembimbing_munawib_pengajuan (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pembimbing_id INT NOT NULL,
+            jadwal_id INT NOT NULL,
+            kegiatan_id INT NOT NULL,
+            tanggal_mulai DATE NOT NULL,
+            tanggal_selesai DATE NOT NULL,
+            munawib_id INT NOT NULL,
+            materi_pengganti TEXT NOT NULL,
+            alasan TEXT NOT NULL,
+            status ENUM("MENUNGGU","DISETUJUI","DITOLAK","DIBATALKAN") NOT NULL DEFAULT "MENUNGGU",
+            pengasuh_approved_by INT NULL,
+            pengasuh_approved_at DATETIME NULL,
+            catatan_pengasuh TEXT NULL,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_pmp_pb_status (pembimbing_id, status),
+            KEY idx_pmp_status (status),
+            FOREIGN KEY (pembimbing_id) REFERENCES pembimbing(id) ON DELETE CASCADE
+        )
+    ');
+}
+
 function pb_jadwal_hitung_pindah_bulan(PDO $pdo, int $pembimbingId, int $kegiatanId, string $tanggal): int
 {
     pb_jadwal_override_ensure_schema($pdo);
@@ -201,6 +258,7 @@ function pb_jadwal_slots_hari_ini(PDO $pdo, int $pembimbingId, ?string $tanggal 
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $row['durasi_menit'] = pb_jadwal_durasi_menit((string) $row['jam_mulai'], (string) $row['jam_selesai']);
         $row['batas_ubah'] = pb_jadwal_cek_batas_waktu($tanggal, (string) $row['jam_mulai']);
+        $row['batas_pengajuan'] = pb_jadwal_cek_batas_pengajuan($tanggal, (string) $row['jam_mulai']);
         $row['sisa_pindah_bulan'] = max(0, PB_JADWAL_MAX_PINDAH_BULAN - pb_jadwal_hitung_pindah_bulan($pdo, $pembimbingId, (int) $row['kegiatan_id'], $tanggal));
         $rows[] = $row;
     }
@@ -347,7 +405,15 @@ function pb_jadwal_simpan_pindah_waktu(PDO $pdo, int $pembimbingId, array $slot,
     if ($kategori !== 'TAALIM') {
         return ['ok' => false, 'pesan' => 'Pergeseran waktu hanya untuk kegiatan ta\'lim & ta\'alum.'];
     }
-    $cek = pb_jadwal_cek_batas_waktu($tanggal, (string) $slot['jam_mulai']);
+    $jadwalId = (int) ($slot['jadwal_id'] ?? 0);
+
+    $stExist = $pdo->prepare('SELECT id FROM pembimbing_jadwal_override WHERE pembimbing_id = :pb AND jadwal_id = :jid AND tanggal = :tgl AND jenis = "PINDAH_WAKTU" LIMIT 1');
+    $stExist->execute(['pb' => $pembimbingId, 'jid' => $jadwalId, 'tgl' => $tanggal]);
+    $existId = (int) ($stExist->fetchColumn() ?: 0);
+
+    $cek = $existId > 0
+        ? pb_jadwal_cek_batas_waktu($tanggal, (string) $slot['jam_mulai'])
+        : pb_jadwal_cek_batas_pengajuan($tanggal, (string) $slot['jam_mulai']);
     if (!$cek['ok']) {
         return ['ok' => false, 'pesan' => $cek['pesan']];
     }
@@ -360,11 +426,6 @@ function pb_jadwal_simpan_pindah_waktu(PDO $pdo, int $pembimbingId, array $slot,
 
     $durasi = (int) ($slot['durasi_menit'] ?? 60);
     $jamSelesaiBaru = pb_jadwal_jam_selesai_dari_mulai($jamMulaiBaru, $durasi);
-    $jadwalId = (int) ($slot['jadwal_id'] ?? 0);
-
-    $stExist = $pdo->prepare('SELECT id FROM pembimbing_jadwal_override WHERE pembimbing_id = :pb AND jadwal_id = :jid AND tanggal = :tgl AND jenis = "PINDAH_WAKTU" LIMIT 1');
-    $stExist->execute(['pb' => $pembimbingId, 'jid' => $jadwalId, 'tgl' => $tanggal]);
-    $existId = (int) ($stExist->fetchColumn() ?: 0);
 
     if ($existId > 0) {
         $pdo->prepare('
@@ -470,80 +531,17 @@ function pb_jadwal_simpan_ganti_materi(PDO $pdo, int $pembimbingId, array $slot,
  */
 function pb_jadwal_simpan_cari_munawib(PDO $pdo, int $pembimbingId, array $slot, string $tanggal, int $munawibId, string $alasan, int $userId, array $materiRows = []): array
 {
-    pb_jadwal_override_ensure_schema($pdo);
-    munawib_ensure_schema($pdo);
-    $cek = pb_jadwal_cek_batas_waktu($tanggal, (string) $slot['jam_mulai']);
-    if (!$cek['ok']) {
-        return ['ok' => false, 'pesan' => $cek['pesan']];
-    }
-    if ($munawibId <= 0) {
-        return ['ok' => false, 'pesan' => 'Pilih munawib pengganti.'];
-    }
-    if (trim($alasan) === '') {
-        return ['ok' => false, 'pesan' => 'Catatan wajib diisi.'];
-    }
-    if ($materiRows === []) {
-        return ['ok' => false, 'pesan' => 'Isi tugas/materi per halaman untuk munawib.'];
-    }
-    $materiJson = pb_jadwal_materi_to_json($materiRows);
-
-    $stMw = $pdo->prepare('SELECT id, nama FROM munawib WHERE id = :id AND COALESCE(is_aktif,1)=1 LIMIT 1');
-    $stMw->execute(['id' => $munawibId]);
-    $mw = $stMw->fetch(PDO::FETCH_ASSOC);
-    if (!$mw) {
-        return ['ok' => false, 'pesan' => 'Munawib tidak ditemukan.'];
-    }
-
-    $jadwalId = (int) ($slot['jadwal_id'] ?? 0);
-    $kegiatanId = (int) ($slot['kegiatan_id'] ?? 0);
-
-    $pdo->prepare('
-        INSERT INTO munawib_penugasan (pembimbing_id, munawib_id, jadwal_kegiatan_id, kegiatan_id, tanggal_mulai, tanggal_selesai, alasan, status, created_by)
-        VALUES (:pb, :mid, :jid, :kid, :tgl, :tgl, :alasan, "AKTIF", :uid)
-    ')->execute([
-        'pb' => $pembimbingId,
-        'mid' => $munawibId,
-        'jid' => $jadwalId,
-        'kid' => $kegiatanId,
-        'tgl' => $tanggal,
-        'alasan' => $alasan,
-        'uid' => $userId > 0 ? $userId : null,
-    ]);
-
-    $stExist = $pdo->prepare('SELECT id FROM pembimbing_jadwal_override WHERE pembimbing_id = :pb AND jadwal_id = :jid AND tanggal = :tgl AND jenis = "CARI_MUNAWIB" LIMIT 1');
-    $stExist->execute(['pb' => $pembimbingId, 'jid' => $jadwalId, 'tgl' => $tanggal]);
-    $existId = (int) ($stExist->fetchColumn() ?: 0);
-    if ($existId > 0) {
-        $pdo->prepare('UPDATE pembimbing_jadwal_override SET munawib_id = :mid, materi_pengganti = :mat, alasan = :alasan, updated_at = NOW() WHERE id = :id')
-            ->execute(['mid' => $munawibId, 'mat' => $materiJson, 'alasan' => $alasan, 'id' => $existId]);
-    } else {
-        $pdo->prepare('
-            INSERT INTO pembimbing_jadwal_override
-            (pembimbing_id, jadwal_id, kegiatan_id, tanggal, jenis, jam_mulai_asli, jam_selesai_asli, munawib_id, materi_pengganti, alasan)
-            VALUES (:pb, :jid, :kid, :tgl, "CARI_MUNAWIB", :jma, :jsa, :mid, :mat, :alasan)
-        ')->execute([
-            'pb' => $pembimbingId,
-            'jid' => $jadwalId,
-            'kid' => $kegiatanId,
-            'tgl' => $tanggal,
-            'jma' => $slot['jam_mulai'],
-            'jsa' => $slot['jam_selesai'],
-            'mid' => $munawibId,
-            'mat' => $materiJson,
-            'alasan' => $alasan,
-        ]);
-    }
-
-    pb_jadwal_kirim_notifikasi(
+    return pb_munawib_pengajuan_simpan(
         $pdo,
-        '👤 Permintaan munawib',
-        (string) ($slot['nama_kegiatan'] ?? '') . ' · ' . $tanggal . "\n"
-        . 'Munawib: ' . (string) ($mw['nama'] ?? '') . "\n"
-        . 'Tugas: ' . pb_jadwal_materi_ringkas($materiJson) . "\nAlasan: " . $alasan,
-        'pb_jadwal:' . $pembimbingId . ':' . $jadwalId . ':' . $tanggal . ':cari_munawib'
+        $pembimbingId,
+        (int) ($slot['jadwal_id'] ?? 0),
+        $tanggal,
+        $tanggal,
+        $munawibId,
+        $alasan,
+        $userId,
+        $materiRows
     );
-
-    return ['ok' => true, 'pesan' => 'Penugasan munawib dicatat untuk hari ini.'];
 }
 
 /**
@@ -586,3 +584,5 @@ function pb_jadwal_hapus_override(PDO $pdo, int $pembimbingId, int $overrideId):
 
     return ['ok' => true, 'pesan' => 'Perubahan dibatalkan.'];
 }
+
+require_once __DIR__ . '/pembimbing_munawib_pengajuan.php';

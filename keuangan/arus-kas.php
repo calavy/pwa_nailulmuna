@@ -21,7 +21,7 @@ $dariInput = trim((string) ($_GET['dari'] ?? ''));
 $sampaiInput = trim((string) ($_GET['sampai'] ?? ''));
 $print = isset($_GET['print']) && (string) $_GET['print'] === '1';
 
-$lak = keuangan_build_arus_kas($pdo, $dariInput !== '' ? $dariInput : null, $sampaiInput !== '' ? $sampaiInput : null);
+$lak = keuangan_build_arus_kas_cached($pdo, $dariInput !== '' ? $dariInput : null, $sampaiInput !== '' ? $sampaiInput : null, 600);
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 
 if ($print) {

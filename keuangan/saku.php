@@ -14,6 +14,9 @@ require_once __DIR__ . '/../helpers/cashless_wa.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
+require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+keuangan_hub_maybe_preload($pdo);
+
 keuangan_ensure_schema_deferred($pdo);
 cashless_koperasi_ensure_schema($pdo);
 

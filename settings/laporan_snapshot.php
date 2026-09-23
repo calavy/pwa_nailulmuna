@@ -50,6 +50,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'tes_akses_google') {
+        $test = laporan_snapshot_test_google_access($pdo);
+        save_setting($pdo, 'laporan_snapshot_last_access_test', json_encode([
+            'at' => date('Y-m-d H:i:s'),
+            'ok' => (bool) ($test['ok'] ?? false),
+            'steps' => $test['steps'] ?? [],
+            'client_email' => $test['client_email'] ?? '',
+            'spreadsheet_id' => $test['spreadsheet_id'] ?? '',
+            'error' => (string) ($test['error'] ?? ''),
+        ], JSON_UNESCAPED_UNICODE));
+        if ($test['ok'] ?? false) {
+            set_flash('success', 'Tes akses Google OK. Service account: ' . (string) ($test['client_email'] ?? '') . '.');
+        } else {
+            set_flash('error', 'Tes akses Google gagal: ' . (string) ($test['error'] ?? 'unknown'));
+        }
+        header('Location: ' . app_href('/settings/laporan_snapshot.php'));
+        exit;
+    }
+
     if ($action === 'tes_snapshot') {
         $saStatus = laporan_snapshot_sa_status($pdo);
         if (!$saStatus['valid_json']) {
@@ -63,17 +82,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $collected = laporan_snapshot_collect_all($pdo, $asOf);
             $push = laporan_snapshot_push_to_google($pdo, $collected, true);
             save_setting($pdo, 'laporan_snapshot_last_run_at', date('Y-m-d H:i:s'));
+            $shareWarning = trim((string) ($push['share_warning'] ?? ''));
             save_setting($pdo, 'laporan_snapshot_last_result', json_encode([
                 'as_of' => $asOf,
                 'spreadsheet_id' => $push['spreadsheet_id'] ?? '',
                 'tabs' => $push['tabs'] ?? [],
                 'shared' => $push['shared'] ?? [],
+                'share_warning' => $shareWarning,
                 'ok' => (bool) ($push['ok'] ?? false),
                 'manual' => true,
             ], JSON_UNESCAPED_UNICODE));
             if ($push['ok'] ?? false) {
-                save_setting($pdo, 'laporan_snapshot_last_error', '');
-                set_flash('success', 'Snapshot as_of ' . $asOf . ' berhasil dikirim ke Google Sheet. ID: ' . (string) ($push['spreadsheet_id'] ?? ''));
+                if ($shareWarning !== '') {
+                    save_setting($pdo, 'laporan_snapshot_last_error', $shareWarning);
+                    set_flash(
+                        'success',
+                        'Snapshot as_of ' . $asOf . ' berhasil dikirim ke Google Sheet. ID: '
+                        . (string) ($push['spreadsheet_id'] ?? '')
+                        . ' — Invite email penerima gagal: ' . $shareWarning
+                    );
+                } else {
+                    save_setting($pdo, 'laporan_snapshot_last_error', '');
+                    set_flash('success', 'Snapshot as_of ' . $asOf . ' berhasil dikirim ke Google Sheet. ID: ' . (string) ($push['spreadsheet_id'] ?? ''));
+                }
             } else {
                 save_setting($pdo, 'laporan_snapshot_last_error', (string) ($push['error'] ?? 'Gagal'));
                 set_flash('error', 'Snapshot as_of ' . $asOf . ' selesai dengan error. Cek detail di bawah.');
@@ -102,6 +133,14 @@ $tabTitlesJsonStored = trim($v('laporan_snapshot_tab_titles'));
 $tabTitlesJsonDisplay = $tabTitlesJsonStored !== ''
     ? $tabTitlesJsonStored
     : json_encode(laporan_snapshot_default_tab_titles(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+$lastAccessTestRaw = trim($v('laporan_snapshot_last_access_test'));
+$lastAccessTest = null;
+if ($lastAccessTestRaw !== '') {
+    $decodedAccessTest = json_decode($lastAccessTestRaw, true);
+    if (is_array($decodedAccessTest)) {
+        $lastAccessTest = $decodedAccessTest;
+    }
+}
 
 $pageTitle = 'Snapshot Laporan Google Sheet';
 $settingsNavActive = '/settings/laporan_snapshot.php';
@@ -182,6 +221,10 @@ require_once __DIR__ . '/includes/settings_nav.php';
             <dt class="col-sm-4 text-danger">Error terakhir</dt>
             <dd class="col-sm-8 text-danger"><?= htmlspecialchars((string) $status['last_error']) ?></dd>
             <?php endif; ?>
+            <?php if (is_array($lastResult) && trim((string) ($lastResult['share_warning'] ?? '')) !== ''): ?>
+            <dt class="col-sm-4 text-warning">Peringatan share</dt>
+            <dd class="col-sm-8 text-warning small"><?= htmlspecialchars((string) $lastResult['share_warning']) ?></dd>
+            <?php endif; ?>
         </dl>
         <?php if (is_array($lastResult) && !empty($lastResult['tabs'])): ?>
         <div class="table-responsive mt-3">
@@ -213,6 +256,7 @@ require_once __DIR__ . '/includes/settings_nav.php';
             <li>Sheet PNM10: share <strong>Editor</strong> ke email service account → tempel Spreadsheet ID di form (wajib agar tidak buat sheet baru).</li>
             <li>Isi email penerima di bawah — cron akan share <strong>Viewer</strong> ke alamat tersebut.</li>
             <li>Jalankan <code>setup-cron-laporan-snapshot.bat</code> (Windows) atau crontab HTTP/CLI.</li>
+            <li class="mt-2"><strong>Error <code>The caller does not have permission</code>?</strong> Share spreadsheet sebagai <strong>Editor</strong> ke email SA di atas, pastikan Sheets + Drive API aktif di project yang sama dengan JSON key. Jika hanya invite penerima yang gagal, kosongkan email penerima lalu share Viewer manual dari Google Drive.</li>
         </ol>
     </div>
 </div>
@@ -266,6 +310,32 @@ require_once __DIR__ . '/includes/settings_nav.php';
         <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
     </div>
 </form>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-white fw-semibold small">Tes akses Google (tanpa kirim data)</div>
+    <div class="card-body small">
+        <p class="text-muted mb-2">Memeriksa JSON Service Account, token OAuth, dan akses baca/tulis ke Spreadsheet ID yang tersimpan.</p>
+        <?php if (is_array($lastAccessTest) && !empty($lastAccessTest['steps'])): ?>
+            <p class="mb-2">Terakhir: <?= htmlspecialchars((string) ($lastAccessTest['at'] ?? '—')) ?>
+                <?= !empty($lastAccessTest['ok']) ? '<span class="badge text-bg-success">OK</span>' : '<span class="badge text-bg-danger">Gagal</span>' ?>
+            </p>
+            <ul class="mb-0 ps-3">
+                <?php foreach ((array) $lastAccessTest['steps'] as $stepLabel => $stepInfo): ?>
+                    <li class="<?= !empty($stepInfo['ok']) ? '' : 'text-danger' ?>">
+                        <strong><?= htmlspecialchars((string) $stepLabel) ?>:</strong>
+                        <?= htmlspecialchars((string) ($stepInfo['message'] ?? '')) ?>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+    <div class="card-footer bg-white">
+        <form method="post" class="d-inline">
+            <input type="hidden" name="action" value="tes_akses_google">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Tes akses Google</button>
+        </form>
+    </div>
+</div>
 
 <?php $defaultAsOf = laporan_snapshot_as_of_date(); ?>
 <form method="post" class="card shadow-sm mb-3">

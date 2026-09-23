@@ -2717,6 +2717,21 @@ html[data-theme-transitioning] .app-theme-switch {
     animation: app-fade-in 0.35s ease-out;
 }
 
+/* Portal pembimbing: halaman modul tampil utuh tanpa fade masuk/keluar */
+body.app-portal-pembimbing .app-main {
+    animation: none;
+}
+
+body.app-portal-pembimbing .app-content {
+    transition: none;
+}
+
+body.app-portal-pembimbing.app-page-leaving .app-main {
+    opacity: 1;
+    transform: none;
+    transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .app-main {
         animation: none;

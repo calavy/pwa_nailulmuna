@@ -19,6 +19,9 @@ if (!is_super_admin() && !in_array($rolePortal, ['admin', 'pengurus', 'petugas_a
     $portalAccess = akademik_setoran_portal_access_status($pdo);
     if (!$portalAccess['ok']) {
         set_flash('error', akademik_setoran_portal_denial_message($portalAccess));
+        if (isset($_SESSION['user'])) {
+            app_redirect('pembimbing/dashboard.php');
+        }
         app_redirect('login.php?dest=setoran');
     }
     $setoranPortalWarning = akademik_setoran_portal_setup_warning($pdo, $portalAccess);

@@ -1084,3 +1084,27 @@ body.keuangan-form-page .opsional-editor-status {
     color: #64748b;
     margin-bottom: 0.75rem;
 }
+
+body.keu-nav-loading main.app-main {
+    opacity: .72;
+    pointer-events: none;
+    transition: opacity .12s ease;
+}
+
+body.keu-nav-loading::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 10050;
+    background: linear-gradient(90deg, transparent, #0d9488, #14b8a6, transparent);
+    background-size: 200% 100%;
+    animation: keu-nav-bar 0.9s linear infinite;
+}
+
+@keyframes keu-nav-bar {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}

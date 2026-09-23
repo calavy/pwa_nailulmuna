@@ -511,15 +511,29 @@ function pwaCacheMatch(request) {
 }
 
 function pwaPutCache(request, response) {
-  if (!response || !response.ok) {
+  if (!response || !response.ok || response.type !== 'basic' || typeof response.clone !== 'function') {
+    return;
+  }
+  var cloneForCache;
+  try {
+    cloneForCache = response.clone();
+  } catch (e) {
     return;
   }
   caches.open(PWA_CACHE).then(function (cache) {
-    cache.put(request, response.clone());
-    var normReq = new Request(pwaNormalizeCacheUrl(request), { credentials: 'same-origin' });
-    if (normReq.url !== request.url) {
-      cache.put(normReq, response.clone());
-    }
+    try {
+      cache.put(request, cloneForCache);
+      var normReq = new Request(pwaNormalizeCacheUrl(request), { credentials: 'same-origin' });
+      if (normReq.url !== request.url) {
+        var cloneNorm;
+        try {
+          cloneNorm = response.clone();
+        } catch (err) {
+          return;
+        }
+        cache.put(normReq, cloneNorm);
+      }
+    } catch (e2) {}
   });
 }
 

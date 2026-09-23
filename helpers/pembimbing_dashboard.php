@@ -1826,6 +1826,60 @@ function pembimbing_dashboard_sudah_hadir_hari_ini(PDO $pdo, int $pembimbingId, 
 }
 
 /**
+ * Ringkas baris rekap kehadiran pembimbing per kegiatan (mata pelajaran).
+ *
+ * @param list<array<string,mixed>> $rows
+ * @return list<array{kegiatan_id:int,nama_kegiatan:string,hadir:int,izin:int,tanpa_scan:int,total:int,persen_hadir:float}>
+ */
+function pembimbing_dashboard_kehadiran_per_kegiatan_summary(array $rows): array
+{
+    $byKegiatan = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        if ($kid <= 0) {
+            continue;
+        }
+        if (!isset($byKegiatan[$kid])) {
+            $byKegiatan[$kid] = [
+                'kegiatan_id' => $kid,
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
+                'hadir' => 0,
+                'izin' => 0,
+                'tanpa_scan' => 0,
+                'total' => 0,
+            ];
+        }
+        $status = (string) ($row['status'] ?? '');
+        $byKegiatan[$kid]['total']++;
+        if ($status === 'H') {
+            $byKegiatan[$kid]['hadir']++;
+        } elseif ($status === 'I') {
+            $byKegiatan[$kid]['izin']++;
+        } else {
+            $byKegiatan[$kid]['tanpa_scan']++;
+        }
+    }
+
+    $out = [];
+    foreach ($byKegiatan as $item) {
+        $total = (int) ($item['total'] ?? 0);
+        $item['persen_hadir'] = $total > 0
+            ? round((int) ($item['hadir'] ?? 0) / $total * 100, 1)
+            : 0.0;
+        $out[] = $item;
+    }
+
+    usort($out, static function (array $a, array $b): int {
+        return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+
+    return $out;
+}
+
+/**
  * Tingkatan dari slot jadwal yang sedang berlangsung untuk pembimbing ini.
  *
  * @param list<array<string,mixed>> $kegiatanAktif
@@ -2177,4 +2231,375 @@ function pembimbing_dashboard_presensi_rekap_per_kegiatan(PDO $pdo, array $tingk
     $eligibleRows = pembimbing_dashboard_filter_eligible_by_kegiatan($eligibleRows, $kegiatanIdsFilter);
 
     return rekap_keaktifan_kegiatan_list_from_rows($eligibleRows);
+}
+
+/**
+ * Konteks pembimbing untuk halaman Hak Akses Saya (read-only).
+ *
+ * @return array{
+ *   tingkatan:list<string>,
+ *   kegiatan:list<array{id:int,nama_kegiatan:string}>,
+ *   setoran:array{aktif:bool,peran:string,reason:string},
+ *   munawib:bool
+ * }
+ */
+function pembimbing_dashboard_akses_konteks(PDO $pdo, int $userId): array
+{
+    require_once __DIR__ . '/akademik_setoran.php';
+    $pb = pembimbing_dashboard_current_pembimbing($pdo, $userId);
+    $pbId = is_array($pb) ? (int) ($pb['id'] ?? 0) : 0;
+    $munawib = !empty($pb['munawib_mode']);
+    $tingkatan = $pbId > 0
+        ? pembimbing_dashboard_tingkatan_list($pdo, $pbId, false)
+        : [];
+    $kegiatan = pembimbing_dashboard_kegiatan_dari_jadwal($pdo, $pbId > 0 ? $pbId : null, false);
+    $setoranSt = akademik_setoran_portal_access_status($pdo);
+
+    return [
+        'tingkatan' => $tingkatan,
+        'kegiatan' => $kegiatan,
+        'setoran' => [
+            'aktif' => !empty($setoranSt['ok']),
+            'peran' => (string) ($setoranSt['peran'] ?? ''),
+            'reason' => (string) ($setoranSt['reason'] ?? ''),
+        ],
+        'munawib' => $munawib,
+        'pembimbing_nama' => is_array($pb) ? trim((string) ($pb['nama'] ?? '')) : '',
+        'nip' => is_array($pb) ? trim((string) ($pb['nip'] ?? '')) : '',
+    ];
+}
+
+/** Jumlah jawaban esai ikhtibar milik pembimbing yang belum dinilai. */
+function pembimbing_dashboard_ikhtibar_esai_pending_count(PDO $pdo, int $userId): int
+{
+    if ($userId <= 0 || !table_exists($pdo, 'ikhtibar_jawaban') || !table_exists($pdo, 'ikhtibar_soal')) {
+        return 0;
+    }
+    ensure_akademik_ikhtibar_tables($pdo);
+    try {
+        $st = $pdo->prepare('
+            SELECT COUNT(j.id)
+            FROM ikhtibar_jawaban j
+            INNER JOIN ikhtibar_soal so ON so.id = j.soal_id AND so.jenis = "ESAI"
+            INNER JOIN ikhtibar_sesi ses ON ses.id = j.sesi_id
+            INNER JOIN ikhtibar_tugas t ON t.id = ses.tugas_id
+            WHERE j.nilai_esai IS NULL AND t.created_by = :uid
+        ');
+        $st->execute(['uid' => $userId]);
+
+        return (int) ($st->fetchColumn() ?: 0);
+    } catch (PDOException $e) {
+        return 0;
+    }
+}
+
+/**
+ * Ringkasan setoran hari ini untuk penerima setoran (tanpa bootstrap portal penuh).
+ *
+ * @return array{ok:bool,setor:int,belum:int,izin:int,sakit:int,total:int}
+ */
+function pembimbing_dashboard_setoran_ringkas_hari_ini(PDO $pdo, string $today): array
+{
+    require_once __DIR__ . '/akademik_setoran.php';
+    $empty = ['ok' => false, 'setor' => 0, 'belum' => 0, 'izin' => 0, 'sakit' => 0, 'total' => 0];
+    $portalSt = akademik_setoran_portal_access_status($pdo);
+    if (empty($portalSt['ok'])) {
+        return $empty;
+    }
+    $ctx = akademik_setoran_petugas_context($pdo);
+    $counts = akademik_setoran_ringkas_counts_hari_ini($pdo, $ctx, $today);
+    if (empty($counts['ok'])) {
+        return $empty;
+    }
+
+    return [
+        'ok' => true,
+        'setor' => (int) ($counts['setor'] ?? 0),
+        'belum' => (int) ($counts['belum'] ?? 0),
+        'izin' => (int) ($counts['izin'] ?? 0),
+        'sakit' => (int) ($counts['sakit'] ?? 0),
+        'total' => (int) ($counts['total'] ?? 0),
+    ];
+}
+
+/**
+ * Slot jadwal pembimbing hari ini (kajian + PKPPS), dengan status waktu.
+ *
+ * @return list<array<string,mixed>>
+ */
+function pembimbing_dashboard_jadwal_slots_pembimbing_hari_ini(
+    PDO $pdo,
+    int $pembimbingId,
+    string $today,
+    string $nowTime
+): array {
+    if ($pembimbingId <= 0) {
+        return [];
+    }
+    require_once __DIR__ . '/pembimbing_perubahan_jadwal.php';
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    require_once __DIR__ . '/app_path.php';
+
+    $seen = [];
+    $slots = [];
+    foreach (pb_jadwal_slots_hari_ini($pdo, $pembimbingId, $today) as $row) {
+        $key = (int) ($row['kegiatan_id'] ?? 0) . '|' . substr((string) ($row['jam_mulai'] ?? ''), 0, 5)
+            . '|' . trim((string) ($row['tingkatan'] ?? ''));
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $row['sumber'] = 'kajian';
+        $row['is_live'] = pembimbing_dashboard_slot_is_live($today, (string) ($row['jam_mulai'] ?? ''), (string) ($row['jam_selesai'] ?? ''), $nowTime);
+        $row['is_past'] = pembimbing_dashboard_slot_is_past($today, (string) ($row['jam_selesai'] ?? ''), $nowTime);
+        $row['buka_kegiatan_url'] = app_href('/pembimbing/perizinan.php?tanggal=' . rawurlencode($today));
+        $row['scan_presensi_url'] = pembimbing_dashboard_scan_presensi_url(
+            (int) ($row['kegiatan_id'] ?? 0),
+            (string) ($row['tingkatan'] ?? '')
+        );
+        $slots[] = $row;
+    }
+
+    $hariKe = (int) date('N', strtotime($today) ?: time());
+    $tanggal = $today;
+    $liburFilterSql = akademik_libur_dashboard_filter_sql($pdo, $tanggal);
+    if (table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'kegiatan')) {
+        pkpps_ensure_schema($pdo);
+        ensure_kegiatan_kategori_column($pdo);
+        $stPk = $pdo->prepare('
+            SELECT k.id AS kegiatan_id, k.nama_kegiatan, t.nama_tingkatan, j.jam_mulai, j.jam_selesai, j.tempat, j.id AS jadwal_id
+            FROM pkpps_jadwal j
+            INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+            INNER JOIN pkpps_tingkatan t ON t.id = j.pkpps_tingkatan_id
+            WHERE j.pembimbing_id = :pid AND j.is_aktif = 1
+              AND (j.hari_ke = 0 OR j.hari_ke = :hari)
+              ' . $liburFilterSql . '
+            ORDER BY j.jam_mulai ASC, t.urutan ASC
+        ');
+        $stPk->execute(['pid' => $pembimbingId, 'hari' => $hariKe]);
+        foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $tingkatan = pembimbing_pkpps_label((string) ($row['nama_tingkatan'] ?? ''));
+            $key = (int) ($row['kegiatan_id'] ?? 0) . '|' . substr((string) ($row['jam_mulai'] ?? ''), 0, 5) . '|' . $tingkatan;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $slot = [
+                'kegiatan_id' => (int) ($row['kegiatan_id'] ?? 0),
+                'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? ''),
+                'tingkatan' => $tingkatan,
+                'jam_mulai' => (string) ($row['jam_mulai'] ?? ''),
+                'jam_selesai' => (string) ($row['jam_selesai'] ?? ''),
+                'tempat' => (string) ($row['tempat'] ?? ''),
+                'jadwal_id' => (int) ($row['jadwal_id'] ?? 0),
+                'sumber' => 'pkpps',
+            ];
+            $slot['is_live'] = pembimbing_dashboard_slot_is_live($today, $slot['jam_mulai'], $slot['jam_selesai'], $nowTime);
+            $slot['is_past'] = pembimbing_dashboard_slot_is_past($today, $slot['jam_selesai'], $nowTime);
+            $slot['buka_kegiatan_url'] = app_href('/pembimbing/perizinan.php?tanggal=' . rawurlencode($today));
+            $slot['scan_presensi_url'] = pembimbing_dashboard_scan_presensi_url(
+                (int) $slot['kegiatan_id'],
+                $slot['tingkatan']
+            );
+            $slots[] = $slot;
+        }
+    }
+
+    usort($slots, static fn (array $a, array $b): int => strcmp(
+        substr((string) ($a['jam_mulai'] ?? ''), 0, 8),
+        substr((string) ($b['jam_mulai'] ?? ''), 0, 8)
+    ));
+
+    return $slots;
+}
+
+function pembimbing_dashboard_slot_is_live(string $tanggal, string $jamMulai, string $jamSelesai, string $nowTime): bool
+{
+    $nowTs = strtotime($tanggal . ' ' . substr($nowTime, 0, 8));
+    $startTs = strtotime($tanggal . ' ' . substr($jamMulai, 0, 8));
+    $endTs = strtotime($tanggal . ' ' . substr($jamSelesai, 0, 8));
+    if ($nowTs === false || $startTs === false || $endTs === false) {
+        return false;
+    }
+    if ($endTs < $startTs) {
+        $endTs += 86400;
+    }
+
+    return $nowTs >= $startTs && $nowTs <= $endTs;
+}
+
+function pembimbing_dashboard_slot_is_past(string $tanggal, string $jamSelesai, string $nowTime): bool
+{
+    $nowTs = strtotime($tanggal . ' ' . substr($nowTime, 0, 8));
+    $endTs = strtotime($tanggal . ' ' . substr($jamSelesai, 0, 8));
+
+    return $nowTs !== false && $endTs !== false && $nowTs > $endTs;
+}
+
+function pembimbing_dashboard_scan_presensi_url(int $kegiatanId, string $tingkatan): string
+{
+    require_once __DIR__ . '/app_path.php';
+    $q = [];
+    if ($kegiatanId > 0) {
+        $q['kegiatan_id'] = (string) $kegiatanId;
+    }
+    $tingkatan = trim($tingkatan);
+    if ($tingkatan !== '') {
+        $q['tingkatan'] = $tingkatan;
+    }
+
+    return app_href('/presensi/scan.php' . ($q !== [] ? '?' . http_build_query($q) : ''));
+}
+
+/**
+ * Item tindakan untuk dashboard home pembimbing.
+ *
+ * @return list<array{severity:string,label:string,count:int,href:string}>
+ */
+function pembimbing_dashboard_home_action_items(PDO $pdo, array $bundle): array
+{
+    require_once __DIR__ . '/app_path.php';
+    $items = [];
+
+    $penilaianPending = (int) ($bundle['kpi']['penilaian_pending'] ?? 0);
+    if ($penilaianPending > 0) {
+        $items[] = [
+            'severity' => 'danger',
+            'label' => $penilaianPending === 1 ? '1 tugas belum dinilai' : $penilaianPending . ' tugas belum dinilai',
+            'count' => $penilaianPending,
+            'href' => app_href('/pembimbing/tugas/nilai.php'),
+        ];
+    }
+
+    $belumPresensi = (int) ($bundle['kpi']['santri_belum_presensi'] ?? 0);
+    if ($belumPresensi > 0) {
+        $items[] = [
+            'severity' => 'warning',
+            'label' => $belumPresensi === 1 ? '1 santri belum presensi' : $belumPresensi . ' santri belum presensi',
+            'count' => $belumPresensi,
+            'href' => app_href('/presensi/scan.php'),
+        ];
+    }
+
+    $setoran = $bundle['setoran'] ?? [];
+    if (!empty($setoran['ok'])) {
+        $belumSetor = (int) ($setoran['belum'] ?? 0);
+        if ($belumSetor > 0) {
+            $items[] = [
+                'severity' => 'warning',
+                'label' => $belumSetor === 1 ? '1 setoran belum direkap' : $belumSetor . ' setoran belum direkap',
+                'count' => $belumSetor,
+                'href' => app_href('/pembimbing/setoran_dashboard.php'),
+            ];
+        }
+    }
+
+    return $items;
+}
+
+/**
+ * Data agregat untuk dashboard home ringkas pembimbing.
+ *
+ * @return array<string,mixed>
+ */
+function pembimbing_dashboard_home_bundle(
+    PDO $pdo,
+    int $userId,
+    int $pembimbingId,
+    array $tingkatanAsuhan,
+    string $today,
+    string $nowTime,
+    int $hariKe,
+    bool $pbSudahHadir,
+    bool $useCache = true
+): array {
+    $scopeKey = md5(implode("\0", array_map(static fn (string $t): string => trim($t), $tingkatanAsuhan)));
+    $cacheKey = 'pb_home_bundle_v1_' . $userId . '_' . $pembimbingId . '_' . $today . '_' . $scopeKey;
+    $skipCache = !$useCache
+        || ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET'
+        || isset($_GET['refresh']);
+    if (!$skipCache && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        $cached = $_SESSION[$cacheKey];
+        if (($cached['exp'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
+            return $cached['data'];
+        }
+    }
+
+    $statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAsuhan, $today, false);
+    $slots = $pembimbingId > 0
+        ? pembimbing_dashboard_jadwal_slots_pembimbing_hari_ini($pdo, $pembimbingId, $today, $nowTime)
+        : [];
+
+    $kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
+        $pdo,
+        $tingkatanAsuhan,
+        $hariKe,
+        $nowTime,
+        $pembimbingId > 0 ? $pembimbingId : null
+    );
+    $kegiatanAktifGrouped = function_exists('jadwal_kelompokkan_kegiatan_aktif')
+        ? jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif)
+        : [];
+    $kegiatanAktifPresensi = $kegiatanAktifGrouped === []
+        ? []
+        : pembimbing_dashboard_presensi_kegiatan_berlangsung(
+            $pdo,
+            $kegiatanAktifGrouped,
+            $today,
+            false
+        );
+
+    $santriBelumPresensi = 0;
+    foreach ($kegiatanAktifPresensi as $kg) {
+        $santriBelumPresensi += (int) ($kg['alpa'] ?? 0);
+    }
+    if ($santriBelumPresensi === 0 && (int) ($statPresensi['alpa'] ?? 0) > 0) {
+        $santriBelumPresensi = (int) $statPresensi['alpa'];
+    }
+
+    $manualPending = $pembimbingId > 0
+        ? pembimbing_dashboard_belum_dinilai_manual($pdo, $pembimbingId, $tingkatanAsuhan)
+        : 0;
+    $ikhtibarPending = pembimbing_dashboard_ikhtibar_esai_pending_count($pdo, $userId);
+    $penilaianPending = $manualPending + $ikhtibarPending;
+
+    $setoran = pembimbing_dashboard_setoran_ringkas_hari_ini($pdo, $today);
+    $liveCount = 0;
+    foreach ($slots as $s) {
+        if (!empty($s['is_live'])) {
+            $liveCount++;
+        }
+    }
+    if ($liveCount === 0 && $kegiatanAktifPresensi !== []) {
+        $liveCount = count($kegiatanAktifPresensi);
+    }
+
+    $bundle = [
+        'stat_presensi' => $statPresensi,
+        'slots_hari_ini' => $slots,
+        'kegiatan_aktif' => $kegiatanAktif,
+        'kegiatan_aktif_grouped' => $kegiatanAktifGrouped,
+        'kegiatan_aktif_presensi' => $kegiatanAktifPresensi,
+        'has_live_kegiatan' => $kegiatanAktifPresensi !== [] || $liveCount > 0,
+        'setoran' => $setoran,
+        'pb_sudah_hadir' => $pbSudahHadir,
+        'kpi' => [
+            'presensi_scan_ok' => $pbSudahHadir,
+            'presensi_hadir' => (int) ($statPresensi['hadir'] ?? 0),
+            'presensi_alpa' => (int) ($statPresensi['alpa'] ?? 0),
+            'kegiatan_hari_ini' => count($slots),
+            'kegiatan_live' => $liveCount,
+            'penilaian_pending' => $penilaianPending,
+            'penilaian_manual_pending' => $manualPending,
+            'penilaian_ikhtibar_pending' => $ikhtibarPending,
+            'santri_belum_presensi' => $santriBelumPresensi,
+        ],
+    ];
+    $bundle['action_items'] = pembimbing_dashboard_home_action_items($pdo, $bundle);
+
+    if (!$skipCache) {
+        $_SESSION[$cacheKey] = ['exp' => time() + 120, 'data' => $bundle];
+    }
+
+    return $bundle;
 }

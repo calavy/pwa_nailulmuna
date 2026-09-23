@@ -91,6 +91,20 @@ function keuangan_preload_session_caches(PDO $pdo, int $ttlSec = 600): void
     keuangan_dashboard_snapshot_cached($pdo, $ttlSec);
 }
 
+/** Preload cache hub keuangan (pembayaran/kas/cashless) — throttled per sesi. */
+function keuangan_hub_maybe_preload(PDO $pdo, int $intervalSec = 600): void
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        return;
+    }
+    $last = (int) ($_SESSION['keuangan_hub_preload_at'] ?? 0);
+    if ($last > 0 && (time() - $last) < max(60, $intervalSec)) {
+        return;
+    }
+    keuangan_preload_session_caches($pdo, $intervalSec);
+    $_SESSION['keuangan_hub_preload_at'] = time();
+}
+
 function keuangan_dashboard_snapshot_cached(PDO $pdo, int $ttlSec = 600): ?array
 {
     $aktif = pondok_tahun_ajaran_aktif($pdo);

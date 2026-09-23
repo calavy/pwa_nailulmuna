@@ -98,6 +98,29 @@ function google_sa_access_token(array $credentials): string
     return $token;
 }
 
+function google_api_error_message(int $httpCode, string $url, string $googleMessage): string
+{
+    $msg = trim($googleMessage);
+    if ($msg === '') {
+        $msg = 'HTTP ' . $httpCode;
+    }
+    $out = 'Google API error: ' . $msg;
+    if ($httpCode !== 403) {
+        return $out;
+    }
+    if (str_contains($url, 'sheets.googleapis.com')) {
+        return $out . ' — Share spreadsheet ke email Service Account (Editor). Aktifkan Google Sheets API + Drive API di project Cloud Console yang sama dengan file JSON key.';
+    }
+    if (str_contains($url, 'drive.googleapis.com') && str_contains($url, '/permissions')) {
+        return $out . ' — Service Account harus Editor di file. Jika Workspace melarang invite otomatis, kosongkan email penerima di pengaturan lalu share Viewer manual dari Google Drive.';
+    }
+    if (str_contains($url, 'drive.googleapis.com')) {
+        return $out . ' — Aktifkan Google Drive API di project Service Account.';
+    }
+
+    return $out;
+}
+
 /**
  * @return array<string, mixed>
  */
@@ -134,13 +157,10 @@ function google_api_request(string $method, string $url, string $token, ?array $
     }
     $decoded = json_decode((string) $body, true);
     if ($code >= 400) {
-        $msg = is_array($decoded)
+        $googleMsg = is_array($decoded)
             ? trim((string) (($decoded['error']['message'] ?? '') ?: ($decoded['error_description'] ?? '')))
             : '';
-        if ($msg === '') {
-            $msg = 'HTTP ' . $code;
-        }
-        throw new RuntimeException('Google API error: ' . $msg);
+        throw new RuntimeException(google_api_error_message($code, $url, $googleMsg));
     }
 
     return is_array($decoded) ? $decoded : [];
@@ -225,7 +245,7 @@ function google_sheets_write_tab(string $token, string $spreadsheetId, string $t
         'POST',
         'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($spreadsheetId) . '/values/' . $range . ':clear',
         $token,
-        new stdClass()
+        null
     );
 
     $values = [];

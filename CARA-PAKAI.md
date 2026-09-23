@@ -133,6 +133,8 @@ Setiap hari (default jam **05:00** WIB), sistem menulis snapshot 7 laporan keuan
 
 **Tombol kirim tidak jalan?** Cek badge **Kredensial SA** di kartu Status (bukan badge **Aktif**). Setelah ubah path JSON, klik **Simpan** dulu. Tombol tetap bisa diklik; jika kredensial belum siap, pesan error muncul di atas form.
 
+**Error `Google API error: The caller does not have permission`:** Service Account sudah dapat token, tetapi Google menolak akses ke Sheet/Drive. Share spreadsheet PNM10 sebagai **Editor** ke email SA (`...@...iam.gserviceaccount.com`), aktifkan **Google Sheets API** + **Google Drive API** di project Cloud Console yang sama dengan file JSON. Gunakan **Tes akses Google** di halaman pengaturan sebelum kirim penuh. Jika kirim data sukses tetapi invite penerima gagal, kosongkan field email penerima dan bagikan Viewer manual dari Google Drive.
+
 **Jadwalkan cron (Windows/XAMPP):**
 
 1. Klik kanan **`setup-cron-laporan-snapshot.bat`** → **Run as administrator**
@@ -292,3 +294,11 @@ C:\xampp\php\php.exe scripts\_diag_cron_wa_sheet.php
 C:\xampp\php\php.exe cron\wa_auto.php
 C:\xampp\php\php.exe cron\laporan_snapshot.php
 ```
+
+---
+
+## Ganti munawib pembimbing (portal & pengasuh)
+
+- **Pembimbing:** menu Perizinan → *Cari / ganti munawib* — pilih rentang tanggal (1 hari atau beberapa hari), kegiatan, munawib, materi per halaman, dan **alasan wajib** (tulis sendiri). Ajukan minimal **3 hari** sebelum jadwal terlaksana. Semua pengajuan menunggu **persetujuan pengasuh**; WA otomatis ke pengasuh hanya untuk pengajuan **lebih dari satu hari** (toggle yang sama dengan izin syar'i di WA Otomatis).
+- **Pengasuh:** *Pengasuh → Perizinan* — bagian *Pengganti munawib pembimbing* → Setujui / Tolak. Setelah disetujui, penugasan munawib aktif di jadwal.
+- **Ubah/batal** override yang sudah aktif: masih maks. **3 jam** sebelum jadwal asli.

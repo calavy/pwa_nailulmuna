@@ -9,46 +9,120 @@ require_once __DIR__ . '/../helpers/user_permissions.php';
 $__currentRoleForMenu = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 $__isSuperAdminForMenu = (int) ($_SESSION['user']['is_super_admin'] ?? 0) === 1;
 
-// Struktur menu khusus untuk role pembimbing — sederhana, hanya berisi
-// modul yang relevan dengan tugas pembimbing (dashboard, tugas/penilaian,
-// izin pembimbing). Tidak menampilkan keuangan, gaji, yayasan, dll.
+// Menu portal pembimbing — dikelompokkan (Beranda, Santri, Kegiatan, Penilaian, Setoran, Tugas, Catatan, Akun).
 if ($__currentRoleForMenu === 'pembimbing' && !$__isSuperAdminForMenu) {
-    return [
-        'menuItems' => [
-            '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
-            '/presensi/scan.php' => 'Scan Presensi',
-            '/pembimbing/tugas/index.php' => 'Daftar Tugas Ikhtibar',
-            '/pembimbing/tugas_yayasan.php' => 'Tugas Yayasan (Timeline)',
-            '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
-            '/pembimbing/tugas/nilai.php' => 'Penilaian Tugas',
-            '/pembimbing/tugas/rekap.php' => 'Rekap Nilai Ikhtibar',
-            '/pembimbing/tugas/hasil_nilai.php' => 'Hasil Nilai per Mapel',
-            '/pembimbing/nilai_manual.php' => 'Nilai Manual',
-            '/pembimbing/perizinan.php' => 'Atur Kegiatan Hari Ini',
-            '/jadwal/index.php' => 'Jadwal Kegiatan',
-            '/settings/profil.php' => 'Profil & Password',
-        '/settings/akses_saya.php' => 'Hak Akses Saya',
+    global $pdo;
+    if (!isset($pdo) || !$pdo instanceof PDO) {
+        require_once __DIR__ . '/../config/database.php';
+    }
+
+    $__pbMenuItems = [
+        '/pembimbing/dashboard.php' => 'Dashboard Pembimbing',
+        '/pembimbing/dashboard.php?view=santri' => 'Santri Saya',
+        '/pembimbing/dashboard.php?view=kajian' => 'Kajian Saya',
+        '/pembimbing/dashboard.php?view=penilaian' => 'Penilaian Santri',
+        '/pembimbing/dashboard.php?view=kehadiran_saya' => 'Kehadiran Saya',
+        '/presensi/scan.php' => 'Presensi',
+        '/pembimbing/dashboard.php?view=keaktivan' => 'Keaktifan',
+        '/perizinan/index.php' => 'Perizinan',
+        '/jadwal/index.php' => 'Jadwal Kegiatan',
+        '/pembimbing/perizinan.php' => 'Atur Kegiatan Hari Ini',
+        '/pembimbing/tugas/index.php' => 'Tugas Ikhtibar',
+        '/pembimbing/tugas/buat.php' => 'Buat Tugas / Soal',
+        '/pembimbing/tugas/nilai.php' => 'Penilaian',
+        '/pembimbing/tugas/rekap.php' => 'Rekap Nilai',
+        '/pembimbing/tugas/hasil_nilai.php' => 'Hasil Nilai per Mapel',
+        '/pembimbing/nilai_manual.php' => 'Nilai Manual',
+        '/pembimbing/tugas_yayasan.php' => 'Tugas Yayasan',
         '/catatan/index.php' => 'Buku Catatan',
-            '/pembimbing/setoran_dashboard.php' => 'Portal Setoran Hafalan',
-        ],
-        'menuStructure' => [
-            ['type' => 'item', 'path' => '/pembimbing/dashboard.php', 'icon' => 'fa-solid fa-house'],
-            ['type' => 'item', 'path' => '/presensi/scan.php', 'icon' => 'fa-solid fa-qrcode'],
-            ['type' => 'group', 'id' => 'menu-grp-pb', 'label' => 'Pembimbing', 'expand' => true, 'icon' => 'fa-solid fa-chalkboard-user', 'sections' => [
-                ['title' => 'Tugas & Jadwal', 'paths' => [
-                    '/pembimbing/tugas/index.php',
-                    '/pembimbing/tugas_yayasan.php',
-                    '/pembimbing/tugas/rekap.php',
-                    '/pembimbing/tugas/hasil_nilai.php',
-                    '/pembimbing/nilai_manual.php',
-                    '/pembimbing/perizinan.php',
-                    '/jadwal/index.php',
-                    '/settings/profil.php',
-                    '/catatan/index.php',
-                    '/pembimbing/setoran_dashboard.php',
-                ]],
+        '/settings/profil.php' => 'Profil',
+        '/settings/akses_saya.php' => 'Hak Akses Saya',
+    ];
+
+    $__pbMenuStructure = [
+        ['type' => 'group', 'id' => 'menu-grp-pb-beranda', 'label' => 'Beranda', 'expand' => true, 'icon' => 'fa-solid fa-house', 'sections' => [
+            ['title' => '', 'paths' => ['/pembimbing/dashboard.php']],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-santri', 'label' => 'Santri', 'expand' => true, 'icon' => 'fa-solid fa-user-graduate', 'sections' => [
+            ['title' => '', 'paths' => [
+                '/pembimbing/dashboard.php?view=santri',
+                '/pembimbing/dashboard.php?view=kajian',
+                '/presensi/scan.php',
+                '/pembimbing/dashboard.php?view=keaktivan',
+                '/pembimbing/dashboard.php?view=kehadiran_saya',
+                '/perizinan/index.php',
             ]],
-        ],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-kegiatan', 'label' => 'Kegiatan', 'expand' => true, 'icon' => 'fa-solid fa-calendar-days', 'sections' => [
+            ['title' => '', 'paths' => ['/jadwal/index.php', '/pembimbing/perizinan.php']],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-penilaian', 'label' => 'Penilaian', 'expand' => true, 'icon' => 'fa-solid fa-pen-to-square', 'sections' => [
+            ['title' => '', 'paths' => [
+                '/pembimbing/dashboard.php?view=penilaian',
+                '/pembimbing/tugas/index.php',
+                '/pembimbing/tugas/buat.php',
+                '/pembimbing/tugas/nilai.php',
+                '/pembimbing/tugas/rekap.php',
+                '/pembimbing/tugas/hasil_nilai.php',
+                '/pembimbing/nilai_manual.php',
+            ]],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-tugas', 'label' => 'Tugas', 'expand' => true, 'icon' => 'fa-solid fa-list-check', 'sections' => [
+            ['title' => '', 'paths' => ['/pembimbing/tugas_yayasan.php']],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-catatan', 'label' => 'Catatan', 'expand' => true, 'icon' => 'fa-solid fa-book', 'sections' => [
+            ['title' => '', 'paths' => ['/catatan/index.php']],
+        ]],
+        ['type' => 'group', 'id' => 'menu-grp-pb-akun', 'label' => 'Akun', 'expand' => true, 'icon' => 'fa-solid fa-user-gear', 'sections' => [
+            ['title' => '', 'paths' => ['/settings/profil.php', '/settings/akses_saya.php']],
+        ]],
+    ];
+
+    if ($pdo instanceof PDO) {
+        require_once __DIR__ . '/../helpers/pembimbing_menu_cache.php';
+
+        $userIdMenu = (int) ($_SESSION['user']['id'] ?? 0);
+        $forceMenuRefresh = isset($_GET['refresh_menu']) && (int) ($_GET['refresh_menu'] ?? 0) === 1;
+        $menuFlags = pembimbing_menu_cache_resolve($pdo, $userIdMenu, $forceMenuRefresh);
+        $pbId = (int) ($menuFlags['pembimbing_id'] ?? 0);
+
+        if (!empty($menuFlags['setoran_portal_ok'])) {
+            $__pbMenuItems['/pembimbing/setoran_dashboard.php'] = 'Dashboard Setoran';
+            $__pbMenuItems['/pembimbing/setoran.php'] = 'Scan Setoran';
+            $__pbMenuItems['/pembimbing/setoran_keaktivan.php'] = 'Keaktifan Setoran';
+            $__pbMenuItems['/pembimbing/setoran_perolehan.php'] = 'Perolehan Setoran';
+            $__pbSetoranGroup = [
+                'type' => 'group',
+                'id' => 'menu-grp-pb-setoran',
+                'label' => 'Setoran',
+                'expand' => true,
+                'icon' => 'fa-solid fa-book-quran',
+                'sections' => [[
+                    'title' => '',
+                    'paths' => [
+                        '/pembimbing/setoran.php',
+                        '/pembimbing/setoran_keaktivan.php',
+                        '/pembimbing/setoran_perolehan.php',
+                        '/pembimbing/setoran_dashboard.php',
+                    ],
+                ]],
+            ];
+            $__pbMenuStructure = array_merge(
+                array_slice($__pbMenuStructure, 0, 4),
+                [$__pbSetoranGroup],
+                array_slice($__pbMenuStructure, 4)
+            );
+        }
+
+        if ($pbId > 0 && !empty($menuFlags['pkpps_has_jadwal'])) {
+            $__pbMenuItems['/pembimbing/pkpps_santri.php'] = 'Santri PKPPS';
+            $__pbMenuStructure[1]['sections'][0]['paths'][] = '/pembimbing/pkpps_santri.php';
+        }
+    }
+
+    return [
+        'menuItems' => $__pbMenuItems,
+        'menuStructure' => $__pbMenuStructure,
         'pengaturanNav' => [],
         'permissionPathMap' => user_permission_path_map(),
     ];

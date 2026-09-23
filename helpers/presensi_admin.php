@@ -194,7 +194,11 @@ function presensi_scan_jadwal_context_cached(PDO $pdo, bool $forceRefresh = fals
     ) {
         return $_SESSION[$cacheKey];
     }
-    $ctx = presensi_scan_jadwal_context($pdo);
+    $prefer = null;
+    if (isset($_SESSION['presensi_scan_prefer']) && is_array($_SESSION['presensi_scan_prefer'])) {
+        $prefer = $_SESSION['presensi_scan_prefer'];
+    }
+    $ctx = presensi_scan_jadwal_context($pdo, null, null, $prefer);
     $_SESSION[$cacheKey] = $ctx;
     $_SESSION[$tsKey] = $now;
 

@@ -35,6 +35,21 @@ if ($pbBannerNip === '' && isset($pembimbingInfo) && is_array($pembimbingInfo)) 
 if ($pbBannerNip === '' && !empty($isMunawibPortal)) {
     $pbBannerNip = trim((string) ($_SESSION['user']['username'] ?? ''));
 }
+$pbBannerClockStrings = is_array($pbBannerClockStrings ?? null) ? $pbBannerClockStrings : null;
+if ($pbBannerClockStrings === null && !function_exists('pembimbing_portal_banner_clock_strings')) {
+    require_once __DIR__ . '/../../helpers/pembimbing_portal_banner.php';
+}
+if ($pbBannerClockStrings === null) {
+    $pbBannerClockStrings = pembimbing_portal_banner_clock_strings(
+        date('Y-m-d'),
+        date('H:i:s'),
+        trim((string) ($pbDashPasaran ?? '')),
+        trim((string) ($pbDashHijriClock ?? '')),
+        !empty($pbBannerClockCompact)
+    );
+}
+$pbBannerInitialClock = (string) ($pbBannerClockStrings['time'] ?? date('H:i:s'));
+$pbBannerInitialDate = (string) ($pbBannerClockStrings['date'] ?? '');
 ?>
 <div class="pb-portal-banner pb-portal-banner--<?= htmlspecialchars($pbBannerVariant) ?> pb-portal-banner--pattern-<?= htmlspecialchars($pattern) ?><?= $hasLive ? ' pb-portal-banner--live' : '' ?>"
      style="<?= htmlspecialchars($cssVars) ?>">
@@ -65,8 +80,8 @@ if ($pbBannerNip === '' && !empty($isMunawibPortal)) {
                 <?php endif; ?>
             </div>
             <div class="pb-portal-banner__clock" aria-live="polite">
-                <div class="pb-portal-banner__clock-time" id="dashboard-live-clock">--:--:--</div>
-                <div class="pb-portal-banner__clock-date" id="dashboard-live-date"<?= ($pbDashPasaran ?? '') !== '' ? ' data-pasaran="' . htmlspecialchars((string) $pbDashPasaran) . '"' : '' ?><?= ($pbDashHijriClock ?? '') !== '' ? ' data-hijri="' . htmlspecialchars((string) $pbDashHijriClock) . '"' : '' ?>>—</div>
+                <div class="pb-portal-banner__clock-time" id="dashboard-live-clock"><?= htmlspecialchars($pbBannerInitialClock) ?></div>
+                <div class="pb-portal-banner__clock-date" id="dashboard-live-date"<?= ($pbDashPasaran ?? '') !== '' ? ' data-pasaran="' . htmlspecialchars((string) $pbDashPasaran) . '"' : '' ?><?= ($pbDashHijriClock ?? '') !== '' ? ' data-hijri="' . htmlspecialchars((string) $pbDashHijriClock) . '"' : '' ?>><?= htmlspecialchars($pbBannerInitialDate) ?></div>
             </div>
         </div>
         <?php if (!$isMunawibPortal && ((int) ($totalSantri ?? 0) > 0 || (int) ($jumlahTingkatanHome ?? 0) > 0)): ?>

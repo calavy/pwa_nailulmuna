@@ -173,6 +173,10 @@
     }
 
     function initSmoothNavigation() {
+        if (document.body.classList.contains('app-portal-pembimbing')) {
+            document.body.classList.add('app-ready');
+            return;
+        }
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             return;
         }

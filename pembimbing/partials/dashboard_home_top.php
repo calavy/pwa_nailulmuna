@@ -14,8 +14,6 @@ declare(strict_types=1);
 
 /** @var list<string> $pbDashTickerItems */
 
-/** @var string $keaktivanUrl */
-
 /** @var array<string,list<array<string,mixed>>> $santriMapPerTingkatan */
 /** @var string $pbSantriMapApiUrl */
 
@@ -37,12 +35,6 @@ $kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
 $munawibPortalKonteks = $munawibPortalKonteks ?? null;
 
 $jumlahTingkatanPick = count($tingkatanBaris);
-
-$santriMenuLabel = (int) $jumlahTingkatan . ' tingkatan · ' . (int) $totalSantri . ' santri dibimbing';
-
-require_once __DIR__ . '/../../helpers/login_pembimbing.php';
-global $pdo;
-$setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo : null);
 
 ?>
 
@@ -126,56 +118,6 @@ $setoranEntry = login_pembimbing_setoran_entry_meta($pdo instanceof PDO ? $pdo :
     </div>
 
     <?php endif; ?>
-
-
-
-    <nav class="pb-dash-menu-cards<?= $isMunawibPortal ? ' pb-dash-menu-cards--munawib' : '' ?>" aria-label="Menu cepat pembimbing">
-
-        <?php if (!$isMunawibPortal): ?>
-        <button type="button" class="pb-dash-menu-card pb-dash-menu-card--santri js-pb-lihat-santri" aria-expanded="false" aria-controls="pb-santri-panel">
-
-            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-address-book"></i></span>
-
-            <span class="pb-dash-menu-card__label pb-dash-menu-card__label--wrap"><?= htmlspecialchars($santriMenuLabel) ?></span>
-
-        </button>
-        <?php endif; ?>
-
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/nilai_manual.php')) ?>" class="pb-dash-menu-card pb-dash-menu-card--nilai">
-
-            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-star"></i></span>
-
-            <span class="pb-dash-menu-card__label">Penilaian</span>
-
-        </a>
-
-        <?php if (!$isMunawibPortal): ?>
-        <a href="<?= htmlspecialchars(app_href('/pembimbing/perizinan.php')) ?>" class="pb-dash-menu-card pb-dash-menu-card--izin">
-
-            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-clock-rotate-left"></i></span>
-
-            <span class="pb-dash-menu-card__label">Perizinan</span>
-
-        </a>
-        <?php endif; ?>
-
-        <a href="<?= htmlspecialchars($keaktivanUrl) ?>" class="pb-dash-menu-card pb-dash-menu-card--keaktifan">
-
-            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
-
-            <span class="pb-dash-menu-card__label">Keaktivan</span>
-
-        </a>
-
-        <a href="<?= htmlspecialchars($setoranEntry['href']) ?>" class="pb-dash-menu-card pb-dash-menu-card--setoran pb-dash-menu-card--setoran-wide d-md-none">
-
-            <span class="pb-dash-menu-card__icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($setoranEntry['icon']) ?>"></i></span>
-
-            <span class="pb-dash-menu-card__label pb-dash-menu-card__label--wrap"><?= htmlspecialchars($setoranEntry['title']) ?></span>
-
-        </a>
-
-    </nav>
 
 </section>
 

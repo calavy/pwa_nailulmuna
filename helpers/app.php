@@ -146,8 +146,14 @@ function app_should_load_pwa_media_cache_js(string $requestPath): bool
         return false;
     }
 
-    return app_should_load_dashboard_css($requestPath)
-        || (bool) preg_match('#^/(presensi|poin|perizinan|santri|wali|pembimbing|pengasuh)/#', $p);
+    if (app_should_load_dashboard_css($requestPath)) {
+        return true;
+    }
+    if (preg_match('#^/presensi/scan#', $p)) {
+        return true;
+    }
+
+    return (bool) preg_match('#^/(poin|perizinan|santri|wali|pengasuh)/#', $p);
 }
 
 /** FCM push bootstrap — hanya halaman yang butuh notifikasi real-time (hemat JS di modul lain). */
@@ -178,8 +184,11 @@ function app_should_load_dashboard_css(string $requestPath): bool
 function app_should_load_sdm_modals(string $requestPath): bool
 {
     $p = strtolower(str_replace('\\', '/', $requestPath));
+    if (preg_match('#^/pembimbing/#', $p)) {
+        return (bool) preg_match('#^/pembimbing/(index\.php|edit\.php|kartu|munawib_kartu|kartu_batch)#', $p);
+    }
 
-    return (bool) preg_match('#^/(santri|pembimbing|data|users|wali/data)/#', $p);
+    return (bool) preg_match('#^/(santri|data|users|wali/data)/#', $p);
 }
 
 /** Offline sync JS — skip halaman pengaturan murni. */
@@ -191,6 +200,26 @@ function app_should_load_offline_sync_js(string $requestPath): bool
     }
 
     return true;
+}
+
+/** Portal pembimbing read-mostly: muat offline-sync saat idle agar navigasi terasa ringan. */
+function app_should_defer_offline_sync_js(string $requestPath): bool
+{
+    if (!app_should_load_offline_sync_js($requestPath)) {
+        return false;
+    }
+    $p = strtolower(str_replace('\\', '/', $requestPath));
+    if (preg_match('#^/presensi/scan#', $p)) {
+        return false;
+    }
+    if (str_contains($p, '/pembimbing/tugas/nilai.php') || str_contains($p, '/pembimbing/nilai_manual')) {
+        return false;
+    }
+    if (str_contains($p, '/perizinan/kembali.php')) {
+        return false;
+    }
+
+    return (bool) preg_match('#^/pembimbing/#', $p);
 }
 
 /** JS shell tambahan — tidak perlu di halaman scan agar kamera cepat siap. */
@@ -213,7 +242,7 @@ function app_should_load_perizinan_submit_once_js(string $requestPath): bool
 /** Hapus cache branding header (mis. setelah ubah logo/nama pondok). */
 function app_header_brand_invalidate(): void
 {
-    unset($_SESSION['app_header_brand_v1']);
+    unset($_SESSION['app_header_brand_v1'], $_SESSION['app_header_brand_logo_v1']);
 }
 
 /**
@@ -233,8 +262,20 @@ function app_header_brand_context(PDO $pdo, string $fallbackTitle = 'A.P.I Nailu
             'alamat' => trim((string) app_setting($pdo, 'alamat_ponpes', '')),
         ];
     }
-    $_SESSION[$sessionKey]['logo'] = app_pondok_logo_src($pdo);
-    $_SESSION[$sessionKey]['logo_href'] = app_pondok_logo_href($pdo, false);
+    $logoCacheKey = 'app_header_brand_logo_v1';
+    $logoCached = $_SESSION[$logoCacheKey] ?? null;
+    if (is_array($logoCached) && (int) ($logoCached['exp'] ?? 0) > time()) {
+        $_SESSION[$sessionKey]['logo'] = (string) ($logoCached['logo'] ?? '');
+        $_SESSION[$sessionKey]['logo_href'] = (string) ($logoCached['logo_href'] ?? '');
+    } else {
+        $_SESSION[$sessionKey]['logo'] = app_pondok_logo_src($pdo);
+        $_SESSION[$sessionKey]['logo_href'] = app_pondok_logo_href($pdo, false);
+        $_SESSION[$logoCacheKey] = [
+            'exp' => time() + 300,
+            'logo' => $_SESSION[$sessionKey]['logo'],
+            'logo_href' => $_SESSION[$sessionKey]['logo_href'],
+        ];
+    }
     $_SESSION[$sessionKey]['title'] = app_brand_title_display((string) ($_SESSION[$sessionKey]['title'] ?? $fallbackTitle));
 
     return $_SESSION[$sessionKey];
@@ -545,7 +586,7 @@ function app_pwa_resolve_pdo(?PDO $pdo = null): ?PDO
 
 function app_pwa_default_icon_src(): string
 {
-    return '/assets/img/stempel-pondok.png';
+    return '/api/pwa/icon.php?size=192';
 }
 
 /** Path relatif ikon PWA (ikon install 192px, logo pondok, atau fallback). */
@@ -4333,6 +4374,7 @@ $GLOBALS['__app_menu_pack_v1'] = $GLOBALS['__app_menu_pack_v1'] ?? null;
 function app_menu_pack_invalidate(): void
 {
     $GLOBALS['__app_menu_pack_v1'] = null;
+    unset($_SESSION['app_menu_pack_pembimbing_v1']);
 }
 
 function app_menu_pack(PDO $pdo): array
@@ -4341,6 +4383,26 @@ function app_menu_pack(PDO $pdo): array
     if (is_array($pack)) {
         return $pack;
     }
+
+    $roleMenu = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+    $isSuperMenu = (int) ($_SESSION['user']['is_super_admin'] ?? 0) === 1;
+    $forceMenuPackRefresh = isset($_GET['refresh_menu']) && (int) ($_GET['refresh_menu'] ?? 0) === 1;
+    $pbMenuSessionKey = 'app_menu_pack_pembimbing_v1';
+
+    if (!$forceMenuPackRefresh && $roleMenu === 'pembimbing' && !$isSuperMenu) {
+        $cachedPb = $_SESSION[$pbMenuSessionKey] ?? null;
+        if (
+            is_array($cachedPb)
+            && (int) ($cachedPb['exp'] ?? 0) > time()
+            && is_array($cachedPb['pack'] ?? null)
+        ) {
+            $pack = $cachedPb['pack'];
+            $GLOBALS['__app_menu_pack_v1'] = $pack;
+
+            return $pack;
+        }
+    }
+
     $raw = require __DIR__ . '/../includes/menu_data.php';
     $menuItems = filter_menu_items_by_acl($pdo, $raw['menuItems'], $raw['permissionPathMap']);
     $pack = [
@@ -4349,6 +4411,13 @@ function app_menu_pack(PDO $pdo): array
         'permissionPathMap' => $raw['permissionPathMap'],
     ];
     $GLOBALS['__app_menu_pack_v1'] = $pack;
+
+    if ($roleMenu === 'pembimbing' && !$isSuperMenu) {
+        $_SESSION[$pbMenuSessionKey] = [
+            'exp' => time() + 300,
+            'pack' => $pack,
+        ];
+    }
 
     return $pack;
 }

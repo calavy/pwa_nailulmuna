@@ -1,6 +1,6 @@
 <?php
 
-if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY'])) {
+if (!empty($GLOBALS['YAYASAN_FRAGMENT_ONLY']) || !empty($GLOBALS['APP_FRAGMENT_ONLY'])) {
     return;
 }
 
@@ -98,13 +98,18 @@ if (isset($_SESSION['user'])) {
     try {
         $skipWaFallback = str_contains($requestPath, '/pengasuh/perizinan.php')
             || str_contains($requestPath, '/pengasuh/izin_aksi.php')
-            || str_contains($requestPath, '/perizinan/index.php');
+            || str_contains($requestPath, '/perizinan/index.php')
+            || preg_match('#^/(keuangan|pembayaran)(/|$)#', $requestPath);
+        $waTickDue = (int) ($_SESSION['wa_web_fallback_tick_at'] ?? 0) <= 0
+            || (time() - (int) $_SESSION['wa_web_fallback_tick_at']) >= 180;
         if (
             !$skipWaFallback
+            && $waTickDue
             && (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip())
         ) {
             require_once __DIR__ . '/../helpers/wa_otomatis.php';
             wa_auto_web_fallback_tick($pdo);
+            $_SESSION['wa_web_fallback_tick_at'] = time();
         }
     } catch (Throwable $e) {
         error_log('[wa_auto_web_fallback_tick] ' . $e->getMessage());
@@ -183,20 +188,71 @@ if (isset($_SESSION['user'])) {
 }
 
 $hideAppSidebar = (bool) ($hideAppSidebar ?? false);
-if (!$hideAppSidebar && strtolower((string) $currentRole) === 'pembimbing' && !is_super_admin()) {
+$isPembimbingPortalPath = (bool) preg_match('#^/pembimbing/#', $requestPath);
+$isPembimbingRoleShell = isset($_SESSION['user'])
+    && strtolower((string) ($currentRole ?? '')) === 'pembimbing'
+    && !is_super_admin();
+if ($isPembimbingPortalPath && $isPembimbingRoleShell) {
     $hideAppSidebar = true;
 }
+if ($isPembimbingPortalPath && !$hideAppSidebar && isset($_SESSION['user'])) {
+    if (!function_exists('munawib_is_portal_session')) {
+        require_once __DIR__ . '/../helpers/munawib_portal.php';
+    }
+    if (munawib_is_portal_session()) {
+        $hideAppSidebar = true;
+    }
+}
 $bodyClassExtra = $hideAppSidebar ? ' app-body-shell--no-sidebar' : '';
+if ($isPembimbingPortalPath) {
+    $bodyClassExtra .= ' app-portal-pembimbing';
+}
+$pbPortalShell = $isPembimbingPortalPath && $hideAppSidebar;
+$pbTopbarIdentity = null;
+$pbDashServerClockMs = null;
+$isPbPortalHome = false;
+if ($pbPortalShell) {
+    $bodyClassExtra .= ' app-portal-pembimbing-shell pb-dash-home-mobile-fit';
+    $pbDashViewShell = strtolower(trim((string) ($_GET['view'] ?? 'home')));
+    $isPbPortalHome = $requestPath === '/pembimbing/dashboard.php' && $pbDashViewShell === 'home';
+    if (!isset($pageStylesheets) || !is_array($pageStylesheets)) {
+        $pageStylesheets = [];
+    }
+    $pbPortalShellCss = app_asset_href('/assets/css/pembimbing-portal-shell.css');
+    if (!in_array($pbPortalShellCss, $pageStylesheets, true)) {
+        $pageStylesheets[] = $pbPortalShellCss;
+    }
+    if (isset($pdo) && $pdo instanceof PDO) {
+        require_once __DIR__ . '/../helpers/pembimbing_portal_banner.php';
+        $pbTopbarIdentity = pembimbing_portal_topbar_identity($pdo);
+    }
+    if (!isset($pbDashServerClockMs) || $pbDashServerClockMs === null) {
+        $pbDashServerClockMs = (int) round(microtime(true) * 1000);
+    }
+}
 
 if (!function_exists('render_app_sidebar_nav')) {
     function render_app_sidebar_nav(array $structure, array $items, string $requestPath, array $options = []): void
     {
         $mode = (string) ($options['mode'] ?? 'hub');
         $isAccordion = $mode === 'accordion';
-        echo '<nav class="app-sidebar-nav' . ($isAccordion ? ' app-sidebar-nav--accordion' : '') . '" aria-label="Menu utama">';
+        $context = (string) ($options['context'] ?? '');
+        $isEmbed = $context === 'dashboard' || !empty($options['embed']);
+        $navClass = 'app-sidebar-nav';
         if ($isAccordion) {
+            $navClass .= ' app-sidebar-nav--accordion';
+        }
+        if ($isEmbed) {
+            $navClass .= ' app-sidebar-nav--embed';
+        }
+        $collapseDefault = !empty($options['collapse_default']);
+        $groupHints = is_array($options['group_hints'] ?? null) ? $options['group_hints'] : [];
+        $itemLabelMap = is_array($options['item_label_map'] ?? null) ? $options['item_label_map'] : [];
+        $embedAria = (string) ($options['embed_aria_label'] ?? 'Pilih menu');
+        echo '<nav class="' . htmlspecialchars($navClass) . '" aria-label="' . ($isEmbed ? htmlspecialchars($embedAria) : 'Menu utama') . '">';
+        if ($isAccordion && !$isEmbed) {
             echo '<div class="app-sidebar-nav-label">Menu modul</div>';
-        } else {
+        } else if (!$isAccordion) {
             echo '<div class="app-sidebar-nav-label app-sidebar-nav-label--toggle" data-app-sidebar-toggle="hide" role="button" tabindex="0" title="Sembunyikan menu" aria-label="Sembunyikan menu samping">';
             echo '<span class="app-sidebar-nav-label__text">Menu modul</span>';
             echo '<span class="app-sidebar-nav-label__arrow" aria-hidden="true"><i class="fa-solid fa-chevron-left"></i></span>';
@@ -241,10 +297,20 @@ if (!function_exists('render_app_sidebar_nav')) {
                     if ($sections === []) {
                         continue;
                     }
-                    echo '<details class="app-side-nav-accordion' . ($groupActive ? ' is-active' : '') . '"' . ($groupActive ? ' open' : '') . '>';
+                    $accordionOpen = $groupActive;
+                    if (!$collapseDefault && ($expandInline || !empty($node['expand']))) {
+                        $accordionOpen = true;
+                    }
+                    echo '<details class="app-side-nav-accordion' . ($groupActive ? ' is-active' : '') . '"' . ($accordionOpen ? ' open' : '') . '>';
                     echo '<summary class="app-side-nav-accordion__summary">';
                     echo '<span class="app-side-nav-ico" aria-hidden="true"><i class="' . htmlspecialchars($icon) . '"></i></span>';
+                    echo '<span class="app-side-nav-summary-text">';
                     echo '<span class="app-side-nav-text">' . htmlspecialchars($label) . '</span>';
+                    $hint = trim((string) ($groupHints[$gid] ?? ''));
+                    if ($hint !== '' && $isEmbed) {
+                        echo '<span class="app-side-nav-group-hint">' . htmlspecialchars($hint) . '</span>';
+                    }
+                    echo '</span>';
                     echo '<span class="app-side-nav-chevron" aria-hidden="true"><i class="fa-solid fa-chevron-down"></i></span>';
                     echo '</summary>';
                     echo '<div class="app-side-nav-accordion__body">';
@@ -260,9 +326,14 @@ if (!function_exists('render_app_sidebar_nav')) {
                                 ? app_menu_acl_normalize_path_base($cp)
                                 : $cp;
                             $active = str_contains($requestPath, $pathBase);
-                            echo '<a class="app-side-nav-item app-side-nav-item--child' . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($cp)) . '">'
+                            $childLabel = (string) ($items[$cp]);
+                            if (isset($itemLabelMap[$cp]) && trim((string) $itemLabelMap[$cp]) !== '') {
+                                $childLabel = (string) $itemLabelMap[$cp];
+                            }
+                            $childClass = 'app-side-nav-item app-side-nav-item--child';
+                            echo '<a class="' . $childClass . ($active ? ' active' : '') . '" href="' . htmlspecialchars(app_href($cp)) . '">'
                                 . '<span class="app-side-nav-ico" aria-hidden="true"><i class="fa-solid fa-angle-right"></i></span>'
-                                . '<span class="app-side-nav-text">' . htmlspecialchars((string) $items[$cp]) . '</span>'
+                                . '<span class="app-side-nav-text">' . htmlspecialchars($childLabel) . '</span>'
                                 . '</a>';
                         }
                     }
@@ -353,6 +424,25 @@ if (!function_exists('render_app_sidebar_nav')) {
         ?>
     <meta name="yp-fragment-api" content="<?= htmlspecialchars(yayasan_fragment_api_href()) ?>">
     <?php endif; ?>
+    <?php
+    if (isset($_SESSION['user'])) {
+        if (!function_exists('keuangan_fragment_path_in_whitelist')) {
+            require_once __DIR__ . '/../helpers/keuangan_fragment.php';
+        }
+        if (keuangan_fragment_path_in_whitelist($requestPath)) {
+            $keuNavJs = app_asset_href('/assets/js/keuangan-nav.js');
+            if (!isset($pageScripts) || !is_array($pageScripts)) {
+                $pageScripts = [];
+            }
+            if (!in_array($keuNavJs, $pageScripts, true)) {
+                array_unshift($pageScripts, $keuNavJs);
+            }
+            ?>
+    <meta name="keu-fragment-api" content="<?= htmlspecialchars(keuangan_fragment_api_href()) ?>">
+    <?php
+        }
+    }
+    ?>
     <?php if (keuangan_should_load_typography_css(isset($bodyClass) ? (string) $bodyClass : null, $requestPath)): ?>
     <link href="<?= htmlspecialchars(app_asset_href('/assets/css/keuangan.css')) ?>" rel="stylesheet">
     <?php endif; ?>
@@ -380,6 +470,9 @@ if (!function_exists('render_app_sidebar_nav')) {
     <meta name="pondok-pwa-avatar" content="<?= htmlspecialchars(user_profil_url((string) $currentUserRow['foto_profil'])) ?>">
     <?php endif; ?>
     <?= pondok_ui_theme_head_html($pdo instanceof PDO ? $pdo : null) ?>
+    <?php if ($pbPortalShell && isset($pbDashServerClockMs)): ?>
+    <script>window.PONDOK_SERVER_CLOCK_MS = <?= (int) $pbDashServerClockMs ?>;</script>
+    <?php endif; ?>
 </head>
 <body<?= isset($bodyClass) && trim((string) $bodyClass) !== '' ? ' class="' . htmlspecialchars(trim((string) $bodyClass)) . ' app-body-shell' . $bodyClassExtra . '"' : ' class="app-body-shell' . $bodyClassExtra . '"' ?>>
 <div class="app-frame" id="app-frame">
@@ -397,6 +490,9 @@ if (!function_exists('render_app_sidebar_nav')) {
     <?php endif; ?>
 
     <div class="app-frame-main">
+        <?php if ($pbPortalShell): ?>
+        <?php require __DIR__ . '/partials/app_topbar_pembimbing.php'; ?>
+        <?php else: ?>
         <header class="app-topbar">
             <div class="app-topbar-inner">
                 <div class="app-topbar-left">
@@ -482,6 +578,7 @@ if (!function_exists('render_app_sidebar_nav')) {
                 </div>
             </div>
         </header>
+        <?php endif; ?>
 
         <?php if (isset($_SESSION['user']) && app_should_load_offline_sync_js($requestPath)): ?>
         <?php require __DIR__ . '/partials/offline_status_bar.php'; ?>

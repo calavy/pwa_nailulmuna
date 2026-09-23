@@ -32,6 +32,7 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
                 <h2 class="h6 mb-2"><i class="fa-solid fa-mosque text-warning me-1"></i> Izin syar'i menunggu pengasuh (PENDING)</h2>
                 <p class="small text-muted mb-3">
                     Portal wali mengajukan <strong>Izin (syar'i)</strong> → WA otomatis ke pengasuh (<code>role kiai</code>, kolom <strong>No. WA</strong> di data pengguna).
+                    Pengajuan <strong>munawib multi-hari</strong> dari portal pembimbing memakai toggle &amp; nomor yang sama (template terpisah).
                     Bukan ke nomor permohonan pengurus di bawah.
                 </p>
                 <?php if (($waIzinPengasuhPendingTargetPreview ?? '') === ''): ?>

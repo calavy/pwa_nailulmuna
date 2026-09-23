@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
 require_once __DIR__ . '/../helpers/perizinan_rombongan.php';
+require_once __DIR__ . '/../helpers/pembimbing_perubahan_jadwal.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 
@@ -22,6 +23,7 @@ foreach ($pendingRows as &$pendingRow) {
 }
 unset($pendingRow);
 $izinAlpaMap = perizinan_alpa_map_for_rows($pdo, $pendingRows);
+$munawibPending = pb_munawib_pengajuan_pending_list($pdo, 50);
 
 $rombonganById = [];
 $individuRows = [];
@@ -123,6 +125,57 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div id="pg-izin-flash" class="alert d-none mb-3" role="status"></div>
+
+<?php if ($munawibPending !== []): ?>
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>Pengganti munawib pembimbing</span>
+        <span class="badge text-bg-warning"><?= count($munawibPending) ?></span>
+    </div>
+    <div class="card-body">
+        <div class="pg-izin-list">
+        <?php foreach ($munawibPending as $mp):
+            $mpNama = (string) ($mp['nama_pembimbing'] ?? 'Pembimbing');
+            $mpRentang = app_format_izin_rentang(
+                (string) ($mp['tanggal_mulai'] ?? ''),
+                (string) ($mp['tanggal_selesai'] ?? ''),
+                '',
+                ''
+            );
+            $mpMeta = $mpRentang . ' · ' . (string) ($mp['nama_kegiatan'] ?? 'Kegiatan')
+                . ' → ' . (string) ($mp['munawib_nama'] ?? 'Munawib');
+            $mpAlasan = trim((string) ($mp['alasan'] ?? ''));
+            $mpMateri = pb_jadwal_materi_ringkas((string) ($mp['materi_pengganti'] ?? ''));
+            ?>
+            <article class="pg-izin-card">
+                <div class="pg-izin-card__body">
+                    <div class="fw-semibold"><?= htmlspecialchars($mpNama) ?></div>
+                    <div class="small text-muted pg-izin-card__meta"><?= htmlspecialchars($mpMeta) ?></div>
+                    <?php if ($mpAlasan !== ''): ?>
+                    <div class="small mt-1"><span class="text-muted">Alasan:</span> <?= htmlspecialchars($mpAlasan) ?></div>
+                    <?php endif; ?>
+                    <?php if ($mpMateri !== ''): ?>
+                    <div class="small text-muted"><?= htmlspecialchars($mpMateri) ?></div>
+                    <?php endif; ?>
+                </div>
+                <div class="pg-izin-card__actions flex-column align-items-stretch gap-1">
+                    <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form">
+                        <input type="hidden" name="action" value="setujui_munawib_pengasuh">
+                        <input type="hidden" name="pengajuan_id" value="<?= (int) ($mp['id'] ?? 0) ?>">
+                        <button type="submit" class="btn btn-success btn-sm w-100">Setujui munawib</button>
+                    </form>
+                    <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-tolak-form" data-confirm="Tolak pengajuan munawib ini?">
+                        <input type="hidden" name="action" value="tolak_munawib_pengasuh">
+                        <input type="hidden" name="pengajuan_id" value="<?= (int) ($mp['id'] ?? 0) ?>">
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100">Tolak</button>
+                    </form>
+                </div>
+            </article>
+        <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="card shadow-sm">
     <div class="card-header fw-semibold d-flex justify-content-between align-items-center">

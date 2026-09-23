@@ -12,6 +12,9 @@ require_once __DIR__ . '/../helpers/keuangan_ta_context.php';
 require_login();
 require_roles(['admin', 'pengurus']);
 
+require_once __DIR__ . '/../helpers/keuangan_dashboard.php';
+keuangan_hub_maybe_preload($pdo);
+
 keuangan_ensure_schema_deferred($pdo);
 
 $biayaDefinitions = keuangan_biaya_definitions();

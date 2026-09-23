@@ -207,6 +207,48 @@ function pwa_brand_render_square_png(
     return is_string($png) && $png !== '' ? $png : null;
 }
 
+/** PNG ikon persegi dengan inisial pondok (fallback bila logo tidak ada). */
+function pwa_brand_render_initials_png(PDO $pdo, int $size, bool $maskable = false): ?string
+{
+    if (!function_exists('imagepng') || !function_exists('imagecreatetruecolor')) {
+        return null;
+    }
+    $size = max(64, min(512, $size));
+    require_once __DIR__ . '/app.php';
+    $initials = app_pondok_logo_initials($pdo);
+    $theme = app_pwa_theme($pdo);
+    $tc = (string) ($theme['theme_color'] ?? '#0f766e');
+    $rgb = kartu_brand_hex_to_rgb($tc) ?? ['r' => 15, 'g' => 118, 'b' => 110];
+
+    $canvas = imagecreatetruecolor($size, $size);
+    if ($canvas === false) {
+        return null;
+    }
+    $bg = imagecolorallocate($canvas, $rgb['r'], $rgb['g'], $rgb['b']);
+    imagefilledrectangle($canvas, 0, 0, $size, $size, $bg);
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+    $font = 5;
+    if ($size >= 256) {
+        $font = 5;
+    }
+    $textW = imagefontwidth($font) * strlen($initials);
+    $textH = imagefontheight($font);
+    $tx = (int) max(0, ($size - $textW) / 2);
+    $ty = (int) max(0, ($size - $textH) / 2);
+    if ($maskable) {
+        $pad = (int) round($size * 0.12);
+        imagefilledrectangle($canvas, $pad, $pad, $size - $pad, $size - $pad, $bg);
+    }
+    imagestring($canvas, $font, $tx, $ty, $initials, $white);
+
+    ob_start();
+    imagepng($canvas, null, 6);
+    $png = ob_get_clean();
+    imagedestroy($canvas);
+
+    return is_string($png) && $png !== '' ? $png : null;
+}
+
 /** Buat ikon PWA dari logo pondok + simpan ke uploads & app_settings. */
 function pwa_brand_sync_from_logo(PDO $pdo): bool
 {

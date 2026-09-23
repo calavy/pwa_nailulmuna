@@ -442,6 +442,7 @@
 
         function apply(count) {
             var offline = !navigator.onLine;
+            var compact = syncFooter && syncFooter.classList.contains('dash-status-compact');
             pillEl.classList.remove('dash-status-pill--ok', 'dash-status-pill--offline', 'dash-status-pill--pending');
             if (syncFooter) {
                 syncFooter.classList.remove('dash-sync-footer--offline', 'dash-sync-footer--pending');
@@ -450,9 +451,13 @@
                 pillEl.classList.add('dash-status-pill--offline');
                 statusEl.textContent = 'Mode Offline';
                 if (syncText) {
-                    syncText.textContent = count > 0
-                        ? 'Antrian tersimpan lokal (' + count + ') · akan terkirim saat online'
-                        : 'Tidak ada koneksi · antrian akan tersimpan lokal';
+                    syncText.textContent = compact
+                        ? (count > 0
+                            ? 'Offline · ' + count + ' antrian menunggu'
+                            : 'Sistem Offline')
+                        : (count > 0
+                            ? 'Antrian tersimpan lokal (' + count + ') · akan terkirim saat online'
+                            : 'Tidak ada koneksi · antrian akan tersimpan lokal');
                 }
                 if (syncFooter) {
                     syncFooter.classList.add('dash-sync-footer--offline');
@@ -464,7 +469,9 @@
                 pillEl.classList.add('dash-status-pill--pending');
                 statusEl.textContent = 'Online · ' + count + ' belum terkirim';
                 if (syncText) {
-                    syncText.textContent = count + ' antrian menunggu sinkronisasi otomatis';
+                    syncText.textContent = compact
+                        ? ('Online · ' + count + ' belum tersinkron')
+                        : (count + ' antrian menunggu sinkronisasi otomatis');
                 }
                 if (syncFooter) {
                     syncFooter.classList.add('dash-sync-footer--pending');
@@ -476,7 +483,9 @@
                 pillEl.classList.add('dash-status-pill--ok');
                 statusEl.textContent = 'Normal Online';
                 if (syncText) {
-                    syncText.textContent = 'Sistem sinkronisasi otomatis aktif · data real-time';
+                    syncText.textContent = compact
+                        ? 'Sistem Online & Sinkron Otomatis'
+                        : 'Sistem sinkronisasi otomatis aktif · data real-time';
                 }
                 if (syncBadge) {
                     syncBadge.innerHTML = '<i class="fa-solid fa-circle" aria-hidden="true"></i> Connected';

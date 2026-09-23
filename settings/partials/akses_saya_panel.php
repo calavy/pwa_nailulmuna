@@ -62,6 +62,52 @@ if (!function_exists('menu_tile_icon_for_path')) {
             <div class="alert alert-light border small py-2 mb-3"><?= htmlspecialchars($note) ?></div>
         <?php endif; ?>
 
+        <?php
+        $aksesPembimbingKonteks = is_array($aksesPembimbingKonteks ?? null) ? $aksesPembimbingKonteks : null;
+        if (
+            $aksesPembimbingKonteks !== null
+            && (
+                ($aksesPembimbingKonteks['pembimbing_nama'] ?? '') !== ''
+                || ($aksesPembimbingKonteks['tingkatan'] ?? []) !== []
+            )
+        ):
+            $pbTk = (array) ($aksesPembimbingKonteks['tingkatan'] ?? []);
+            $pbKg = (array) ($aksesPembimbingKonteks['kegiatan'] ?? []);
+            $pbSet = (array) ($aksesPembimbingKonteks['setoran'] ?? []);
+            ?>
+            <div class="border rounded-3 p-3 mb-3 bg-light bg-opacity-50">
+                <div class="small text-uppercase text-muted fw-semibold mb-2" style="letter-spacing:0.06em;font-size:0.68rem;">Konteks pembimbing</div>
+                <dl class="row small mb-0 gy-1">
+                    <?php if (($aksesPembimbingKonteks['pembimbing_nama'] ?? '') !== ''): ?>
+                        <dt class="col-sm-3 text-muted">Nama</dt>
+                        <dd class="col-sm-9 mb-1"><?= htmlspecialchars((string) $aksesPembimbingKonteks['pembimbing_nama']) ?></dd>
+                    <?php endif; ?>
+                    <?php if (($aksesPembimbingKonteks['nip'] ?? '') !== ''): ?>
+                        <dt class="col-sm-3 text-muted">NIP</dt>
+                        <dd class="col-sm-9 mb-1"><?= htmlspecialchars((string) $aksesPembimbingKonteks['nip']) ?></dd>
+                    <?php endif; ?>
+                    <dt class="col-sm-3 text-muted">Tingkatan</dt>
+                    <dd class="col-sm-9 mb-1"><?= $pbTk !== [] ? htmlspecialchars(implode(', ', $pbTk)) : '—' ?></dd>
+                    <dt class="col-sm-3 text-muted">Kegiatan</dt>
+                    <dd class="col-sm-9 mb-1">
+                        <?php if ($pbKg === []): ?>
+                            —
+                        <?php else: ?>
+                            <?= htmlspecialchars(implode(', ', array_map(static fn (array $k): string => (string) ($k['nama_kegiatan'] ?? ''), $pbKg))) ?>
+                        <?php endif; ?>
+                    </dd>
+                    <dt class="col-sm-3 text-muted">Setoran</dt>
+                    <dd class="col-sm-9 mb-0">
+                        <?= !empty($pbSet['aktif']) ? '<span class="text-success">Aktif (penerima setoran)</span>' : '<span class="text-muted">Tidak ditugaskan penerima setoran</span>' ?>
+                    </dd>
+                    <?php if (!empty($aksesPembimbingKonteks['munawib'])): ?>
+                        <dt class="col-sm-3 text-muted">Munawib</dt>
+                        <dd class="col-sm-9 mb-0">Sesi pengganti aktif</dd>
+                    <?php endif; ?>
+                </dl>
+            </div>
+        <?php endif; ?>
+
         <?php if ($aksesPanelCompact): ?>
             <?php if ($groups !== []): ?>
                 <p class="small text-muted mb-2">Contoh fitur yang diizinkan:</p>

@@ -29,12 +29,13 @@ $role = strtolower((string) ($_SESSION['user']['role'] ?? ''));
 $bolehSemua = is_super_admin() || in_array($role, ['admin', 'pengurus'], true);
 
 $pbDashViewEarly = strtolower(trim((string) ($_GET['view'] ?? 'home')));
-if (!in_array($pbDashViewEarly, ['home', 'keaktivan'], true)) {
+if (!in_array($pbDashViewEarly, ['home', 'keaktivan', 'kajian', 'santri', 'penilaian', 'kehadiran_saya'], true)) {
     $pbDashViewEarly = 'home';
 }
 $isPbHomeRingkasEarly = !$bolehSemua && $pbDashViewEarly === 'home';
 $isPbKeaktivanOnly = !$bolehSemua && $pbDashViewEarly === 'keaktivan';
-if (!$isPbHomeRingkasEarly && !$isPbKeaktivanOnly) {
+$isPbSubpageLightEarly = !$bolehSemua && in_array($pbDashViewEarly, ['home', 'kajian', 'santri', 'penilaian', 'kehadiran_saya'], true);
+if (!$isPbSubpageLightEarly && !$isPbKeaktivanOnly) {
     ensure_akademik_ikhtibar_tables($pdo);
 }
 
@@ -93,7 +94,7 @@ if (!in_array($keaktifanView, ['kegiatan', 'santri'], true)) {
     $keaktifanView = 'kegiatan';
 }
 $pbDashView = strtolower(trim((string) ($_GET['view'] ?? 'home')));
-if (!in_array($pbDashView, ['home', 'keaktivan'], true)) {
+if (!in_array($pbDashView, ['home', 'keaktivan', 'kajian', 'santri', 'penilaian', 'kehadiran_saya'], true)) {
     $pbDashView = 'home';
 }
 if ($pbDashView === 'keaktivan' && !array_key_exists('keaktifan_view', $_GET)) {
@@ -102,6 +103,23 @@ if ($pbDashView === 'keaktivan' && !array_key_exists('keaktifan_view', $_GET)) {
 if ($isMunawibPortal && $pbDashView !== 'home' && $pbDashView !== 'keaktivan') {
     $pbDashView = 'home';
 }
+if (isset($_GET['santri']) && (string) $_GET['santri'] === '1' && !$bolehSemua) {
+    $redirectQ = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($keaktifanView) . '&view=santri';
+    if ($hasKajianJadwal || $hasPkppsJadwal) {
+        $redirectQ .= '&rekap_jenis=' . rawurlencode($rekapJenis);
+    }
+    if ($tingkatanFilter !== '') {
+        $redirectQ .= '&tingkatan=' . rawurlencode($tingkatanFilter);
+    }
+    app_redirect('pembimbing/dashboard.php?' . $redirectQ);
+}
+$isPbHomeRingkas = !$bolehSemua && $pbDashView === 'home';
+$isPbKajianOnly = !$bolehSemua && $pbDashView === 'kajian';
+$isPbSantriOnly = !$bolehSemua && $pbDashView === 'santri';
+$isPbPenilaianOnly = !$bolehSemua && $pbDashView === 'penilaian';
+$isPbKehadiranSayaOnly = !$bolehSemua && $pbDashView === 'kehadiran_saya';
+$isPbSubpageLight = !$bolehSemua && in_array($pbDashView, ['home', 'kajian', 'santri', 'penilaian', 'kehadiran_saya'], true);
+$isPbKeaktivanOnly = !$bolehSemua && $pbDashView === 'keaktivan';
 /** Scope tampilan detail (filter manual atau semua tingkatan asuhan). */
 $tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
 
@@ -114,7 +132,6 @@ $today = date('Y-m-d');
 $nowTime = date('H:i:s');
 $hariKe = (int) date('N');
 
-$isPbHomeRingkas = $isPbHomeRingkasEarly;
 $pbDashHijriLabel = '';
 $pbDashHijriClock = '';
 $pbDashPasaran = '';
@@ -157,6 +174,7 @@ $kegiatanAktifPresensi = [];
 $pbDashTickerItems = [];
 $santriMapPerTingkatan = [];
 $pbSantriMapApiUrl = '';
+$pbHomeBundle = [];
 
 if ($isPbKeaktivanOnly) {
     $tingkatanAktif = $tingkatanFilter !== '' ? [$tingkatanFilter] : $tingkatanAsuhan;
@@ -189,7 +207,7 @@ if ($isPbKeaktivanOnly) {
         $rekapKegiatanTotal['alpa'] += (int) ($rk['alpa'] ?? 0);
         $rekapKegiatanTotal['total'] += (int) ($rk['total'] ?? 0);
     }
-} elseif (!$isPbHomeRingkas) {
+} elseif (!$isPbSubpageLight) {
     presensi_finalize_date_range($pdo, $today, $today, $pbAuditUserId > 0 ? $pbAuditUserId : 1);
 
     $statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
@@ -261,29 +279,36 @@ if ($isPbKeaktivanOnly) {
         400,
         !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
     );
-} else {
+} elseif ($isPbSubpageLight) {
     $statSantri = pembimbing_dashboard_jumlah_santri($pdo, $tingkatanAsuhan);
     $santriPerTingkatanMap = pembimbing_dashboard_jumlah_santri_map($pdo, $tingkatanAsuhan);
-    $kegiatanAktif = pembimbing_dashboard_kegiatan_aktif(
-        $pdo,
-        $tingkatanAsuhan,
-        $hariKe,
-        $nowTime,
-        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
-    );
-    $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
-    $kegiatanMendekati = pembimbing_dashboard_kegiatan_mendekati(
-        $pdo,
-        $tingkatanAsuhan,
-        $hariKe,
-        $nowTime,
-        5,
-        !$bolehSemua && $pembimbingId > 0 ? $pembimbingId : null
-    );
-    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today);
-    $pbDashTickerItems = pembimbing_dashboard_ticker_kegiatan($kegiatanAktifGrouped, $kegiatanMendekati, $nowTime, $kegiatanAktifPresensi);
     $pbSudahHadir = $pembimbingId > 0 && pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today);
     $pbSantriMapApiUrl = app_href('/api/pembimbing/santri_map.php');
+    if ($isPbSantriOnly || $isPbPenilaianOnly) {
+        $santriMapPerTingkatan = pembimbing_dashboard_santri_list_map(
+            $pdo,
+            $tingkatanAsuhan,
+            400,
+            $pembimbingId > 0 ? $pembimbingId : null
+        );
+        $pbSantriMapApiUrl = '';
+    } else {
+        $santriMapPerTingkatan = [];
+    }
+    $pbHomeBundle = pembimbing_dashboard_home_bundle(
+        $pdo,
+        $userId,
+        $pembimbingId,
+        $tingkatanAsuhan,
+        $today,
+        $nowTime,
+        $hariKe,
+        $pbSudahHadir
+    );
+    $kegiatanAktif = (array) ($pbHomeBundle['kegiatan_aktif'] ?? []);
+    $kegiatanAktifGrouped = (array) ($pbHomeBundle['kegiatan_aktif_grouped'] ?? []);
+    $kegiatanAktifPresensi = (array) ($pbHomeBundle['kegiatan_aktif_presensi'] ?? []);
+    $pbDashTickerItems = [];
 }
 
 // Kelompokkan baris keaktifan per tingkatan untuk tabel berkelompok di bawah.
@@ -338,9 +363,20 @@ $tingkatanBarisHome = array_map(
     $tingkatanAsuhan
 );
 $pageTitle = 'Dashboard Pembimbing';
-$bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih pb-dash-has-setoran-bottom pb-dash-home-mobile-fit' : '');
-$loadPushFcm = !$isPbHomeRingkas && !$isPbKeaktivanOnly;
-$pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css')];
+if (!$bolehSemua) {
+    if ($pbDashView === 'kajian') {
+        $pageTitle = 'Kajian saya';
+    } elseif ($pbDashView === 'santri') {
+        $pageTitle = 'Daftar santri';
+    } elseif ($pbDashView === 'penilaian') {
+        $pageTitle = 'Penilaian';
+    } elseif ($pbDashView === 'kehadiran_saya') {
+        $pageTitle = 'Kehadiran saya';
+    }
+}
+$bodyClass = 'dash-page' . (!$bolehSemua && $pbDashView === 'home' ? ' pb-dash-bg-putih pb-dash-home-mobile-fit pb-dash-home-simple' : '');
+$loadPushFcm = !$isPbSubpageLight && !$isPbKeaktivanOnly;
+$pageStylesheets = [app_asset_href('/assets/css/pembimbing-dashboard.css'), app_asset_href('/assets/css/pb-dash-home-simple.css')];
 require_once __DIR__ . '/../includes/header.php';
 $baseDashQuery = 'tahun=' . (int) $tahun . '&keaktifan_view=' . rawurlencode($keaktifanView);
 if (!$bolehSemua && ($hasKajianJadwal || $hasPkppsJadwal)) {
@@ -359,26 +395,75 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         <?php require __DIR__ . '/partials/keaktivan_page.php'; ?>
     <?php elseif (!$bolehSemua && $pbDashView === 'home'): ?>
         <?php
-        require_once __DIR__ . '/../helpers/pembimbing_portal_banner.php';
-        $pbBannerVariant = pembimbing_portal_banner_resolve_variant(
-            (bool) ($isMunawibPortal ?? false),
-            $hasPkppsJadwal,
-            $hasKajianJadwal,
-            $rekapJenis
-        );
-        $pbBannerCfg = pembimbing_portal_banner_get($pdo, $pbBannerVariant);
-        if (($pbBannerCfg['enabled'] ?? '1') !== '1') {
-            $pbBannerCfg = pembimbing_portal_banner_defaults('default');
-            $pbBannerVariant = 'default';
-        }
-        $pbDashShowSetoranBottom = true;
-        $jumlahTingkatan = $jumlahTingkatanHome;
+        require_once __DIR__ . '/../helpers/pembimbing_dashboard_home_ux.php';
+        $pbJadwalSlots = $pembimbingId > 0 ? pembimbing_dashboard_jadwal_slots($pdo, $pembimbingId) : [];
+        $pbHariLabels = [0 => 'Setiap hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+        $pbDashShowSetoranBottom = false;
+        $jumlahTingkatanPick = count($tingkatanBarisHome);
         $tingkatanBaris = $tingkatanBarisHome;
-        $pbDashHasPkpps = $hasPkppsJadwal;
         $isMunawibPortal = $isMunawibPortal ?? false;
         $munawibPortalKonteks = $munawibPortalKonteks ?? null;
-        $kegiatanAktifPresensi = $kegiatanAktifPresensi ?? [];
-        require __DIR__ . '/partials/dashboard_home_top.php';
+        require_once __DIR__ . '/../helpers/login_pembimbing.php';
+        require_once __DIR__ . '/../helpers/akademik_setoran.php';
+        require_once __DIR__ . '/../helpers/pembimbing_menu_cache.php';
+        ensure_akademik_setoran_penerima_schema($pdo);
+        $forceMenuRefresh = isset($_GET['refresh_menu']) && (int) ($_GET['refresh_menu'] ?? 0) === 1;
+        pembimbing_menu_cache_resolve($pdo, $userId, $forceMenuRefresh);
+        $setoranEntry = login_pembimbing_setoran_entry_meta($pdo);
+        $showSetoranTile = !$isMunawibPortal;
+        if ($showSetoranTile && empty($setoranEntry['portal_ok'])) {
+            $portalStSetoran = akademik_setoran_portal_access_status($pdo);
+            $denialMsg = akademik_setoran_portal_denial_message($portalStSetoran);
+            if ($denialMsg !== '') {
+                $setoranEntry['desc'] = $denialMsg;
+            }
+        }
+        $santriIzinHariIni = [];
+        $jumlahIzinHariIni = 0;
+        if (!$isMunawibPortal) {
+            $santriIzinHariIni = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAsuhan, $today, 8);
+            $jumlahIzinHariIni = pembimbing_dashboard_jumlah_izin_hari_ini($pdo, $tingkatanAsuhan, $today);
+        }
+        ?>
+        <div class="pb-dash-home-layout pb-dash-home-layout--simple">
+            <?php require __DIR__ . '/partials/dashboard_home_simple_munawib.php'; ?>
+            <?php require __DIR__ . '/partials/dashboard_home_simple_main.php'; ?>
+            <?php require __DIR__ . '/partials/dashboard_home_simple_footer.php'; ?>
+        </div>
+    <?php elseif (!$bolehSemua && $pbDashView === 'kajian'): ?>
+        <?php
+        $pbJadwalSlots = $pembimbingId > 0 ? pembimbing_dashboard_jadwal_slots($pdo, $pembimbingId) : [];
+        $pbHariLabels = [0 => 'Setiap hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+        require __DIR__ . '/partials/dashboard_kajian_page.php';
+        ?>
+    <?php elseif (!$bolehSemua && $pbDashView === 'santri'): ?>
+        <?php require __DIR__ . '/partials/dashboard_santri_page.php'; ?>
+    <?php elseif (!$bolehSemua && $pbDashView === 'penilaian'): ?>
+        <?php
+        require_once __DIR__ . '/../helpers/pembimbing_dashboard_home_ux.php';
+        require_once __DIR__ . '/../helpers/pembimbing_menu_cache.php';
+        pembimbing_menu_cache_resolve($pdo, $userId, false);
+        $pbPenilaianTemplates = pembimbing_dashboard_home_penilaian_action_templates($menuItems, $tahun, $rekapJenis);
+        require __DIR__ . '/partials/dashboard_penilaian_page.php';
+        ?>
+    <?php elseif (!$bolehSemua && $pbDashView === 'kehadiran_saya'): ?>
+        <?php
+        require_once __DIR__ . '/../helpers/rekap_periode.php';
+        require_once __DIR__ . '/../helpers/rekap_pembimbing_kehadiran.php';
+        $pbKehadiranPeriodeGet = $_GET;
+        $pbKehadiranPeriodeGet['view'] = 'kehadiran_saya';
+        $pbKehadiranPeriode = rekap_resolve_periode($pdo, $pbKehadiranPeriodeGet);
+        $pbKehadiranRows = $pembimbingId > 0
+            ? rekap_pembimbing_kehadiran_rows(
+                $pdo,
+                (string) $pbKehadiranPeriode['start_date'],
+                (string) $pbKehadiranPeriode['end_date'],
+                $pembimbingId,
+                0
+            )
+            : [];
+        $pbKehadiranPerKegiatan = pembimbing_dashboard_kehadiran_per_kegiatan_summary($pbKehadiranRows);
+        require __DIR__ . '/partials/dashboard_kehadiran_saya_page.php';
         ?>
     <?php else: ?>
     <div class="dash-hero-split pb-dash-admin-hero mb-4">
@@ -410,7 +495,10 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         </section>
     </div>
     <?php endif; ?>
-    <?php require __DIR__ . '/../includes/partials/dash_offline_status.php'; ?>
+    <?php
+    $dashOfflineCompact = !$bolehSemua && $pbDashView === 'home';
+    require __DIR__ . '/../includes/partials/dash_offline_status.php';
+    ?>
 
     <?php if ($bolehSemua): ?>
     <!-- Filter ringkas (tingkatan + tahun) -->
@@ -979,7 +1067,9 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     <?php require __DIR__ . '/partials/dashboard_setoran_scan_bottom.php'; ?>
 <?php endif; ?>
 
+<?php if (empty($pbPortalShell)): ?>
 <script>window.PONDOK_SERVER_CLOCK_MS = <?= (int) $pbDashServerClockMs ?>;</script>
+<?php endif; ?>
 <script>
 (function () {
     var mapEl = document.getElementById('pb-santri-map-json');
@@ -988,8 +1078,9 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     var santriTitle = document.getElementById('pb-santri-panel-title');
     var tkPick = document.getElementById('pb-tk-pick');
     var closeBtn = document.getElementById('pb-santri-panel-close');
-    var lihatBtn = document.querySelector('.js-pb-lihat-santri');
-    if (!mapEl || !santriPanel || !santriList || !lihatBtn) return;
+    var lihatBtns = document.querySelectorAll('.js-pb-lihat-santri, .js-pb-open-santri-panel');
+    if (!mapEl || !santriPanel || !santriList) return;
+    var activeLihatBtn = null;
 
     var santriMap = {};
     try { santriMap = JSON.parse(mapEl.textContent || '{}'); } catch (e) { santriMap = {}; }
@@ -1057,8 +1148,10 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         renderList(tk);
         santriPanel.classList.remove('d-none');
         santriPanel.hidden = false;
-        lihatBtn.setAttribute('aria-expanded', 'true');
-        lihatBtn.classList.add('is-active');
+        if (activeLihatBtn) {
+            activeLihatBtn.setAttribute('aria-expanded', 'true');
+            activeLihatBtn.classList.add('is-active');
+        }
         document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (b) {
             b.classList.toggle('is-active', b.getAttribute('data-tingkatan') === tk);
         });
@@ -1067,8 +1160,11 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     function closePanel() {
         santriPanel.classList.add('d-none');
         santriPanel.hidden = true;
-        lihatBtn.setAttribute('aria-expanded', 'false');
-        lihatBtn.classList.remove('is-active');
+        lihatBtns.forEach(function (btn) {
+            btn.setAttribute('aria-expanded', 'false');
+            btn.classList.remove('is-active');
+        });
+        activeLihatBtn = null;
         if (tkPick) {
             tkPick.classList.add('d-none');
             tkPick.hidden = true;
@@ -1076,7 +1172,12 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
         document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (b) { b.classList.remove('is-active'); });
     }
 
-    lihatBtn.addEventListener('click', function () {
+    function onLihatSantriClick(ev) {
+        var btn = ev.currentTarget;
+        if (btn.tagName === 'A' && btn.getAttribute('href') && btn.getAttribute('href').indexOf('santri=1') !== -1) {
+            ev.preventDefault();
+        }
+        activeLihatBtn = btn;
         if (!santriPanel.classList.contains('d-none') && !santriPanel.hidden) {
             closePanel();
             return;
@@ -1086,12 +1187,12 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
             santriList.innerHTML = '<li class="pb-dash-santri-panel__empty">Memuat…</li>';
             santriPanel.classList.remove('d-none');
             santriPanel.hidden = false;
-            lihatBtn.setAttribute('aria-expanded', 'true');
-            lihatBtn.classList.add('is-active');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-active');
             ensureMapLoaded().then(function () {
                 multiTk = refreshMultiTk();
                 closePanel();
-                lihatBtn.click();
+                btn.click();
             });
             return;
         }
@@ -1101,8 +1202,8 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
             santriList.innerHTML = '<li class="pb-dash-santri-panel__empty">Belum ada santri dibimbing.</li>';
             santriPanel.classList.remove('d-none');
             santriPanel.hidden = false;
-            lihatBtn.setAttribute('aria-expanded', 'true');
-            lihatBtn.classList.add('is-active');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-active');
             return;
         }
         if (keys.length === 1) {
@@ -1115,9 +1216,13 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
             santriPanel.classList.add('d-none');
             santriPanel.hidden = true;
             santriTitle.textContent = 'Pilih tingkatan di bawah';
-            lihatBtn.setAttribute('aria-expanded', 'true');
-            lihatBtn.classList.add('is-active');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-active');
         }
+    }
+
+    lihatBtns.forEach(function (btn) {
+        btn.addEventListener('click', onLihatSantriClick);
     });
 
     document.querySelectorAll('.js-pb-pick-tingkatan').forEach(function (btnTk) {
@@ -1127,6 +1232,22 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
     });
 
     if (closeBtn) closeBtn.addEventListener('click', closePanel);
+})();
+
+(function () {
+    var toggleBtn = document.querySelector('.js-pb-toggle-all-menu');
+    var menuPanel = document.getElementById('pb-dash-all-menu-panel');
+    if (!toggleBtn || !menuPanel) return;
+
+    toggleBtn.addEventListener('click', function () {
+        var open = menuPanel.hidden;
+        menuPanel.hidden = !open;
+        toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggleBtn.classList.toggle('is-open', open);
+        if (open) {
+            menuPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    });
 })();
 </script>
 

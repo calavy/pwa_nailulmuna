@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
+require_once __DIR__ . '/../helpers/pembimbing_perubahan_jadwal.php';
 
 require_roles(['admin', 'pengurus', 'kiai']);
 
@@ -33,6 +34,10 @@ if ($action === 'setujui_pengasuh') {
     $res = perizinan_pengasuh_setujui_rombongan($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, $bypassAlpa);
 } elseif ($action === 'tolak_rombongan_pengasuh') {
     $res = perizinan_rombongan_tolak($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, 'pengasuh');
+} elseif ($action === 'setujui_munawib_pengasuh') {
+    $res = pb_munawib_pengajuan_setujui($pdo, (int) ($_POST['pengajuan_id'] ?? 0), $userId);
+} elseif ($action === 'tolak_munawib_pengasuh') {
+    $res = pb_munawib_pengajuan_tolak($pdo, (int) ($_POST['pengajuan_id'] ?? 0), $userId, trim((string) ($_POST['catatan'] ?? '')));
 }
 
 $ok = !empty($res['ok']);

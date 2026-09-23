@@ -1,0 +1,137 @@
+/* Perizinan pembimbing — UI portal (HP-first) */
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-width: 28rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-height: 3.25rem;
+    padding: 0.85rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(15, 118, 110, 0.15);
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    text-decoration: none;
+    color: inherit;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card:active {
+    transform: scale(0.99);
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 12px;
+    background: rgba(15, 118, 110, 0.12);
+    color: #0f766e;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card--pindah .pb-perizinan-choice-card__icon {
+    background: rgba(22, 163, 74, 0.12);
+    color: #16a34a;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card__title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card__desc {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-choice-card__go {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-munawib {
+    max-width: 28rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-munawib__head {
+    margin-bottom: 0.85rem;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-section {
+    margin-bottom: 0.85rem;
+    padding: 0.85rem 0.95rem;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 118, 110, 0.12);
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-materi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-materi-card {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+body.app-portal-pembimbing-shell .pb-perizinan-munawib__submit {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin-top: 0.5rem;
+    padding: 0.65rem 0 calc(0.65rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.92) 35%, #f8fafc 100%);
+}
+
+body.app-portal-pembimbing-shell .card.shadow-sm.mb-3 {
+    max-width: 28rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media (min-width: 768px) {
+    body.app-portal-pembimbing-shell .pb-perizinan-munawib {
+        max-width: 36rem;
+    }
+
+    body.app-portal-pembimbing-shell .pb-perizinan-choice-list {
+        max-width: 36rem;
+        flex-direction: row;
+    }
+
+    body.app-portal-pembimbing-shell .pb-perizinan-choice-card {
+        flex: 1 1 0;
+    }
+}

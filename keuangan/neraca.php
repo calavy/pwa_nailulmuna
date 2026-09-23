@@ -46,7 +46,7 @@ if ($view === 'saku') {
     $statusSaku = keuangan_build_status_titipan_saku($pdo, $asOfInput);
 } else {
     $nerScope = $view === 'full' ? 'full' : 'pondok';
-    $neraca = keuangan_build_neraca($pdo, $asOfInput, $nerScope);
+    $neraca = keuangan_build_neraca_cached($pdo, $asOfInput, 600, $nerScope);
 }
 $fmt = static fn(int $n): string => keuangan_format_rupiah($n);
 $ring = $neraca !== null ? ($neraca['ringkasan'] ?? []) : [];

@@ -32,9 +32,15 @@ $source = $logoPath !== ''
     ? dirname(__DIR__, 2) . '/' . ltrim(str_replace(['\\', '..'], ['/', ''], $logoPath), '/')
     : dirname(__DIR__, 2) . '/assets/img/stempel-pondok.png';
 
-$png = pwa_brand_render_square_png($source, $size, $bg, $scale, $maskable);
+$png = null;
+if (is_file($source)) {
+    $png = pwa_brand_render_square_png($source, $size, $bg, $scale, $maskable);
+}
 if ($png === null) {
-    http_response_code(404);
+    $png = pwa_brand_render_initials_png($pdo, $size, $maskable);
+}
+if ($png === null) {
+    http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');
     echo 'Ikon tidak tersedia';
     exit;

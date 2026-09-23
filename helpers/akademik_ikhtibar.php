@@ -91,14 +91,11 @@ function ensure_akademik_ikhtibar_tables(PDO $pdo): void
 {
     static $done = false;
 
-    unset($_SESSION['ikhtibar_schema_ready_v1']);
-
-    if (!empty($_SESSION['ikhtibar_schema_ready_v2']) && ikhtibar_schema_columns_ready($pdo)) {
+    if (!empty($_SESSION['ikhtibar_schema_ready_v2'])) {
         ikhtibar_apply_pending_schema_columns($pdo);
 
         return;
     }
-    unset($_SESSION['ikhtibar_schema_ready_v2']);
 
     if ($done) {
         ikhtibar_apply_pending_schema_columns($pdo);

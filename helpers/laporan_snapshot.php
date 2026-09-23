@@ -227,6 +227,106 @@ function laporan_snapshot_sa_status(PDO $pdo): array
     return $status;
 }
 
+/**
+ * Uji OAuth + akses spreadsheet (tanpa menulis data laporan).
+ *
+ * @return array{
+ *     ok:bool,
+ *     steps:array<string, array{ok:bool, message:string}>,
+ *     client_email:string,
+ *     spreadsheet_id:string,
+ *     error?:string
+ * }
+ */
+function laporan_snapshot_test_google_access(PDO $pdo): array
+{
+    $saStatus = laporan_snapshot_sa_status($pdo);
+    $clientEmail = (string) ($saStatus['client_email'] ?? '');
+    $steps = [];
+
+    if (!$saStatus['valid_json']) {
+        $err = (string) ($saStatus['error'] ?? 'Kredensial tidak valid');
+        $steps['kredensial'] = ['ok' => false, 'message' => $err];
+
+        return [
+            'ok' => false,
+            'steps' => $steps,
+            'client_email' => $clientEmail,
+            'spreadsheet_id' => '',
+            'error' => $err,
+        ];
+    }
+
+    $steps['kredensial'] = ['ok' => true, 'message' => 'File JSON Service Account valid'];
+
+    try {
+        $credentials = google_sa_load_credentials(laporan_snapshot_sa_json_path($pdo));
+        $token = google_sa_access_token($credentials);
+        $steps['oauth'] = ['ok' => true, 'message' => 'Token OAuth berhasil'];
+    } catch (Throwable $e) {
+        $steps['oauth'] = ['ok' => false, 'message' => $e->getMessage()];
+
+        return [
+            'ok' => false,
+            'steps' => $steps,
+            'client_email' => $clientEmail,
+            'spreadsheet_id' => '',
+            'error' => $e->getMessage(),
+        ];
+    }
+
+    $spreadsheetId = trim((string) app_setting($pdo, 'laporan_snapshot_spreadsheet_id', ''));
+    if ($spreadsheetId === '') {
+        $steps['spreadsheet'] = [
+            'ok' => true,
+            'message' => 'Spreadsheet ID kosong — kirim snapshot pertama kali akan membuat sheet baru (Sheets + Drive API harus aktif).',
+        ];
+
+        return [
+            'ok' => true,
+            'steps' => $steps,
+            'client_email' => $clientEmail,
+            'spreadsheet_id' => '',
+        ];
+    }
+
+    try {
+        google_api_request(
+            'GET',
+            'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($spreadsheetId) . '?fields=spreadsheetId,properties.title',
+            $token
+        );
+        $steps['spreadsheet'] = ['ok' => true, 'message' => 'Akses spreadsheet OK (ID: ' . $spreadsheetId . ')'];
+    } catch (Throwable $e) {
+        $steps['spreadsheet'] = ['ok' => false, 'message' => $e->getMessage()];
+
+        return [
+            'ok' => false,
+            'steps' => $steps,
+            'client_email' => $clientEmail,
+            'spreadsheet_id' => $spreadsheetId,
+            'error' => $e->getMessage(),
+        ];
+    }
+
+    $emailsCsv = trim((string) app_setting($pdo, 'laporan_snapshot_share_emails', ''));
+    if ($emailsCsv !== '') {
+        $steps['share_penerima'] = [
+            'ok' => true,
+            'message' => 'Email penerima terisi — invite Viewer diuji saat Kirim snapshot (bukan di tes ini). Jika gagal permission, kosongkan email penerima lalu share manual.',
+        ];
+    } else {
+        $steps['share_penerima'] = ['ok' => true, 'message' => 'Email penerima kosong — langkah invite dilewati'];
+    }
+
+    return [
+        'ok' => true,
+        'steps' => $steps,
+        'client_email' => $clientEmail,
+        'spreadsheet_id' => $spreadsheetId,
+    ];
+}
+
 function laporan_snapshot_as_of_date(): string
 {
     return date('Y-m-d', strtotime('-1 day') ?: time());
@@ -724,7 +824,7 @@ function laporan_snapshot_collect_all(PDO $pdo, string $asOf): array
 }
 
 /**
- * @return array{ok:bool, mode:string, spreadsheet_id?:string, tabs?:array<string, mixed>, error?:string, shared?:list<string>}
+ * @return array{ok:bool, mode:string, spreadsheet_id?:string, tabs?:array<string, mixed>, error?:string, shared?:list<string>, share_warning?:string}
  */
 function laporan_snapshot_push_to_google(PDO $pdo, array $collected, bool $forceShare = false): array
 {
@@ -767,10 +867,15 @@ function laporan_snapshot_push_to_google(PDO $pdo, array $collected, bool $force
     }
 
     $shared = [];
+    $shareWarning = '';
     $emailsCsv = trim((string) app_setting($pdo, 'laporan_snapshot_share_emails', ''));
     if ($emailsCsv !== '' && ($forceShare || app_setting($pdo, 'laporan_snapshot_last_share_date', '') !== date('Y-m-d'))) {
-        $shared = google_drive_share_emails($token, $spreadsheetId, $emailsCsv, 'reader');
-        save_setting($pdo, 'laporan_snapshot_last_share_date', date('Y-m-d'));
+        try {
+            $shared = google_drive_share_emails($token, $spreadsheetId, $emailsCsv, 'reader');
+            save_setting($pdo, 'laporan_snapshot_last_share_date', date('Y-m-d'));
+        } catch (Throwable $e) {
+            $shareWarning = $e->getMessage();
+        }
     }
 
     $hasError = false;
@@ -787,6 +892,7 @@ function laporan_snapshot_push_to_google(PDO $pdo, array $collected, bool $force
         'spreadsheet_id' => $spreadsheetId,
         'tabs' => $tabResults,
         'shared' => $shared,
+        'share_warning' => $shareWarning,
         'error' => $hasError ? 'Satu atau lebih tab gagal' : '',
     ];
 }
@@ -826,11 +932,13 @@ function laporan_snapshot_run(PDO $pdo, bool $force = false): array
         $asOf = laporan_snapshot_as_of_date();
         $collected = laporan_snapshot_collect_all($pdo, $asOf);
         $push = laporan_snapshot_push_to_google($pdo, $collected, $force);
+        $shareWarning = trim((string) ($push['share_warning'] ?? ''));
         save_setting($pdo, 'laporan_snapshot_last_result', json_encode([
             'as_of' => $asOf,
             'spreadsheet_id' => $push['spreadsheet_id'] ?? '',
             'tabs' => $push['tabs'] ?? [],
             'shared' => $push['shared'] ?? [],
+            'share_warning' => $shareWarning,
             'ok' => (bool) ($push['ok'] ?? false),
             'error' => (string) ($push['error'] ?? ''),
         ], JSON_UNESCAPED_UNICODE));
@@ -838,7 +946,7 @@ function laporan_snapshot_run(PDO $pdo, bool $force = false): array
         if (!($push['ok'] ?? false)) {
             save_setting($pdo, 'laporan_snapshot_last_error', (string) ($push['error'] ?? 'push gagal'));
         } else {
-            save_setting($pdo, 'laporan_snapshot_last_error', '');
+            save_setting($pdo, 'laporan_snapshot_last_error', $shareWarning);
             save_setting($pdo, 'laporan_snapshot_last_date', $today);
         }
 

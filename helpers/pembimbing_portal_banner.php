@@ -155,3 +155,127 @@ function pembimbing_portal_banner_css_vars(array $cfg): string
     return '--pb-banner-from:' . $from . ';--pb-banner-via:' . $via . ';--pb-banner-to:' . $to
         . ';--pb-banner-accent:' . $accent . ';--pb-banner-glow:' . $glow . ';';
 }
+
+/**
+ * String jam & tanggal awal untuk banner (selaras app-datetime-24h.js, hindari placeholder flash).
+ *
+ * @return array{time:string,date:string}
+ */
+function pembimbing_portal_banner_clock_strings(
+    string $today,
+    string $nowTime,
+    string $pasaran,
+    string $hijri,
+    bool $compactMonth = true
+): array {
+    $ts = strtotime($today . ' ' . substr($nowTime, 0, 8));
+    if ($ts === false) {
+        $ts = time();
+    }
+    $hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
+    $bulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    $bulanPanjang = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    $h = (int) date('G', $ts);
+    $m = (int) date('i', $ts);
+    $s = (int) date('s', $ts);
+    $timeStr = sprintf('%02d:%02d:%02d', $h, $m, $s);
+    $blnList = $compactMonth ? $bulanPendek : $bulanPanjang;
+    $hariStr = $hari[(int) date('w', $ts)] ?? '';
+    $pasaran = trim($pasaran);
+    if ($pasaran !== '') {
+        $hariStr .= ' · ' . $pasaran;
+    }
+    $dateStr = $hariStr . ', ' . date('j', $ts) . ' ' . ($blnList[(int) date('n', $ts) - 1] ?? '') . ' ' . date('Y', $ts);
+    $hijri = trim($hijri);
+    if ($hijri !== '') {
+        $dateStr .= ' / ' . $hijri;
+    }
+
+    return ['time' => $timeStr, 'date' => $dateStr];
+}
+
+/**
+ * Identitas topbar portal pembimbing (nama + jam awal), dipakai di includes/header.php.
+ *
+ * @return array{name:string,time:string,date:string,pasaran:string,hijri:string,presence_label:string,scan_status:string,scan_label:string,is_munawib_portal:bool}
+ */
+function pembimbing_portal_topbar_identity(PDO $pdo): array
+{
+    require_once __DIR__ . '/pembimbing_dashboard.php';
+    require_once __DIR__ . '/akademik_pasaran.php';
+    require_once __DIR__ . '/hijri_kalender.php';
+    require_once __DIR__ . '/akademik.php';
+    require_once __DIR__ . '/pembimbing_perubahan_jadwal.php';
+
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $pembimbingInfo = $userId > 0 ? pembimbing_dashboard_current_pembimbing($pdo, $userId) : null;
+    $pembimbingId = $pembimbingInfo !== null ? (int) ($pembimbingInfo['id'] ?? 0) : 0;
+    $name = $pembimbingInfo !== null
+        ? trim((string) ($pembimbingInfo['nama'] ?? ''))
+        : trim((string) ($_SESSION['user']['nama'] ?? ''));
+    if ($name === '') {
+        $name = 'Pembimbing';
+    }
+
+    $presenceLabel = 'Pembimbing · bertugas hari ini';
+    $scanStatus = 'none';
+    $scanLabel = 'Tidak ada jadwal hari ini';
+    $isMunawibPortal = false;
+    if (!function_exists('munawib_is_portal_session')) {
+        require_once __DIR__ . '/munawib_portal.php';
+    }
+    if (munawib_is_portal_session()) {
+        $isMunawibPortal = true;
+        $konteks = munawib_portal_konteks();
+        if (is_array($konteks)) {
+            $mwPb = trim((string) ($konteks['pembimbing_nama'] ?? ''));
+            if ($mwPb !== '') {
+                $name = $mwPb;
+                $mwShort = mb_strlen($mwPb) > 36 ? mb_substr($mwPb, 0, 33) . '…' : $mwPb;
+                $presenceLabel = 'Munawib · menggantikan ' . $mwShort;
+            } else {
+                $presenceLabel = 'Munawib · bertugas hari ini';
+            }
+        }
+    }
+
+    $today = date('Y-m-d');
+    if (!$isMunawibPortal && $pembimbingId > 0) {
+        $slotsToday = pb_jadwal_slots_hari_ini($pdo, $pembimbingId, $today);
+        if ($slotsToday === []) {
+            $scanStatus = 'none';
+            $scanLabel = 'Tidak ada jadwal hari ini';
+        } elseif (pembimbing_dashboard_sudah_hadir_hari_ini($pdo, $pembimbingId, $today)) {
+            $scanStatus = 'done';
+            $scanLabel = 'Sudah scan';
+        } else {
+            $scanStatus = 'pending';
+            $scanLabel = 'Belum scan';
+        }
+    }
+    $nowTime = date('H:i:s');
+    $pasaran = '';
+    $hijri = '';
+    ensure_hijri_mappings_table($pdo);
+    ensure_akademik_hijri_awal_bulan_table($pdo);
+    $hijriBulanNama = [
+        1 => 'Muharram', 2 => 'Safar', 3 => "Rabi' I", 4 => "Rabi' II", 5 => 'Jumadil Awal', 6 => 'Jumadil Akhir',
+        7 => 'Rajab', 8 => "Sya'ban", 9 => 'Ramadan', 10 => 'Syawal', 11 => "Dzulqa'dah", 12 => 'Dzulhijah',
+    ];
+    $hijri = akademik_hijri_label_h($pdo, $today, $hijriBulanNama);
+    $pasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
+
+    $clock = pembimbing_portal_banner_clock_strings($today, $nowTime, $pasaran, $hijri, true);
+
+    return [
+        'name' => $name,
+        'time' => (string) ($clock['time'] ?? date('H:i:s')),
+        'date' => (string) ($clock['date'] ?? ''),
+        'pasaran' => $pasaran,
+        'hijri' => $hijri,
+        'presence_label' => $presenceLabel,
+        'scan_status' => $scanStatus,
+        'scan_label' => $scanLabel,
+        'is_munawib_portal' => $isMunawibPortal,
+    ];
+}

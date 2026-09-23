@@ -10,6 +10,14 @@ require_login();
 
 $aksesSummary = user_permission_access_summary($pdo);
 
+$aksesPembimbingKonteks = null;
+$userIdAkses = (int) ($_SESSION['user']['id'] ?? 0);
+$roleAkses = strtolower((string) ($_SESSION['user']['role'] ?? ''));
+if ($userIdAkses > 0 && in_array($roleAkses, ['pembimbing', 'admin', 'pengurus'], true)) {
+    require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
+    $aksesPembimbingKonteks = pembimbing_dashboard_akses_konteks($pdo, $userIdAkses);
+}
+
 $pageTitle = 'Hak Akses Saya';
 $bodyClass = 'settings-module-page';
 require_once __DIR__ . '/../includes/header.php';
