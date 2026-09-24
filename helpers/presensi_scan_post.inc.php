@@ -94,6 +94,13 @@ declare(strict_types=1);
                 }
             }
             $tanggal = $scanClock['tanggal'];
+            require_once __DIR__ . '/santri_penepian_keaktifan.php';
+            if (santri_penepian_is_active($pdo, (int) ($santri['id'] ?? 0), $tanggal)) {
+                $resultType = 'warning';
+                $prefix = $izinSelesaiMsg !== '' ? $izinSelesaiMsg : '';
+                $resultMessage = $prefix . 'Sedang menepi keaktifan — presensi tidak dihitung. Minta pengurus menutup penepian jika santri sudah kembali ke pondok.';
+                goto end_scan_process;
+            }
             ensure_akademik_libur_table($pdo);
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $jam = $scanClock['jam'];

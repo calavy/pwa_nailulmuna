@@ -38,6 +38,7 @@ $telatData = pengasuh_laporan_hari_telat($pdo, $tanggal, $tkFilter);
 $kegiatanKhususHari = pengasuh_laporan_hari_kegiatan_khusus($pdo, $tanggal);
 $pkppsSnapshot = pengasuh_laporan_hari_pkpps_snapshot($pdo, $tanggal);
 $perizinanHari = pengasuh_laporan_hari_perizinan($pdo, $tanggal);
+$penepianHari = pengasuh_laporan_hari_penepian($pdo, $tanggal);
 $santriPerhatian = pengasuh_laporan_hari_santri_perhatian(
     $rows,
     $detailKeg,
@@ -458,6 +459,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--hadir">Hadir</span> — santri sudah scan.</p>
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--izin">Izin</span> / <span class="kh-panduan__item kh-panduan__item--sakit">Sakit</span> — ada keterangan resmi.</p>
                 <p class="mb-2"><span class="kh-panduan__item kh-panduan__item--alpa">Alpa</span> — tidak scan sampai jam kegiatan selesai (tanpa izin resmi).</p>
+                <p class="mb-2"><strong>Menepi keaktifan</strong> — sengaja tidak dihitung di slot presensi (bukan Izin/Alpa); lihat bagian Menepi keaktifan di laporan.</p>
                 <p class="mb-0">Geser tab kegiatan ke kiri/kanan. Ketuk <strong>Daftar santri</strong> pada kartu untuk melihat nama lengkap.</p>
             </div>
         </div>

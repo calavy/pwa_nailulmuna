@@ -326,6 +326,7 @@ function user_permission_path_map_base(): array
         '/perizinan/index.php' => 'perizinan',
         '/perizinan/hub.php' => 'perizinan',
         '/perizinan/rekap_aktif.php' => 'perizinan',
+        '/perizinan/penepian_keaktifan.php' => 'perizinan',
         '/perizinan/izin_tetap.php' => 'perizinan',
         '/perizinan/izin_tetap_kegiatan.php' => 'perizinan',
         '/perizinan/surat_izin_tetap.php' => 'perizinan',
@@ -353,6 +354,7 @@ function user_permission_path_map_base(): array
         '/yayasan/keaktifan_rekap.php' => 'rekap_keaktifan',
         '/pengasuh/dashboard.php' => 'rekap_keaktifan_hari',
         '/pengasuh/laporan_hari.php' => 'rekap_keaktifan_hari',
+        '/pengasuh/penepian.php' => 'rekap_keaktifan_hari',
         '/pengasuh/perizinan.php' => 'rekap_keaktifan_hari',
         '/pengasuh/izin_aksi.php' => 'rekap_keaktifan_hari',
         '/pengasuh/sdm_hari.php' => 'rekap_keaktifan_hari',
@@ -548,11 +550,18 @@ function user_permission_alt_keys_for_path(string $requestPath): array
             'rekap_keaktifan',
             'rekap',
         ],
+        '/perizinan/penepian_keaktifan.php' => [
+            'rekap_keaktifan_hari',
+        ],
         '/pengasuh/dashboard.php' => [
             'rekap_keaktifan',
             'rekap',
         ],
         '/pengasuh/laporan_hari.php' => [
+            'rekap_keaktifan',
+            'rekap',
+        ],
+        '/pengasuh/penepian.php' => [
             'rekap_keaktifan',
             'rekap',
         ],

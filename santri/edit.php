@@ -338,6 +338,9 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
     <?php if (!$embed): ?>
     <div class="d-flex gap-2">
         <a href="/santri/riwayat.php?id=<?= $id ?>" class="btn btn-outline-info btn-sm">Riwayat</a>
+        <?php if ($aktifEdit && user_can_manage_santri_penepian()): ?>
+        <a href="<?= htmlspecialchars(app_href('/perizinan/penepian_keaktifan.php?santri_id=' . $id)) ?>" class="btn btn-outline-warning btn-sm">Catat penepian keaktifan</a>
+        <?php endif; ?>
         <a href="/santri/semua_jati.php" class="btn btn-outline-primary btn-sm">Data induk</a>
         <a href="<?= htmlspecialchars($kembaliHref) ?>" class="btn btn-outline-secondary"><?= htmlspecialchars($kembaliLabel) ?></a>
     </div>

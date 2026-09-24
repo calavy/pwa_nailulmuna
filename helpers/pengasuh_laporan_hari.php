@@ -224,6 +224,18 @@ function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
 }
 
 /**
+ * Santri menepi keaktifan pada tanggal laporan (seluruh pondok).
+ *
+ * @return list<array<string,mixed>>
+ */
+function pengasuh_laporan_hari_penepian(PDO $pdo, string $tanggal, int $limit = 50): array
+{
+    require_once __DIR__ . '/santri_penepian_keaktifan.php';
+
+    return santri_penepian_list_aktif_on_date($pdo, $tanggal, null, $limit);
+}
+
+/**
  * Daftar santri prioritas tindak lanjut hari ini.
  *
  * @param list<array<string,mixed>> $rows

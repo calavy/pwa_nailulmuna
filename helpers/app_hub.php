@@ -110,6 +110,7 @@ function app_hub_registry(): array
                 ['path' => '/perizinan/index.php', 'label' => 'Persetujuan'],
                 ['path' => '/pengasuh/perizinan.php', 'label' => 'Pengasuh'],
                 ['path' => '/perizinan/rekap_aktif.php', 'label' => 'Rekap aktif'],
+                ['path' => '/perizinan/penepian_keaktifan.php', 'label' => 'Penepian keaktifan'],
                 ['path' => '/perizinan/izin_tetap.php', 'label' => 'Izin tetap'],
                 ['path' => '/perizinan/izin_rombongan.php', 'label' => 'Izin rombongan'],
             ],
@@ -177,6 +178,14 @@ function app_hub_match_path(string $requestPath): ?array
  */
 function app_hub_tab_allowed(PDO $pdo, string $tabPath, array $permissionPathMap): bool
 {
+    $tabPath = app_hub_normalize_path($tabPath);
+    if ($tabPath === '/perizinan/penepian_keaktifan.php') {
+        if (!function_exists('user_can_manage_santri_penepian')) {
+            require_once __DIR__ . '/../includes/auth.php';
+        }
+
+        return user_can_manage_santri_penepian();
+    }
     if (!function_exists('get_allowed_permission_key_map')) {
         require_once __DIR__ . '/app.php';
     }
@@ -188,7 +197,7 @@ function app_hub_tab_allowed(PDO $pdo, string $tabPath, array $permissionPathMap
         require_once __DIR__ . '/app.php';
     }
 
-    return app_acl_menu_path_allowed(app_hub_normalize_path($tabPath), $permissionPathMap, $allowedMap);
+    return app_acl_menu_path_allowed($tabPath, $permissionPathMap, $allowedMap);
 }
 
 /**

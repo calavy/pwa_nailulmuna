@@ -359,6 +359,34 @@ function require_pengasuh_dashboard(): void
     }
 }
 
+/** Catat / ubah / batalkan penepian keaktifan — super admin & pengasuh (role kiai). */
+function user_can_manage_santri_penepian(): bool
+{
+    if (isset($_SESSION['wali']) || isset($_SESSION['mukimin'])) {
+        return false;
+    }
+    if (isset($_SESSION['santri_portal'])) {
+        return false;
+    }
+    if (!isset($_SESSION['user'])) {
+        return false;
+    }
+    if (is_super_admin()) {
+        return true;
+    }
+
+    return strtolower((string) ($_SESSION['user']['role'] ?? '')) === 'kiai';
+}
+
+function require_manage_santri_penepian(): void
+{
+    require_login();
+    if (!user_can_manage_santri_penepian()) {
+        set_flash('error', 'Penepian keaktifan hanya dapat diubah oleh super admin dan pengasuh.');
+        auth_redirect_access_denied();
+    }
+}
+
 /** Nilai keaktifan (Baik/Sedang/Buruk) — hanya super admin & pengasuh (role kiai). */
 function user_can_view_keaktifan_nilai(): bool
 {

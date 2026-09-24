@@ -161,6 +161,7 @@ $modeMengajar = false;
 $statIzinCount = 0;
 $statPresensi = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
 $santriIzinList = [];
+$santriPenepianList = [];
 $keaktivanRows = [];
 $kategoriRingkas = ['bagus' => 0, 'sedang' => 0, 'buruk' => 0, 'belum' => 0];
 $rekapPerKegiatan = [];
@@ -232,6 +233,7 @@ if ($isPbKeaktivanOnly) {
     $statIzinCount = pembimbing_dashboard_jumlah_izin_hari_ini($pdo, $tingkatanAktif, $today);
     $statPresensi = pembimbing_dashboard_presensi_hari_ini($pdo, $tingkatanAktif, $today, false);
     $santriIzinList = pembimbing_dashboard_santri_izin_hari_ini($pdo, $tingkatanAktif, $today, 50);
+    $santriPenepianList = pembimbing_dashboard_santri_penepian_hari_ini($pdo, $tingkatanAktif, $today, 50);
 
     $tingkatanAktifKey = array_values(array_map(static fn (string $t): string => trim($t), $tingkatanAktif));
     $tingkatanAsuhanKey = array_values(array_map(static fn (string $t): string => trim($t), $tingkatanAsuhan));
@@ -956,6 +958,44 @@ $homeUrl = app_href('/pembimbing/dashboard.php?' . $baseDashQuery);
                                     <td class="pe-3 small text-nowrap">
                                         <?= htmlspecialchars(date('d M', strtotime((string) ($iz['tanggal_mulai'] ?? '')))) ?>
                                         – <?= htmlspecialchars(date('d M', strtotime((string) ($iz['tanggal_selesai'] ?? '')))) ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($modeView === 'detail' && $santriPenepianList !== []): ?>
+        <div class="card border-0 shadow-sm mb-4 dash-panel dash-panel--lift">
+            <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4 px-4 pb-0">
+                <div>
+                    <h2 class="h5 mb-1">Santri menepi keaktifan</h2>
+                    <p class="small text-muted mb-0">Luar pondok sementara — presensi netral (bukan izin resmi). · <?= htmlspecialchars(date('d M Y', strtotime($today))) ?></p>
+                </div>
+                <span class="badge text-bg-light border"><?= count($santriPenepianList) ?> santri</span>
+            </div>
+            <div class="card-body px-4 pb-4 pt-2">
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Nama</th>
+                                <th>NIS</th>
+                                <th>Tingkatan</th>
+                                <th class="pe-3 text-nowrap">Sampai</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($santriPenepianList as $pn): ?>
+                                <tr>
+                                    <td class="ps-3 fw-semibold"><?= htmlspecialchars((string) ($pn['nama_santri'] ?? '')) ?></td>
+                                    <td class="small text-muted"><?= htmlspecialchars((string) ($pn['nis'] ?? '')) ?></td>
+                                    <td class="small"><?= htmlspecialchars((string) ($pn['tingkatan'] ?? '—')) ?></td>
+                                    <td class="pe-3 small text-nowrap">
+                                        <?= htmlspecialchars(date('d M Y', strtotime((string) ($pn['tanggal_selesai'] ?? '')))) ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

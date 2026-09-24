@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @var list<array<string,mixed>> $kegiatanKhususHari
  * @var list<array<string,mixed>> $pkppsSnapshot
  * @var array{aktif:list<array>,pending:list<array>,pending_count:int} $perizinanHari
+ * @var list<array<string,mixed>> $penepianHari
  * @var list<array<string,mixed>> $santriPerhatian
  */
 
@@ -182,4 +183,17 @@ $telatIzin = $telatData['izin'] ?? [];
             </table>
         </div>
     <?php endif; ?>
+</section>
+
+<section class="mb-4" id="laporan-penepian">
+    <h2 class="yp-section-title"><i class="fa-solid fa-house-circle-xmark me-2"></i>Menepi keaktifan</h2>
+    <p class="small text-muted mb-3">
+        Santri yang menepi pada tanggal laporan — kolom <em>Menepi</em> = jumlah hari sejak mulai penepian (inklusif).
+        <a href="<?= htmlspecialchars(app_href('/pengasuh/penepian.php?tanggal=' . urlencode((string) ($tanggal ?? date('Y-m-d'))))) ?>">Buka daftar lengkap</a>
+    </p>
+    <?php
+    $penepianRows = $penepianHari ?? [];
+    $penepianTanggalAcuan = (string) ($tanggal ?? date('Y-m-d'));
+    require __DIR__ . '/pengasuh_penepian_daftar.php';
+    ?>
 </section>

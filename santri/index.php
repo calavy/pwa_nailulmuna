@@ -56,6 +56,9 @@ $listStmt = $pdo->prepare($listSql);
 $listStmt->execute($params);
 $santri = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+require_once __DIR__ . '/../helpers/santri_penepian_keaktifan.php';
+$penepianMapToday = santri_penepian_map_for_date($pdo, date('Y-m-d'));
+
 $totalAktif = (int) ($pdo->query('SELECT COUNT(*) FROM santri WHERE ' . santri_sql_aktif_only('santri'))->fetchColumn() ?: 0);
 $totalNonAktif = (int) ($pdo->query('
     SELECT COUNT(*) FROM santri WHERE NOT (' . santri_sql_aktif_only('santri') . ')
@@ -204,6 +207,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <span class="badge <?= santri_status_badge_class($status) ?>">
                                     <?= htmlspecialchars(santri_status_label($status)) ?>
                                 </span>
+                                <?php if (!empty($penepianMapToday[$sid])): ?>
+                                    <span class="badge text-bg-warning ms-1" title="Sementara di luar pondok — presensi netral">Menepi keaktifan</span>
+                                <?php endif; ?>
                                 <?php if (!santri_status_is_aktif_list($status) && (trim((string) ($item['alasan_keluar'] ?? '')) !== '' || trim((string) ($item['tanggal_keluar'] ?? '')) !== '')): ?>
                                     <div class="small text-muted mt-1"><?= htmlspecialchars((string) ($item['tanggal_keluar'] ?? '-')) ?> · <?= htmlspecialchars((string) ($item['alasan_keluar'] ?? '-')) ?></div>
                                 <?php endif; ?>

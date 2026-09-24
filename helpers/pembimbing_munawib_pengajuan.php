@@ -441,15 +441,17 @@ function pb_munawib_pengajuan_kirim_wa_pengasuh(PDO $pdo, int $pengajuanId): arr
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
     ]);
 
-    $sent = send_wa_bulk($pdo, $target, $msg, [
-        'kind' => 'general',
+    $bulk = wa_kirim_pengasuh_pending($pdo, $msg, [
+        'kind' => 'izin',
+        'targets' => $target,
         'dedup_key' => 'pb_munawib_pengajuan:' . $pengajuanId,
         'dedup_key_once' => true,
     ]);
+    $sent = (int) ($bulk['sent'] ?? 0);
 
     return [
         'sent' => $sent,
-        'skipped' => $sent === 0,
-        'reason' => $sent === 0 ? 'send_failed' : '',
+        'skipped' => !empty($bulk['skipped_flag']),
+        'reason' => (string) ($bulk['reason'] ?? ($sent === 0 ? 'send_failed' : '')),
     ];
 }

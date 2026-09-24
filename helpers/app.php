@@ -3349,6 +3349,8 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
     $jam = date('H:i:s');
     require_once __DIR__ . '/perizinan_aktif.php';
     $izinMap = perizinan_map_izin_berlaku_tanggal($pdo, $tanggal);
+    require_once __DIR__ . '/santri_penepian_keaktifan.php';
+    $penepianMap = santri_penepian_map_for_date($pdo, $tanggal);
 
     if (!function_exists('santri_izin_tetap_berlaku')) {
         require_once __DIR__ . '/santri_izin_tetap.php';
@@ -3415,7 +3417,8 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
         $tandaiAlpa,
         $izinMap,
         $izinTetapMap,
-        $existingMap
+        $existingMap,
+        $penepianMap
     ): void {
         $hasCatatan = column_exists($activePdo, 'presensi', 'catatan');
         $insertStmt = $activePdo->prepare('
@@ -3451,6 +3454,10 @@ function sync_daily_presence_for_tingkatan_impl(PDO $pdo, string $tanggal, strin
             $n++;
             if ($n % 40 === 0) {
                 $activePdo = pondok_pdo_ping($activePdo);
+            }
+
+            if (!empty($penepianMap[$santriId])) {
+                continue;
             }
 
             $desiredStatus = 'ALPA';

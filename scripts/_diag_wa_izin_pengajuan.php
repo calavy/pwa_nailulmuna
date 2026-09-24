@@ -25,9 +25,20 @@ echo 'Gateway: ' . ($gw === null ? 'OK' : ('ERROR — ' . $gw)) . "\n\n";
 
 echo "--- Izin syar'i → pengasuh ---\n";
 echo 'wa_izin_pengasuh_pending_enabled: ' . (wa_izin_pengasuh_pending_enabled($pdo) ? '1' : '0') . "\n";
-echo 'Target pengasuh (kiai + extra): ' . (wa_pengasuh_pending_targets($pdo) !== '' ? wa_pengasuh_pending_targets($pdo) : '(kosong)') . "\n";
+$targets = wa_pengasuh_pending_targets($pdo);
+$targetCount = $targets === '' ? 0 : count(wa_otomatis_parse_targets($targets));
+echo 'Target pengasuh (kiai + extra): ' . ($targets !== '' ? $targets : '(kosong)') . "\n";
+echo 'Jumlah nomor pengasuh: ' . $targetCount . "\n";
 echo 'Kiai no_wa saja: ' . (wa_pengasuh_info_targets($pdo) !== '' ? wa_pengasuh_info_targets($pdo) : '(kosong)') . "\n";
-echo 'Extra setting: ' . trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_extra', '')) . "\n\n";
+echo 'Extra setting: ' . trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_extra', '')) . "\n";
+echo 'Fonte warmup aktif: ' . (wa_fonte_warmup_active($pdo) ? 'YA' : 'tidak') . "\n";
+if (wa_fonte_warmup_active($pdo)) {
+    echo 'Warmup until: ' . trim((string) app_setting($pdo, 'wa_fonte_warmup_until', '')) . "\n";
+    if ($targetCount > 1) {
+        echo 'Catatan: tanpa fallback, blast ke ' . $targetCount . ' nomor ditahan; sistem sekarang fallback per nomor.' . "\n";
+    }
+}
+echo "\n";
 
 echo "--- Sakit/keluar/tugas → permohonan pengurus ---\n";
 echo 'wa_permohonan_izin_enabled: ' . app_setting($pdo, 'wa_permohonan_izin_enabled', '1') . "\n";

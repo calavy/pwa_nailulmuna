@@ -134,7 +134,7 @@ function perizinan_push_setelah_perpanjangan(
     }
 }
 
-/** @param array{sent:int,skipped?:bool,reason?:string} $result */
+/** @param array{sent:int,skipped?:bool,skipped_flag?:bool,reason?:string,blocked?:bool,fallback?:bool} $result */
 function perizinan_wa_log_kirim_gagal(string $context, int $izinId, array $result): void
 {
     if ((int) ($result['sent'] ?? 0) > 0) {
@@ -142,12 +142,19 @@ function perizinan_wa_log_kirim_gagal(string $context, int $izinId, array $resul
     }
     $reason = trim((string) ($result['reason'] ?? ''));
     if ($reason === '') {
-        $reason = !empty($result['skipped']) ? 'skipped' : 'send_failed';
+        if (!empty($result['blocked'])) {
+            $reason = 'warmup';
+        } elseif (!empty($result['skipped']) || !empty($result['skipped_flag'])) {
+            $reason = 'skipped';
+        } else {
+            $reason = 'send_failed';
+        }
     }
     if ($reason === 'duplicate') {
         return;
     }
-    error_log('[wa_izin] context=' . $context . ' izin_id=' . $izinId . ' reason=' . $reason);
+    $extra = !empty($result['fallback']) ? ' fallback=1' : '';
+    error_log('[wa_izin] context=' . $context . ' izin_id=' . $izinId . ' reason=' . $reason . $extra);
 }
 
 /**
@@ -281,7 +288,7 @@ function perizinan_wa_kirim_permohonan_ke_pengasuh(
         $judulExtra
     );
 
-    $waOpts = ['kind' => 'general'];
+    $waOpts = ['kind' => 'izin', 'targets' => $target];
     if ($izinId > 0) {
         $suffix = $judulExtra !== '' ? ':perpanjang' : ':submit';
         $waOpts['dedup_key'] = 'izin:' . $izinId . ':pengasuh' . $suffix;
@@ -291,12 +298,15 @@ function perizinan_wa_kirim_permohonan_ke_pengasuh(
         $waOpts['dedup_key_once'] = true;
     }
 
-    $sent = send_wa_bulk($pdo, $target, $msg, $waOpts);
+    $bulk = wa_kirim_pengasuh_pending($pdo, $msg, $waOpts);
+    $sent = (int) ($bulk['sent'] ?? 0);
 
     return [
         'sent' => $sent,
-        'skipped' => $sent === 0,
-        'reason' => $sent === 0 ? 'send_failed' : '',
+        'skipped' => !empty($bulk['skipped_flag']),
+        'reason' => (string) ($bulk['reason'] ?? ($sent === 0 ? 'send_failed' : '')),
+        'blocked' => !empty($bulk['blocked']),
+        'fallback' => !empty($bulk['fallback']),
     ];
 }
 

@@ -11,9 +11,7 @@ require_once __DIR__ . '/../helpers/akademik_hari_khusus.php';
 require_once __DIR__ . '/../helpers/akademik_pasaran.php';
 require_once __DIR__ . '/../helpers/pengasuh_dashboard.php';
 require_once __DIR__ . '/../helpers/pengasuh_laporan_hari.php';
-require_once __DIR__ . '/../helpers/pembimbing_dashboard.php';
 require_once __DIR__ . '/../helpers/perizinan_approval.php';
-require_once __DIR__ . '/../helpers/dashboard_insights.php';
 
 require_pengasuh_dashboard();
 
@@ -37,55 +35,22 @@ $dashHijriLabel = akademik_hijri_badge_dashboard($pdo, $today, $hijriBulanNamaDa
 $dashHijriClock = akademik_hijri_label_h($pdo, $today, $hijriBulanNamaDash);
 $dashPasaran = akademik_pasaran_tampilkan($pdo) ? akademik_pasaran_pada_tanggal($today, $pdo) : '';
 
-$kegiatanAktif = pengasuh_dashboard_kegiatan_aktif($pdo, $nowTime);
-$kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+$pgDashUseCache = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['refresh']);
+$pgDashBundle = pengasuh_dashboard_page_bundle($pdo, $today, $nowTime, $pgDashUseCache);
+$kegiatanAktif = $pgDashBundle['kegiatanAktif'];
+$kegiatanAktifGrouped = $pgDashBundle['kegiatanAktifGrouped'];
+$keaktivanPanels = $pgDashBundle['keaktivanPanels'];
+$adaKegiatanLive = (bool) ($pgDashBundle['adaKegiatanLive'] ?? false);
+$keaktivanModeLive = (bool) ($pgDashBundle['keaktivanModeLive'] ?? false);
+$keaktivanModeProgress = (bool) ($pgDashBundle['keaktivanModeProgress'] ?? false);
+$kegiatanAktifPresensi = $pgDashBundle['kegiatanAktifPresensi'];
+$jumlahKegiatanBerlangsung = (int) ($pgDashBundle['jumlahKegiatanBerlangsung'] ?? 0);
+$pgIdleData = $pgDashBundle['pgIdleData'];
+$liburTampil = $pgDashBundle['liburTampil'];
 
-$rowsHari = rekap_keaktifan_hari_data($pdo, $today);
-$keaktivanPanels = [
-    'TAALIM' => array_merge(
-        ['key' => 'TAALIM', 'label' => "Ta'lim", 'slug' => 'taalim'],
-        pengasuh_dashboard_keaktivan_bundle($pdo, $today, $rowsHari, $kegiatanAktif, 'TAALIM')
-    ),
-    'JAMAAH' => array_merge(
-        ['key' => 'JAMAAH', 'label' => "Jama'ah", 'slug' => 'jamaah'],
-        pengasuh_dashboard_keaktivan_bundle($pdo, $today, $rowsHari, $kegiatanAktif, 'JAMAAH')
-    ),
-];
-$adaKegiatanLive = $kegiatanAktif !== [];
-$keaktivanModeLive = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'live'
-    || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'live';
-$keaktivanModeProgress = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'progress'
-    || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'progress';
-
-$rowsLive = pengasuh_dashboard_filter_rows_berlangsung($rowsHari, $kegiatanAktif);
-$detailLive = pengasuh_dashboard_urutkan_kegiatan(rekap_keaktifan_hari_detail_by_kegiatan($rowsLive));
-$ringkasanLive = rekap_keaktifan_hari_ringkasan_from_detail($detailLive);
-$totalsLive = rekap_keaktifan_hari_totals($ringkasanLive);
-$keaktivanByTingkatan = pengasuh_dashboard_keaktivan_by_tingkatan($rowsHari, $kegiatanAktif);
-$sdmByTingkatan = pengasuh_dashboard_sdm_by_tingkatan($pdo, $today, $kegiatanAktif);
-
-$kegiatanAktifPresensi = [];
-if ($kegiatanAktifGrouped !== []) {
-    $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
-}
-
-$jumlahKegiatanBerlangsung = count($kegiatanAktifGrouped);
-if ($jumlahKegiatanBerlangsung === 0 && $kegiatanAktifPresensi !== []) {
-    $jumlahKegiatanBerlangsung = count($kegiatanAktifPresensi);
-}
-if ($jumlahKegiatanBerlangsung === 0 && $kegiatanAktif !== []) {
-    $jumlahKegiatanBerlangsung = count(array_unique(array_map(
-        static fn (array $r): int => (int) ($r['kegiatan_id'] ?? 0),
-        $kegiatanAktif
-    )));
-}
-
-$konteks = pengasuh_laporan_hari_konteks($pdo, $today, count($detailLive));
+$konteks = pengasuh_laporan_hari_konteks($pdo, $today, count($kegiatanAktifGrouped));
 $dashServerClockMs = (int) round(microtime(true) * 1000);
-$pgIdleData = !$adaKegiatanLive
-    ? dashboard_idle_panel_data($pdo, $today, $nowTime)
-    : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
-$liburTampil = akademik_libur_presensi_tampilan($pdo, $today);
+$pgDashRefreshHref = app_href('/pengasuh/dashboard.php?refresh=1');
 
 $namaUser = trim((string) ($_SESSION['user']['nama'] ?? ''));
 $labelUser = $namaUser !== '' ? $namaUser : 'Pengasuh';
@@ -128,20 +93,11 @@ $previewNames = static function (array $santriByStatus, int $limit = 3): string 
     return $more > 0 ? $txt . ' +' . $more : $txt;
 };
 
-$tglLabel = (string) ($konteks['tgl_label'] ?? $today);
+$izinPengasuhPendingCount = perizinan_pengasuh_pending_count($pdo);
+$pgDashIzinHref = app_href('/pengasuh/perizinan.php');
 
-$izinPengasuhAntrian = perizinan_pengasuh_antrian($pdo, 8);
-$izinPengasuhPendingCount = (int) ($izinPengasuhAntrian['total'] ?? 0);
-$izinPengasuhIndividu = $izinPengasuhAntrian['individu'] ?? [];
-$izinPengasuhRombongan = $izinPengasuhAntrian['rombongan'] ?? [];
-$izinDashAlpaRows = $izinPengasuhIndividu;
-foreach ($izinPengasuhRombongan as $rmAlpa) {
-    foreach ($rmAlpa['anggota_rows'] ?? [] as $arAlpa) {
-        $izinDashAlpaRows[] = $arAlpa;
-    }
-}
-$izinDashAlpaMap = perizinan_alpa_map_for_rows($pdo, $izinDashAlpaRows);
-$izinAksiHref = app_href('/pengasuh/izin_aksi.php');
+$santriPenepianHariCount = count(pengasuh_dashboard_santri_penepian_hari_ini($pdo, $today, 50));
+$pgDashPenepianHref = app_href('/pengasuh/penepian.php?tanggal=' . urlencode($today));
 
 $pageTitle = 'Dashboard Pengasuh';
 $bodyClass = 'dash-page page-pengasuh-dashboard kh-wrap';
@@ -149,11 +105,6 @@ $pageStylesheets = [
     app_asset_href('/assets/css/keaktifan-hari.css'),
     app_asset_href('/assets/css/pengasuh-dashboard.css'),
 ];
-$pageScripts = [
-    app_asset_href('/assets/js/izin-alpa-modal.js'),
-    app_asset_href('/assets/js/pengasuh-izin-setujui.js'),
-];
-$loadPushFcm = true;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -186,6 +137,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php if (($konteks['libur_label'] ?? '') !== ''): ?>
                             · <span class="text-warning"><?= htmlspecialchars((string) $konteks['libur_label']) ?></span>
                         <?php endif; ?>
+                        · <a href="<?= htmlspecialchars($pgDashRefreshHref) ?>" class="text-muted">Segarkan data</a>
                     </p>
                 </div>
             </div>
@@ -201,122 +153,42 @@ require_once __DIR__ . '/../includes/header.php';
         </section>
     </div>
 
-    <div class="mb-4" id="pg-dash-izin">
-        <div class="card border-warning shadow-sm dash-panel pg-dash-izin-panel<?= $izinPengasuhPendingCount > 0 ? '' : ' border-opacity-50' ?>">
-            <div class="card-body">
-                <div id="pg-dash-izin-flash" class="d-none"></div>
-                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-                    <div>
-                        <h2 class="h6 fw-bold mb-1 text-warning">
+    <div class="row g-3 mb-4 pg-dash-absensi-row align-items-stretch">
+    <div class="col-12 col-lg-7" id="pg-dash-izin">
+        <div class="card border-warning shadow-sm dash-panel pg-dash-izin-panel pg-dash-absensi-nav-card<?= $izinPengasuhPendingCount > 0 ? '' : ' border-opacity-50' ?>">
+            <div class="card-body p-0 position-relative">
+                <a href="<?= htmlspecialchars($pgDashIzinHref) ?>" class="pg-dash-absensi-toggle stretched-link px-3 py-3 d-block">
+                    <span class="pg-dash-absensi-toggle__row">
+                        <span class="pg-dash-absensi-toggle__title text-warning">
                             <i class="fa-solid fa-file-signature me-1"></i>
                             Persetujuan izin
-                            <?php if ($izinPengasuhPendingCount > 0): ?>
-                                <span class="badge text-bg-warning ms-1"><?= (int) $izinPengasuhPendingCount ?></span>
-                            <?php endif; ?>
-                        </h2>
-                        <p class="small text-muted mb-0">
-                            <?php if ($izinPengasuhPendingCount > 0): ?>
-                                <strong><?= (int) $izinPengasuhPendingCount ?></strong> permohonan menunggu persetujuan pengasuh.
-                            <?php else: ?>
-                                Tidak ada permohonan izin yang menunggu saat ini.
-                            <?php endif; ?>
-                        </p>
-                    </div>
-                    <a href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>" class="btn btn-sm btn-warning">
-                        <i class="fa-solid fa-check-double me-1"></i> Buka semua
-                    </a>
-                </div>
-
-                <?php if ($izinPengasuhRombongan !== []): ?>
-                <div class="pg-dash-izin-list mb-3">
-                    <div class="small fw-semibold text-warning mb-2">Izin rombongan</div>
-                    <?php foreach ($izinPengasuhRombongan as $rm):
-                        $rmRingkas = perizinan_alpa_pilih_rombongan($izinDashAlpaMap, $rm['izin_ids'] ?? []);
-                        $alpaCek = $rmRingkas['cek'];
-                        $blokirR = (int) $rmRingkas['blokir'];
-                        $rmJudul = 'Rombongan #' . (int) $rm['id'] . ' · ' . (int) ($rm['jumlah'] ?? 0) . ' santri';
-                        $rmTanggal = app_format_izin_rentang(
-                            (string) ($rm['tanggal_mulai'] ?? ''),
-                            (string) ($rm['tanggal_selesai'] ?? ''),
-                            substr((string) ($rm['jam_mulai'] ?? ''), 0, 5),
-                            substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)
-                        );
-                        $rmNote = $blokirR > 0
-                            ? ($blokirR . ' dari ' . (int) ($rm['jumlah'] ?? 0) . ' santri terhalang ALPA')
-                            : '';
-                        $rmAlasan = trim((string) ($rm['alasan'] ?? ''));
-                        $rmMeta = $rmTanggal;
-                        if ($rmAlasan !== '') {
-                            $rmMeta .= ' · ' . $rmAlasan;
-                        }
-                        ?>
-                        <article class="pg-dash-izin-card pg-dash-izin-card--rombongan">
-                            <div class="pg-dash-izin-card__body">
-                                <div class="fw-semibold"><?= htmlspecialchars($rmJudul) ?></div>
-                                <div class="small text-muted pg-dash-izin-card__meta"<?= $rmAlasan !== '' ? ' title="' . htmlspecialchars($rmMeta) . '"' : '' ?>><?= htmlspecialchars($rmMeta) ?></div>
-                            </div>
-                            <div class="pg-dash-izin-card__actions">
-                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                                    <?= perizinan_pengasuh_setujui_form_attrs($pdo, $rm, $rmJudul, $rmTanggal, $alpaCek, $rmNote !== '' ? ['data-alpa-rombongan-note' => $rmNote] : []) ?>>
-                                    <input type="hidden" name="action" value="setujui_rombongan_pengasuh">
-                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
-                                    <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>
-                                </form>
-                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-tolak-form" data-confirm="Tolak izin rombongan ini?">
-                                    <input type="hidden" name="action" value="tolak_rombongan_pengasuh">
-                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm pg-dash-izin-btn">Tolak</button>
-                                </form>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-
-                <?php if ($izinPengasuhIndividu !== []): ?>
-                <div class="pg-dash-izin-list">
-                    <?php foreach ($izinPengasuhIndividu as $ip):
-                        $izinIdRow = (int) ($ip['id'] ?? 0);
-                        $alpaCek = $izinDashAlpaMap[$izinIdRow] ?? ['subject' => false, 'allowed' => true];
-                        $ipNama = (string) ($ip['nama_santri'] ?? '');
-                        $ipTanggal = app_format_izin_rentang(
-                            (string) ($ip['tanggal_mulai'] ?? ''),
-                            (string) ($ip['tanggal_selesai'] ?? ''),
-                            substr((string) ($ip['jam_mulai'] ?? ''), 0, 5),
-                            substr((string) ($ip['jam_selesai'] ?? ''), 0, 5)
-                        );
-                        $ipAlasan = trim((string) ($ip['alasan'] ?? ''));
-                        $ipMeta = $ipTanggal;
-                        if ($ipAlasan !== '') {
-                            $ipMeta .= ' · ' . $ipAlasan;
-                        }
-                        ?>
-                        <article class="pg-dash-izin-card">
-                            <div class="pg-dash-izin-card__body">
-                                <div class="fw-semibold"><?= htmlspecialchars($ipNama) ?></div>
-                                <div class="small text-muted pg-dash-izin-card__meta"<?= $ipAlasan !== '' ? ' title="' . htmlspecialchars($ipMeta) . '"' : '' ?>><?= htmlspecialchars($ipMeta) ?></div>
-                            </div>
-                            <div class="pg-dash-izin-card__actions">
-                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"
-                                    <?= perizinan_pengasuh_setujui_form_attrs($pdo, $ip, $ipNama, $ipTanggal, $alpaCek) ?>>
-                                    <input type="hidden" name="action" value="setujui_pengasuh">
-                                    <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
-                                    <button type="submit" class="btn btn-success btn-sm pg-dash-izin-btn">Setujui</button>
-                                </form>
-                                <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-tolak-form" data-confirm="Tolak permohonan izin ini?">
-                                    <input type="hidden" name="action" value="tolak_pengasuh">
-                                    <input type="hidden" name="izin_id" value="<?= $izinIdRow ?>">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm pg-dash-izin-btn">Tolak</button>
-                                </form>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-                <?php elseif ($izinPengasuhPendingCount === 0): ?>
-                    <div class="small text-muted text-center py-2">Permohonan izin yang menunggu akan muncul di sini.</div>
-                <?php endif; ?>
+                            <span class="badge text-bg-warning ms-1 pg-dash-absensi-count"><?= (int) $izinPengasuhPendingCount ?></span>
+                        </span>
+                        <span class="pg-dash-absensi-toggle__hint small text-muted">Ketuk untuk buka daftar</span>
+                        <i class="fa-solid fa-chevron-right pg-dash-absensi-chevron" aria-hidden="true"></i>
+                    </span>
+                </a>
             </div>
         </div>
+    </div>
+
+    <div class="col-12 col-lg-5" id="pg-dash-penepian">
+        <div class="card border-secondary shadow-sm dash-panel pg-dash-penepian-panel pg-dash-absensi-nav-card">
+            <div class="card-body p-0 position-relative">
+                <a href="<?= htmlspecialchars($pgDashPenepianHref) ?>" class="pg-dash-absensi-toggle stretched-link px-3 py-3 d-block">
+                    <span class="pg-dash-absensi-toggle__row">
+                        <span class="pg-dash-absensi-toggle__title">
+                            <i class="fa-solid fa-house-circle-xmark text-secondary me-1"></i>
+                            Santri menepi keaktifan
+                            <span class="badge text-bg-light border ms-1 pg-dash-absensi-count"><?= (int) $santriPenepianHariCount ?></span>
+                        </span>
+                        <span class="pg-dash-absensi-toggle__hint small text-muted">Ketuk untuk buka daftar</span>
+                        <i class="fa-solid fa-chevron-right pg-dash-absensi-chevron" aria-hidden="true"></i>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </div>
     </div>
 
     <?php if ($jumlahKegiatanBerlangsung > 0): ?>
@@ -383,7 +255,6 @@ require_once __DIR__ . '/../includes/header.php';
         });
     })();
 </script>
-<?php require __DIR__ . '/../includes/partials/pengasuh_izin_setujui_modal.php'; ?>
 <script src="<?= htmlspecialchars(app_asset_href('/assets/js/keaktifan-hari.js')) ?>"></script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

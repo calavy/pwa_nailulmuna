@@ -28,10 +28,15 @@ function rekap_keaktifan_hari_normalize_kategori(?string $kategori): ?string
  *
  * @return list<array<string, mixed>>
  */
-function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatanFilter = null, ?string $kategoriKegiatan = null): array
-{
+function rekap_keaktifan_hari_data(
+    PDO $pdo,
+    string $tanggal,
+    ?string $tingkatanFilter = null,
+    ?string $kategoriKegiatan = null,
+    ?int $finalizeTtlSeconds = null
+): array {
     static $dataCache = [];
-    $cacheKey = $tanggal . '|' . ($tingkatanFilter ?? '') . '|' . ($kategoriKegiatan ?? '');
+    $cacheKey = $tanggal . '|' . ($tingkatanFilter ?? '') . '|' . ($kategoriKegiatan ?? '') . '|' . ($finalizeTtlSeconds ?? '');
     if (isset($dataCache[$cacheKey])) {
         return $dataCache[$cacheKey];
     }
@@ -94,7 +99,11 @@ function rekap_keaktifan_hari_data(PDO $pdo, string $tanggal, ?string $tingkatan
     if (!isset($finalizedDates[$tanggal])) {
         $auditUserId = (int) ($_SESSION['user']['id'] ?? 1);
         if ($tanggal === date('Y-m-d')) {
-            presensi_finalize_today_throttled($pdo, $auditUserId > 0 ? $auditUserId : 1, 180);
+            presensi_finalize_today_throttled(
+                $pdo,
+                $auditUserId > 0 ? $auditUserId : 1,
+                $finalizeTtlSeconds ?? 180
+            );
         } elseif (!presensi_finalized_date_is_set($pdo, $tanggal)) {
             presensi_finalize_date_range($pdo, $tanggal, $tanggal, $auditUserId > 0 ? $auditUserId : 1);
         }

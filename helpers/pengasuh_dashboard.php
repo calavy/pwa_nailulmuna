@@ -617,3 +617,112 @@ function pengasuh_dashboard_sdm_by_tingkatan(PDO $pdo, string $tanggal, array $k
         'munawib' => $groupFn($mwByTk),
     ];
 }
+
+/**
+ * Santri menepi keaktifan pada tanggal (seluruh pondok, baca saja).
+ *
+ * @return list<array<string,mixed>>
+ */
+function pengasuh_dashboard_santri_penepian_hari_ini(PDO $pdo, string $today, int $limit = 50): array
+{
+    require_once __DIR__ . '/santri_penepian_keaktifan.php';
+
+    return santri_penepian_list_aktif_on_date($pdo, $today, null, $limit);
+}
+
+/**
+ * Data berat dashboard pengasuh (rekap + panel keaktifan) dengan cache sesi 90 detik.
+ *
+ * @return array{
+ *   kegiatanAktif:list<array>,
+ *   kegiatanAktifGrouped:list<array>,
+ *   keaktivanPanels:array<string,array>,
+ *   adaKegiatanLive:bool,
+ *   keaktivanModeLive:bool,
+ *   keaktivanModeProgress:bool,
+ *   kegiatanAktifPresensi:list<array>,
+ *   jumlahKegiatanBerlangsung:int,
+ *   pgIdleData:array<string,mixed>,
+ *   liburTampil:array|null,
+ *   cache_hit:bool
+ * }
+ */
+function pengasuh_dashboard_page_bundle(PDO $pdo, string $today, string $nowTime, bool $useCache = true): array
+{
+    require_once __DIR__ . '/rekap_keaktifan_hari.php';
+    require_once __DIR__ . '/pembimbing_dashboard.php';
+    require_once __DIR__ . '/dashboard_insights.php';
+
+    $userId = (int) ($_SESSION['user']['id'] ?? 0);
+    $cacheKey = 'pg_dash_v1_' . $today . '_' . $userId;
+    if ($useCache && isset($_SESSION[$cacheKey]) && is_array($_SESSION[$cacheKey])) {
+        $cached = $_SESSION[$cacheKey];
+        if (($cached['exp'] ?? 0) > time() && is_array($cached['data'] ?? null)) {
+            $data = $cached['data'];
+            $data['cache_hit'] = true;
+
+            return $data;
+        }
+    }
+
+    $kegiatanAktif = pengasuh_dashboard_kegiatan_aktif($pdo, $nowTime);
+    $kegiatanAktifGrouped = jadwal_kelompokkan_kegiatan_aktif($kegiatanAktif);
+
+    $rowsHari = rekap_keaktifan_hari_data($pdo, $today, null, null, 300);
+    $keaktivanPanels = [
+        'TAALIM' => array_merge(
+            ['key' => 'TAALIM', 'label' => "Ta'lim", 'slug' => 'taalim'],
+            pengasuh_dashboard_keaktivan_bundle($pdo, $today, $rowsHari, $kegiatanAktif, 'TAALIM')
+        ),
+        'JAMAAH' => array_merge(
+            ['key' => 'JAMAAH', 'label' => "Jama'ah", 'slug' => 'jamaah'],
+            pengasuh_dashboard_keaktivan_bundle($pdo, $today, $rowsHari, $kegiatanAktif, 'JAMAAH')
+        ),
+    ];
+    $adaKegiatanLive = $kegiatanAktif !== [];
+    $keaktivanModeLive = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'live'
+        || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'live';
+    $keaktivanModeProgress = ($keaktivanPanels['TAALIM']['mode'] ?? '') === 'progress'
+        || ($keaktivanPanels['JAMAAH']['mode'] ?? '') === 'progress';
+
+    $kegiatanAktifPresensi = [];
+    if ($kegiatanAktifGrouped !== []) {
+        $kegiatanAktifPresensi = pembimbing_dashboard_presensi_kegiatan_berlangsung($pdo, $kegiatanAktifGrouped, $today, false);
+    }
+
+    $jumlahKegiatanBerlangsung = count($kegiatanAktifGrouped);
+    if ($jumlahKegiatanBerlangsung === 0 && $kegiatanAktifPresensi !== []) {
+        $jumlahKegiatanBerlangsung = count($kegiatanAktifPresensi);
+    }
+    if ($jumlahKegiatanBerlangsung === 0 && $kegiatanAktif !== []) {
+        $jumlahKegiatanBerlangsung = count(array_unique(array_map(
+            static fn (array $r): int => (int) ($r['kegiatan_id'] ?? 0),
+            $kegiatanAktif
+        )));
+    }
+
+    $pgIdleData = !$adaKegiatanLive
+        ? dashboard_idle_panel_data($pdo, $today, $nowTime)
+        : ['agenda' => [], 'presensi' => [], 'jadwal_berikutnya' => []];
+    $liburTampil = akademik_libur_presensi_tampilan($pdo, $today);
+
+    $data = [
+        'kegiatanAktif' => $kegiatanAktif,
+        'kegiatanAktifGrouped' => $kegiatanAktifGrouped,
+        'keaktivanPanels' => $keaktivanPanels,
+        'adaKegiatanLive' => $adaKegiatanLive,
+        'keaktivanModeLive' => $keaktivanModeLive,
+        'keaktivanModeProgress' => $keaktivanModeProgress,
+        'kegiatanAktifPresensi' => $kegiatanAktifPresensi,
+        'jumlahKegiatanBerlangsung' => $jumlahKegiatanBerlangsung,
+        'pgIdleData' => $pgIdleData,
+        'liburTampil' => $liburTampil,
+        'cache_hit' => false,
+    ];
+
+    if ($useCache) {
+        $_SESSION[$cacheKey] = ['exp' => time() + 90, 'data' => $data];
+    }
+
+    return $data;
+}

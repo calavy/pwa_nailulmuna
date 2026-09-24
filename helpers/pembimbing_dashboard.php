@@ -408,6 +408,18 @@ function pembimbing_dashboard_santri_izin_hari_ini(PDO $pdo, array $tingkatanLis
 }
 
 /**
+ * Santri menepi keaktifan hari ini di tingkatan pembimbing (baca saja).
+ *
+ * @return list<array<string,mixed>>
+ */
+function pembimbing_dashboard_santri_penepian_hari_ini(PDO $pdo, array $tingkatanList, string $today, int $limit = 50): array
+{
+    require_once __DIR__ . '/santri_penepian_keaktifan.php';
+
+    return santri_penepian_list_aktif_on_date($pdo, $today, $tingkatanList, $limit);
+}
+
+/**
  * Total santri sedang izin hari ini (count only).
  */
 function pembimbing_dashboard_jumlah_izin_hari_ini(PDO $pdo, array $tingkatanList, string $today): int

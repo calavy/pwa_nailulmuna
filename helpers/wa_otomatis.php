@@ -1352,6 +1352,311 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
     ];
 }
 
+/**
+ * @param array<string, mixed> $bulk
+ * @return array{sent:int,failed:int,skipped:int,total:int,reason:string,skipped_flag:bool,details:list<mixed>,blocked?:bool,fallback?:bool}
+ */
+function wa_kirim_pengasuh_pending_normalize_result(array $bulk): array
+{
+    $sent = (int) ($bulk['sent'] ?? 0);
+    $skipped = (int) ($bulk['skipped'] ?? 0);
+    $reason = '';
+    if ($sent === 0) {
+        if (!empty($bulk['blocked'])) {
+            $reason = 'warmup';
+        } elseif ($skipped > 0 && (int) ($bulk['failed'] ?? 0) === 0) {
+            $detail0 = is_array($bulk['details'][0] ?? null) ? $bulk['details'][0] : [];
+            $reason = (($detail0['skipped_reason'] ?? '') === 'duplicate') ? 'duplicate' : 'skipped';
+        } else {
+            $reason = 'send_failed';
+        }
+    }
+
+    return array_merge($bulk, [
+        'reason' => $reason,
+        'skipped_flag' => $sent === 0,
+    ]);
+}
+
+/**
+ * Kirim WA antrean pengasuh — fallback per nomor jika blast Fonte diblokir (warmup).
+ *
+ * @param array<string, mixed> $opts kind, dedup_key, dedup_key_once, targets (raw opsional)
+ * @return array{sent:int,failed:int,skipped:int,total:int,reason:string,skipped_flag:bool,details:list<mixed>,blocked?:bool,fallback?:bool}
+ */
+function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []): array
+{
+    if (!function_exists('wa_pengasuh_pending_targets')) {
+        require_once __DIR__ . '/perizinan_approval.php';
+    }
+    $targetsRaw = trim((string) ($opts['targets'] ?? ''));
+    if ($targetsRaw === '') {
+        $targetsRaw = wa_pengasuh_pending_targets($pdo);
+    }
+    $targets = wa_otomatis_parse_targets($targetsRaw);
+    if ($targets === []) {
+        return [
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+            'total' => 0,
+            'reason' => 'no_pengasuh_wa',
+            'skipped_flag' => true,
+            'details' => [],
+        ];
+    }
+
+    if (!isset($opts['kind'])) {
+        $opts['kind'] = 'izin';
+    }
+
+    $dedupKeyBase = trim((string) ($opts['dedup_key'] ?? ''));
+
+    if (count($targets) === 1) {
+        return wa_kirim_pengasuh_pending_normalize_result(
+            wa_otomatis_send_bulk($pdo, $targetsRaw, $message, $opts)
+        );
+    }
+
+    $bulk = wa_otomatis_send_bulk($pdo, $targetsRaw, $message, $opts);
+    $sent = (int) ($bulk['sent'] ?? 0);
+    if ($sent > 0) {
+        return wa_kirim_pengasuh_pending_normalize_result($bulk);
+    }
+
+    $allDuplicate = false;
+    if (!empty($bulk['details']) && is_array($bulk['details'])) {
+        $allDuplicate = true;
+        foreach ($bulk['details'] as $detail) {
+            if (!is_array($detail) || ($detail['skipped_reason'] ?? '') !== 'duplicate') {
+                $allDuplicate = false;
+                break;
+            }
+        }
+    }
+    if ($allDuplicate) {
+        return wa_kirim_pengasuh_pending_normalize_result($bulk);
+    }
+
+    $blocked = !empty($bulk['blocked']);
+    $kind = trim((string) ($opts['kind'] ?? 'izin'));
+    $delayMs = max(0, min(300000, (int) ($opts['delay_between_ms'] ?? 350)));
+    if ($delayMs === 0 && !array_key_exists('delay_between_ms', $opts)) {
+        $fonnteDelay = wa_otomatis_fonnte_api_delay($pdo, $opts);
+        $minSec = wa_otomatis_delay_min_seconds($fonnteDelay);
+        if ($minSec < 8) {
+            $minSec = 8;
+        }
+        $delayMs = $minSec * 1000;
+    }
+
+    $fallbackSent = 0;
+    $fallbackFailed = 0;
+    $fallbackSkipped = 0;
+    $details = [];
+    foreach ($targets as $idx => $target) {
+        if ($idx > 0 && $delayMs > 0) {
+            usleep($delayMs * 1000);
+        }
+        $targetOpts = $opts;
+        unset($targetOpts['dedup_key_once']);
+        if ($dedupKeyBase !== '') {
+            $targetOpts['dedup_key'] = $dedupKeyBase . ':t:' . wa_otomatis_normalize_target($target);
+        }
+        $result = wa_otomatis_send($pdo, $target, $message, $targetOpts);
+        $details[] = $result;
+        if (!empty($result['skipped'])) {
+            $fallbackSkipped++;
+        } elseif ($result['success'] ?? false) {
+            $fallbackSent++;
+        } else {
+            $fallbackFailed++;
+        }
+    }
+
+    $reason = '';
+    if ($fallbackSent === 0) {
+        if ($fallbackSkipped > 0 && $fallbackFailed === 0) {
+            $reason = 'duplicate';
+        } elseif ($blocked) {
+            $reason = 'warmup_fallback_failed';
+        } else {
+            $reason = 'send_failed';
+        }
+    } elseif ($dedupKeyBase !== '' && !empty($opts['dedup_key_once'])) {
+        wa_dispatch_mark_success($pdo, $dedupKeyBase, $kind);
+    }
+
+    return [
+        'sent' => $fallbackSent,
+        'failed' => $fallbackFailed,
+        'skipped' => $fallbackSkipped,
+        'total' => count($targets),
+        'reason' => $reason,
+        'skipped_flag' => $fallbackSent === 0,
+        'blocked' => $blocked,
+        'fallback' => true,
+        'details' => $details,
+    ];
+}
+
+function wa_dispatch_mark_success(PDO $pdo, string $dedupKey, string $kind = 'izin'): void
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return;
+    }
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return;
+    }
+    $kind = substr(trim($kind), 0, 40);
+    if ($kind === '') {
+        $kind = 'izin';
+    }
+    try {
+        $pdo->prepare('
+            INSERT INTO wa_dispatch_log (dedup_key, kind, target_phone, message_hash, http_ok)
+            VALUES (:dedup_key, :kind, "bulk", "", 1)
+            ON DUPLICATE KEY UPDATE http_ok = 1
+        ')->execute([
+            'dedup_key' => $dedupKey,
+            'kind' => $kind,
+        ]);
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch_mark_success] ' . $e->getMessage());
+    }
+}
+
+function wa_dispatch_dedup_succeeded(PDO $pdo, string $dedupKey): bool
+{
+    wa_dispatch_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_dispatch_log')) {
+        return false;
+    }
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare('SELECT 1 FROM wa_dispatch_log WHERE dedup_key = :k AND http_ok = 1 LIMIT 1');
+        $st->execute(['k' => $dedupKey]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[wa_dispatch_dedup_succeeded] ' . $e->getMessage());
+
+        return false;
+    }
+}
+
+/** Retry WA pengasuh untuk izin syar'i PENDING yang belum tercatat sukses di dispatch log. */
+function wa_izin_pengasuh_pending_retry_tick(PDO $pdo, int $limit = 5): int
+{
+    if (!function_exists('wa_izin_pengasuh_pending_enabled')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!wa_izin_pengasuh_pending_enabled($pdo)) {
+        return 0;
+    }
+    if (trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return 0;
+    }
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return 0;
+    }
+    if (!function_exists('table_exists') || !table_exists($pdo, 'perizinan')) {
+        return 0;
+    }
+
+    $interval = max(60, (int) app_setting($pdo, 'wa_izin_pengasuh_retry_interval_sec', '300'));
+    if (!wa_auto_try_claim_interval($pdo, 'wa_izin_pengasuh_retry_last_at', time(), $interval)) {
+        return 0;
+    }
+
+    require_once __DIR__ . '/perizinan_jenis.php';
+    if (!function_exists('wa_format_pengajuan_izin_pengasuh')) {
+        require_once __DIR__ . '/app.php';
+    }
+
+    $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
+    $hasCreated = column_exists($pdo, 'perizinan', 'created_at');
+    $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
+    $tingkatanCol = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan AS tingkatan' : "'' AS tingkatan";
+    $tujuanCol = column_exists($pdo, 'perizinan', 'tujuan') ? 'i.tujuan' : "'' AS tujuan";
+    $since = date('Y-m-d H:i:s', time() - 48 * 3600);
+    $order = $hasCreated ? 'i.created_at DESC' : 'i.id DESC';
+    $whereSince = $hasCreated ? ' AND i.created_at >= :since' : ' AND i.id >= (SELECT COALESCE(MAX(id),0) - 500 FROM perizinan)';
+
+    $sql = '
+        SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.alasan,
+               ' . $tujuanCol . ', s.nis, ' . $nameCol . ' AS nama_santri, ' . $tingkatanCol . '
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE i.jenis_izin = :syari
+          AND i.approval_status = "PENDING"
+          ' . ($hasPengasuhCol ? ' AND (i.pengasuh_approved_at IS NULL OR TRIM(i.pengasuh_approved_at) = "")' : '') . '
+          ' . $whereSince . '
+        ORDER BY ' . $order . '
+        LIMIT ' . max(1, min(20, $limit * 4));
+    $st = $pdo->prepare($sql);
+    $params = ['syari' => perizinan_jenis_syari_kode()];
+    if ($hasCreated) {
+        $params['since'] = $since;
+    }
+    $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $sentTotal = 0;
+    $attempts = 0;
+    foreach ($rows as $row) {
+        if ($attempts >= $limit) {
+            break;
+        }
+        $izinId = (int) ($row['id'] ?? 0);
+        if ($izinId <= 0) {
+            continue;
+        }
+        $dedupKey = 'izin:' . $izinId . ':pengasuh:submit';
+        if (wa_dispatch_dedup_succeeded($pdo, $dedupKey)) {
+            continue;
+        }
+        $attempts++;
+        $jm1 = substr((string) ($row['jam_mulai'] ?? ''), 0, 5);
+        $jm2 = substr((string) ($row['jam_selesai'] ?? ''), 0, 5);
+        if ($jm1 === '') {
+            $jm1 = date('H:i');
+        }
+        if ($jm2 === '') {
+            $jm2 = $jm1;
+        }
+        $msg = wa_format_pengajuan_izin_pengasuh(
+            $pdo,
+            (string) ($row['nama_santri'] ?? '-'),
+            (string) ($row['nis'] ?? ''),
+            (string) ($row['tingkatan'] ?? ''),
+            (string) ($row['jenis_izin'] ?? 'SYARI'),
+            (string) ($row['tanggal_mulai'] ?? ''),
+            (string) ($row['tanggal_selesai'] ?? ''),
+            $jm1,
+            $jm2,
+            (string) ($row['alasan'] ?? ''),
+            (string) ($row['tujuan'] ?? '')
+        );
+        $result = wa_kirim_pengasuh_pending($pdo, $msg, [
+            'kind' => 'izin',
+            'dedup_key' => $dedupKey,
+            'dedup_key_once' => true,
+        ]);
+        $sentTotal += (int) ($result['sent'] ?? 0);
+        if ((int) ($result['sent'] ?? 0) === 0 && ($result['reason'] ?? '') !== 'duplicate') {
+            error_log('[wa_izin_pengasuh_retry] izin_id=' . $izinId . ' reason=' . ($result['reason'] ?? 'unknown'));
+        }
+    }
+
+    return $sentTotal;
+}
+
 /** Nomor WA wali santri (resolver lengkap + normalisasi). */
 function wa_otomatis_santri_wali_phone(PDO $pdo, int|array $santriRow): string
 {
@@ -1569,6 +1874,33 @@ function wa_auto_disable_web_fallback_if_cron_http(PDO $pdo): bool
 /**
  * @return list<array<string, mixed>>
  */
+/** @return list<array{target_phone:string,is_success:int,sent_at:string,msg_snip:string}> */
+function wa_logs_recent_pengasuh_pending(PDO $pdo, int $limit = 3): array
+{
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_logs')) {
+        return [];
+    }
+    $limit = max(1, min(10, $limit));
+    try {
+        $st = $pdo->prepare('
+            SELECT target_phone, is_success, sent_at, LEFT(message, 140) AS msg_snip
+            FROM wa_logs
+            WHERE message LIKE :syari OR message LIKE :munawib
+            ORDER BY id DESC
+            LIMIT ' . $limit);
+        $st->execute([
+            'syari' => '%PERMOHONAN IZIN SYAR%',
+            'munawib' => '%PENGAJUAN MUNAWIB PEMBIMBING%',
+        ]);
+
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[wa_logs_recent_pengasuh_pending] ' . $e->getMessage());
+
+        return [];
+    }
+}
+
 function wa_logs_recent_duplicates(PDO $pdo, int $hours = 24, int $limit = 20): array
 {
     if (!function_exists('table_exists') || !table_exists($pdo, 'wa_logs')) {
@@ -1648,6 +1980,7 @@ function wa_auto_run_tick(PDO $pdo): array
             $lightInterval = max(45, (int) app_setting($pdo, 'wa_auto_light_interval_sec', '60'));
             $runLight = wa_auto_try_claim_interval($pdo, 'wa_auto_light_last_at', $now, $lightInterval);
             if ($runLight) {
+                wa_izin_pengasuh_pending_retry_tick($pdo, 5);
                 trigger_wa_pembimbing_belum_scan($pdo);
                 trigger_wa_mudabir_belum_hadir($pdo);
                 if (!function_exists('trigger_wa_yayasan_tugas_belum_progres')) {

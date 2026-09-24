@@ -38,6 +38,28 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
                 <?php if (($waIzinPengasuhPendingTargetPreview ?? '') === ''): ?>
                     <div class="alert alert-warning py-2 small">Belum ada nomor pengasuh — isi No. WA pada akun pengasuh atau nomor cadangan di bawah.</div>
                 <?php endif; ?>
+                <?php if (!empty($waFonteWarmupActive)): ?>
+                    <div class="alert alert-info py-2 small mb-2">
+                        Fonte warmup aktif (blast multi-nomor ditahan). Pengajuan izin ke pengasuh tetap dikirim per nomor.
+                        <?php if (($waFonteWarmupUntil ?? '') !== ''): ?>
+                            Selesai perkiraan: <?= htmlspecialchars($waFonteWarmupUntil) ?>.
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($waIzinPengasuhRecentLogs) && is_array($waIzinPengasuhRecentLogs)): ?>
+                    <div class="small text-muted mb-3">
+                        <div class="fw-semibold mb-1">Log WA pengasuh terakhir</div>
+                        <ul class="mb-0 ps-3">
+                            <?php foreach ($waIzinPengasuhRecentLogs as $logRow): ?>
+                            <li>
+                                <?= htmlspecialchars((string) ($logRow['sent_at'] ?? '')) ?>
+                                → <?= htmlspecialchars((string) ($logRow['target_phone'] ?? '')) ?>
+                                <?= ((int) ($logRow['is_success'] ?? 0)) === 1 ? '✓' : '✗' ?>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
                 <form method="post">
                     <input type="hidden" name="action" value="save_izin_pengasuh_pending_wa">
                     <div class="form-check form-switch mb-3">

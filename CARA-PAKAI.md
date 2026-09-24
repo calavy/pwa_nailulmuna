@@ -230,6 +230,35 @@ Uji cepat: cari kata kunci contoh pelanggaran → pilih rule berat → pemberat 
 
 ---
 
+## Penepian keaktifan vs izin resmi (PRESNA)
+
+Santri **masih AKTIF** di data tetapi sementara **di luar pondok** dan **tidak** ikut slot presensi (netral di rekap keaktifan/PRESNA — **bukan** ALPA, **bukan** IZIN/SAKIT).
+
+| Situasi | Pakai |
+|--------|--------|
+| Boyong / tidak kembali mondok | **NONAKTIF** di data santri |
+| Libur pondok / tingkatan | **Libur akademik** |
+| Keluar, sakit, syar'i wali, tugas resmi | **Izin resmi** (Perizinan) → tercatat IZIN/SAKIT + penalti PRESNA |
+| Pulang sementara tanpa izin formal, tidak boleh kena ALPA | **Penepian keaktifan** (super admin / pengasuh) |
+
+**Input (super admin & pengasuh):** **Perizinan → Penepian keaktifan** (tab hub, hanya role ini), **Edit santri → Catat penepian keaktifan**, atau **Kelola penepian** dari halaman daftar menepi pengasuh. Isi tanggal mulai & selesai **bebas** (custom), alasan wajib. Pintasan +1/+3/+7/+14 hari hanya mengisi tanggal selesai. **Edit** untuk perpanjang; **Selesai hari ini** jika pulang lebih cepat; **Batalkan** jika salah input. **Pengurus dan petugas absensi tidak dapat mengubah** penepian.
+
+**Pembimbing:** hanya **melihat** daftar santri bimbingan yang menepi (dashboard pembimbing).
+
+**Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu *Santri menepi*) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin.
+
+**Scan kartu:** pesan *Sedang menepi keaktifan — presensi tidak dihitung*.
+
+**Jangan** pakai izin keluar hanya untuk hindari ALPA jika tidak ingin penalti Izin×2. **Jangan** dobel: rentang yang sama jangan sekaligus izin resmi + penepian.
+
+UAT otomatis (lokal):
+
+```powershell
+C:\xampp\php\php.exe scripts\_uat_penepian_keaktifan.php
+```
+
+---
+
 ## Multi Scan — deploy & UAT kamera
 
 Setelah upload ke hosting, pastikan browser/PWA tidak memakai JS lama:

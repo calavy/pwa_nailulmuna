@@ -582,6 +582,9 @@ $waIzinPengasuhPendingEnabled = trim((string) app_setting($pdo, 'wa_izin_pengasu
 $waIzinPengasuhPendingExtra = trim((string) app_setting($pdo, 'wa_izin_pengasuh_pending_extra', ''));
 require_once __DIR__ . '/../../helpers/perizinan_approval.php';
 $waIzinPengasuhPendingTargetPreview = wa_pengasuh_pending_targets($pdo);
+$waIzinPengasuhRecentLogs = wa_logs_recent_pengasuh_pending($pdo, 3);
+$waFonteWarmupActive = wa_fonte_warmup_active($pdo);
+$waFonteWarmupUntil = trim((string) app_setting($pdo, 'wa_fonte_warmup_until', ''));
 $waIzinPengurus = trim((string) app_setting($pdo, 'wa_izin_pengurus', ''));
 $waIzinPengurusPutra = trim((string) app_setting($pdo, 'wa_izin_pengurus_putra', ''));
 $waIzinPengurusPutri = trim((string) app_setting($pdo, 'wa_izin_pengurus_putri', ''));
