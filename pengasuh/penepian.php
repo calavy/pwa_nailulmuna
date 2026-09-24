@@ -29,7 +29,7 @@ require_once __DIR__ . '/../includes/header.php';
     <h1 class="h4 mb-1">Santri menepi keaktifan</h1>
     <p class="text-muted mb-0">
         Daftar santri yang sedang menepi pada <strong><?= htmlspecialchars($tglLabel) ?></strong>.
-        Kolom <em>Menepi</em> = jumlah hari sejak tanggal mulai penepian (inklusif hari ini).
+        Kolom <em>Menepi</em> = jumlah hari sejak tanggal mulai (inklusif). Penepian tidak punya tanggal akhir di form — diakhiri lewat <em>Selesai hari ini</em> saat kelola.
         <?php if (user_can_manage_santri_penepian()): ?>
             · <a href="<?= htmlspecialchars(app_href('/perizinan/penepian_keaktifan.php')) ?>">Kelola penepian</a>
         <?php endif; ?>

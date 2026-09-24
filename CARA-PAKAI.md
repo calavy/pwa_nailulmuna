@@ -241,7 +241,7 @@ Santri **masih AKTIF** di data tetapi sementara **di luar pondok** dan **tidak**
 | Keluar, sakit, syar'i wali, tugas resmi | **Izin resmi** (Perizinan) → tercatat IZIN/SAKIT + penalti PRESNA |
 | Pulang sementara tanpa izin formal, tidak boleh kena ALPA | **Penepian keaktifan** (super admin / pengasuh) |
 
-**Input (super admin & pengasuh):** **Perizinan → Penepian keaktifan** (tab hub, hanya role ini), **Edit santri → Catat penepian keaktifan**, atau **Kelola penepian** dari halaman daftar menepi pengasuh. Isi tanggal mulai & selesai **bebas** (custom), alasan wajib. Pintasan +1/+3/+7/+14 hari hanya mengisi tanggal selesai. **Edit** untuk perpanjang; **Selesai hari ini** jika pulang lebih cepat; **Batalkan** jika salah input. **Pengurus dan petugas absensi tidak dapat mengubah** penepian.
+**Input (super admin & pengasuh):** **Perizinan → Penepian keaktifan** (tab hub, hanya role ini), **Edit santri → Catat penepian keaktifan**, atau **Kelola penepian** dari halaman daftar menepi pengasuh. Cukup **tanggal mulai** + alasan wajib — tidak ada tanggal selesai di form; penepian berlaku sampai **Selesai hari ini** (mencatat tanggal akhir) atau **Batalkan**. **Edit** hanya mengubah mulai/alasan selama masih aktif. **Pengurus dan petugas absensi tidak dapat mengubah** penepian. Data lama yang sudah punya rentang tetap dibaca sistem.
 
 **Pembimbing:** hanya **melihat** daftar santri bimbingan yang menepi (dashboard pembimbing).
 

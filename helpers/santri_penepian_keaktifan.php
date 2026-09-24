@@ -22,7 +22,7 @@ function santri_penepian_keaktifan_ensure_schema(PDO $pdo): void
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 santri_id INT NOT NULL,
                 tanggal_mulai DATE NOT NULL,
-                tanggal_selesai DATE NOT NULL,
+                tanggal_selesai DATE NULL,
                 alasan VARCHAR(500) NOT NULL,
                 catatan_internal TEXT NULL,
                 is_aktif TINYINT(1) NOT NULL DEFAULT 1,
@@ -33,9 +33,35 @@ function santri_penepian_keaktifan_ensure_schema(PDO $pdo): void
                 INDEX idx_penepian_rentang (tanggal_mulai, tanggal_selesai)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ');
+        if (table_exists($pdo, 'santri_penepian_keaktifan')) {
+            try {
+                $pdo->exec('ALTER TABLE santri_penepian_keaktifan MODIFY tanggal_selesai DATE NULL');
+            } catch (Throwable $eAlter) {
+                // Kolom sudah NULL atau migrasi sudah diterapkan.
+            }
+        }
     } catch (Throwable $e) {
         error_log('[santri_penepian_keaktifan] ensure_schema: ' . $e->getMessage());
     }
+}
+
+/** Tanggal akhir efektif untuk cek overlap / izin (penepian terbuka). */
+function santri_penepian_open_end_date(): string
+{
+    return '9999-12-31';
+}
+
+/**
+ * SQL: record menepi mencakup tanggal :param (mulai ≤ tgl dan selesai null atau ≥ tgl).
+ *
+ * @param string $colMulai e.g. tanggal_mulai or p.tanggal_mulai
+ * @param string $colSelesai e.g. tanggal_selesai or p.tanggal_selesai
+ * @param string $paramName bind name without colon, e.g. tgl
+ */
+function santri_penepian_sql_covers_date(string $colMulai, string $colSelesai, string $paramName): string
+{
+    return $colMulai . ' <= :' . $paramName
+        . ' AND (' . $colSelesai . ' IS NULL OR ' . $colSelesai . ' >= :' . $paramName . ')';
 }
 
 function santri_penepian_normalize_date(string $date): ?string
@@ -78,12 +104,12 @@ function santri_penepian_map_for_date(PDO $pdo, string $tanggal): array
         return [];
     }
 
+    $covers = santri_penepian_sql_covers_date('tanggal_mulai', 'tanggal_selesai', 'tgl');
     $st = $pdo->prepare('
         SELECT DISTINCT santri_id
         FROM santri_penepian_keaktifan
         WHERE is_aktif = 1
-          AND tanggal_mulai <= :tgl
-          AND tanggal_selesai >= :tgl
+          AND ' . $covers . '
     ');
     $st->execute(['tgl' => $tanggal]);
     $map = [];
@@ -145,14 +171,14 @@ function santri_penepian_list_aktif_on_date(
         $tingkatanSql = ' AND s.tingkatan IN (' . implode(',', $ph) . ')';
     }
 
+    $covers = santri_penepian_sql_covers_date('p.tanggal_mulai', 'p.tanggal_selesai', 'today');
     $st = $pdo->prepare('
         SELECT p.id, p.tanggal_mulai, p.tanggal_selesai, p.alasan,
                s.id AS santri_id, s.nis, ' . $nameCol . ' AS nama_santri, s.tingkatan
         FROM santri_penepian_keaktifan p
         INNER JOIN santri s ON s.id = p.santri_id AND ' . $aktifSql . '
         WHERE p.is_aktif = 1
-          AND p.tanggal_mulai <= :today
-          AND p.tanggal_selesai >= :today' . $tingkatanSql . '
+          AND ' . $covers . $tingkatanSql . '
         ORDER BY s.tingkatan ASC, ' . $nameCol . ' ASC
         LIMIT ' . $limit . '
     ');
@@ -181,10 +207,10 @@ function santri_penepian_list(
     $where = '1=1';
     $params = [];
     if ($filter === 'aktif') {
-        $where .= ' AND p.is_aktif = 1 AND p.tanggal_selesai >= :today';
+        $where .= ' AND p.is_aktif = 1 AND (p.tanggal_selesai IS NULL OR p.tanggal_selesai >= :today)';
         $params['today'] = $today;
     } elseif ($filter === 'selesai') {
-        $where .= ' AND p.is_aktif = 1 AND p.tanggal_selesai < :today';
+        $where .= ' AND p.is_aktif = 1 AND p.tanggal_selesai IS NOT NULL AND p.tanggal_selesai < :today';
         $params['today'] = $today;
     } elseif ($filter === 'batal') {
         $where .= ' AND p.is_aktif = 0';
@@ -214,7 +240,8 @@ function santri_penepian_status_label(array $row, ?string $today = null): string
         return 'Dibatalkan';
     }
     $mulai = (string) ($row['tanggal_mulai'] ?? '');
-    $selesai = (string) ($row['tanggal_selesai'] ?? '');
+    $selesaiRaw = $row['tanggal_selesai'] ?? null;
+    $selesai = $selesaiRaw === null || $selesaiRaw === '' ? '' : (string) $selesaiRaw;
     if ($selesai !== '' && $selesai < $today) {
         return 'Selesai';
     }
@@ -232,20 +259,16 @@ function santri_penepian_simpan(
     PDO $pdo,
     int $santriId,
     string $tanggalMulai,
-    string $tanggalSelesai,
     string $alasan,
     string $catatanInternal = '',
     int $createdBy = 0
 ): array {
     santri_penepian_keaktifan_ensure_schema($pdo);
     $tanggalMulai = santri_penepian_normalize_date($tanggalMulai);
-    $tanggalSelesai = santri_penepian_normalize_date($tanggalSelesai);
-    if ($santriId <= 0 || $tanggalMulai === null || $tanggalSelesai === null) {
-        return ['ok' => false, 'message' => 'Data tidak lengkap atau tanggal tidak valid.'];
+    if ($santriId <= 0 || $tanggalMulai === null) {
+        return ['ok' => false, 'message' => 'Data tidak lengkap atau tanggal mulai tidak valid.'];
     }
-    if ($tanggalSelesai < $tanggalMulai) {
-        return ['ok' => false, 'message' => 'Tanggal selesai harus sama atau setelah tanggal mulai.'];
-    }
+    $tanggalSelesaiEfektif = santri_penepian_open_end_date();
     $alasan = trim($alasan);
     if (mb_strlen($alasan) < 10) {
         return ['ok' => false, 'message' => 'Alasan minimal 10 karakter.'];
@@ -264,23 +287,22 @@ function santri_penepian_simpan(
         return ['ok' => false, 'message' => 'Penepian hanya untuk santri berstatus AKTIF.'];
     }
 
-    $overlap = santri_penepian_find_overlap($pdo, $santriId, $tanggalMulai, $tanggalSelesai, 0);
+    $overlap = santri_penepian_find_overlap($pdo, $santriId, $tanggalMulai, $tanggalSelesaiEfektif, 0);
     if ($overlap !== null) {
-        return ['ok' => false, 'message' => 'Sudah ada penepian aktif yang bentrok rentang tanggal. Perpanjang record #' . (int) $overlap['id'] . ' atau batalkan dulu.'];
+        return ['ok' => false, 'message' => 'Sudah ada penepian aktif yang bentrok. Perpanjang record #' . (int) $overlap['id'] . ' atau batalkan dulu.'];
     }
 
-    $warnIzin = santri_penepian_warn_izin_overlap($pdo, $santriId, $tanggalMulai, $tanggalSelesai);
+    $warnIzin = santri_penepian_warn_izin_overlap($pdo, $santriId, $tanggalMulai, $tanggalSelesaiEfektif);
 
     $st = $pdo->prepare('
         INSERT INTO santri_penepian_keaktifan
             (santri_id, tanggal_mulai, tanggal_selesai, alasan, catatan_internal, is_aktif, created_by)
         VALUES
-            (:sid, :t1, :t2, :alasan, :cat, 1, :uid)
+            (:sid, :t1, NULL, :alasan, :cat, 1, :uid)
     ');
     $st->execute([
         'sid' => $santriId,
         't1' => $tanggalMulai,
-        't2' => $tanggalSelesai,
         'alasan' => $alasan,
         'cat' => trim($catatanInternal) !== '' ? trim($catatanInternal) : null,
         'uid' => $createdBy > 0 ? $createdBy : null,
@@ -315,7 +337,7 @@ function santri_penepian_find_overlap(
         WHERE santri_id = :sid
           AND is_aktif = 1
           AND tanggal_mulai <= :t2
-          AND tanggal_selesai >= :t1
+          AND (tanggal_selesai IS NULL OR tanggal_selesai >= :t1)
     ';
     if ($excludeId > 0) {
         $sql .= ' AND id <> :xid';
@@ -366,47 +388,68 @@ function santri_penepian_update(
     PDO $pdo,
     int $id,
     string $tanggalMulai,
-    string $tanggalSelesai,
     string $alasan,
     string $catatanInternal = ''
 ): array {
     santri_penepian_keaktifan_ensure_schema($pdo);
     $tanggalMulai = santri_penepian_normalize_date($tanggalMulai);
-    $tanggalSelesai = santri_penepian_normalize_date($tanggalSelesai);
-    if ($id <= 0 || $tanggalMulai === null || $tanggalSelesai === null) {
+    if ($id <= 0 || $tanggalMulai === null) {
         return ['ok' => false, 'message' => 'Data tidak valid.'];
     }
-    if ($tanggalSelesai < $tanggalMulai) {
-        return ['ok' => false, 'message' => 'Tanggal selesai harus sama atau setelah tanggal mulai.'];
-    }
+    $tanggalSelesaiEfektif = santri_penepian_open_end_date();
     $alasan = trim($alasan);
     if (mb_strlen($alasan) < 10) {
         return ['ok' => false, 'message' => 'Alasan minimal 10 karakter.'];
     }
 
-    $st = $pdo->prepare('SELECT santri_id, is_aktif FROM santri_penepian_keaktifan WHERE id = :id LIMIT 1');
+    $st = $pdo->prepare('SELECT santri_id, is_aktif, tanggal_selesai FROM santri_penepian_keaktifan WHERE id = :id LIMIT 1');
     $st->execute(['id' => $id]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row) || (int) ($row['is_aktif'] ?? 0) !== 1) {
         return ['ok' => false, 'message' => 'Record tidak ditemukan atau sudah dibatalkan.'];
     }
     $sid = (int) ($row['santri_id'] ?? 0);
-    $overlap = santri_penepian_find_overlap($pdo, $sid, $tanggalMulai, $tanggalSelesai, $id);
+    $selesaiExisting = $row['tanggal_selesai'] ?? null;
+    $today = date('Y-m-d');
+    $closed = $selesaiExisting !== null && $selesaiExisting !== '' && (string) $selesaiExisting < $today;
+    if ($closed) {
+        return ['ok' => false, 'message' => 'Penepian yang sudah selesai tidak dapat diedit.'];
+    }
+    $overlapEnd = ($selesaiExisting === null || $selesaiExisting === '')
+        ? $tanggalSelesaiEfektif
+        : (string) $selesaiExisting;
+    $overlap = santri_penepian_find_overlap($pdo, $sid, $tanggalMulai, $overlapEnd, $id);
     if ($overlap !== null) {
-        return ['ok' => false, 'message' => 'Rentang bentrok dengan penepian aktif lain.'];
+        return ['ok' => false, 'message' => 'Bentrok dengan penepian aktif lain.'];
     }
 
-    $pdo->prepare('
-        UPDATE santri_penepian_keaktifan
-        SET tanggal_mulai = :t1, tanggal_selesai = :t2, alasan = :alasan, catatan_internal = :cat
-        WHERE id = :id
-    ')->execute([
-        't1' => $tanggalMulai,
-        't2' => $tanggalSelesai,
-        'alasan' => $alasan,
-        'cat' => trim($catatanInternal) !== '' ? trim($catatanInternal) : null,
-        'id' => $id,
-    ]);
+    if ($selesaiExisting === null || $selesaiExisting === '') {
+        $pdo->prepare('
+            UPDATE santri_penepian_keaktifan
+            SET tanggal_mulai = :t1, tanggal_selesai = NULL, alasan = :alasan, catatan_internal = :cat
+            WHERE id = :id
+        ')->execute([
+            't1' => $tanggalMulai,
+            'alasan' => $alasan,
+            'cat' => trim($catatanInternal) !== '' ? trim($catatanInternal) : null,
+            'id' => $id,
+        ]);
+    } else {
+        $selesaiNorm = santri_penepian_normalize_date((string) $selesaiExisting);
+        if ($selesaiNorm === null || $selesaiNorm < $tanggalMulai) {
+            return ['ok' => false, 'message' => 'Tanggal mulai tidak valid terhadap tanggal selesai tercatat.'];
+        }
+        $pdo->prepare('
+            UPDATE santri_penepian_keaktifan
+            SET tanggal_mulai = :t1, alasan = :alasan, catatan_internal = :cat
+            WHERE id = :id
+        ')->execute([
+            't1' => $tanggalMulai,
+            'alasan' => $alasan,
+            'cat' => trim($catatanInternal) !== '' ? trim($catatanInternal) : null,
+            'id' => $id,
+        ]);
+    }
 
     return ['ok' => true, 'message' => 'Penepian diperbarui.'];
 }

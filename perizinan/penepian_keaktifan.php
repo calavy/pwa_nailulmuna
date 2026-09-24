@@ -41,13 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $idPost = (int) ($_POST['id'] ?? 0);
         $sid = (int) ($_POST['santri_id'] ?? 0);
         $t1 = (string) ($_POST['tanggal_mulai'] ?? '');
-        $t2 = (string) ($_POST['tanggal_selesai'] ?? '');
         $alasan = (string) ($_POST['alasan'] ?? '');
         $cat = (string) ($_POST['catatan_internal'] ?? '');
         if ($idPost > 0) {
-            $res = santri_penepian_update($pdo, $idPost, $t1, $t2, $alasan, $cat);
+            $res = santri_penepian_update($pdo, $idPost, $t1, $alasan, $cat);
         } else {
-            $res = santri_penepian_simpan($pdo, $sid, $t1, $t2, $alasan, $cat, $userId);
+            $res = santri_penepian_simpan($pdo, $sid, $t1, $alasan, $cat, $userId);
         }
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
         $redirect($res['ok'] && $idPost > 0 ? ['edit' => $idPost] : []);
@@ -108,7 +107,6 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
 
 $formSantriId = (int) ($editRow['santri_id'] ?? $presetSantriId);
 $formMulai = (string) ($editRow['tanggal_mulai'] ?? date('Y-m-d'));
-$formSelesai = (string) ($editRow['tanggal_selesai'] ?? date('Y-m-d'));
 $formAlasan = (string) ($editRow['alasan'] ?? '');
 $formCat = (string) ($editRow['catatan_internal'] ?? '');
 
@@ -122,8 +120,9 @@ require_once __DIR__ . '/../includes/header.php';
     </p>
     <h1 class="h4 mb-1">Penepian keaktifan (luar pondok sementara)</h1>
     <p class="text-muted small mb-0">
-        Santri tetap <strong>AKTIF</strong> di data, tetapi slot presensi di rentang tanggal <strong>tidak dihitung</strong> (netral PRESNA — bukan ALPA/IZIN).
-        Jangan dipakai menggantikan izin resmi keluar/sakit/syar'i yang memang perlu surat dan tercatat sebagai IZIN.
+        Santri tetap <strong>AKTIF</strong> di data. Presensi dihitung netral (PRESNA) sejak <strong>tanggal mulai</strong> sampai Anda menekan
+        <strong>Selesai hari ini</strong> atau <strong>Batalkan</strong>. Tidak perlu mengisi tanggal selesai di muka.
+        Jangan dipakai menggantikan izin resmi keluar/sakit/syar'i.
     </p>
 </div>
 
@@ -154,21 +153,9 @@ require_once __DIR__ . '/../includes/header.php';
                             <input type="hidden" name="santri_id" value="<?= (int) ($editRow['santri_id'] ?? 0) ?>">
                         <?php endif; ?>
                     </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label">Tanggal mulai</label>
-                            <input type="date" name="tanggal_mulai" id="penepian-mulai" class="form-control" required value="<?= htmlspecialchars($formMulai) ?>">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label">Tanggal selesai</label>
-                            <input type="date" name="tanggal_selesai" id="penepian-selesai" class="form-control" required value="<?= htmlspecialchars($formSelesai) ?>">
-                        </div>
-                    </div>
-                    <div class="mb-3 d-flex flex-wrap gap-1">
-                        <span class="small text-muted align-self-center me-1">Pintasan dari mulai:</span>
-                        <?php foreach ([1 => '+1 hari', 3 => '+3 hari', 7 => '+7 hari', 14 => '+14 hari'] as $days => $lbl): ?>
-                            <button type="button" class="btn btn-outline-secondary btn-sm penepian-shortcut" data-days="<?= (int) $days ?>"><?= htmlspecialchars($lbl) ?></button>
-                        <?php endforeach; ?>
+                    <div class="mb-3">
+                        <label class="form-label">Tanggal mulai menepi</label>
+                        <input type="date" name="tanggal_mulai" id="penepian-mulai" class="form-control" required value="<?= htmlspecialchars($formMulai) ?>">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Alasan (min. 10 karakter)</label>
@@ -221,7 +208,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <thead class="table-light">
                         <tr>
                             <th>Santri</th>
-                            <th>Rentang</th>
+                            <th>Mulai menepi</th>
                             <th>Status</th>
                             <th class="text-end">Aksi</th>
                         </tr>
@@ -234,6 +221,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php
                             $rid = (int) ($r['id'] ?? 0);
                             $stLbl = santri_penepian_status_label($r);
+                            $selesaiVal = $r['tanggal_selesai'] ?? null;
+                            $selesaiStr = ($selesaiVal === null || $selesaiVal === '') ? '' : (string) $selesaiVal;
                             ?>
                             <tr>
                                 <td>
@@ -243,7 +232,11 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td class="text-nowrap small">
                                     <?= htmlspecialchars((string) ($r['tanggal_mulai'] ?? '')) ?>
-                                    <br>– <?= htmlspecialchars((string) ($r['tanggal_selesai'] ?? '')) ?>
+                                    <?php if ($selesaiStr !== ''): ?>
+                                        <br><span class="text-muted">Selesai: <?= htmlspecialchars($selesaiStr) ?></span>
+                                    <?php else: ?>
+                                        <br><span class="text-muted">Belum diakhiri</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="badge text-bg-light border"><?= htmlspecialchars($stLbl) ?></span>
@@ -272,27 +265,5 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
-
-<script>
-(function () {
-    var mulai = document.getElementById('penepian-mulai');
-    var selesai = document.getElementById('penepian-selesai');
-    if (!mulai || !selesai) return;
-    document.querySelectorAll('.penepian-shortcut').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var base = mulai.value;
-            if (!base) return;
-            var d = new Date(base + 'T12:00:00');
-            var days = parseInt(btn.getAttribute('data-days') || '0', 10);
-            if (isNaN(d.getTime()) || days < 1) return;
-            d.setDate(d.getDate() + days - 1);
-            var y = d.getFullYear();
-            var m = String(d.getMonth() + 1).padStart(2, '0');
-            var day = String(d.getDate()).padStart(2, '0');
-            selesai.value = y + '-' + m + '-' + day;
-        });
-    });
-})();
-</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -178,5 +178,28 @@ if (strpos($permSrc, "'/perizinan/penepian_keaktifan.php' =>") === false
     $ok('ACL path penepian mendukung akses pengasuh (rekap_keaktifan_hari)');
 }
 
+$penepianPageSrc = $penepianPageSrc ?? (file_get_contents(__DIR__ . '/../perizinan/penepian_keaktifan.php') ?: '');
+if (strpos($penepianPageSrc, 'name="tanggal_selesai"') !== false) {
+    $bad('Form penepian masih memiliki input tanggal_selesai');
+} else {
+    $ok('Form penepian hanya tanggal mulai (tanpa selesai)');
+}
+if (strpos($penepianPageSrc, 'penepian-shortcut') !== false) {
+    $bad('Pintasan +N hari selesai masih ada di form penepian');
+} else {
+    $ok('Pintasan rentang selesai dihapus dari form');
+}
+$helperSrc = file_get_contents(__DIR__ . '/../helpers/santri_penepian_keaktifan.php') ?: '';
+if (strpos($helperSrc, 'santri_penepian_sql_covers_date') === false) {
+    $bad('Helper santri_penepian_sql_covers_date belum ada');
+} else {
+    $ok('Query penepian mendukung tanggal_selesai NULL');
+}
+if (!function_exists('santri_penepian_open_end_date')) {
+    $bad('santri_penepian_open_end_date tidak ada');
+} else {
+    $ok('Konstanta open-end penepian tersedia');
+}
+
 echo PHP_EOL . ($fail === 0 ? 'UAT penepian: LULUS (' . $fail . ' gagal)' : 'UAT penepian: GAGAL (' . $fail . ' cek)') . PHP_EOL;
 exit($fail === 0 ? 0 : 1);
