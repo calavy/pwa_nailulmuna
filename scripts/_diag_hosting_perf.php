@@ -49,11 +49,14 @@ echo 'wa_auto_scheduled_last_at   : ' . trim((string) app_setting($pdo, 'wa_auto
 
 $sheetStatus = laporan_snapshot_status($pdo);
 echo "\nlaporan_snapshot_enabled    : " . (($sheetStatus['enabled'] ?? false) ? '1' : '0') . "\n";
+echo 'laporan_snapshot_last_tick  : ' . trim((string) ($sheetStatus['last_cron_tick_at'] ?? '-')) . "\n";
 echo 'laporan_snapshot_last_run_at: ' . trim((string) ($sheetStatus['last_run_at'] ?? '-')) . "\n";
 echo 'laporan_snapshot_last_date  : ' . trim((string) ($sheetStatus['last_date'] ?? '-')) . "\n";
 echo 'laporan_snapshot_last_error : ' . (trim((string) ($sheetStatus['last_error'] ?? '')) !== '' ? trim((string) $sheetStatus['last_error']) : '(kosong)') . "\n";
 if ($sheetStatus['enabled'] ?? false) {
+    echo 'sheet cron tick recent      : ' . (($sheetStatus['cron_tick_recent'] ?? false) ? 'yes' : 'no') . "\n";
     echo 'sheet cron OK               : ' . (($sheetStatus['cron_recently_active'] ?? false) ? 'yes' : 'no') . "\n";
+    echo 'sheet cron stale            : ' . (($sheetStatus['cron_stale'] ?? false) ? 'yes' : 'no') . "\n";
 }
 echo "Detail cron: php scripts/_diag_cron_wa_sheet.php\n";
 

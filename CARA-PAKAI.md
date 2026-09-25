@@ -146,7 +146,9 @@ Setiap hari (default jam **05:00** WIB), sistem menulis snapshot 7 laporan keuan
 C:\xampp\php\php.exe C:\xampp\htdocs\pwa_nailulmuna\cron\laporan_snapshot.php
 ```
 
-**Hosting:** `* * * * * curl -s "https://domain/cron/laporan_snapshot.php?key=..."` (kunci di halaman pengaturan snapshot).
+Setelah perintah di atas, buka **Pengaturan → Snapshot Laporan** — baris **Terakhir tick cron** harus ter-update (heartbeat ~15 menit; hosting harus memanggil cron **setiap menit**).
+
+**Hosting:** crontab contoh ada di kartu **Perintah cron** (curl + key). Kunci HTTP digenerate otomatis saat snapshot diaktifkan jika field key kosong.
 
 ---
 

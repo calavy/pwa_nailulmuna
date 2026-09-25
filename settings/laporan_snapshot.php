@@ -37,7 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             save_setting($pdo, 'laporan_snapshot_tab_titles', json_encode($decoded, JSON_UNESCAPED_UNICODE));
         }
-        save_setting($pdo, 'laporan_snapshot_cron_key', trim((string) ($_POST['laporan_snapshot_cron_key'] ?? '')));
+        $cronKeyPost = trim((string) ($_POST['laporan_snapshot_cron_key'] ?? ''));
+        $snapshotEnabled = isset($_POST['laporan_snapshot_enabled']);
+        if ($snapshotEnabled && $cronKeyPost === '') {
+            $cronKeyPost = bin2hex(random_bytes(16));
+        }
+        save_setting($pdo, 'laporan_snapshot_cron_key', $cronKeyPost);
         save_setting($pdo, 'laporan_snapshot_share_emails', trim((string) ($_POST['laporan_snapshot_share_emails'] ?? '')));
         $jsonPath = trim((string) ($_POST['laporan_snapshot_sa_json_path'] ?? ''));
         save_setting($pdo, 'laporan_snapshot_sa_json_path', $jsonPath !== '' ? $jsonPath : ($defaults['laporan_snapshot_sa_json_path'] ?? ''));
@@ -122,7 +127,11 @@ $v = static fn(string $k, string $d = ''): string => (string) app_setting($pdo, 
 $status = laporan_snapshot_status($pdo);
 $lastResult = is_array($status['last_result'] ?? null) ? $status['last_result'] : null;
 $cronKey = $v('laporan_snapshot_cron_key');
-$cronUrl = app_href('/cron/laporan_snapshot.php') . ($cronKey !== '' ? ('?key=' . rawurlencode($cronKey)) : '');
+$cronPath = app_href('/cron/laporan_snapshot.php') . ($cronKey !== '' ? ('?key=' . rawurlencode($cronKey)) : '');
+$cronUrl = $cronPath;
+require_once __DIR__ . '/../helpers/app_path.php';
+$cronUrlFull = rtrim(app_public_url(), '/') . $cronPath;
+$cronCrontabLine = '* * * * * curl -fsS ' . escapeshellarg($cronUrlFull) . ' > /dev/null 2>&1';
 $saStatus = laporan_snapshot_sa_status($pdo);
 $saPath = (string) ($saStatus['path'] ?? '');
 $spreadsheetUrl = ($status['spreadsheet_id'] ?? '') !== ''
@@ -164,13 +173,13 @@ require_once __DIR__ . '/includes/settings_nav.php';
         <?php
         $sheetCronEnabled = (bool) ($status['enabled'] ?? false);
         $sheetCronStale = (bool) ($status['cron_stale'] ?? false);
-        $sheetCronActive = $sheetCronEnabled && !($status['cron_stale'] ?? true);
-        $sheetLastRun = trim((string) ($status['last_run_at'] ?? ''));
+        $sheetCronActive = $sheetCronEnabled && !$sheetCronStale;
+        $sheetLastTick = trim((string) ($status['last_cron_tick_at'] ?? ''));
         ?>
         <?php if ($sheetCronEnabled): ?>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <span class="badge <?= $sheetCronActive ? 'bg-success' : ($sheetLastRun === '' ? 'bg-secondary' : 'bg-danger') ?>">
-                <?= $sheetCronActive ? 'Cron snapshot OK' : ($sheetLastRun === '' ? 'Belum pernah push otomatis' : 'Perlu cek cron (lewat window harian)') ?>
+            <span class="badge <?= $sheetCronActive ? 'bg-success' : ($sheetLastTick === '' ? 'bg-secondary' : 'bg-danger') ?>">
+                <?= $sheetCronActive ? 'Cron snapshot OK' : ($sheetLastTick === '' ? 'Belum pernah menerima tick cron' : 'Perlu cek cron (hosting)') ?>
             </span>
             <?php if ($status['send_time_ok'] ?? false): ?>
                 <span class="badge bg-primary">Window jam push aktif</span>
@@ -178,10 +187,10 @@ require_once __DIR__ . '/includes/settings_nav.php';
                 <span class="badge bg-light text-dark border">Menunggu jam <?= htmlspecialchars((string) ($status['jam'] ?? '00:00')) ?></span>
             <?php endif; ?>
         </div>
-        <?php if ($sheetCronStale && $sheetLastRun !== ''): ?>
+        <?php if ($sheetCronStale): ?>
             <div class="alert alert-warning py-2 small mb-3">
-                <strong>Cron belum terlihat sehat.</strong> Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key).
-                Tes: <code>php cron/laporan_snapshot.php</code> atau URL di bagian Perintah cron.
+                <strong>Cron belum terlihat sehat.</strong> Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key) setiap menit.
+                Tes: <code>php cron/laporan_snapshot.php</code> atau URL di bagian Perintah cron. Tick cron dianggap basi setelah ~15 menit tanpa panggilan.
             </div>
         <?php endif; ?>
         <?php else: ?>
@@ -193,9 +202,14 @@ require_once __DIR__ . '/includes/settings_nav.php';
             <dt class="col-sm-4">Jam snapshot</dt>
             <dd class="col-sm-8"><code><?= htmlspecialchars((string) ($status['jam'] ?? '00:00')) ?></code>
                 <?= ($status['send_time_ok'] ?? false) ? ' <span class="text-success">(window aktif)</span>' : '' ?></dd>
+            <dt class="col-sm-4">Terakhir tick cron</dt>
+            <dd class="col-sm-8">
+                <?= htmlspecialchars((string) ($status['last_cron_tick_at'] ?? '—')) ?>
+                <?= ($status['cron_tick_recent'] ?? false) ? ' <span class="text-success">(aktif)</span>' : '' ?>
+            </dd>
             <dt class="col-sm-4">Terakhir sukses</dt>
             <dd class="col-sm-8"><?= htmlspecialchars((string) ($status['last_date'] ?? '—')) ?></dd>
-            <dt class="col-sm-4">Terakhir jalan</dt>
+            <dt class="col-sm-4">Terakhir push</dt>
             <dd class="col-sm-8"><?= htmlspecialchars((string) ($status['last_run_at'] ?? '—')) ?></dd>
             <dt class="col-sm-4">Spreadsheet ID</dt>
             <dd class="col-sm-8">
@@ -375,10 +389,12 @@ require_once __DIR__ . '/includes/settings_nav.php';
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-white fw-semibold small">Perintah cron</div>
     <div class="card-body small">
-        <p class="mb-2"><strong>CLI (XAMPP):</strong></p>
+        <p class="mb-2"><strong>CLI (XAMPP / VPS):</strong></p>
         <pre class="bg-light p-2 rounded small mb-3"><code>php cron/laporan_snapshot.php</code></pre>
-        <p class="mb-2"><strong>HTTP (hosting):</strong></p>
-        <pre class="bg-light p-2 rounded small mb-0"><code><?= htmlspecialchars($cronUrl) ?></code></pre>
+        <p class="mb-2"><strong>HTTP (hosting, satu panggilan):</strong></p>
+        <pre class="bg-light p-2 rounded small mb-3"><code><?= htmlspecialchars($cronUrlFull) ?></code></pre>
+        <p class="mb-2"><strong>Crontab hosting (tiap menit):</strong></p>
+        <pre class="bg-light p-2 rounded small mb-0"><code><?= htmlspecialchars($cronCrontabLine) ?></code></pre>
         <p class="text-muted mt-2 mb-0">Tab sheet: <?= htmlspecialchars(implode(', ', array_values($tabTitleMap))) ?>.</p>
         <p class="text-muted mt-1 mb-0">CLI tes push: <code>php scripts/laporan_snapshot_bootstrap.php push</code></p>
     </div>

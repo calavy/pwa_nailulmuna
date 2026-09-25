@@ -835,6 +835,7 @@ function pondok_settings_defaults(): array
         'laporan_snapshot_spreadsheet_id' => '',
         'laporan_snapshot_sa_json_path' => 'config/google_service_account.json',
         'laporan_snapshot_last_date' => '',
+        'laporan_snapshot_last_cron_tick_at' => '',
         'laporan_snapshot_last_run_at' => '',
         'laporan_snapshot_last_error' => '',
         'laporan_snapshot_last_result' => '{}',

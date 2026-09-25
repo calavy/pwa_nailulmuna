@@ -973,24 +973,40 @@ function laporan_snapshot_run(PDO $pdo, bool $force = false): array
  */
 function laporan_snapshot_run_tick(PDO $pdo): array
 {
+    save_setting($pdo, 'laporan_snapshot_last_cron_tick_at', date('Y-m-d H:i:s'));
+
     return laporan_snapshot_run($pdo, false);
 }
 
-/** Cron snapshot harian dianggap stale jika tidak ada tick push lebih lama dari ini (detik). */
+/** Cron hosting dianggap stale jika tidak ada tick lebih lama dari ini (detik). */
 function laporan_snapshot_cron_stale_after_sec(): int
 {
-    return 36 * 3600;
+    return 900;
+}
+
+function laporan_snapshot_cron_tick_recent(PDO $pdo, ?int $maxAgeSec = null): bool
+{
+    $maxAgeSec ??= laporan_snapshot_cron_stale_after_sec();
+    $lastTick = trim((string) app_setting($pdo, 'laporan_snapshot_last_cron_tick_at', ''));
+    if ($lastTick === '') {
+        return false;
+    }
+    $ts = strtotime($lastTick);
+
+    return $ts !== false && (time() - $ts) <= $maxAgeSec;
 }
 
 /**
- * Snapshot otomatis sehat: sukses hari ini, atau masih menunggu jam push hari ini dengan sukses kemarin.
+ * Snapshot otomatis sehat: tick cron hosting baru-baru ini, atau push sukses hari ini / menunggu jam hari ini.
  */
 function laporan_snapshot_cron_recently_active(PDO $pdo, ?int $maxAgeSec = null): bool
 {
     if (!laporan_snapshot_enabled($pdo)) {
         return false;
     }
-    $maxAgeSec ??= laporan_snapshot_cron_stale_after_sec();
+    if (laporan_snapshot_cron_tick_recent($pdo, $maxAgeSec)) {
+        return true;
+    }
     $today = date('Y-m-d');
     $lastDate = trim((string) app_setting($pdo, 'laporan_snapshot_last_date', ''));
     if ($lastDate === $today) {
@@ -1000,13 +1016,8 @@ function laporan_snapshot_cron_recently_active(PDO $pdo, ?int $maxAgeSec = null)
     if ($lastDate === $yesterday && !laporan_snapshot_send_time_ok($pdo)) {
         return true;
     }
-    $lastRun = trim((string) app_setting($pdo, 'laporan_snapshot_last_run_at', ''));
-    if ($lastRun === '') {
-        return false;
-    }
-    $ts = strtotime($lastRun);
 
-    return $ts !== false && (time() - $ts) <= $maxAgeSec;
+    return false;
 }
 
 function laporan_snapshot_cron_is_stale(PDO $pdo, ?int $maxAgeSec = null): bool
@@ -1031,6 +1042,8 @@ function laporan_snapshot_status(PDO $pdo): array
         'send_time_ok' => laporan_snapshot_send_time_ok($pdo),
         'last_date' => trim((string) app_setting($pdo, 'laporan_snapshot_last_date', '')),
         'last_run_at' => trim((string) app_setting($pdo, 'laporan_snapshot_last_run_at', '')),
+        'last_cron_tick_at' => trim((string) app_setting($pdo, 'laporan_snapshot_last_cron_tick_at', '')),
+        'cron_tick_recent' => laporan_snapshot_cron_tick_recent($pdo),
         'last_error' => trim((string) app_setting($pdo, 'laporan_snapshot_last_error', '')),
         'spreadsheet_id' => trim((string) app_setting($pdo, 'laporan_snapshot_spreadsheet_id', '')),
         'share_emails' => trim((string) app_setting($pdo, 'laporan_snapshot_share_emails', '')),
