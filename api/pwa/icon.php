@@ -14,7 +14,7 @@ $maskable = isset($_GET['maskable']) && (string) $_GET['maskable'] === '1';
 
 $theme = app_pwa_theme($pdo);
 $bg = (string) ($theme['background_color'] ?? '#0d9488');
-$scale = $maskable ? 0.84 : 0.96;
+$scale = $maskable ? 0.64 : 0.72;
 
 $relStored = pwa_brand_icon_relative_path($pdo, $size, $maskable);
 if ($relStored !== '') {
@@ -34,7 +34,7 @@ $source = $logoPath !== ''
 
 $png = null;
 if (is_file($source)) {
-    $png = pwa_brand_render_square_png($source, $size, $bg, $scale, $maskable);
+    $png = pwa_brand_render_circle_png($source, $size, $bg, $scale, $maskable);
 }
 if ($png === null) {
     $png = pwa_brand_render_initials_png($pdo, $size, $maskable);

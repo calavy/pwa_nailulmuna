@@ -388,6 +388,12 @@ function app_ensure_schema_deferred(PDO $pdo): void
         if (function_exists('logo_ensure_white_bg_pwa_icons')) {
             logo_ensure_white_bg_pwa_icons($pdo);
         }
+        if (function_exists('logo_ensure_circle_pwa_icons')) {
+            logo_ensure_circle_pwa_icons($pdo);
+        }
+        if (function_exists('logo_ensure_pwa_icon_fringe_v1')) {
+            logo_ensure_pwa_icon_fringe_v1($pdo);
+        }
     } catch (Throwable $e) {
         error_log('[app_ensure_schema_deferred] ' . $e->getMessage());
     }
@@ -1181,6 +1187,18 @@ function ensure_pondok_settings_defaults(PDO $pdo): void
     } elseif (file_exists(__DIR__ . '/pwa_brand.php')) {
         require_once __DIR__ . '/pwa_brand.php';
         logo_ensure_white_bg_pwa_icons($pdo);
+    }
+    if (function_exists('logo_ensure_circle_pwa_icons')) {
+        logo_ensure_circle_pwa_icons($pdo);
+    } elseif (file_exists(__DIR__ . '/pwa_brand.php')) {
+        require_once __DIR__ . '/pwa_brand.php';
+        logo_ensure_circle_pwa_icons($pdo);
+    }
+    if (function_exists('logo_ensure_pwa_icon_fringe_v1')) {
+        logo_ensure_pwa_icon_fringe_v1($pdo);
+    } elseif (file_exists(__DIR__ . '/pwa_brand.php')) {
+        require_once __DIR__ . '/pwa_brand.php';
+        logo_ensure_pwa_icon_fringe_v1($pdo);
     }
     if (session_status() === PHP_SESSION_ACTIVE) {
         $_SESSION['pondok_settings_defaults_ok'] = 1;

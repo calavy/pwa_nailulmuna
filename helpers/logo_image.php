@@ -78,6 +78,60 @@ function logo_image_remove_light_background(GdImage $src, int $tolerance = 48): 
 
     imagesavealpha($rgba, true);
 
+    return logo_image_erode_light_fringe($rgba, 1, $tolerance);
+}
+
+/**
+ * Tipiskan halo putih di tepi transparan (1 pass ≈ 1 px fringe).
+ */
+function logo_image_erode_light_fringe(GdImage $rgba, int $passes = 1, int $tolerance = 42): GdImage
+{
+    $passes = max(1, min(3, $passes));
+    $w = imagesx($rgba);
+    $h = imagesy($rgba);
+
+    for ($p = 0; $p < $passes; $p++) {
+        $snapshot = [];
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $rgbaPx = imagecolorat($rgba, $x, $y);
+                $a = ($rgbaPx >> 24) & 0x7F;
+                if ($a > 100) {
+                    continue;
+                }
+                $r = ($rgbaPx >> 16) & 0xFF;
+                $g = ($rgbaPx >> 8) & 0xFF;
+                $b = $rgbaPx & 0xFF;
+                $min = min($r, $g, $b);
+                if ($min < 255 - $tolerance) {
+                    continue;
+                }
+                $hasTransparentNeighbor = false;
+                foreach ([[0, -1], [0, 1], [-1, 0], [1, 0]] as [$dx, $dy]) {
+                    $nx = $x + $dx;
+                    $ny = $y + $dy;
+                    if ($nx < 0 || $ny < 0 || $nx >= $w || $ny >= $h) {
+                        $hasTransparentNeighbor = true;
+                        break;
+                    }
+                    $nPx = imagecolorat($rgba, $nx, $ny);
+                    if ((($nPx >> 24) & 0x7F) > 100) {
+                        $hasTransparentNeighbor = true;
+                        break;
+                    }
+                }
+                if ($hasTransparentNeighbor) {
+                    $snapshot[] = [$x, $y];
+                }
+            }
+        }
+        foreach ($snapshot as [$x, $y]) {
+            imagesetpixel($rgba, $x, $y, imagecolorallocatealpha($rgba, 255, 255, 255, 127));
+        }
+    }
+
+    imagesavealpha($rgba, true);
+
     return $rgba;
 }
 

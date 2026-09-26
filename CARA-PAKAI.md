@@ -83,7 +83,7 @@ Jika pernah **pasang PWA** dari URL lama/salah: hapus pintasan di layar utama, b
 
 Opsional (ikon/logo PWA konsisten di ngrok): salin `config/app.local.example.php` → `app.local.php`, isi `public_url` dengan URL ngrok lengkap + `/pwa_nailulmuna`.
 
-Logo & PWA di layar utama: **Pengaturan → Identitas pesantren** → unggah logo → atur warna tema/latar PWA → **Simpan**. Hapus pintasan PWA lama di HP, pasang ulang dari browser agar ikon & splash ikut logo baru.
+Logo & PWA di layar utama: **Pengaturan → Identitas pesantren** → unggah logo → atur warna tema/latar PWA → **Simpan**. Ikon install berbentuk **lingkaran** (warna latar PWA + logo di tengah). Hapus pintasan PWA lama di HP, pasang ulang dari browser agar launcher memakai PNG baru (ikon & splash).
 
 ---
 

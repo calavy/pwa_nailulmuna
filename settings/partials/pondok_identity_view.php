@@ -54,7 +54,7 @@
             <div class="col-md-12">
                 <label class="form-label">Logo pesantren</label>
                 <input type="file" class="form-control" name="logo_file" accept=".jpg,.jpeg,.png,.webp">
-                <div class="form-text">Format: JPG, PNG, WEBP. Latar putih dihilangkan otomatis; gambar diperkecil &amp; dikompres saat disimpan. Setelah <strong>Simpan</strong>, ikon PWA di layar utama ikut diperbarui — hapus pintasan PWA lama di HP lalu pasang ulang.<?php if (!empty($values['logo_path'])): ?> <span class="text-success">Logo aktif.</span><?php endif; ?></div>
+                <div class="form-text">Format: JPG, PNG, WEBP. Latar putih dihilangkan otomatis; gambar diperkecil &amp; dikompres saat disimpan. Ikon pasang PWA berbentuk <strong>lingkaran warna latar PWA</strong> (bukan kotak putih). Setelah <strong>Simpan</strong>, hapus pintasan PWA lama di HP lalu pasang ulang agar ikon layar utama ikut berubah.<?php if (!empty($values['logo_path'])): ?> <span class="text-success">Logo aktif.</span><?php endif; ?></div>
             </div>
             <div class="col-md-6">
                 <label class="form-label">Stempel surat resmi</label>
@@ -75,7 +75,7 @@
                 <label class="form-label">Warna latar pasang PWA</label>
                 <input type="color" class="form-control form-control-color w-100" name="pwa_background_color"
                     value="<?= htmlspecialchars(($values['pwa_background_color'] ?? '') !== '' ? (string) $values['pwa_background_color'] : '#0d9488') ?>">
-                <div class="form-text">Tampil saat aplikasi dibuka dari ikon di HP (splash).</div>
+                <div class="form-text">Warna lingkaran ikon pasang PWA dan tampilan saat aplikasi dibuka dari ikon di HP (splash).</div>
             </div>
             <div class="col-12">
                 <button class="btn btn-success" type="submit">Simpan identitas</button>
