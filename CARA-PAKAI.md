@@ -249,7 +249,7 @@ Santri **masih AKTIF** di data tetapi sementara **di luar pondok** dan **tidak**
 
 **Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu *Santri menepi*) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin.
 
-**Scan kartu:** pesan *Sedang menepi keaktifan — presensi tidak dihitung*.
+**Scan kartu (Presensi → scan kamera):** seperti izin kembali — penepian aktif **ditutup** (sama dengan «Selesai hari ini» pada tanggal scan) dan **presensi dihitung**. Tombol «Selesai hari ini» di pengaturan penepian tetap untuk menutup tanpa scan; setelah ditutup, presensi hari itu juga tidak diblokir.
 
 **Jangan** pakai izin keluar hanya untuk hindari ALPA jika tidak ingin penalti Izin×2. **Jangan** dobel: rentang yang sama jangan sekaligus izin resmi + penepian.
 

@@ -133,6 +133,29 @@ function santri_penepian_is_active(PDO $pdo, int $santriId, string $tanggal): bo
     return !empty($map[$santriId]);
 }
 
+/** True jika penepian masih memblokir presensi (terbuka; belum diakhiri di tanggal acuan). */
+function santri_penepian_blocks_presensi(PDO $pdo, int $santriId, string $tanggal): bool
+{
+    santri_penepian_keaktifan_ensure_schema($pdo);
+    $tanggal = santri_penepian_normalize_date($tanggal);
+    if ($santriId <= 0 || $tanggal === null || !table_exists($pdo, 'santri_penepian_keaktifan')) {
+        return false;
+    }
+
+    $st = $pdo->prepare('
+        SELECT 1
+        FROM santri_penepian_keaktifan
+        WHERE santri_id = :sid
+          AND is_aktif = 1
+          AND tanggal_mulai <= :tgl
+          AND (tanggal_selesai IS NULL OR tanggal_selesai > :tgl)
+        LIMIT 1
+    ');
+    $st->execute(['sid' => $santriId, 'tgl' => $tanggal]);
+
+    return (bool) $st->fetchColumn();
+}
+
 /**
  * Santri dengan penepian aktif yang mencakup tanggal (mulai ≤ tgl ≤ selesai).
  *
@@ -475,22 +498,64 @@ function santri_penepian_batalkan(PDO $pdo, int $id): array
 /**
  * @return array{ok:bool,message:string}
  */
-function santri_penepian_selesai_hari_ini(PDO $pdo, int $id): array
+function santri_penepian_selesai_on_date(PDO $pdo, int $id, string $tanggalAkhir): array
 {
     santri_penepian_keaktifan_ensure_schema($pdo);
-    $today = date('Y-m-d');
-    if ($id <= 0) {
-        return ['ok' => false, 'message' => 'ID tidak valid.'];
+    $tanggalAkhir = santri_penepian_normalize_date($tanggalAkhir);
+    if ($id <= 0 || $tanggalAkhir === null) {
+        return ['ok' => false, 'message' => 'Data tidak valid.'];
     }
     $st = $pdo->prepare('
         UPDATE santri_penepian_keaktifan
-        SET tanggal_selesai = :today
-        WHERE id = :id AND is_aktif = 1 AND tanggal_mulai <= :today
+        SET tanggal_selesai = :tgl
+        WHERE id = :id AND is_aktif = 1 AND tanggal_mulai <= :tgl
     ');
-    $st->execute(['id' => $id, 'today' => $today]);
+    $st->execute(['id' => $id, 'tgl' => $tanggalAkhir]);
     if ($st->rowCount() === 0) {
         return ['ok' => false, 'message' => 'Tidak dapat menutup penepian (belum mulai atau sudah nonaktif).'];
     }
 
-    return ['ok' => true, 'message' => 'Penepian diakhiri hari ini (' . $today . ').'];
+    return ['ok' => true, 'message' => 'Penepian diakhiri (' . $tanggalAkhir . ').'];
+}
+
+/**
+ * @return array{ok:bool,message:string}
+ */
+function santri_penepian_selesai_hari_ini(PDO $pdo, int $id): array
+{
+    return santri_penepian_selesai_on_date($pdo, $id, date('Y-m-d'));
+}
+
+/**
+ * Akhiri penepian aktif saat santri scan kartu/QR presensi (kembali ke pondok).
+ *
+ * @return array{ok:bool,message:string,penepian_id?:int}|null null jika tidak ada penepian aktif
+ */
+function santri_penepian_selesai_dari_scan_kartu(PDO $pdo, int $santriId, string $tanggalScan): ?array
+{
+    santri_penepian_keaktifan_ensure_schema($pdo);
+    $tanggalScan = santri_penepian_normalize_date($tanggalScan);
+    if ($santriId <= 0 || $tanggalScan === null || !table_exists($pdo, 'santri_penepian_keaktifan')) {
+        return null;
+    }
+
+    $covers = santri_penepian_sql_covers_date('tanggal_mulai', 'tanggal_selesai', 'tgl');
+    $st = $pdo->prepare('
+        SELECT id
+        FROM santri_penepian_keaktifan
+        WHERE santri_id = :sid
+          AND is_aktif = 1
+          AND ' . $covers . '
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $st->execute(['sid' => $santriId, 'tgl' => $tanggalScan]);
+    $penepianId = (int) ($st->fetchColumn() ?: 0);
+    if ($penepianId <= 0) {
+        return null;
+    }
+
+    $res = santri_penepian_selesai_on_date($pdo, $penepianId, $tanggalScan);
+
+    return $res + ['penepian_id' => $penepianId];
 }

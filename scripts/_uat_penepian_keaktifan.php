@@ -44,11 +44,39 @@ if (strpos($src, 'santri_penepian_map_for_date') === false || strpos($src, 'pene
     $ok('Hook sync presensi memuat penepianMap');
 }
 
-$scanSrc = file_get_contents(__DIR__ . '/../helpers/presensi_scan_post.inc.php') ?: '';
-if (strpos($scanSrc, 'santri_penepian_is_active') === false) {
-    $bad('Scan presensi belum cek santri_penepian_is_active');
+if (!function_exists('santri_penepian_selesai_dari_scan_kartu')) {
+    $bad('santri_penepian_selesai_dari_scan_kartu tidak ada');
 } else {
-    $ok('Scan presensi menolak hitung saat menepi');
+    $ok('Helper santri_penepian_selesai_dari_scan_kartu ada');
+}
+if (!function_exists('santri_penepian_blocks_presensi')) {
+    $bad('santri_penepian_blocks_presensi tidak ada');
+} else {
+    $ok('Helper santri_penepian_blocks_presensi ada');
+}
+if (!function_exists('santri_penepian_selesai_on_date')) {
+    $bad('santri_penepian_selesai_on_date tidak ada');
+} else {
+    $ok('Helper santri_penepian_selesai_on_date ada');
+}
+
+$scanSrc = file_get_contents(__DIR__ . '/../helpers/presensi_scan_post.inc.php') ?: '';
+if (strpos($scanSrc, 'santri_penepian_selesai_dari_scan_kartu') === false) {
+    $bad('Scan presensi belum memanggil santri_penepian_selesai_dari_scan_kartu');
+} else {
+    $ok('Scan presensi menutup penepian dari scan kartu');
+}
+if (strpos($scanSrc, 'santri_penepian_blocks_presensi') === false) {
+    $bad('Scan presensi belum cek santri_penepian_blocks_presensi');
+} else {
+    $ok('Scan presensi memakai blocks_presensi untuk blokir menepi');
+}
+
+$fakeSid = 999999991;
+if (santri_penepian_blocks_presensi($pdo, $fakeSid, $today)) {
+    $bad('blocks_presensi seharusnya false untuk santri tanpa penepian');
+} else {
+    $ok('blocks_presensi false bila tidak ada record');
 }
 
 if (!is_file(__DIR__ . '/../perizinan/penepian_keaktifan.php')) {
