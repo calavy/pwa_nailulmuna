@@ -328,6 +328,12 @@ C:\xampp\php\php.exe cron\laporan_snapshot.php
 
 ---
 
+## Izin syar'i wali — persetujuan pengasuh
+
+Permohonan izin syar'i dari **portal wali** (individu atau rombongan) masuk antrean **Pengasuh → Perizinan** (dan kartu izin di dashboard pengasuh). Sebelum **Setujui**, pengasuh boleh **mengoreksi tanggal mulai/selesai, jam, dan durasi** di modal — sama seperti pengurus saat menyetujui izin non-syar'i. Jadwal yang disimpan dipakai **surat A5**, **QR**, dan **notifikasi**; pengurus cukup **cetak surat** setelah pengasuh setuju (tanpa approve ulang).
+
+**Verifikasi singkat:** wali ajukan izin → pengasuh ubah tanggal/jam di modal → setujui → cek kolom `tanggal_*` / `jam_*` di data izin dan cetak surat pengurus. Rombongan: meta rombongan + baris anggota ikut jadwal baru.
+
 ## Ganti munawib pembimbing (portal & pengasuh)
 
 - **Pembimbing:** menu Perizinan → *Cari / ganti munawib* — pilih rentang tanggal (1 hari atau beberapa hari), kegiatan, munawib, materi per halaman, dan **alasan wajib** (tulis sendiri). Ajukan minimal **3 hari** sebelum jadwal terlaksana. Semua pengajuan menunggu **persetujuan pengasuh**; WA otomatis ke pengasuh hanya untuk pengajuan **lebih dari satu hari** (toggle yang sama dengan izin syar'i di WA Otomatis).

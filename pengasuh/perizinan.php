@@ -43,6 +43,7 @@ foreach ($pendingRows as $row) {
             'tanggal_selesai' => (string) ($meta['tanggal_selesai'] ?? $row['tanggal_selesai'] ?? ''),
             'jam_mulai' => (string) ($meta['jam_mulai'] ?? $row['jam_mulai'] ?? ''),
             'jam_selesai' => (string) ($meta['jam_selesai'] ?? $row['jam_selesai'] ?? ''),
+            'durasi_jam' => (string) ($meta['durasi_jam'] ?? $row['durasi_jam'] ?? ''),
             'alasan' => (string) ($meta['alasan'] ?? ''),
             'tujuan' => (string) ($meta['tujuan'] ?? ''),
             'jumlah' => 0,

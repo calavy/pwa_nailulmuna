@@ -27,11 +27,17 @@ if ($isRombongan) {
 
 $res = ['ok' => false, 'message' => 'Aksi tidak dikenal.'];
 if ($action === 'setujui_pengasuh') {
-    $res = perizinan_pengasuh_setujui($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, $bypassAlpa);
+    $izinId = (int) ($_POST['izin_id'] ?? 0);
+    $fallback = perizinan_fetch_izin_dengan_santri($pdo, $izinId) ?? [];
+    $jadwal = perizinan_jadwal_from_post($_POST, $fallback);
+    $res = perizinan_pengasuh_setujui($pdo, $izinId, $userId, $bypassAlpa, $jadwal);
 } elseif ($action === 'tolak_pengasuh') {
     $res = perizinan_tolak_izin_satu($pdo, (int) ($_POST['izin_id'] ?? 0), $userId, 'pengasuh');
 } elseif ($action === 'setujui_rombongan_pengasuh') {
-    $res = perizinan_pengasuh_setujui_rombongan($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, $bypassAlpa);
+    $rombonganId = (int) ($_POST['rombongan_id'] ?? 0);
+    $meta = perizinan_rombongan_meta($pdo, $rombonganId) ?? [];
+    $postJadwal = perizinan_jadwal_from_post($_POST, $meta);
+    $res = perizinan_pengasuh_setujui_rombongan($pdo, $rombonganId, $userId, $bypassAlpa, $postJadwal);
 } elseif ($action === 'tolak_rombongan_pengasuh') {
     $res = perizinan_rombongan_tolak($pdo, (int) ($_POST['rombongan_id'] ?? 0), $userId, 'pengasuh');
 } elseif ($action === 'setujui_munawib_pengasuh') {

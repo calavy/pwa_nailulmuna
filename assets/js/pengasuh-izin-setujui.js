@@ -78,8 +78,99 @@
         syncDaftar();
     }
 
-    function postForm(form, bypass) {
+    function formActionValue(form) {
+        var el = form.querySelector('[name="action"]');
+        return el ? (el.value || '') : '';
+    }
+
+    function isIzinJadwalAction(action) {
+        return action === 'setujui_pengasuh' || action === 'setujui_rombongan_pengasuh';
+    }
+
+    function jadwalInputIds() {
+        return {
+            tglMulai: document.getElementById('pg-izin-setujui-tanggal-mulai'),
+            tglSelesai: document.getElementById('pg-izin-setujui-tanggal-selesai'),
+            jamMulai: document.getElementById('pg-izin-setujui-jam-mulai'),
+            jamSelesai: document.getElementById('pg-izin-setujui-jam-selesai'),
+            durasi: document.getElementById('pg-izin-setujui-durasi-jam')
+        };
+    }
+
+    function setJadwalRequired(required) {
+        var ids = jadwalInputIds();
+        ['tglMulai', 'tglSelesai', 'jamMulai', 'jamSelesai'].forEach(function (key) {
+            if (ids[key]) {
+                if (required) {
+                    ids[key].setAttribute('required', 'required');
+                } else {
+                    ids[key].removeAttribute('required');
+                }
+            }
+        });
+    }
+
+    function fillJadwalInputs(form) {
+        var ids = jadwalInputIds();
+        if (ids.tglMulai) {
+            ids.tglMulai.value = form.getAttribute('data-tgl-mulai') || '';
+        }
+        if (ids.tglSelesai) {
+            ids.tglSelesai.value = form.getAttribute('data-tgl-selesai') || '';
+        }
+        if (ids.jamMulai) {
+            ids.jamMulai.value = form.getAttribute('data-jam-mulai') || '';
+        }
+        if (ids.jamSelesai) {
+            ids.jamSelesai.value = form.getAttribute('data-jam-selesai') || '';
+        }
+        if (ids.durasi) {
+            var dur = form.getAttribute('data-durasi-jam');
+            ids.durasi.value = dur !== null && dur !== '' ? dur : '';
+        }
+    }
+
+    function appendJadwalToFormData(fd) {
+        var ids = jadwalInputIds();
+        if (ids.tglMulai && ids.tglMulai.value) {
+            fd.set('tanggal_mulai', ids.tglMulai.value);
+        }
+        if (ids.tglSelesai && ids.tglSelesai.value) {
+            fd.set('tanggal_selesai', ids.tglSelesai.value);
+        }
+        if (ids.jamMulai && ids.jamMulai.value) {
+            fd.set('jam_mulai', ids.jamMulai.value);
+        }
+        if (ids.jamSelesai && ids.jamSelesai.value) {
+            fd.set('jam_selesai', ids.jamSelesai.value);
+        }
+        if (ids.durasi && ids.durasi.value !== '') {
+            fd.set('durasi_jam', ids.durasi.value);
+        }
+    }
+
+    function jadwalModalValid() {
+        var wrap = document.getElementById('pg-izin-setujui-jadwal-wrap');
+        if (!wrap || wrap.classList.contains('d-none')) {
+            return true;
+        }
+        var ids = jadwalInputIds();
+        var required = [ids.tglMulai, ids.tglSelesai, ids.jamMulai, ids.jamSelesai];
+        for (var i = 0; i < required.length; i++) {
+            var inp = required[i];
+            if (inp && !inp.checkValidity()) {
+                inp.reportValidity();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function postForm(form, bypass, withJadwal) {
         var fd = new FormData(form);
+        if (withJadwal) {
+            appendJadwalToFormData(fd);
+        }
         if (bypass) {
             fd.set('bypass_alpa', '1');
         } else {
@@ -117,7 +208,6 @@
         var jenisWrap = document.getElementById('pg-izin-setujui-jenis-wrap');
         var keperluanEl = document.getElementById('pg-izin-setujui-keperluan');
         var keperluanWrap = document.getElementById('pg-izin-setujui-keperluan-wrap');
-        var tglEl = document.getElementById('pg-izin-setujui-tanggal');
         var keteranganEl = document.getElementById('pg-izin-setujui-keterangan');
         var keteranganWrap = document.getElementById('pg-izin-setujui-keterangan-wrap');
         var tujuanEl = document.getElementById('pg-izin-setujui-tujuan');
@@ -146,9 +236,6 @@
             keperluanEl.textContent = keperluan;
         }
         setRowVisible(keperluanWrap, keperluan !== '');
-        if (tglEl) {
-            tglEl.textContent = form.getAttribute('data-tanggal') || '—';
-        }
         var keterangan = (form.getAttribute('data-keterangan') || '').trim();
         if (keteranganEl) {
             keteranganEl.textContent = keterangan !== '' ? keterangan : (keperluan !== '' ? '—' : '');
@@ -163,6 +250,16 @@
 
     function fillAlpa(form) {
         fillIzinDetail(form);
+        var action = formActionValue(form);
+        var showJadwal = isIzinJadwalAction(action);
+        var jadwalWrap = document.getElementById('pg-izin-setujui-jadwal-wrap');
+        if (jadwalWrap) {
+            jadwalWrap.classList.toggle('d-none', !showJadwal);
+        }
+        setJadwalRequired(showJadwal);
+        if (showJadwal) {
+            fillJadwalInputs(form);
+        }
         var panel = document.getElementById('pg-izin-setujui-alpa');
         var wrap = document.getElementById('pg-izin-setujui-bypass-wrap');
         var cb = document.getElementById('pg-izin-setujui-bypass');
@@ -259,12 +356,16 @@
                 submitBtn.disabled = true;
                 return;
             }
+            var withJadwal = isIzinJadwalAction(formActionValue(pendingForm));
+            if (withJadwal && !jadwalModalValid()) {
+                return;
+            }
             var form = pendingForm;
             form.setAttribute('data-submitting', '1');
             var oldLabel = submitBtn.textContent;
             submitBtn.disabled = true;
             submitBtn.textContent = 'Memproses…';
-            postForm(form, bypass).then(function (data) {
+            postForm(form, bypass, withJadwal).then(function (data) {
                 var ok = !!data.ok;
                 showFlash(ok, data.message || '');
                 if (!ok) {
@@ -325,7 +426,7 @@
                 btn.disabled = true;
                 btn.textContent = 'Memproses…';
             }
-            postForm(form, false).then(function (data) {
+            postForm(form, false, false).then(function (data) {
                 var ok = !!data.ok;
                 showFlash(ok, data.message || '');
                 if (!ok) {
@@ -348,3 +449,4 @@
         }, true);
     });
 })();
+

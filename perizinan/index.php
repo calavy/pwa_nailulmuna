@@ -118,29 +118,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $respondPengurus(false, 'Izin syar\'i belum disetujui pengasuh. Minta pengasuh meninjau di menu Persetujuan Izin Pengasuh terlebih dahulu.', $backIndex);
             }
 
-            $tglMulai = trim((string) ($_POST['tanggal_mulai'] ?? ''));
-            $tglSelesai = trim((string) ($_POST['tanggal_selesai'] ?? ''));
-            $jamMulai = trim((string) ($_POST['jam_mulai'] ?? ''));
-            $jamSelesai = trim((string) ($_POST['jam_selesai'] ?? ''));
-            $durasiRaw = $_POST['durasi_jam'] ?? '';
-            if ($tglMulai === '') { $tglMulai = (string) ($izinInfo['tanggal_mulai'] ?? date('Y-m-d')); }
-            if ($tglSelesai === '') { $tglSelesai = (string) ($izinInfo['tanggal_selesai'] ?? date('Y-m-d')); }
-            if ($jamMulai === '') { $jamMulai = substr((string) ($izinInfo['jam_mulai'] ?? '00:00'), 0, 5); }
-            if ($jamSelesai === '') { $jamSelesai = substr((string) ($izinInfo['jam_selesai'] ?? '00:00'), 0, 5); }
-            $durasi = $durasiRaw === '' ? (float) ($izinInfo['durasi_jam'] ?? 0) : (float) $durasiRaw;
+            $jadwal = perizinan_jadwal_from_post($_POST, $izinInfo);
 
             $res = perizinan_setujui_izin_satu(
                 $pdo,
                 $izinInfo,
                 (int) ($_SESSION['user']['id'] ?? 1),
                 $bypassAlpa,
-                [
-                    'tanggal_mulai' => $tglMulai,
-                    'tanggal_selesai' => $tglSelesai,
-                    'jam_mulai' => $jamMulai,
-                    'jam_selesai' => $jamSelesai,
-                    'durasi_jam' => $durasi,
-                ],
+                $jadwal,
                 false,
                 perizinan_parse_wa_pembimbing_post($_POST),
                 true

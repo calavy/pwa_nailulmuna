@@ -1,6 +1,10 @@
 <?php
 
 declare(strict_types=1);
+
+if (!function_exists('app_time_input_attrs')) {
+    require_once __DIR__ . '/../../helpers/app.php';
+}
 ?>
 <div class="modal fade" id="pgIzinSetujuiModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -26,10 +30,6 @@ declare(strict_types=1);
                             <dt>Keperluan</dt>
                             <dd id="pg-izin-setujui-keperluan"></dd>
                         </div>
-                        <div class="pg-izin-setujui-detail__row">
-                            <dt>Waktu</dt>
-                            <dd id="pg-izin-setujui-tanggal"></dd>
-                        </div>
                         <div class="pg-izin-setujui-detail__row d-none" id="pg-izin-setujui-keterangan-wrap">
                             <dt>Keterangan / alasan</dt>
                             <dd id="pg-izin-setujui-keterangan"></dd>
@@ -39,6 +39,33 @@ declare(strict_types=1);
                             <dd id="pg-izin-setujui-tujuan"></dd>
                         </div>
                     </dl>
+                </div>
+                <div id="pg-izin-setujui-jadwal-wrap" class="d-none">
+                    <div class="alert alert-info py-2 mb-3 small">
+                        Sesuaikan <strong>tanggal</strong>, <strong>jam</strong>, dan <strong>durasi</strong> bila perlu sebelum setujui. Jadwal tersimpan untuk surat dan QR.
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small mb-1" for="pg-izin-setujui-tanggal-mulai">Tanggal mulai</label>
+                            <input type="date" id="pg-izin-setujui-tanggal-mulai" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1" for="pg-izin-setujui-tanggal-selesai">Tanggal selesai</label>
+                            <input type="date" id="pg-izin-setujui-tanggal-selesai" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1" for="pg-izin-setujui-jam-mulai">Jam mulai</label>
+                            <input type="text" id="pg-izin-setujui-jam-mulai" class="form-control form-control-sm" <?= app_time_input_attrs() ?> required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1" for="pg-izin-setujui-jam-selesai">Jam selesai</label>
+                            <input type="text" id="pg-izin-setujui-jam-selesai" class="form-control form-control-sm" <?= app_time_input_attrs() ?> required>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small mb-1" for="pg-izin-setujui-durasi-jam">Durasi (jam)</label>
+                            <input type="number" step="0.25" min="0" id="pg-izin-setujui-durasi-jam" class="form-control form-control-sm" placeholder="3.5">
+                        </div>
+                    </div>
                 </div>
                 <div id="pg-izin-setujui-alpa" class="alert py-2 small mb-3 izin-alpa-panel-modal"></div>
                 <div id="pg-izin-setujui-bypass-wrap" class="form-check d-none">

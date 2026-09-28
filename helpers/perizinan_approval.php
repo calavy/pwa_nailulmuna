@@ -710,6 +710,11 @@ function perizinan_pengasuh_setujui_form_attrs(
         'data-sub' => implode(' · ', $subParts),
         'data-jenis-label' => perizinan_pengasuh_jenis_label_tampilan($pdo, $row),
         'data-tanggal' => $tanggal,
+        'data-tgl-mulai' => (string) ($row['tanggal_mulai'] ?? ''),
+        'data-tgl-selesai' => (string) ($row['tanggal_selesai'] ?? ''),
+        'data-jam-mulai' => substr((string) ($row['jam_mulai'] ?? ''), 0, 5),
+        'data-jam-selesai' => substr((string) ($row['jam_selesai'] ?? ''), 0, 5),
+        'data-durasi-jam' => (string) ($row['durasi_jam'] ?? ''),
         'data-keperluan' => (string) ($pecah['keperluan'] ?? ''),
         'data-keterangan' => (string) ($pecah['keterangan'] ?? ''),
         'data-tujuan' => trim((string) ($row['tujuan'] ?? '')),
@@ -2198,6 +2203,45 @@ function perizinan_rombongan_surat_blok_pengasuh(PDO $pdo, int $rombonganId, arr
 }
 
 /**
+ * Normalisasi tanggal/jam/durasi dari POST (kosong → fallback baris izin/meta).
+ *
+ * @param array<string, mixed> $post
+ * @param array<string, mixed> $fallbackRow
+ * @return array{tanggal_mulai:string,tanggal_selesai:string,jam_mulai:string,jam_selesai:string,durasi_jam:float}
+ */
+function perizinan_jadwal_from_post(array $post, array $fallbackRow): array
+{
+    $tglMulai = trim((string) ($post['tanggal_mulai'] ?? ''));
+    $tglSelesai = trim((string) ($post['tanggal_selesai'] ?? ''));
+    $jamMulai = trim((string) ($post['jam_mulai'] ?? ''));
+    $jamSelesai = trim((string) ($post['jam_selesai'] ?? ''));
+    $durasiRaw = $post['durasi_jam'] ?? '';
+    if ($tglMulai === '') {
+        $tglMulai = (string) ($fallbackRow['tanggal_mulai'] ?? date('Y-m-d'));
+    }
+    if ($tglSelesai === '') {
+        $tglSelesai = (string) ($fallbackRow['tanggal_selesai'] ?? date('Y-m-d'));
+    }
+    if ($jamMulai === '') {
+        $jamMulai = substr((string) ($fallbackRow['jam_mulai'] ?? '00:00'), 0, 5);
+    }
+    if ($jamSelesai === '') {
+        $jamSelesai = substr((string) ($fallbackRow['jam_selesai'] ?? '00:00'), 0, 5);
+    }
+    $durasi = $durasiRaw === '' || $durasiRaw === null
+        ? (float) ($fallbackRow['durasi_jam'] ?? 0)
+        : (float) $durasiRaw;
+
+    return [
+        'tanggal_mulai' => $tglMulai,
+        'tanggal_selesai' => $tglSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+        'durasi_jam' => $durasi,
+    ];
+}
+
+/**
  * Finalisasi persetujuan izin individu (QR, status aktif, notifikasi).
  *
  * @param array<string, mixed> $izinInfo
@@ -2287,6 +2331,29 @@ function perizinan_setujui_izin_satu(
     if ($ap->rowCount() <= 0) {
         return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.', 'wa' => $emptyWa];
     }
+
+    $pdo->prepare('
+        UPDATE perizinan
+           SET tanggal_mulai = :t1,
+               tanggal_selesai = :t2,
+               jam_mulai = :j1,
+               jam_selesai = :j2,
+               durasi_jam = :dur
+         WHERE id = :id
+    ')->execute([
+        't1' => $tglMulai,
+        't2' => $tglSelesai,
+        'j1' => $jamMulai,
+        'j2' => $jamSelesai,
+        'dur' => $durasi,
+        'id' => $id,
+    ]);
+
+    $izinInfo['tanggal_mulai'] = $tglMulai;
+    $izinInfo['tanggal_selesai'] = $tglSelesai;
+    $izinInfo['jam_mulai'] = $jamMulai;
+    $izinInfo['jam_selesai'] = $jamSelesai;
+    $izinInfo['durasi_jam'] = $durasi;
 
     $payload = [
         'izin' => $izinInfo,
@@ -2655,7 +2722,7 @@ function perizinan_tolak_izin_satu(PDO $pdo, int $izinId, int $userId, string $a
 /**
  * @return array{ok:bool,message:string}
  */
-function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $bypassAlpa = false): array
+function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $bypassAlpa = false, array $jadwal = []): array
 {
     if ($izinId <= 0 || $userId <= 0) {
         return ['ok' => false, 'message' => 'Data tidak valid.'];
@@ -2665,7 +2732,7 @@ function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $by
     }
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
     $st = $pdo->prepare("
-        SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai,
+        SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.durasi_jam,
                i.alasan, i.qr_token, i.approval_status,
                s.{$nameCol} AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin, s.no_wa_wali
         FROM perizinan i
@@ -2701,7 +2768,7 @@ function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $by
         return ['ok' => false, 'message' => $alpaErr];
     }
 
-    $res = perizinan_setujui_izin_satu($pdo, $izinInfo, $userId, $bypassAlpa, [], true, null, true);
+    $res = perizinan_setujui_izin_satu($pdo, $izinInfo, $userId, $bypassAlpa, $jadwal, true, null, true);
     if (!$res['ok']) {
         return ['ok' => false, 'message' => $res['message']];
     }
@@ -2712,7 +2779,7 @@ function perizinan_pengasuh_setujui(PDO $pdo, int $izinId, int $userId, bool $by
 /**
  * @return array{ok:bool,message:string,jumlah:int}
  */
-function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $userId, bool $bypassAlpa = false): array
+function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $userId, bool $bypassAlpa = false, array $postJadwal = []): array
 {
     require_once __DIR__ . '/perizinan_rombongan.php';
     if ($rombonganId <= 0 || $userId <= 0) {
@@ -2739,7 +2806,7 @@ function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $u
         return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat disetujui pengasuh.', 'jumlah' => 0];
     }
 
-    $final = perizinan_rombongan_approve($pdo, $rombonganId, [], $userId, $bypassAlpa, true, true);
+    $final = perizinan_rombongan_approve($pdo, $rombonganId, $postJadwal, $userId, $bypassAlpa, true, true);
     if (!$final['ok']) {
         return ['ok' => false, 'message' => $final['message'], 'jumlah' => 0];
     }
@@ -2846,7 +2913,7 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
     $orderCol = column_exists($pdo, 'perizinan', 'created_at') ? 'i.created_at DESC' : 'i.id DESC';
     $st = $pdo->query("
         SELECT i.id, i.santri_id, i.jenis_izin, i.syari_kategori, i.tanggal_mulai, i.tanggal_selesai,
-               i.jam_mulai, i.jam_selesai, i.alasan, {$tujuanCol} {$pemohonCol} i.created_at, i.rombongan_id,
+               i.jam_mulai, i.jam_selesai, i.durasi_jam, i.alasan, {$tujuanCol} {$pemohonCol} i.created_at, i.rombongan_id,
                s.{$nameCol} AS nama_santri, s.nis, s.tingkatan
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
