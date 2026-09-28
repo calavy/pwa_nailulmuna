@@ -74,34 +74,12 @@ if (!$isNon) {
     exit;
 }
 
-require_once __DIR__ . '/../helpers/pondok_kalender.php';
-$taAktifKeluar = pondok_tahun_ajaran_aktif($pdo);
-$periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) $taAktifKeluar['mulai']);
-$periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) $taAktifKeluar['selesai']);
-if ($periodeMulai < pondok_ta_tahun_min($pdo)) {
-    $periodeMulai = $taAktifKeluar['mulai'];
-    $periodeSelesai = $taAktifKeluar['selesai'];
-}
-if ($periodeSelesai < $periodeMulai) {
-    $periodeSelesai = $periodeMulai + 1;
-}
-
-$kelasKategori = trim((string) ($row['kategori_kelas'] ?? ''));
-if ($kelasKategori === '' && trim((string) ($row['tingkatan'] ?? '')) !== '') {
-    $kelasKategori = (string) $row['tingkatan'];
-}
-
-$outstanding = santri_outstanding_bulanan_rows($pdo, $id, $kelasKategori, $periodeMulai, $periodeSelesai);
-$cashlessSaldo = santri_cashless_balance($pdo, $id);
-$totalKekurangan = 0;
-foreach ($outstanding as $o) {
-    $totalKekurangan += (int) ($o['sisa'] ?? 0);
-}
-
-$bulanNama = [
-    1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
-    7 => 'Jul', 8 => 'Ags', 9 => 'Sep', 10 => 'Okt', 11 => 'Nop', 12 => 'Des',
-];
+$kelasKategori = santri_kelas_kategori_from_row($row);
+$ringkasanKeluar = santri_keuangan_ringkasan_exit($pdo, $id);
+$periodeMulai = (int) ($ringkasanKeluar['periode_mulai'] ?? 0);
+$periodeSelesai = (int) ($ringkasanKeluar['periode_selesai'] ?? 0);
+$totalKekurangan = (int) ($ringkasanKeluar['total_sisa_tagihan'] ?? 0);
+$cashlessSaldo = (int) ($ringkasanKeluar['cashless_saldo'] ?? 0);
 
 $prefKeluarKat = strtoupper(trim((string) ($row['keluar_kategori'] ?? '')));
 
@@ -205,14 +183,12 @@ if ($embed) {
 <?php else: ?>
     <div class="card shadow-sm mb-3 border-0 bg-light">
         <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-                <div>
-                    <h2 class="h6 mb-1">Kekurangan sebelum administrasi selesai</h2>
-                    <p class="small text-muted mb-0">TA <?= htmlspecialchars(pondok_tahun_ajaran_label($pdo, ['mulai' => $periodeMulai, 'selesai' => $periodeSelesai])) ?> · Saldo cashless dipakai otomatis saat Anda menyelesaikan administrasi.</p>
-                </div>
-                <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="/santri/keluar_kekurangan_print.php?id=<?= (int) $id ?>">Cetak ringkasan</a>
-            </div>
-            <div class="row g-2 small">
+            <h2 class="h6 mb-2">Kekurangan sebelum administrasi selesai</h2>
+            <?php
+            $ringkasan = $ringkasanKeluar;
+            require __DIR__ . '/../includes/partials/santri_keuangan_exit_verdict_cards.php';
+            ?>
+            <div class="row g-2 small mb-0">
                 <div class="col-sm-4">
                     <div class="p-2 rounded border bg-white h-100">
                         <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Total sisa tagihan</div>
@@ -228,28 +204,17 @@ if ($embed) {
                 <div class="col-sm-4">
                     <div class="p-2 rounded border bg-white h-100">
                         <div class="text-muted text-uppercase" style="font-size:0.65rem;letter-spacing:0.06em;">Baris tagihan</div>
-                        <div class="fs-5 fw-bold"><?= count($outstanding) ?></div>
+                        <div class="fs-5 fw-bold"><?= (int) ($ringkasanKeluar['outstanding_count'] ?? 0) ?></div>
                     </div>
                 </div>
             </div>
-            <?php if ($outstanding === []): ?>
-                <p class="small text-muted mb-0 mt-3">Tidak ada sisa tagihan bulanan menurut data pembayaran.</p>
-            <?php else: ?>
-                <div class="table-responsive mt-3">
-                    <table class="table table-sm table-bordered mb-0 align-middle bg-white">
-                        <thead class="table-light"><tr><th>Bln</th><th>Pos</th><th class="text-end">Sisa</th></tr></thead>
-                        <tbody>
-                            <?php foreach ($outstanding as $o): ?>
-                                <tr>
-                                    <td class="text-nowrap"><?= (int) $o['bulan'] ?> <?= htmlspecialchars($bulanNama[(int) $o['bulan']] ?? '') ?></td>
-                                    <td><?= htmlspecialchars((string) $o['nama']) ?></td>
-                                    <td class="text-end font-monospace small">Rp <?= number_format((int) $o['sisa'], 0, ',', '.') ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
+            <?php
+            $ringkasan = $ringkasanKeluar;
+            $santriId = $id;
+            $showPrintLink = true;
+            $showDetailHeader = true;
+            require __DIR__ . '/../includes/partials/santri_keuangan_exit_detail.php';
+            ?>
         </div>
     </div>
 

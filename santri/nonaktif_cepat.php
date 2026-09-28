@@ -76,6 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+$keuRingkasan = santri_keuangan_ringkasan_exit($pdo, $id);
+
 $pageTitle = 'Non aktifkan santri';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -87,6 +89,13 @@ require_once __DIR__ . '/../includes/header.php';
         Setelah simpan, data otomatis masuk <strong>Data Mukimin</strong>. Penyelesaian keuangan &amp; surat (jika perlu) lewat <a href="/santri/keluar.php">Administrasi keluar</a>. Jati diri lengkap di <a href="/santri/semua_jati.php">Data induk</a>.
     </p>
 </div>
+
+<?php
+$ringkasan = $keuRingkasan;
+$santriId = $id;
+$context = 'nonaktif';
+require __DIR__ . '/../includes/partials/santri_keuangan_exit_card.php';
+?>
 
 <div class="card shadow-sm">
     <div class="card-body">

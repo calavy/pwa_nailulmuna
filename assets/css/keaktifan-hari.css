@@ -26,6 +26,7 @@ body.page-keaktifan-hari .app-main {
     --kh-alpa-solid: #b91c1c;
     --kh-belum: #64748b;
     --kh-belum-solid: #475569;
+    --kh-menepi-solid: #475569;
     --kh-aman: #166534;
     --kh-on-solid: #fff;
     --kh-on-solid-muted: rgba(255, 255, 255, 0.88);
@@ -218,6 +219,14 @@ body.page-keaktifan-hari .app-main {
 .kh-total-pill--sakit .kh-total-pill__l { color: var(--kh-on-solid); }
 .kh-total-pill--sakit .kh-total-pill__l { color: var(--kh-on-solid-muted); }
 
+.kh-total-pill--menepi {
+    background: var(--kh-menepi-solid);
+    border-color: color-mix(in srgb, var(--kh-menepi-solid) 85%, #000 15%);
+}
+.kh-total-pill--menepi .kh-total-pill__n,
+.kh-total-pill--menepi .kh-total-pill__l { color: var(--kh-on-solid); }
+.kh-total-pill--menepi .kh-total-pill__l { color: var(--kh-on-solid-muted); }
+
 .kh-total-pill--alpa {
     background: var(--kh-alpa-solid);
     border-color: color-mix(in srgb, var(--kh-alpa-solid) 85%, #000 15%);
@@ -258,6 +267,7 @@ body.page-keaktifan-hari .app-main {
 .kh-legend .l-izin::before { background: var(--kh-izin-solid); }
 .kh-legend .l-sakit::before { background: var(--kh-sakit-solid); }
 .kh-legend .l-alpa::before { background: var(--kh-alpa-solid); }
+.kh-legend .l-menepi::before { background: var(--kh-menepi-solid); }
 .kh-legend .l-belum::before { background: var(--kh-belum-solid); }
 
 /* —— Tab kegiatan (scroll horizontal) —— */
@@ -410,6 +420,7 @@ body.page-keaktifan-hari .app-main {
 
 .kh-bar__seg--hadir { background: var(--kh-hadir-solid); }
 .kh-bar__seg--izin { background: var(--kh-izin-solid); }
+.kh-bar__seg--menepi { background: var(--kh-menepi-solid); }
 .kh-bar__seg--sakit { background: var(--kh-sakit-solid); }
 .kh-bar__seg--alpa { background: var(--kh-alpa-solid); }
 .kh-bar__seg--belum { background: var(--kh-belum-solid); }
@@ -492,6 +503,11 @@ body.page-keaktifan-hari .app-main {
 .kh-stat--sakit {
     background: var(--kh-sakit-solid);
     border-color: color-mix(in srgb, var(--kh-sakit-solid) 82%, #000 18%);
+}
+
+.kh-stat--menepi {
+    background: var(--kh-menepi-solid);
+    border-color: color-mix(in srgb, var(--kh-menepi-solid) 82%, #000 18%);
 }
 
 .kh-stat--alpa {
@@ -738,6 +754,7 @@ body.page-keaktifan-hari .app-main {
 .kh-status-badge--I { background: var(--kh-izin-solid); border-color: transparent; color: var(--kh-on-solid); }
 .kh-status-badge--S { background: var(--kh-sakit-solid); border-color: transparent; color: var(--kh-on-solid); }
 .kh-status-badge--H { background: var(--kh-hadir-solid); border-color: transparent; color: var(--kh-on-solid); }
+.kh-status-badge--M { background: var(--kh-menepi-solid); border-color: transparent; color: var(--kh-on-solid); }
 
 /* Kartu kosong */
 .kh-wrap > .card {
@@ -790,11 +807,13 @@ body.page-keaktifan-hari .app-main {
 [data-theme="dark"] .kh-total-pill--izin { background: var(--kh-izin-solid); border-color: color-mix(in srgb, var(--kh-izin-solid) 80%, #000 20%); }
 [data-theme="dark"] .kh-total-pill--sakit { background: var(--kh-sakit-solid); border-color: color-mix(in srgb, var(--kh-sakit-solid) 80%, #000 20%); }
 [data-theme="dark"] .kh-total-pill--alpa { background: var(--kh-alpa-solid); border-color: color-mix(in srgb, var(--kh-alpa-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-total-pill--menepi { background: var(--kh-menepi-solid); border-color: color-mix(in srgb, var(--kh-menepi-solid) 80%, #000 20%); }
 
 [data-theme="dark"] .kh-stat--hadir { background: var(--kh-hadir-solid); border-color: color-mix(in srgb, var(--kh-hadir-solid) 80%, #000 20%); }
 [data-theme="dark"] .kh-stat--izin { background: var(--kh-izin-solid); border-color: color-mix(in srgb, var(--kh-izin-solid) 80%, #000 20%); }
 [data-theme="dark"] .kh-stat--sakit { background: var(--kh-sakit-solid); border-color: color-mix(in srgb, var(--kh-sakit-solid) 80%, #000 20%); }
 [data-theme="dark"] .kh-stat--alpa { background: var(--kh-alpa-solid); border-color: color-mix(in srgb, var(--kh-alpa-solid) 80%, #000 20%); }
+[data-theme="dark"] .kh-stat--menepi { background: var(--kh-menepi-solid); border-color: color-mix(in srgb, var(--kh-menepi-solid) 80%, #000 20%); }
 
 [data-theme="dark"] .kh-stat-popup {
     background: #fff;

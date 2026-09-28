@@ -8,6 +8,7 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/akademik.php';
 require_once __DIR__ . '/../helpers/mukimin.php';
 require_once __DIR__ . '/../helpers/mukimin_portal.php';
+require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/excel.php';
 
 require_roles(['admin', 'pengurus']);
@@ -141,6 +142,10 @@ $filters = [
     'keterangan' => trim((string) ($_GET['keterangan'] ?? '')),
 ];
 $rows = alumni_fetch_rows($pdo, $filters);
+$mukiminKeuMap = santri_keuangan_ringkasan_by_nis_batch(
+    $pdo,
+    array_map(static fn (array $r): string => (string) ($r['nis'] ?? ''), $rows)
+);
 $totalAll = mukimin_count($pdo);
 $total = count($rows);
 $dusunOptions = alumni_distinct_alamat($pdo, 'dusun');
@@ -197,6 +202,16 @@ require_once __DIR__ . '/../includes/header.php';
     <?php require __DIR__ . '/partials/mukimin_form.php'; ?>
 </div>
 
+<?php if ($editRow !== null):
+    $editSantriId = mukimin_santri_id_by_nis($pdo, (string) ($editRow['nis'] ?? ''));
+    if ($editSantriId > 0):
+        $ringkasan = santri_keuangan_ringkasan_exit($pdo, $editSantriId);
+        $santriId = $editSantriId;
+        $context = 'mukimin';
+        require __DIR__ . '/../includes/partials/santri_keuangan_exit_card.php';
+    endif;
+endif; ?>
+
 <div class="card shadow-sm">
     <div class="card-body">
         <?php require __DIR__ . '/partials/mukimin_filter.php'; ?>
@@ -213,7 +228,13 @@ require_once __DIR__ . '/../includes/header.php';
                     ?>
                     <article class="mukimin-card">
                         <div class="mukimin-card-name"><?= htmlspecialchars((string) $r['nama']) ?></div>
-                        <div class="mukimin-card-nis">NIS <?= htmlspecialchars((string) $r['nis']) ?></div>
+                        <div class="mukimin-card-nis d-flex flex-wrap align-items-center gap-2">
+                            <span>NIS <?= htmlspecialchars((string) $r['nis']) ?></span>
+                            <?php
+                            $keuRingkas = $mukiminKeuMap[(string) ($r['nis'] ?? '')] ?? null;
+                            require __DIR__ . '/partials/mukimin_keuangan_badge.php';
+                            ?>
+                        </div>
                         <dl class="mukimin-card-meta">
                             <div><dt>Th. masuk</dt><dd><?= htmlspecialchars($thMasuk) ?></dd></div>
                             <div><dt>Th. keluar</dt><dd><?= htmlspecialchars($thKeluar) ?></dd></div>
@@ -244,6 +265,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <th>Alamat</th>
                             <th>Th. masuk</th>
                             <th>Th. keluar</th>
+                            <th>Keuangan</th>
                             <th>Keterangan</th>
                             <th class="text-end">Aksi</th>
                         </tr>
@@ -257,6 +279,16 @@ require_once __DIR__ . '/../includes/header.php';
                             <td class="small text-muted"><?= htmlspecialchars($alamatLabel) ?></td>
                             <td class="small"><?= $r['th_masuk'] !== null && $r['th_masuk'] !== '' ? (int) $r['th_masuk'] : '—' ?></td>
                             <td class="small"><?= $r['th_keluar'] !== null && $r['th_keluar'] !== '' ? (int) $r['th_keluar'] : '—' ?></td>
+                            <td class="small">
+                                <?php
+                                $keuRingkas = $mukiminKeuMap[(string) ($r['nis'] ?? '')] ?? null;
+                                if ($keuRingkas !== null && ($keuRingkas['status_label'] ?? '') !== 'tidak_ditemukan') {
+                                    require __DIR__ . '/partials/mukimin_keuangan_badge.php';
+                                } else {
+                                    echo '<span class="text-muted">—</span>';
+                                }
+                                ?>
+                            </td>
                             <td class="small"><?= htmlspecialchars((string) ($r['keterangan'] ?: '—')) ?></td>
                             <td class="text-end text-nowrap">
                                 <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(mukimin_page_url(['edit' => (string) $r['id']], $filters)) ?>#mukimin-form-panel">Edit</a>

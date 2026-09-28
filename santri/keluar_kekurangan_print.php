@@ -158,10 +158,29 @@ $tglCetak = date('d/m/Y H:i');
                 </tfoot>
             </table>
         <?php endif; ?>
+        <?php
+        $potongCashless = min($cashlessSaldo, $totalTagihan);
+        $sisaKekurangan = max(0, $totalTagihan - $cashlessSaldo);
+        $sisaDikembalikan = max(0, $cashlessSaldo - $totalTagihan);
+        ?>
         <div class="cash">
-            <strong>Saldo cashless</strong> (akan dipakai otomatis saat penyelesaian administrasi): Rp <?= number_format($cashlessSaldo, 0, ',', '.') ?>
+            <p><strong>Kekurangan yang harus dilunasi</strong> (tagihan keuangan pesantren): Rp <?= number_format($totalTagihan, 0, ',', '.') ?>.
+            <?php if ($potongCashless > 0): ?>
+                Dari saku cashless otomatis dipotong Rp <?= number_format($potongCashless, 0, ',', '.') ?> ke keuangan pesantren.
+            <?php endif; ?>
+            <?php if ($sisaKekurangan > 0): ?>
+                Sisa kekurangan Rp <?= number_format($sisaKekurangan, 0, ',', '.') ?> diselesaikan saat administrasi keluar.
+            <?php endif; ?>
+            </p>
+            <p><strong>Sisa uang saku (cashless)</strong>: Rp <?= number_format($cashlessSaldo, 0, ',', '.') ?>.
+            <?php if ($sisaDikembalikan > 0): ?>
+                Estimasi <strong>dikembalikan</strong> ke santri/wali: Rp <?= number_format($sisaDikembalikan, 0, ',', '.') ?>.
+            <?php elseif ($cashlessSaldo > 0 && $totalTagihan === 0): ?>
+                Seluruh saldo <strong>dikembalikan</strong> saat administrasi keluar.
+            <?php endif; ?>
+            </p>
         </div>
-        <p class="foot">Dokumen internal — penyelesaian administrasi keluar tetap dilakukan di aplikasi.</p>
+        <p class="foot">Dokumen internal — penyelesaian administrasi keluar (keuangan pesantren &amp; cashless) tetap dilakukan di aplikasi.</p>
     </div>
 </body>
 </html>

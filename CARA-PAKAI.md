@@ -65,6 +65,12 @@ Instalasi **pertama kali** saja: impor **`impor_lokal_pwa_nailulmuna.sql`** (lok
 
 **Panduan keuangan lengkap:** lihat [docs/PANDUAN-KEUANGAN.md](docs/PANDUAN-KEUANGAN.md) (setup, tagihan, pembayaran, cashless, laporan, troubleshooting).
 
+### Santri keluar / nonaktif dan keuangan
+
+- **Nonaktif** dari daftar aktif **tidak** menghapus riwayat pembayaran — pengurus tetap bisa lihat di **Keuangan → Riwayat pembayaran** (filter `santri_id`). Portal wali untuk santri nonaktif **ditutup**.
+- **Nonaktif ≠ penutupan keuangan otomatis.** Sisa tagihan bulanan dan saldo **cashless** bisa masih ada; sebelum/sesudah nonaktif cek kartu **Ringkasan keuangan** di **Non aktifkan**, **Edit santri**, dan **Data Mukimin** — dua kartu utama: **Uang yang harus dibayar (tagihan)** = total kekurangan tagihan, **Uang yang harus dikembalikan (sisa saku)** = sisa cashless setelah tagihan dipotong; plus rincian per bulan/komponen.
+- Penutupan resmi lewat **Santri → Administrasi keluar** (`/santri/keluar.php`): **kekurangan** tagihan dilunasi otomatis — saldo **cashless (saku)** dipotong dulu ke **Keuangan** pesantren, sisanya penyesuaian administratif; **sisa uang saku** yang tidak dipakai **dikembalikan** (penutupan akun, tercatat di ringkasan). Semua masuk riwayat keuangan &amp; cashless + `keluar_ringkasan_keuangan` / surat keluar.
+
 **Jangan** buka URL dengan `...` di akhir — itu hanya contoh, bukan link asli.
 
 ---
@@ -247,7 +253,7 @@ Santri **masih AKTIF** di data tetapi sementara **di luar pondok** dan **tidak**
 
 **Pembimbing:** hanya **melihat** daftar santri bimbingan yang menepi (dashboard pembimbing).
 
-**Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu *Santri menepi*) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin.
+**Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu *Santri menepi*) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin. Di panel **keaktivan berlangsung** (Ta'lim/Jama'ah), santri menepi tampil bucket **Menepi** pada kartu kegiatan — **bukan** di tab/daftar Alpa; persentase hadir tidak dihitung dari santri menepi.
 
 **Scan kartu (Presensi → scan kamera):** seperti izin kembali — penepian aktif **ditutup** (sama dengan «Selesai hari ini» pada tanggal scan) dan **presensi dihitung**. Tombol «Selesai hari ini» di pengaturan penepian tetap untuk menutup tanpa scan; setelah ditutup, presensi hari itu juga tidak diblokir.
 

@@ -126,6 +126,200 @@ function santri_cashless_balance(PDO $pdo, int $santriId): int
     return (int) ((float) ($st->fetchColumn() ?: 0));
 }
 
+/** Tahun ajaran keuangan aktif (sama seperti halaman administrasi keluar). */
+function santri_keluar_periode_ta(PDO $pdo): array
+{
+    require_once __DIR__ . '/pondok_kalender.php';
+    $taAktif = pondok_tahun_ajaran_aktif($pdo);
+    $periodeMulai = (int) app_setting($pdo, 'keuangan_periode_mulai', (string) $taAktif['mulai']);
+    $periodeSelesai = (int) app_setting($pdo, 'keuangan_periode_selesai', (string) $taAktif['selesai']);
+    if ($periodeMulai < pondok_ta_tahun_min($pdo)) {
+        $periodeMulai = $taAktif['mulai'];
+        $periodeSelesai = $taAktif['selesai'];
+    }
+    if ($periodeSelesai < $periodeMulai) {
+        $periodeSelesai = $periodeMulai + 1;
+    }
+
+    return ['mulai' => $periodeMulai, 'selesai' => $periodeSelesai];
+}
+
+function santri_kelas_kategori_from_row(array $row): string
+{
+    $kelasKategori = trim((string) ($row['kategori_kelas'] ?? ''));
+    if ($kelasKategori === '' && trim((string) ($row['tingkatan'] ?? '')) !== '') {
+        $kelasKategori = (string) $row['tingkatan'];
+    }
+
+    return $kelasKategori;
+}
+
+/**
+ * @return array{
+ *   santri_id:int,
+ *   total_sisa_tagihan:int,
+ *   cashless_saldo:int,
+ *   sisa_uang_cashless:int,
+ *   outstanding_count:int,
+ *   outstanding_rows:list<array{bulan:int,slug:string,nama:string,expected:int,paid:int,sisa:int}>,
+ *   periode_mulai:int,
+ *   periode_selesai:int,
+ *   proyeksi_cashless_ke_tagihan:int,
+ *   proyeksi_sisa_tagihan_setelah_cashless:int,
+ *   proyeksi_sisa_uang_setelah_tagihan:int,
+ *   nominal_harus_dibayar:int,
+ *   nominal_harus_dikembalikan:int,
+ *   ada_sisa:bool,
+ *   keluar_settled_at:?string,
+ *   keluar_ringkasan_keuangan:string,
+ *   status_label:string,
+ *   badge_label:string,
+ *   badge_variant:string
+ * }
+ */
+function santri_keuangan_ringkasan_exit(PDO $pdo, int $santriId, bool $includeDetail = true): array
+{
+    ensure_santri_keluar_columns($pdo);
+    $empty = [
+        'santri_id' => $santriId,
+        'total_sisa_tagihan' => 0,
+        'cashless_saldo' => 0,
+        'sisa_uang_cashless' => 0,
+        'outstanding_count' => 0,
+        'outstanding_rows' => [],
+        'periode_mulai' => 0,
+        'periode_selesai' => 0,
+        'proyeksi_cashless_ke_tagihan' => 0,
+        'proyeksi_sisa_tagihan_setelah_cashless' => 0,
+        'proyeksi_sisa_uang_setelah_tagihan' => 0,
+        'nominal_harus_dibayar' => 0,
+        'nominal_harus_dikembalikan' => 0,
+        'ada_sisa' => false,
+        'keluar_settled_at' => null,
+        'keluar_ringkasan_keuangan' => '',
+        'status_label' => 'tidak_ditemukan',
+        'badge_label' => '',
+        'badge_variant' => 'secondary',
+    ];
+    if ($santriId <= 0 || !table_exists($pdo, 'santri')) {
+        return $empty;
+    }
+    $st = $pdo->prepare('SELECT * FROM santri WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $santriId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return $empty;
+    }
+
+    $ta = santri_keluar_periode_ta($pdo);
+    $kelas = santri_kelas_kategori_from_row($row);
+    $outstanding = santri_outstanding_bulanan_rows($pdo, $santriId, $kelas, $ta['mulai'], $ta['selesai']);
+    $totalSisa = 0;
+    foreach ($outstanding as $o) {
+        $totalSisa += (int) ($o['sisa'] ?? 0);
+    }
+    $cashless = santri_cashless_balance($pdo, $santriId);
+    $settledAt = trim((string) ($row['keluar_settled_at'] ?? ''));
+    $ringkasan = trim((string) ($row['keluar_ringkasan_keuangan'] ?? ''));
+    $adaSisa = $totalSisa > 0 || $cashless > 0;
+
+    if ($settledAt !== '') {
+        $status = 'selesai';
+        $badge = 'Keuangan selesai';
+        $variant = 'success';
+    } elseif ($totalSisa > 0) {
+        $status = 'menunggu_administrasi';
+        $badge = 'Tunggakan';
+        $variant = 'warning';
+    } elseif ($cashless > 0) {
+        $status = 'lunas_belum_settle';
+        $badge = 'Saldo cashless';
+        $variant = 'info';
+    } else {
+        $status = 'lunas_belum_settle';
+        $badge = 'Belum administrasi keluar';
+        $variant = 'secondary';
+    }
+
+    $proyeksiCashless = min($cashless, $totalSisa);
+    $proyeksiSisaTagihan = max(0, $totalSisa - $cashless);
+    $proyeksiSisaUang = max(0, $cashless - $totalSisa);
+
+    return [
+        'santri_id' => $santriId,
+        'total_sisa_tagihan' => $totalSisa,
+        'cashless_saldo' => $cashless,
+        'sisa_uang_cashless' => $cashless,
+        'outstanding_count' => count($outstanding),
+        'outstanding_rows' => $includeDetail ? $outstanding : [],
+        'periode_mulai' => (int) $ta['mulai'],
+        'periode_selesai' => (int) $ta['selesai'],
+        'proyeksi_cashless_ke_tagihan' => $proyeksiCashless,
+        'proyeksi_sisa_tagihan_setelah_cashless' => $proyeksiSisaTagihan,
+        'proyeksi_sisa_uang_setelah_tagihan' => $proyeksiSisaUang,
+        'nominal_harus_dibayar' => $totalSisa,
+        'nominal_harus_dikembalikan' => $proyeksiSisaUang,
+        'ada_sisa' => $adaSisa,
+        'keluar_settled_at' => $settledAt !== '' ? $settledAt : null,
+        'keluar_ringkasan_keuangan' => $ringkasan,
+        'status_label' => $status,
+        'badge_label' => $badge,
+        'badge_variant' => $variant,
+    ];
+}
+
+function mukimin_santri_id_by_nis(PDO $pdo, string $nis): int
+{
+    $nis = trim($nis);
+    if ($nis === '' || !table_exists($pdo, 'santri')) {
+        return 0;
+    }
+    ensure_santri_identity_columns($pdo);
+    $st = $pdo->prepare('SELECT id FROM santri WHERE nis = :nis ORDER BY id DESC LIMIT 1');
+    $st->execute(['nis' => $nis]);
+    $id = (int) ($st->fetchColumn() ?: 0);
+
+    return $id > 0 ? $id : 0;
+}
+
+/**
+ * Ringkasan keuangan keluar per NIS (untuk daftar mukimin).
+ *
+ * @param list<string> $nisList
+ * @return array<string, array<string, mixed>>
+ */
+function santri_keuangan_ringkasan_by_nis_batch(PDO $pdo, array $nisList): array
+{
+    $out = [];
+    $uniq = [];
+    foreach ($nisList as $nis) {
+        $n = trim((string) $nis);
+        if ($n !== '') {
+            $uniq[$n] = true;
+        }
+    }
+    if ($uniq === [] || !table_exists($pdo, 'santri')) {
+        return $out;
+    }
+    $keys = array_keys($uniq);
+    if (count($keys) > 80) {
+        $keys = array_slice($keys, 0, 80);
+    }
+    $placeholders = implode(',', array_fill(0, count($keys), '?'));
+    $st = $pdo->prepare('SELECT id, nis FROM santri WHERE nis IN (' . $placeholders . ')');
+    $st->execute($keys);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+        $nis = trim((string) ($r['nis'] ?? ''));
+        $sid = (int) ($r['id'] ?? 0);
+        if ($nis === '' || $sid <= 0) {
+            continue;
+        }
+        $out[$nis] = santri_keuangan_ringkasan_exit($pdo, $sid, false);
+    }
+
+    return $out;
+}
+
 /**
  * @return array{lines: list<string>, cashless_used: int, waiver_total: int, cashless_cleared: int}
  */

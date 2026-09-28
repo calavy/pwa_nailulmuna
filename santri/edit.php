@@ -328,6 +328,14 @@ if ($embed) {
 ?>
 
 <?php
+$keluarSettledEdit = trim((string) ($santri['keluar_settled_at'] ?? '')) !== '';
+if (!$keluarSettledEdit) {
+    $ringkasan = santri_keuangan_ringkasan_exit($pdo, $id);
+    $santriId = $id;
+    $context = 'edit';
+    require __DIR__ . '/../includes/partials/santri_keuangan_exit_card.php';
+}
+
 $statusEdit = santri_status_from_row($santri);
 $aktifEdit = santri_status_is_aktif_list($statusEdit);
 $kembaliHref = $aktifEdit ? '/santri/index.php' : '/santri/semua_jati.php';

@@ -16,8 +16,8 @@
     }
 
     function khStatusBadge(tabKey) {
-        var map = { perlu: 'Alpa', ALPA: 'Alpa', IZIN: 'Izin', SAKIT: 'Sakit', HADIR: 'Hadir' };
-        var letterMap = { perlu: 'A', ALPA: 'A', IZIN: 'I', SAKIT: 'S', HADIR: 'H' };
+        var map = { perlu: 'Alpa', ALPA: 'Alpa', IZIN: 'Izin', SAKIT: 'Sakit', HADIR: 'Hadir', MENEPI: 'Menepi' };
+        var letterMap = { perlu: 'A', ALPA: 'A', IZIN: 'I', SAKIT: 'S', HADIR: 'H', MENEPI: 'M' };
         var label = map[tabKey] || '';
         var letter = letterMap[tabKey] || '';
         if (!label || !letter) {

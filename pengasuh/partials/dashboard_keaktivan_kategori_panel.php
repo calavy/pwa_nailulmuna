@@ -21,7 +21,7 @@ $panelSlug = (string) ($panel['slug'] ?? 'panel');
 $panelKey = (string) ($panel['key'] ?? '');
 $keaktivanByTingkatan = is_array($panel['keaktivanByTingkatan'] ?? null) ? $panel['keaktivanByTingkatan'] : [];
 $detailLive = is_array($panel['detailLive'] ?? null) ? $panel['detailLive'] : [];
-$totalsLive = is_array($panel['totalsLive'] ?? null) ? $panel['totalsLive'] : ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0, 'persen' => 0.0];
+$totalsLive = is_array($panel['totalsLive'] ?? null) ? $panel['totalsLive'] : ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'menepi' => 0, 'total' => 0, 'persen' => 0.0];
 $sdmByTingkatan = is_array($panel['sdmByTingkatan'] ?? null) ? $panel['sdmByTingkatan'] : ['pembimbing' => [], 'munawib' => []];
 $kegiatanAktifPanel = is_array($panel['kegiatanAktif'] ?? null) ? $panel['kegiatanAktif'] : [];
 $panelMode = (string) ($panel['mode'] ?? 'hari');
@@ -96,6 +96,9 @@ $heroId = 'khHero-' . $panelSlug;
                 ['key' => 'sakit', 'tab' => 'SAKIT', 'label' => 'Sakit', 'n' => (int) $totalsLive['sakit']],
                 ['key' => 'alpa', 'tab' => 'ALPA', 'label' => 'Alpa', 'n' => (int) $totalsLive['alpa']],
             ];
+            if ((int) ($totalsLive['menepi'] ?? 0) > 0) {
+                $khHeroStatItems[] = ['key' => 'menepi', 'tab' => 'MENEPI', 'label' => 'Menepi', 'n' => (int) $totalsLive['menepi']];
+            }
             ?>
         <div class="kh-hero kh-section mb-4" id="<?= htmlspecialchars($heroId) ?>">
             <div class="kh-hero__top">
@@ -127,6 +130,7 @@ $heroId = 'khHero-' . $panelSlug;
                 <span class="l-izin">Izin</span>
                 <span class="l-sakit">Sakit</span>
                 <span class="l-alpa">Alpa</span>
+                <span class="l-menepi">Menepi</span>
             </div>
         </div>
         <?php endif; ?>
@@ -202,8 +206,10 @@ $heroId = 'khHero-' . $panelSlug;
                         $alpa = (int) ($dk['alpa'] ?? 0);
                         $izin = (int) ($dk['izin'] ?? 0);
                         $sakit = (int) ($dk['sakit'] ?? 0);
+                        $menepi = (int) ($dk['menepi'] ?? 0);
                         $perlu = $alpa;
-                        $pctHadir = $total > 0 ? (int) round(100 * $hadir / $total) : 0;
+                        $denomHadir = max(1, $total - $menepi);
+                        $pctHadir = $total > 0 ? (int) round(100 * $hadir / $denomHadir) : 0;
                         $santri = is_array($dk['santri'] ?? null) ? $dk['santri'] : [];
                         $preview = $previewNames($santri);
                         $needsAttention = $perlu > 0;
@@ -214,6 +220,9 @@ $heroId = 'khHero-' . $panelSlug;
                             ['key' => 'sakit', 'tab' => 'SAKIT', 'label' => 'Sakit', 'n' => $sakit],
                             ['key' => 'alpa', 'tab' => 'ALPA', 'label' => 'Alpa', 'n' => $alpa],
                         ];
+                        if ($menepi > 0) {
+                            $statItems[] = ['key' => 'menepi', 'tab' => 'MENEPI', 'label' => 'Menepi', 'n' => $menepi];
+                        }
                         $sdmLabels = pengasuh_dashboard_sdm_status_for_card(
                             $pdo,
                             $today,
@@ -236,12 +245,27 @@ $heroId = 'khHero-' . $panelSlug;
                                 </div>
                                 <?php endif; ?>
                             </div>
-                            <div class="kh-card__meta"><?= $hadir ?> hadir dari <?= $total ?> santri · <strong><?= $pctHadir ?>%</strong></div>
+                            <?php
+                            $metaParts = [$hadir . ' hadir'];
+                            if ($izin > 0) {
+                                $metaParts[] = $izin . ' izin';
+                            }
+                            if ($sakit > 0) {
+                                $metaParts[] = $sakit . ' sakit';
+                            }
+                            if ($menepi > 0) {
+                                $metaParts[] = $menepi . ' menepi';
+                            }
+                            if ($alpa > 0) {
+                                $metaParts[] = $alpa . ' alpa';
+                            }
+                            ?>
+                            <div class="kh-card__meta"><?= htmlspecialchars(implode(' · ', $metaParts)) ?> · <strong><?= $pctHadir ?>%</strong> hadir</div>
                             <div class="kh-bar<?= $barAman ? ' kh-bar--aman' : '' ?>" role="img" aria-label="<?= $barAman ? 'Kegiatan aman, tanpa alpa' : 'Distribusi presensi' ?>">
                                 <?php if ($barAman): ?>
                                 <span class="kh-bar__seg kh-bar__seg--aman" style="width:100%" title="Tidak ada alpa"></span>
                                 <?php else: ?>
-                                <?php foreach (['hadir' => 'hadir', 'izin' => 'izin', 'sakit' => 'sakit', 'alpa' => 'alpa'] as $key => $cls):
+                                <?php foreach (['hadir' => 'hadir', 'izin' => 'izin', 'sakit' => 'sakit', 'menepi' => 'menepi', 'alpa' => 'alpa'] as $key => $cls):
                                     $n = (int) ($dk[$key] ?? 0);
                                     $w = $barPct($n, $total);
                                     if ($w <= 0) {
@@ -298,6 +322,9 @@ $heroId = 'khHero-' . $panelSlug;
                                     <button type="button" class="kh-tab" data-kh-tab="ALPA" data-kh-card="<?= htmlspecialchars($cardUid) ?>">Alpa (<?= $alpa ?>)</button>
                                     <button type="button" class="kh-tab" data-kh-tab="IZIN" data-kh-card="<?= htmlspecialchars($cardUid) ?>">Izin (<?= $izin ?>)</button>
                                     <button type="button" class="kh-tab" data-kh-tab="SAKIT" data-kh-card="<?= htmlspecialchars($cardUid) ?>">Sakit (<?= $sakit ?>)</button>
+                                    <?php if ($menepi > 0): ?>
+                                    <button type="button" class="kh-tab" data-kh-tab="MENEPI" data-kh-card="<?= htmlspecialchars($cardUid) ?>">Menepi (<?= $menepi ?>)</button>
+                                    <?php endif; ?>
                                 </div>
                                 <?php
                                 $listsPayload = [
@@ -306,10 +333,17 @@ $heroId = 'khHero-' . $panelSlug;
                                     'ALPA' => $santri['ALPA'] ?? [],
                                     'IZIN' => $santri['IZIN'] ?? [],
                                     'SAKIT' => $santri['SAKIT'] ?? [],
+                                    'MENEPI' => $santri['MENEPI'] ?? [],
                                 ];
                                 ?>
                                 <script type="application/json" class="kh-santri-data"><?= json_encode($listsPayload, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
-                                <?php foreach (['perlu', 'HADIR', 'ALPA', 'IZIN', 'SAKIT'] as $tabKey): ?>
+                                <?php
+                                $tabKeys = ['perlu', 'HADIR', 'ALPA', 'IZIN', 'SAKIT'];
+                                if ($menepi > 0) {
+                                    $tabKeys[] = 'MENEPI';
+                                }
+                                foreach ($tabKeys as $tabKey):
+                                ?>
                                 <ul class="kh-list<?= $tabKey === 'perlu' ? '' : ' d-none' ?>" data-kh-list="<?= htmlspecialchars($tabKey) ?>" data-kh-card="<?= htmlspecialchars($cardUid) ?>" data-kh-lazy="1" data-kh-empty-msg="<?= htmlspecialchars($tabKey === 'perlu' ? 'Semua santri sudah tercatat hadir/izin/sakit.' : 'Tidak ada data.') ?>"></ul>
                                 <?php endforeach; ?>
                             </div>

@@ -229,5 +229,82 @@ if (!function_exists('santri_penepian_open_end_date')) {
     $ok('Konstanta open-end penepian tersedia');
 }
 
+require_once __DIR__ . '/../helpers/santri_keluar.php';
+if (!function_exists('santri_keuangan_ringkasan_exit') || !function_exists('mukimin_santri_id_by_nis')) {
+    $bad('Helper santri_keuangan_ringkasan_exit / mukimin_santri_id_by_nis tidak ada');
+} else {
+    $ok('Helper ringkasan keuangan keluar terdaftar');
+}
+$cardSrc = file_get_contents(__DIR__ . '/../includes/partials/santri_keuangan_exit_card.php') ?: '';
+if (strpos($cardSrc, 'Administrasi keluar') === false) {
+    $bad('Partial santri_keuangan_exit_card belum ada');
+} else {
+    $ok('Partial kartu ringkasan keuangan keluar ada');
+}
+$detailSrc = file_get_contents(__DIR__ . '/../includes/partials/santri_keuangan_exit_detail.php') ?: '';
+if (strpos($detailSrc, 'Terbayar') === false) {
+    $bad('Partial santri_keuangan_exit_detail belum lengkap (Terbayar)');
+} else {
+    $ok('Partial detail kekurangan & sisa uang ada');
+}
+$verdictSrc = file_get_contents(__DIR__ . '/../includes/partials/santri_keuangan_exit_verdict_cards.php') ?: '';
+if ($verdictSrc === '' || strpos($verdictSrc, 'Uang yang harus dibayar') === false || strpos($verdictSrc, 'dikembalikan') === false) {
+    $bad('Partial santri_keuangan_exit_verdict_cards belum ada / belum lengkap');
+} else {
+    $ok('Kartu bayar vs kembalikan (verdict) ada');
+}
+$keluarHelperSrc = file_get_contents(__DIR__ . '/../helpers/santri_keluar.php') ?: '';
+if (strpos($keluarHelperSrc, 'nominal_harus_dibayar') === false) {
+    $bad('Helper ringkasan exit belum memuat nominal_harus_dibayar');
+} else {
+    $ok('Helper nominal harus dibayar / dikembalikan terdaftar');
+}
+if (strpos($cardSrc, 'santri_keuangan_exit_verdict_cards') === false) {
+    $bad('Kartu ringkasan belum memuat partial verdict');
+} else {
+    $ok('Kartu ringkasan memuat verdict bayar/kembalikan');
+}
+if (strpos($keluarHelperSrc, 'santri_keuangan_ringkasan_exit($pdo, $sid, false)') === false) {
+    $bad('Batch mukimin harus memanggil ringkasan exit tanpa detail (includeDetail=false)');
+} else {
+    $ok('Batch ringkasan keuangan mukimin tanpa baris detail');
+}
+$mukSrc = file_get_contents(__DIR__ . '/../santri/mukimin.php') ?: '';
+if (strpos($mukSrc, 'mukiminKeuMap') === false) {
+    $bad('mukimin.php belum memuat ringkasan keuangan batch');
+} else {
+    $ok('Data Mukimin menampilkan badge keuangan');
+}
+
+require_once __DIR__ . '/../helpers/rekap_keaktifan_hari.php';
+if (!function_exists('rekap_keaktifan_hari_apply_penepian')) {
+    $bad('rekap_keaktifan_hari_apply_penepian tidak ada');
+} else {
+    $ok('Helper rekap_keaktifan_hari_apply_penepian ada');
+}
+$detailMenepi = rekap_keaktifan_hari_detail_by_kegiatan([[
+    'kegiatan_id' => 9001,
+    'nama_kegiatan' => 'UAT',
+    'status_hari_ini' => 'MENEPI',
+    'nama_santri' => 'Santri UAT',
+    'nis' => '000',
+    'tingkatan' => 'TK',
+    'jam_presensi' => null,
+    'catatan' => '',
+]]);
+$alpaUat = (int) ($detailMenepi[0]['alpa'] ?? -1);
+$menepiUat = (int) ($detailMenepi[0]['menepi'] ?? 0);
+if ($alpaUat !== 0 || $menepiUat !== 1) {
+    $bad('MENEPI harus menepi=1 alpa=0 di detail kegiatan (got menepi=' . $menepiUat . ' alpa=' . $alpaUat . ')');
+} else {
+    $ok('Status MENEPI tidak masuk hitungan alpa di rekap detail');
+}
+$khPanelSrc = file_get_contents(__DIR__ . '/../pengasuh/partials/dashboard_keaktivan_kategori_panel.php') ?: '';
+if (strpos($khPanelSrc, 'MENEPI') === false || strpos($khPanelSrc, 'menepi') === false) {
+    $bad('Panel keaktivan pengasuh belum menampilkan bucket Menepi');
+} else {
+    $ok('UI dashboard keaktivan memuat Menepi');
+}
+
 echo PHP_EOL . ($fail === 0 ? 'UAT penepian: LULUS (' . $fail . ' gagal)' : 'UAT penepian: GAGAL (' . $fail . ' cek)') . PHP_EOL;
 exit($fail === 0 ? 0 : 1);

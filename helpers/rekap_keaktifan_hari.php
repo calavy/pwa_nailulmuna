@@ -115,7 +115,35 @@ function rekap_keaktifan_hari_data(
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $rows = presensi_apply_status_efektif_rows($pdo, $rows, $tanggal);
+    $rows = rekap_keaktifan_hari_apply_penepian($pdo, $rows, $tanggal);
     $dataCache[$cacheKey] = $rows;
+
+    return $rows;
+}
+
+/**
+ * Override status baris rekap untuk santri penepian keaktifan (netral, bukan ALPA).
+ *
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function rekap_keaktifan_hari_apply_penepian(PDO $pdo, array $rows, string $tanggal): array
+{
+    if ($rows === []) {
+        return [];
+    }
+    require_once __DIR__ . '/santri_penepian_keaktifan.php';
+    $map = santri_penepian_map_for_date($pdo, $tanggal);
+    if ($map === []) {
+        return $rows;
+    }
+    foreach ($rows as &$row) {
+        $sid = (int) ($row['santri_id'] ?? 0);
+        if ($sid > 0 && !empty($map[$sid])) {
+            $row['status_hari_ini'] = 'MENEPI';
+        }
+    }
+    unset($row);
 
     return $rows;
 }
@@ -144,6 +172,7 @@ function rekap_keaktifan_hari_ringkasan_from_rows(array $rows): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'menepi' => 0,
                 'total' => 0,
             ];
         }
@@ -157,6 +186,7 @@ function rekap_keaktifan_hari_ringkasan_from_rows(array $rows): array
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
+            'MENEPI' => $byKeg[$kid]['menepi']++,
             default => null,
         };
     }
@@ -181,6 +211,7 @@ function rekap_keaktifan_hari_ringkasan_from_detail(array $detailKeg): array
             'izin' => (int) ($d['izin'] ?? 0),
             'sakit' => (int) ($d['sakit'] ?? 0),
             'alpa' => (int) ($d['alpa'] ?? 0),
+            'menepi' => (int) ($d['menepi'] ?? 0),
             'total' => (int) ($d['total'] ?? 0),
         ];
     }
@@ -199,20 +230,22 @@ function rekap_keaktifan_hari_ringkasan_kegiatan(PDO $pdo, string $tanggal, ?str
  * Total agregat dari ringkasan per kegiatan.
  *
  * @param list<array<string, mixed>> $ringkasan
- * @return array{hadir:int,izin:int,sakit:int,alpa:int,total:int,persen:float}
+ * @return array{hadir:int,izin:int,sakit:int,alpa:int,menepi:int,total:int,persen:float}
  */
 function rekap_keaktifan_hari_totals(array $ringkasan): array
 {
-    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'total' => 0];
+    $tot = ['hadir' => 0, 'izin' => 0, 'sakit' => 0, 'alpa' => 0, 'menepi' => 0, 'total' => 0];
     foreach ($ringkasan as $rg) {
         $tot['hadir'] += (int) ($rg['hadir'] ?? 0);
         $tot['izin'] += (int) ($rg['izin'] ?? 0);
         $tot['sakit'] += (int) ($rg['sakit'] ?? 0);
         $tot['alpa'] += (int) ($rg['alpa'] ?? 0);
+        $tot['menepi'] += (int) ($rg['menepi'] ?? 0);
         $tot['total'] += (int) ($rg['total'] ?? 0);
     }
+    $denom = max(1, $tot['total'] - $tot['menepi']);
     $tot['persen'] = $tot['total'] > 0
-        ? round(100 * $tot['hadir'] / $tot['total'], 1)
+        ? round(100 * $tot['hadir'] / $denom, 1)
         : 0.0;
 
     return $tot;
@@ -237,17 +270,19 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
                 'izin' => 0,
                 'sakit' => 0,
                 'alpa' => 0,
+                'menepi' => 0,
                 'total' => 0,
                 'santri' => [
                     'HADIR' => [],
                     'IZIN' => [],
                     'SAKIT' => [],
                     'ALPA' => [],
+                    'MENEPI' => [],
                 ],
             ];
         }
         $st = strtoupper((string) ($r['status_hari_ini'] ?? ''));
-        if (!in_array($st, ['HADIR', 'IZIN', 'SAKIT', 'ALPA'], true)) {
+        if (!in_array($st, ['HADIR', 'IZIN', 'SAKIT', 'ALPA', 'MENEPI'], true)) {
             $byKeg[$kid]['total']++;
             continue;
         }
@@ -261,6 +296,7 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
             'IZIN' => $byKeg[$kid]['izin']++,
             'SAKIT' => $byKeg[$kid]['sakit']++,
             'ALPA' => $byKeg[$kid]['alpa']++,
+            'MENEPI' => $byKeg[$kid]['menepi']++,
             default => null,
         };
         $jam = $r['jam_presensi'] ?? null;
@@ -284,7 +320,7 @@ function rekap_keaktifan_hari_detail_by_kegiatan(array $rows): array
  */
 function rekap_keaktifan_hari_santri_agregat(array $detailKeg): array
 {
-    $out = ['HADIR' => [], 'IZIN' => [], 'SAKIT' => [], 'ALPA' => []];
+    $out = ['HADIR' => [], 'IZIN' => [], 'SAKIT' => [], 'ALPA' => [], 'MENEPI' => []];
     foreach ($detailKeg as $dk) {
         $namaKeg = trim((string) ($dk['nama_kegiatan'] ?? ''));
         $santri = $dk['santri'] ?? [];
