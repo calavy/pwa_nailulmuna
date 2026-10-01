@@ -373,6 +373,7 @@ if (!function_exists('render_app_sidebar_nav')) {
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="format-detection" content="telephone=no">
     <?php $pwaThemeHeader = app_pwa_theme(isset($pdo) && $pdo instanceof PDO ? $pdo : null); ?>
+    <style>:root { --pwa-shell-bg: <?= htmlspecialchars((string) ($pwaThemeHeader['background_color'] ?? '#ffffff')) ?>; }</style>
     <meta name="theme-color" content="<?= htmlspecialchars((string) ($pwaThemeHeader['theme_color'] ?? '#0f766e')) ?>">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">

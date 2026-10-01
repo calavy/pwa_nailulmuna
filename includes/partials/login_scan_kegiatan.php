@@ -85,7 +85,7 @@ $loginScanDest = ($loginScanDest ?? '') === 'setoran' ? 'setoran' : '';
         </div>
     </div>
 
-    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau. <strong>Absensi santri</strong> mengikuti <strong>tingkatan pada kartu</strong>, bukan hanya nama kegiatan di strip jadwal. Pembimbing/munawib: kehadiran dulu, scan lagi untuk portal.</p>
+    <p class="login-scan-kegiatan__hint small text-muted text-center mb-0">Arahkan kartu ke kotak hijau. <strong>Absensi santri</strong> mengikuti <strong>tingkatan pada kartu</strong>, bukan hanya nama kegiatan di strip jadwal. Pembimbing/munawib dengan jadwal: kehadiran dulu, scan lagi untuk portal. <strong>Munawib penerima setoran</strong> tanpa penugasan jadwal: satu scan langsung ke portal setoran hafalan.</p>
 
     <form method="post" id="login-scan-form-offline" class="visually-hidden" action="<?= htmlspecialchars(app_href('/presensi/scan.php?portal=1')) ?>" autocomplete="off">
         <input type="hidden" name="scan_source" value="camera">

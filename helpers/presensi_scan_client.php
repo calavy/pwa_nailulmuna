@@ -8,14 +8,47 @@ function presensi_scan_client_clock_skew_max_sec(): int
     return 300;
 }
 
+/** Batas jam client di masa depan (detik) — ditolak meski sync offline. */
+function presensi_scan_client_clock_future_max_sec(): int
+{
+    return 300;
+}
+
+/**
+ * Sync antrian offline: percayai scan_client_at meski upload terlambat (lewati skew 5 menit).
+ *
+ * @param array<string, mixed> $post
+ */
+function presensi_scan_trust_delayed_client_clock(array $post): bool
+{
+    if (!function_exists('offline_sync_wants_json')) {
+        require_once __DIR__ . '/offline_sync_http.php';
+    }
+    if (offline_sync_wants_json()) {
+        return true;
+    }
+    if (!function_exists('offline_sync_client_uuid_from_post')) {
+        require_once __DIR__ . '/offline_sync_dedup.php';
+    }
+
+    return offline_sync_client_uuid_from_post($post) !== '';
+}
+
 /**
  * Waktu scan dari perangkat (offline queue / sync) — dipakai saat upload, bukan jam server.
  *
  * @param array<string, mixed> $post
+ * @param array{trust_delayed_client?:bool} $opts
  * @return array{tanggal:string,jam:string,from_client:bool,from_client_skew:bool,client_skew_sec:?int}
  */
-function presensi_scan_resolve_clock(array $post): array
+function presensi_scan_resolve_clock(array $post, array $opts = []): array
 {
+    $trustDelayed = !empty($opts['trust_delayed_client'])
+        || presensi_scan_trust_delayed_client_clock($post);
+    $maxAgeSec = 86400 * 7;
+    $skewMax = presensi_scan_client_clock_skew_max_sec();
+    $futureMax = presensi_scan_client_clock_future_max_sec();
+
     $server = [
         'tanggal' => date('Y-m-d'),
         'jam' => date('H:i:s'),
@@ -24,27 +57,38 @@ function presensi_scan_resolve_clock(array $post): array
         'client_skew_sec' => null,
     ];
 
+    $acceptClientTs = static function (int $ts) use ($server, $trustDelayed, $maxAgeSec, $skewMax, $futureMax): ?array {
+        if ($ts > time() + $futureMax) {
+            return null;
+        }
+        $age = abs(time() - $ts);
+        if ($age > $maxAgeSec) {
+            return null;
+        }
+        $skew = abs(time() - $ts);
+        if (!$trustDelayed && $skew > $skewMax) {
+            return array_merge($server, [
+                'from_client_skew' => true,
+                'client_skew_sec' => $skew,
+            ]);
+        }
+
+        return [
+            'tanggal' => date('Y-m-d', $ts),
+            'jam' => date('H:i:s', $ts),
+            'from_client' => true,
+            'from_client_skew' => false,
+            'client_skew_sec' => $skew,
+        ];
+    };
+
     $rawAt = trim((string) ($post['scan_client_at'] ?? ''));
     if ($rawAt !== '') {
         $ts = strtotime($rawAt);
         if ($ts !== false) {
-            $age = abs(time() - $ts);
-            if ($age <= 86400 * 7) {
-                $skew = abs(time() - $ts);
-                if ($skew > presensi_scan_client_clock_skew_max_sec()) {
-                    return array_merge($server, [
-                        'from_client_skew' => true,
-                        'client_skew_sec' => $skew,
-                    ]);
-                }
-
-                return [
-                    'tanggal' => date('Y-m-d', $ts),
-                    'jam' => date('H:i:s', $ts),
-                    'from_client' => true,
-                    'from_client_skew' => false,
-                    'client_skew_sec' => $skew,
-                ];
+            $resolved = $acceptClientTs($ts);
+            if ($resolved !== null) {
+                return $resolved;
             }
         }
     }
@@ -54,22 +98,18 @@ function presensi_scan_resolve_clock(array $post): array
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawDate) && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $rawJam)) {
         $jamNorm = strlen($rawJam) === 5 ? $rawJam . ':00' : $rawJam;
         $ts = strtotime($rawDate . ' ' . $jamNorm);
-        if ($ts !== false && abs(time() - $ts) <= 86400 * 7) {
-            $skew = abs(time() - $ts);
-            if ($skew > presensi_scan_client_clock_skew_max_sec()) {
-                return array_merge($server, [
-                    'from_client_skew' => true,
-                    'client_skew_sec' => $skew,
-                ]);
-            }
+        if ($ts !== false) {
+            $resolved = $acceptClientTs($ts);
+            if ($resolved !== null) {
+                if (!empty($resolved['from_client'])) {
+                    return array_merge($resolved, [
+                        'tanggal' => $rawDate,
+                        'jam' => $jamNorm,
+                    ]);
+                }
 
-            return [
-                'tanggal' => $rawDate,
-                'jam' => $jamNorm,
-                'from_client' => true,
-                'from_client_skew' => false,
-                'client_skew_sec' => $skew,
-            ];
+                return $resolved;
+            }
         }
     }
 

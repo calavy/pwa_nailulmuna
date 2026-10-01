@@ -984,6 +984,144 @@ function laporan_snapshot_cron_stale_after_sec(): int
     return 900;
 }
 
+function laporan_snapshot_cron_tick_age_sec(PDO $pdo): ?int
+{
+    $lastTick = trim((string) app_setting($pdo, 'laporan_snapshot_last_cron_tick_at', ''));
+    if ($lastTick === '') {
+        return null;
+    }
+    $ts = strtotime($lastTick);
+    if ($ts === false) {
+        return null;
+    }
+
+    return max(0, time() - $ts);
+}
+
+function laporan_snapshot_cron_tick_age_label(PDO $pdo): string
+{
+    $age = laporan_snapshot_cron_tick_age_sec($pdo);
+    if ($age === null) {
+        return 'belum pernah';
+    }
+    if ($age < 60) {
+        return $age . ' detik lalu';
+    }
+    if ($age < 3600) {
+        return (int) floor($age / 60) . ' menit lalu';
+    }
+
+    return (int) floor($age / 3600) . ' jam lalu';
+}
+
+function laporan_snapshot_cron_public_url(PDO $pdo): string
+{
+    require_once __DIR__ . '/app_path.php';
+    $key = trim((string) app_setting($pdo, 'laporan_snapshot_cron_key', ''));
+    $path = app_href('/cron/laporan_snapshot.php') . ($key !== '' ? ('?key=' . rawurlencode($key)) : '');
+
+    return rtrim(app_public_url(), '/') . $path;
+}
+
+/**
+ * @return array{ok:bool,http_code:int,url:string,body_prefix:string,error:string}
+ */
+function laporan_snapshot_probe_http_cron(PDO $pdo): array
+{
+    $url = laporan_snapshot_cron_public_url($pdo);
+    $body = '';
+    $httpCode = 0;
+    $error = '';
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 25,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => ['User-Agent: PWA-LaporanSnapshot-Probe/1'],
+        ]);
+        $raw = curl_exec($ch);
+        $body = is_string($raw) ? $raw : '';
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($raw === false) {
+            $error = curl_error($ch) ?: 'curl gagal';
+        }
+        curl_close($ch);
+    } else {
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 25,
+                'header' => "User-Agent: PWA-LaporanSnapshot-Probe/1\r\n",
+            ],
+        ]);
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            $error = 'HTTP fetch gagal (ekstensi curl tidak tersedia)';
+        } else {
+            $body = (string) $raw;
+            if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', (string) $http_response_header[0], $m)) {
+                $httpCode = (int) $m[1];
+            } else {
+                $httpCode = 200;
+            }
+        }
+    }
+
+    $bodyPrefix = mb_substr(trim($body), 0, 200);
+    $ok = $httpCode === 200 && str_contains($body, 'OK laporan_snapshot');
+    if (!$ok && $httpCode === 403) {
+        $error = $error !== '' ? $error : 'HTTP 403 Forbidden — cek Cron key HTTP di pengaturan dan di crontab hosting.';
+    } elseif (!$ok && $error === '') {
+        $error = $httpCode > 0
+            ? 'HTTP ' . $httpCode . ($bodyPrefix !== '' ? ': ' . $bodyPrefix : '')
+            : 'Tidak ada respons dari URL cron.';
+    }
+
+    return [
+        'ok' => $ok,
+        'http_code' => $httpCode,
+        'url' => $url,
+        'body_prefix' => $bodyPrefix,
+        'error' => $error,
+    ];
+}
+
+/**
+ * @return array{ok:bool,mode:string,note:string,ran:bool,last_cron_tick_at:string}
+ */
+function laporan_snapshot_probe_cli_tick(PDO $pdo): array
+{
+    $tick = laporan_snapshot_run_tick($pdo);
+
+    return [
+        'ok' => true,
+        'mode' => (string) ($tick['mode'] ?? ''),
+        'note' => (string) ($tick['note'] ?? ''),
+        'ran' => (bool) ($tick['ran'] ?? false),
+        'last_cron_tick_at' => trim((string) app_setting($pdo, 'laporan_snapshot_last_cron_tick_at', '')),
+    ];
+}
+
+/**
+ * @param array<string, mixed> $result
+ */
+function laporan_snapshot_save_cron_probe(PDO $pdo, string $kind, array $result): void
+{
+    if (!in_array($kind, ['http', 'cli'], true)) {
+        return;
+    }
+    $raw = trim((string) app_setting($pdo, 'laporan_snapshot_last_cron_probe', ''));
+    $bag = $raw !== '' ? json_decode($raw, true) : [];
+    if (!is_array($bag)) {
+        $bag = [];
+    }
+    $bag['at'] = date('Y-m-d H:i:s');
+    $bag[$kind] = $result;
+    save_setting($pdo, 'laporan_snapshot_last_cron_probe', json_encode($bag, JSON_UNESCAPED_UNICODE));
+}
+
 function laporan_snapshot_cron_tick_recent(PDO $pdo, ?int $maxAgeSec = null): bool
 {
     $maxAgeSec ??= laporan_snapshot_cron_stale_after_sec();
@@ -1051,5 +1189,7 @@ function laporan_snapshot_status(PDO $pdo): array
         'last_result' => is_array($lastResult) ? $lastResult : null,
         'cron_recently_active' => laporan_snapshot_cron_recently_active($pdo),
         'cron_stale' => laporan_snapshot_cron_is_stale($pdo),
+        'cron_tick_age_sec' => laporan_snapshot_cron_tick_age_sec($pdo),
+        'cron_tick_age_label' => laporan_snapshot_cron_tick_age_label($pdo),
     ];
 }

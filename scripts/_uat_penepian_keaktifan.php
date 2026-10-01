@@ -276,6 +276,25 @@ if (strpos($mukSrc, 'mukiminKeuMap') === false) {
     $ok('Data Mukimin menampilkan badge keuangan');
 }
 
+$pwaBrandSrc = file_get_contents(__DIR__ . '/../helpers/pwa_brand.php') ?: '';
+if (strpos($pwaBrandSrc, 'pwa_brand_icon_circle_background_hex') === false || strpos($pwaBrandSrc, 'pwa_icon_white_circle_v3') === false) {
+    $bad('Ikon PWA putih production (v3 / cache ver) belum di pwa_brand.php');
+} else {
+    $ok('Helper ikon PWA lingkaran putih + cache-bust terdaftar');
+}
+$appSrc = file_get_contents(__DIR__ . '/../helpers/app.php') ?: '';
+if (strpos($appSrc, 'logo_ensure_pwa_icon_white_circle_v3') === false) {
+    $bad('Migrasi pwa_icon_white_circle_v3 belum di-hook app.php');
+} else {
+    $ok('Migrasi splash putih + ikon v3 di app schema');
+}
+$regenScript = __DIR__ . '/regenerate_pwa_icons.php';
+if (!is_file($regenScript)) {
+    $bad('Script scripts/regenerate_pwa_icons.php belum ada');
+} else {
+    $ok('Script regenerate PWA production ada');
+}
+
 require_once __DIR__ . '/../helpers/rekap_keaktifan_hari.php';
 if (!function_exists('rekap_keaktifan_hari_apply_penepian')) {
     $bad('rekap_keaktifan_hari_apply_penepian tidak ada');

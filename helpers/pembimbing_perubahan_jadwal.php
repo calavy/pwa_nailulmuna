@@ -7,8 +7,13 @@ require_once __DIR__ . '/jadwal_ui.php';
 require_once __DIR__ . '/munawib.php';
 
 const PB_JADWAL_BATAS_JAM_SEBELUM = 3;
+/** Min. hari kalender sebelum jadwal — hanya pindah waktu (bukan ganti munawib). */
 const PB_JADWAL_BATAS_HARI_PENGAJUAN = 3;
 const PB_JADWAL_MAX_PINDAH_BULAN = 3;
+/** Rentang munawib inklusif ≤ nilai ini → langsung diterapkan; > nilai ini → pengasuh. */
+const PB_MUNAWIB_RENTANG_MAX_HARI_AUTO = 3;
+/** Maks. panjang rentang mulai–selesai (hari kalender inklusif). */
+const PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER = 14;
 
 /**
  * @param array<int|string,mixed> $halInput
@@ -161,27 +166,34 @@ function pb_jadwal_cek_batas_waktu(string $tanggal, string $jamMulaiAsli): array
 }
 
 /**
- * Batas pengajuan baru (pindah waktu / munawib): minimal N hari kalender sebelum jadwal.
+ * Batas pengajuan pindah waktu: minimal N hari kalender sebelum jadwal (bukan ganti munawib).
  *
  * @return array{ok:bool,pesan:string,batas?:string}
  */
 function pb_jadwal_cek_batas_pengajuan(string $tanggal, string $jamMulaiAsli): array
 {
-    $startTs = strtotime($tanggal . ' ' . jadwal_norm_jam($jamMulaiAsli));
-    if ($startTs === false) {
+    if (trim($jamMulaiAsli) === '') {
         return ['ok' => false, 'pesan' => 'Waktu kegiatan tidak valid.'];
     }
-    $batasTs = $startTs - (PB_JADWAL_BATAS_HARI_PENGAJUAN * 86400);
-    $now = time();
-    if ($now >= $batasTs) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
+        return ['ok' => false, 'pesan' => 'Tanggal tidak valid.'];
+    }
+    $todayTs = strtotime(date('Y-m-d') . ' 00:00:00');
+    $eventTs = strtotime($tanggal . ' 00:00:00');
+    if ($todayTs === false || $eventTs === false) {
+        return ['ok' => false, 'pesan' => 'Tanggal tidak valid.'];
+    }
+    $daysUntil = (int) floor(($eventTs - $todayTs) / 86400);
+    $batasTgl = date('Y-m-d', strtotime($tanggal . ' -' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' days'));
+    if ($daysUntil < PB_JADWAL_BATAS_HARI_PENGAJUAN) {
         return [
             'ok' => false,
-            'pesan' => 'Pengajuan hanya bisa dilakukan minimal ' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' hari sebelum jadwal terlaksana.',
-            'batas' => date('Y-m-d H:i', $batasTs),
+            'pesan' => 'Pengajuan hanya bisa dilakukan minimal ' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' hari kalender sebelum jadwal terlaksana.',
+            'batas' => $batasTgl,
         ];
     }
 
-    return ['ok' => true, 'pesan' => '', 'batas' => date('Y-m-d H:i', $batasTs)];
+    return ['ok' => true, 'pesan' => '', 'batas' => $batasTgl];
 }
 
 function pb_munawib_pengajuan_ensure_schema(PDO $pdo): void
@@ -199,7 +211,7 @@ function pb_munawib_pengajuan_ensure_schema(PDO $pdo): void
             kegiatan_id INT NOT NULL,
             tanggal_mulai DATE NOT NULL,
             tanggal_selesai DATE NOT NULL,
-            munawib_id INT NOT NULL,
+            munawib_id INT NULL,
             materi_pengganti TEXT NOT NULL,
             alasan TEXT NOT NULL,
             status ENUM("MENUNGGU","DISETUJUI","DITOLAK","DIBATALKAN") NOT NULL DEFAULT "MENUNGGU",
@@ -214,6 +226,17 @@ function pb_munawib_pengajuan_ensure_schema(PDO $pdo): void
             FOREIGN KEY (pembimbing_id) REFERENCES pembimbing(id) ON DELETE CASCADE
         )
     ');
+    if (table_exists($pdo, 'pembimbing_munawib_pengajuan') && function_exists('column_exists')) {
+        try {
+            $stCol = $pdo->query("SHOW COLUMNS FROM pembimbing_munawib_pengajuan LIKE 'munawib_id'");
+            $col = $stCol ? $stCol->fetch(PDO::FETCH_ASSOC) : false;
+            if (is_array($col) && stripos((string) ($col['Null'] ?? ''), 'NO') !== false) {
+                $pdo->exec('ALTER TABLE pembimbing_munawib_pengajuan MODIFY munawib_id INT NULL');
+            }
+        } catch (Throwable $e) {
+            // ignore migration failure on restricted hosts
+        }
+    }
 }
 
 function pb_jadwal_hitung_pindah_bulan(PDO $pdo, int $pembimbingId, int $kegiatanId, string $tanggal): int
@@ -583,6 +606,118 @@ function pb_jadwal_hapus_override(PDO $pdo, int $pembimbingId, int $overrideId):
     $pdo->prepare('DELETE FROM pembimbing_jadwal_override WHERE id = :id AND pembimbing_id = :pb')->execute(['id' => $overrideId, 'pb' => $pembimbingId]);
 
     return ['ok' => true, 'pesan' => 'Perubahan dibatalkan.'];
+}
+
+function pb_perizinan_slot_jam_label(array $sl): string
+{
+    $mulai = substr((string) ($sl['jam_mulai'] ?? ''), 0, 5);
+    $selesai = substr((string) ($sl['jam_selesai'] ?? ''), 0, 5);
+
+    return $mulai . '–' . $selesai;
+}
+
+function pb_perizinan_slot_option_label(array $sl): string
+{
+    $nama = trim((string) ($sl['nama_kegiatan'] ?? ''));
+    $tk = trim((string) ($sl['tingkatan'] ?? '—'));
+
+    return ($nama !== '' ? $nama : 'Kegiatan') . ' · ' . $tk;
+}
+
+/**
+ * @param list<array<string, mixed>> $slots
+ * @return array{total:int,enabled:int}
+ */
+function pb_perizinan_slot_options_stats(array $slots, string $act): array
+{
+    $total = 0;
+    $enabled = 0;
+    foreach ($slots as $sl) {
+        if (!is_array($sl) || (int) ($sl['jadwal_id'] ?? 0) <= 0) {
+            continue;
+        }
+        $total++;
+        if (!pb_perizinan_slot_option_state($sl, $act)['disabled']) {
+            $enabled++;
+        }
+    }
+
+    return ['total' => $total, 'enabled' => $enabled];
+}
+
+/**
+ * @param array<string, mixed> $sl
+ * @param array{disabled:bool,suffix:string,title:string,bisa:bool,sisa_pindah_bulan:int} $state
+ */
+function pb_perizinan_slot_option_html(array $sl, string $slotOptionAct, array $state): string
+{
+    $label = pb_perizinan_slot_option_label($sl);
+    $jam = pb_perizinan_slot_jam_label($sl);
+    $jadwalId = (int) ($sl['jadwal_id'] ?? 0);
+    $attrs = ' value="' . $jadwalId . '"';
+    if ($slotOptionAct === 'pindah') {
+        $attrs .= ' data-mulai="' . htmlspecialchars(substr((string) ($sl['jam_mulai'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') . '"';
+        $attrs .= ' data-selesai="' . htmlspecialchars(substr((string) ($sl['jam_selesai'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') . '"';
+        $attrs .= ' data-durasi="' . (int) ($sl['durasi_menit'] ?? 60) . '"';
+        $attrs .= ' data-bisa="' . ($state['bisa'] ? '1' : '0') . '"';
+        $attrs .= ' data-sisa="' . (int) $state['sisa_pindah_bulan'] . '"';
+    }
+    if ($state['disabled']) {
+        $attrs .= ' disabled';
+    }
+    if ($state['title'] !== '') {
+        $attrs .= ' title="' . htmlspecialchars($state['title'], ENT_QUOTES, 'UTF-8') . '"';
+    }
+    $text = htmlspecialchars($label, ENT_QUOTES, 'UTF-8')
+        . ' · ' . htmlspecialchars($jam, ENT_QUOTES, 'UTF-8')
+        . ' (mengikuti jadwal)' . htmlspecialchars($state['suffix'], ENT_QUOTES, 'UTF-8');
+
+    return '<option' . $attrs . '>' . $text . '</option>';
+}
+
+/**
+ * @return array{
+ *   disabled:bool,
+ *   suffix:string,
+ *   title:string,
+ *   bisa:bool,
+ *   sisa_pindah_bulan:int
+ * }
+ */
+function pb_perizinan_slot_option_state(array $sl, string $act): array
+{
+    $batasOk = !empty($sl['batas_pengajuan']['ok']);
+    $taalim = strtoupper((string) ($sl['kategori_kegiatan'] ?? '')) === 'TAALIM';
+    $sisa = (int) ($sl['sisa_pindah_bulan'] ?? 0);
+    $batasPesan = trim((string) ($sl['batas_pengajuan']['pesan'] ?? ''));
+
+    if ($act === 'munawib') {
+        return [
+            'disabled' => false,
+            'suffix' => '',
+            'title' => '',
+            'bisa' => true,
+            'sisa_pindah_bulan' => $sisa,
+        ];
+    }
+
+    $bisa = $batasOk && $taalim && $sisa > 0;
+    $suffix = '';
+    if (!$taalim) {
+        $suffix = ' — bukan ta\'lim';
+    } elseif (!$batasOk) {
+        $suffix = ' — min. ' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' hari sebelum jadwal';
+    } elseif ($sisa <= 0) {
+        $suffix = ' — kuota pindah bulan ini habis';
+    }
+
+    return [
+        'disabled' => !$bisa,
+        'suffix' => $suffix,
+        'title' => !$batasOk && $batasPesan !== '' ? $batasPesan : '',
+        'bisa' => $bisa,
+        'sisa_pindah_bulan' => $sisa,
+    ];
 }
 
 require_once __DIR__ . '/pembimbing_munawib_pengajuan.php';

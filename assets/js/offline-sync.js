@@ -22,6 +22,9 @@
     var RETRY_INTERVAL_MS = 90000;
     var syncing = false;
     var retryTimer = null;
+    var syncRunOptions = {};
+    var scanJadwalPrefetchLastAt = 0;
+    var SCAN_JADWAL_PREFETCH_DEBOUNCE_MS = 45000;
 
     var WRITE_ROUTES = [
         { test: /\/presensi\/scan\.php$/i, module: 'presensi_scan', label: 'Presensi scan' },
@@ -96,6 +99,48 @@
             }
         }
         return null;
+    }
+
+    function isPortalPresensiItem(item) {
+        if (!item || item.module !== 'presensi_scan') {
+            return false;
+        }
+        var fields = item.fields || {};
+        if (fields.pb_portal_scan === '1' || fields.pb_portal_scan === 1) {
+            return true;
+        }
+        var url = String(item.url || '');
+        return /[?&]portal=1(?:&|$)/.test(url);
+    }
+
+    function pad2(n) {
+        return n < 10 ? '0' + n : String(n);
+    }
+
+    function localDateKey() {
+        var d = new Date();
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    function scanJadwalCacheKey(tanggal) {
+        return 'scan_jadwal_' + (tanggal || localDateKey());
+    }
+
+    function isScanJadwalTimerPage() {
+        var path = (global.location.pathname || '').replace(/\/+$/, '');
+        var base = appBase();
+        if (base && path.indexOf(base) === 0) {
+            path = path.slice(base.length) || '/';
+        }
+        if (/\/presensi\/scan/i.test(path)) {
+            return true;
+        }
+        if (/\/login\.php$/i.test(path)) {
+            return (global.location.search || '').indexOf('scan=1') >= 0
+                || !!document.getElementById('login-scan-form-offline')
+                || !!document.getElementById('presensi-scan-timer-data');
+        }
+        return !!document.getElementById('presensi-scan-timer-data');
     }
 
     function rekapPageConfig() {
@@ -682,8 +727,7 @@
         if (item && item.clientUuid && (data.ok || type === 'duplicate')) {
             pendingMarkSynced(item.clientUuid);
         }
-        var immediate = route && (route.module === 'presensi_scan' || route.module === 'cashless');
-        if (opts.batch && !immediate) {
+        if (opts.batch) {
             if (data.ok) {
                 syncBatchSummary.ok += 1;
             } else if (type === 'duplicate') {
@@ -714,9 +758,15 @@
 
     function flushSyncBatchToast() {
         var s = syncBatchSummary;
+        var silentAuto = !!syncRunOptions.silentAuto;
         syncBatchSummary = { ok: 0, err: 0, dup: 0 };
+        syncRunOptions = {};
         if (s.ok > 0 && s.err === 0 && s.dup === 0) {
-            toast(s.ok + ' data offline berhasil disinkronkan.', 'success');
+            if (silentAuto) {
+                toast(s.ok + ' scan offline berhasil.', 'success');
+            } else {
+                toast(s.ok + ' data offline berhasil disinkronkan.', 'success');
+            }
         } else if (s.ok > 0 || s.dup > 0) {
             var parts = [];
             if (s.ok) {
@@ -753,11 +803,14 @@
                 return h;
             })(),
         }).then(function (res) {
-            if (res.status === 401) {
+            if (res.status === 401 && !isPortalPresensiItem(item)) {
                 var authErr = new Error('Sesi habis — masuk lagi agar antrian terkirim otomatis.');
                 authErr.authRequired = true;
                 authErr.status = 401;
                 throw authErr;
+            }
+            if (res.status === 401 && isPortalPresensiItem(item)) {
+                throw new Error('Presensi portal ditolak server (HTTP 401).');
             }
             return res.json().catch(function () {
                 throw new Error('Respons server tidak valid (HTTP ' + res.status + ').');
@@ -775,6 +828,9 @@
         if (syncing || !navigator.onLine) {
             return Promise.resolve();
         }
+        syncRunOptions = {
+            silentAuto: !!options.silentAuto,
+        };
         syncing = true;
         syncBatchSummary = { ok: 0, err: 0, dup: 0 };
         document.documentElement.classList.add('pondok-offline-syncing');
@@ -997,6 +1053,120 @@
             });
     }
 
+    function fetchScanJadwalContext(tanggal) {
+        tanggal = tanggal || localDateKey();
+        var url = appPath('api/offline/scan_jadwal_context.php?tanggal=' + encodeURIComponent(tanggal));
+        return fetch(url, { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (payload) {
+                if (payload && payload.ok && payload.ctx) {
+                    return refSave(scanJadwalCacheKey(tanggal), {
+                        tanggal: payload.tanggal || tanggal,
+                        ctx: payload.ctx,
+                        savedAt: Date.now(),
+                    });
+                }
+                return null;
+            });
+    }
+
+    function cachedScanJadwalIsToday(cached) {
+        if (!cached || !cached.ctx) {
+            return false;
+        }
+        return String(cached.tanggal || '') === localDateKey();
+    }
+
+    function prefetchScanJadwalToday() {
+        if (!navigator.onLine) {
+            return Promise.resolve(null);
+        }
+        var now = Date.now();
+        if (now - scanJadwalPrefetchLastAt < SCAN_JADWAL_PREFETCH_DEBOUNCE_MS) {
+            return Promise.resolve(null);
+        }
+        scanJadwalPrefetchLastAt = now;
+        return fetchScanJadwalContext(localDateKey()).catch(function () {
+            return null;
+        });
+    }
+
+    function loadAndApplyScanJadwalCache() {
+        var key = scanJadwalCacheKey(localDateKey());
+        return refLoad(key).then(function (cached) {
+            if (!cachedScanJadwalIsToday(cached)) {
+                return false;
+            }
+            return applyCachedScanJadwal(cached);
+        });
+    }
+
+    function applyCachedScanJadwal(cached) {
+        if (!cachedScanJadwalIsToday(cached)) {
+            return false;
+        }
+        if (global.PresensiScanTimer && typeof global.PresensiScanTimer.applyScanJadwalContext === 'function') {
+            return global.PresensiScanTimer.applyScanJadwalContext(cached.ctx);
+        }
+        var el = document.getElementById('presensi-scan-timer-data');
+        if (!el) {
+            return false;
+        }
+        try {
+            el.textContent = JSON.stringify(cached.ctx);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
+
+    function showScanJadwalCacheBanner() {
+        if (navigator.onLine || document.getElementById('pondok-scan-jadwal-cache-banner')) {
+            return;
+        }
+        if (!document.getElementById('presensi-scan-timer')) {
+            return;
+        }
+        var banner = document.createElement('p');
+        banner.id = 'pondok-scan-jadwal-cache-banner';
+        banner.className = 'small text-warning text-center mb-2';
+        banner.textContent = 'Jadwal hari ini belum di-cache — sambung internet sekali (halaman mana pun PWA).';
+        var timer = document.getElementById('presensi-scan-timer');
+        if (timer && timer.parentNode) {
+            timer.parentNode.insertBefore(banner, timer);
+        }
+    }
+
+    function bootstrapScanJadwalCache() {
+        if (!isScanJadwalTimerPage()) {
+            return;
+        }
+        if (navigator.onLine) {
+            prefetchScanJadwalToday()
+                .then(function () { return loadAndApplyScanJadwalCache(); })
+                .catch(function () { /* abaikan */ });
+        } else {
+            loadAndApplyScanJadwalCache().then(function (applied) {
+                if (!applied) {
+                    showScanJadwalCacheBanner();
+                }
+            }).catch(function () {
+                showScanJadwalCacheBanner();
+            });
+        }
+    }
+
+    function onConnectivityMaybePrefetchJadwal() {
+        if (!navigator.onLine) {
+            return;
+        }
+        prefetchScanJadwalToday().then(function () {
+            if (isScanJadwalTimerPage()) {
+                loadAndApplyScanJadwalCache().catch(function () { /* abaikan */ });
+            }
+        });
+    }
+
     function fetchRekapSnapshot(cfg) {
         var url = appPath('api/offline/rekap_data.php?page=' + encodeURIComponent(cfg.page));
         if (global.location.search) {
@@ -1081,7 +1251,11 @@
         if (!navigator.onLine) {
             return;
         }
-        processQueue(options || {});
+        var opts = options || {};
+        if (opts.silentAuto == null) {
+            opts.silentAuto = true;
+        }
+        processQueue(opts);
     }
 
     function scheduleRetryLoop() {
@@ -1090,7 +1264,7 @@
         }
         retryTimer = global.setInterval(function () {
             if (navigator.onLine && !syncing) {
-                processQueue();
+                processQueue({ silentAuto: true });
             }
         }, RETRY_INTERVAL_MS);
     }
@@ -1113,10 +1287,11 @@
         global.addEventListener('online', function () {
             updateOfflineBar();
             updateDashboardStatus();
-            toast('Internet kembali — mengirim antrian…', 'info');
-            processQueue();
+            onConnectivityMaybePrefetchJadwal();
+            processQueue({ silentAuto: true });
             bootstrapRekap();
             fetchReferencePack().catch(function () { /* abaikan */ });
+            bootstrapScanJadwalCache();
         });
         global.addEventListener('offline', function () {
             updateOfflineBar();
@@ -1124,14 +1299,18 @@
         });
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') {
-                tryProcessQueueIfOnline();
+                onConnectivityMaybePrefetchJadwal();
+                tryProcessQueueIfOnline({ silentAuto: true });
             }
         });
         global.addEventListener('pageshow', function () {
-            tryProcessQueueIfOnline();
+            onConnectivityMaybePrefetchJadwal();
+            tryProcessQueueIfOnline({ silentAuto: true });
         });
 
-        tryProcessQueueIfOnline({ includeErrors: afterLogin });
+        onConnectivityMaybePrefetchJadwal();
+        bootstrapScanJadwalCache();
+        tryProcessQueueIfOnline({ includeErrors: afterLogin, silentAuto: true });
     }
 
     global.PondokOfflineSync = {
@@ -1142,6 +1321,9 @@
         processQueue: processQueue,
         refreshQueueUi: refreshQueueUi,
         fetchReferencePack: fetchReferencePack,
+        fetchScanJadwalContext: fetchScanJadwalContext,
+        prefetchScanJadwalToday: prefetchScanJadwalToday,
+        bootstrapScanJadwalCache: bootstrapScanJadwalCache,
     };
 
     if (document.readyState === 'loading') {

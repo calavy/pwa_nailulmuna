@@ -310,7 +310,7 @@ return [
     ],
     'menuStructure' => [
         ['type' => 'item', 'path' => '/dashboard.php', 'icon' => 'fa-solid fa-house'],
-        ['type' => 'group', 'id' => 'menu-grp-santri', 'label' => 'Santri', 'icon' => 'fa-solid fa-user-graduate', 'sections' => [
+        ['type' => 'group', 'id' => 'menu-grp-santri', 'label' => 'SDM', 'icon' => 'fa-solid fa-user-graduate', 'sections' => [
             ['title' => 'Santri', 'paths' => [
                 '/santri/index.php',
                 '/santri/import.php',

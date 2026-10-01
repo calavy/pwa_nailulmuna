@@ -88,6 +88,116 @@ function pb_jadwal_terapkan_munawib_hari(
     return ['ok' => true, 'pesan' => ''];
 }
 
+/** Jumlah hari kalender inklusif (mulai–selesai). */
+function pb_munawib_rentang_hari_count(string $mulai, string $selesai): int
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $mulai) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $selesai)) {
+        return 0;
+    }
+    if ($selesai < $mulai) {
+        return 0;
+    }
+    $tsMulai = strtotime($mulai);
+    $tsSelesai = strtotime($selesai);
+    if ($tsMulai === false || $tsSelesai === false) {
+        return 0;
+    }
+
+    return (int) floor(($tsSelesai - $tsMulai) / 86400) + 1;
+}
+
+function pb_munawib_pengajuan_perlu_pengasuh(string $tanggalMulai, string $tanggalSelesai): bool
+{
+    return pb_munawib_rentang_hari_count($tanggalMulai, $tanggalSelesai) > PB_MUNAWIB_RENTANG_MAX_HARI_AUTO;
+}
+
+/** Tanggal selesai terjauh (inklusif 14 hari dari mulai). */
+function pb_munawib_tanggal_selesai_maks(string $tanggalMulai): string
+{
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalMulai)) {
+        return $tanggalMulai;
+    }
+    $ts = strtotime($tanggalMulai . ' +' . (PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER - 1) . ' days');
+
+    return $ts !== false ? date('Y-m-d', $ts) : $tanggalMulai;
+}
+
+/**
+ * @return array{ok:bool,pesan:string}
+ */
+function pb_munawib_cek_rentang_kalender(string $tanggalMulai, string $tanggalSelesai): array
+{
+    $count = pb_munawib_rentang_hari_count($tanggalMulai, $tanggalSelesai);
+    if ($count <= 0) {
+        return ['ok' => false, 'pesan' => 'Rentang tanggal tidak valid.'];
+    }
+    if ($count > PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER) {
+        return [
+            'ok' => false,
+            'pesan' => 'Rentang maks. ' . PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER . ' hari kalender (hitung dari tanggal mulai). Selesai paling lambat '
+                . pb_munawib_tanggal_selesai_maks($tanggalMulai) . '.',
+        ];
+    }
+    if ($tanggalSelesai > pb_munawib_tanggal_selesai_maks($tanggalMulai)) {
+        return [
+            'ok' => false,
+            'pesan' => 'Tanggal selesai melebihi batas (maks. ' . PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER . ' hari dari tanggal mulai).',
+        ];
+    }
+
+    return ['ok' => true, 'pesan' => ''];
+}
+
+/**
+ * @param list<array{hal:string,isi:string}> $materiRows
+ * @return array{ok:bool,pesan:string,hari_diterapkan:int}
+ */
+function pb_munawib_pengajuan_terapkan_rentang(
+    PDO $pdo,
+    int $pembimbingId,
+    int $jadwalId,
+    string $tmul,
+    string $tsel,
+    int $munawibId,
+    string $alasan,
+    int $userId,
+    array $materiRows
+): array {
+    $tsMulai = strtotime($tmul);
+    $tsSelesai = strtotime($tsel);
+    if ($tsMulai === false || $tsSelesai === false) {
+        return ['ok' => false, 'pesan' => 'Rentang tanggal tidak valid.', 'hari_diterapkan' => 0];
+    }
+
+    $diterapkan = 0;
+    for ($ts = $tsMulai; $ts <= $tsSelesai; $ts += 86400) {
+        $tgl = date('Y-m-d', $ts);
+        $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tgl);
+        if (!$slotRes['ok']) {
+            continue;
+        }
+        $res = pb_jadwal_terapkan_munawib_hari(
+            $pdo,
+            $pembimbingId,
+            $slotRes['slot'],
+            $tgl,
+            $munawibId,
+            $alasan,
+            $userId,
+            $materiRows,
+            false
+        );
+        if ($res['ok']) {
+            $diterapkan++;
+        }
+    }
+    if ($diterapkan === 0) {
+        return ['ok' => false, 'pesan' => 'Tidak ada hari jadwal yang bisa diterapkan.', 'hari_diterapkan' => 0];
+    }
+
+    return ['ok' => true, 'pesan' => '', 'hari_diterapkan' => $diterapkan];
+}
+
 /**
  * @param list<array{hal:string,isi:string}> $materiRows
  * @return array{ok:bool,pesan:string,id?:int}
@@ -116,8 +226,9 @@ function pb_munawib_pengajuan_simpan(
     if ($tanggalSelesai < $tanggalMulai) {
         return ['ok' => false, 'pesan' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.'];
     }
-    if ($munawibId <= 0) {
-        return ['ok' => false, 'pesan' => 'Pilih munawib pengganti.'];
+    $cekRentang = pb_munawib_cek_rentang_kalender($tanggalMulai, $tanggalSelesai);
+    if (!$cekRentang['ok']) {
+        return ['ok' => false, 'pesan' => $cekRentang['pesan']];
     }
     $alasan = trim($alasan);
     if ($alasan === '') {
@@ -127,10 +238,13 @@ function pb_munawib_pengajuan_simpan(
         return ['ok' => false, 'pesan' => 'Isi tugas/materi per halaman untuk munawib.'];
     }
 
-    $stMw = $pdo->prepare('SELECT id FROM munawib WHERE id = :id AND COALESCE(is_aktif,1)=1 LIMIT 1');
-    $stMw->execute(['id' => $munawibId]);
-    if (!$stMw->fetch()) {
-        return ['ok' => false, 'pesan' => 'Munawib tidak ditemukan.'];
+    $hasMunawib = $munawibId > 0;
+    if ($hasMunawib) {
+        $stMw = $pdo->prepare('SELECT id FROM munawib WHERE id = :id AND COALESCE(is_aktif,1)=1 LIMIT 1');
+        $stMw->execute(['id' => $munawibId]);
+        if (!$stMw->fetch()) {
+            return ['ok' => false, 'pesan' => 'Munawib tidak ditemukan.'];
+        }
     }
 
     $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tanggalMulai);
@@ -140,42 +254,38 @@ function pb_munawib_pengajuan_simpan(
 
     $kegiatanId = (int) ($slotRes['slot']['kegiatan_id'] ?? 0);
 
-    $hariGagal = [];
-    $hariValid = 0;
+    $today = date('Y-m-d');
+    if ($tanggalMulai < $today) {
+        return ['ok' => false, 'pesan' => 'Tanggal mulai tidak boleh sebelum hari ini.'];
+    }
+
+    $hariTanpaJadwal = [];
     $tsMulai = strtotime($tanggalMulai);
     $tsSelesai = strtotime($tanggalSelesai);
     if ($tsMulai === false || $tsSelesai === false) {
         return ['ok' => false, 'pesan' => 'Rentang tanggal tidak valid.'];
     }
+    $hariDalamRentang = 0;
     for ($ts = $tsMulai; $ts <= $tsSelesai; $ts += 86400) {
+        $hariDalamRentang++;
         $tgl = date('Y-m-d', $ts);
         $slotHari = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tgl);
         if (!$slotHari['ok']) {
-            continue;
+            $hariTanpaJadwal[] = $tgl;
         }
-        $cek = pb_jadwal_cek_batas_pengajuan($tgl, (string) $slotHari['slot']['jam_mulai']);
-        if (!$cek['ok']) {
-            $hariGagal[] = $tgl;
-            continue;
-        }
-        $hariValid++;
     }
-    if ($hariValid === 0) {
-        if ($hariGagal !== []) {
-            return [
-                'ok' => false,
-                'pesan' => 'Tidak ada hari yang memenuhi batas pengajuan (min. ' . PB_JADWAL_BATAS_HARI_PENGAJUAN . ' hari sebelum jadwal). Tanggal bermasalah: ' . implode(', ', $hariGagal) . '.',
-            ];
-        }
-
-        return ['ok' => false, 'pesan' => 'Tidak ada jadwal kegiatan ini dalam rentang tanggal yang dipilih.'];
-    }
-    if ($hariGagal !== []) {
+    if ($hariTanpaJadwal !== []) {
         return [
             'ok' => false,
-            'pesan' => 'Sebagian tanggal sudah melewati batas pengajuan: ' . implode(', ', $hariGagal) . '. Sesuaikan rentang atau ajukan lebih awal.',
+            'pesan' => 'Tidak ada jadwal kegiatan ini pada: ' . implode(', ', $hariTanpaJadwal) . '. Sesuaikan rentang tanggal.',
         ];
     }
+    if ($hariDalamRentang === 0) {
+        return ['ok' => false, 'pesan' => 'Rentang tanggal tidak valid.'];
+    }
+
+    $dayCount = pb_munawib_rentang_hari_count($tanggalMulai, $tanggalSelesai);
+    $perluPengasuh = pb_munawib_pengajuan_perlu_pengasuh($tanggalMulai, $tanggalSelesai);
 
     $stPending = $pdo->prepare('
         SELECT id FROM pembimbing_munawib_pengajuan
@@ -189,32 +299,121 @@ function pb_munawib_pengajuan_simpan(
     }
 
     $materiJson = pb_jadwal_materi_to_json($materiRows);
-    $pdo->prepare('
-        INSERT INTO pembimbing_munawib_pengajuan
-        (pembimbing_id, jadwal_id, kegiatan_id, tanggal_mulai, tanggal_selesai, munawib_id, materi_pengganti, alasan, status, created_by)
-        VALUES (:pb, :jid, :kid, :tmul, :tsel, :mid, :mat, :alasan, "MENUNGGU", :uid)
-    ')->execute([
-        'pb' => $pembimbingId,
-        'jid' => $jadwalId,
-        'kid' => $kegiatanId,
-        'tmul' => $tanggalMulai,
-        'tsel' => $tanggalSelesai,
-        'mid' => $munawibId,
-        'mat' => $materiJson,
-        'alasan' => $alasan,
-        'uid' => $userId > 0 ? $userId : null,
-    ]);
-    $pengajuanId = (int) $pdo->lastInsertId();
+    $midParam = $hasMunawib ? $munawibId : null;
 
-    if ($tanggalSelesai > $tanggalMulai) {
+    if ($hasMunawib) {
+        if (!$perluPengasuh) {
+            $terapkan = pb_munawib_pengajuan_terapkan_rentang(
+                $pdo,
+                $pembimbingId,
+                $jadwalId,
+                $tanggalMulai,
+                $tanggalSelesai,
+                $munawibId,
+                $alasan,
+                $userId,
+                $materiRows
+            );
+            if (!$terapkan['ok']) {
+                return ['ok' => false, 'pesan' => $terapkan['pesan']];
+            }
+            $pdo->prepare('
+                INSERT INTO pembimbing_munawib_pengajuan
+                (pembimbing_id, jadwal_id, kegiatan_id, tanggal_mulai, tanggal_selesai, munawib_id, materi_pengganti, alasan, status, created_by, pengasuh_approved_at)
+                VALUES (:pb, :jid, :kid, :tmul, :tsel, :mid, :mat, :alasan, "DISETUJUI", :uid, NOW())
+            ')->execute([
+                'pb' => $pembimbingId,
+                'jid' => $jadwalId,
+                'kid' => $kegiatanId,
+                'tmul' => $tanggalMulai,
+                'tsel' => $tanggalSelesai,
+                'mid' => $midParam,
+                'mat' => $materiJson,
+                'alasan' => $alasan,
+                'uid' => $userId > 0 ? $userId : null,
+            ]);
+            $pengajuanId = (int) $pdo->lastInsertId();
+            $n = (int) ($terapkan['hari_diterapkan'] ?? $dayCount);
+
+            return [
+                'ok' => true,
+                'pesan' => 'Munawib diterapkan untuk ' . $n . ' hari jadwal.',
+                'id' => $pengajuanId,
+            ];
+        }
+
+        $pdo->prepare('
+            INSERT INTO pembimbing_munawib_pengajuan
+            (pembimbing_id, jadwal_id, kegiatan_id, tanggal_mulai, tanggal_selesai, munawib_id, materi_pengganti, alasan, status, created_by)
+            VALUES (:pb, :jid, :kid, :tmul, :tsel, :mid, :mat, :alasan, "MENUNGGU", :uid)
+        ')->execute([
+            'pb' => $pembimbingId,
+            'jid' => $jadwalId,
+            'kid' => $kegiatanId,
+            'tmul' => $tanggalMulai,
+            'tsel' => $tanggalSelesai,
+            'mid' => $midParam,
+            'mat' => $materiJson,
+            'alasan' => $alasan,
+            'uid' => $userId > 0 ? $userId : null,
+        ]);
+        $pengajuanId = (int) $pdo->lastInsertId();
+
+        pb_munawib_pengajuan_kirim_wa_pengasuh($pdo, $pengajuanId);
+
+        return [
+            'ok' => true,
+            'pesan' => 'Pengajuan munawib (' . $dayCount . ' hari) terkirim. Menunggu persetujuan pengasuh.',
+            'id' => $pengajuanId,
+        ];
+    }
+
+    if (!$perluPengasuh) {
+        $pdo->prepare('
+            INSERT INTO pembimbing_munawib_pengajuan
+            (pembimbing_id, jadwal_id, kegiatan_id, tanggal_mulai, tanggal_selesai, munawib_id, materi_pengganti, alasan, status, created_by, pengasuh_approved_at)
+            VALUES (:pb, :jid, :kid, :tmul, :tsel, :mid, :mat, :alasan, "DISETUJUI", :uid, NOW())
+        ')->execute([
+            'pb' => $pembimbingId,
+            'jid' => $jadwalId,
+            'kid' => $kegiatanId,
+            'tmul' => $tanggalMulai,
+            'tsel' => $tanggalSelesai,
+            'mid' => null,
+            'mat' => $materiJson,
+            'alasan' => $alasan,
+            'uid' => $userId > 0 ? $userId : null,
+        ]);
+    } else {
+        $pdo->prepare('
+            INSERT INTO pembimbing_munawib_pengajuan
+            (pembimbing_id, jadwal_id, kegiatan_id, tanggal_mulai, tanggal_selesai, munawib_id, materi_pengganti, alasan, status, created_by)
+            VALUES (:pb, :jid, :kid, :tmul, :tsel, :mid, :mat, :alasan, "MENUNGGU", :uid)
+        ')->execute([
+            'pb' => $pembimbingId,
+            'jid' => $jadwalId,
+            'kid' => $kegiatanId,
+            'tmul' => $tanggalMulai,
+            'tsel' => $tanggalSelesai,
+            'mid' => null,
+            'mat' => $materiJson,
+            'alasan' => $alasan,
+            'uid' => $userId > 0 ? $userId : null,
+        ]);
+        $pengajuanId = (int) $pdo->lastInsertId();
         pb_munawib_pengajuan_kirim_wa_pengasuh($pdo, $pengajuanId);
     }
 
-    $pesan = $tanggalMulai === $tanggalSelesai
-        ? 'Pengajuan munawib terkirim. Menunggu persetujuan pengasuh.'
-        : 'Pengajuan munawib multi-hari terkirim. Menunggu persetujuan pengasuh.';
+    if (!isset($pengajuanId)) {
+        $pengajuanId = (int) $pdo->lastInsertId();
+    }
+    pb_munawib_pengajuan_kirim_wa_pendidikan($pdo, $pengajuanId);
 
-    return ['ok' => true, 'pesan' => $pesan, 'id' => $pengajuanId];
+    return [
+        'ok' => true,
+        'pesan' => 'Pengajuan tersimpan. Petugas pendidikan akan menugaskan munawib.',
+        'id' => $pengajuanId,
+    ];
 }
 
 /**
@@ -242,37 +441,32 @@ function pb_munawib_pengajuan_setujui(PDO $pdo, int $pengajuanId, int $pengasuhU
     $tsel = (string) ($row['tanggal_selesai'] ?? '');
     $createdBy = (int) ($row['created_by'] ?? 0);
 
-    $tsMulai = strtotime($tmul);
-    $tsSelesai = strtotime($tsel);
-    if ($tsMulai === false || $tsSelesai === false) {
-        return ['ok' => false, 'pesan' => 'Rentang tanggal tidak valid.'];
+    if ($munawibId <= 0) {
+        $pdo->prepare('
+            UPDATE pembimbing_munawib_pengajuan
+            SET status = "DISETUJUI", pengasuh_approved_by = :uid, pengasuh_approved_at = NOW(), updated_at = NOW()
+            WHERE id = :id
+        ')->execute(['uid' => $pengasuhUserId > 0 ? $pengasuhUserId : null, 'id' => $pengajuanId]);
+        pb_munawib_pengajuan_kirim_wa_pendidikan($pdo, $pengajuanId);
+
+        return ['ok' => true, 'pesan' => 'Pengajuan disetujui. Munawib akan ditugaskan petugas pendidikan.'];
     }
 
-    $diterapkan = 0;
-    for ($ts = $tsMulai; $ts <= $tsSelesai; $ts += 86400) {
-        $tgl = date('Y-m-d', $ts);
-        $slotRes = pb_jadwal_ambil_slot_pembimbing($pdo, $pembimbingId, $jadwalId, $tgl);
-        if (!$slotRes['ok']) {
-            continue;
-        }
-        $res = pb_jadwal_terapkan_munawib_hari(
-            $pdo,
-            $pembimbingId,
-            $slotRes['slot'],
-            $tgl,
-            $munawibId,
-            $alasan,
-            $createdBy,
-            $materiRows,
-            false
-        );
-        if ($res['ok']) {
-            $diterapkan++;
-        }
+    $terapkan = pb_munawib_pengajuan_terapkan_rentang(
+        $pdo,
+        $pembimbingId,
+        $jadwalId,
+        $tmul,
+        $tsel,
+        $munawibId,
+        $alasan,
+        $createdBy,
+        $materiRows
+    );
+    if (!$terapkan['ok']) {
+        return ['ok' => false, 'pesan' => $terapkan['pesan']];
     }
-    if ($diterapkan === 0) {
-        return ['ok' => false, 'pesan' => 'Tidak ada hari jadwal yang bisa diterapkan.'];
-    }
+    $diterapkan = (int) ($terapkan['hari_diterapkan'] ?? 0);
 
     $pdo->prepare('
         UPDATE pembimbing_munawib_pengajuan
@@ -382,7 +576,73 @@ function pb_munawib_pengajuan_pending_count(PDO $pdo): int
 }
 
 /**
- * WA ke pengasuh untuk pengajuan munawib multi-hari.
+ * WA ke petugas pendidikan: munawib belum dipilih pembimbing.
+ *
+ * @return array{sent:int,skipped:bool,reason:string}
+ */
+function pb_munawib_pengajuan_kirim_wa_pendidikan(PDO $pdo, int $pengajuanId): array
+{
+    pb_munawib_pengajuan_ensure_schema($pdo);
+    if (!function_exists('wa_petugas_pendidikan_target')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'master_off'];
+    }
+    $target = trim((string) wa_petugas_pendidikan_target($pdo));
+    if ($target === '') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_pendidikan_wa'];
+    }
+    if (!function_exists('send_wa_bulk')) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_sender'];
+    }
+
+    $st = $pdo->prepare('
+        SELECT p.*, k.nama_kegiatan, b.nama_pembimbing, b.nip
+        FROM pembimbing_munawib_pengajuan p
+        INNER JOIN pembimbing b ON b.id = p.pembimbing_id
+        LEFT JOIN kegiatan k ON k.id = p.kegiatan_id
+        WHERE p.id = :id LIMIT 1
+    ');
+    $st->execute(['id' => $pengajuanId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'not_found'];
+    }
+    if ((int) ($row['munawib_id'] ?? 0) > 0) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'munawib_sudah_dipilih'];
+    }
+
+    require_once __DIR__ . '/wa_templates.php';
+    $nip = trim((string) ($row['nip'] ?? ''));
+    $msg = wa_template_render($pdo, 'pb_munawib_butuh_penugasan_pendidikan', [
+        'nama_pembimbing' => (string) ($row['nama_pembimbing'] ?? '-'),
+        'nip_pembimbing' => $nip,
+        'nip_baris' => $nip !== '' ? '• NIP: ' . $nip . "\n" : '',
+        'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
+        'tanggal_mulai' => (string) ($row['tanggal_mulai'] ?? ''),
+        'tanggal_selesai' => (string) ($row['tanggal_selesai'] ?? ''),
+        'materi_ringkas' => pb_jadwal_materi_ringkas((string) ($row['materi_pengganti'] ?? '')),
+        'alasan' => (string) ($row['alasan'] ?? ''),
+        'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),
+    ]);
+
+    $bulk = send_wa_bulk($pdo, $target, $msg, [
+        'kind' => 'presensi',
+        'dedup_key' => 'pb_munawib_pendidikan:' . $pengajuanId,
+        'dedup_key_once' => true,
+    ]);
+    $sent = (int) ($bulk['sent'] ?? 0);
+
+    return [
+        'sent' => $sent,
+        'skipped' => $sent === 0,
+        'reason' => $sent === 0 ? (string) ($bulk['reason'] ?? 'send_failed') : '',
+    ];
+}
+
+/**
+ * WA ke pengasuh untuk pengajuan munawib rentang >3 hari (status MENUNGGU).
  *
  * @return array{sent:int,skipped:bool,reason:string}
  */
@@ -435,7 +695,9 @@ function pb_munawib_pengajuan_kirim_wa_pengasuh(PDO $pdo, int $pengajuanId): arr
         'nama_kegiatan' => (string) ($row['nama_kegiatan'] ?? '-'),
         'tanggal_mulai' => (string) ($row['tanggal_mulai'] ?? ''),
         'tanggal_selesai' => (string) ($row['tanggal_selesai'] ?? ''),
-        'munawib_nama' => (string) ($row['munawib_nama'] ?? '-'),
+        'munawib_nama' => trim((string) ($row['munawib_nama'] ?? '')) !== ''
+            ? (string) $row['munawib_nama']
+            : 'Belum dipilih',
         'materi_ringkas' => pb_jadwal_materi_ringkas((string) ($row['materi_pengganti'] ?? '')),
         'alasan' => (string) ($row['alasan'] ?? ''),
         'nama_ponpes' => trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren')),

@@ -212,6 +212,9 @@ function app_should_defer_offline_sync_js(string $requestPath): bool
     if (preg_match('#^/presensi/scan#', $p)) {
         return false;
     }
+    if (preg_match('#^/login\.php#', $p)) {
+        return false;
+    }
     if (str_contains($p, '/pembimbing/tugas/nilai.php') || str_contains($p, '/pembimbing/nilai_manual')) {
         return false;
     }
@@ -393,6 +396,12 @@ function app_ensure_schema_deferred(PDO $pdo): void
         }
         if (function_exists('logo_ensure_pwa_icon_fringe_v1')) {
             logo_ensure_pwa_icon_fringe_v1($pdo);
+        }
+        if (function_exists('logo_ensure_pwa_icon_white_circle_v2')) {
+            logo_ensure_pwa_icon_white_circle_v2($pdo);
+        }
+        if (function_exists('logo_ensure_pwa_icon_white_circle_v3')) {
+            logo_ensure_pwa_icon_white_circle_v3($pdo);
         }
     } catch (Throwable $e) {
         error_log('[app_ensure_schema_deferred] ' . $e->getMessage());
@@ -618,8 +627,14 @@ function app_pwa_icon_src(?PDO $pdo = null): string
 function app_pwa_icon_href(?PDO $pdo = null): string
 {
     require_once __DIR__ . '/app_path.php';
+    $pdo = app_pwa_resolve_pdo($pdo);
+    $href = app_href(app_pwa_icon_src($pdo));
+    if ($pdo !== null && function_exists('pwa_brand_append_icons_cache_ver')) {
+        require_once __DIR__ . '/pwa_brand.php';
+        $href = pwa_brand_append_icons_cache_ver($pdo, $href);
+    }
 
-    return app_href(app_pwa_icon_src($pdo));
+    return $href;
 }
 
 function app_pwa_icon_mime(?PDO $pdo = null): string
@@ -842,6 +857,7 @@ function pondok_settings_defaults(): array
         'laporan_snapshot_sa_json_path' => 'config/google_service_account.json',
         'laporan_snapshot_last_date' => '',
         'laporan_snapshot_last_cron_tick_at' => '',
+        'laporan_snapshot_last_cron_probe' => '',
         'laporan_snapshot_last_run_at' => '',
         'laporan_snapshot_last_error' => '',
         'laporan_snapshot_last_result' => '{}',

@@ -34,9 +34,13 @@ if ($pembimbingId <= 0 && !$bolehSemua && $role === 'pembimbing' && table_exists
 $isSelfService = ($role === 'pembimbing' || (int) ($_SESSION['munawib_id'] ?? 0) > 0) && !$bolehSemua;
 $today = date('Y-m-d');
 $tanggalMax = date('Y-m-d', strtotime('+14 days'));
-$tanggalPilih = trim((string) ($_REQUEST['tanggal'] ?? $today));
+$act = strtolower(trim((string) ($_GET['act'] ?? '')));
+$tanggalMinPengajuan = date('Y-m-d', strtotime('+' . (int) PB_JADWAL_BATAS_HARI_PENGAJUAN . ' days'));
+$perizinanActNeedsLead = ($act === 'pindah');
+$defaultTanggal = $perizinanActNeedsLead ? $tanggalMinPengajuan : $today;
+$tanggalPilih = trim((string) ($_REQUEST['tanggal'] ?? $defaultTanggal));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalPilih)) {
-    $tanggalPilih = $today;
+    $tanggalPilih = $defaultTanggal;
 }
 if ($tanggalPilih < $today) {
     $tanggalPilih = $today;
@@ -44,11 +48,16 @@ if ($tanggalPilih < $today) {
 if ($tanggalPilih > $tanggalMax) {
     $tanggalPilih = $tanggalMax;
 }
+if ($perizinanActNeedsLead && $tanggalPilih < $tanggalMinPengajuan) {
+    $tanggalPilih = $tanggalMinPengajuan;
+}
+$tanggalPickerMin = $perizinanActNeedsLead ? $tanggalMinPengajuan : $today;
+$tanggalMulaiForm = $tanggalPilih;
+$tanggalSelesaiMaxMunawib = pb_munawib_tanggal_selesai_maks($tanggalMulaiForm);
 $pbPerizinanUrl = static function (array $q = []) use ($tanggalPilih): string {
     $q['tanggal'] = $tanggalPilih;
     return app_href('/pembimbing/perizinan.php?' . http_build_query($q));
 };
-$act = strtolower(trim((string) ($_GET['act'] ?? '')));
 
 pb_jadwal_override_ensure_schema($pdo);
 
@@ -160,8 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $isSelfService) {
         if ($tSel < $tMul) {
             $tSel = $tMul;
         }
-        if ($tSel > $tanggalMax) {
-            $tSel = $tanggalMax;
+        $tSelMax = pb_munawib_tanggal_selesai_maks($tMul);
+        if ($tSel > $tSelMax) {
+            $tSel = $tSelMax;
         }
         $res = pb_munawib_pengajuan_simpan(
             $pdo,
@@ -204,6 +214,10 @@ $tanggalTs = strtotime($tanggalPilih);
 $tanggalLabel = $tanggalTs !== false
     ? (int) date('j', $tanggalTs) . ' ' . ($bulanId[(int) date('n', $tanggalTs)] ?? '') . ' ' . date('Y', $tanggalTs)
     : $tanggalPilih;
+$tanggalMinTs = strtotime($tanggalMinPengajuan);
+$tanggalMinPengajuanLabel = $tanggalMinTs !== false
+    ? (int) date('j', $tanggalMinTs) . ' ' . ($bulanId[(int) date('n', $tanggalMinTs)] ?? '') . ' ' . date('Y', $tanggalMinTs)
+    : $tanggalMinPengajuan;
 $isHariIni = $tanggalPilih === $today;
 
 $izinSql = '
@@ -244,7 +258,7 @@ $ok = get_flash('success');
     <h1 class="h4 mb-1">Pengaturan kegiatan<?= $isHariIni ? ' hari ini' : '' ?></h1>
     <p class="text-muted mb-0">
         <?php if ($isSelfService): ?>
-            Ajukan pindah waktu atau ganti munawib (tugas per halaman). Pengajuan min. <?= (int) PB_JADWAL_BATAS_HARI_PENGAJUAN ?> hari sebelum jadwal; setelah disetujui, ubah/batal override max. <?= PB_JADWAL_BATAS_JAM_SEBELUM ?> jam sebelum jadwal asli.
+            Ganti munawib: rentang tanggal bebas (maks. 14 hari); ≤<?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_AUTO ?> hari langsung aktif, lebih dari itu perlu pengasuh. Pindah waktu: min. <?= (int) PB_JADWAL_BATAS_HARI_PENGAJUAN ?> hari kalender sebelum jadwal. Ubah/batal override max. <?= PB_JADWAL_BATAS_JAM_SEBELUM ?> jam sebelum jadwal asli.
         <?php else: ?>
             Pantau perubahan jadwal dan izin pembimbing.
         <?php endif; ?>
@@ -263,7 +277,7 @@ $ok = get_flash('success');
         <span class="pb-perizinan-choice-card__icon" aria-hidden="true"><i class="fa-solid fa-user-clock"></i></span>
         <span class="pb-perizinan-choice-card__text">
             <span class="pb-perizinan-choice-card__title">Cari / ganti munawib</span>
-            <span class="pb-perizinan-choice-card__desc">1 atau beberapa hari · persetujuan pengasuh</span>
+            <span class="pb-perizinan-choice-card__desc">≤<?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_AUTO ?> hari langsung · &gt;<?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_AUTO ?> hari perlu pengasuh</span>
         </span>
         <span class="pb-perizinan-choice-card__go" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
     </a>
@@ -286,7 +300,7 @@ $ok = get_flash('success');
             <div class="col-sm-auto">
                 <label class="form-label small mb-1" for="pb-tanggal-pilih">Pilih tanggal</label>
                 <input type="date" class="form-control form-control-sm" name="tanggal" id="pb-tanggal-pilih"
-                    min="<?= htmlspecialchars($today) ?>" max="<?= htmlspecialchars($tanggalMax) ?>"
+                    min="<?= htmlspecialchars($tanggalPickerMin) ?>" max="<?= htmlspecialchars($tanggalMax) ?>"
                     value="<?= htmlspecialchars($tanggalPilih) ?>" required>
             </div>
             <div class="col-sm-auto">
@@ -301,7 +315,7 @@ $ok = get_flash('success');
 
 <?php if ($slotsHariIni === []): ?>
     <div class="alert alert-warning small">
-        Tidak ada kegiatan jadwal Anda pada <?= htmlspecialchars($tanggalLabel) ?>.
+        Tidak ada nama kegiatan / jadwal Anda pada <?= htmlspecialchars($tanggalLabel) ?> (cek master jadwal untuk pembimbing ini).
         <a href="<?= htmlspecialchars(app_href('/jadwal/index.php')) ?>">Kelola jadwal</a>
     </div>
 <?php elseif ($act === 'pindah'): ?>
@@ -313,25 +327,23 @@ $ok = get_flash('success');
                 <input type="hidden" name="action" value="simpan_pindah">
                 <input type="hidden" name="tanggal" value="<?= htmlspecialchars($tanggalPilih) ?>">
                 <div class="col-md-6">
-                    <label class="form-label">Kegiatan <?= $isHariIni ? 'hari ini' : 'tanggal ' . htmlspecialchars($tanggalLabel) ?></label>
+                    <label class="form-label">Nama kegiatan (jadwal Anda)</label>
+                    <p class="small text-muted mb-1">Waktu mengikuti jadwal master; tanggal pelaksanaan: <strong><?= htmlspecialchars($tanggalLabel) ?></strong>.</p>
                     <select class="form-select" name="jadwal_id" id="pb-slot-pindah" required>
-                        <option value="">— Pilih —</option>
-                        <?php foreach ($slotsHariIni as $sl):
-                            $taalim = strtoupper((string) ($sl['kategori_kegiatan'] ?? '')) === 'TAALIM';
+                        <option value="">— Pilih kegiatan —</option>
+                        <?php
+                        $slotOptionAct = 'pindah';
+                        require __DIR__ . '/../includes/partials/pb_perizinan_slot_options.php';
                         ?>
-                            <option value="<?= (int) $sl['jadwal_id'] ?>"
-                                data-mulai="<?= htmlspecialchars(substr((string) $sl['jam_mulai'], 0, 5)) ?>"
-                                data-selesai="<?= htmlspecialchars(substr((string) $sl['jam_selesai'], 0, 5)) ?>"
-                                data-durasi="<?= (int) $sl['durasi_menit'] ?>"
-                                data-bisa="<?= !empty($sl['batas_pengajuan']['ok']) && $taalim && (int) $sl['sisa_pindah_bulan'] > 0 ? '1' : '0' ?>"
-                                data-sisa="<?= (int) $sl['sisa_pindah_bulan'] ?>"
-                                <?= !$taalim ? 'disabled' : '' ?>>
-                                <?= htmlspecialchars((string) $sl['nama_kegiatan']) ?> · <?= htmlspecialchars((string) $sl['tingkatan']) ?>
-                                · <?= htmlspecialchars(substr((string) $sl['jam_mulai'], 0, 5)) ?>–<?= htmlspecialchars(substr((string) $sl['jam_selesai'], 0, 5)) ?>
-                                <?= !$taalim ? '(bukan ta\'lim)' : '' ?>
-                            </option>
-                        <?php endforeach; ?>
                     </select>
+                    <?php
+                    $slotStatsPindah = pb_perizinan_slot_options_stats($slotsHariIni, 'pindah');
+                    if ($slotStatsPindah['total'] > 0 && $slotStatsPindah['enabled'] === 0):
+                    ?>
+                    <div class="alert alert-warning small mt-2 mb-0" role="status">
+                        Semua kegiatan terkunci untuk tanggal ini. Pilih tanggal dari <strong><?= htmlspecialchars($tanggalMinPengajuanLabel) ?></strong> atau lebih jauh (min. <?= (int) PB_JADWAL_BATAS_HARI_PENGAJUAN ?> hari kalender dari hari ini, tombol <strong>Tampilkan</strong> di atas), atau cek kuota pindah / hanya ta&apos;lim yang bisa dipindah.
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Jam mulai baru</label>
@@ -357,7 +369,7 @@ $ok = get_flash('success');
     <div class="pb-perizinan-munawib mb-4">
         <div class="pb-perizinan-munawib__head">
             <h2 class="h6 mb-1">Ganti / cari munawib</h2>
-            <p class="small text-muted mb-0">Ajukan min. <?= (int) PB_JADWAL_BATAS_HARI_PENGAJUAN ?> hari sebelum jadwal. Semua pengajuan menunggu persetujuan pengasuh; WA otomatis ke pengasuh jika lebih dari satu hari.</p>
+            <p class="small text-muted mb-0">Tanggal mulai: hari ini s.d. +14 hari. Rentang maks. <?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER ?> hari kalender inklusif (hitung dari tanggal mulai). ≤<?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_AUTO ?> hari langsung diterapkan jika munawib dipilih; lebih dari itu perlu pengasuh.</p>
         </div>
         <form method="post" class="pb-perizinan-munawib__form" id="form-munawib">
             <input type="hidden" name="action" value="ajukan_munawib">
@@ -372,28 +384,28 @@ $ok = get_flash('success');
                     <div class="col-sm-6">
                         <label class="form-label" for="pb-tanggal-selesai">Tanggal selesai</label>
                         <input type="date" class="form-control" name="tanggal_selesai" id="pb-tanggal-selesai"
-                            min="<?= htmlspecialchars($today) ?>" max="<?= htmlspecialchars($tanggalMax) ?>"
+                            min="<?= htmlspecialchars($tanggalMulaiForm) ?>" max="<?= htmlspecialchars($tanggalSelesaiMaxMunawib) ?>"
                             value="<?= htmlspecialchars($tanggalPilih) ?>" required>
                     </div>
                 </div>
-                <p class="small text-muted mb-0 mt-1">Kegiatan di bawah mengacu pada tanggal mulai (<?= htmlspecialchars($tanggalLabel) ?>).</p>
+                <p class="small text-muted mb-0 mt-1">Daftar kegiatan mengacu <strong>tanggal mulai</strong> (<?= htmlspecialchars($tanggalLabel) ?>). Tanggal selesai paling lambat <strong><?= htmlspecialchars($tanggalSelesaiMaxMunawib) ?></strong> (14 hari dari mulai). Ubah tanggal mulai untuk memuat ulang kegiatan.</p>
             </section>
             <section class="pb-perizinan-section">
-                <label class="form-label">Kegiatan <?= $isHariIni ? 'hari ini' : 'tanggal ' . htmlspecialchars($tanggalLabel) ?></label>
-                <select class="form-select form-select-lg pb-perizinan-select" name="jadwal_id" required>
-                    <option value="">— Pilih —</option>
-                    <?php foreach ($slotsHariIni as $sl): ?>
-                        <?php if (empty($sl['batas_pengajuan']['ok'])) { continue; } ?>
-                        <option value="<?= (int) $sl['jadwal_id'] ?>">
-                            <?= htmlspecialchars((string) $sl['nama_kegiatan']) ?> · <?= htmlspecialchars(substr((string) $sl['jam_mulai'], 0, 5)) ?>
-                        </option>
-                    <?php endforeach; ?>
+                <label class="form-label">Nama kegiatan (jadwal Anda)</label>
+                <p class="small text-muted mb-1">Waktu mengikuti jadwal master; rentang pelaksanaan dari tanggal mulai–selesai di atas.</p>
+                <select class="form-select form-select-lg pb-perizinan-select" name="jadwal_id" id="pb-slot-munawib" required>
+                    <option value="">— Pilih kegiatan —</option>
+                    <?php
+                    $slotOptionAct = 'munawib';
+                    require __DIR__ . '/../includes/partials/pb_perizinan_slot_options.php';
+                    ?>
                 </select>
             </section>
             <section class="pb-perizinan-section">
-                <label class="form-label">Munawib</label>
-                <select class="form-select form-select-lg pb-perizinan-select" name="munawib_id" id="pb-munawib-select" required>
-                    <option value="">— Pilih munawib —</option>
+                <label class="form-label">Munawib <span class="text-muted fw-normal">(opsional)</span></label>
+                <p class="small text-muted mb-1">Kosongkan jika belum tahu — petugas pendidikan akan menugaskan munawib (notifikasi WA).</p>
+                <select class="form-select form-select-lg pb-perizinan-select" name="munawib_id" id="pb-munawib-select">
+                    <option value="">— Nanti diisi petugas pendidikan —</option>
                     <?php foreach ($munawibList as $mw):
                         $mwId = (int) ($mw['id'] ?? 0);
                         $pen = $munawibTugasMap[$mwId] ?? null;
@@ -433,7 +445,7 @@ $ok = get_flash('success');
                 <textarea class="form-control" name="alasan" rows="3" required placeholder="Tulis alasan sendiri (wajib), mis. sakit, tugas di luar, keperluan keluarga, …"></textarea>
             </section>
             <div class="pb-perizinan-munawib__submit">
-                <button type="submit" class="btn btn-primary btn-lg w-100"><i class="fa-solid fa-paper-plane me-1"></i> Kirim pengajuan ke pengasuh</button>
+                <button type="submit" class="btn btn-primary btn-lg w-100"><i class="fa-solid fa-paper-plane me-1"></i> Kirim pengajuan</button>
             </div>
         </form>
     </div>
@@ -462,7 +474,10 @@ $ok = get_flash('success');
                         <tr>
                             <td class="small"><?= htmlspecialchars($rentang) ?></td>
                             <td class="small"><?= htmlspecialchars((string) ($pg['nama_kegiatan'] ?? '')) ?></td>
-                            <td class="small"><?= htmlspecialchars((string) ($pg['munawib_nama'] ?? '')) ?></td>
+                            <td class="small"><?php
+                                $mwNama = trim((string) ($pg['munawib_nama'] ?? ''));
+                                echo htmlspecialchars($mwNama !== '' ? $mwNama : 'Belum ditugaskan');
+                            ?></td>
                             <td class="small"><?= htmlspecialchars($stLabel) ?></td>
                             <td class="text-end">
                                 <?php if ($stPg === 'MENUNGGU'): ?>
@@ -484,6 +499,41 @@ $ok = get_flash('success');
     </div>
     <?php endif; ?>
     <script>
+    (function () {
+        var tglMulai = document.getElementById('pb-tanggal-mulai');
+        var tglSelesai = document.getElementById('pb-tanggal-selesai');
+        var maxSpanDays = <?= (int) PB_MUNAWIB_RENTANG_MAX_HARI_KALENDER - 1 ?>;
+        function addDays(ymd, days) {
+            var p = ymd.split('-');
+            if (p.length !== 3) return ymd;
+            var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+            d.setDate(d.getDate() + days);
+            var m = d.getMonth() + 1;
+            return d.getFullYear() + '-' + String(m).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function syncSelesaiBounds() {
+            if (!tglMulai || !tglSelesai) return;
+            var mulai = tglMulai.value;
+            if (!mulai) return;
+            var maxSel = addDays(mulai, maxSpanDays);
+            tglSelesai.min = mulai;
+            tglSelesai.max = maxSel;
+            if (tglSelesai.value && tglSelesai.value < mulai) tglSelesai.value = mulai;
+            if (tglSelesai.value && tglSelesai.value > maxSel) tglSelesai.value = maxSel;
+        }
+        if (tglMulai && tglSelesai) {
+            syncSelesaiBounds();
+            tglSelesai.addEventListener('change', syncSelesaiBounds);
+        }
+        if (tglMulai) {
+            var syncUrl = <?= json_encode(app_href('/pembimbing/perizinan.php'), JSON_UNESCAPED_UNICODE) ?>;
+            tglMulai.addEventListener('change', function () {
+                var v = tglMulai.value;
+                if (!v) return;
+                window.location.href = syncUrl + '?act=munawib&tanggal=' + encodeURIComponent(v);
+            });
+        }
+    })();
     (function () {
         var wrap = document.getElementById('pb-materi-rows');
         var btn = document.getElementById('pb-tambah-hal');
@@ -592,8 +642,8 @@ $ok = get_flash('success');
         var bisa = opt.getAttribute('data-bisa') === '1';
         var sisa = opt.getAttribute('data-sisa') || '0';
         info.textContent = bisa
-            ? 'Sisa kuota pindah bulan ini: ' + sisa + 'x · Asli ' + opt.getAttribute('data-mulai') + '–' + opt.getAttribute('data-selesai')
-            : 'Kegiatan ini tidak bisa dipindah (bukan ta\'lim, kuota habis, atau sudah lewat batas waktu).';
+            ? 'Sisa kuota pindah bulan ini: ' + sisa + 'x · Waktu jadwal asli ' + opt.getAttribute('data-mulai') + '–' + opt.getAttribute('data-selesai')
+            : (opt.disabled ? opt.textContent.trim() : 'Kegiatan ini tidak bisa dipindah (bukan ta\'lim, kuota habis, atau belum memenuhi batas pengajuan).');
         if (btn) btn.disabled = !bisa;
     }
     function cekBentrok() {

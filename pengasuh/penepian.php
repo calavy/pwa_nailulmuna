@@ -18,15 +18,15 @@ $penepianRows = pengasuh_laporan_hari_penepian($pdo, $tanggal, 200);
 $konteks = pengasuh_laporan_hari_konteks($pdo, $tanggal, 0);
 $tglLabel = (string) ($konteks['tgl_label'] ?? $tanggal);
 
-$pageTitle = 'Santri menepi keaktifan';
+$pageTitle = 'Santri Sedang Cuti';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1">
-        <a href="<?= htmlspecialchars(app_href('/pengasuh/dashboard.php')) ?>">Pengasuh</a> · Menepi
+        <a href="<?= htmlspecialchars(app_href('/pengasuh/dashboard.php')) ?>">Pengasuh</a> · Santri Sedang Cuti
     </p>
-    <h1 class="h4 mb-1">Santri menepi keaktifan</h1>
+    <h1 class="h4 mb-1">Santri Sedang Cuti</h1>
     <p class="text-muted mb-0">
         Daftar santri yang sedang menepi pada <strong><?= htmlspecialchars($tglLabel) ?></strong>.
         Kolom <em>Menepi</em> = jumlah hari sejak tanggal mulai (inklusif). Penepian tidak punya tanggal akhir di form — diakhiri lewat <em>Selesai hari ini</em> saat kelola.

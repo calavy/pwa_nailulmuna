@@ -110,7 +110,7 @@ $formMulai = (string) ($editRow['tanggal_mulai'] ?? date('Y-m-d'));
 $formAlasan = (string) ($editRow['alasan'] ?? '');
 $formCat = (string) ($editRow['catatan_internal'] ?? '');
 
-$pageTitle = 'Penepian keaktifan';
+$pageTitle = 'Santri Sedang Cuti';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -118,7 +118,7 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1">
         <a href="<?= htmlspecialchars(app_href('/perizinan/hub.php')) ?>">Perizinan</a>
     </p>
-    <h1 class="h4 mb-1">Penepian keaktifan (luar pondok sementara)</h1>
+    <h1 class="h4 mb-1">Santri Sedang Cuti</h1>
     <p class="text-muted small mb-0">
         Santri tetap <strong>AKTIF</strong> di data. Presensi dihitung netral (PRESNA) sejak <strong>tanggal mulai</strong> sampai Anda menekan
         <strong>Selesai hari ini</strong> atau <strong>Batalkan</strong>. Tidak perlu mengisi tanggal selesai di muka.

@@ -5,7 +5,9 @@ declare(strict_types=1);
 /** Dipanggil dari presensi/scan.php atau presensi_scan_portal_json(). */
     presensi_scan_jadwal_context_invalidate();
     kegiatan_khusus_ensure_schema_deferred($pdo);
-    $scanClock = presensi_scan_resolve_clock($_POST);
+    $scanClock = presensi_scan_resolve_clock($_POST, [
+        'trust_delayed_client' => presensi_scan_trust_delayed_client_clock($_POST),
+    ]);
     /** @var array<string, mixed> $scanResponseMeta */
     $scanResponseMeta = [
         'scan_clock' => presensi_scan_clock_meta($scanClock),

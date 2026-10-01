@@ -55,8 +55,10 @@ echo 'laporan_snapshot_last_date  : ' . trim((string) ($sheetStatus['last_date']
 echo 'laporan_snapshot_last_error : ' . (trim((string) ($sheetStatus['last_error'] ?? '')) !== '' ? trim((string) $sheetStatus['last_error']) : '(kosong)') . "\n";
 if ($sheetStatus['enabled'] ?? false) {
     echo 'sheet cron tick recent      : ' . (($sheetStatus['cron_tick_recent'] ?? false) ? 'yes' : 'no') . "\n";
+    echo 'sheet cron tick age         : ' . laporan_snapshot_cron_tick_age_label($pdo) . "\n";
     echo 'sheet cron OK               : ' . (($sheetStatus['cron_recently_active'] ?? false) ? 'yes' : 'no') . "\n";
     echo 'sheet cron stale            : ' . (($sheetStatus['cron_stale'] ?? false) ? 'yes' : 'no') . "\n";
+    echo "[TIP] php scripts/_test_laporan_snapshot_cron_health.php — atau diagnostik di Pengaturan → Snapshot Laporan.\n";
 }
 echo "Detail cron: php scripts/_diag_cron_wa_sheet.php\n";
 

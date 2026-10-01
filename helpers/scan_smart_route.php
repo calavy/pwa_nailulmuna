@@ -122,3 +122,43 @@ function scan_smart_resolve_clock(array $post): array
 {
     return presensi_scan_resolve_clock($post);
 }
+
+/**
+ * Multi Scan: munawib penerima setoran tanpa jadwal penugasan → portal setoran (tanpa ?dest=setoran).
+ */
+function scan_smart_resolve_login_dest(
+    PDO $pdo,
+    string $qrCode,
+    string $loginDest,
+    string $tanggal,
+    string $jam
+): string {
+    require_once __DIR__ . '/login_pembimbing.php';
+
+    $loginDest = login_pembimbing_sanitize_dest($loginDest);
+    if ($loginDest === 'setoran') {
+        return 'setoran';
+    }
+
+    $class = scan_smart_classify($pdo, $qrCode);
+    if ($class['entity'] !== 'munawib' || !is_array($class['munawib'])) {
+        return $loginDest;
+    }
+
+    $mwId = (int) ($class['munawib']['id'] ?? 0);
+    if ($mwId <= 0) {
+        return $loginDest;
+    }
+
+    if (scan_smart_munawib_has_slots($pdo, $mwId, $tanggal, $jam)) {
+        return $loginDest;
+    }
+
+    require_once __DIR__ . '/akademik_setoran.php';
+    ensure_akademik_setoran_penerima_schema($pdo);
+    if (akademik_setoran_penerima_is_aktif($pdo, 'munawib', $mwId)) {
+        return 'setoran';
+    }
+
+    return $loginDest;
+}

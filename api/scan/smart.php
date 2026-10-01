@@ -50,7 +50,7 @@ $qrCode = trim((string) ($input['qr_code'] ?? $input['kode_qr'] ?? ''));
 /**
  * @param array<string, mixed> $presensiResult
  */
-$portalAfterPresensi = static function (array $presensiResult) use ($pdo, $qrCode, $loginDest): void {
+$portalAfterPresensi = static function (array $presensiResult) use ($pdo, $qrCode, $loginDest, $input): void {
     if (!empty($presensiResult['munawib_pending'])) {
         offline_sync_json_response(
             (string) ($presensiResult['type'] ?? 'info'),
@@ -64,7 +64,16 @@ $portalAfterPresensi = static function (array $presensiResult) use ($pdo, $qrCod
         );
     }
 
-    $auth = login_qr_authenticate($pdo, $qrCode, $loginDest);
+    $clock = scan_smart_resolve_clock($input);
+    $effectiveDest = scan_smart_resolve_login_dest(
+        $pdo,
+        $qrCode,
+        $loginDest,
+        (string) ($clock['tanggal'] ?? date('Y-m-d')),
+        (string) ($clock['jam'] ?? date('H:i:s'))
+    );
+
+    $auth = login_qr_authenticate($pdo, $qrCode, $effectiveDest);
     if (!$auth['ok']) {
         offline_sync_json_response('error', (string) ($auth['error'] ?? 'Gagal masuk portal.'));
     }

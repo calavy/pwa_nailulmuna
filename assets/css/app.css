@@ -4119,15 +4119,15 @@ body:not(.modal-open) .modal-backdrop {
 }
 
 
-/* PWA terpasang — latar splash mengikuti tema teal aplikasi */
+/* PWA terpasang — latar shell mengikuti --pwa-shell-bg (manifest / pengaturan) */
 html {
-    background-color: #0d9488;
+    background-color: var(--pwa-shell-bg, #ffffff);
 }
 
 @media (display-mode: standalone) {
     html,
     body.app-body-shell {
-        background-color: #0d9488;
+        background-color: var(--pwa-shell-bg, #ffffff);
     }
 
     body.app-body-shell {

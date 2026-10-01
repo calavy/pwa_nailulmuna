@@ -179,7 +179,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="pg-dash-absensi-toggle__row">
                         <span class="pg-dash-absensi-toggle__title">
                             <i class="fa-solid fa-house-circle-xmark text-secondary me-1"></i>
-                            Santri menepi keaktifan
+                            Santri Sedang Cuti
                             <span class="badge text-bg-light border ms-1 pg-dash-absensi-count"><?= (int) $santriPenepianHariCount ?></span>
                         </span>
                         <span class="pg-dash-absensi-toggle__hint small text-muted">Ketuk untuk buka daftar</span>

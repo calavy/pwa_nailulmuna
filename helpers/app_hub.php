@@ -110,7 +110,7 @@ function app_hub_registry(): array
                 ['path' => '/perizinan/index.php', 'label' => 'Persetujuan'],
                 ['path' => '/pengasuh/perizinan.php', 'label' => 'Pengasuh'],
                 ['path' => '/perizinan/rekap_aktif.php', 'label' => 'Rekap aktif'],
-                ['path' => '/perizinan/penepian_keaktifan.php', 'label' => 'Penepian keaktifan'],
+                ['path' => '/perizinan/penepian_keaktifan.php', 'label' => 'Santri Sedang Cuti'],
                 ['path' => '/perizinan/izin_tetap.php', 'label' => 'Izin tetap'],
                 ['path' => '/perizinan/izin_rombongan.php', 'label' => 'Izin rombongan'],
             ],

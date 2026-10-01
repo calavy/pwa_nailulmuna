@@ -85,20 +85,45 @@ function pwa_brand_icon_relative_path(PDO $pdo, int $size, bool $maskable = fals
     return '';
 }
 
+/** Versi cache ikon PWA (query string manifest / favicon). */
+function pwa_brand_icons_cache_ver(PDO $pdo): string
+{
+    return trim((string) app_setting($pdo, 'pwa_icons_cache_ver', ''));
+}
+
+function pwa_brand_append_icons_cache_ver(PDO $pdo, string $url): string
+{
+    $ver = pwa_brand_icons_cache_ver($pdo);
+    if ($ver === '') {
+        return $url;
+    }
+    $sep = str_contains($url, '?') ? '&' : '?';
+
+    return $url . $sep . 'v=' . rawurlencode($ver);
+}
+
+function pwa_brand_bump_icons_cache_ver(PDO $pdo): void
+{
+    save_setting($pdo, 'pwa_icons_cache_ver', (string) time());
+}
+
 /** URL absolut ikon untuk manifest / apple-touch. */
 function pwa_brand_icon_absolute_url(PDO $pdo, int $size, bool $maskable = false): string
 {
     $rel = pwa_brand_icon_relative_path($pdo, $size, $maskable);
     if ($rel !== '') {
-        return app_public_url() . app_url(ltrim($rel, '/'));
+        $url = app_public_url() . app_url(ltrim($rel, '/'));
+
+        return pwa_brand_append_icons_cache_ver($pdo, $url);
     }
 
     $q = http_build_query([
         'size' => $size,
         'maskable' => $maskable ? '1' : '0',
     ]);
+    $url = app_public_url() . app_url('api/pwa/icon.php?' . $q);
 
-    return app_public_url() . app_url('api/pwa/icon.php?' . $q);
+    return pwa_brand_append_icons_cache_ver($pdo, $url);
 }
 
 /**
@@ -150,6 +175,12 @@ function pwa_brand_load_image(string $absolutePath)
 function pwa_brand_logo_background_hex(): string
 {
     return '#ffffff';
+}
+
+/** Isi lingkaran ikon pasang PWA (bukan splash — splash pakai pwa_background_color). */
+function pwa_brand_icon_circle_background_hex(): string
+{
+    return pwa_brand_logo_background_hex();
 }
 
 /**
@@ -225,7 +256,7 @@ function pwa_brand_circle_fill_hex(string $bgHex, array $theme): string
 }
 
 /**
- * Render logo ke PNG lingkaran (latar tema) + sudut transparan — untuk install PWA.
+ * Render logo ke PNG lingkaran (latar putih) + sudut transparan — untuk install PWA.
  */
 function pwa_brand_render_circle_png(
     string $sourceAbsolute,
@@ -234,7 +265,7 @@ function pwa_brand_render_circle_png(
     float $logoScale = 0.72,
     bool $maskable = false
 ): ?string {
-    unset($maskable);
+    unset($maskable, $bgHex);
     $src = pwa_brand_load_image($sourceAbsolute);
     if ($src === null) {
         return null;
@@ -255,9 +286,8 @@ function pwa_brand_render_circle_png(
     imagefill($canvas, 0, 0, $transparent);
     imagealphablending($canvas, true);
 
-    $theme = ['background_color' => $bgHex, 'theme_color' => $bgHex];
-    $fillHex = pwa_brand_circle_fill_hex($bgHex, $theme);
-    $rgb = kartu_brand_hex_to_rgb($fillHex) ?? ['r' => 13, 'g' => 148, 'b' => 136];
+    $fillHex = pwa_brand_icon_circle_background_hex();
+    $rgb = kartu_brand_hex_to_rgb($fillHex) ?? ['r' => 255, 'g' => 255, 'b' => 255];
     $fill = imagecolorallocate($canvas, $rgb['r'], $rgb['g'], $rgb['b']);
     $cx = (int) round($size / 2);
     imagefilledellipse($canvas, $cx, $cx, $size, $size, $fill);
@@ -295,8 +325,8 @@ function pwa_brand_render_initials_png(PDO $pdo, int $size, bool $maskable = fal
     require_once __DIR__ . '/app.php';
     $initials = app_pondok_logo_initials($pdo);
     $theme = app_pwa_theme($pdo);
-    $fillHex = pwa_brand_circle_fill_hex('', $theme);
-    $rgb = kartu_brand_hex_to_rgb($fillHex) ?? ['r' => 13, 'g' => 148, 'b' => 136];
+    $fillHex = pwa_brand_icon_circle_background_hex();
+    $rgb = kartu_brand_hex_to_rgb($fillHex) ?? ['r' => 255, 'g' => 255, 'b' => 255];
 
     $canvas = imagecreatetruecolor($size, $size);
     if ($canvas === false) {
@@ -315,13 +345,15 @@ function pwa_brand_render_initials_png(PDO $pdo, int $size, bool $maskable = fal
     }
     $cx = (int) round($size / 2);
     imagefilledellipse($canvas, $cx, $cx, $diameter, $diameter, $bg);
-    $white = imagecolorallocate($canvas, 255, 255, 255);
+    $textHex = pwa_brand_normalize_hex((string) ($theme['theme_color'] ?? '#0f766e'), '#0f766e');
+    $textRgb = kartu_brand_hex_to_rgb($textHex) ?? ['r' => 15, 'g' => 118, 'b' => 110];
+    $textColor = imagecolorallocate($canvas, $textRgb['r'], $textRgb['g'], $textRgb['b']);
     $font = 5;
     $textW = imagefontwidth($font) * strlen($initials);
     $textH = imagefontheight($font);
     $tx = (int) max(0, ($size - $textW) / 2);
     $ty = (int) max(0, ($size - $textH) / 2);
-    imagestring($canvas, $font, $tx, $ty, $initials, $white);
+    imagestring($canvas, $font, $tx, $ty, $initials, $textColor);
 
     imagealphablending($canvas, false);
     imagesavealpha($canvas, true);
@@ -399,6 +431,8 @@ function pwa_brand_sync_from_logo(PDO $pdo): bool
         }
     }
 
+    pwa_brand_bump_icons_cache_ver($pdo);
+
     return true;
 }
 
@@ -416,6 +450,43 @@ function logo_ensure_white_bg_pwa_icons(PDO $pdo): void
     }
     save_setting($pdo, 'pwa_icon_full_logo_v1', '1');
     save_setting($pdo, 'pwa_icon_white_bg_v1', '1');
+}
+
+/** Sekali jalan: regenerasi ikon PWA — lingkaran putih di belakang logo. */
+function logo_ensure_pwa_icon_white_circle_v2(PDO $pdo): void
+{
+    if (!table_exists($pdo, 'app_settings')) {
+        return;
+    }
+    if (app_setting($pdo, 'pwa_icon_white_circle_v2', '') === '1') {
+        return;
+    }
+    if (trim((string) app_setting($pdo, 'logo_path', '')) !== '') {
+        pwa_brand_sync_from_logo($pdo);
+    }
+    save_setting($pdo, 'pwa_icon_white_circle_v2', '1');
+}
+
+/**
+ * Production: splash putih, regenerasi ikon lingkaran putih, cache-bust manifest.
+ *
+ * @param bool $force Jalankan ulang meski flag sudah 1 (CLI regenerate).
+ */
+function logo_ensure_pwa_icon_white_circle_v3(PDO $pdo, bool $force = false): void
+{
+    if (!table_exists($pdo, 'app_settings')) {
+        return;
+    }
+    if (!$force && app_setting($pdo, 'pwa_icon_white_circle_v3', '') === '1') {
+        return;
+    }
+    save_setting($pdo, 'pwa_background_color', '#ffffff');
+    if (trim((string) app_setting($pdo, 'logo_path', '')) !== '') {
+        pwa_brand_sync_from_logo($pdo);
+    } else {
+        pwa_brand_bump_icons_cache_ver($pdo);
+    }
+    save_setting($pdo, 'pwa_icon_white_circle_v3', '1');
 }
 
 /** Sekali jalan: regenerasi ikon PWA bentuk lingkaran (warna latar PWA). */

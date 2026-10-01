@@ -89,7 +89,7 @@ Jika pernah **pasang PWA** dari URL lama/salah: hapus pintasan di layar utama, b
 
 Opsional (ikon/logo PWA konsisten di ngrok): salin `config/app.local.example.php` → `app.local.php`, isi `public_url` dengan URL ngrok lengkap + `/pwa_nailulmuna`.
 
-Logo & PWA di layar utama: **Pengaturan → Identitas pesantren** → unggah logo → atur warna tema/latar PWA → **Simpan**. Ikon install berbentuk **lingkaran** (warna latar PWA + logo di tengah). Hapus pintasan PWA lama di HP, pasang ulang dari browser agar launcher memakai PNG baru (ikon & splash).
+Logo & PWA di layar utama: **Pengaturan → Identitas pesantren** → unggah logo → **Simpan**. Ikon install: **lingkaran putih** + logo di tengah; **splash** saat buka dari ikon mengikuti **Warna latar pasang PWA** (production diset putih lewat migrasi). Setelah ubah logo atau deploy: jalankan `php scripts/regenerate_pwa_icons.php` di server (opsional), lalu **hapus pintasan PWA lama** di HP dan pasang ulang dari browser.
 
 ---
 
@@ -155,6 +155,15 @@ C:\xampp\php\php.exe C:\xampp\htdocs\pwa_nailulmuna\cron\laporan_snapshot.php
 Setelah perintah di atas, buka **Pengaturan → Snapshot Laporan** — baris **Terakhir tick cron** harus ter-update (heartbeat ~15 menit; hosting harus memanggil cron **setiap menit**).
 
 **Hosting:** crontab contoh ada di kartu **Perintah cron** (curl + key). Kunci HTTP digenerate otomatis saat snapshot diaktifkan jika field key kosong.
+
+**Diagnostik cron (hosting):** Pengaturan → **Snapshot Laporan** → kartu **Diagnostik cron**:
+
+1. Pasang crontab **setiap menit** dari **Perintah cron**.
+2. **Tes tick (PHP internal)** — tick **Terakhir tick cron** harus baru (bukti kode + DB).
+3. **Tes URL cron (HTTP)** — meniru `curl` hosting; jika gagal tapi (2) OK, loopback server mungkin diblok — andalkan crontab eksternal. HTTP **403** → samakan **Cron key** di form dan crontab.
+4. Heartbeat dianggap basi setelah **~15 menit** tanpa panggilan `cron/laporan_snapshot.php`.
+
+CLI: `php scripts/_test_laporan_snapshot_cron_health.php` (exit 1 jika snapshot aktif tetapi tick basi). Opsional HTTP probe: `PWA_SNAPSHOT_CRON_PROBE_HTTP=1`.
 
 ---
 
@@ -247,13 +256,13 @@ Santri **masih AKTIF** di data tetapi sementara **di luar pondok** dan **tidak**
 | Boyong / tidak kembali mondok | **NONAKTIF** di data santri |
 | Libur pondok / tingkatan | **Libur akademik** |
 | Keluar, sakit, syar'i wali, tugas resmi | **Izin resmi** (Perizinan) → tercatat IZIN/SAKIT + penalti PRESNA |
-| Pulang sementara tanpa izin formal, tidak boleh kena ALPA | **Penepian keaktifan** (super admin / pengasuh) |
+| Pulang sementara tanpa izin formal, tidak boleh kena ALPA | **Santri Sedang Cuti** (penepian keaktifan — super admin / pengasuh) |
 
-**Input (super admin & pengasuh):** **Perizinan → Penepian keaktifan** (tab hub, hanya role ini), **Edit santri → Catat penepian keaktifan**, atau **Kelola penepian** dari halaman daftar menepi pengasuh. Cukup **tanggal mulai** + alasan wajib — tidak ada tanggal selesai di form; penepian berlaku sampai **Selesai hari ini** (mencatat tanggal akhir) atau **Batalkan**. **Edit** hanya mengubah mulai/alasan selama masih aktif. **Pengurus dan petugas absensi tidak dapat mengubah** penepian. Data lama yang sudah punya rentang tetap dibaca sistem.
+**Input (super admin & pengasuh):** **Perizinan → Santri Sedang Cuti** (tab hub, hanya role ini), **Edit santri → Catat penepian keaktifan**, atau kelola dari **Dashboard pengasuh** (kartu Santri Sedang Cuti). Data santri/pembimbing/munawib ada di menu sidebar **SDM** (grup modul pengurus). Cukup **tanggal mulai** + alasan wajib — tidak ada tanggal selesai di form; penepian berlaku sampai **Selesai hari ini** (mencatat tanggal akhir) atau **Batalkan**. **Edit** hanya mengubah mulai/alasan selama masih aktif. **Pengurus dan petugas absensi tidak dapat mengubah** penepian. Data lama yang sudah punya rentang tetap dibaca sistem.
 
 **Pembimbing:** hanya **melihat** daftar santri bimbingan yang menepi (dashboard pembimbing).
 
-**Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu *Santri menepi*) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin. Di panel **keaktivan berlangsung** (Ta'lim/Jama'ah), santri menepi tampil bucket **Menepi** pada kartu kegiatan — **bukan** di tab/daftar Alpa; persentase hadir tidak dihitung dari santri menepi.
+**Pengasuh:** lihat daftar di **Dashboard pengasuh** (kartu **Santri Sedang Cuti**) dan **Laporan hari**; **mencatat/mengubah** penepian jika login sebagai pengasuh (role kiai) atau super admin. Di panel **keaktivan berlangsung** (Ta'lim/Jama'ah), santri sedang cuti tampil bucket **Menepi** pada kartu kegiatan — **bukan** di tab/daftar Alpa; persentase hadir tidak dihitung dari santri tersebut.
 
 **Scan kartu (Presensi → scan kamera):** seperti izin kembali — penepian aktif **ditutup** (sama dengan «Selesai hari ini» pada tanggal scan) dan **presensi dihitung**. Tombol «Selesai hari ini» di pengaturan penepian tetap untuk menutup tanpa scan; setelah ditutup, presensi hari itu juga tidak diblokir.
 
@@ -279,13 +288,22 @@ C:\xampp\php\php.exe scripts\_uat_multi_scan_readiness.php
 
 Di HP: buka **Multi Scan** → ketuk **Mulai scan kamera** → scan kartu (harus ada feedback). Asset scan memakai `?v=mtime` otomatis; halaman `login.php?scan=1` tidak di-cache browser.
 
+**Multi Scan offline (absensi santri):**
+
+- **Login tidak wajib** untuk mengirim antrian presensi portal — buka `login.php?scan=1` atau PWA saat **online**, antrian scan offline terkirim otomatis (notifikasi jumlah scan berhasil).
+- **Waktu presensi** mengikuti **jam saat scan offline** di HP (`scan_client_at`), meski upload terjadi berjam/hari kemudian (bukan jam saat online).
+- **Strip jadwal** offline memakai snapshot **tanggal lokal HP hari itu**; setiap sambung **online** (buka PWA di halaman mana pun yang memuat antrian offline, tidak harus tab Multi Scan) jadwal hari ini diunduh otomatis. Tanpa online sejak pergantian hari, strip bisa kosong — **scan tetap jalan**, server menilai dari waktu scan.
+- UAT clock: `php scripts/_uat_offline_presensi_clock.php`
+
+**Munawib penerima setoran:** jika munawib terdaftar aktif di Kajian → Penerima setoran dan **tidak** sedang punya jadwal penugasan pengganti pembimbing, satu scan kartu di Multi Scan langsung masuk **portal setoran hafalan** (tanpa `?dest=setoran`). Munawib dengan jadwal berlangsung tetap absensi dulu, scan lagi untuk portal pengganti. Cek otomatis: `php scripts/_diag_multi_scan_munawib_setoran.php`.
+
 **QR terbaca vs “ditolak”:** jika **tidak ada bip/getar** sama sekali → masalah kamera/decode (lihat diag deploy di atas). Jika ada **“Kartu terbaca…”** lalu peringatan → QR sudah terbaca; absensi mengikuti **tingkatan santri** dan jam (strip jadwal bisa menampilkan kegiatan tingkatan lain). Cek data:
 
 ```powershell
 C:\xampp\php\php.exe scripts\_diag_scan_santri_jadwal.php KODE_QR_KARTU
 ```
 
-Jam HP yang melenceng &gt;5 menit otomatis diganti waktu server saat validasi jadwal.
+Jam HP yang melenceng &gt;5 menit otomatis diganti waktu server saat scan **langsung online**; antrian **sync offline** tetap memakai waktu scan di perangkat (maks. 7 hari).
 
 **Jadwal dobel (nama + tingkatan):** jika dua master kegiatan **nama sama** (ID beda) sama-sama punya jadwal **tingkatan sama**, absensi santri bisa ambigu. Cek banner kuning di **Jadwal** / **Kegiatan**, atau:
 
@@ -342,6 +360,7 @@ Permohonan izin syar'i dari **portal wali** (individu atau rombongan) masuk antr
 
 ## Ganti munawib pembimbing (portal & pengasuh)
 
-- **Pembimbing:** menu Perizinan → *Cari / ganti munawib* — pilih rentang tanggal (1 hari atau beberapa hari), kegiatan, munawib, materi per halaman, dan **alasan wajib** (tulis sendiri). Ajukan minimal **3 hari** sebelum jadwal terlaksana. Semua pengajuan menunggu **persetujuan pengasuh**; WA otomatis ke pengasuh hanya untuk pengajuan **lebih dari satu hari** (toggle yang sama dengan izin syar'i di WA Otomatis).
-- **Pengasuh:** *Pengasuh → Perizinan* — bagian *Pengganti munawib pembimbing* → Setujui / Tolak. Setelah disetujui, penugasan munawib aktif di jadwal.
+- **Pembimbing — ganti munawib:** menu Perizinan → *Cari / ganti munawib* — **tanggal mulai** hari ini s.d. +14 hari kalender; **tanggal selesai** maks. **14 hari inklusif dihitung dari tanggal mulai** (bukan dari hari mengajukan). **Nama kegiatan**, materi per halaman, dan **alasan wajib**. **Munawib opsional** — jika kosong, pengajuan tetap tersimpan; **WA otomatis ke petugas pendidikan** (nomor di WA Otomatis) agar menugaskan munawib lewat *Data Munawib* / penugasan manual. Jika pembimbing **sudah memilih** munawib: rentang **≤3 hari** langsung diterapkan; **>3 hari** menunggu pengasuh + WA pengasuh. UAT: `php scripts/_uat_munawib_rentang_pengasuh.php`, `php scripts/_uat_munawib_opsional.php`.
+- **Pembimbing — pindah waktu:** *Pindah waktu* — pilih tanggal jadwal min. **3 hari kalender** sebelum pelaksanaan (form default/min **hari ini + 3**); hanya ta'lim/ta'alum, kuota bulanan tetap. UAT batas: `php scripts/_uat_pb_perizinan_batas_hari.php`.
+- **Pengasuh:** *Pengasuh → Perizinan* — bagian *Pengganti munawib pembimbing* (hanya **MENUNGGU**) → Setujui / Tolak. Pengajuan auto ≤3 hari tidak muncul di antrean.
 - **Ubah/batal** override yang sudah aktif: masih maks. **3 jam** sebelum jadwal asli.

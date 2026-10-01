@@ -120,6 +120,21 @@ function wa_template_definitions(): array
                 . "Mohon tinjau di *Pengasuh → Perizinan* (bagian munawib pembimbing).\n\n"
                 . "_{nama_ponpes}_",
         ],
+        'pb_munawib_butuh_penugasan_pendidikan' => [
+            'label' => 'Munawib belum dipilih → petugas pendidikan',
+            'hint' => 'Dikirim ke nomor petugas pendidikan saat pembimbing mengajukan ganti munawib tanpa memilih nama munawib.',
+            'placeholders' => '{nama_pembimbing}, {nip_pembimbing}, {nip_baris}, {nama_kegiatan}, {tanggal_mulai}, {tanggal_selesai}, {materi_ringkas}, {alasan}, {nama_ponpes}',
+            'default' => "*PENUGASAN MUNAWIB PEMBIMBING*\n\n"
+                . "Pembimbing mengajukan pengganti munawib (munawib belum dipilih):\n\n"
+                . "• Pembimbing: *{nama_pembimbing}*\n"
+                . "{nip_baris}"
+                . "• Kegiatan: *{nama_kegiatan}*\n"
+                . "• Rentang: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Tugas: {materi_ringkas}\n"
+                . "• Alasan: _{alasan}_\n\n"
+                . "Mohon tugaskan munawib via *Data Munawib* / penugasan manual.\n\n"
+                . "_{nama_ponpes}_",
+        ],
         'pengajuan_izin_pengasuh' => [
             'label' => 'Pengajuan izin syar\'i → pengasuh (PENDING)',
             'hint' => 'Antrean persetujuan pengasuh (portal wali / izin syar\'i). {judul_extra_baris} untuk perpanjangan.',

@@ -143,8 +143,9 @@ require_once __DIR__ . '/../includes/header.php';
                 '',
                 ''
             );
+            $mpMw = trim((string) ($mp['munawib_nama'] ?? ''));
             $mpMeta = $mpRentang . ' · ' . (string) ($mp['nama_kegiatan'] ?? 'Kegiatan')
-                . ' → ' . (string) ($mp['munawib_nama'] ?? 'Munawib');
+                . ' → ' . ($mpMw !== '' ? $mpMw : 'Belum dipilih');
             $mpAlasan = trim((string) ($mp['alasan'] ?? ''));
             $mpMateri = pb_jadwal_materi_ringkas((string) ($mp['materi_pengganti'] ?? ''));
             ?>

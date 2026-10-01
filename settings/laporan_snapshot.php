@@ -74,6 +74,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'tes_cron_tick') {
+        $probe = laporan_snapshot_probe_cli_tick($pdo);
+        laporan_snapshot_save_cron_probe($pdo, 'cli', $probe);
+        set_flash(
+            'success',
+            'Tes tick PHP OK. Terakhir tick: ' . ($probe['last_cron_tick_at'] ?? '—')
+            . ' · mode ' . ($probe['mode'] ?? '')
+            . (($probe['note'] ?? '') !== '' ? ' (' . $probe['note'] . ')' : '')
+        );
+        header('Location: ' . app_href('/settings/laporan_snapshot.php#diag-cron-snapshot'));
+        exit;
+    }
+
+    if ($action === 'tes_cron_http') {
+        $probe = laporan_snapshot_probe_http_cron($pdo);
+        laporan_snapshot_save_cron_probe($pdo, 'http', $probe);
+        if ($probe['ok'] ?? false) {
+            set_flash(
+                'success',
+                'Tes URL cron OK (HTTP ' . (int) ($probe['http_code'] ?? 0) . '). '
+                . trim((string) ($probe['body_prefix'] ?? ''))
+            );
+        } else {
+            set_flash(
+                'error',
+                'Tes URL cron gagal: ' . trim((string) ($probe['error'] ?? 'unknown'))
+                . ' (HTTP ' . (int) ($probe['http_code'] ?? 0) . ')'
+            );
+        }
+        header('Location: ' . app_href('/settings/laporan_snapshot.php#diag-cron-snapshot'));
+        exit;
+    }
+
     if ($action === 'tes_snapshot') {
         $saStatus = laporan_snapshot_sa_status($pdo);
         if (!$saStatus['valid_json']) {
@@ -130,7 +163,7 @@ $cronKey = $v('laporan_snapshot_cron_key');
 $cronPath = app_href('/cron/laporan_snapshot.php') . ($cronKey !== '' ? ('?key=' . rawurlencode($cronKey)) : '');
 $cronUrl = $cronPath;
 require_once __DIR__ . '/../helpers/app_path.php';
-$cronUrlFull = rtrim(app_public_url(), '/') . $cronPath;
+$cronUrlFull = laporan_snapshot_cron_public_url($pdo);
 $cronCrontabLine = '* * * * * curl -fsS ' . escapeshellarg($cronUrlFull) . ' > /dev/null 2>&1';
 $saStatus = laporan_snapshot_sa_status($pdo);
 $saPath = (string) ($saStatus['path'] ?? '');
@@ -148,6 +181,14 @@ if ($lastAccessTestRaw !== '') {
     $decodedAccessTest = json_decode($lastAccessTestRaw, true);
     if (is_array($decodedAccessTest)) {
         $lastAccessTest = $decodedAccessTest;
+    }
+}
+$lastCronProbeRaw = trim($v('laporan_snapshot_last_cron_probe'));
+$lastCronProbe = null;
+if ($lastCronProbeRaw !== '') {
+    $decodedProbe = json_decode($lastCronProbeRaw, true);
+    if (is_array($decodedProbe)) {
+        $lastCronProbe = $decodedProbe;
     }
 }
 
@@ -189,8 +230,10 @@ require_once __DIR__ . '/includes/settings_nav.php';
         </div>
         <?php if ($sheetCronStale): ?>
             <div class="alert alert-warning py-2 small mb-3">
-                <strong>Cron belum terlihat sehat.</strong> Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key) setiap menit.
-                Tes: <code>php cron/laporan_snapshot.php</code> atau URL di bagian Perintah cron. Tick cron dianggap basi setelah ~15 menit tanpa panggilan.
+                <strong>Cron belum terlihat sehat.</strong> Tick terakhir: <strong><?= htmlspecialchars((string) ($status['cron_tick_age_label'] ?? 'belum pernah')) ?></strong>
+                (basi setelah ~<?= (int) (laporan_snapshot_cron_stale_after_sec() / 60) ?> menit tanpa panggilan).
+                Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key) <strong>setiap menit</strong>.
+                <a href="#diag-cron-snapshot" class="alert-link">Jalankan diagnostik cron</a> atau salin URL di bagian Perintah cron.
             </div>
         <?php endif; ?>
         <?php else: ?>
@@ -385,6 +428,52 @@ require_once __DIR__ . '/includes/settings_nav.php';
         </button>
     </div>
 </form>
+
+<div class="card shadow-sm mb-3" id="diag-cron-snapshot">
+    <div class="card-header bg-white fw-semibold small">Diagnostik cron</div>
+    <div class="card-body small">
+        <p class="text-muted mb-2">
+            Gunakan setelah deploy hosting: <strong>Tes tick (PHP internal)</strong> memastikan kode + database menulis heartbeat;
+            <strong>Tes URL cron (HTTP)</strong> meniru panggilan crontab <code>curl</code> (gagal di sini tapi tick PHP OK sering berarti loopback hosting diblok — andalkan crontab eksternal).
+        </p>
+        <?php if (is_array($lastCronProbe) && ($lastCronProbe['at'] ?? '') !== ''): ?>
+            <p class="mb-2">Diagnostik terakhir: <code><?= htmlspecialchars((string) $lastCronProbe['at']) ?></code></p>
+            <?php if (is_array($lastCronProbe['cli'] ?? null)): ?>
+                <?php $cliP = $lastCronProbe['cli']; ?>
+                <p class="mb-1"><strong>PHP:</strong>
+                    <?= !empty($cliP['ok']) ? '<span class="text-success">OK</span>' : '<span class="text-danger">Gagal</span>' ?>
+                    · tick <?= htmlspecialchars((string) ($cliP['last_cron_tick_at'] ?? '—')) ?>
+                    · mode <?= htmlspecialchars((string) ($cliP['mode'] ?? '')) ?>
+                    <?php if (($cliP['note'] ?? '') !== ''): ?>
+                        (<?= htmlspecialchars((string) $cliP['note']) ?>)
+                    <?php endif; ?>
+                </p>
+            <?php endif; ?>
+            <?php if (is_array($lastCronProbe['http'] ?? null)): ?>
+                <?php $httpP = $lastCronProbe['http']; ?>
+                <p class="mb-0"><strong>HTTP:</strong>
+                    <?= !empty($httpP['ok']) ? '<span class="text-success">OK</span>' : '<span class="text-danger">Gagal</span>' ?>
+                    · HTTP <?= (int) ($httpP['http_code'] ?? 0) ?>
+                    <?php if (($httpP['error'] ?? '') !== ''): ?>
+                        — <?= htmlspecialchars((string) $httpP['error']) ?>
+                    <?php elseif (($httpP['body_prefix'] ?? '') !== ''): ?>
+                        — <code class="small"><?= htmlspecialchars((string) $httpP['body_prefix']) ?></code>
+                    <?php endif; ?>
+                </p>
+            <?php endif; ?>
+        <?php endif; ?>
+    </div>
+    <div class="card-footer bg-white d-flex flex-wrap gap-2">
+        <form method="post" class="d-inline">
+            <input type="hidden" name="action" value="tes_cron_tick">
+            <button type="submit" class="btn btn-outline-success btn-sm">Tes tick (PHP internal)</button>
+        </form>
+        <form method="post" class="d-inline">
+            <input type="hidden" name="action" value="tes_cron_http">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Tes URL cron (HTTP)</button>
+        </form>
+    </div>
+</div>
 
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-white fw-semibold small">Perintah cron</div>

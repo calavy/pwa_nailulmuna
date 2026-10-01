@@ -553,7 +553,31 @@
         }
     }
 
-    global.PresensiScanTimer = { start: start, render: render };
+    function applyScanJadwalContext(ctx) {
+        if (!ctx || typeof ctx !== 'object') {
+            return false;
+        }
+        var el = document.getElementById('presensi-scan-timer-data');
+        if (!el) {
+            return false;
+        }
+        try {
+            el.textContent = JSON.stringify(ctx);
+        } catch (e) {
+            return false;
+        }
+        parsedCtxBase = ctx;
+        daySlotBounds = null;
+        lastStateKey = '';
+        lastMarqueeSig = '';
+        render();
+        if (!tickTimer) {
+            start();
+        }
+        return true;
+    }
+
+    global.PresensiScanTimer = { start: start, render: render, applyScanJadwalContext: applyScanJadwalContext };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', start);
