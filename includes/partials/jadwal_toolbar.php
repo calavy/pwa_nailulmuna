@@ -15,15 +15,20 @@ declare(strict_types=1);
  * @var int $filterKegiatanId
  * @var string $filterTingkatan
  * @var int $filterHari
+ * @var int $filterPembimbingId
  * @var array<int,string> $hari
  * @var list<array<string,mixed>> $kegiatanListAktif
  * @var list<string> $tingkatanList
+ * @var list<array<string,mixed>> $pembimbingList
  * @var string $tampilanGrup
  */
 $isJadwalUtama = !in_array($activeTab, ['jamaah', 'jamaah_munawib'], true);
+$filterPembimbingId = (int) ($filterPembimbingId ?? 0);
+$pembimbingList = $pembimbingList ?? [];
 $filterActive = $filterKat !== '' || $filterKegiatanId > 0
     || ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan')
-    || ($filterHari >= 1 && $filterHari <= 7);
+    || ($filterHari >= 1 && $filterHari <= 7)
+    || ($filterPembimbingId > 0 && !($jadwalPembimbingScope ?? false));
 
 $filterKegiatanNama = '';
 if ($filterKegiatanId > 0) {
@@ -40,6 +45,15 @@ $filterKatLabel = match ($filterKat) {
     'EXTRA' => 'Extra',
     default => '',
 };
+$filterPembimbingNama = '';
+if ($filterPembimbingId > 0) {
+    foreach ($pembimbingList as $pbChip) {
+        if ((int) ($pbChip['id'] ?? 0) === $filterPembimbingId) {
+            $filterPembimbingNama = (string) ($pbChip['nama_pembimbing'] ?? '');
+            break;
+        }
+    }
+}
 ?>
 <div class="jadwal-toolbar mb-3">
     <div class="jadwal-toolbar__row">
@@ -138,6 +152,27 @@ $filterKatLabel = match ($filterKat) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                        <?php if (!($jadwalPembimbingScope ?? false) && $pembimbingList !== []): ?>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Pembimbing</label>
+                            <select name="filter_pembimbing_id" class="form-select form-select-sm">
+                                <option value="0">Semua pembimbing</option>
+                                <?php foreach ($pembimbingList as $pbOpt):
+                                    $pbId = (int) ($pbOpt['id'] ?? 0);
+                                    if ($pbId <= 0) {
+                                        continue;
+                                    }
+                                    $pbLabel = (string) ($pbOpt['nama_pembimbing'] ?? '');
+                                    $nip = trim((string) ($pbOpt['nip'] ?? ''));
+                                    if ($nip !== '') {
+                                        $pbLabel .= ' · ' . $nip;
+                                    }
+                                ?>
+                                    <option value="<?= $pbId ?>" <?= $filterPembimbingId === $pbId ? 'selected' : '' ?>><?= htmlspecialchars($pbLabel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
                         <div class="mb-2">
                             <label class="form-label small mb-0">Tingkatan</label>
                             <select name="filter_tingkatan" class="form-select form-select-sm">
@@ -201,6 +236,9 @@ $filterKatLabel = match ($filterKat) {
         <?php endif; ?>
         <?php if ($filterKegiatanNama !== ''): ?>
             <span class="badge rounded-pill text-bg-info"><?= htmlspecialchars($filterKegiatanNama) ?></span>
+        <?php endif; ?>
+        <?php if ($filterPembimbingNama !== ''): ?>
+            <span class="badge rounded-pill text-bg-success"><?= htmlspecialchars($filterPembimbingNama) ?></span>
         <?php endif; ?>
         <?php if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan'): ?>
             <span class="badge rounded-pill text-bg-secondary"><?= htmlspecialchars($filterTingkatan) ?></span>

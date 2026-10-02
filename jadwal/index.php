@@ -206,6 +206,7 @@ unset($jadwalRow);
 
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
+$filterPembimbingId = (int) ($_GET['filter_pembimbing_id'] ?? 0);
 $filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
 if (!in_array($filterKat, kegiatan_kategori_list(), true)) {
     $filterKat = '';
@@ -229,6 +230,11 @@ if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
 if ($filterHari >= 1 && $filterHari <= 7) {
     $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterHari): bool {
         return (int) ($row['hari_ke'] ?? 0) === $filterHari;
+    }));
+}
+if (!$jadwalPembimbingScope && $filterPembimbingId > 0) {
+    $jadwalList = array_values(array_filter($jadwalList, static function (array $row) use ($filterPembimbingId): bool {
+        return (int) ($row['pembimbing_id'] ?? 0) === $filterPembimbingId;
     }));
 }
 $totalKegiatan = count($kegiatanRows);
@@ -299,7 +305,7 @@ $kegiatanListEdit = array_map(
     ],
     $kegiatanRows
 );
-$jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDensity, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId): string {
+$jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDensity, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId, $filterPembimbingId, $jadwalPembimbingScope): string {
     $extraCopy = $extra;
     $hariOverride = null;
     if (array_key_exists('filter_hari', $extraCopy)) {
@@ -320,6 +326,9 @@ $jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDens
     }
     if ($filterKegiatanId > 0) {
         $q['kegiatan_id'] = (string) $filterKegiatanId;
+    }
+    if (!$jadwalPembimbingScope && $filterPembimbingId > 0) {
+        $q['filter_pembimbing_id'] = (string) $filterPembimbingId;
     }
     if ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan') {
         $q['filter_tingkatan'] = $filterTingkatan;

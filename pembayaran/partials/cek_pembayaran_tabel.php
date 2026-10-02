@@ -187,6 +187,7 @@ $isAwal = $jenis === 'awal_tahun';
                                 <?php else: ?>
                                     <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_url_santri($sid)) ?>" class="btn btn-outline-secondary btn-sm">Riwayat</a>
                                 <?php endif; ?>
+                                <a href="<?= htmlspecialchars(app_href('/pembayaran/rekap_tagihan_santri.php?santri_id=' . $sid . '&download=1')) ?>" class="btn btn-outline-success btn-sm" title="Unduh rekap tagihan HTML"><i class="fa-solid fa-download"></i></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -68,6 +68,7 @@ Instalasi **pertama kali** saja: impor **`impor_lokal_pwa_nailulmuna.sql`** (lok
 ### Santri keluar / nonaktif dan keuangan
 
 - **Nonaktif** dari daftar aktif **tidak** menghapus riwayat pembayaran — pengurus tetap bisa lihat di **Keuangan → Riwayat pembayaran** (filter `santri_id`). Portal wali untuk santri nonaktif **ditutup**.
+- **Pemberitahuan kekurangan HTML (per santri):** di **Kartu Pembayaran Santri** atau **Riwayat pembayaran** (santri terpilih) → **Unduh HTML** — surat sopan (selaras nada WA tagihan) yang hanya memuat **kekurangan belum lunas**; bulan belum berjalan tidak dicantumkan; **saldo uang saku (cashless)** ditampilkan informatif (tidak mengurangi total tagihan).
 - **Nonaktif ≠ penutupan keuangan otomatis.** Sisa tagihan bulanan dan saldo **cashless** bisa masih ada; sebelum/sesudah nonaktif cek kartu **Ringkasan keuangan** di **Non aktifkan**, **Edit santri**, dan **Data Mukimin** — dua kartu utama: **Uang yang harus dibayar (tagihan)** = total kekurangan tagihan, **Uang yang harus dikembalikan (sisa saku)** = sisa cashless setelah tagihan dipotong; plus rincian per bulan/komponen.
 - Penutupan resmi lewat **Santri → Administrasi keluar** (`/santri/keluar.php`): **kekurangan** tagihan dilunasi otomatis — saldo **cashless (saku)** dipotong dulu ke **Keuangan** pesantren, sisanya penyesuaian administratif; **sisa uang saku** yang tidak dipakai **dikembalikan** (penutupan akun, tercatat di ringkasan). Semua masuk riwayat keuangan &amp; cashless + `keluar_ringkasan_keuangan` / surat keluar.
 
@@ -312,6 +313,8 @@ C:\xampp\php\php.exe scripts\_diag_jadwal_duplicate.php
 ```
 
 Penambahan slot jadwal yang memperparah duplikat ditolak otomatis.
+
+**Filter jadwal (pengurus):** di **Jadwal Kegiatan** → **Filter**, slot bisa disaring menurut kategori, kegiatan, **pembimbing**, tingkatan, dan hari; pilihan pembimbing tidak muncul di portal pembimbing (jadwal sudah terkunci milik sendiri).
 
 ---
 

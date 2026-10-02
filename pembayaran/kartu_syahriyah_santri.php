@@ -168,6 +168,8 @@ $cellClass = static function (array $cell): string {
                 </div>
                 <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php?santri_id=' . $santriId . '&jenis_periode=' . urlencode($jenis === 'AWAL_TAHUN' ? 'AWAL_TAHUN' : 'BULANAN'))) ?>">Input pembayaran</a>
                 <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_url_santri($santriId)) ?>">Riwayat</a>
+                <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars(app_href('/pembayaran/rekap_tagihan_santri.php?santri_id=' . $santriId . '&download=1')) ?>"><i class="fa-solid fa-download me-1"></i>Unduh HTML</a>
+                <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="<?= htmlspecialchars(app_href('/pembayaran/rekap_tagihan_santri.php?santri_id=' . $santriId . '&inline=1')) ?>"><i class="fa-solid fa-eye me-1"></i>Pratinjau</a>
             </div>
         </div>
     </div>

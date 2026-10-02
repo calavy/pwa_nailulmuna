@@ -508,6 +508,17 @@ $flashErr = get_flash('error');
 <?php endif; ?>
 
 <?php if ($tablesOk): ?>
+<?php if ($santriId > 0 && $santriSelected): ?>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/rekap_tagihan_santri.php?santri_id=' . $santriId . '&download=1')) ?>">
+            <i class="fa-solid fa-download me-1"></i>Unduh rekap HTML
+        </a>
+        <a class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener" href="<?= htmlspecialchars(app_href('/pembayaran/rekap_tagihan_santri.php?santri_id=' . $santriId . '&inline=1')) ?>">
+            <i class="fa-solid fa-eye me-1"></i>Pratinjau rekap
+        </a>
+        <span class="small text-muted align-self-center">Hanya kekurangan belum lunas (pemberitahuan ke wali).</span>
+    </div>
+<?php endif; ?>
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
