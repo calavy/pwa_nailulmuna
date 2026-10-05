@@ -1,7 +1,13 @@
 -- WA outbound global dispatch queue (idempotent, tidak menghapus data lama)
 
+CREATE TABLE IF NOT EXISTS wa_dispatch_id_seq (
+    seq_date DATE NOT NULL PRIMARY KEY,
+    last_num INT UNSIGNED NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS wa_outbound_queue (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    dispatch_id VARCHAR(24) NULL,
     target_phone VARCHAR(40) NOT NULL,
     kind VARCHAR(40) NOT NULL DEFAULT 'general',
     message MEDIUMTEXT NOT NULL,
@@ -16,6 +22,9 @@ CREATE TABLE IF NOT EXISTS wa_outbound_queue (
     next_retry_at DATETIME NULL,
     sent_at DATETIME NULL,
     last_error VARCHAR(500) NULL,
+    provider_message_id VARCHAR(128) NULL,
+    retry_reason VARCHAR(64) NULL,
+    UNIQUE KEY uk_wa_outbound_dispatch_id (dispatch_id),
     INDEX idx_wa_outbound_drain (status, next_retry_at, priority, id),
     INDEX idx_wa_outbound_target (target_phone, status),
     INDEX idx_wa_outbound_dedup (dedup_key),

@@ -57,12 +57,44 @@ $enq = wa_outbound_enqueue($pdo, $testPhone, 'UAT enqueue test', [
     'defer_dispatch' => true,
 ]);
 uat_assert('enqueue_ok', ($enq['ok'] ?? false) && !empty($enq['queue_id']), json_encode($enq, JSON_UNESCAPED_UNICODE));
+uat_assert(
+    'dispatch_id_format',
+    !empty($enq['dispatch_id']) && preg_match('/^WA-\d{8}-\d{6}$/', (string) $enq['dispatch_id']) === 1,
+    (string) ($enq['dispatch_id'] ?? '')
+);
+$dispatchId1 = (string) ($enq['dispatch_id'] ?? '');
+$rowLookup = $dispatchId1 !== '' ? wa_outbound_get_by_dispatch_id($pdo, $dispatchId1) : null;
+uat_assert(
+    'lookup_by_dispatch_id',
+    is_array($rowLookup) && (string) ($rowLookup['dispatch_id'] ?? '') === $dispatchId1,
+    json_encode($rowLookup, JSON_UNESCAPED_UNICODE)
+);
 
 $dup = wa_outbound_enqueue($pdo, $testPhone, 'UAT duplicate', [
     'kind' => 'general',
     'dedup_key' => $dedup,
 ]);
 uat_assert('enqueue_duplicate_queue', !empty($dup['queued']) || !empty($dup['skipped']), json_encode($dup, JSON_UNESCAPED_UNICODE));
+uat_assert(
+    'cron_dedup_same_dispatch_id',
+    ($dup['dispatch_id'] ?? '') === '' || ($dup['dispatch_id'] ?? '') === $dispatchId1,
+    json_encode($dup, JSON_UNESCAPED_UNICODE)
+);
+
+$dedup2 = 'uat:outbound:second:' . date('YmdHis') . ':' . random_int(1000, 9999);
+$enq2 = wa_outbound_enqueue($pdo, $testPhone, 'UAT second', ['kind' => 'general', 'dedup_key' => $dedup2, 'defer_dispatch' => true]);
+uat_assert(
+    'two_events_two_dispatch_ids',
+    !empty($enq2['dispatch_id']) && $enq2['dispatch_id'] !== $dispatchId1,
+    json_encode($enq2, JSON_UNESCAPED_UNICODE)
+);
+
+$ids = [];
+for ($i = 0; $i < 8; $i++) {
+    $r = wa_dispatch_id_allocate($pdo);
+    $ids[$r] = true;
+}
+uat_assert('concurrent_dispatch_ids_unique', count($ids) === 8, 'count=' . count($ids));
 
 try {
     $pdo->prepare('INSERT INTO wa_opt_out (target_phone, category, status, note) VALUES (:p, "general", "opt_out", "uat")
@@ -76,6 +108,12 @@ try {
 
 $drain = wa_outbound_drain($pdo, 1);
 uat_assert('drain_runs', is_array($drain) && array_key_exists('sent', $drain), json_encode($drain, JSON_UNESCAPED_UNICODE));
+$afterDrain = $dispatchId1 !== '' ? wa_outbound_get_by_dispatch_id($pdo, $dispatchId1) : null;
+uat_assert(
+    'retry_same_dispatch_id',
+    is_array($afterDrain) && (string) ($afterDrain['dispatch_id'] ?? '') === $dispatchId1,
+    json_encode($afterDrain, JSON_UNESCAPED_UNICODE)
+);
 
 $immediate = wa_otomatis_send($pdo, $testPhone, 'UAT immediate', [
     'dispatch_immediate' => true,
@@ -89,9 +127,30 @@ uat_assert(
 
 try {
     $pdo->prepare('DELETE FROM wa_outbound_queue WHERE dedup_key = :d')->execute(['d' => wa_dispatch_normalize_key($dedup)]);
+    $pdo->prepare('DELETE FROM wa_outbound_queue WHERE dedup_key = :d')->execute(['d' => wa_dispatch_normalize_key($dedup2)]);
 } catch (Throwable $e) {
     // ignore
 }
+
+uat_assert('classify_rate_limit', wa_outbound_classify_error('rate limit exceeded', 429) === 'rate_limited', '');
+
+wa_outbound_pause($pdo, 'uat_pause');
+$pausedDrain = wa_outbound_drain($pdo, 5);
+uat_assert('pause_blocks_drain', ($pausedDrain['sent'] ?? -1) === 0 && str_contains((string) ($pausedDrain['last_error'] ?? ''), 'paused'), json_encode($pausedDrain));
+wa_outbound_resume($pdo);
+
+$beforeBudget = wa_outbound_daily_remaining($pdo);
+uat_assert('daily_budget_positive', $beforeBudget > 0, 'remain=' . $beforeBudget);
+
+$legacy = send_wa_message_with_result($pdo, $testPhone, 'UAT legacy caller', [
+    'skip_dedup' => true,
+    'defer_dispatch' => true,
+]);
+uat_assert(
+    'legacy_send_still_works',
+    !empty($legacy['queued']) || !empty($legacy['success']) || !empty($legacy['skipped']),
+    json_encode($legacy, JSON_UNESCAPED_UNICODE)
+);
 
 $snap = wa_outbound_queue_snapshot($pdo);
 uat_assert('snapshot', ($snap['enabled'] ?? false) && ($snap['table_exists'] ?? false), '');

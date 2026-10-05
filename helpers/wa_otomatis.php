@@ -783,7 +783,7 @@ function wa_otomatis_send_once(PDO $pdo, string $targetRaw, string $message, arr
     $cfg = wa_otomatis_gateway_config($pdo, $override);
     $useMeta = $cfg['provider'] === 'meta' && !wa_otomatis_is_group_target($target);
     if ($useMeta) {
-        return wa_otomatis_send_meta_once($pdo, $cfg, $target, $message);
+        return wa_otomatis_send_meta_once($pdo, $cfg, $target, $message, $override);
     }
 
     return wa_otomatis_send_fonte_once($pdo, $cfg, $target, $message, $override);
@@ -841,6 +841,14 @@ function wa_otomatis_send_fonte_once(PDO $pdo, array $cfg, string $target, strin
         $isSuccess = false;
     }
 
+    $responseText = $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response);
+    $audit = [
+        'dispatch_id' => trim((string) ($override['dispatch_id'] ?? '')),
+        'dedup_key' => trim((string) ($override['dedup_key'] ?? '')),
+        'kind' => trim((string) ($override['kind'] ?? 'general')),
+        'provider_message_id' => wa_otomatis_extract_provider_message_id($responseText, $statusCode),
+    ];
+
     return wa_otomatis_finish_send(
         $pdo,
         $target,
@@ -848,16 +856,18 @@ function wa_otomatis_send_fonte_once(PDO $pdo, array $cfg, string $target, strin
         $isSuccess,
         $statusCode,
         $apiError !== '' ? $apiError : $curlError,
-        $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response),
-        $apiTarget !== '' ? $apiTarget : $target
+        $responseText,
+        $apiTarget !== '' ? $apiTarget : $target,
+        $audit
     );
 }
 
 /**
  * @param array<string, mixed> $cfg
+ * @param array<string, mixed> $override
  * @return array{success:bool,http_code:int,error:string,response:string,target:string}
  */
-function wa_otomatis_send_meta_once(PDO $pdo, array $cfg, string $target, string $message): array
+function wa_otomatis_send_meta_once(PDO $pdo, array $cfg, string $target, string $message, array $override = []): array
 {
     $phoneId = preg_replace('/\D+/', '', (string) ($cfg['meta_phone_number_id'] ?? '')) ?? '';
     $token = (string) ($cfg['meta_access_token'] ?? '');
@@ -922,6 +932,14 @@ function wa_otomatis_send_meta_once(PDO $pdo, array $cfg, string $target, string
             . 'Isi nama template Meta yang sudah disetujui untuk kiriman di luar jendela 24 jam.';
     }
 
+    $responseText = $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response);
+    $audit = [
+        'dispatch_id' => trim((string) ($override['dispatch_id'] ?? '')),
+        'dedup_key' => trim((string) ($override['dedup_key'] ?? '')),
+        'kind' => trim((string) ($override['kind'] ?? 'general')),
+        'provider_message_id' => wa_otomatis_extract_provider_message_id($responseText, $statusCode),
+    ];
+
     return wa_otomatis_finish_send(
         $pdo,
         $target,
@@ -929,8 +947,9 @@ function wa_otomatis_send_meta_once(PDO $pdo, array $cfg, string $target, string
         $isSuccess,
         $statusCode,
         $apiError !== '' ? $apiError : $curlError,
-        $apiError !== '' ? $apiError : ($curlError !== '' ? $curlError : $response),
-        $to
+        $responseText,
+        $to,
+        $audit
     );
 }
 
@@ -942,6 +961,32 @@ function wa_otomatis_meta_message_id(string $response): string
     }
 
     return trim((string) $decoded['messages'][0]['id']);
+}
+
+function wa_otomatis_extract_provider_message_id(string $response, int $httpCode = 0): string
+{
+    $meta = wa_otomatis_meta_message_id($response);
+    if ($meta !== '') {
+        return $meta;
+    }
+    $decoded = json_decode($response, true);
+    if (!is_array($decoded)) {
+        return '';
+    }
+    foreach (['id', 'message_id', 'msg_id', 'process'] as $key) {
+        if (!empty($decoded[$key]) && is_scalar($decoded[$key])) {
+            return trim((string) $decoded[$key]);
+        }
+    }
+    if (isset($decoded['data']) && is_array($decoded['data'])) {
+        foreach (['id', 'message_id', 'process'] as $key) {
+            if (!empty($decoded['data'][$key]) && is_scalar($decoded['data'][$key])) {
+                return trim((string) $decoded['data'][$key]);
+            }
+        }
+    }
+
+    return '';
 }
 
 function wa_otomatis_meta_is_24h_error(string $response, int $httpCode): bool
@@ -1013,6 +1058,9 @@ function wa_otomatis_curl_post(string $endpoint, string $body, array $headers): 
 /**
  * @return array{success:bool,http_code:int,error:string,response:string,target:string}
  */
+/**
+ * @param array<string, mixed> $audit
+ */
 function wa_otomatis_finish_send(
     PDO $pdo,
     string $target,
@@ -1021,19 +1069,54 @@ function wa_otomatis_finish_send(
     int $statusCode,
     string $errorRaw,
     string $responseText,
-    string $displayTarget
+    string $displayTarget,
+    array $audit = []
 ): array {
+    if (!function_exists('wa_outbound_migrate_wa_logs_columns')) {
+        require_once __DIR__ . '/wa_outbound_conservative.php';
+    }
+    wa_outbound_migrate_wa_logs_columns($pdo);
+    $providerId = trim((string) ($audit['provider_message_id'] ?? ''));
+    if ($providerId === '' && $responseText !== '') {
+        $providerId = wa_otomatis_extract_provider_message_id($responseText, $statusCode);
+    }
     if (table_exists($pdo, 'wa_logs')) {
-        $log = $pdo->prepare('
-            INSERT INTO wa_logs (target_phone, message, response_text, is_success)
-            VALUES (:target_phone, :message, :response_text, :is_success)
-        ');
-        $log->execute([
+        $cols = ['target_phone', 'message', 'response_text', 'is_success'];
+        $vals = [':target_phone', ':message', ':response_text', ':is_success'];
+        $params = [
             'target_phone' => $target,
             'message' => $message,
             'response_text' => $responseText,
             'is_success' => $isSuccess ? 1 : 0,
-        ]);
+        ];
+        $dispatchId = trim((string) ($audit['dispatch_id'] ?? ''));
+        $dedupKey = trim((string) ($audit['dedup_key'] ?? ''));
+        $kind = trim((string) ($audit['kind'] ?? ''));
+        if ($dispatchId !== '' && column_exists($pdo, 'wa_logs', 'dispatch_id')) {
+            $cols[] = 'dispatch_id';
+            $vals[] = ':dispatch_id';
+            $params['dispatch_id'] = substr($dispatchId, 0, 24);
+        }
+        if ($dedupKey !== '' && column_exists($pdo, 'wa_logs', 'dedup_key')) {
+            $cols[] = 'dedup_key';
+            $vals[] = ':dedup_key';
+            $params['dedup_key'] = substr($dedupKey, 0, 191);
+        }
+        if ($kind !== '' && column_exists($pdo, 'wa_logs', 'kind')) {
+            $cols[] = 'kind';
+            $vals[] = ':kind';
+            $params['kind'] = substr($kind, 0, 40);
+        }
+        if ($providerId !== '' && column_exists($pdo, 'wa_logs', 'provider_message_id')) {
+            $cols[] = 'provider_message_id';
+            $vals[] = ':provider_message_id';
+            $params['provider_message_id'] = substr($providerId, 0, 128);
+        }
+        $log = $pdo->prepare('
+            INSERT INTO wa_logs (' . implode(', ', $cols) . ')
+            VALUES (' . implode(', ', $vals) . ')
+        ');
+        $log->execute($params);
     }
 
     $errorOut = $isSuccess ? '' : wa_otomatis_enrich_api_error($errorRaw, $target);
@@ -1054,6 +1137,10 @@ function wa_otomatis_finish_send(
         'error' => $errorOut,
         'response' => $responseText,
         'target' => $displayTarget,
+        'provider_message_id' => $providerId,
+        'dispatch_id' => trim((string) ($audit['dispatch_id'] ?? '')),
+        'dedup_key' => trim((string) ($audit['dedup_key'] ?? '')),
+        'kind' => trim((string) ($audit['kind'] ?? '')),
     ];
 }
 
@@ -1143,6 +1230,13 @@ function wa_otomatis_chunk_message(string $message, int $maxLen = 100): array
  */
 function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, array $opts = []): array
 {
+    if (!function_exists('wa_dispatch_id_allocate')) {
+        require_once __DIR__ . '/wa_outbound_conservative.php';
+    }
+    $dispatchId = trim((string) ($opts['dispatch_id'] ?? ''));
+    if ($dispatchId === '') {
+        $dispatchId = wa_dispatch_id_allocate($pdo);
+    }
     $maxRetries = max(0, min(3, (int) ($opts['max_retries'] ?? 2)));
     $delayMs = max(100, min(2000, (int) ($opts['delay_ms'] ?? 400)));
     // Default: satu kiriman penuh. Hanya laporan ALPA yang mengisi chunk_max (lihat send_wa_bulk_messages).
@@ -1164,6 +1258,9 @@ function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, a
         $override['dedup_key_per_target'],
         $override['skip_dedup']
     );
+    $override['dispatch_id'] = $dispatchId;
+    $override['kind'] = $kind;
+    $override['dedup_key'] = $dedupKey;
 
     $targetNorm = wa_otomatis_normalize_target($targetRaw);
     $claimedDedup = false;
@@ -1212,6 +1309,7 @@ function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, a
     }
 
     $last['attempts'] = $totalAttempts;
+    $last['dispatch_id'] = $dispatchId;
     if (count($chunks) > 1) {
         $last['chunks'] = count($chunks);
     }
@@ -1274,6 +1372,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
             'success' => false,
             'queued' => true,
             'queue_id' => (int) ($enq['queue_id'] ?? 0),
+            'dispatch_id' => trim((string) ($enq['dispatch_id'] ?? '')),
             'http_code' => 0,
             'error' => '',
             'response' => 'queued',
@@ -1282,7 +1381,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
         ];
     }
 
-    $syncBudget = (int) ($opts['sync_drain_budget'] ?? 1);
+    $syncBudget = (int) ($opts['sync_drain_budget'] ?? 0);
     if ($syncBudget > 0) {
         $enq = wa_outbound_enqueue($pdo, $targetRaw, $message, $opts);
         if (!empty($enq['skipped'])) {
@@ -1310,7 +1409,8 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
             ];
         }
         $preferId = (int) ($enq['queue_id'] ?? 0);
-        $drain = wa_outbound_drain($pdo, max(1, min($syncBudget, wa_outbound_global_budget_per_tick($pdo))));
+        $preferDispatch = trim((string) ($enq['dispatch_id'] ?? ''));
+        $drain = wa_outbound_drain($pdo, max(1, min($syncBudget, wa_outbound_effective_budget_per_tick($pdo))));
         foreach ($drain['details'] ?? [] as $detail) {
             if (!is_array($detail)) {
                 continue;
@@ -1327,6 +1427,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
             'success' => false,
             'queued' => true,
             'queue_id' => $preferId,
+            'dispatch_id' => $preferDispatch,
             'http_code' => 0,
             'error' => (string) ($drain['last_error'] ?? ''),
             'response' => 'queued_pending_drain',
@@ -1335,7 +1436,44 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
         ];
     }
 
-    return wa_otomatis_send_direct($pdo, $targetRaw, $message, $opts);
+    $enq = wa_outbound_enqueue($pdo, $targetRaw, $message, $opts);
+    if (!empty($enq['skipped'])) {
+        $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
+
+        return [
+            'success' => $reason === 'duplicate',
+            'skipped' => true,
+            'skipped_reason' => $reason,
+            'http_code' => 0,
+            'error' => $reason === 'opt_out' ? 'opt_out' : '',
+            'response' => $reason,
+            'target' => $targetNorm,
+            'attempts' => 0,
+            'dispatch_id' => trim((string) ($enq['dispatch_id'] ?? '')),
+        ];
+    }
+    if (!($enq['ok'] ?? false)) {
+        return [
+            'success' => false,
+            'http_code' => 0,
+            'error' => (string) ($enq['error'] ?? 'enqueue_failed'),
+            'response' => '',
+            'target' => $targetNorm,
+            'attempts' => 0,
+        ];
+    }
+
+    return [
+        'success' => false,
+        'queued' => true,
+        'queue_id' => (int) ($enq['queue_id'] ?? 0),
+        'dispatch_id' => trim((string) ($enq['dispatch_id'] ?? '')),
+        'http_code' => 0,
+        'error' => '',
+        'response' => 'queued',
+        'target' => $targetNorm,
+        'attempts' => 0,
+    ];
 }
 
 /**
@@ -1465,7 +1603,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         $drainBudget = min(
             count($queuedIds),
             wa_fonte_bulk_limit($pdo),
-            wa_outbound_global_budget_per_tick($pdo)
+            wa_outbound_effective_budget_per_tick($pdo)
         );
         $drain = wa_outbound_drain($pdo, max(1, $drainBudget));
         foreach ($drain['details'] ?? [] as $detail) {
@@ -2061,17 +2199,32 @@ function wa_logs_recent_duplicates(PDO $pdo, int $hours = 24, int $limit = 20): 
     $hours = max(1, min(168, $hours));
     $limit = max(1, min(50, $limit));
     try {
-        $st = $pdo->query('
-            SELECT target_phone, kind,
-                   DATE_FORMAT(sent_at, "%Y-%m-%d %H:%i") AS minute_bucket,
-                   COUNT(*) AS cnt
-            FROM wa_logs
-            WHERE sent_at >= DATE_SUB(NOW(), INTERVAL ' . $hours . ' HOUR)
-            GROUP BY target_phone, kind, minute_bucket
-            HAVING cnt > 1
-            ORDER BY cnt DESC, minute_bucket DESC
-            LIMIT ' . $limit . '
-        ');
+        $hasKind = function_exists('column_exists') && column_exists($pdo, 'wa_logs', 'kind');
+        if ($hasKind) {
+            $st = $pdo->query('
+                SELECT target_phone, kind,
+                       DATE_FORMAT(created_at, "%Y-%m-%d %H:%i") AS minute_bucket,
+                       COUNT(*) AS cnt
+                FROM wa_logs
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL ' . $hours . ' HOUR)
+                GROUP BY target_phone, kind, minute_bucket
+                HAVING cnt > 1
+                ORDER BY cnt DESC, minute_bucket DESC
+                LIMIT ' . $limit . '
+            ');
+        } else {
+            $st = $pdo->query('
+                SELECT target_phone,
+                       DATE_FORMAT(created_at, "%Y-%m-%d %H:%i") AS minute_bucket,
+                       COUNT(*) AS cnt
+                FROM wa_logs
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL ' . $hours . ' HOUR)
+                GROUP BY target_phone, minute_bucket
+                HAVING cnt > 1
+                ORDER BY cnt DESC, minute_bucket DESC
+                LIMIT ' . $limit . '
+            ');
+        }
 
         return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     } catch (Throwable $e) {

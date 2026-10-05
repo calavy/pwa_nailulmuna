@@ -6,6 +6,8 @@ declare(strict_types=1);
  * Global outbound WA dispatch: queue, rate, cooldown, retry, opt-out.
  */
 
+require_once __DIR__ . '/wa_outbound_conservative.php';
+
 function wa_outbound_queue_enabled(PDO $pdo): bool
 {
     return trim((string) app_setting($pdo, 'wa_outbound_queue_enabled', '1')) === '1';
@@ -39,6 +41,7 @@ function wa_outbound_ensure_schema(PDO $pdo): void
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS wa_outbound_queue (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                dispatch_id VARCHAR(24) NULL,
                 target_phone VARCHAR(40) NOT NULL,
                 kind VARCHAR(40) NOT NULL DEFAULT "general",
                 message MEDIUMTEXT NOT NULL,
@@ -53,6 +56,9 @@ function wa_outbound_ensure_schema(PDO $pdo): void
                 next_retry_at DATETIME NULL,
                 sent_at DATETIME NULL,
                 last_error VARCHAR(500) NULL,
+                provider_message_id VARCHAR(128) NULL,
+                retry_reason VARCHAR(64) NULL,
+                UNIQUE KEY uk_wa_outbound_dispatch_id (dispatch_id),
                 INDEX idx_wa_outbound_drain (status, next_retry_at, priority, id),
                 INDEX idx_wa_outbound_target (target_phone, status),
                 INDEX idx_wa_outbound_dedup (dedup_key),
@@ -74,6 +80,7 @@ function wa_outbound_ensure_schema(PDO $pdo): void
     } catch (Throwable $e) {
         error_log('[wa_outbound_ensure_schema] ' . $e->getMessage());
     }
+    wa_outbound_migrate_schema_extras($pdo);
     $done = table_exists($pdo, 'wa_outbound_queue');
 }
 
@@ -144,10 +151,14 @@ function wa_outbound_is_opted_out(PDO $pdo, string $targetPhone, string $kind): 
     }
 }
 
-/** @return 'retryable'|'permanent'|'invalid_target' */
+/** @return 'retryable'|'permanent'|'invalid_target'|'rate_limited' */
 function wa_outbound_classify_error(string $error, int $httpCode = 0): string
 {
     $blob = strtolower(trim($error));
+    if ($httpCode === 429 || str_contains($blob, 'rate limit') || str_contains($blob, 'too many')
+        || str_contains($blob, 'too many request')) {
+        return 'rate_limited';
+    }
     if (str_contains($blob, 'tidak valid') || (str_contains($blob, 'nomor') && str_contains($blob, 'valid'))) {
         return 'invalid_target';
     }
@@ -156,7 +167,10 @@ function wa_outbound_classify_error(string $error, int $httpCode = 0): string
         || str_contains($blob, 'invalid token')) {
         return 'permanent';
     }
-    if ($httpCode >= 400 && $httpCode < 500 && $httpCode !== 429) {
+    if ($httpCode >= 500) {
+        return 'retryable';
+    }
+    if ($httpCode >= 400 && $httpCode < 500) {
         return 'invalid_target';
     }
 
@@ -226,17 +240,18 @@ function wa_outbound_enqueue(PDO $pdo, string $targetRaw, string $message, array
     if ($dedupKey !== '') {
         try {
             $st = $pdo->prepare('
-                SELECT id FROM wa_outbound_queue
+                SELECT id, dispatch_id FROM wa_outbound_queue
                 WHERE dedup_key = :d AND status IN ("pending","sending","retry_wait")
                 LIMIT 1
             ');
             $st->execute(['d' => wa_dispatch_normalize_key($dedupKey)]);
-            $existingId = $st->fetchColumn();
-            if ($existingId !== false) {
+            $existing = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($existing)) {
                 return [
                     'ok' => true,
                     'queued' => true,
-                    'queue_id' => (int) $existingId,
+                    'queue_id' => (int) ($existing['id'] ?? 0),
+                    'dispatch_id' => trim((string) ($existing['dispatch_id'] ?? '')),
                     'skipped_reason' => 'duplicate_queue',
                 ];
             }
@@ -258,17 +273,19 @@ function wa_outbound_enqueue(PDO $pdo, string $targetRaw, string $message, array
     }
 
     $dedupStore = $dedupKey !== '' ? wa_dispatch_normalize_key($dedupKey) : null;
+    $dispatchId = wa_dispatch_id_allocate($pdo);
 
     try {
         $st = $pdo->prepare('
             INSERT INTO wa_outbound_queue
-                (target_phone, kind, message, priority, dedup_key, status, attempt_count,
+                (dispatch_id, target_phone, kind, message, priority, dedup_key, status, attempt_count,
                  dispatch_source, payload_json, next_retry_at)
             VALUES
-                (:target, :kind, :message, :priority, :dedup, "pending", 0,
+                (:did, :target, :kind, :message, :priority, :dedup, "pending", 0,
                  :source, :payload, NOW())
         ');
         $st->execute([
+            'did' => $dispatchId,
             'target' => substr($target, 0, 40),
             'kind' => substr($kind, 0, 40),
             'message' => $message,
@@ -278,7 +295,12 @@ function wa_outbound_enqueue(PDO $pdo, string $targetRaw, string $message, array
             'payload' => $payloadJson,
         ]);
 
-        return ['ok' => true, 'queued' => true, 'queue_id' => (int) $pdo->lastInsertId()];
+        return [
+            'ok' => true,
+            'queued' => true,
+            'queue_id' => (int) $pdo->lastInsertId(),
+            'dispatch_id' => $dispatchId,
+        ];
     } catch (Throwable $e) {
         error_log('[wa_outbound_enqueue] ' . $e->getMessage());
 
@@ -311,6 +333,19 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
         return $result;
     }
 
+    if (wa_outbound_is_paused($pdo) && empty($context['force_drain'])) {
+        $result['last_error'] = 'outbound_paused';
+
+        return $result;
+    }
+
+    if (wa_outbound_circuit_blocks_drain($pdo)) {
+        $st = wa_outbound_circuit_status($pdo);
+        $result['last_error'] = 'circuit_open:' . ($st['reason'] ?? '');
+
+        return $result;
+    }
+
     if (wa_otomatis_gateway_error($pdo) !== null) {
         $result['last_error'] = (string) wa_otomatis_gateway_error($pdo);
 
@@ -324,11 +359,19 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
         return $result;
     }
 
-    $globalCap = wa_outbound_global_budget_per_tick($pdo);
+    $globalCap = wa_outbound_effective_budget_per_tick($pdo);
     $providerCap = wa_fonte_bulk_limit($pdo);
-    $budget = max(0, min($budget, $globalCap, $providerCap));
+    $dailyRemain = wa_outbound_daily_remaining($pdo);
+    $budget = max(0, min($budget, $globalCap, $providerCap, $dailyRemain));
     if ($budget <= 0) {
+        $result['last_error'] = $dailyRemain <= 0 ? 'daily_budget_exhausted' : 'budget_zero';
+
         return $result;
+    }
+
+    $halfOpen = wa_outbound_circuit_state($pdo) === 'half_open';
+    if ($halfOpen) {
+        $budget = 1;
     }
 
     try {
@@ -356,6 +399,7 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
         }
 
         $queueId = (int) ($row['id'] ?? 0);
+        $dispatchId = trim((string) ($row['dispatch_id'] ?? ''));
         $target = (string) ($row['target_phone'] ?? '');
         $kind = (string) ($row['kind'] ?? 'general');
         $message = (string) ($row['message'] ?? '');
@@ -385,7 +429,7 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
             $lastSent = wa_outbound_target_last_sent_ts($pdo, $target);
             if ($lastSent > 0 && (microtime(true) - $lastSent) < $cooldownSec) {
                 $waitUntil = date('Y-m-d H:i:s', (int) ($lastSent + $cooldownSec));
-                wa_outbound_defer_cooldown($pdo, $queueId, $waitUntil);
+                wa_outbound_defer_cooldown($pdo, $queueId, $waitUntil, 'cooldown');
                 $result['deferred']++;
                 $processed++;
                 continue;
@@ -406,13 +450,22 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
             $sendOpts['dedup_key'] = $dedupKey;
         }
         $sendOpts['_from_outbound_worker'] = true;
+        $sendOpts['dispatch_id'] = $dispatchId;
+        $sendOpts['queue_id'] = $queueId;
+        $sendOpts['max_retries'] = 0;
 
         $sendResult = wa_otomatis_send_direct($pdo, $target, $message, $sendOpts);
         $lastGlobalSendAt = microtime(true);
         $processed++;
         $result['budget_used'] = $processed;
 
-        $detail = array_merge($sendResult, ['queue_id' => $queueId, 'kind' => $kind, 'dedup_key' => $dedupKey]);
+        $providerMsgId = trim((string) ($sendResult['provider_message_id'] ?? ''));
+        $detail = array_merge($sendResult, [
+            'queue_id' => $queueId,
+            'dispatch_id' => $dispatchId,
+            'kind' => $kind,
+            'dedup_key' => $dedupKey,
+        ]);
         $result['details'][] = $detail;
 
         if (!empty($sendResult['skipped'])) {
@@ -422,7 +475,9 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
         }
 
         if ($sendResult['success'] ?? false) {
-            wa_outbound_mark_sent($pdo, $queueId);
+            wa_outbound_mark_sent($pdo, $queueId, $providerMsgId);
+            wa_outbound_daily_record_sent($pdo, 1);
+            wa_outbound_circuit_record_success($pdo);
             $result['sent']++;
             save_setting($pdo, 'wa_outbound_last_global_send_at', date('Y-m-d H:i:s'));
             continue;
@@ -432,13 +487,32 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
         $result['last_error'] = $err;
         $class = wa_outbound_classify_error($err, (int) ($sendResult['http_code'] ?? 0));
         $attemptCount++;
-        if ($class === 'invalid_target' || $class === 'permanent' || $attemptCount >= $maxAttempts) {
-            wa_outbound_mark_dead($pdo, $queueId, $err, $attemptCount);
+        if ($class === 'rate_limited') {
+            wa_outbound_circuit_record_failure($pdo, 'rate_limit:' . substr($err, 0, 120));
+            $backoff = max(wa_outbound_backoff_seconds($attemptCount), 300);
+            wa_outbound_mark_retry_wait($pdo, $queueId, $err, $attemptCount, $backoff, 'rate_limit');
             $result['failed']++;
+            if (wa_outbound_circuit_blocks_drain($pdo)) {
+                break;
+            }
+            continue;
+        }
+        if ($class === 'retryable') {
+            wa_outbound_circuit_record_failure($pdo, 'provider_error');
+        }
+        if ($class === 'invalid_target' || $class === 'permanent' || $attemptCount >= $maxAttempts) {
+            wa_outbound_mark_dead($pdo, $queueId, $err, $attemptCount, 'provider_error');
+            $result['failed']++;
+            if (wa_outbound_circuit_blocks_drain($pdo)) {
+                break;
+            }
         } else {
             $backoff = wa_outbound_backoff_seconds($attemptCount);
-            wa_outbound_mark_retry_wait($pdo, $queueId, $err, $attemptCount, $backoff);
+            wa_outbound_mark_retry_wait($pdo, $queueId, $err, $attemptCount, $backoff, 'provider_error');
             $result['failed']++;
+            if (wa_outbound_circuit_blocks_drain($pdo)) {
+                break;
+            }
         }
     }
 
@@ -452,7 +526,7 @@ function wa_outbound_claim_next_row(PDO $pdo, string $nowStr): ?array
 {
     try {
         $st = $pdo->query('
-            SELECT id, target_phone, kind, message, priority, dedup_key, attempt_count, payload_json
+            SELECT id, dispatch_id, target_phone, kind, message, priority, dedup_key, attempt_count, payload_json
             FROM wa_outbound_queue
             WHERE status IN ("pending","retry_wait")
               AND (next_retry_at IS NULL OR next_retry_at <= NOW())
@@ -508,27 +582,46 @@ function wa_outbound_target_last_sent_ts(PDO $pdo, string $target): float
     }
 }
 
-function wa_outbound_defer_cooldown(PDO $pdo, int $queueId, string $waitUntil): void
+function wa_outbound_defer_cooldown(PDO $pdo, int $queueId, string $waitUntil, string $retryReason = 'cooldown'): void
 {
     try {
-        $pdo->prepare('
+        $sql = '
             UPDATE wa_outbound_queue
-            SET status = "retry_wait", next_retry_at = :w
+            SET status = "retry_wait", next_retry_at = :w, retry_reason = :rr
             WHERE id = :id AND status = "sending"
-        ')->execute(['w' => $waitUntil, 'id' => $queueId]);
+        ';
+        if (!function_exists('column_exists') || !column_exists($pdo, 'wa_outbound_queue', 'retry_reason')) {
+            $sql = '
+                UPDATE wa_outbound_queue
+                SET status = "retry_wait", next_retry_at = :w
+                WHERE id = :id AND status = "sending"
+            ';
+            $pdo->prepare($sql)->execute(['w' => $waitUntil, 'id' => $queueId]);
+
+            return;
+        }
+        $pdo->prepare($sql)->execute(['w' => $waitUntil, 'id' => $queueId, 'rr' => substr($retryReason, 0, 64)]);
     } catch (Throwable $e) {
         error_log('[wa_outbound_defer_cooldown] ' . $e->getMessage());
     }
 }
 
-function wa_outbound_mark_sent(PDO $pdo, int $queueId): void
+function wa_outbound_mark_sent(PDO $pdo, int $queueId, string $providerMessageId = ''): void
 {
     try {
+        $params = ['id' => $queueId];
+        $extra = '';
+        if ($providerMessageId !== '' && function_exists('column_exists') && column_exists($pdo, 'wa_outbound_queue', 'provider_message_id')) {
+            $extra = ', provider_message_id = :pmid';
+            $params['pmid'] = substr($providerMessageId, 0, 128);
+        }
+        $rrSql = (function_exists('column_exists') && column_exists($pdo, 'wa_outbound_queue', 'retry_reason'))
+            ? ', retry_reason = NULL' : '';
         $pdo->prepare('
             UPDATE wa_outbound_queue
-            SET status = "sent", sent_at = NOW(), last_error = NULL
+            SET status = "sent", sent_at = NOW(), last_error = NULL' . $rrSql . $extra . '
             WHERE id = :id
-        ')->execute(['id' => $queueId]);
+        ')->execute($params);
     } catch (Throwable $e) {
         error_log('[wa_outbound_mark_sent] ' . $e->getMessage());
     }
@@ -547,7 +640,7 @@ function wa_outbound_mark_sent_duplicate(PDO $pdo, int $queueId): void
     }
 }
 
-function wa_outbound_mark_dead(PDO $pdo, int $queueId, string $error, ?int $attemptCount = null): void
+function wa_outbound_mark_dead(PDO $pdo, int $queueId, string $error, ?int $attemptCount = null, string $retryReason = 'provider_error'): void
 {
     try {
         $params = ['err' => substr($error, 0, 500), 'id' => $queueId];
@@ -559,6 +652,10 @@ function wa_outbound_mark_dead(PDO $pdo, int $queueId, string $error, ?int $atte
             $sql .= ', attempt_count = :ac';
             $params['ac'] = $attemptCount;
         }
+        if (function_exists('column_exists') && column_exists($pdo, 'wa_outbound_queue', 'retry_reason')) {
+            $sql .= ', retry_reason = :rr';
+            $params['rr'] = substr($retryReason, 0, 64);
+        }
         $sql .= ' WHERE id = :id';
         $pdo->prepare($sql)->execute($params);
     } catch (Throwable $e) {
@@ -566,23 +663,35 @@ function wa_outbound_mark_dead(PDO $pdo, int $queueId, string $error, ?int $atte
     }
 }
 
-function wa_outbound_mark_retry_wait(PDO $pdo, int $queueId, string $error, int $attemptCount, int $backoffSec): void
-{
+function wa_outbound_mark_retry_wait(
+    PDO $pdo,
+    int $queueId,
+    string $error,
+    int $attemptCount,
+    int $backoffSec,
+    string $retryReason = 'provider_error'
+): void {
     try {
+        $params = [
+            'ac' => $attemptCount,
+            'err' => substr($error, 0, 500),
+            'sec' => max(1, $backoffSec),
+            'id' => $queueId,
+        ];
+        $rrSql = '';
+        if (function_exists('column_exists') && column_exists($pdo, 'wa_outbound_queue', 'retry_reason')) {
+            $rrSql = ', retry_reason = :rr';
+            $params['rr'] = substr($retryReason, 0, 64);
+        }
         $pdo->prepare('
             UPDATE wa_outbound_queue
             SET status = "retry_wait",
                 attempt_count = :ac,
                 last_error = :err,
                 last_attempt_at = NOW(),
-                next_retry_at = DATE_ADD(NOW(), INTERVAL :sec SECOND)
+                next_retry_at = DATE_ADD(NOW(), INTERVAL :sec SECOND)' . $rrSql . '
             WHERE id = :id
-        ')->execute([
-            'ac' => $attemptCount,
-            'err' => substr($error, 0, 500),
-            'sec' => max(1, $backoffSec),
-            'id' => $queueId,
-        ]);
+        ')->execute($params);
     } catch (Throwable $e) {
         error_log('[wa_outbound_mark_retry_wait] ' . $e->getMessage());
     }
@@ -631,6 +740,12 @@ function wa_outbound_queue_snapshot(PDO $pdo): array
         'global_budget_per_tick' => wa_outbound_global_budget_per_tick($pdo),
         'cooldown_sec' => wa_outbound_cooldown_sec($pdo),
         'sent_24h' => 0,
+        'paused' => wa_outbound_is_paused($pdo),
+        'pause_status' => wa_outbound_pause_status($pdo),
+        'circuit' => wa_outbound_circuit_status($pdo),
+        'daily_budget' => wa_outbound_daily_budget($pdo),
+        'daily_sent' => wa_outbound_daily_sent_count($pdo),
+        'daily_remaining' => wa_outbound_daily_remaining($pdo),
     ];
     if (!$out['table_exists']) {
         return $out;

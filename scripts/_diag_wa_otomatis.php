@@ -22,6 +22,7 @@ $keys = [
     'wa_auto_light_last_at', 'wa_auto_heavy_last_at', 'wa_auto_last_heavy_at',
     'wa_outbound_queue_enabled', 'wa_outbound_cooldown_sec', 'wa_outbound_max_attempts',
     'wa_outbound_global_budget_per_tick', 'wa_outbound_last_global_send_at', 'wa_outbound_stats_json',
+    'wa_outbound_daily_budget', 'wa_outbound_daily_sent_count', 'wa_outbound_paused', 'wa_outbound_circuit_state',
     'cashless_transaksi_wa_enabled', 'cashless_saldo_rendah_wa_enabled',
     'cashless_laporan_harian_wa_enabled', 'cashless_laporan_harian_wa_jam',
     'cashless_laporan_harian_wa_targets', 'cashless_laporan_harian_last_sent_at',
@@ -54,6 +55,11 @@ $out['cashless_status'] = cashless_wa_laporan_status_hari_ini($pdo);
 $out['recent_dispatch'] = wa_dispatch_recent_rows($pdo, 15);
 $out['recent_wa_duplicates'] = wa_logs_recent_duplicates($pdo, 24, 15);
 $out['outbound'] = wa_outbound_queue_snapshot($pdo);
+$out['outbound_conservative'] = [
+    'pause' => wa_outbound_pause_status($pdo),
+    'circuit' => wa_outbound_circuit_status($pdo),
+    'daily_remaining' => wa_outbound_daily_remaining($pdo),
+];
 $out['outbound']['total_outgoing_pending'] = (int) ($out['outbound']['counts']['pending'] ?? 0)
     + (int) ($out['outbound']['counts']['retry_wait'] ?? 0)
     + (int) ($out['outbound']['counts']['sending'] ?? 0);

@@ -560,7 +560,7 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
         require_once __DIR__ . '/wa_outbound_dispatch.php';
     }
     if (function_exists('wa_outbound_queue_enabled') && wa_outbound_queue_enabled($pdo) && $sendAttempts > 0) {
-        $drainBudget = min($waveLimit, wa_outbound_global_budget_per_tick($pdo), wa_fonte_bulk_limit($pdo));
+        $drainBudget = min($waveLimit, wa_outbound_effective_budget_per_tick($pdo), wa_fonte_bulk_limit($pdo));
         $drain = wa_outbound_drain($pdo, max(1, $drainBudget));
         $mapped = wa_outbound_tagihan_apply_drain_details($drain['details'] ?? [], $sendKey);
         $sent += (int) ($mapped['sent'] ?? 0);

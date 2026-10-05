@@ -45,7 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') === 'gateway
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    $result = send_wa_message_with_result($pdo, (string) $preview['phone'], (string) ($preview['pesan'] ?? $preview['message'] ?? ''), ['kind' => 'tagihan']);
+    $result = send_wa_message_with_result($pdo, (string) $preview['phone'], (string) ($preview['pesan'] ?? $preview['message'] ?? ''), [
+        'kind' => 'tagihan',
+        'sync_drain_budget' => 1,
+    ]);
     echo json_encode([
         'ok' => (bool) ($result['success'] ?? false),
         'error' => ($result['success'] ?? false) ? '' : 'Gagal kirim via gateway. ' . trim((string) ($result['response'] ?? '')),

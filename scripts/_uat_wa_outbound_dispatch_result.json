@@ -1,5 +1,5 @@
 {
-    "pass": 16,
+    "pass": 26,
     "fail": 0,
     "results": [
         {
@@ -55,12 +55,37 @@
         {
             "name": "enqueue_ok",
             "ok": true,
-            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":2}"
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":6,\"dispatch_id\":\"WA-20261005-000013\"}"
+        },
+        {
+            "name": "dispatch_id_format",
+            "ok": true,
+            "detail": "WA-20261005-000013"
+        },
+        {
+            "name": "lookup_by_dispatch_id",
+            "ok": true,
+            "detail": "{\"id\":6,\"dispatch_id\":\"WA-20261005-000013\",\"dedup_key\":\"uat:outbound:20261005152233:3874\",\"target_phone\":\"6281234567890\",\"kind\":\"general\",\"status\":\"pending\",\"attempt_count\":0,\"provider_message_id\":null,\"created_at\":\"2026-10-05 15:22:33\",\"sent_at\":null,\"last_error\":null,\"retry_reason\":null}"
         },
         {
             "name": "enqueue_duplicate_queue",
             "ok": true,
-            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":2,\"skipped_reason\":\"duplicate_queue\"}"
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":6,\"dispatch_id\":\"WA-20261005-000013\",\"skipped_reason\":\"duplicate_queue\"}"
+        },
+        {
+            "name": "cron_dedup_same_dispatch_id",
+            "ok": true,
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":6,\"dispatch_id\":\"WA-20261005-000013\",\"skipped_reason\":\"duplicate_queue\"}"
+        },
+        {
+            "name": "two_events_two_dispatch_ids",
+            "ok": true,
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":7,\"dispatch_id\":\"WA-20261005-000014\"}"
+        },
+        {
+            "name": "concurrent_dispatch_ids_unique",
+            "ok": true,
+            "detail": "count=8"
         },
         {
             "name": "opt_out_block",
@@ -70,12 +95,37 @@
         {
             "name": "drain_runs",
             "ok": true,
-            "detail": "{\"sent\":0,\"failed\":1,\"deferred\":0,\"skipped\":0,\"details\":[{\"success\":false,\"http_code\":200,\"error\":\"invalid token\",\"response\":\"invalid token\",\"target\":\"6281234567890\",\"attempts\":3,\"queue_id\":2,\"kind\":\"general\",\"dedup_key\":\"uat:outbound:20261005093224:7540\"}],\"last_error\":\"invalid token\",\"budget_used\":1}"
+            "detail": "{\"sent\":0,\"failed\":1,\"deferred\":0,\"skipped\":0,\"details\":[{\"success\":false,\"http_code\":200,\"error\":\"invalid token\",\"response\":\"invalid token\",\"target\":\"6281234567890\",\"provider_message_id\":\"\",\"dispatch_id\":\"WA-20261005-000012\",\"dedup_key\":\"\",\"kind\":\"general\",\"attempts\":1,\"queue_id\":5}],\"last_error\":\"invalid token\",\"budget_used\":1}"
+        },
+        {
+            "name": "retry_same_dispatch_id",
+            "ok": true,
+            "detail": "{\"id\":6,\"dispatch_id\":\"WA-20261005-000013\",\"dedup_key\":\"uat:outbound:20261005152233:3874\",\"target_phone\":\"6281234567890\",\"kind\":\"general\",\"status\":\"pending\",\"attempt_count\":0,\"provider_message_id\":null,\"created_at\":\"2026-10-05 15:22:33\",\"sent_at\":null,\"last_error\":null,\"retry_reason\":null}"
         },
         {
             "name": "dispatch_immediate_path",
             "ok": true,
             "detail": "invalid token"
+        },
+        {
+            "name": "classify_rate_limit",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "pause_blocks_drain",
+            "ok": true,
+            "detail": "{\"sent\":0,\"failed\":0,\"deferred\":0,\"skipped\":0,\"details\":[],\"last_error\":\"outbound_paused\",\"budget_used\":0}"
+        },
+        {
+            "name": "daily_budget_positive",
+            "ok": true,
+            "detail": "remain=400"
+        },
+        {
+            "name": "legacy_send_still_works",
+            "ok": true,
+            "detail": "{\"success\":false,\"queued\":true,\"queue_id\":8,\"dispatch_id\":\"WA-20261005-000024\",\"http_code\":0,\"error\":\"\",\"response\":\"queued\",\"target\":\"6281234567890\",\"attempts\":0}"
         },
         {
             "name": "snapshot",
@@ -86,19 +136,48 @@
     "snapshot": {
         "enabled": true,
         "table_exists": true,
-        "counts": [],
-        "per_kind_pending": [],
-        "oldest_pending": null,
+        "counts": {
+            "pending": 1,
+            "dead": 1
+        },
+        "per_kind_pending": {
+            "general": 1
+        },
+        "oldest_pending": {
+            "id": 8,
+            "created_at": "2026-10-05 15:22:41",
+            "kind": "general",
+            "target_phone": "6281234567890"
+        },
         "last_global_send": "",
         "stats": {
             "lifetime_sent": 0,
-            "lifetime_failed": 2,
-            "last_drain_at": "2026-10-05 09:32:32"
+            "lifetime_failed": 4,
+            "last_drain_at": "2026-10-05 15:22:34"
         },
         "global_budget_per_tick": 8,
         "cooldown_sec": 120,
         "sent_24h": 0,
-        "last_error_row": null
+        "paused": false,
+        "pause_status": {
+            "paused": false,
+            "paused_at": "2026-10-05 15:22:41",
+            "paused_reason": "uat_pause",
+            "resume_started_at": "2026-10-05 15:22:41"
+        },
+        "circuit": {
+            "state": "closed",
+            "open_until": "",
+            "reason": "",
+            "fail_window": null
+        },
+        "daily_budget": 400,
+        "daily_sent": 0,
+        "daily_remaining": 400,
+        "last_error_row": {
+            "last_error": "invalid token",
+            "last_attempt_at": "2026-10-05 15:22:34"
+        }
     },
     "gateway_error": null
 }
