@@ -1,13 +1,27 @@
 {
     "settings": {
         "wa_otomatis_master_enabled": "1",
-        "wa_gateway_token": "[SET len=20]",
+        "wa_gateway_token": "[SET len=27]",
         "wa_gateway_url": "https:\/\/api.fonnte.com\/send",
-        "wa_auto_last_run_at": "2026-08-06 16:14:25",
+        "wa_auto_last_run_at": "2026-09-22 10:29:52",
         "wa_auto_last_gateway_ok": "1",
-        "wa_auto_last_gateway_error": "",
-        "wa_auto_scheduled_last_at": "2026-08-06 16:14:26",
-        "wa_auto_alpa_last_result": "{\"sent\":0,\"tiers\":[],\"pending_santri\":0,\"note\":\"tidak_ada_kandidat\",\"mode\":\"crossing\",\"at\":\"2026-08-06 16:14:26\"}",
+        "wa_auto_last_gateway_error": "invalid token",
+        "wa_auto_scheduled_last_at": "2026-09-22 10:30:53",
+        "wa_auto_alpa_last_result": "{\"sent\":0,\"sent_putra\":0,\"sent_putri\":0,\"tiers\":[],\"pending_santri\":0,\"note\":\"tidak_ada_kandidat\",\"mode\":\"crossing\",\"at\":\"2026-09-22 10:30:53\"}",
+        "wa_auto_web_fallback_enabled": "0",
+        "wa_dispatch_strict_mode": "1",
+        "wa_auto_cron_key": "",
+        "wa_auto_fallback_auto_disabled_at": "",
+        "wa_auto_fallback_auto_disabled_reason": "",
+        "wa_auto_light_last_at": "1790047792",
+        "wa_auto_heavy_last_at": "1790047792",
+        "wa_auto_last_heavy_at": "2026-09-22 10:30:53",
+        "wa_outbound_queue_enabled": "1",
+        "wa_outbound_cooldown_sec": "120",
+        "wa_outbound_max_attempts": "3",
+        "wa_outbound_global_budget_per_tick": "8",
+        "wa_outbound_last_global_send_at": "",
+        "wa_outbound_stats_json": "{\"lifetime_sent\":0,\"lifetime_failed\":2,\"last_drain_at\":\"2026-10-05 09:32:32\"}",
         "cashless_transaksi_wa_enabled": "1",
         "cashless_saldo_rendah_wa_enabled": "1",
         "cashless_laporan_harian_wa_enabled": "0",
@@ -21,15 +35,22 @@
     },
     "gateway_error": null,
     "should_run_general": true,
-    "cron_stale": false,
-    "cron_age_sec": 39,
+    "cron_stale": true,
+    "cron_age_sec": 1119765,
+    "cron_recently_active": false,
+    "fallback_enabled": false,
+    "dispatch_strict_mode": true,
+    "dispatch_table_exists": true,
+    "double_send_risk": false,
     "alpa_last": {
         "sent": 0,
+        "sent_putra": 0,
+        "sent_putri": 0,
         "tiers": [],
         "pending_santri": 0,
         "note": "tidak_ada_kandidat",
         "mode": "crossing",
-        "at": "2026-08-06 16:14:26"
+        "at": "2026-09-22 10:30:53"
     },
     "alpa_tiers": [
         {
@@ -37,6 +58,8 @@
             "threshold": 3,
             "label": "Kelipatan 3",
             "wa": "",
+            "wa_putra": "",
+            "wa_putri": "",
             "is_active": 1
         },
         {
@@ -44,6 +67,8 @@
             "threshold": 6,
             "label": "Kelipatan 6",
             "wa": "",
+            "wa_putra": "",
+            "wa_putri": "",
             "is_active": 1
         },
         {
@@ -51,6 +76,8 @@
             "threshold": 9,
             "label": "Kelipatan 9",
             "wa": "",
+            "wa_putra": "",
+            "wa_putri": "",
             "is_active": 1
         },
         {
@@ -58,6 +85,8 @@
             "threshold": 12,
             "label": "Kelipatan 12",
             "wa": "",
+            "wa_putra": "",
+            "wa_putri": "",
             "is_active": 1
         },
         {
@@ -65,19 +94,21 @@
             "threshold": 15,
             "label": "Kelipatan 15",
             "wa": "",
+            "wa_putra": "",
+            "wa_putri": "",
             "is_active": 1
         }
     ],
     "cashless_status": {
         "ringkasan": {
-            "tanggal": "2026-08-05",
-            "tanggal_label": "05\/08\/2026",
+            "tanggal": "2026-10-04",
+            "tanggal_label": "04\/10\/2026",
             "total_transaksi": 0,
             "total_nominal": 0,
             "per_koperasi": [],
             "rincian_koperasi": "Tidak ada transaksi."
         },
-        "laporan_tanggal": "2026-08-05",
+        "laporan_tanggal": "2026-10-04",
         "enabled": false,
         "jam": "20:00",
         "last_date": "",
@@ -88,6 +119,86 @@
         "send_time_ok": false,
         "targets_count": 0
     },
-    "recent_dispatch": [],
-    "recent_cashless_logs": []
+    "recent_dispatch": [
+        {
+            "dedup_key": "cashless_trx:dbaded70-ba6e-4f8f-a28d-24eb8ead93a7",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 15:56:28"
+        },
+        {
+            "dedup_key": "cashless_trx:9751a4e1-825d-45c9-a5e1-7524965a90ed",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 15:02:10"
+        },
+        {
+            "dedup_key": "cashless_trx:bbe9c61c-eec5-412d-a45e-c91b00ff2343",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 14:53:12"
+        },
+        {
+            "dedup_key": "cashless_trx:a0995fe3-ca49-4faa-b4e6-9f70dd828421",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 14:52:29"
+        }
+    ],
+    "recent_wa_duplicates": [],
+    "outbound": {
+        "enabled": true,
+        "table_exists": true,
+        "counts": [],
+        "per_kind_pending": [],
+        "oldest_pending": null,
+        "last_global_send": "",
+        "stats": {
+            "lifetime_sent": 0,
+            "lifetime_failed": 2,
+            "last_drain_at": "2026-10-05 09:32:32"
+        },
+        "global_budget_per_tick": 8,
+        "cooldown_sec": 120,
+        "sent_24h": 0,
+        "last_error_row": null,
+        "total_outgoing_pending": 0
+    },
+    "recommendations": [
+        "Cron belum jalan atau stale (>10 menit). Aktifkan crontab hosting curl ke cron\/wa_auto.php."
+    ],
+    "recent_cashless_logs": [
+        {
+            "dedup_key": "cashless_trx:dbaded70-ba6e-4f8f-a28d-24eb8ead93a7",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 15:56:28"
+        },
+        {
+            "dedup_key": "cashless_trx:9751a4e1-825d-45c9-a5e1-7524965a90ed",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 15:02:10"
+        },
+        {
+            "dedup_key": "cashless_trx:bbe9c61c-eec5-412d-a45e-c91b00ff2343",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 14:53:12"
+        },
+        {
+            "dedup_key": "cashless_trx:a0995fe3-ca49-4faa-b4e6-9f70dd828421",
+            "kind": "cashless",
+            "target_phone": "6285227620824",
+            "http_ok": 1,
+            "sent_at": "2026-08-19 14:52:29"
+        }
+    ]
 }

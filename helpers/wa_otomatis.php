@@ -1136,12 +1136,12 @@ function wa_otomatis_chunk_message(string $message, int $maxLen = 100): array
 }
 
 /**
- * Kirim dengan retry singkat pada gangguan jaringan / server.
+ * Kirim langsung ke provider (dedup, chunk, retry singkat). Dipakai worker outbound & dispatch_immediate.
  *
  * @param array<string, mixed> $opts endpoint, token, sender, max_retries, delay_ms
  * @return array{success:bool,http_code:int,error:string,response:string,target:string,attempts:int}
  */
-function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $opts = []): array
+function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, array $opts = []): array
 {
     $maxRetries = max(0, min(3, (int) ($opts['max_retries'] ?? 2)));
     $delayMs = max(100, min(2000, (int) ($opts['delay_ms'] ?? 400)));
@@ -1228,6 +1228,117 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
 }
 
 /**
+ * Kirim WA — global outbound queue (default) atau langsung jika dispatch_immediate / queue off.
+ *
+ * @param array<string, mixed> $opts dispatch_immediate, defer_dispatch, sync_drain_budget
+ * @return array{success:bool,http_code:int,error:string,response:string,target:string,attempts:int,queued?:bool,queue_id?:int}
+ */
+function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $opts = []): array
+{
+    require_once __DIR__ . '/wa_outbound_dispatch.php';
+
+    $targetNorm = wa_otomatis_normalize_target($targetRaw);
+    $immediate = !empty($opts['dispatch_immediate']) || !empty($opts['_from_outbound_worker']);
+    if ($immediate || !wa_outbound_queue_enabled($pdo)) {
+        return wa_otomatis_send_direct($pdo, $targetRaw, $message, $opts);
+    }
+
+    if (!empty($opts['defer_dispatch'])) {
+        $enq = wa_outbound_enqueue($pdo, $targetRaw, $message, $opts);
+        if (!empty($enq['skipped'])) {
+            $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
+
+            return [
+                'success' => $reason === 'duplicate',
+                'skipped' => true,
+                'skipped_reason' => $reason,
+                'http_code' => 0,
+                'error' => $reason === 'opt_out' ? 'opt_out' : '',
+                'response' => $reason,
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+        if (!($enq['ok'] ?? false)) {
+            return [
+                'success' => false,
+                'http_code' => 0,
+                'error' => (string) ($enq['error'] ?? 'enqueue_failed'),
+                'response' => '',
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+
+        return [
+            'success' => false,
+            'queued' => true,
+            'queue_id' => (int) ($enq['queue_id'] ?? 0),
+            'http_code' => 0,
+            'error' => '',
+            'response' => 'queued',
+            'target' => $targetNorm,
+            'attempts' => 0,
+        ];
+    }
+
+    $syncBudget = (int) ($opts['sync_drain_budget'] ?? 1);
+    if ($syncBudget > 0) {
+        $enq = wa_outbound_enqueue($pdo, $targetRaw, $message, $opts);
+        if (!empty($enq['skipped'])) {
+            $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
+
+            return [
+                'success' => $reason === 'duplicate',
+                'skipped' => true,
+                'skipped_reason' => $reason,
+                'http_code' => 0,
+                'error' => '',
+                'response' => $reason,
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+        if (!($enq['ok'] ?? false)) {
+            return [
+                'success' => false,
+                'http_code' => 0,
+                'error' => (string) ($enq['error'] ?? 'enqueue_failed'),
+                'response' => '',
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+        $preferId = (int) ($enq['queue_id'] ?? 0);
+        $drain = wa_outbound_drain($pdo, max(1, min($syncBudget, wa_outbound_global_budget_per_tick($pdo))));
+        foreach ($drain['details'] ?? [] as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+            if ($preferId > 0 && (int) ($detail['queue_id'] ?? 0) === $preferId) {
+                return $detail;
+            }
+        }
+        if (($drain['sent'] ?? 0) > 0 && isset($drain['details'][0]) && is_array($drain['details'][0])) {
+            return $drain['details'][0];
+        }
+
+        return [
+            'success' => false,
+            'queued' => true,
+            'queue_id' => $preferId,
+            'http_code' => 0,
+            'error' => (string) ($drain['last_error'] ?? ''),
+            'response' => 'queued_pending_drain',
+            'target' => $targetNorm,
+            'attempts' => 0,
+        ];
+    }
+
+    return wa_otomatis_send_direct($pdo, $targetRaw, $message, $opts);
+}
+
+/**
  * Kirim ke banyak target (personal atau grup).
  *
  * @param array<string, mixed> $opts delay_between_ms, max_retries
@@ -1286,6 +1397,11 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         ? (bool) $opts['dedup_key_per_target']
         : ($dedupKeyBase !== '' && !$dedupOnce);
     $claimedBulk = false;
+    require_once __DIR__ . '/wa_outbound_dispatch.php';
+    $useOutboundQueue = wa_outbound_queue_enabled($pdo)
+        && empty($opts['dispatch_immediate'])
+        && empty($opts['_from_outbound_worker'])
+        && empty($opts['defer_dispatch']);
 
     if ($dedupKeyBase !== '' && $dedupOnce && wa_dispatch_strict_enabled($pdo) && empty($opts['skip_dedup'])) {
         if (!wa_dispatch_claim($pdo, $dedupKeyBase, $kind, 'bulk', $message)) {
@@ -1305,8 +1421,9 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         $claimedBulk = true;
     }
 
+    $queuedIds = [];
     foreach ($targets as $idx => $target) {
-        if ($idx > 0 && $delayMs > 0) {
+        if (!$useOutboundQueue && $idx > 0 && $delayMs > 0) {
             if ($kind === 'tagihan') {
                 usleep(wa_otomatis_delay_sleep_us(wa_fonte_safe_tagihan_delay($pdo), 12));
             } else {
@@ -1314,6 +1431,10 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
             }
         }
         $targetOpts = $opts;
+        if ($useOutboundQueue) {
+            $targetOpts['defer_dispatch'] = true;
+            $targetOpts['sync_drain_budget'] = 0;
+        }
         if ($dedupKeyBase !== '' && !$dedupOnce) {
             if ($dedupPerTarget) {
                 $targetOpts['dedup_key'] = $dedupKeyBase . ':t:' . wa_otomatis_normalize_target($target);
@@ -1329,10 +1450,41 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
             $skipped++;
         } elseif ($result['success'] ?? false) {
             $sent++;
+        } elseif (!empty($result['queued'])) {
+            $qid = (int) ($result['queue_id'] ?? 0);
+            if ($qid > 0) {
+                $queuedIds[$qid] = true;
+            }
         } else {
             $failed++;
         }
         $details[] = $result;
+    }
+
+    if ($useOutboundQueue && $queuedIds !== []) {
+        $drainBudget = min(
+            count($queuedIds),
+            wa_fonte_bulk_limit($pdo),
+            wa_outbound_global_budget_per_tick($pdo)
+        );
+        $drain = wa_outbound_drain($pdo, max(1, $drainBudget));
+        foreach ($drain['details'] ?? [] as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+            $qid = (int) ($detail['queue_id'] ?? 0);
+            if ($qid <= 0 || !isset($queuedIds[$qid])) {
+                continue;
+            }
+            unset($queuedIds[$qid]);
+            if (!empty($detail['skipped'])) {
+                $skipped++;
+            } elseif ($detail['success'] ?? false) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
     }
 
     if ($claimedBulk) {
@@ -1988,6 +2140,10 @@ function wa_auto_run_tick(PDO $pdo): array
                 }
                 trigger_wa_yayasan_tugas_belum_progres($pdo);
                 wa_auto_run_scheduled_wa($pdo);
+                if (!function_exists('wa_outbound_drain')) {
+                    require_once __DIR__ . '/wa_outbound_dispatch.php';
+                }
+                wa_outbound_drain($pdo, wa_outbound_global_budget_per_tick($pdo));
             }
 
             $heavyInterval = max(300, (int) app_setting($pdo, 'wa_auto_heavy_interval_sec', '300'));

@@ -40,6 +40,47 @@ declare(strict_types=1);
     </div>
 </div>
 
+<?php
+$obSnap = is_array($waOutboundSnapshot ?? null) ? $waOutboundSnapshot : [];
+$obCounts = is_array($obSnap['counts'] ?? null) ? $obSnap['counts'] : [];
+$obPending = (int) ($waOutboundTotalPending ?? 0);
+$obSent24 = (int) ($obSnap['sent_24h'] ?? 0);
+$obLastSend = trim((string) ($obSnap['last_global_send'] ?? ''));
+$obBudget = (int) ($obSnap['global_budget_per_tick'] ?? 0);
+$obCooldown = (int) ($obSnap['cooldown_sec'] ?? 0);
+$obQueueOn = !empty($obSnap['enabled']);
+?>
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <h2 class="h6 mb-2"><i class="fa-solid fa-layer-group me-1"></i> Antrian pengiriman global</h2>
+        <p class="small text-muted mb-2">Informasi antrian backend (bukan pengaturan). Pengendali volume/dedup tetap otomatis.</p>
+        <?php if (empty($obSnap['table_exists'])): ?>
+            <p class="text-muted small mb-0">Tabel <code>wa_outbound_queue</code> belum tersedia.</p>
+        <?php else: ?>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <span class="badge bg-secondary">Antrian: <?= $obQueueOn ? 'aktif' : 'nonaktif' ?></span>
+                <span class="badge bg-light text-dark border">Pending: <?= (int) ($obCounts['pending'] ?? 0) ?></span>
+                <span class="badge bg-light text-dark border">Sending: <?= (int) ($obCounts['sending'] ?? 0) ?></span>
+                <span class="badge bg-light text-dark border">Retry: <?= (int) ($obCounts['retry_wait'] ?? 0) ?></span>
+                <span class="badge bg-light text-dark border">Dead: <?= (int) ($obCounts['dead'] ?? 0) ?></span>
+                <span class="badge bg-light text-dark border">Terkirim 24j: <?= $obSent24 ?></span>
+            </div>
+            <ul class="small mb-2 ps-3">
+                <li>Antrian aktif (pending + retry + sending): <strong><?= $obPending ?></strong></li>
+                <li>Kirim global terakhir: <strong><?= $obLastSend !== '' ? htmlspecialchars($obLastSend) : '—' ?></strong></li>
+                <li>Budget per tick (read-only): <strong><?= $obBudget ?></strong> · Cooldown target: <strong><?= $obCooldown ?></strong> detik</li>
+            </ul>
+            <?php if ($obPending > 50): ?>
+                <div class="alert alert-info py-2 small mb-2">Antrian cukup panjang. Periksa tab <a href="?tab=log">Riwayat</a> dan pastikan cron WA aktif.</div>
+            <?php endif; ?>
+            <p class="small mb-0">
+                <a href="?tab=log">Detail antrian di Riwayat</a>
+                · <a href="<?= htmlspecialchars(app_href('/settings/wa_opt_out.php')) ?>">Kelola opt-out penerima</a>
+            </p>
+        <?php endif; ?>
+    </div>
+</div>
+
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2"><i class="fa-solid fa-clock me-1"></i> Cron otomatis</h2>

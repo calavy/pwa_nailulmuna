@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../helpers/alpa_tier.php';
 require_once __DIR__ . '/../../helpers/poin_wa.php';
 require_once __DIR__ . '/../../helpers/kalender_pengaturan.php';
 require_once __DIR__ . '/../../helpers/push_fcm.php';
+require_once __DIR__ . '/../../helpers/wa_outbound_dispatch.php';
 
 ensure_alpa_tier_tables($pdo);
 ensure_poin_tier_tables($pdo);
@@ -97,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'meta_template_lang' => trim((string) ($_POST['wa_meta_template_lang'] ?? app_setting($pdo, 'wa_meta_template_lang', 'id'))),
             'meta_template_name' => trim((string) ($_POST['wa_meta_template_name'] ?? app_setting($pdo, 'wa_meta_template_name', ''))),
             'skip_dedup' => true,
+            'dispatch_immediate' => true,
         ];
         $waTestResult = send_wa_message_with_result($pdo, $testTarget, $testMessage, $override);
         $waActiveTab = 'gateway';
@@ -615,6 +617,15 @@ $waPresensiGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_presensi_grup_
 $waPresensiGrupFonte = trim((string) app_setting($pdo, 'wa_presensi_grup_fonte', ''));
 $waPresensiGrupAktifOtomatis = $waPresensiGrupFonte !== '' && $waPresensiGrupFonteEnabled;
 $waPresensiKirimPembimbingEnabled = trim((string) app_setting($pdo, 'wa_presensi_kirim_pembimbing_enabled', '1')) === '1';
+
+// Antrian outbound global (read-only UI)
+wa_outbound_ensure_schema($pdo);
+$waOutboundSnapshot = wa_outbound_queue_snapshot($pdo);
+$waOutboundCounts = is_array($waOutboundSnapshot['counts'] ?? null) ? $waOutboundSnapshot['counts'] : [];
+$waOutboundTotalPending = (int) ($waOutboundCounts['pending'] ?? 0)
+    + (int) ($waOutboundCounts['retry_wait'] ?? 0)
+    + (int) ($waOutboundCounts['sending'] ?? 0);
+$waOutboundQueueRecent = wa_outbound_queue_recent_rows($pdo, 20);
 
 // Log terbaru
 $waLogRecent = [];

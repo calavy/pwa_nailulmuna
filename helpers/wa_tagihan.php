@@ -535,21 +535,42 @@ function wa_tagihan_jalankan_kirim(PDO $pdo, bool $paksaTanpaJadwal = false, ?in
             $processedAllRows = false;
             break;
         }
-        if ($sendAttempts > 0) {
-            usleep(wa_otomatis_delay_sleep_us($tagihanDelay, 12));
-        }
         $sendAttempts++;
         $result = send_wa_message_with_result($pdo, $phone, $message, [
             'kind' => 'tagihan',
             'fonnte_delay' => $tagihanDelay,
             'dedup_key' => 'tagihan:' . $sendKey . ':santri:' . $santriId,
+            'defer_dispatch' => true,
+            'sync_drain_budget' => 0,
         ]);
-        if ($result['success'] ?? false) {
+        if (!empty($result['skipped'])) {
+            $skipped++;
+        } elseif ($result['success'] ?? false) {
             $sent++;
             $sentIds[] = $santriId;
             $sentIdMap[$santriId] = true;
+        } elseif (!empty($result['queued'])) {
+            // Hasil kirim dihitung setelah wa_outbound_drain (wave).
         } else {
             $failed++;
+        }
+    }
+
+    if (!function_exists('wa_outbound_drain')) {
+        require_once __DIR__ . '/wa_outbound_dispatch.php';
+    }
+    if (function_exists('wa_outbound_queue_enabled') && wa_outbound_queue_enabled($pdo) && $sendAttempts > 0) {
+        $drainBudget = min($waveLimit, wa_outbound_global_budget_per_tick($pdo), wa_fonte_bulk_limit($pdo));
+        $drain = wa_outbound_drain($pdo, max(1, $drainBudget));
+        $mapped = wa_outbound_tagihan_apply_drain_details($drain['details'] ?? [], $sendKey);
+        $sent += (int) ($mapped['sent'] ?? 0);
+        $failed += (int) ($mapped['failed'] ?? 0);
+        foreach ($mapped['santri_sent'] ?? [] as $sidOk) {
+            $sidOk = (int) $sidOk;
+            if ($sidOk > 0 && !isset($sentIdMap[$sidOk])) {
+                $sentIds[] = $sidOk;
+                $sentIdMap[$sidOk] = true;
+            }
         }
     }
 

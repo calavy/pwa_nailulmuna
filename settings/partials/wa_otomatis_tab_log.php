@@ -4,8 +4,54 @@ declare(strict_types=1);
 
 /** @var list<array<string, mixed>> $waLogRecent */
 /** @var list<array<string, mixed>> $waDispatchRecent */
+/** @var list<array<string, mixed>> $waOutboundQueueRecent */
 
 ?>
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <h2 class="h6 mb-1">Antrian outbound (read-only)</h2>
+                <p class="small text-muted mb-0">Pesan menunggu dispatcher global — prioritas, cooldown, retry.</p>
+            </div>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/settings/wa_opt_out.php')) ?>">Kelola opt-out penerima</a>
+        </div>
+        <?php if (($waOutboundQueueRecent ?? []) === []): ?>
+            <p class="text-muted small mb-0">Tidak ada baris pending/retry/sending/dead atau tabel belum tersedia.</p>
+        <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle mb-0">
+                    <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Prioritas</th>
+                        <th>Kategori</th>
+                        <th>Target</th>
+                        <th>Status</th>
+                        <th>Attempt</th>
+                        <th>Retry berikut</th>
+                        <th>Error</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($waOutboundQueueRecent as $qrow): ?>
+                        <tr>
+                            <td class="small"><?= (int) ($qrow['id'] ?? 0) ?></td>
+                            <td class="small"><?= (int) ($qrow['priority'] ?? 0) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) ($qrow['kind'] ?? '')) ?></td>
+                            <td class="font-monospace small"><?= htmlspecialchars(function_exists('wa_outbound_mask_phone') ? wa_outbound_mask_phone((string) ($qrow['target_phone'] ?? '')) : (string) ($qrow['target_phone'] ?? '')) ?></td>
+                            <td class="small"><?= htmlspecialchars((string) ($qrow['status'] ?? '')) ?></td>
+                            <td class="small"><?= (int) ($qrow['attempt_count'] ?? 0) ?></td>
+                            <td class="text-nowrap small"><?= htmlspecialchars((string) ($qrow['next_retry_at'] ?? '—')) ?></td>
+                            <td class="small text-truncate" style="max-width:12rem" title="<?= htmlspecialchars((string) ($qrow['last_error'] ?? '')) ?>"><?= htmlspecialchars((string) ($qrow['last_error'] ?? '')) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
 <div class="card shadow-sm border-0 mb-3">
     <div class="card-body">
         <h2 class="h6 mb-2">Ledger idempotensi (anti-duplikat)</h2>

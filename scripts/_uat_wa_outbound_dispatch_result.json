@@ -1,0 +1,104 @@
+{
+    "pass": 16,
+    "fail": 0,
+    "results": [
+        {
+            "name": "schema_queue",
+            "ok": true,
+            "detail": "wa_outbound_queue"
+        },
+        {
+            "name": "schema_opt_out",
+            "ok": true,
+            "detail": "wa_opt_out"
+        },
+        {
+            "name": "priority_izin_pengasuh",
+            "ok": true,
+            "detail": "got 10"
+        },
+        {
+            "name": "priority_tagihan",
+            "ok": true,
+            "detail": "got 30"
+        },
+        {
+            "name": "priority_poin",
+            "ok": true,
+            "detail": "got 50"
+        },
+        {
+            "name": "classify_invalid",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "classify_retry",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "backoff_1",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "backoff_2",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "backoff_3",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "enqueue_ok",
+            "ok": true,
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":2}"
+        },
+        {
+            "name": "enqueue_duplicate_queue",
+            "ok": true,
+            "detail": "{\"ok\":true,\"queued\":true,\"queue_id\":2,\"skipped_reason\":\"duplicate_queue\"}"
+        },
+        {
+            "name": "opt_out_block",
+            "ok": true,
+            "detail": ""
+        },
+        {
+            "name": "drain_runs",
+            "ok": true,
+            "detail": "{\"sent\":0,\"failed\":1,\"deferred\":0,\"skipped\":0,\"details\":[{\"success\":false,\"http_code\":200,\"error\":\"invalid token\",\"response\":\"invalid token\",\"target\":\"6281234567890\",\"attempts\":3,\"queue_id\":2,\"kind\":\"general\",\"dedup_key\":\"uat:outbound:20261005093224:7540\"}],\"last_error\":\"invalid token\",\"budget_used\":1}"
+        },
+        {
+            "name": "dispatch_immediate_path",
+            "ok": true,
+            "detail": "invalid token"
+        },
+        {
+            "name": "snapshot",
+            "ok": true,
+            "detail": ""
+        }
+    ],
+    "snapshot": {
+        "enabled": true,
+        "table_exists": true,
+        "counts": [],
+        "per_kind_pending": [],
+        "oldest_pending": null,
+        "last_global_send": "",
+        "stats": {
+            "lifetime_sent": 0,
+            "lifetime_failed": 2,
+            "last_drain_at": "2026-10-05 09:32:32"
+        },
+        "global_budget_per_tick": 8,
+        "cooldown_sec": 120,
+        "sent_24h": 0,
+        "last_error_row": null
+    },
+    "gateway_error": null
+}

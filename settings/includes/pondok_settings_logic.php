@@ -84,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'sender' => trim((string) ($_POST['wa_sender'] ?? app_setting($pdo, 'wa_sender', ''))),
             'skip_dedup' => true,
         ];
+        $override['dispatch_immediate'] = true;
         $waTestResult = send_wa_message_with_result($pdo, $testTarget, $testMessage, $override);
     }
 
