@@ -21,11 +21,14 @@ declare(strict_types=1);
  * @var list<string> $tingkatanList
  * @var list<array<string,mixed>> $pembimbingList
  * @var string $tampilanGrup
+ * @var string $viewKat taalim|jamaah
  */
 $isJadwalUtama = !in_array($activeTab, ['jamaah', 'jamaah_munawib'], true);
+$viewKat = in_array(($viewKat ?? 'taalim'), ['taalim', 'jamaah'], true) ? ($viewKat ?? 'taalim') : 'taalim';
+$isJadwalUtamaTab = in_array($activeTab, ['minggu', 'daftar', 'tabel'], true);
 $filterPembimbingId = (int) ($filterPembimbingId ?? 0);
 $pembimbingList = $pembimbingList ?? [];
-$filterActive = $filterKat !== '' || $filterKegiatanId > 0
+$filterActive = (!$isJadwalUtamaTab && $filterKat !== '') || $filterKegiatanId > 0
     || ($filterTingkatan !== '' && $filterTingkatan !== 'Semua Tingkatan')
     || ($filterHari >= 1 && $filterHari <= 7)
     || ($filterPembimbingId > 0 && !($jadwalPembimbingScope ?? false));
@@ -134,6 +137,9 @@ if ($filterPembimbingId > 0) {
                     <form method="get" class="jadwal-filter-form">
                         <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
                         <?php if (($jadwalDensity ?? 'comfort') === 'full'): ?><input type="hidden" name="density" value="full"><?php endif; ?>
+                        <?php if ($isJadwalUtamaTab): ?>
+                            <input type="hidden" name="view_kat" value="<?= htmlspecialchars($viewKat) ?>">
+                        <?php else: ?>
                         <div class="mb-2">
                             <label class="form-label small mb-0">Kategori</label>
                             <select name="filter_kat" class="form-select form-select-sm">
@@ -143,6 +149,7 @@ if ($filterPembimbingId > 0) {
                                 <option value="EXTRA" <?= $filterKat === 'EXTRA' ? 'selected' : '' ?>>Extra</option>
                             </select>
                         </div>
+                        <?php endif; ?>
                         <div class="mb-2">
                             <label class="form-label small mb-0">Kegiatan</label>
                             <select name="kegiatan_id" class="form-select form-select-sm">
@@ -228,10 +235,26 @@ if ($filterPembimbingId > 0) {
         </div>
     </div>
 
+    <?php if ($isJadwalUtama && $isJadwalUtamaTab): ?>
+    <div class="jadwal-toolbar__sub jadwal-toolbar__sub--kat mt-2">
+        <span class="small text-muted jadwal-toolbar__sub-label">Tampilan</span>
+        <div class="jadwal-kat-segment" role="group" aria-label="Kategori jadwal">
+            <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, ['view_kat' => 'taalim']))) ?>"
+               class="jadwal-kat-segment__btn jadwal-kat-segment__btn--taalim<?= $viewKat === 'taalim' ? ' is-active' : '' ?>">
+                <i class="fa-solid fa-book-open me-1" aria-hidden="true"></i>Ta'lim
+            </a>
+            <a href="<?= htmlspecialchars(app_href('/jadwal/index.php' . $jadwalTabQs($activeTab, ['view_kat' => 'jamaah']))) ?>"
+               class="jadwal-kat-segment__btn jadwal-kat-segment__btn--jamaah<?= $viewKat === 'jamaah' ? ' is-active' : '' ?>">
+                <i class="fa-solid fa-mosque me-1" aria-hidden="true"></i>Jama'ah
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ($isJadwalUtama && $filterActive): ?>
     <div class="jadwal-toolbar__chips d-flex flex-wrap align-items-center gap-1 mt-2 pt-2 border-top">
         <span class="small text-muted me-1">Filter aktif:</span>
-        <?php if ($filterKatLabel !== ''): ?>
+        <?php if ($filterKatLabel !== '' && !$isJadwalUtamaTab): ?>
             <span class="badge rounded-pill text-bg-primary"><?= htmlspecialchars($filterKatLabel) ?></span>
         <?php endif; ?>
         <?php if ($filterKegiatanNama !== ''): ?>
@@ -250,9 +273,9 @@ if ($filterPembimbingId > 0) {
     </div>
     <?php endif; ?>
 
-    <?php if ($isJadwalUtama && $activeTab === 'daftar'): ?>
-    <div class="jadwal-toolbar__sub d-flex flex-wrap align-items-center gap-1 mt-2">
-        <span class="small text-muted me-1">Kelompok:</span>
+    <?php if ($isJadwalUtama && $activeTab === 'daftar' && $viewKat === 'taalim'): ?>
+    <div class="jadwal-toolbar__sub jadwal-toolbar__sub--grup d-flex flex-wrap align-items-center gap-1 mt-2">
+        <span class="small text-muted jadwal-toolbar__sub-label">Kelompok</span>
         <?php
         $grupQs = static function (string $g) use ($jadwalTabQs, $activeTab): string {
             return $jadwalTabQs($activeTab, ['grup' => $g]);

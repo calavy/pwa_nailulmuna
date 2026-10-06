@@ -169,6 +169,13 @@ $tingkatanList = table_exists($pdo, 'tingkatan')
     ? $pdo->query('SELECT nama_tingkatan FROM tingkatan ORDER BY nama_tingkatan ASC')->fetchAll(PDO::FETCH_COLUMN)
     : [];
 array_unshift($tingkatanList, 'Semua Tingkatan');
+$tingkatanSortIndex = [];
+foreach ($tingkatanList as $idx => $namaTg) {
+    if ($namaTg === 'Semua Tingkatan') {
+        continue;
+    }
+    $tingkatanSortIndex[(string) $namaTg] = (int) $idx;
+}
 $kegiatanRows = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan, COALESCE(is_active, 1) AS is_active FROM kegiatan ORDER BY nama_kegiatan ASC')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $kegiatanListAktif = $pdo->query('SELECT id, nama_kegiatan, COALESCE(kategori_kegiatan, "TAALIM") AS kategori_kegiatan FROM kegiatan WHERE COALESCE(is_active, 1) = 1 ORDER BY nama_kegiatan ASC')->fetchAll();
 $pembimbingList = (!$jadwalPembimbingScope && table_exists($pdo, 'pembimbing'))
@@ -204,12 +211,27 @@ foreach ($jadwalList as &$jadwalRow) {
 }
 unset($jadwalRow);
 
+$activeTab = strtolower(trim((string) ($_GET['tab'] ?? 'minggu')));
+if ($activeTab === 'jamaah_pembimbing') {
+    $activeTab = 'jamaah_munawib';
+}
+if (!in_array($activeTab, ['minggu', 'daftar', 'tabel', 'jamaah', 'jamaah_munawib'], true)) {
+    $activeTab = 'minggu';
+}
+$isJadwalUtamaTab = in_array($activeTab, ['minggu', 'daftar', 'tabel'], true);
+$viewKatRaw = strtolower(trim((string) ($_GET['view_kat'] ?? '')));
+$viewKat = in_array($viewKatRaw, ['taalim', 'jamaah'], true) ? $viewKatRaw : 'taalim';
+
 $filterTingkatan = trim((string) ($_GET['filter_tingkatan'] ?? ''));
 $filterHari = (int) ($_GET['filter_hari'] ?? 0);
 $filterPembimbingId = (int) ($_GET['filter_pembimbing_id'] ?? 0);
-$filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
-if (!in_array($filterKat, kegiatan_kategori_list(), true)) {
-    $filterKat = '';
+if ($isJadwalUtamaTab) {
+    $filterKat = $viewKat === 'jamaah' ? 'JAMAAH' : 'TAALIM';
+} else {
+    $filterKat = strtoupper(trim((string) ($_GET['filter_kat'] ?? '')));
+    if (!in_array($filterKat, kegiatan_kategori_list(), true)) {
+        $filterKat = '';
+    }
 }
 $filterKegiatanId = (int) ($_GET['kegiatan_id'] ?? 0);
 if ($filterKat !== '') {
@@ -243,13 +265,6 @@ $tingkatanTerjadwal = count(array_unique(array_map(static fn (array $r): string 
 
 $hari = [0 => 'Setiap Hari', 1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
 
-$activeTab = strtolower(trim((string) ($_GET['tab'] ?? 'minggu')));
-if ($activeTab === 'jamaah_pembimbing') {
-    $activeTab = 'jamaah_munawib';
-}
-if (!in_array($activeTab, ['minggu', 'daftar', 'tabel', 'jamaah', 'jamaah_munawib'], true)) {
-    $activeTab = 'minggu';
-}
 $jamaahEditorRows = jadwal_jamaah_daftar_editor($pdo);
 $jamaahMunawibMap = jadwal_jamaah_munawib_map($pdo);
 $munawibList = (!$jadwalPembimbingScope && table_exists($pdo, 'munawib'))
@@ -257,19 +272,28 @@ $munawibList = (!$jadwalPembimbingScope && table_exists($pdo, 'munawib'))
     : [];
 
 $tampilanGrup = jadwal_tampilan_grup($pdo);
+$tampilanGrupDaftar = $tampilanGrup;
+if ($activeTab === 'daftar' && $viewKat === 'taalim' && !isset($_GET['grup']) && $tampilanGrupDaftar === 'kegiatan') {
+    $tampilanGrupDaftar = 'tingkatan';
+}
 $jadwalGrouped = [];
 if ($activeTab === 'daftar') {
-    if ($tampilanGrup === 'pembimbing') {
+    if ($viewKat === 'jamaah') {
+        $tampilanGrupDaftar = 'kegiatan';
+        $jadwalGrouped = jadwal_kelompokkan_per_kegiatan($jadwalList);
+        jadwal_urutkan_grup_hari_jam($jadwalGrouped);
+        ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
+    } elseif ($tampilanGrupDaftar === 'pembimbing') {
         $jadwalGrouped = jadwal_kelompokkan_per_pembimbing($jadwalList);
         jadwal_urutkan_grup_hari_jam($jadwalGrouped);
         ksort($jadwalGrouped, SORT_NATURAL | SORT_FLAG_CASE);
-    } elseif ($tampilanGrup === 'tingkatan') {
+    } elseif ($tampilanGrupDaftar === 'tingkatan') {
         $jadwalGrouped = jadwal_kelompokkan_per_tingkatan($jadwalList);
         jadwal_urutkan_grup_hari($jadwalGrouped);
-        $tingkatanSortIndex = array_flip(array_values($tingkatanList));
-        uksort($jadwalGrouped, static function (string $a, string $b) use ($tingkatanSortIndex): int {
-            $ia = $tingkatanSortIndex[$a] ?? PHP_INT_MAX;
-            $ib = $tingkatanSortIndex[$b] ?? PHP_INT_MAX;
+        $tingkatanSortIndexDaftar = array_flip(array_values($tingkatanList));
+        uksort($jadwalGrouped, static function (string $a, string $b) use ($tingkatanSortIndexDaftar): int {
+            $ia = $tingkatanSortIndexDaftar[$a] ?? PHP_INT_MAX;
+            $ib = $tingkatanSortIndexDaftar[$b] ?? PHP_INT_MAX;
             if ($ia !== $ib) {
                 return $ia <=> $ib;
             }
@@ -294,7 +318,8 @@ if ($jadwalDensityRaw === 'full') {
 }
 
 $pageTitle = 'Jadwal Kegiatan';
-$bodyClass = 'jadwal-page jadwal-page--focus jadwal-page--' . ($jadwalDensity === 'full' ? 'full' : 'comfort');
+$bodyClass = 'jadwal-page jadwal-page--focus jadwal-page--' . ($jadwalDensity === 'full' ? 'full' : 'comfort')
+    . ' jadwal-page--kat-' . ($isJadwalUtamaTab ? $viewKat : 'all');
 $pageScripts = [app_asset_href('/assets/js/jadwal-ui.js')];
 $showJadwalAksi = !$jadwalPembimbingScope;
 $kegiatanListEdit = array_map(
@@ -305,7 +330,7 @@ $kegiatanListEdit = array_map(
     ],
     $kegiatanRows
 );
-$jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDensity, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId, $filterPembimbingId, $jadwalPembimbingScope): string {
+$jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDensity, $filterTingkatan, $filterHari, $filterKat, $filterKegiatanId, $filterPembimbingId, $jadwalPembimbingScope, $viewKat): string {
     $extraCopy = $extra;
     $hariOverride = null;
     if (array_key_exists('filter_hari', $extraCopy)) {
@@ -317,11 +342,19 @@ $jadwalTabQs = static function (string $tab, array $extra = []) use ($jadwalDens
         $densityOverride = strtolower(trim((string) $extraCopy['density']));
         unset($extraCopy['density']);
     }
+    $viewKatOverride = null;
+    if (array_key_exists('view_kat', $extraCopy)) {
+        $viewKatOverride = strtolower(trim((string) $extraCopy['view_kat']));
+        unset($extraCopy['view_kat']);
+    }
     $q = array_merge(['tab' => $tab], $extraCopy);
     if ($densityOverride === 'full' || ($densityOverride === null && $jadwalDensity === 'full')) {
         $q['density'] = 'full';
     }
-    if ($filterKat !== '') {
+    if (in_array($tab, ['minggu', 'daftar', 'tabel'], true)) {
+        $vk = in_array($viewKatOverride, ['taalim', 'jamaah'], true) ? $viewKatOverride : $viewKat;
+        $q['view_kat'] = $vk;
+    } elseif ($filterKat !== '') {
         $q['filter_kat'] = $filterKat;
     }
     if ($filterKegiatanId > 0) {
@@ -394,10 +427,18 @@ $ok = get_flash('success');
             </div>
             <?php endif; ?>
             <p class="text-muted small mb-3 d-none d-lg-block">
-                Dikelompokkan per <?= $tampilanGrup === 'pembimbing' ? 'pembimbing' : ($tampilanGrup === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
-                Satu baris = satu slot waktu (hari & tingkatan digabung).
+                Satu baris = satu slot waktu (hari &amp; tingkatan digabung).
+                <?php if ($viewKat === 'jamaah'): ?>
+                    Dikelompokkan per kegiatan.
+                <?php else: ?>
+                    Dikelompokkan per <?= $tampilanGrupDaftar === 'pembimbing' ? 'pembimbing' : ($tampilanGrupDaftar === 'tingkatan' ? 'tingkatan' : 'kegiatan') ?>.
+                <?php endif; ?>
             </p>
-            <?php require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php'; ?>
+            <?php
+            $tampilanGrup = $tampilanGrupDaftar;
+            require __DIR__ . '/../includes/partials/jadwal_daftar_grup.php';
+            $tampilanGrup = jadwal_tampilan_grup($pdo);
+            ?>
         <?php else: ?>
             <?php require __DIR__ . '/../includes/partials/jadwal_matrix_kegiatan.php'; ?>
         <?php endif; ?>

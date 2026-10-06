@@ -11,6 +11,7 @@ declare(strict_types=1);
  * @var bool $compact
  * @var bool $mobileLayout
  * @var bool $practicalCompact
+ * @var bool $jamaahGroupLine baris detail di dalam fold jama'ah (tingkatan + waktu)
  */
 $slot = $slot ?? [];
 $hari = $hari ?? [];
@@ -18,6 +19,7 @@ $showActions = $showActions ?? true;
 $compact = $compact ?? false;
 $mobileLayout = $mobileLayout ?? false;
 $practicalCompact = $practicalCompact ?? false;
+$jamaahGroupLine = $jamaahGroupLine ?? false;
 
 $editId = (int) ($slot['id'] ?? 0);
 $namaKg = trim((string) ($slot['nama_kegiatan'] ?? '—'));
@@ -48,6 +50,7 @@ $cardClasses = 'jadwal-slot-card'
     . ($compact ? ' jadwal-slot-card--compact' : '')
     . ($practicalCompact ? ' jadwal-slot-card--practical' : '')
     . ($mobileLayout ? ' jadwal-slot-card--mobile' : '')
+    . ($jamaahGroupLine ? ' jadwal-slot-card--jamaah-line' : '')
     . (strtolower($kat) === 'jamaah' ? ' jadwal-slot-card--jamaah' : '')
     . ($showActions && $editId > 0 ? ' jadwal-slot-card--clickable' : '');
 ?>
@@ -71,7 +74,20 @@ $cardClasses = 'jadwal-slot-card'
     data-edit-url="<?= htmlspecialchars(app_href('/jadwal/edit.php?id=' . $editId)) ?>"
     data-tingkatan-label="<?= htmlspecialchars($tkRingkas['title'] !== '' ? $tkRingkas['title'] : implode(', ', $tkRingkas['visible'])) ?>"
     <?php endif; ?>>
-    <?php if ($mobileLayout): ?>
+    <?php if ($jamaahGroupLine && !$mobileLayout): ?>
+        <div class="jadwal-slot-card__jamaah-line">
+            <span class="jadwal-slot-card__jamaah-line-time font-monospace js-time-24"><?= htmlspecialchars($jamTampil) ?></span>
+            <?php if ($tingkatan !== ''): ?>
+                <span class="badge text-bg-light border text-dark jadwal-tingkatan-badge"><?= htmlspecialchars($tingkatan) ?></span>
+            <?php endif; ?>
+            <?php if ($pem !== '' && $pem !== '-'): ?>
+                <span class="jadwal-slot-card__jamaah-line-meta small text-muted">
+                    <i class="fa-solid fa-user-check me-1" aria-hidden="true"></i><?= htmlspecialchars($pem) ?>
+                    <?php if ($pemHarian): ?><span class="badge text-bg-light border ms-1">munawib</span><?php endif; ?>
+                </span>
+            <?php endif; ?>
+        </div>
+    <?php elseif ($mobileLayout): ?>
         <div class="jadwal-slot-card__mobile-row">
             <span class="jadwal-slot-card__mobile-time font-monospace js-time-24"><?= htmlspecialchars($jamTampil) ?></span>
             <span class="jadwal-slot-card__mobile-name">

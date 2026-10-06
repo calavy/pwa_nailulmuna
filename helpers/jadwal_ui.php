@@ -1030,6 +1030,250 @@ function jadwal_kelompokkan_per_hari_tampilan(array $jadwalList): array
     return $out;
 }
 
+function jadwal_row_kategori_jamaah(array $row): bool
+{
+    return strtoupper(trim((string) ($row['kategori_kegiatan'] ?? 'TAALIM'))) === 'JAMAAH';
+}
+
+/**
+ * @param list<array<string,mixed>> $items
+ * @return array{taalim:list<array<string,mixed>>,jamaah:list<array<string,mixed>>}
+ */
+function jadwal_pisah_taalim_jamaah(array $items): array
+{
+    $taalim = [];
+    $jamaah = [];
+    foreach ($items as $row) {
+        if (jadwal_row_kategori_jamaah($row)) {
+            $jamaah[] = $row;
+        } else {
+            $taalim[] = $row;
+        }
+    }
+
+    return ['taalim' => $taalim, 'jamaah' => $jamaah];
+}
+
+/**
+ * @param list<array<string,mixed>> $items
+ * @param array<string,int> $tingkatanSortIndex
+ * @return array<string,list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_taalim_per_tingkatan_satu_hari(array $items, array $tingkatanSortIndex = []): array
+{
+    $out = [];
+    foreach ($items as $row) {
+        $tg = trim((string) ($row['tingkatan'] ?? ''));
+        if ($tg === '') {
+            $tg = '—';
+        }
+        if (!isset($out[$tg])) {
+            $out[$tg] = [];
+        }
+        $out[$tg][] = $row;
+    }
+    uksort($out, static function (string $a, string $b) use ($tingkatanSortIndex): int {
+        $ia = $tingkatanSortIndex[$a] ?? PHP_INT_MAX;
+        $ib = $tingkatanSortIndex[$b] ?? PHP_INT_MAX;
+        if ($ia !== $ib) {
+            return $ia <=> $ib;
+        }
+
+        return strcmp($a, $b);
+    });
+
+    return $out;
+}
+
+/**
+ * @param list<array<string,mixed>> $items
+ * @return array<string,list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_jamaah_per_kegiatan_satu_hari(array $items): array
+{
+    $out = [];
+    /** @var array<string,string> $labels */
+    $labels = [];
+    foreach ($items as $row) {
+        $kid = (int) ($row['kegiatan_id'] ?? 0);
+        $nama = trim((string) ($row['nama_kegiatan'] ?? ''));
+        if ($nama === '') {
+            $nama = '—';
+        }
+        $key = $kid > 0 ? ('k' . $kid) : ('n' . md5($nama));
+        if (!isset($out[$key])) {
+            $out[$key] = [];
+            $labels[$key] = $nama;
+        }
+        $out[$key][] = $row;
+    }
+    uksort($out, static function (string $a, string $b) use ($labels): int {
+        return strnatcasecmp($labels[$a] ?? '', $labels[$b] ?? '');
+    });
+
+    return $out;
+}
+
+/**
+ * @param array<string,mixed> $slot
+ * @return array<string,mixed>
+ */
+function jadwal_minggu_slot_munawib(array $slot, int $tampilanHk, PDO $pdo): array
+{
+    if (
+        jadwal_row_kategori_jamaah($slot)
+        && (int) ($slot['hari_ke'] ?? 0) === 0
+        && $tampilanHk >= 1
+        && $tampilanHk <= 7
+    ) {
+        if (!function_exists('jadwal_jamaah_munawib_nama_untuk_slot')) {
+            require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
+        }
+        $namaMw = jadwal_jamaah_munawib_nama_untuk_slot($pdo, (string) ($slot['tingkatan'] ?? ''), $tampilanHk);
+        if ($namaMw !== '') {
+            $slot['nama_pembimbing'] = $namaMw;
+            $slot['munawib_harian'] = true;
+        }
+    }
+
+    return $slot;
+}
+
+/**
+ * @param list<array<string,mixed>> $rawItems
+ */
+function jadwal_minggu_hitung_unit(array $rawItems): int
+{
+    $split = jadwal_pisah_taalim_jamaah($rawItems);
+    $taalimUnits = count(jadwal_gabung_baris_serupa($split['taalim']));
+    $jamaahUnits = count(jadwal_kelompokkan_jamaah_per_kegiatan_satu_hari($split['jamaah']));
+
+    return $taalimUnits + $jamaahUnits;
+}
+
+/**
+ * @param list<array<string,mixed>> $rawItems
+ */
+function jadwal_minggu_hitung_unit_view(array $rawItems, string $viewKat): int
+{
+    $viewKat = strtolower(trim($viewKat));
+    $split = jadwal_pisah_taalim_jamaah($rawItems);
+    if ($viewKat === 'jamaah') {
+        return count(jadwal_kelompokkan_jamaah_per_kegiatan_satu_hari($split['jamaah']));
+    }
+
+    return count(jadwal_gabung_baris_serupa($split['taalim']));
+}
+
+/**
+ * @param list<array<string,mixed>> $items
+ */
+/**
+ * @return array{kegiatan:bool,tingkatan:bool,hari:bool,pembimbing:bool,waktu:bool}
+ */
+function jadwal_daftar_kolom_layout(string $viewKat, string $tampilanGrup): array
+{
+    $viewKat = strtolower(trim($viewKat));
+    $tampilanGrup = strtolower(trim($tampilanGrup));
+    if ($viewKat === 'jamaah') {
+        return [
+            'kegiatan' => false,
+            'tingkatan' => true,
+            'hari' => true,
+            'pembimbing' => true,
+            'waktu' => true,
+        ];
+    }
+    if ($tampilanGrup === 'tingkatan') {
+        return [
+            'kegiatan' => true,
+            'tingkatan' => false,
+            'hari' => true,
+            'pembimbing' => true,
+            'waktu' => true,
+        ];
+    }
+    if ($tampilanGrup === 'pembimbing') {
+        return [
+            'kegiatan' => true,
+            'tingkatan' => true,
+            'hari' => true,
+            'pembimbing' => false,
+            'waktu' => true,
+        ];
+    }
+
+    return [
+        'kegiatan' => false,
+        'tingkatan' => true,
+        'hari' => true,
+        'pembimbing' => true,
+        'waktu' => true,
+    ];
+}
+
+/**
+ * @param array{kegiatan:bool,tingkatan:bool,hari:bool,pembimbing:bool,waktu:bool} $layout
+ */
+function jadwal_daftar_kolom_total(array $layout): int
+{
+    $n = 1;
+    foreach (['kegiatan', 'tingkatan', 'hari', 'pembimbing', 'waktu'] as $key) {
+        if (!empty($layout[$key])) {
+            $n++;
+        }
+    }
+
+    return $n + 1;
+}
+
+function jadwal_urutkan_baris_tampilan(array &$items): void
+{
+    usort($items, static function (array $a, array $b): int {
+        $ha = (int) ($a['hari_ke'] ?? 0);
+        $hb = (int) ($b['hari_ke'] ?? 0);
+        if ($ha !== $hb) {
+            if ($ha === 0) {
+                return -1;
+            }
+            if ($hb === 0) {
+                return 1;
+            }
+
+            return $ha <=> $hb;
+        }
+        $c = strcmp((string) ($a['jam_mulai'] ?? ''), (string) ($b['jam_mulai'] ?? ''));
+        if ($c !== 0) {
+            return $c;
+        }
+
+        return strcasecmp((string) ($a['nama_kegiatan'] ?? ''), (string) ($b['nama_kegiatan'] ?? ''));
+    });
+}
+
+/**
+ * @param list<array<string,mixed>> $jadwalList
+ * @param array<string,int> $tingkatanSortIndex
+ * @return array<string,list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_taalim_per_tingkatan(array $jadwalList, array $tingkatanSortIndex = []): array
+{
+    $split = jadwal_pisah_taalim_jamaah($jadwalList);
+
+    return jadwal_kelompokkan_taalim_per_tingkatan_satu_hari($split['taalim'], $tingkatanSortIndex);
+}
+
+/**
+ * @param list<array<string,mixed>> $jadwalList
+ * @return array<string,list<array<string,mixed>>>
+ */
+function jadwal_kelompokkan_jamaah_per_kegiatan(array $jadwalList): array
+{
+    $split = jadwal_pisah_taalim_jamaah($jadwalList);
+
+    return jadwal_kelompokkan_jamaah_per_kegiatan_satu_hari($split['jamaah']);
+}
+
 /**
  * Ringkas daftar tingkatan untuk kartu jadwal.
  *

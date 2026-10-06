@@ -276,6 +276,10 @@
                 return;
             }
 
+            if (e.target.closest('.jadwal-kat-grup__summary, .jadwal-jamaah-fold__summary, .jadwal-kat-grup summary, .jadwal-jamaah-fold summary')) {
+                return;
+            }
+
             var card = e.target.closest('.jadwal-slot-card--clickable');
             if (!card) {
                 return;

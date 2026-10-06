@@ -4314,6 +4314,361 @@ html {
     flex: 1;
 }
 
+.jadwal-minggu-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.jadwal-minggu-section .jadwal-kat-grup {
+    margin-bottom: 0;
+}
+
+.jadwal-minggu-section + .jadwal-minggu-section {
+    margin-top: 0.15rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed rgba(148, 163, 184, 0.45);
+}
+
+.jadwal-minggu-section__label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+}
+
+.jadwal-minggu-tingkatan-grup__head {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #0f766e;
+    margin-bottom: 0.2rem;
+    line-height: 1.2;
+}
+
+.jadwal-minggu-tingkatan-grup__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.25rem;
+}
+
+.jadwal-kat-grup,
+.jadwal-jamaah-fold {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.jadwal-kat-grup--taalim {
+    background: rgba(240, 253, 250, 0.55);
+    border-color: rgba(13, 148, 136, 0.28);
+}
+
+.jadwal-kat-grup--jamaah,
+.jadwal-jamaah-fold.jadwal-kat-grup--jamaah {
+    background: rgba(255, 251, 235, 0.55);
+    border-color: rgba(180, 83, 9, 0.22);
+}
+
+.jadwal-kat-grup__summary,
+.jadwal-jamaah-fold__summary {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.55rem;
+    min-height: 2.75rem;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.25;
+    user-select: none;
+}
+
+.jadwal-kat-grup__summary:hover,
+.jadwal-jamaah-fold__summary:hover {
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.jadwal-kat-grup__summary:focus-visible,
+.jadwal-jamaah-fold__summary:focus-visible {
+    outline: 2px solid rgba(13, 148, 136, 0.45);
+    outline-offset: -2px;
+}
+
+.jadwal-kat-grup__summary::-webkit-details-marker,
+.jadwal-jamaah-fold__summary::-webkit-details-marker {
+    display: none;
+}
+
+.jadwal-kat-grup__chev,
+.jadwal-jamaah-fold__chev {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    transform: rotate(-45deg);
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+    margin-right: 0.1rem;
+}
+
+.jadwal-kat-grup[open] .jadwal-kat-grup__chev,
+.jadwal-jamaah-fold[open] .jadwal-jamaah-fold__chev {
+    transform: rotate(45deg);
+    margin-top: -0.15rem;
+}
+
+.jadwal-kat-grup__name,
+.jadwal-jamaah-fold__name {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.jadwal-kat-grup__count,
+.jadwal-jamaah-fold__count {
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.jadwal-kat-grup__body,
+.jadwal-jamaah-fold__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0 0.35rem 0.35rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.jadwal-kat-grup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.jadwal-kat-grup__body--table,
+.jadwal-jamaah-fold__body--tabel {
+    padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.jadwal-kat-segment {
+    display: inline-flex;
+    width: 100%;
+    max-width: 22rem;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.jadwal-kat-segment__btn {
+    flex: 1 1 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #475569;
+    border: none;
+    background: transparent;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.jadwal-kat-segment__btn:hover {
+    background: rgba(248, 250, 252, 0.95);
+    color: #0f172a;
+}
+
+.jadwal-kat-segment__btn--taalim.is-active {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+}
+
+.jadwal-kat-segment__btn--jamaah.is-active {
+    background: rgba(180, 83, 9, 0.12);
+    color: #b45309;
+}
+
+.jadwal-toolbar__sub--kat {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.jadwal-toolbar__sub-label {
+    flex: 0 0 auto;
+}
+
+.jadwal-kat-grup-header {
+    padding: 0.35rem 0.5rem;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(248, 250, 252, 0.85);
+}
+
+.jadwal-grup-blok--taalim .jadwal-kat-grup-header {
+    border-color: rgba(13, 148, 136, 0.25);
+    background: rgba(240, 253, 250, 0.45);
+}
+
+.jadwal-grup-blok--jamaah .jadwal-kat-grup-header {
+    border-color: rgba(180, 83, 9, 0.2);
+    background: rgba(255, 251, 235, 0.45);
+}
+
+.jadwal-kat-grup-header__title {
+    font-weight: 600;
+    margin: 0 0.35rem;
+}
+
+.jadwal-kat-empty__ico {
+    width: 2.75rem;
+    height: 2.75rem;
+    margin-left: auto;
+    margin-right: auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+}
+
+.jadwal-kat-empty__ico--taalim {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+}
+
+.jadwal-kat-empty__ico--jamaah {
+    background: rgba(180, 83, 9, 0.12);
+    color: #b45309;
+}
+
+.jadwal-page--kat-jamaah .jadwal-minggu-col__more {
+    color: #b45309;
+}
+
+.jadwal-daftar-scroll {
+    max-height: min(70vh, 42rem);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.jadwal-daftar-table {
+    margin-bottom: 0;
+}
+
+.jadwal-daftar-thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8fafc;
+    box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+.jadwal-daftar-grup__head td {
+    padding: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    background: rgba(248, 250, 252, 0.95);
+}
+
+.jadwal-daftar-grup--taalim .jadwal-daftar-grup__head td {
+    background: rgba(240, 253, 250, 0.75);
+    border-top-color: rgba(13, 148, 136, 0.22);
+}
+
+.jadwal-daftar-grup--jamaah .jadwal-daftar-grup__head td {
+    background: rgba(255, 251, 235, 0.75);
+    border-top-color: rgba(180, 83, 9, 0.2);
+}
+
+.jadwal-daftar-grup__head-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    padding: 0.45rem 0.55rem;
+    min-height: 2.5rem;
+}
+
+.jadwal-daftar-grup__title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+
+.jadwal-daftar-grup .jadwal-daftar-row:nth-child(even) {
+    background: rgba(248, 250, 252, 0.55);
+}
+
+.jadwal-daftar-grup .jadwal-daftar-row:hover {
+    background: rgba(241, 245, 249, 0.9);
+}
+
+.jadwal-slot-card--jamaah-line {
+    padding: 0.3rem 0.4rem;
+    padding-right: 1.75rem;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.jadwal-slot-card--jamaah-line .jadwal-slot-card__jamaah-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.25;
+}
+
+.jadwal-slot-card--jamaah-line .jadwal-slot-card__jamaah-line-time {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.jadwal-slot-card--jamaah-line .jadwal-slot-card__jamaah-line-meta {
+    flex: 1 1 100%;
+    margin-left: 0;
+}
+
+.jadwal-slot-card--jamaah-line .jadwal-slot-card__actions {
+    top: 0.15rem;
+    right: 0.1rem;
+}
+
+.jadwal-slot-card--jamaah-line.jadwal-slot-card--practical .jadwal-slot-card__actions {
+    display: flex !important;
+}
+
+.jadwal-split-blok + .jadwal-split-blok {
+    padding-top: 0.25rem;
+}
+
+.jadwal-split-tabel-grup__head th {
+    background: rgba(240, 253, 250, 0.85);
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+    padding: 0.35rem 0.5rem;
+    font-weight: 600;
+}
+
+.jadwal-jamaah-fold--tabel {
+    border-radius: 10px;
+}
+
+.jadwal-jamaah-fold__body--tabel {
+    padding: 0.35rem 0.5rem 0.5rem;
+}
+
 .jadwal-minggu-col__empty {
     padding: 0.75rem 0.35rem;
     text-align: center;
