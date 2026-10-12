@@ -1,0 +1,109 @@
+# Deploy kode PHP ke hosting produksi via SFTP (allowlist). Database & uploads TIDAK disentuh.
+# Secrets: SFTP_HOST, SFTP_PORT, SFTP_USER, SFTP_PRIVATE_KEY, SFTP_KNOWN_HOSTS, SFTP_REMOTE_ROOT
+# Environment GitHub: production (disarankan required reviewers).
+
+name: Deploy Production (SFTP allowlist)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Ketik "deploy" untuk melanjutkan upload SFTP
+        required: true
+        type: string
+  push:
+    tags:
+      - 'release-*'
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  DEPLOY_FILES: |
+    helpers/keuangan_rekap_kas_bulan.php
+    helpers/keuangan_rekap_tagihan_bulan.php
+    helpers/keuangan_pembayaran_admin.php
+    helpers/keuangan_transaksi.php
+    keuangan/rekap-kas-bulan.php
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364af9eda6 # v4.2.2
+
+      - uses: shivammathur/setup-php@2.32.0
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: PHP syntax (allowlist)
+        run: |
+          set -e
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "php -l $f"
+            php -l "$f"
+          done <<< "${{ env.DEPLOY_FILES }}"
+
+  deploy:
+    needs: lint
+    runs-on: ubuntu-latest
+    environment: production
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'deploy')
+      || startsWith(github.ref, 'refs/tags/release-')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364af9eda6 # v4.2.2
+
+      - name: Prepare upload bundle (allowlist only)
+        run: |
+          set -e
+          mkdir -p _deploy_bundle
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if [ ! -f "$f" ]; then
+              echo "Missing: $f" >&2
+              exit 1
+            fi
+            mkdir -p "_deploy_bundle/$(dirname "$f")"
+            cp "$f" "_deploy_bundle/$f"
+          done <<< "${{ env.DEPLOY_FILES }}"
+          find _deploy_bundle -type f
+
+      - name: Install SSH key
+        run: |
+          set -e
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SFTP_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.SFTP_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: SFTP upload (no remote delete)
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_REMOTE_ROOT: ${{ secrets.SFTP_REMOTE_ROOT }}
+        run: |
+          set -e
+          PORT="${SFTP_PORT:-22}"
+          REMOTE="${SFTP_REMOTE_ROOT%/}"
+          cd _deploy_bundle
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            remote_dir="${REMOTE}/$(dirname "$f")"
+            sftp -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts -P "$PORT" -i ~/.ssh/deploy_key -b - "${SFTP_USER}@${SFTP_HOST}" <<EOF
+          -mkdir ${remote_dir}
+          put ${f} ${REMOTE}/${f}
+          EOF
+          done <<< "${{ env.DEPLOY_FILES }}"
+
+      - name: Deploy summary
+        run: |
+          echo "Commit: ${{ github.sha }}"
+          echo "Files uploaded (allowlist):"
+          echo "${{ env.DEPLOY_FILES }}"
+          echo "Post-deploy: verifikasi read-only rekap kas di produksi; invalidasi cache sesi admin jika perlu."

@@ -57,6 +57,8 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted mb-0">
         Ringkasan kas operasional pondok per bulan tagihan TA <?= htmlspecialchars((string) $rekap['ta_label']) ?>
         sampai <strong><?= htmlspecialchars((string) $rekap['bulan_berjalan_label']) ?></strong>.
+        Baris <strong>Awal Tahun (TA)</strong> menampilkan kewajiban dan pembayaran awal tahun (bukan bulan tagihan);
+        total di footer = bulanan + awal tahun.
         Kas masuk &amp; keluar diperinci <strong>Syahriyah</strong>, <strong>Makan</strong>, <strong>Awal Tahun</strong><?= $showSaku ? ', <strong>Saku</strong> (titipan)' : '' ?>.
         Klik angka untuk melihat detail transaksi.
         <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php')) ?>">Pengaturan keuangan</a>

@@ -164,6 +164,7 @@ function keuangan_build_rekap_kas_bulanan(
 
     $tagihanRekap = keuangan_rekap_tagihan_bulanan_ta($pdo, $tm, $ts, $bulanBerjalan);
     $baris = keuangan_rekap_kas_gabung_tagihan($baris, $tagihanRekap['baris'] ?? []);
+    $baris = keuangan_rekap_kas_bulan_append_baris_awal_tahun($baris, $tagihanRekap, $totals, $taMulaiTanggal, $today);
 
     require_once __DIR__ . '/keuangan_diagnostik.php';
     $kasBank = keuangan_dashboard_kas_bank_detail($pdo);
@@ -202,6 +203,8 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
 .rekap-kas-table .rekap-kas-grp-keluar { background: #991b1b !important; color: #fff !important; }
 .rekap-kas-table .rekap-kas-grp-verif { background: #1e40af !important; color: #fff !important; }
 .rekap-kas-table .rekap-kas-grp-tagihan { background: #7c3aed !important; color: #fff !important; }
+.rekap-kas-table tr.rekap-kas-row-awal-tahun td { background: #f5f3ff; }
+.rekap-kas-table tr.rekap-kas-row-awal-tahun .rekap-kas-col-bulan strong { color: #5b21b6; }
 .rekap-kas-table td.rekap-kas-tagihan { background: #f5f3ff; }
 .rekap-kas-table td.rekap-kas-tagihan-target { background: #ede9fe; font-weight: 600; color: #5b21b6; }
 .rekap-kas-table td.rekap-kas-tagihan-sisa { background: #fef3c7; color: #92400e; font-weight: 600; }
@@ -247,6 +250,65 @@ body.rekap-kas-bulan-page .app-main .container-fluid { max-width: none; }
     .rekap-kas-table .rekap-kas-col-bulan { position: static; box-shadow: none; }
 }
 ';
+}
+
+/**
+ * @param list<array<string,mixed>> $baris
+ * @param array<string,mixed> $tagihanRekap
+ * @param array<string,int> $totalsTa
+ * @return list<array<string,mixed>>
+ */
+function keuangan_rekap_kas_bulan_append_baris_awal_tahun(
+    array $baris,
+    array $tagihanRekap,
+    array $totalsTa,
+    string $taMulaiTanggal,
+    string $today
+): array {
+    $awal = is_array($tagihanRekap['awal_tahun'] ?? null) ? $tagihanRekap['awal_tahun'] : [];
+    $expected = (int) ($awal['expected'] ?? 0);
+    $paid = (int) ($awal['paid'] ?? 0);
+    $sisa = (int) ($awal['sisa'] ?? 0);
+    if ($expected === 0 && $paid === 0 && $sisa === 0) {
+        return $baris;
+    }
+
+    $masukAt = (int) ($totalsTa['masuk_awal_tahun'] ?? 0);
+    $keluarAt = (int) ($totalsTa['keluar_awal_tahun'] ?? 0);
+
+    $baris[] = [
+        'bulan' => 0,
+        'label' => 'Awal Tahun (TA)',
+        'tanggal_dari' => $taMulaiTanggal,
+        'tanggal_sampai' => $today,
+        'periode_teks' => 'Kewajiban awal TA · penerimaan AT kumulatif s.d. hari ini',
+        'is_tagihan_awal_tahun' => true,
+        'saldo_awal' => 0,
+        'masuk_syahriyah' => 0,
+        'masuk_makan' => 0,
+        'masuk_saku' => 0,
+        'masuk_awal_tahun' => $masukAt,
+        'masuk_lain_bayar' => 0,
+        'masuk_donasi' => 0,
+        'masuk_lain' => 0,
+        'masuk_total' => $masukAt,
+        'keluar_syahriyah' => 0,
+        'keluar_makan' => 0,
+        'keluar_saku' => 0,
+        'keluar_awal_tahun' => $keluarAt,
+        'keluar_lain' => 0,
+        'keluar' => $keluarAt,
+        'bersih' => $masukAt - $keluarAt,
+        'saldo_akhir' => 0,
+        'saldo_fisik' => 0,
+        'selisih_saldo' => 0,
+        'tagihan_target' => $expected,
+        'tagihan_terbayar' => $paid,
+        'tagihan_sisa' => $sisa,
+        'tagihan_pct' => (int) ($awal['pct'] ?? 0),
+    ];
+
+    return $baris;
 }
 
 function keuangan_rekap_kas_bulan_fmt_nominal(int $nominal, callable $fmt, string $kind = 'neutral', ?string $href = null): string
@@ -305,6 +367,7 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool
     echo '</tr></thead><tbody>';
 
     foreach ($rekap['baris'] ?? [] as $row) {
+        $isAwalTa = !empty($row['is_tagihan_awal_tahun']);
         $dariBulan = (string) ($row['tanggal_dari'] ?? '');
         $sampaiBulan = (string) ($row['tanggal_sampai'] ?? '');
         $hrefSy = $dariBulan !== '' && $sampaiBulan !== ''
@@ -321,7 +384,14 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool
             ? keuangan_riwayat_pembayaran_href($dariBulan, $sampaiBulan, 'masuk', '') : null;
         $lainMasuk = (int) ($row['masuk_lain_bayar'] ?? 0) + (int) ($row['masuk_lain'] ?? 0);
 
-        $cls = !empty($row['is_bulan_ini']) ? ' class="bulan-ini"' : '';
+        $clsParts = [];
+        if ($isAwalTa) {
+            $clsParts[] = 'rekap-kas-row-awal-tahun';
+        }
+        if (!empty($row['is_bulan_ini'])) {
+            $clsParts[] = 'bulan-ini';
+        }
+        $cls = $clsParts !== [] ? ' class="' . implode(' ', $clsParts) . '"' : '';
         echo '<tr' . $cls . '>';
         echo '<td class="rekap-kas-col-bulan"><strong>' . htmlspecialchars((string) ($row['label'] ?? '')) . '</strong>';
         if (!empty($row['is_bulan_ini'])) {
@@ -329,7 +399,11 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool
         }
         echo '</td>';
         echo '<td class="rekap-kas-col-periode">' . htmlspecialchars((string) ($row['periode_teks'] ?? '')) . '</td>';
-        echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_awal'] ?? 0), $fmt, 'saldo') . '</td>';
+        if ($isAwalTa) {
+            echo '<td class="text-end rekap-kas-saldo"><span class="rekap-kas-zero" title="Bukan periode bulan tagihan">—</span></td>';
+        } else {
+            echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_awal'] ?? 0), $fmt, 'saldo') . '</td>';
+        }
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefSy) . '</td>';
         echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefMakan) . '</td>';
         if ($showSaku) {
@@ -345,25 +419,38 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool
             echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_saku'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
         }
         echo '<td class="text-end rekap-kas-keluar">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar_awal_tahun'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
-        echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar', $hrefKeluar) . '</td>';
-        echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+        echo '<td class="text-end rekap-kas-keluar rekap-kas-keluar-total">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['keluar'] ?? 0), $fmt, 'keluar', $isAwalTa ? null : $hrefKeluar) . '</td>';
+        if ($isAwalTa) {
+            echo '<td class="text-end rekap-kas-saldo"><span class="rekap-kas-zero">—</span></td>';
+        } else {
+            echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_akhir'] ?? 0), $fmt, 'saldo') . '</td>';
+        }
         echo '<td class="text-end rekap-kas-tagihan">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_terbayar'] ?? 0), $fmt) . '</td>';
         echo '<td class="text-end rekap-kas-tagihan rekap-kas-tagihan-sisa">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['tagihan_sisa'] ?? 0), $fmt) . '</td>';
         $pctTag = (int) ($row['tagihan_pct'] ?? 0);
         echo '<td class="text-end rekap-kas-tagihan">' . ($pctTag > 0 || (int) ($row['tagihan_target'] ?? 0) > 0 ? htmlspecialchars((string) $pctTag) . '%' : '<span class="rekap-kas-zero">—</span>') . '</td>';
-        $selisihRow = (int) ($row['selisih_saldo'] ?? 0);
-        echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
-        echo '<td class="text-end rekap-kas-verif' . ($selisihRow !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';
-        echo $selisihRow !== 0 ? htmlspecialchars($fmt($selisihRow)) : '—';
-        echo '</td>';
+        if ($isAwalTa) {
+            echo '<td class="text-end rekap-kas-verif"><span class="rekap-kas-zero">—</span></td>';
+            echo '<td class="text-end rekap-kas-verif selisih-ok">—</td>';
+        } else {
+            $selisihRow = (int) ($row['selisih_saldo'] ?? 0);
+            echo '<td class="text-end rekap-kas-verif">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($row['saldo_fisik'] ?? 0), $fmt, 'saldo') . '</td>';
+            echo '<td class="text-end rekap-kas-verif' . ($selisihRow !== 0 ? ' selisih-warn' : ' selisih-ok') . '">';
+            echo $selisihRow !== 0 ? htmlspecialchars($fmt($selisihRow)) : '—';
+            echo '</td>';
+        }
         echo '</tr>';
     }
 
     $tot = $rekap['total'] ?? [];
     $tagTot = is_array($rekap['tagihan']['total'] ?? null) ? $rekap['tagihan']['total'] : [];
     $barisAll = $rekap['baris'] ?? [];
-    $taDari = $barisAll !== [] ? (string) ($barisAll[0]['tanggal_dari'] ?? '') : '';
-    $taSampai = $barisAll !== [] ? (string) ($barisAll[count($barisAll) - 1]['tanggal_sampai'] ?? '') : '';
+    $barisBulan = array_values(array_filter(
+        $barisAll,
+        static fn (array $r): bool => empty($r['is_tagihan_awal_tahun'])
+    ));
+    $taDari = $barisBulan !== [] ? (string) ($barisBulan[0]['tanggal_dari'] ?? '') : '';
+    $taSampai = $barisBulan !== [] ? (string) ($barisBulan[count($barisBulan) - 1]['tanggal_sampai'] ?? '') : '';
     $hrefTaSy = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:syahriyah') : null;
     $hrefTaMakan = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:makan') : null;
     $hrefTaSaku = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', 'kat:saku') : null;
@@ -372,7 +459,7 @@ function keuangan_rekap_kas_bulan_render_tabel(array $rekap, callable $fmt, bool
     $hrefTaMasuk = $taDari !== '' && $taSampai !== '' ? keuangan_riwayat_pembayaran_href($taDari, $taSampai, 'masuk', '') : null;
     $lainTa = (int) ($tot['masuk_lain_bayar'] ?? 0) + (int) ($tot['masuk_lain'] ?? 0);
     echo '</tbody><tfoot><tr>';
-    echo '<td class="rekap-kas-col-bulan" colspan="2">Jumlah bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . '</td>';
+    echo '<td class="rekap-kas-col-bulan" colspan="2">Total TA (bulanan + awal tahun, bulan 1–' . (int) ($rekap['bulan_berjalan'] ?? 0) . ')</td>';
     echo '<td class="text-end rekap-kas-saldo">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($rekap['saldo_awal_ta'] ?? 0), $fmt, 'saldo') . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_syahriyah'] ?? 0), $fmt, 'masuk', $hrefTaSy) . '</td>';
     echo '<td class="text-end rekap-kas-masuk">' . keuangan_rekap_kas_bulan_fmt_nominal((int) ($tot['masuk_makan'] ?? 0), $fmt, 'masuk', $hrefTaMakan) . '</td>';

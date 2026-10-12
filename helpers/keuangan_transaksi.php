@@ -1078,10 +1078,10 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
         ];
     }
 
-    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
-        require_once __DIR__ . '/keuangan_dashboard.php';
+    if (!function_exists('keuangan_mutasi_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
     }
-    keuangan_dashboard_cache_invalidate();
+    keuangan_mutasi_cache_invalidate();
 
     keuangan_input_dobel_idempotency_mark($post, $userId);
 
@@ -1220,10 +1220,10 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
         return ['ok' => false, 'message' => $e->getMessage()];
     }
 
-    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
-        require_once __DIR__ . '/keuangan_dashboard.php';
+    if (!function_exists('keuangan_mutasi_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
     }
-    keuangan_dashboard_cache_invalidate();
+    keuangan_mutasi_cache_invalidate();
 
     keuangan_input_dobel_idempotency_mark($post, $userId);
 
@@ -1330,10 +1330,10 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
         return ['ok' => false, 'message' => $e->getMessage()];
     }
 
-    if (!function_exists('keuangan_dashboard_cache_invalidate')) {
-        require_once __DIR__ . '/keuangan_dashboard.php';
+    if (!function_exists('keuangan_mutasi_cache_invalidate')) {
+        require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
     }
-    keuangan_dashboard_cache_invalidate();
+    keuangan_mutasi_cache_invalidate();
 
     keuangan_input_dobel_idempotency_mark($post, $userId);
 

@@ -18,6 +18,12 @@ function keuangan_rekap_tagihan_cache_invalidate(): void
     }
 }
 
+/** Invalidasi cache dashboard + rekap tagihan setelah mutasi keuangan. */
+function keuangan_mutasi_cache_invalidate(): void
+{
+    keuangan_rekap_tagihan_cache_invalidate();
+}
+
 /**
  * Ringkasan pengaturan wajib bayar santri baru vs lama.
  *
@@ -184,6 +190,51 @@ function keuangan_rekap_tagihan_bulanan_ta(
  * @param list<array<string,mixed>> $barisTagihan
  * @return list<array<string,mixed>>
  */
+/**
+ * Subtotal tagihan untuk rekonsiliasi UI (bulanan vs Awal Tahun vs total TA).
+ *
+ * @param array{baris?:list<array<string,mixed>>,tagihan?:array<string,mixed>} $rekap
+ * @return array{
+ *   bulanan_expected:int,
+ *   bulanan_paid:int,
+ *   bulanan_sisa:int,
+ *   awal_tahun_expected:int,
+ *   awal_tahun_paid:int,
+ *   awal_tahun_sisa:int,
+ *   total_expected:int,
+ *   total_paid:int,
+ *   total_sisa:int
+ * }
+ */
+function keuangan_rekap_kas_tagihan_subtotals(array $rekap): array
+{
+    $tagihan = is_array($rekap['tagihan'] ?? null) ? $rekap['tagihan'] : [];
+    $barisTagihan = is_array($tagihan['baris'] ?? null) ? $tagihan['baris'] : [];
+    $bulananExpected = 0;
+    $bulananPaid = 0;
+    $bulananSisa = 0;
+    foreach ($barisTagihan as $t) {
+        $bulananExpected += (int) ($t['expected'] ?? 0);
+        $bulananPaid += (int) ($t['paid'] ?? 0);
+        $bulananSisa += (int) ($t['sisa'] ?? 0);
+    }
+
+    $awal = is_array($tagihan['awal_tahun'] ?? null) ? $tagihan['awal_tahun'] : [];
+    $total = is_array($tagihan['total'] ?? null) ? $tagihan['total'] : [];
+
+    return [
+        'bulanan_expected' => $bulananExpected,
+        'bulanan_paid' => $bulananPaid,
+        'bulanan_sisa' => $bulananSisa,
+        'awal_tahun_expected' => (int) ($awal['expected'] ?? 0),
+        'awal_tahun_paid' => (int) ($awal['paid'] ?? 0),
+        'awal_tahun_sisa' => (int) ($awal['sisa'] ?? 0),
+        'total_expected' => (int) ($total['expected'] ?? 0),
+        'total_paid' => (int) ($total['paid'] ?? 0),
+        'total_sisa' => (int) ($total['sisa'] ?? 0),
+    ];
+}
+
 function keuangan_rekap_kas_gabung_tagihan(array $barisKas, array $barisTagihan): array
 {
     $byBulan = [];

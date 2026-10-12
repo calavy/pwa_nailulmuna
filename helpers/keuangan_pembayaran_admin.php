@@ -879,10 +879,10 @@ function keuangan_update_pembayaran(PDO $pdo, int $pembayaranId, array $post, in
 
         $pdo->commit();
 
-        if (function_exists('keuangan_dashboard_cache_invalidate')) {
-            require_once __DIR__ . '/keuangan_dashboard.php';
-            keuangan_dashboard_cache_invalidate();
+        if (!function_exists('keuangan_mutasi_cache_invalidate')) {
+            require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
         }
+        keuangan_mutasi_cache_invalidate();
 
         return ['ok' => true, 'message' => 'Pembayaran #' . $pembayaranId . ' berhasil diperbarui.'];
     } catch (Throwable $e) {
@@ -920,10 +920,10 @@ function keuangan_delete_pembayaran(PDO $pdo, int $pembayaranId, int $userId, st
 
         $pdo->commit();
 
-        if (function_exists('keuangan_dashboard_cache_invalidate')) {
-            require_once __DIR__ . '/keuangan_dashboard.php';
-            keuangan_dashboard_cache_invalidate();
+        if (!function_exists('keuangan_mutasi_cache_invalidate')) {
+            require_once __DIR__ . '/keuangan_rekap_tagihan_bulan.php';
         }
+        keuangan_mutasi_cache_invalidate();
 
         return ['ok' => true, 'message' => 'Pembayaran #' . $pembayaranId . ' telah dihapus dan dicatat di log audit.'];
     } catch (Throwable $e) {
