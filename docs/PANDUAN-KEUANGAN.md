@@ -1,7 +1,8 @@
 # Panduan Keuangan Lengkap — PWA Nailul Muna
 
 Dokumen referensi operator modul keuangan pondok.  
-Versi panduan in-app ringkas: `/keuangan/panduan.php`
+Versi panduan in-app ringkas: `/keuangan/panduan.php`  
+Arsitektur, pipeline tagihan/rekap, diagnostik, dan deploy aman (satu file): [ALUR_KEUANGAN.md](ALUR_KEUANGAN.md)
 
 ---
 

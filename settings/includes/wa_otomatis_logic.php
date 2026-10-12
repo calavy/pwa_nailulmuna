@@ -288,6 +288,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'save_izin_wa') {
         save_setting($pdo, 'wa_izin_pembimbing_enabled', isset($_POST['wa_izin_pembimbing_enabled']) ? '1' : '0');
+        $sumber = strtolower(trim((string) ($_POST['wa_izin_pembimbing_sumber'] ?? 'pkpps_only')));
+        if (!in_array($sumber, ['pkpps_only', 'pkpps_setoran', 'scope', 'legacy_jadwal_tingkatan'], true)) {
+            $sumber = 'pkpps_only';
+        }
+        save_setting($pdo, 'wa_izin_pembimbing_sumber', $sumber);
+        $maxPb = max(0, min(50, (int) ($_POST['wa_izin_pembimbing_max_recipients'] ?? 3)));
+        save_setting($pdo, 'wa_izin_pembimbing_max_recipients', (string) $maxPb);
+        save_setting($pdo, 'wa_izin_pembimbing_fallback_scope', isset($_POST['wa_izin_pembimbing_fallback_scope']) ? '1' : '0');
         save_setting($pdo, 'wa_izin_pembimbing_kirim_grup', isset($_POST['wa_izin_pembimbing_kirim_grup']) ? '1' : '0');
         save_setting($pdo, 'wa_izin_pembimbing_grup', trim((string) ($_POST['wa_izin_pembimbing_grup'] ?? '')));
         set_flash('success', 'Pengaturan WA pembimbing izin disimpan.');
@@ -569,6 +577,12 @@ if (!is_array($poinWaLastCronStats)) {
 
 // Izin WA
 $waIzinEnabled = trim((string) app_setting($pdo, 'wa_izin_pembimbing_enabled', '1')) === '1';
+$waIzinPembimbingSumberRaw = strtolower(trim((string) app_setting($pdo, 'wa_izin_pembimbing_sumber', 'pkpps_only')));
+$waIzinPembimbingSumber = in_array($waIzinPembimbingSumberRaw, ['pkpps_only', 'pkpps_setoran', 'scope', 'legacy_jadwal_tingkatan'], true)
+    ? $waIzinPembimbingSumberRaw
+    : 'pkpps_only';
+$waIzinPembimbingMaxRecipients = max(0, min(50, (int) app_setting($pdo, 'wa_izin_pembimbing_max_recipients', '3')));
+$waIzinPembimbingFallbackScope = trim((string) app_setting($pdo, 'wa_izin_pembimbing_fallback_scope', '0')) === '1';
 $waIzinGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_grup', ''));
 $waIzinKirimGrup = trim((string) app_setting($pdo, 'wa_izin_pembimbing_kirim_grup', '0')) === '1';
 $waIzinGrupFonteEnabled = trim((string) app_setting($pdo, 'wa_izin_grup_fonte_enabled', '1')) !== '0';

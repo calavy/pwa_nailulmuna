@@ -197,7 +197,7 @@ Workflow [`.github/workflows/deploy-production.yml`](.github/workflows/deploy-pr
 3. Jalankan workflow **Deploy Production (SFTP allowlist)** → input `deploy`, atau push tag `release-*`.
 4. Perbarui daftar `DEPLOY_FILES` di workflow untuk setiap rilis.
 
-Detail laporan rekap kas: [`docs/LAPORAN_REKAP_KAS_DEVELOPER.md`](docs/LAPORAN_REKAP_KAS_DEVELOPER.md).
+Detail rekap kas, diagnostik, dan checklist deploy: [`docs/ALUR_KEUANGAN.md`](docs/ALUR_KEUANGAN.md) (§12–§14).
 
 ---
 

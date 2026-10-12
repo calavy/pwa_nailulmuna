@@ -806,6 +806,165 @@ function perizinan_pembimbing_no_wa(PDO $pdo, int $pembimbingId): string
     return '';
 }
 
+/** Mode resolver penerima WA izin → pembimbing (Pengaturan → WA Otomatis → Izin). */
+function perizinan_pembimbing_wa_sumber_mode(PDO $pdo): string
+{
+    $raw = strtolower(trim((string) app_setting($pdo, 'wa_izin_pembimbing_sumber', 'pkpps_only')));
+    $allowed = ['pkpps_only', 'pkpps_setoran', 'scope', 'legacy_jadwal_tingkatan'];
+
+    return in_array($raw, $allowed, true) ? $raw : 'pkpps_only';
+}
+
+/** Batas jumlah pembimbing per izin (0 = tanpa batas). */
+function perizinan_pembimbing_wa_max_recipients(PDO $pdo): int
+{
+    $n = (int) app_setting($pdo, 'wa_izin_pembimbing_max_recipients', '3');
+
+    return max(0, min(50, $n));
+}
+
+function perizinan_pembimbing_wa_fallback_scope_enabled(PDO $pdo): bool
+{
+    return trim((string) app_setting($pdo, 'wa_izin_pembimbing_fallback_scope', '0')) === '1';
+}
+
+/**
+ * @return list<int> urutan prioritas dipertahankan, duplikat dibuang
+ */
+function perizinan_pembimbing_ids_apply_cap(array $orderedIds, int $max): array
+{
+    $out = [];
+    $seen = [];
+    foreach ($orderedIds as $id) {
+        $id = (int) $id;
+        if ($id <= 0 || isset($seen[$id])) {
+            continue;
+        }
+        $seen[$id] = true;
+        $out[] = $id;
+        if ($max > 0 && count($out) >= $max) {
+            break;
+        }
+    }
+
+    return $out;
+}
+
+/** @return list<int> */
+function perizinan_pembimbing_ids_dari_pkpps(PDO $pdo, int $santriId): array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'pkpps_santri') || !table_exists($pdo, 'pkpps_jadwal')) {
+        return [];
+    }
+    require_once __DIR__ . '/pkpps.php';
+    pkpps_ensure_schema($pdo);
+    $stP = $pdo->prepare('
+        SELECT DISTINCT j.pembimbing_id
+        FROM pkpps_santri ps
+        INNER JOIN pkpps_jadwal j ON j.pkpps_tingkatan_id = ps.pkpps_tingkatan_id AND j.is_aktif = 1
+        WHERE ps.santri_id = :sid
+          AND COALESCE(ps.is_aktif, 1) = 1
+          AND j.pembimbing_id IS NOT NULL
+          AND j.pembimbing_id > 0
+    ');
+    $stP->execute(['sid' => $santriId]);
+    $ids = [];
+    foreach ($stP->fetchAll(PDO::FETCH_COLUMN) ?: [] as $pid) {
+        $id = (int) $pid;
+        if ($id > 0) {
+            $ids[] = $id;
+        }
+    }
+
+    return $ids;
+}
+
+/** @return list<int> */
+function perizinan_pembimbing_ids_dari_setoran(PDO $pdo, string $tingkatan): array
+{
+    if ($tingkatan === '' || !table_exists($pdo, 'akademik_setoran_pembimbing_tingkatan')) {
+        return [];
+    }
+    $rows = $pdo->query('
+        SELECT DISTINCT pembimbing_id, tingkatan
+        FROM akademik_setoran_pembimbing_tingkatan
+    ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $ids = [];
+    foreach ($rows as $row) {
+        if (perizinan_pembimbing_tingkatan_cocok($pdo, $tingkatan, (string) ($row['tingkatan'] ?? ''))) {
+            $id = (int) ($row['pembimbing_id'] ?? 0);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+    }
+
+    return $ids;
+}
+
+/** Setoran tingkatan, hanya pembimbing yang santri masuk lingkup asuhan dashboard. */
+function perizinan_pembimbing_ids_dari_setoran_scoped(PDO $pdo, int $santriId, string $tingkatan): array
+{
+    if ($santriId <= 0) {
+        return [];
+    }
+    require_once __DIR__ . '/pembimbing_dashboard.php';
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $ids = [];
+    foreach (perizinan_pembimbing_ids_dari_setoran($pdo, $tingkatan) as $pid) {
+        $pid = (int) $pid;
+        if ($pid > 0 && pembimbing_dashboard_santri_dalam_scope($pdo, $santriId, $pid, false)) {
+            $ids[] = $pid;
+        }
+    }
+
+    return $ids;
+}
+
+/** Mode lama: semua pembimbing yang punya slot jadwal dengan tingkatan cocok. */
+function perizinan_pembimbing_ids_dari_jadwal_legacy(PDO $pdo, string $tingkatan): array
+{
+    if (!table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    $rows = $pdo->query('
+        SELECT DISTINCT pembimbing_id, tingkatan
+        FROM jadwal_kegiatan
+        WHERE pembimbing_id IS NOT NULL AND pembimbing_id > 0
+    ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $ids = [];
+    foreach ($rows as $row) {
+        if ($tingkatan === '' || perizinan_pembimbing_tingkatan_cocok($pdo, $tingkatan, (string) ($row['tingkatan'] ?? ''))) {
+            $id = (int) ($row['pembimbing_id'] ?? 0);
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+    }
+
+    return $ids;
+}
+
+/** @return list<int> */
+function perizinan_pembimbing_ids_dari_scope(PDO $pdo, int $santriId): array
+{
+    if ($santriId <= 0 || !table_exists($pdo, 'pembimbing')) {
+        return [];
+    }
+    require_once __DIR__ . '/pembimbing_dashboard.php';
+    require_once __DIR__ . '/pembimbing_pkpps.php';
+    $ids = [];
+    $allPb = $pdo->query('SELECT id FROM pembimbing WHERE COALESCE(is_aktif, 1) = 1')->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    foreach ($allPb as $pid) {
+        $pid = (int) $pid;
+        if ($pid > 0 && pembimbing_dashboard_santri_dalam_scope($pdo, $santriId, $pid, false)) {
+            $ids[] = $pid;
+        }
+    }
+
+    return $ids;
+}
+
 /**
  * @return list<int>
  */
@@ -818,73 +977,38 @@ function perizinan_pembimbing_ids_untuk_santri(PDO $pdo, int $santriId): array
     $st = $pdo->prepare('SELECT tingkatan FROM santri WHERE id = :id LIMIT 1');
     $st->execute(['id' => $santriId]);
     $tingkatan = trim((string) ($st->fetchColumn() ?: ''));
-    $ids = [];
 
-    if (table_exists($pdo, 'jadwal_kegiatan')) {
-        $rows = $pdo->query('
-            SELECT DISTINCT pembimbing_id, tingkatan
-            FROM jadwal_kegiatan
-            WHERE pembimbing_id IS NOT NULL AND pembimbing_id > 0
-        ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($rows as $row) {
-            if ($tingkatan === '' || perizinan_pembimbing_tingkatan_cocok($pdo, $tingkatan, (string) ($row['tingkatan'] ?? ''))) {
-                $id = (int) ($row['pembimbing_id'] ?? 0);
-                if ($id > 0) {
-                    $ids[] = $id;
-                }
-            }
-        }
+    $mode = perizinan_pembimbing_wa_sumber_mode($pdo);
+    $max = perizinan_pembimbing_wa_max_recipients($pdo);
+
+    $pkpps = perizinan_pembimbing_ids_dari_pkpps($pdo, $santriId);
+    $setoranScoped = perizinan_pembimbing_ids_dari_setoran_scoped($pdo, $santriId, $tingkatan);
+
+    if ($mode === 'legacy_jadwal_tingkatan') {
+        $jadwal = perizinan_pembimbing_ids_dari_jadwal_legacy($pdo, $tingkatan);
+        $setoranRaw = perizinan_pembimbing_ids_dari_setoran($pdo, $tingkatan);
+        $ordered = array_merge($jadwal, $pkpps, $setoranRaw);
+    } elseif ($mode === 'scope') {
+        $scope = perizinan_pembimbing_ids_dari_scope($pdo, $santriId);
+        $ordered = array_merge($pkpps, $setoranScoped, $scope);
+    } elseif ($mode === 'pkpps_setoran') {
+        $ordered = array_merge($pkpps, $setoranScoped);
+    } else {
+        $ordered = $pkpps;
     }
 
-    if (table_exists($pdo, 'pkpps_santri') && table_exists($pdo, 'pkpps_jadwal')) {
-        require_once __DIR__ . '/pkpps.php';
-        pkpps_ensure_schema($pdo);
-        $stP = $pdo->prepare('
-            SELECT DISTINCT j.pembimbing_id
-            FROM pkpps_santri ps
-            INNER JOIN pkpps_jadwal j ON j.pkpps_tingkatan_id = ps.pkpps_tingkatan_id AND j.is_aktif = 1
-            WHERE ps.santri_id = :sid
-              AND COALESCE(ps.is_aktif, 1) = 1
-              AND j.pembimbing_id IS NOT NULL
-              AND j.pembimbing_id > 0
-        ');
-        $stP->execute(['sid' => $santriId]);
-        foreach ($stP->fetchAll(PDO::FETCH_COLUMN) ?: [] as $pid) {
-            $id = (int) $pid;
-            if ($id > 0) {
-                $ids[] = $id;
-            }
-        }
+    if ($ordered === [] && perizinan_pembimbing_wa_fallback_scope_enabled($pdo)) {
+        $ordered = perizinan_pembimbing_ids_dari_scope($pdo, $santriId);
     }
 
-    if ($tingkatan !== '' && table_exists($pdo, 'akademik_setoran_pembimbing_tingkatan')) {
-        $rows = $pdo->query('
-            SELECT DISTINCT pembimbing_id, tingkatan
-            FROM akademik_setoran_pembimbing_tingkatan
-        ')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($rows as $row) {
-            if (perizinan_pembimbing_tingkatan_cocok($pdo, $tingkatan, (string) ($row['tingkatan'] ?? ''))) {
-                $id = (int) ($row['pembimbing_id'] ?? 0);
-                if ($id > 0) {
-                    $ids[] = $id;
-                }
-            }
-        }
+    $uniqueBeforeCap = perizinan_pembimbing_ids_apply_cap($ordered, 0);
+    $result = perizinan_pembimbing_ids_apply_cap($ordered, $max);
+    if ($max > 0 && count($uniqueBeforeCap) > count($result)) {
+        error_log('[perizinan_wa] pembimbing cap truncated santri_id=' . $santriId
+            . ' count=' . count($uniqueBeforeCap) . ' max=' . $max);
     }
 
-    if ($ids === [] && table_exists($pdo, 'pembimbing')) {
-        require_once __DIR__ . '/pembimbing_dashboard.php';
-        require_once __DIR__ . '/pembimbing_pkpps.php';
-        $allPb = $pdo->query('SELECT id FROM pembimbing WHERE COALESCE(is_aktif, 1) = 1')->fetchAll(PDO::FETCH_COLUMN) ?: [];
-        foreach ($allPb as $pid) {
-            $pid = (int) $pid;
-            if ($pid > 0 && pembimbing_dashboard_santri_dalam_scope($pdo, $santriId, $pid, false)) {
-                $ids[] = $pid;
-            }
-        }
-    }
-
-    return array_values(array_unique(array_filter($ids, static fn(int $id): bool => $id > 0)));
+    return $result;
 }
 
 /**
@@ -2490,9 +2614,19 @@ function perizinan_notif_queue_ensure(PDO $pdo): void
                 kind VARCHAR(20) NOT NULL DEFAULT "izin",
                 payload LONGTEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                KEY idx_perizinan_notif_created (created_at)
+                claimed_at DATETIME NULL,
+                KEY idx_perizinan_notif_created (created_at),
+                KEY idx_perizinan_notif_claim (claimed_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ');
+        if (table_exists($pdo, 'perizinan_notif_queue') && !column_exists($pdo, 'perizinan_notif_queue', 'claimed_at')) {
+            $pdo->exec('ALTER TABLE perizinan_notif_queue ADD COLUMN claimed_at DATETIME NULL AFTER created_at');
+            try {
+                $pdo->exec('ALTER TABLE perizinan_notif_queue ADD KEY idx_perizinan_notif_claim (claimed_at)');
+            } catch (Throwable $e) {
+                // index may already exist
+            }
+        }
     } catch (Throwable $e) {
         error_log('[perizinan_notif_queue] ' . $e->getMessage());
     }
@@ -2520,7 +2654,13 @@ function perizinan_notif_queue_proses(PDO $pdo, int $limit = 5): int
         return 0;
     }
     $limit = max(1, min(20, $limit));
-    $st = $pdo->query('SELECT id, kind, payload FROM perizinan_notif_queue ORDER BY id ASC LIMIT ' . $limit);
+    $hasClaimCol = column_exists($pdo, 'perizinan_notif_queue', 'claimed_at');
+    $sql = 'SELECT id, kind, payload FROM perizinan_notif_queue';
+    if ($hasClaimCol) {
+        $sql .= ' WHERE claimed_at IS NULL';
+    }
+    $sql .= ' ORDER BY id ASC LIMIT ' . $limit;
+    $st = $pdo->query($sql);
     $rows = $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
     $n = 0;
     foreach ($rows as $row) {
@@ -2528,9 +2668,20 @@ function perizinan_notif_queue_proses(PDO $pdo, int $limit = 5): int
         if ($id <= 0) {
             continue;
         }
-        $pdo->prepare('DELETE FROM perizinan_notif_queue WHERE id = :id')->execute(['id' => $id]);
+        if ($hasClaimCol) {
+            $claim = $pdo->prepare('
+                UPDATE perizinan_notif_queue
+                   SET claimed_at = NOW()
+                 WHERE id = :id AND claimed_at IS NULL
+            ');
+            $claim->execute(['id' => $id]);
+            if ($claim->rowCount() <= 0) {
+                continue;
+            }
+        }
         $payload = json_decode((string) ($row['payload'] ?? ''), true);
         if (!is_array($payload)) {
+            $pdo->prepare('DELETE FROM perizinan_notif_queue WHERE id = :id')->execute(['id' => $id]);
             continue;
         }
         try {
@@ -2553,6 +2704,7 @@ function perizinan_notif_queue_proses(PDO $pdo, int $limit = 5): int
         } catch (Throwable $e) {
             error_log('[perizinan_notif_queue] proses: ' . $e->getMessage());
         }
+        $pdo->prepare('DELETE FROM perizinan_notif_queue WHERE id = :id')->execute(['id' => $id]);
     }
 
     return $n;

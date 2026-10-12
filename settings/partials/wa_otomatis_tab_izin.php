@@ -214,6 +214,21 @@ $waPermohonanIzinJenisOptions = perizinan_jenis_izin_dropdown();
                         <label class="form-check-label" for="wa_izin_pembimbing_enabled">Kirim WA ke pembimbing terkait</label>
                     </div>
                     <p class="small text-muted mb-3">Toggle per pembimbing di <a href="<?= htmlspecialchars(app_href('/pembimbing/index.php')) ?>">Data Pembimbing</a> (kolom notif izin &amp; no WA).</p>
+                    <label class="form-label" for="wa_izin_pembimbing_sumber">Siapa dianggap «pembimbing terkait»?</label>
+                    <select class="form-select form-select-sm mb-2" id="wa_izin_pembimbing_sumber" name="wa_izin_pembimbing_sumber">
+                        <option value="pkpps_only" <?= $waIzinPembimbingSumber === 'pkpps_only' ? 'selected' : '' ?>>Paling aman: hanya pembimbing PKPPS santri</option>
+                        <option value="pkpps_setoran" <?= $waIzinPembimbingSumber === 'pkpps_setoran' ? 'selected' : '' ?>>PKPPS + setoran (setoran difilter lingkup asuhan)</option>
+                        <option value="scope" <?= $waIzinPembimbingSumber === 'scope' ? 'selected' : '' ?>>Semua pembimbing dalam lingkup asuhan (dashboard)</option>
+                        <option value="legacy_jadwal_tingkatan" <?= $waIzinPembimbingSumber === 'legacy_jadwal_tingkatan' ? 'selected' : '' ?>>Lama: semua pembimbing dengan jadwal tingkatan sama</option>
+                    </select>
+                    <div class="form-text mb-2">Mode lama bisa mengirim ke banyak pembimbing untuk satu izin. Panduan: <code>docs/WA_IZIN_PEMBIMBING_FANOUT.md</code>.</div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="wa_izin_pembimbing_fallback_scope" name="wa_izin_pembimbing_fallback_scope" value="1" <?= !empty($waIzinPembimbingFallbackScope) ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="wa_izin_pembimbing_fallback_scope">Izinkan fallback ke pembimbing dalam lingkup dashboard jika PKPPS/setoran kosong</label>
+                    </div>
+                    <label class="form-label" for="wa_izin_pembimbing_max_recipients">Batas maks. pembimbing per izin</label>
+                    <input type="number" class="form-control form-control-sm mb-3" id="wa_izin_pembimbing_max_recipients" name="wa_izin_pembimbing_max_recipients" value="<?= (int) $waIzinPembimbingMaxRecipients ?>" min="0" max="50" step="1">
+                    <div class="form-text mb-3">Default aman: 3. 0 = tanpa batas. Prioritas: PKPPS → setoran (scoped) → scope/jadwal.</div>
                     <details class="small mb-3">
                         <summary class="text-muted">Pengaturan lama (nomor personal tambahan)</summary>
                         <div class="form-check mt-2 mb-2">

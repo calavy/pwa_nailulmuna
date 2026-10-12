@@ -1,0 +1,15 @@
+Commit saat dijalankan: 1c67260c7abc6e3ea53672d45b718b664851e00b
+Database: lokal (config/database.local.php)
+Perintah: C:\xampp\php\php.exe scripts\_diag_rekap_tagihan_reconcile.php
+         C:\xampp\php\php.exe scripts\_diag_rekap_kas_selisih.php
+
+=== Rekonsiliasi Tagihan Rekap Kas ===
+TA: 1447/1448 H (tm=1447, ts=1448)
+Sampai bulan tagihan: 5
+Selisih footer - jumlah baris UI: Rp 0 OK
+(Awal Tahun terbayar Rp 0 — tidak menguji skenario selisih ~66 juta produksi)
+
+=== Rekap Kas Selisih Diagnostic ===
+TA: 1447/1448 H
+Selisih (fisik - hitung) TA akhir: 0
+Catatan: bulan 4–5 selisih per bulan -430.000 (data lokal / slot kalender — beda produksi)

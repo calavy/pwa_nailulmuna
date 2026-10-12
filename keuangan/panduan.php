@@ -26,9 +26,11 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="alert alert-info border-info small mb-3">
-    <strong>Panduan lengkap (markdown):</strong>
-    <a href="<?= htmlspecialchars(app_href('/docs/PANDUAN-KEUANGAN.md')) ?>" target="_blank" rel="noopener">docs/PANDUAN-KEUANGAN.md</a>
-    — referensi detail setup, operasional harian, laporan, cashless, portal wali, payroll, BOS, dan troubleshooting.
+    <strong>Dokumentasi (markdown):</strong>
+    <a href="<?= htmlspecialchars(app_href('/docs/ALUR_KEUANGAN.md')) ?>" target="_blank" rel="noopener"><strong>Alur keuangan lengkap (1 dokumen)</strong></a>
+    — arsitektur, pipeline tagihan/rekap, diagnostik, deploy aman.
+    <a href="<?= htmlspecialchars(app_href('/docs/PANDUAN-KEUANGAN.md')) ?>" target="_blank" rel="noopener">Panduan operator harian</a>
+    (setup, troubleshooting, FAQ).
     Versi ringkas interaktif ada di accordion di bawah.
 </div>
 
