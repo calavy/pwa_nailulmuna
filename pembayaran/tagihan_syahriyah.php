@@ -188,7 +188,8 @@ $iconTagihan = bendahara_page_icon('tagihan');
 <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
 <?php require __DIR__ . '/../includes/partials/santri_sort_toolbar.php'; ?>
 
-<form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="" id="form-tagihan-filter">
+<div class="keu-filter-bar">
+<form class="row g-2 align-items-end bendahara-toolbar" method="get" action="" id="form-tagihan-filter">
     <div class="col-6 col-md-2">
         <label class="form-label small mb-0">Bulan tagihan</label>
         <select class="form-select form-select-sm pondok-bulan-select" name="bulan" data-auto-submit="1">
@@ -222,10 +223,12 @@ $iconTagihan = bendahara_page_icon('tagihan');
         </select>
     </div>
     <input type="hidden" name="ringkas" value="<?= $ringkas ? '1' : '0' ?>" id="tagihan-ringkas-input">
-    <div class="col-6 col-md-1 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary btn-sm w-100"><i class="fa-solid fa-filter me-1"></i> Filter</button>
+    <div class="col-12 col-md-auto d-flex flex-wrap gap-2 align-items-end">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1" aria-hidden="true"></i> Terapkan</button>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php?bulan=' . $bulanTagihan)) ?>">Reset</a>
     </div>
 </form>
+</div>
 
 <div id="tagihan-list-root">
 <?php require __DIR__ . '/partials/tagihan_syahriyah_list_block.php'; ?>

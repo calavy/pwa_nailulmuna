@@ -81,18 +81,16 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div id="keuangan-online-content">
-<div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
-    <h1 class="h4 mb-1"><?= $view === 'saku' ? 'Status Titipan Saku' : 'Neraca Keuangan' ?></h1>
-    <p class="text-muted mb-0">
-        <?php if ($view === 'saku'): ?>
-            Ringkasan titipan uang saku santri (COA 1103 / 2101 / 2103) — terpisah dari neraca operasional pondok.
-        <?php else: ?>
-            Laporan posisi keuangan operasional pondok (tanpa titipan saku).
-        <?php endif; ?>
-        <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Data offline</a>
-    </p>
-</div>
+<?php
+$keuUiHeader = [
+    'kicker' => '<a href="/keuangan/index.php">Keuangan</a> · Laporan',
+    'title' => $view === 'saku' ? 'Status Titipan Saku' : 'Neraca Keuangan',
+    'subtitle' => $view === 'saku'
+        ? 'Titipan saku santri — terpisah dari neraca operasional pondok.'
+        : 'Posisi keuangan operasional pondok (tanpa titipan saku). Per ' . htmlspecialchars($asOfInput) . '.',
+];
+require __DIR__ . '/partials/ui_page_header.php';
+?>
 
 <ul class="nav nav-pills mb-3 gap-1">
     <li class="nav-item">

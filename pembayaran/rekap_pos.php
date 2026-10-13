@@ -136,7 +136,8 @@ $iconPage = bendahara_page_icon('rekap_pos');
 
 <?php require __DIR__ . '/../includes/partials/keuangan_ta_toolbar.php'; ?>
 
-<form class="row g-2 align-items-end mb-3 bendahara-toolbar" method="get" action="">
+<div class="keu-filter-bar">
+<form class="row g-2 align-items-end bendahara-toolbar" method="get" action="">
     <input type="hidden" name="tm" value="<?= (int) $tahunAjaranMulai ?>">
     <input type="hidden" name="ts" value="<?= (int) $tahunAjaranSelesai ?>">
     <div class="col-6 col-md-2">
@@ -156,12 +157,14 @@ $iconPage = bendahara_page_icon('rekap_pos');
         </select>
     </div>
     <div class="col-12 col-md-4 d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-filter me-1" aria-hidden="true"></i> Terapkan</button>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/pembayaran/rekap_pos.php')) ?>">Reset</a>
         <?php if ($tablesOk && $rows !== []): ?>
-            <a class="btn btn-outline-secondary btn-sm" href="?<?= htmlspecialchars($queryBase) ?>&amp;export=csv"><i class="fa-solid fa-file-csv me-1"></i> CSV</a>
+            <a class="btn btn-outline-secondary btn-sm" href="?<?= htmlspecialchars($queryBase) ?>&amp;export=csv"><i class="fa-solid fa-file-csv me-1" aria-hidden="true"></i> CSV</a>
         <?php endif; ?>
     </div>
 </form>
+</div>
 
 <p class="small text-muted mb-3">
     Periode: <strong><?= htmlspecialchars($periodeLabel) ?></strong>
@@ -240,14 +243,14 @@ $iconPage = bendahara_page_icon('rekap_pos');
                                     <span class="text-muted">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-end font-monospace">Rp <?= number_format($exp, 0, ',', '.') ?></td>
-                            <td class="text-end font-monospace text-success">Rp <?= number_format($paid, 0, ',', '.') ?></td>
+                            <td class="text-end keu-money">Rp <?= number_format($exp, 0, ',', '.') ?></td>
+                            <td class="text-end keu-money text-success">Rp <?= number_format($paid, 0, ',', '.') ?></td>
                             <?php if ($sumPaidLebih > 0): ?>
-                            <td class="text-end font-monospace<?= $paidLebih > 0 ? ' text-warning' : ' text-muted' ?>">
+                            <td class="text-end keu-money<?= $paidLebih > 0 ? ' text-warning' : ' text-muted' ?>">
                                 <?= $paidLebih > 0 ? 'Rp ' . number_format($paidLebih, 0, ',', '.') : '—' ?>
                             </td>
                             <?php endif; ?>
-                            <td class="text-end font-monospace<?= $sisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($sisa, 0, ',', '.') ?></td>
+                            <td class="text-end keu-money<?= $sisa > 0 ? ' text-danger' : '' ?>">Rp <?= number_format($sisa, 0, ',', '.') ?></td>
                             <td class="text-end">
                                 <?php if ($pct === null): ?>
                                     <span class="text-muted">—</span>
@@ -261,12 +264,12 @@ $iconPage = bendahara_page_icon('rekap_pos');
                     <?php endforeach; ?>
                     <tr class="table-light fw-semibold">
                         <td colspan="2">Total</td>
-                        <td class="text-end font-monospace">Rp <?= number_format($sumExpected, 0, ',', '.') ?></td>
-                        <td class="text-end font-monospace text-success">Rp <?= number_format($sumPaid, 0, ',', '.') ?></td>
+                        <td class="text-end keu-money">Rp <?= number_format($sumExpected, 0, ',', '.') ?></td>
+                        <td class="text-end keu-money text-success">Rp <?= number_format($sumPaid, 0, ',', '.') ?></td>
                         <?php if ($sumPaidLebih > 0): ?>
-                        <td class="text-end font-monospace text-warning">Rp <?= number_format($sumPaidLebih, 0, ',', '.') ?></td>
+                        <td class="text-end keu-money text-warning">Rp <?= number_format($sumPaidLebih, 0, ',', '.') ?></td>
                         <?php endif; ?>
-                        <td class="text-end font-monospace">Rp <?= number_format($sumSisa, 0, ',', '.') ?></td>
+                        <td class="text-end keu-money">Rp <?= number_format($sumSisa, 0, ',', '.') ?></td>
                         <td class="text-end"><?= $pctCapai ?>%</td>
                     </tr>
                 <?php endif; ?>

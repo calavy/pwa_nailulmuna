@@ -151,7 +151,8 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<form method="get" class="row g-2 align-items-end mb-3">
+<div class="keu-filter-bar">
+<form method="get" class="row g-2 align-items-end">
     <div class="col-6 col-md-2">
         <label class="form-label small fw-semibold mb-1">Dari tanggal</label>
         <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($filter['dari']) ?>" required>
@@ -237,11 +238,12 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="form-text small">Filter santri menampilkan kas masuk saja.</div>
     </div>
     <div class="col-12 col-md-2 d-flex gap-1">
-        <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1"></i> Tampilkan</button>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>" title="Reset"><i class="fa-solid fa-rotate-left"></i></a>
-        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/impor-ekspor.php')) ?>" title="Impor / Ekspor Excel"><i class="fa-solid fa-file-excel"></i></a>
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1"><i class="fa-solid fa-filter me-1" aria-hidden="true"></i> Terapkan</button>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>" title="Reset filter"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span class="visually-hidden"> Reset</span></a>
+        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/impor-ekspor.php')) ?>" title="Impor / Ekspor Excel"><i class="fa-solid fa-file-excel" aria-hidden="true"></i></a>
     </div>
 </form>
+</div>
 
 <?php
 $katCards = [

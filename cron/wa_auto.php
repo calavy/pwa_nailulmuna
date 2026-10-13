@@ -24,6 +24,16 @@ $tick = wa_auto_run_tick($pdo);
 
 wa_auto_disable_web_fallback($pdo, $isCli ? 'hosting_cron_cli' : 'hosting_cron_http');
 
+require_once __DIR__ . '/../helpers/laporan_snapshot.php';
+if (laporan_snapshot_enabled($pdo)) {
+    try {
+        laporan_snapshot_run_tick($pdo);
+        laporan_snapshot_disable_web_fallback($pdo, $isCli ? 'hosting_cron_cli_wa_bundle' : 'hosting_cron_http_wa_bundle');
+    } catch (Throwable $e) {
+        error_log('[wa_auto laporan_snapshot] ' . $e->getMessage());
+    }
+}
+
 $timestamp = date('Y-m-d H:i:s');
 if (!$isCli) {
     header('Content-Type: text/plain; charset=utf-8');

@@ -50,36 +50,36 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div id="keuangan-online-content">
-<div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1"><a href="/keuangan/index.php">Keuangan</a> · Laporan</p>
-    <h1 class="h4 mb-1">Laporan Arus Kas</h1>
-    <p class="text-muted mb-0">Kas masuk &amp; keluar per pos pembayaran/pengeluaran <?= htmlspecialchars((string) $lak['nama_lembaga']) ?> — PAP / ISAK 35.
-        <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Detail transaksi per POS</a>
-        · <a href="<?= htmlspecialchars(app_href('/keuangan/offline-data.php')) ?>">Data offline</a>
-    </p>
-</div>
+<?php
+$keuUiHeader = [
+    'kicker' => '<a href="/keuangan/index.php">Keuangan</a> · Laporan',
+    'title' => 'Laporan Arus Kas',
+    'subtitle' => htmlspecialchars((string) $lak['nama_lembaga']) . ' · ' . htmlspecialchars((string) $lak['date_from']) . ' s/d ' . htmlspecialchars((string) $lak['date_to']),
+];
+require __DIR__ . '/partials/ui_page_header.php';
+?>
 
-<div class="card shadow-sm mb-3">
-    <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label small">Dari tanggal</label>
-                <input type="date" name="dari" class="form-control" value="<?= htmlspecialchars((string) $lak['date_from']) ?>">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">Sampai tanggal</label>
-                <input type="date" name="sampai" class="form-control" value="<?= htmlspecialchars((string) $lak['date_to']) ?>">
-            </div>
-            <div class="col-md-6 d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary">Tampilkan</button>
-                <a class="btn btn-outline-secondary" href="/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank">Cetak / PDF</a>
-                <a class="btn btn-outline-primary" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Rekap masuk &amp; keluar</a>
-                <a class="btn btn-outline-primary" href="/keuangan/rekap-kas-bulan.php">Rekap kas bulanan</a>
-                <a class="btn btn-outline-primary" href="/keuangan/neraca.php">Neraca</a>
-                <a class="btn btn-outline-primary" href="/keuangan/index.php">Dashboard keuangan</a>
-            </div>
-        </form>
-    </div>
+<div class="keu-filter-bar">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-0">Dari tanggal</label>
+            <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $lak['date_from']) ?>">
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-0">Sampai tanggal</label>
+            <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $lak['date_to']) ?>">
+        </div>
+        <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Terapkan</button>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/arus-kas.php')) ?>">Reset</a>
+        </div>
+    </form>
+</div>
+<div class="keu-secondary-actions d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-outline-secondary btn-sm" href="/keuangan/arus-kas.php?dari=<?= urlencode((string) $lak['date_from']) ?>&amp;sampai=<?= urlencode((string) $lak['date_to']) ?>&amp;print=1" target="_blank" rel="noopener">Cetak / PDF</a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href((string) $lak['date_from'], (string) $lak['date_to'])) ?>">Riwayat</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/keuangan/rekap-kas-bulan.php">Rekap kas</a>
+    <a class="btn btn-outline-secondary btn-sm" href="/keuangan/neraca.php">Neraca</a>
 </div>
 
 <div class="row g-3 mb-3">

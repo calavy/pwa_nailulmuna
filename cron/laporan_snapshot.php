@@ -22,6 +22,8 @@ if (!$isCli && $configuredKey !== '' && !hash_equals($configuredKey, $providedKe
 
 $tick = laporan_snapshot_run_tick($pdo);
 
+laporan_snapshot_disable_web_fallback($pdo, $isCli ? 'hosting_cron_cli' : 'hosting_cron_http');
+
 $timestamp = date('Y-m-d H:i:s');
 if (!$isCli) {
     header('Content-Type: text/plain; charset=utf-8');

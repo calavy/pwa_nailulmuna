@@ -404,6 +404,7 @@ C:\xampp\php\php.exe scripts\_diag_rekap_kas_selisih.php
 
 | Kebutuhan | Lokasi |
 |-----------|--------|
+| Rumus tagihan/kas & peta tampilan (bendahara) | [PENJELASAN_KEUANGAN.md](PENJELASAN_KEUANGAN.md) |
 | Operasional harian (setup, troubleshooting, FAQ) | [PANDUAN-KEUANGAN.md](PANDUAN-KEUANGAN.md) |
 | Accordion ringkas in-app | `/keuangan/panduan.php` |
 | Runbook hosting & cron WA | [DEPLOY-LIVE.md](../DEPLOY-LIVE.md) |

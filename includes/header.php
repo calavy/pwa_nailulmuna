@@ -114,6 +114,23 @@ if (isset($_SESSION['user'])) {
     } catch (Throwable $e) {
         error_log('[wa_auto_web_fallback_tick] ' . $e->getMessage());
     }
+    try {
+        $snapRole = strtolower(trim((string) ($_SESSION['user']['role'] ?? '')));
+        $snapStaff = in_array($snapRole, ['admin', 'pengurus'], true);
+        $snapTickDue = (int) ($_SESSION['laporan_snapshot_web_fallback_tick_at'] ?? 0) <= 0
+            || (time() - (int) $_SESSION['laporan_snapshot_web_fallback_tick_at']) >= 180;
+        if (
+            $snapStaff
+            && $snapTickDue
+            && (!function_exists('app_request_is_background_job_skip') || !app_request_is_background_job_skip())
+        ) {
+            require_once __DIR__ . '/../helpers/laporan_snapshot.php';
+            laporan_snapshot_web_fallback_tick($pdo);
+            $_SESSION['laporan_snapshot_web_fallback_tick_at'] = time();
+        }
+    } catch (Throwable $e) {
+        error_log('[laporan_snapshot_web_fallback_tick] ' . $e->getMessage());
+    }
 }
 
 $appBrandTagline = '';

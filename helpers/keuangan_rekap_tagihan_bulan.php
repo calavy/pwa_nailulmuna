@@ -253,3 +253,163 @@ function keuangan_rekap_kas_gabung_tagihan(array $barisKas, array $barisTagihan)
 
     return $barisKas;
 }
+
+/**
+ * Matriks tagihan per POS × bulan (sumber sama dengan rekap POS / agregat TA).
+ *
+ * @return array{
+ *   pos:list<array{slug:string,nama:string,kategori:string,wajib:bool}>,
+ *   by_slug:array<string,array{
+ *     slug:string,
+ *     nama:string,
+ *     kategori:string,
+ *     wajib:bool,
+ *     bulanan:array<int,array{expected:int,paid:int,sisa:int,pct:int,paid_lebih:int}>,
+ *     awal_tahun:array{expected:int,paid:int,sisa:int,pct:int,paid_lebih:int},
+ *     subtotal_bulanan:array{expected:int,paid:int,sisa:int,pct:int},
+ *     subtotal_ta:array{expected:int,paid:int,sisa:int,pct:int}
+ *   }>,
+ *   bulanan_slugs:list<string>,
+ *   awal_tahun_slugs:list<string>
+ * }
+ */
+function keuangan_rekap_tagihan_matrix_by_pos(
+    PDO $pdo,
+    int $tahunAjaranMulai,
+    int $tahunAjaranSelesai,
+    int $sampaiBulan,
+    ?array $biayaDefinitions = null
+): array {
+    $biayaDefinitions ??= keuangan_biaya_definitions();
+    $sampaiBulan = max(1, min(12, $sampaiBulan));
+    $wajibFlip = array_flip(keuangan_tagihan_wajib_slugs());
+
+    $bySlug = [];
+    $posList = [];
+    $bulananSlugs = [];
+    $awalSlugs = [];
+
+    foreach ($biayaDefinitions as $def) {
+        $slug = strtolower(trim((string) ($def['slug'] ?? '')));
+        if ($slug === '') {
+            continue;
+        }
+        $kat = (string) ($def['kategori'] ?? '');
+        $entry = [
+            'slug' => $slug,
+            'nama' => (string) ($def['nama'] ?? $slug),
+            'kategori' => $kat,
+            'wajib' => isset($wajibFlip[$slug]),
+            'bulanan' => [],
+            'awal_tahun' => ['expected' => 0, 'paid' => 0, 'sisa' => 0, 'pct' => 0, 'paid_lebih' => 0],
+            'subtotal_bulanan' => ['expected' => 0, 'paid' => 0, 'sisa' => 0, 'pct' => 0],
+            'subtotal_ta' => ['expected' => 0, 'paid' => 0, 'sisa' => 0, 'pct' => 0],
+        ];
+        $bySlug[$slug] = $entry;
+        $posList[] = [
+            'slug' => $slug,
+            'nama' => $entry['nama'],
+            'kategori' => $kat,
+            'wajib' => $entry['wajib'],
+        ];
+        if ($kat === 'Bulanan') {
+            $bulananSlugs[] = $slug;
+        } elseif ($kat === 'Awal Tahun') {
+            $awalSlugs[] = $slug;
+        }
+    }
+
+    for ($m = 1; $m <= $sampaiBulan; $m++) {
+        $rows = keuangan_rekap_pos_with_expected_cached(
+            $pdo,
+            'BULANAN',
+            $m,
+            $tahunAjaranMulai,
+            $tahunAjaranSelesai,
+            $biayaDefinitions
+        );
+        foreach ($rows as $r) {
+            $slug = strtolower(trim((string) ($r['pos_slug'] ?? '')));
+            if ($slug === '' || !isset($bySlug[$slug])) {
+                continue;
+            }
+            $exp = (int) ($r['expected'] ?? 0);
+            $paid = (int) ($r['paid'] ?? 0);
+            $sisa = max(0, $exp - $paid);
+            $pct = $exp > 0 ? min(100, (int) round(($paid / $exp) * 100)) : 0;
+            $bySlug[$slug]['bulanan'][$m] = [
+                'expected' => $exp,
+                'paid' => $paid,
+                'sisa' => $sisa,
+                'pct' => $pct,
+                'paid_lebih' => (int) ($r['paid_lebih'] ?? 0),
+            ];
+        }
+    }
+
+    $awalRows = keuangan_rekap_pos_with_expected_cached(
+        $pdo,
+        'AWAL_TAHUN',
+        1,
+        $tahunAjaranMulai,
+        $tahunAjaranSelesai,
+        $biayaDefinitions
+    );
+    foreach ($awalRows as $r) {
+        $slug = strtolower(trim((string) ($r['pos_slug'] ?? '')));
+        if ($slug === '' || !isset($bySlug[$slug])) {
+            continue;
+        }
+        $exp = (int) ($r['expected'] ?? 0);
+        $paid = (int) ($r['paid'] ?? 0);
+        $sisa = max(0, $exp - $paid);
+        $pct = $exp > 0 ? min(100, (int) round(($paid / $exp) * 100)) : 0;
+        $bySlug[$slug]['awal_tahun'] = [
+            'expected' => $exp,
+            'paid' => $paid,
+            'sisa' => $sisa,
+            'pct' => $pct,
+            'paid_lebih' => (int) ($r['paid_lebih'] ?? 0),
+        ];
+    }
+
+    foreach ($bySlug as $slug => &$entry) {
+        $sumExp = 0;
+        $sumPaid = 0;
+        foreach ($entry['bulanan'] as $cell) {
+            $sumExp += (int) ($cell['expected'] ?? 0);
+            $sumPaid += (int) ($cell['paid'] ?? 0);
+        }
+        $sumSisa = max(0, $sumExp - $sumPaid);
+        $sumPct = $sumExp > 0 ? min(100, (int) round(($sumPaid / $sumExp) * 100)) : 0;
+        $entry['subtotal_bulanan'] = [
+            'expected' => $sumExp,
+            'paid' => $sumPaid,
+            'sisa' => $sumSisa,
+            'pct' => $sumPct,
+        ];
+        $at = $entry['awal_tahun'];
+        $taExp = $sumExp + (int) ($at['expected'] ?? 0);
+        $taPaid = $sumPaid + (int) ($at['paid'] ?? 0);
+        $taSisa = max(0, $taExp - $taPaid);
+        $taPct = $taExp > 0 ? min(100, (int) round(($taPaid / $taExp) * 100)) : 0;
+        $entry['subtotal_ta'] = [
+            'expected' => $taExp,
+            'paid' => $taPaid,
+            'sisa' => $taSisa,
+            'pct' => $taPct,
+        ];
+    }
+    unset($entry);
+
+    usort($posList, static fn (array $a, array $b): int => strcmp((string) $a['slug'], (string) $b['slug']));
+    sort($bulananSlugs);
+    sort($awalSlugs);
+
+    return [
+        'pos' => $posList,
+        'by_slug' => $bySlug,
+        'bulanan_slugs' => $bulananSlugs,
+        'awal_tahun_slugs' => $awalSlugs,
+    ];
+}

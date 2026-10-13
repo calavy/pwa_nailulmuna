@@ -116,7 +116,7 @@ if (!function_exists('keuangan_riwayat_pembayaran_url_santri')) {
                             <?php endif; ?>
                         </td>
                         <td class="small tagihan-col-detail"><?= htmlspecialchars($kelasLabel) ?></td>
-                        <td class="text-end font-monospace small fw-semibold <?= (int) $r['sisa'] > 0 ? 'text-danger' : 'text-success' ?>">
+                        <td class="text-end keu-money small fw-semibold <?= (int) $r['sisa'] > 0 ? 'text-danger' : 'text-success' ?>">
                             <?= (int) $r['sisa'] > 0 ? 'Rp ' . number_format((int) $r['sisa'], 0, ',', '.') : '—' ?>
                         </td>
                         <td class="text-center">
@@ -204,7 +204,7 @@ if (!function_exists('keuangan_riwayat_pembayaran_url_santri')) {
                 <tfoot class="table-light">
                     <tr class="fw-semibold">
                         <td colspan="3">Jumlah total (<?= $totalRows ?> santri, semua halaman filter)</td>
-                        <td class="text-end font-monospace text-danger">Rp <?= number_format($sumSisa, 0, ',', '.') ?></td>
+                        <td class="text-end keu-money text-danger">Rp <?= number_format($sumSisa, 0, ',', '.') ?></td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>

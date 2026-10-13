@@ -107,8 +107,9 @@
             }
             btn.disabled = true;
             if (btn.tagName === 'BUTTON') {
-                btn.dataset.keuanganSubmitLabel = btn.textContent;
-                btn.textContent = 'Menyimpan…';
+                btn.dataset.keuanganSubmitLabel = btn.innerHTML;
+                btn.innerHTML =
+                    '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Menyimpan…';
             }
         });
         return true;

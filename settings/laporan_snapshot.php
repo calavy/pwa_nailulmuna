@@ -50,6 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($spreadsheetId !== '') {
             save_setting($pdo, 'laporan_snapshot_spreadsheet_id', $spreadsheetId);
         }
+        save_setting(
+            $pdo,
+            'laporan_snapshot_web_fallback_enabled',
+            isset($_POST['laporan_snapshot_web_fallback_enabled']) ? '1' : '0'
+        );
         set_flash('success', 'Pengaturan snapshot laporan disimpan.');
         header('Location: ' . app_href('/settings/laporan_snapshot.php'));
         exit;
@@ -82,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'Tes tick PHP OK. Terakhir tick: ' . ($probe['last_cron_tick_at'] ?? '—')
             . ' · mode ' . ($probe['mode'] ?? '')
             . (($probe['note'] ?? '') !== '' ? ' (' . $probe['note'] . ')' : '')
+            . ' — Ini tidak menggantikan crontab hosting; pastikan cron WA/snapshot tiap menit.'
         );
         header('Location: ' . app_href('/settings/laporan_snapshot.php#diag-cron-snapshot'));
         exit;
@@ -157,6 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $v = static fn(string $k, string $d = ''): string => (string) app_setting($pdo, $k, $defaults[$k] ?? $d);
+if ($v('laporan_snapshot_web_fallback_enabled') === '1' && laporan_snapshot_cron_tick_recent($pdo)) {
+    laporan_snapshot_disable_web_fallback($pdo, 'cron_detected_active');
+}
 $status = laporan_snapshot_status($pdo);
 $lastResult = is_array($status['last_result'] ?? null) ? $status['last_result'] : null;
 $cronKey = $v('laporan_snapshot_cron_key');
@@ -165,6 +174,11 @@ $cronUrl = $cronPath;
 require_once __DIR__ . '/../helpers/app_path.php';
 $cronUrlFull = laporan_snapshot_cron_public_url($pdo);
 $cronCrontabLine = '* * * * * curl -fsS ' . escapeshellarg($cronUrlFull) . ' > /dev/null 2>&1';
+$waCronKey = trim((string) app_setting($pdo, 'wa_auto_cron_key', ''));
+$waCronUrlFull = rtrim(app_public_url(), '/') . app_href('/cron/wa_auto.php')
+    . ($waCronKey !== '' ? ('?key=' . rawurlencode($waCronKey)) : '');
+$waCronCrontabLine = '* * * * * curl -fsS ' . escapeshellarg($waCronUrlFull) . ' > /dev/null 2>&1';
+$webFallbackEnabled = $v('laporan_snapshot_web_fallback_enabled') === '1';
 $saStatus = laporan_snapshot_sa_status($pdo);
 $saPath = (string) ($saStatus['path'] ?? '');
 $spreadsheetUrl = ($status['spreadsheet_id'] ?? '') !== ''
@@ -232,7 +246,8 @@ require_once __DIR__ . '/includes/settings_nav.php';
             <div class="alert alert-warning py-2 small mb-3">
                 <strong>Cron belum terlihat sehat.</strong> Tick terakhir: <strong><?= htmlspecialchars((string) ($status['cron_tick_age_label'] ?? 'belum pernah')) ?></strong>
                 (basi setelah ~<?= (int) (laporan_snapshot_cron_stale_after_sec() / 60) ?> menit tanpa panggilan).
-                Pastikan hosting memanggil <code>cron/laporan_snapshot.php</code> (CLI atau HTTP + key) <strong>setiap menit</strong>.
+                Tick diharapkan ≤1 menit dari crontab atau fallback web.
+                Pastikan hosting memanggil <code>cron/wa_auto.php</code> (sudah ikut tick snapshot) atau <code>cron/laporan_snapshot.php</code> <strong>setiap menit</strong>.
                 <a href="#diag-cron-snapshot" class="alert-link">Jalankan diagnostik cron</a> atau salin URL di bagian Perintah cron.
             </div>
         <?php endif; ?>
@@ -361,6 +376,13 @@ require_once __DIR__ . '/includes/settings_nav.php';
                 <label class="form-label small" for="laporan_snapshot_cron_key">Cron key HTTP (opsional)</label>
                 <input type="text" class="form-control font-monospace small" id="laporan_snapshot_cron_key" name="laporan_snapshot_cron_key" value="<?= htmlspecialchars($cronKey) ?>" autocomplete="off">
             </div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="laporan_snapshot_web_fallback_enabled" name="laporan_snapshot_web_fallback_enabled" value="1" <?= $webFallbackEnabled ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="laporan_snapshot_web_fallback_enabled">Fallback web (cadangan)</label>
+                </div>
+                <p class="form-text small mb-0">Jika crontab mati: tick snapshot saat admin/pengurus buka aplikasi (throttle ~3 menit). Mati otomatis bila cron hosting aktif.</p>
+            </div>
         </div>
     </div>
     <div class="card-footer bg-white d-flex flex-wrap gap-2">
@@ -478,15 +500,47 @@ require_once __DIR__ . '/includes/settings_nav.php';
 <div class="card shadow-sm mb-3">
     <div class="card-header bg-white fw-semibold small">Perintah cron</div>
     <div class="card-body small">
-        <p class="mb-2"><strong>CLI (XAMPP / VPS):</strong></p>
+        <p class="alert alert-info py-2 small mb-3">
+            <strong>Disarankan hosting:</strong> crontab tiap menit ke <code>cron/wa_auto.php</code> — tick WA otomatis <strong>dan</strong> tick snapshot Google Sheet (jika snapshot aktif). Baris snapshot terpisah di bawah opsional.
+        </p>
+        <p class="mb-1"><strong>Cron WA + snapshot (HTTP, tiap menit):</strong></p>
+        <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+            <pre class="bg-light p-2 rounded small mb-0 flex-grow-1"><code id="cron-wa-url"><?= htmlspecialchars($waCronUrlFull) ?></code></pre>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-copy-target="cron-wa-url">Salin URL</button>
+        </div>
+        <pre class="bg-light p-2 rounded small mb-3"><code id="cron-wa-crontab"><?= htmlspecialchars($waCronCrontabLine) ?></code></pre>
+        <button type="button" class="btn btn-outline-secondary btn-sm mb-3" data-copy-target="cron-wa-crontab">Salin crontab WA</button>
+        <p class="mb-2"><strong>Snapshot saja — CLI (XAMPP / VPS):</strong></p>
         <pre class="bg-light p-2 rounded small mb-3"><code>php cron/laporan_snapshot.php</code></pre>
-        <p class="mb-2"><strong>HTTP (hosting, satu panggilan):</strong></p>
-        <pre class="bg-light p-2 rounded small mb-3"><code><?= htmlspecialchars($cronUrlFull) ?></code></pre>
-        <p class="mb-2"><strong>Crontab hosting (tiap menit):</strong></p>
-        <pre class="bg-light p-2 rounded small mb-0"><code><?= htmlspecialchars($cronCrontabLine) ?></code></pre>
+        <p class="mb-1"><strong>Snapshot saja — HTTP:</strong></p>
+        <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+            <pre class="bg-light p-2 rounded small mb-0 flex-grow-1"><code id="cron-snapshot-url"><?= htmlspecialchars($cronUrlFull) ?></code></pre>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-copy-target="cron-snapshot-url">Salin URL</button>
+        </div>
+        <p class="mb-1"><strong>Snapshot saja — crontab:</strong></p>
+        <pre class="bg-light p-2 rounded small mb-2"><code id="cron-snapshot-crontab"><?= htmlspecialchars($cronCrontabLine) ?></code></pre>
+        <button type="button" class="btn btn-outline-secondary btn-sm mb-0" data-copy-target="cron-snapshot-crontab">Salin crontab snapshot</button>
         <p class="text-muted mt-2 mb-0">Tab sheet: <?= htmlspecialchars(implode(', ', array_values($tabTitleMap))) ?>.</p>
         <p class="text-muted mt-1 mb-0">CLI tes push: <code>php scripts/laporan_snapshot_bootstrap.php push</code></p>
     </div>
 </div>
+<script>
+document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
+    var labelDefault = btn.textContent;
+    btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-copy-target');
+        var el = id ? document.getElementById(id) : null;
+        if (!el) return;
+        var text = (el.textContent || '').trim();
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+                btn.textContent = 'Tersalin';
+                setTimeout(function () { btn.textContent = labelDefault; }, 1500);
+            });
+        }
+    });
+});
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

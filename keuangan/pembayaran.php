@@ -472,8 +472,8 @@ require_once __DIR__ . '/../includes/header.php';
                     <span class="pembayaran-actions-total__label">Total transaksi</span>
                     <span class="pembayaran-actions-total__amount" id="pembayaran-actions-amount">Rp 0</span>
                 </div>
-                <button type="submit" class="btn btn-success btn-lg" id="btn-simpan-pembayaran"<?= $akunRows === [] ? ' disabled' : '' ?>>
-                    <i class="fa-solid fa-check me-1"></i> Simpan &amp; buka kuitansi
+                <button type="submit" class="btn btn-success btn-lg" id="btn-simpan-pembayaran"<?= $akunRows === [] ? ' disabled' : '' ?> aria-live="polite">
+                    <i class="fa-solid fa-check me-1" aria-hidden="true"></i> Simpan &amp; buka kuitansi
                 </button>
                 <a class="btn btn-outline-secondary" href="/pembayaran/riwayat.php">Riwayat</a>
                 <a class="btn btn-outline-secondary" href="/keuangan/index.php">Dashboard keuangan</a>

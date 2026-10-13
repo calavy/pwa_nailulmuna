@@ -57,11 +57,39 @@ $bodyClass = keuangan_body_class('keuangan-hub-page');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1">Modul Keuangan</p>
-    <h1 class="h4 mb-1">Dashboard Keuangan</h1>
-    <p class="text-muted mb-0">Kondisi keuangan terkini, piutang tagihan bulan berjalan, dan tindakan prioritas.</p>
-</div>
+<?php
+$periodeHeader = '';
+if ($dashSnap !== null) {
+    $tagHdr = $dashSnap['tagihan_bulan'];
+    $periodeHeader = 'TA ' . htmlspecialchars((string) $tagHdr['ta_label'])
+        . ' · tagihan ' . htmlspecialchars((string) $tagHdr['bulan_label']);
+}
+$keuUiHeader = [
+    'kicker' => 'Modul Keuangan',
+    'title' => 'Dashboard Keuangan',
+    'subtitle' => 'Ringkasan kas operasional dan tagihan bulan berjalan.'
+        . ($periodeHeader !== '' ? ' <span class="text-nowrap">' . $periodeHeader . '</span>' : ''),
+    'actions' => ($dashSnap !== null && !$needsImport)
+        ? '<a href="' . htmlspecialchars(app_href('/keuangan/index.php?refresh=1')) . '" class="btn btn-sm btn-outline-secondary" title="Muat ulang angka dari cache server">'
+            . '<i class="fa-solid fa-rotate me-1" aria-hidden="true"></i> Perbarui angka</a>'
+        : '',
+];
+require __DIR__ . '/partials/ui_page_header.php';
+?>
+
+<?php if ($dashSnap !== null && !$needsImport): ?>
+<nav class="keu-quick-links mb-4" aria-label="Aksi cepat keuangan">
+    <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">
+        <i class="fa-solid fa-circle-plus me-1" aria-hidden="true"></i> Input pembayaran
+    </a>
+    <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">
+        <i class="fa-solid fa-table-list me-1" aria-hidden="true"></i> Rekap kas
+    </a>
+    <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">
+        <i class="fa-solid fa-receipt me-1" aria-hidden="true"></i> Tagihan syahriyah
+    </a>
+</nav>
+<?php endif; ?>
 
 <?php if ($needsImport): ?>
 <div class="alert alert-info border-info mb-4">
@@ -93,127 +121,137 @@ require_once __DIR__ . '/../includes/header.php';
     $tagihanUrl = '/pembayaran/tagihan_syahriyah.php?bulan=' . (int) $tag['bulan'];
 ?>
 <section class="keu-dash-snapshot mb-4" aria-label="Kondisi keuangan terkini">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
         <div>
             <h2 class="h5 mb-1">Kondisi terkini</h2>
             <p class="small text-muted mb-0">
-                Tagihan wajib <strong><?= htmlspecialchars((string) $tag['bulan_label']) ?></strong>
-                TA <?= htmlspecialchars((string) $tag['ta_label']) ?>
-                · Neraca per <?= htmlspecialchars((string) $ner['as_of_label']) ?>
+                Neraca per <?= htmlspecialchars((string) $ner['as_of_label']) ?>
                 <?php if (!empty($dashSnap['kas_saldo_mode_label'])): ?>
                     · Saldo kas: <span class="badge text-bg-light border"><?= htmlspecialchars((string) $dashSnap['kas_saldo_mode_label']) ?></span>
                 <?php endif; ?>
+                <span class="text-muted">· Angka dari snapshot server (bukan real-time).</span>
             </p>
         </div>
         <a href="<?= htmlspecialchars($tagihanUrl) ?>" class="btn btn-sm btn-outline-primary">
-            <i class="fa-solid fa-receipt me-1"></i> Detail tagihan
+            <i class="fa-solid fa-receipt me-1" aria-hidden="true"></i> Detail tagihan
         </a>
     </div>
 
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--neraca h-100 border-0 shadow-sm <?= $neracaSehat ? 'dash-kpi--ok' : 'dash-kpi--warn' ?>">
-                <div class="card-body dash-kpi-inner">
-                    <span class="dash-kpi-ico"><i class="fa-solid <?= $neracaSehat ? 'fa-scale-balanced' : 'fa-scale-unbalanced' ?>"></i></span>
-                    <div>
-                        <div class="dash-kpi-label">Neraca</div>
-                        <?php if ($neracaSehat): ?>
-                            <div class="dash-kpi-value fs-6">Seimbang</div>
-                        <?php elseif (!$seimbang): ?>
-                            <div class="dash-kpi-value fs-6">Belum seimbang</div>
-                            <div class="small text-danger">Selisih <?= htmlspecialchars($formatRupiah($selisihNeraca)) ?></div>
-                        <?php else: ?>
-                            <div class="dash-kpi-value fs-6">Perlu cek</div>
-                        <?php endif; ?>
-                        <?php if (!$neracaSehat): ?>
-                            <a href="/keuangan/neraca.php" class="small">Indikator kesehatan →</a>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+    <?php
+    $hintKas = 'Per ' . (string) ($kasBank['as_of_label'] ?? '') . ' · kas ' . $formatRupiah((int) ($kasBank['total_kas'] ?? 0)) . ' + bank ' . $formatRupiah((int) ($kasBank['total_bank'] ?? 0));
+    $hintTag = (string) $tag['bulan_label'] . ' TA ' . (string) $tag['ta_label'];
+    ?>
+    <p class="keu-section-kicker mb-2">Prioritas — kas &amp; tagihan bulan berjalan</p>
+    <div class="row g-3 mb-3 keu-dash-kpi-primary">
+        <div class="col-6 col-lg">
+            <?php
+            $keuUiKpi = [
+                'label' => 'Likuid operasional (kas + bank)',
+                'value' => htmlspecialchars($formatRupiah((int) ($kasBank['total'] ?? 0))),
+                'hint' => $hintKas,
+                'variant' => 'kas',
+                'icon' => 'fa-wallet',
+                'value_class' => 'text-success',
+            ];
+            require __DIR__ . '/partials/ui_kpi_card.php';
+            ?>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--piutang h-100 border-0 shadow-sm">
-                <div class="card-body dash-kpi-inner">
-                    <span class="dash-kpi-ico"><i class="fa-solid fa-hand-holding-dollar"></i></span>
-                    <div>
-                        <div class="dash-kpi-label">Harus diterima</div>
-                        <div class="dash-kpi-value" style="font-size:1.15rem"><?= htmlspecialchars($formatRupiah((int) $tag['total_piutang'])) ?></div>
-                        <div class="small text-muted">dari <?= htmlspecialchars($formatRupiah((int) $tag['total_tagihan'])) ?> tagihan</div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-6 col-lg">
+            <?php
+            $keuUiKpi = [
+                'label' => 'Total tagihan (wajib)',
+                'value' => htmlspecialchars($formatRupiah((int) $tag['total_tagihan'])),
+                'hint' => $hintTag . ' · status tagihan',
+                'variant' => 'tagihan',
+                'icon' => 'fa-file-invoice-dollar',
+            ];
+            require __DIR__ . '/partials/ui_kpi_card.php';
+            ?>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--penunggak h-100 border-0 shadow-sm">
-                <div class="card-body dash-kpi-inner">
-                    <span class="dash-kpi-ico"><i class="fa-solid fa-user-clock"></i></span>
-                    <div>
-                        <div class="dash-kpi-label">Penunggak</div>
-                        <div class="dash-kpi-value"><?= (int) $tag['jumlah_penunggak'] ?></div>
-                        <div class="small text-muted"><?= (int) $tag['jumlah_lunas'] ?> lunas · <?= (int) $tag['jumlah_sebagian'] ?> sebagian</div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-6 col-lg">
+            <?php
+            $keuUiKpi = [
+                'label' => 'Terbayar bulan ini',
+                'value' => htmlspecialchars($formatRupiah((int) ($tag['total_terbayar'] ?? 0))),
+                'hint' => 'Valid terhadap tagihan · bukan seluruh kas masuk',
+                'variant' => 'ok',
+                'icon' => 'fa-circle-check',
+                'value_class' => 'text-success',
+            ];
+            require __DIR__ . '/partials/ui_kpi_card.php';
+            ?>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card dash-kpi dash-kpi--tertagih h-100 border-0 shadow-sm">
-                <div class="card-body dash-kpi-inner">
-                    <span class="dash-kpi-ico"><i class="fa-solid fa-chart-line"></i></span>
-                    <div class="w-100">
-                        <div class="dash-kpi-label">Tertagih</div>
-                        <div class="dash-kpi-value"><?= htmlspecialchars((string) $tag['persen_tertagih']) ?>%</div>
-                        <div class="progress mt-2" style="height:6px" role="progressbar" aria-valuenow="<?= (int) $tag['persen_tertagih'] ?>" aria-valuemin="0" aria-valuemax="100">
-                            <div class="progress-bar bg-success" style="width:<?= min(100, max(0, (float) $tag['persen_tertagih'])) ?>%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-6 col-lg">
+            <?php
+            $keuUiKpi = [
+                'label' => 'Sisa tagihan (piutang)',
+                'value' => htmlspecialchars($formatRupiah((int) $tag['total_piutang'])),
+                'hint' => (int) $tag['jumlah_penunggak'] . ' penunggak',
+                'variant' => 'piutang',
+                'icon' => 'fa-hand-holding-dollar',
+            ];
+            require __DIR__ . '/partials/ui_kpi_card.php';
+            ?>
+        </div>
+        <div class="col-6 col-lg">
+            <?php
+            $keuUiKpi = [
+                'label' => 'Tertagih',
+                'value' => htmlspecialchars((string) $tag['persen_tertagih']) . '%',
+                'hint' => 'Persen terbayar valid vs tagihan',
+                'variant' => 'tagihan',
+                'icon' => 'fa-chart-line',
+                'extra_html' => '<div class="progress mt-2" style="height:5px" role="progressbar" aria-label="Persen tertagih" aria-valuenow="' . (int) $tag['persen_tertagih'] . '" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-success" style="width:' . min(100, max(0, (float) $tag['persen_tertagih'])) . '%"></div></div>',
+            ];
+            require __DIR__ . '/partials/ui_kpi_card.php';
+            ?>
         </div>
     </div>
 
-    <div class="row g-3 mb-3">
-        <div class="col-md-4">
-            <div class="card dash-kpi h-100 border-0 shadow-sm border-start border-4 border-success">
-                <div class="card-body">
-                    <div class="small text-muted mb-1"><i class="fa-solid fa-money-bill-wave me-1"></i> Kas fisik</div>
-                    <div class="h4 mb-0 text-success"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_kas'] ?? 0))) ?></div>
-                    <div class="small text-muted">Uang tunai &amp; e-wallet di pondok · per <?= htmlspecialchars((string) ($kasBank['as_of_label'] ?? '')) ?></div>
-                </div>
+    <details class="small mb-3">
+        <summary class="fw-semibold">Indikator tambahan (neraca, mutasi hari ini)</summary>
+        <div class="row g-3 mt-1">
+            <div class="col-md-4">
+                <?php
+                $neracaVal = $neracaSehat ? 'Seimbang' : (!$seimbang ? 'Belum seimbang' : 'Perlu cek');
+                $nerHint = !$neracaSehat && !$seimbang ? 'Selisih ' . $formatRupiah($selisihNeraca) : 'Per ' . (string) ($ner['as_of_label'] ?? '');
+                $keuUiKpi = [
+                    'label' => 'Neraca pondok',
+                    'value' => htmlspecialchars($neracaVal),
+                    'hint' => $nerHint,
+                    'variant' => $neracaSehat ? 'ok' : 'warn',
+                    'icon' => $neracaSehat ? 'fa-scale-balanced' : 'fa-scale-unbalanced',
+                    'extra_html' => '<a href="/keuangan/neraca.php" class="small">Buka neraca</a>',
+                ];
+                require __DIR__ . '/partials/ui_kpi_card.php';
+                ?>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card dash-kpi h-100 border-0 shadow-sm border-start border-4 border-primary">
-                <div class="card-body">
-                    <div class="small text-muted mb-1"><i class="fa-solid fa-building-columns me-1"></i> Saldo rekening</div>
-                    <div class="h4 mb-0 text-primary"><?= htmlspecialchars($formatRupiah((int) ($kasBank['total_bank'] ?? 0))) ?></div>
-                    <div class="small text-muted">Total likuid <?= htmlspecialchars($formatRupiah((int) ($kasBank['total'] ?? 0))) ?> (kas + bank)</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-2">
-                    <div class="small fw-semibold mb-2"><i class="fa-solid fa-arrows-rotate me-1"></i> Mutasi hari ini</div>
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span class="text-muted">Masuk</span>
-                        <span class="text-success fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['masuk'] ?? 0))) ?></span>
-                    </div>
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span class="text-muted">Keluar</span>
-                        <span class="text-danger fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['keluar'] ?? 0))) ?></span>
-                    </div>
-                    <div class="d-flex justify-content-between small border-top pt-1">
-                        <span class="text-muted">Bersih</span>
-                        <span class="fw-semibold"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['bersih'] ?? 0))) ?></span>
-                    </div>
-                    <div class="small mt-2">
-                        <a href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href(date('Y-m-d'), date('Y-m-d'))) ?>">Rekap masuk &amp; keluar hari ini</a>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body py-2">
+                        <div class="small fw-semibold mb-2">Mutasi hari ini</div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Masuk</span><span class="text-success keu-money"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['masuk'] ?? 0))) ?></span></div>
+                        <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Keluar</span><span class="text-danger keu-money"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['keluar'] ?? 0))) ?></span></div>
+                        <div class="d-flex justify-content-between small border-top pt-1"><span class="text-muted">Bersih</span><span class="keu-money"><?= htmlspecialchars($formatRupiah((int) ($mutasiHariIni['bersih'] ?? 0))) ?></span></div>
+                        <a class="small d-inline-block mt-2" href="<?= htmlspecialchars(keuangan_riwayat_pembayaran_href(date('Y-m-d'), date('Y-m-d'))) ?>">Detail hari ini</a>
                     </div>
                 </div>
             </div>
+            <div class="col-md-4">
+                <?php
+                $keuUiKpi = [
+                    'label' => 'Penunggak (jumlah santri)',
+                    'value' => (string) (int) $tag['jumlah_penunggak'],
+                    'hint' => (int) $tag['jumlah_lunas'] . ' lunas · ' . (int) $tag['jumlah_sebagian'] . ' sebagian',
+                    'variant' => 'piutang',
+                    'icon' => 'fa-user-clock',
+                    'extra_html' => '<a href="' . htmlspecialchars($tagihanUrl) . '" class="small">Daftar tagihan</a>',
+                ];
+                require __DIR__ . '/partials/ui_kpi_card.php';
+                ?>
+            </div>
         </div>
-    </div>
+    </details>
 
     <?php
     $checklistKas = keuangan_dashboard_checklist_kas($dashSnap);
@@ -234,11 +272,10 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <div class="row g-3 mb-3">
-        <div class="col-12">
-            <div class="card h-100 border-0 shadow-sm">
+    <details class="mb-3">
+        <summary class="small fw-semibold">Rincian akun operasional (terkini)</summary>
+        <div class="card border-0 shadow-sm mt-2">
                 <div class="card-body py-2">
-                    <div class="small fw-semibold mb-2">Rincian akun operasional (terkini)</div>
                     <?php if (($kasBank['akun'] ?? []) === []): ?>
                         <p class="small text-muted mb-0">Belum ada akun kas/rekening aktif. <a href="<?= htmlspecialchars(app_href('/keuangan/pengaturan.php?bagian=akun')) ?>">Buat akun</a></p>
                     <?php else: ?>
@@ -260,8 +297,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <?php endif; ?>
                 </div>
             </div>
-        </div>
-    </div>
+    </details>
 
     <div class="row g-3">
         <div class="col-lg-7">
@@ -393,11 +429,11 @@ require_once __DIR__ . '/../includes/header.php';
     $selisihNeracaSnap = abs((int) ($nerSnap['selisih'] ?? 0));
     $neracaSnapSeimbang = !empty($nerSnap['seimbang']);
 ?>
-<div class="row g-3 mb-4" id="laporan">
+<div class="row g-3 mb-4 keu-laporan-ringkas" id="laporan">
     <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-success border-2">
             <div class="card-body">
-                <h2 class="h5 mb-2">
+                <h2 class="h6 mb-2">
                     <i class="fa-solid fa-table-list text-success me-1"></i> Rekap kas bulanan
                     <span class="badge bg-success ms-1" style="font-size:0.65rem">Laporan utama</span>
                 </h2>
@@ -419,7 +455,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-primary border-opacity-25">
             <div class="card-body">
-                <h2 class="h5 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
+                <h2 class="h6 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
                 <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) ($nerSnap['as_of_label'] ?? date('d/m/Y'))) ?></p>
                 <p class="mb-1">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
                 <?php if (!$neracaSnapSeimbang): ?>
@@ -445,7 +481,7 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-success border-opacity-25">
             <div class="card-body">
-                <h2 class="h5 mb-2"><i class="fa-solid fa-money-bill-transfer text-success me-1"></i> Arus kas</h2>
+                <h2 class="h6 mb-2"><i class="fa-solid fa-money-bill-transfer text-success me-1"></i> Arus kas</h2>
                 <p class="small text-muted mb-2"><?= htmlspecialchars((string) $lakRingkas['periode_label']) ?></p>
                 <p class="mb-3">Kenaikan kas: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) $lakRingkas['kenaikan_kas'])) ?></strong></p>
                 <div class="d-flex flex-wrap gap-2">
@@ -490,7 +526,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--pengaturan">
             <div class="card-header fw-semibold">Pengaturan</div>
             <div class="card-body d-grid gap-2">
-                <a class="keu-modern-link" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>"><i class="fa-solid fa-book-open"></i><span>Panduan alur keuangan</span></a>
+                <a class="keu-modern-link" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>"><i class="fa-solid fa-book-open"></i><span>Panduan &amp; rumus keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=tarif"><i class="fa-solid fa-tags"></i><span>Tarif &amp; komponen</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi dana</span></a>
@@ -507,57 +543,5 @@ require_once __DIR__ . '/../includes/header.php';
         <i class="fa-solid fa-coins me-1"></i>Modul Saku &amp; Cashless →
     </a>
 </p>
-
-<style>
-.keuangan-hub-page .card-header { font-size: 0.95rem; }
-.keuangan-hub-page .btn.text-start { padding: 0.65rem 0.85rem; }
-.keu-dash-snapshot .dash-kpi--neraca { border-left: 4px solid #6366f1; }
-.keu-dash-snapshot .dash-kpi--neraca.dash-kpi--ok { border-left-color: #0f766e; }
-.keu-dash-snapshot .dash-kpi--neraca.dash-kpi--warn { border-left-color: #dc2626; }
-.keu-dash-snapshot .dash-kpi--piutang { border-left: 4px solid #d97706; }
-.keu-dash-snapshot .dash-kpi--penunggak { border-left: 4px solid #b45309; }
-.keu-dash-snapshot .dash-kpi--tertagih { border-left: 4px solid #059669; }
-.keu-dash-snapshot .dash-kpi--piutang .dash-kpi-ico { color: #b45309; background: rgba(217,119,6,.12); }
-.keu-dash-snapshot .dash-kpi--penunggak .dash-kpi-ico { color: #c2410c; background: rgba(234,88,12,.12); }
-.keu-dash-snapshot .dash-kpi--tertagih .dash-kpi-ico { color: #059669; background: rgba(5,150,105,.12); }
-.keu-dash-tindakan a:hover { background: rgba(15,118,110,.06); }
-.keu-dash-wa-dl dt { font-weight: 500; }
-.keu-modern-section { border-radius: 14px; overflow: hidden; }
-.keu-modern-section .card-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-.keu-modern-section--laporan .card-header { color: #1d4ed8; }
-.keu-modern-section--transaksi .card-header { color: #047857; }
-.keu-modern-section--pengaturan .card-header { color: #475569; }
-.keu-modern-link {
-    display: flex; align-items: center; gap: .55rem;
-    text-decoration: none; color: #0f172a;
-    border: 1px solid #e2e8f0; border-radius: 10px;
-    padding: .58rem .65rem; background: #fff;
-    transition: all .16s ease;
-}
-.keu-modern-link i { width: 1rem; text-align: center; color: #0f766e; }
-.keu-modern-link:hover { background: #f0fdfa; border-color: #99f6e4; transform: translateY(-1px); }
-@media (max-width: 768px) {
-    .keu-modern-nav .col-lg-4 + .col-lg-4 { margin-top: .15rem; }
-    .keu-modern-section { border-radius: 12px; }
-    .keu-modern-section .card-header {
-        font-size: .86rem;
-        padding: .55rem .75rem;
-    }
-    .keu-modern-section .card-body {
-        padding: .6rem .55rem;
-    }
-    .keu-modern-link {
-        padding: .5rem .55rem;
-        border-radius: 9px;
-        gap: .45rem;
-        font-size: .83rem;
-        line-height: 1.25;
-    }
-    .keu-modern-link i {
-        width: .95rem;
-        font-size: .88rem;
-    }
-}
-</style>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

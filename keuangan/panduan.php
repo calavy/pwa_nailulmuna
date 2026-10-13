@@ -19,20 +19,26 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="page-intro-kicker mb-1">
         <a href="<?= htmlspecialchars(app_href('/keuangan/index.php')) ?>">Keuangan</a>
     </p>
-    <h1 class="h4 mb-1">Panduan alur keuangan</h1>
+    <h1 class="h4 mb-1">Panduan &amp; penjelasan keuangan</h1>
     <p class="text-muted small mb-0">
-        Dari pengaturan tarif, perhitungan tagihan, pembayaran, alokasi dana, akuntansi, cashless, hingga laporan.
+        Rumus tagihan/kas, tampilan laporan, alur operasional (tarif → tagihan → bayar → jurnal → rekap).
     </p>
 </div>
 
 <div class="alert alert-info border-info small mb-3">
     <strong>Dokumentasi (markdown):</strong>
-    <a href="<?= htmlspecialchars(app_href('/docs/ALUR_KEUANGAN.md')) ?>" target="_blank" rel="noopener"><strong>Alur keuangan lengkap (1 dokumen)</strong></a>
-    — arsitektur, pipeline tagihan/rekap, diagnostik, deploy aman.
+    <a href="<?= htmlspecialchars(app_href('/docs/PENJELASAN_KEUANGAN.md')) ?>" target="_blank" rel="noopener"><strong>Penjelasan keuangan (rumus &amp; tampilan)</strong></a>
+    ·
+    <a href="<?= htmlspecialchars(app_href('/docs/ALUR_KEUANGAN.md')) ?>" target="_blank" rel="noopener">Alur keuangan lengkap</a>
+    (pipeline, deploy).
     <a href="<?= htmlspecialchars(app_href('/docs/PANDUAN-KEUANGAN.md')) ?>" target="_blank" rel="noopener">Panduan operator harian</a>
-    (setup, troubleshooting, FAQ).
-    Versi ringkas interaktif ada di accordion di bawah.
+    (FAQ).
+    Accordion di bawah = versi in-app.
 </div>
+
+<?php require __DIR__ . '/partials/penjelasan_rumus_tampilan.php'; ?>
+
+<h2 class="h6 mt-4 mb-2 text-muted">Alur operasional modul</h2>
 
 <?php require __DIR__ . '/partials/alur_keuangan_panduan.php'; ?>
 

@@ -1167,6 +1167,75 @@ function laporan_snapshot_cron_is_stale(PDO $pdo, ?int $maxAgeSec = null): bool
     return !laporan_snapshot_cron_recently_active($pdo, $maxAgeSec);
 }
 
+function laporan_snapshot_disable_web_fallback(PDO $pdo, string $reason = 'manual'): bool
+{
+    if (trim((string) app_setting($pdo, 'laporan_snapshot_web_fallback_enabled', '0')) !== '1') {
+        return false;
+    }
+    save_setting($pdo, 'laporan_snapshot_web_fallback_enabled', '0');
+    save_setting($pdo, 'laporan_snapshot_fallback_auto_disabled_at', date('Y-m-d H:i:s'));
+    save_setting($pdo, 'laporan_snapshot_fallback_auto_disabled_reason', $reason);
+
+    return true;
+}
+
+function laporan_snapshot_web_fallback_schedule_tick(PDO $pdo): void
+{
+    static $scheduled = false;
+    if ($scheduled) {
+        return;
+    }
+    $scheduled = true;
+
+    register_shutdown_function(static function () use ($pdo): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        try {
+            laporan_snapshot_run_tick($pdo);
+        } catch (Throwable $e) {
+            error_log('[laporan_snapshot_web_fallback_tick] ' . $e->getMessage());
+        }
+    });
+}
+
+function laporan_snapshot_web_fallback_tick(PDO $pdo): void
+{
+    static $ranThisRequest = false;
+    if ($ranThisRequest) {
+        return;
+    }
+    $ranThisRequest = true;
+
+    if (trim((string) app_setting($pdo, 'laporan_snapshot_web_fallback_enabled', '0')) !== '1') {
+        return;
+    }
+    if (!laporan_snapshot_enabled($pdo)) {
+        return;
+    }
+    if (laporan_snapshot_cron_tick_recent($pdo)) {
+        return;
+    }
+    if (function_exists('app_request_is_background_job_skip') && app_request_is_background_job_skip()) {
+        return;
+    }
+
+    $role = strtolower(trim((string) ($_SESSION['user']['role'] ?? '')));
+    if (!in_array($role, ['admin', 'pengurus'], true)) {
+        return;
+    }
+
+    $requestPath = app_normalize_request_path((string) ($_SERVER['REQUEST_URI'] ?? ''));
+    if ($requestPath !== '' && (
+        preg_match('#\.(css|js|map|woff2?|png|jpe?g|gif|webp|ico)$#i', $requestPath)
+        || str_contains($requestPath, '/cron/')
+    )) {
+        return;
+    }
+
+    laporan_snapshot_web_fallback_schedule_tick($pdo);
+}
+
 /**
  * @return array<string, mixed>
  */

@@ -58,17 +58,15 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<div class="page-intro mb-3">
-    <p class="page-intro-kicker mb-1">Pemasukan</p>
-    <h1 class="h4 mb-1">Pemasukan dari Sumber Lain</h1>
-    <p class="text-muted mb-0">
-        Catat uang masuk selain pembayaran santri (donasi, hibah, bantuan, bunga bank, dll.).
-        Untuk pembayaran syahriyah/saku santri gunakan
-        <a href="/keuangan/pembayaran.php">Input pembayaran</a>.
-        · <a href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pemasukan.php')) ?>">Riwayat pemasukan</a>
-        · <a href="/keuangan/index.php">Dashboard keuangan</a>
-    </p>
-</div>
+<?php
+$keuUiHeader = [
+    'kicker' => '<a href="/keuangan/index.php">Keuangan</a> · Pemasukan',
+    'title' => 'Pemasukan dari Sumber Lain',
+    'subtitle' => 'Catat uang masuk selain pembayaran santri (donasi, hibah, bantuan, bunga bank, dll.). '
+        . 'Untuk syahriyah/saku gunakan <a href="/keuangan/pembayaran.php">Input pembayaran</a>.',
+];
+require __DIR__ . '/partials/ui_page_header.php';
+?>
 
 <div class="row g-4">
     <div class="col-lg-6" id="formulir-pemasukan">
