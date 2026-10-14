@@ -346,6 +346,131 @@ function munawib_find_by_code(PDO $pdo, string $code): ?array
 }
 
 /**
+ * Nama pembimbing terjadwal untuk slot (jadwal_kegiatan, fallback pkpps_jadwal).
+ */
+function munawib_scan_slot_pembimbing_nama(PDO $pdo, array $slot, string $tanggal, string $jam, int $hariKe): string
+{
+    $nama = trim((string) ($slot['pembimbing_nama'] ?? ''));
+    if ($nama !== '') {
+        return $nama;
+    }
+    $kegiatanId = (int) ($slot['kegiatan_id'] ?? 0);
+    if ($kegiatanId <= 0 || !table_exists($pdo, 'pkpps_jadwal')) {
+        return '';
+    }
+    require_once __DIR__ . '/pkpps.php';
+    pkpps_ensure_schema($pdo);
+    $st = $pdo->prepare('
+        SELECT b.nama_pembimbing
+        FROM pkpps_jadwal j
+        INNER JOIN pembimbing b ON b.id = j.pembimbing_id
+        WHERE j.kegiatan_id = :kid
+          AND j.is_aktif = 1
+          AND j.pembimbing_id IS NOT NULL
+          AND (j.hari_ke = 0 OR j.hari_ke = :hk)
+          AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
+        ORDER BY j.jam_mulai ASC
+        LIMIT 1
+    ');
+    $st->execute(['kid' => $kegiatanId, 'hk' => $hariKe, 'jam' => $jam]);
+
+    return trim((string) ($st->fetchColumn() ?: ''));
+}
+
+/**
+ * @param array<string, mixed> $slot
+ */
+function munawib_format_scan_slot_label(PDO $pdo, array $slot, string $tanggal, string $jam, int $hariKe): string
+{
+    $mulai = substr((string) ($slot['jam_mulai'] ?? ''), 0, 5);
+    $selesai = substr((string) ($slot['jam_selesai'] ?? ''), 0, 5);
+    $range = ($mulai !== '' && $selesai !== '') ? ($mulai . '-' . $selesai) : '';
+    $tingkatan = trim((string) ($slot['tingkatan'] ?? ''));
+    $label = (string) ($slot['nama_kegiatan'] ?? '');
+    if ($range !== '') {
+        $label .= ' [' . $range . ']';
+    }
+    if ($tingkatan !== '') {
+        $label .= ' · ' . $tingkatan;
+    }
+    $pbNama = munawib_scan_slot_pembimbing_nama($pdo, $slot, $tanggal, $jam, $hariKe);
+    if ($pbNama !== '') {
+        $label .= ' · Pb: ' . $pbNama;
+    }
+
+    return $label;
+}
+
+/**
+ * Slot jadwal aktif untuk scan munawib (setelah filter jamaah).
+ *
+ * @return list<array<string, mixed>>
+ */
+function munawib_active_scan_slots(PDO $pdo, int $munawibId, string $tanggal, string $jam): array
+{
+    if ($munawibId <= 0) {
+        return [];
+    }
+    require_once __DIR__ . '/akademik.php';
+    require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
+
+    $hariKe = (int) date('N', strtotime($tanggal));
+    $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
+    if ($modeLiburAktif === 'ALL_BLOCKED') {
+        return [];
+    }
+    $kategoriFilterSql = $modeLiburAktif !== null
+        ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
+        : '';
+    if (!table_exists($pdo, 'jadwal_kegiatan')) {
+        return [];
+    }
+    $jadwalM = $pdo->prepare('
+        SELECT j.id AS jadwal_id, j.kegiatan_id, j.pembimbing_id, j.tingkatan,
+               k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan,
+               j.jam_mulai, j.jam_selesai,
+               b.nama_pembimbing AS pembimbing_nama
+        FROM jadwal_kegiatan j
+        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
+        LEFT JOIN pembimbing b ON b.id = j.pembimbing_id
+        WHERE (j.hari_ke = 0 OR j.hari_ke = :hk)
+          AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
+          AND k.is_active = 1
+          ' . $kategoriFilterSql . '
+        ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC, j.tingkatan ASC
+    ');
+    $jadwalM->execute(['hk' => $hariKe, 'jam' => $jam]);
+    $slotsM = $jadwalM->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    return jadwal_jamaah_munawib_filter_slots_scan($pdo, $munawibId, $hariKe, $slotsM);
+}
+
+/**
+ * @param list<array<string, mixed>> $slots
+ * @return list<array{kegiatan_id:int,jadwal_id:int,nama_kegiatan:string,pembimbing_nama:string,label:string}>
+ */
+function munawib_pending_slots_from_scan(PDO $pdo, array $slots, string $tanggal, string $jam): array
+{
+    $hariKe = (int) date('N', strtotime($tanggal));
+    $out = [];
+    foreach ($slots as $s) {
+        if (!is_array($s)) {
+            continue;
+        }
+        $pbNama = munawib_scan_slot_pembimbing_nama($pdo, $s, $tanggal, $jam, $hariKe);
+        $out[] = [
+            'kegiatan_id' => (int) ($s['kegiatan_id'] ?? 0),
+            'jadwal_id' => (int) ($s['jadwal_id'] ?? 0),
+            'nama_kegiatan' => (string) ($s['nama_kegiatan'] ?? ''),
+            'pembimbing_nama' => $pbNama,
+            'label' => munawib_format_scan_slot_label($pdo, $s, $tanggal, $jam, $hariKe),
+        ];
+    }
+
+    return $out;
+}
+
+/**
  * Penugasan aktif munawib pada tanggal & kegiatan.
  *
  * @return array<string, mixed>|null

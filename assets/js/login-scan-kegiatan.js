@@ -85,7 +85,7 @@
         });
         if (munawibTitle) {
             var nama = data.munawib_nama || 'Munawib';
-            munawibTitle.textContent = nama + ' — pilih jadwal yang diwakili';
+            munawibTitle.textContent = nama + ' — pilih jadwal / pembimbing yang diwakili';
         }
         munawibPick.classList.remove('d-none');
         showFeedback(data.type || 'info', data.message || 'Pilih jadwal munawib.');

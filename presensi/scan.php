@@ -144,7 +144,7 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
     <?php if (is_array($pendingMunawibPick) && !empty($pendingMunawibPick['slots']) && (int) ($pendingMunawibPick['munawib_id'] ?? 0) > 0): ?>
         <div class="alert alert-warning mx-2 my-2 py-2">
             <div class="small fw-semibold mb-1">
-                Munawib: <?= htmlspecialchars((string) ($pendingMunawibPick['munawib_nama'] ?? '-')) ?> — pilih jadwal yang diwakili
+                Munawib: <?= htmlspecialchars((string) ($pendingMunawibPick['munawib_nama'] ?? '-')) ?> — pilih jadwal / pembimbing yang diwakili
             </div>
             <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
                 <input type="hidden" name="action" value="munawib_pick_schedule">

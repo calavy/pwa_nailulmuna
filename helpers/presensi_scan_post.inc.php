@@ -338,61 +338,29 @@ declare(strict_types=1);
         } elseif ($munawib) {
             $tanggal = $scanClock['tanggal'];
             $jam = $scanClock['jam'];
-            $hariKe = (int) date('N', strtotime($tanggal));
             $liburP = akademik_libur_info($pdo, $tanggal, 'presensi');
             $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
-            $kategoriFilterSql = $modeLiburAktif !== null
-                ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
-                : '';
             if ($modeLiburAktif === 'ALL_BLOCKED') {
                 $resultType = 'warning';
                 $resultMessage = 'Hari libur akademik: ' . $liburP['nama'] . ' — presensi tidak dicatat.';
                 goto end_scan_process;
             }
-            $jadwalM = $pdo->prepare('
-                SELECT j.kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.jam_mulai, j.jam_selesai, j.tingkatan
-                FROM jadwal_kegiatan j
-                INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-                WHERE (j.hari_ke = 0 OR j.hari_ke = :hk)
-                  AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
-                  AND k.is_active = 1
-                  ' . $kategoriFilterSql . '
-                ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC
-            ');
-            $jadwalM->execute(['hk' => $hariKe, 'jam' => $jam]);
-            $slotsM = $jadwalM->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            require_once __DIR__ . '/jadwal_jamaah_pembimbing.php';
-            $slotsM = jadwal_jamaah_munawib_filter_slots_scan($pdo, (int) ($munawib['id'] ?? 0), $hariKe, $slotsM);
+            require_once __DIR__ . '/munawib.php';
+            $mwIdScan = (int) ($munawib['id'] ?? 0);
+            $slotsM = munawib_active_scan_slots($pdo, $mwIdScan, $tanggal, $jam);
             if ($slotsM === []) {
                 $resultType = 'warning';
                 $resultMessage = 'Tidak ada kegiatan aktif untuk scan munawib pada jam ini.';
                 goto end_scan_process;
             }
             $_SESSION['munawib_scan_pending'] = [
-                'munawib_id' => (int) $munawib['id'],
+                'munawib_id' => $mwIdScan,
                 'munawib_nama' => (string) ($munawib['nama'] ?? ''),
-                'slots' => array_map(static function (array $s): array {
-                    $mulai = substr((string) ($s['jam_mulai'] ?? ''), 0, 5);
-                    $selesai = substr((string) ($s['jam_selesai'] ?? ''), 0, 5);
-                    $range = ($mulai !== '' && $selesai !== '') ? ($mulai . '-' . $selesai) : '';
-                    $tingkatan = trim((string) ($s['tingkatan'] ?? ''));
-                    $label = (string) ($s['nama_kegiatan'] ?? '');
-                    if ($range !== '') {
-                        $label .= ' [' . $range . ']';
-                    }
-                    if ($tingkatan !== '') {
-                        $label .= ' · ' . $tingkatan;
-                    }
-                    return [
-                        'kegiatan_id' => (int) ($s['kegiatan_id'] ?? 0),
-                        'nama_kegiatan' => (string) ($s['nama_kegiatan'] ?? ''),
-                        'label' => $label,
-                    ];
-                }, $slotsM),
+                'slots' => munawib_pending_slots_from_scan($pdo, $slotsM, $tanggal, $jam),
                 'created_at' => time(),
             ];
             $resultType = 'warning';
-            $resultMessage = 'Munawib terdeteksi: ' . (string) ($munawib['nama'] ?? '-') . '. Pilih jadwal yang diwakili.';
+            $resultMessage = 'Munawib terdeteksi: ' . (string) ($munawib['nama'] ?? '-') . '. Pilih jadwal/pembimbing yang diwakili.';
         } else {
             unset($_SESSION['munawib_scan_pending']);
             $tanggal = $scanClock['tanggal'];

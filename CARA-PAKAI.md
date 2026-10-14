@@ -298,6 +298,8 @@ Di HP: buka **Multi Scan** → ketuk **Mulai scan kamera** → scan kartu (harus
 
 **Munawib penerima setoran:** jika munawib terdaftar aktif di Kajian → Penerima setoran dan **tidak** sedang punya jadwal penugasan pengganti pembimbing, satu scan kartu di Multi Scan langsung masuk **portal setoran hafalan** (tanpa `?dest=setoran`). Munawib dengan jadwal berlangsung tetap absensi dulu, scan lagi untuk portal pengganti. Cek otomatis: `php scripts/_diag_multi_scan_munawib_setoran.php`.
 
+**Munawib beberapa jadwal sekaligus:** setelah scan, pilih opsi yang menampilkan kitab/jam/tingkatan dan **Pb: {nama pembimbing terjadwal}** (dari `jadwal_kegiatan` atau PKPPS). Penugasan formal tidak wajib sebelum scan.
+
 **QR terbaca vs “ditolak”:** jika **tidak ada bip/getar** sama sekali → masalah kamera/decode (lihat diag deploy di atas). Jika ada **“Kartu terbaca…”** lalu peringatan → QR sudah terbaca; absensi mengikuti **tingkatan santri** dan jam (strip jadwal bisa menampilkan kegiatan tingkatan lain). Cek data:
 
 ```powershell

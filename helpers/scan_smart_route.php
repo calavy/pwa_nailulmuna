@@ -89,30 +89,7 @@ function scan_smart_munawib_has_slots(PDO $pdo, int $mwId, string $tanggal, stri
         return false;
     }
 
-    $hariKe = (int) date('N', strtotime($tanggal));
-    $modeLiburAktif = akademik_libur_presensi_mode_aktif_di_tanggal($pdo, $tanggal);
-    if ($modeLiburAktif === 'ALL_BLOCKED') {
-        return false;
-    }
-    $kategoriFilterSql = $modeLiburAktif !== null
-        ? akademik_libur_presensi_filter_sql_by_mode($modeLiburAktif, 'COALESCE(k.kategori_kegiatan, "TAALIM")')
-        : '';
-
-    $jadwalM = $pdo->prepare('
-        SELECT j.kegiatan_id, k.nama_kegiatan, COALESCE(k.kategori_kegiatan, "TAALIM") AS kategori_kegiatan, j.jam_mulai, j.jam_selesai, j.tingkatan
-        FROM jadwal_kegiatan j
-        INNER JOIN kegiatan k ON k.id = j.kegiatan_id
-        WHERE (j.hari_ke = 0 OR j.hari_ke = :hk)
-          AND :jam BETWEEN j.jam_mulai AND j.jam_selesai
-          AND k.is_active = 1
-          ' . $kategoriFilterSql . '
-        ORDER BY j.jam_mulai ASC, k.nama_kegiatan ASC
-    ');
-    $jadwalM->execute(['hk' => $hariKe, 'jam' => $jam]);
-    $slotsM = $jadwalM->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $slotsM = jadwal_jamaah_munawib_filter_slots_scan($pdo, $mwId, $hariKe, $slotsM);
-
-    return $slotsM !== [];
+    return munawib_active_scan_slots($pdo, $mwId, $tanggal, $jam) !== [];
 }
 
 /**
