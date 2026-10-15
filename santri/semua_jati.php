@@ -6,13 +6,17 @@ require_once __DIR__ . '/../helpers/app.php';
 require_once __DIR__ . '/../helpers/santri_keluar.php';
 require_once __DIR__ . '/../helpers/santri_riwayat.php';
 require_once __DIR__ . '/../helpers/santri_status.php';
+require_once __DIR__ . '/../helpers/santri_nis.php';
 
 require_roles(['admin', 'pengurus']);
 ensure_santri_identity_columns($pdo);
 ensure_santri_keluar_columns($pdo);
 
 $q = trim((string) ($_GET['q'] ?? ''));
+$filterNisDup = (string) ($_GET['nis_dup'] ?? '') === '1';
 $filterStatus = strtoupper(trim((string) ($_GET['status'] ?? '')));
+$nisDupMap = santri_nis_duplicate_id_map($pdo);
+$nisDupGroupCount = count(santri_nis_duplicate_groups($pdo));
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $perPage = min(100, max(20, (int) ($_GET['per_page'] ?? 50)));
 
@@ -44,6 +48,11 @@ $sql = 'SELECT id, nis, nama_santri, tingkatan, tanggal_masuk, is_aktif, status_
 $st = $pdo->prepare($sql);
 $st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+if ($filterNisDup) {
+    $rows = array_values(array_filter($rows, static function (array $r) use ($nisDupMap): bool {
+        return !empty($nisDupMap[(int) ($r['id'] ?? 0)]);
+    }));
+}
 
 $pageTitle = 'Data induk santri';
 require_once __DIR__ . '/../includes/header.php';
@@ -60,6 +69,18 @@ require_once __DIR__ . '/../includes/header.php';
         <a href="/santri/keluar.php" class="btn btn-outline-danger btn-sm" data-sdm-modal="/santri/keluar.php" data-sdm-title="Administrasi keluar">Administrasi keluar</a>
     </div>
 </div>
+
+<?php if ($nisDupGroupCount > 0): ?>
+<div class="alert alert-warning py-2">
+    <?php if ($filterNisDup): ?>
+        Menampilkan hanya santri dengan <strong>NIS duplikat</strong> (<?= (int) $nisDupGroupCount ?> grup).
+        <a href="<?= htmlspecialchars(app_href('/santri/semua_jati.php')) ?>">Tampilkan semua</a>
+    <?php else: ?>
+        Ada <strong><?= (int) $nisDupGroupCount ?></strong> grup NIS duplikat.
+        <a href="<?= htmlspecialchars(app_href('/santri/semua_jati.php?nis_dup=1')) ?>">Tampilkan yang duplikat saja</a>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <form class="row g-2 mb-3" method="get" action="">
     <div class="col-md-5 col-lg-4">
@@ -110,7 +131,12 @@ require_once __DIR__ . '/../includes/header.php';
                     $kat = trim((string) ($r['keluar_kategori'] ?? ''));
                     ?>
                     <tr>
-                        <td class="ps-3 font-monospace"><?= htmlspecialchars((string) $r['nis']) ?></td>
+                        <td class="ps-3 font-monospace">
+                            <?= htmlspecialchars((string) $r['nis']) ?>
+                            <?php if (!empty($nisDupMap[(int) ($r['id'] ?? 0)])): ?>
+                                <span class="badge text-bg-warning ms-1">Duplikat</span>
+                            <?php endif; ?>
+                        </td>
                         <td class="fw-semibold"><?= htmlspecialchars((string) $r['nama_santri']) ?></td>
                         <td><?= htmlspecialchars((string) ($r['tingkatan'] ?? '-')) ?></td>
                         <td class="small text-nowrap">

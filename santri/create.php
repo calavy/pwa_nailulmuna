@@ -99,9 +99,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href(sdm_embed_url('/santri/create.php')));
         exit;
     }
+    require_once __DIR__ . '/../helpers/santri_nis.php';
+    $nisInput = trim((string) ($_POST['nis'] ?? ''));
+    $nisErr = santri_nis_validate_unique($pdo, $nisInput, 0);
+    if ($nisErr !== null) {
+        set_flash('error', $nisErr);
+        header('Location: ' . app_href(sdm_embed_url('/santri/create.php')));
+        exit;
+    }
     $data = [
         'qr' => trim($_POST['qr'] ?? ''),
-        'nis' => trim($_POST['nis'] ?? ''),
+        'nis' => santri_nis_canonical_display($nisInput),
         'nama_santri' => trim($_POST['nama_santri'] ?? ''),
         'nik' => trim($_POST['nik'] ?? ''),
         'jenis_kelamin' => trim($_POST['jenis_kelamin'] ?? ''),

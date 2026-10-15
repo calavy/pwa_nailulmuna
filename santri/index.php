@@ -57,7 +57,10 @@ $listStmt->execute($params);
 $santri = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 require_once __DIR__ . '/../helpers/santri_penepian_keaktifan.php';
+require_once __DIR__ . '/../helpers/santri_nis.php';
 $penepianMapToday = santri_penepian_map_for_date($pdo, date('Y-m-d'));
+$nisDupMap = santri_nis_duplicate_id_map($pdo);
+$nisDupGroupCount = count(santri_nis_duplicate_groups($pdo));
 
 $totalAktif = (int) ($pdo->query('SELECT COUNT(*) FROM santri WHERE ' . santri_sql_aktif_only('santri'))->fetchColumn() ?: 0);
 $totalNonAktif = (int) ($pdo->query('
@@ -109,6 +112,13 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+
+<?php if ($nisDupGroupCount > 0): ?>
+<div class="alert alert-warning py-2">
+    Terdeteksi <strong><?= (int) $nisDupGroupCount ?></strong> grup NIS duplikat (mis. <code>913</code> vs <code>913.0</code>).
+    Perbaiki lewat <a href="<?= htmlspecialchars(app_href('/santri/semua_jati.php?nis_dup=1')) ?>">Data induk santri</a> — nonaktifkan atau ubah NIS baris yang salah.
+</div>
+<?php endif; ?>
 
 <div class="card shadow-sm">
     <div class="card-body">
@@ -179,7 +189,12 @@ require_once __DIR__ . '/../includes/header.php';
                                 <input type="checkbox" class="chk-santri-batch" name="ids[]" value="<?= $sid ?>">
                             </td>
                             <td class="santri-col-extra"><?= htmlspecialchars($item['qr'] ?: '-') ?></td>
-                            <td class="font-monospace small"><?= htmlspecialchars($item['nis']) ?></td>
+                            <td class="font-monospace small">
+                                <?= htmlspecialchars($item['nis']) ?>
+                                <?php if (!empty($nisDupMap[$sid])): ?>
+                                    <span class="badge text-bg-warning ms-1" title="NIS bentrok dengan baris santri lain">Duplikat</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="santri-list-name-cell">
                                 <div class="d-flex align-items-center gap-2">
                                     <?= santri_foto_render_avatar($item, 'app-user-avatar--table') ?>

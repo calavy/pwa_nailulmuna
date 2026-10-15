@@ -35,6 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . app_href(mukimin_page_url($id > 0 ? ['edit' => (string) $id] : [], mukimin_filters_from_post())));
             exit;
         }
+        require_once __DIR__ . '/../helpers/santri_nis.php';
+        $nisErr = santri_nis_validate_unique_alumni($pdo, $nis, $id);
+        if ($nisErr !== null) {
+            set_flash('error', $nisErr);
+            header('Location: ' . app_href(mukimin_page_url($id > 0 ? ['edit' => (string) $id] : [], mukimin_filters_from_post())));
+            exit;
+        }
+        $nis = santri_nis_canonical_display($nis);
         $thMasuk = trim((string) ($_POST['th_masuk'] ?? ''));
         $thKeluar = trim((string) ($_POST['th_keluar'] ?? ''));
         $params = [

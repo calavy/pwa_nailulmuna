@@ -52,6 +52,7 @@ require_once __DIR__ . '/../includes/header.php';
     CLI hosting: <code>php scripts/_diag_keuangan_data_quality.php</code> ·
     <code>php scripts/_repair_keuangan_data_quality.php --apply --only=tanggal,santri,bukti</code>
     (backup DB dulu).
+    Duplikat NIS master santri: <a href="<?= htmlspecialchars(app_href('/santri/semua_jati.php?nis_dup=1')) ?>">Data induk → filter duplikat</a>.
 </p>
 
 <?php if ($posOut !== []): ?>

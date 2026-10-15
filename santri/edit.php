@@ -46,6 +46,28 @@ if (!$santri) {
     exit;
 }
 
+require_once __DIR__ . '/../helpers/santri_nis.php';
+$nisDupPeers = [];
+foreach (santri_nis_duplicate_groups($pdo) as $dupGroup) {
+    $inGroup = false;
+    foreach ($dupGroup as $member) {
+        if ((int) ($member['id'] ?? 0) === $id) {
+            $inGroup = true;
+            break;
+        }
+    }
+    if (!$inGroup) {
+        continue;
+    }
+    foreach ($dupGroup as $member) {
+        $mid = (int) ($member['id'] ?? 0);
+        if ($mid > 0 && $mid !== $id) {
+            $nisDupPeers[] = $member;
+        }
+    }
+    break;
+}
+
 require_once __DIR__ . '/../helpers/tagihan_santri_masuk.php';
 $tagihanMasukRiwayat = tagihan_santri_masuk_riwayat_get_or_sync(
     $pdo,
@@ -123,6 +145,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
         exit;
     }
+    require_once __DIR__ . '/../helpers/santri_nis.php';
+    $nisInput = trim((string) ($_POST['nis'] ?? ''));
+    $nisErr = santri_nis_validate_unique($pdo, $nisInput, $id);
+    if ($nisErr !== null) {
+        set_flash('error', $nisErr);
+        header('Location: ' . app_href(sdm_embed_url('/santri/edit.php?id=' . $id)));
+        exit;
+    }
 
     santri_foto_ensure_schema($pdo);
     $fotoProfil = trim((string) ($santri['foto_profil'] ?? ''));
@@ -145,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'id' => $id,
         'qr' => trim($_POST['qr'] ?? ''),
-        'nis' => trim($_POST['nis'] ?? ''),
+        'nis' => santri_nis_canonical_display($nisInput),
         'nama_santri' => trim($_POST['nama_santri'] ?? ''),
         'nik' => trim($_POST['nik'] ?? ''),
         'jenis_kelamin' => trim($_POST['jenis_kelamin'] ?? ''),
@@ -354,6 +384,23 @@ $kembaliLabel = $aktifEdit ? 'Santri aktif' : 'Data induk';
     </div>
     <?php endif; ?>
 </div>
+
+<?php if ($nisDupPeers !== []): ?>
+<div class="alert alert-warning">
+    <strong>NIS duplikat.</strong> NIS ini bentrok dengan baris santri lain — nonaktifkan atau ubah NIS salah satu lewat data induk:
+    <ul class="mb-0 mt-2 small">
+        <?php foreach ($nisDupPeers as $peer): ?>
+            <li>
+                <a href="<?= htmlspecialchars(app_href('/santri/edit.php?id=' . (int) ($peer['id'] ?? 0))) ?>">
+                    ID <?= (int) ($peer['id'] ?? 0) ?>
+                </a>
+                — NIS <?= htmlspecialchars((string) ($peer['nis'] ?? '')) ?>
+                — <?= htmlspecialchars((string) ($peer['nama_santri'] ?? '')) ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+</div>
+<?php endif; ?>
 
 <div class="card shadow-sm">
     <div class="card-body">

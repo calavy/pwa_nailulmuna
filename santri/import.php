@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../helpers/excel.php';
+require_once __DIR__ . '/../helpers/santri_nis.php';
 
 require_roles(['admin', 'pengurus']);
 
@@ -75,9 +76,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ');
 
         $total = 0;
+        $skippedDup = 0;
+        $importNisKeys = [];
         foreach ($rows as $row) {
             if (($row['nis'] ?? '') === '' || ($row['nama_santri'] ?? '') === '') {
                 continue;
+            }
+            $nisRaw = trim((string) ($row['nis'] ?? ''));
+            $nisCanon = santri_nis_canonical_display($nisRaw);
+            $nisErr = santri_nis_validate_unique($pdo, $nisRaw, 0);
+            $key = santri_nis_canonical_key($nisRaw);
+            if ($nisErr !== null || ($key !== '' && isset($importNisKeys[$key]))) {
+                $skippedDup++;
+                continue;
+            }
+            if ($key !== '') {
+                $importNisKeys[$key] = true;
             }
             $nama = trim((string) ($row['nama_santri'] ?? ''));
             $jkRaw = strtolower(trim((string) ($row['jenis_kelamin'] ?? $row['jk'] ?? '')));
@@ -86,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : 'Laki-laki';
             $insert->execute([
                 'qr' => $row['qr'] ?? '',
-                'nis' => $row['nis'] ?? '',
+                'nis' => $nisCanon,
                 'nama' => $nama,
                 'nama_santri' => $nama,
                 'tingkatan' => $row['tingkatan'] ?? '',
@@ -97,10 +111,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($total === 0) {
-            throw new RuntimeException('Tidak ada baris valid. Pastikan kolom nis dan nama_santri terisi, dan file .xlsx bisa dibaca.');
+            throw new RuntimeException('Tidak ada baris valid. Pastikan kolom nis dan nama_santri terisi, dan file .xlsx bisa dibaca.'
+                . ($skippedDup > 0 ? ' (' . $skippedDup . ' baris ditolak: NIS duplikat/bentrok.)' : ''));
         }
 
-        set_flash('success', 'Import selesai. Total data diproses: ' . $total);
+        $msg = 'Import selesai. Total data diproses: ' . $total;
+        if ($skippedDup > 0) {
+            $msg .= '. Dilewati (NIS duplikat/bentrok): ' . $skippedDup;
+        }
+        set_flash('success', $msg);
     } catch (Throwable $e) {
         set_flash('error', 'Import gagal: ' . $e->getMessage());
     }
