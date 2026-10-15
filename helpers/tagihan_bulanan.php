@@ -1178,6 +1178,18 @@ function tagihan_santri_aktif_rows_cached(PDO $pdo, bool $withWa = false): array
     if (column_exists($pdo, 'santri', 'tanggal_masuk')) {
         $cols[] = 'tanggal_masuk';
     }
+    if (column_exists($pdo, 'santri', 'status_santri')) {
+        $cols[] = 'status_santri';
+    }
+    if (column_exists($pdo, 'santri', 'tanggal_keluar')) {
+        $cols[] = 'tanggal_keluar';
+    }
+    if (column_exists($pdo, 'santri', 'keluar_kategori')) {
+        $cols[] = 'keluar_kategori';
+    }
+    if (column_exists($pdo, 'santri', 'is_aktif')) {
+        $cols[] = 'is_aktif';
+    }
     if ($withWa) {
         if (column_exists($pdo, 'santri', 'no_wa_wali')) {
             $cols[] = 'no_wa_wali';
@@ -1223,8 +1235,21 @@ function tagihan_syahriyah_list_compute(PDO $pdo, int $bulanTagihan, int $tahunA
     $countBelum = 0;
     $countSebagian = 0;
     $tierByKelas = [];
+    require_once __DIR__ . '/tagihan_santri_eligible.php';
+    require_once __DIR__ . '/keuangan_impor_ekspor.php';
+    $seenNisKey = [];
 
     foreach ($rows as $s) {
+        if (!tagihan_santri_layak_tagih_bulan($pdo, $s, $bulanTagihan, $tahunAjaranMulai, $tahunAjaranSelesai)) {
+            continue;
+        }
+        $nisKey = keuangan_impor_ekspor_normalize_nis((string) ($s['nis'] ?? ''));
+        if ($nisKey !== '') {
+            if (isset($seenNisKey[$nisKey])) {
+                continue;
+            }
+            $seenNisKey[$nisKey] = true;
+        }
         $kelasKategori = santri_kelas_untuk_ta(
             $pdo,
             (int) $s['id'],

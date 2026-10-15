@@ -99,9 +99,12 @@ function keuangan_pengeluaran_update(PDO $pdo, array $post, int $userId): array
     $nominal = keuangan_money_input_to_int((string) ($post['nominal'] ?? '0'));
     $keterangan = trim((string) ($post['keterangan'] ?? ''));
 
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        return ['ok' => false, 'message' => 'Tanggal tidak valid.'];
+    require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+    $tglVal = keuangan_tanggal_validasi_input($pdo, $tanggal);
+    if (!$tglVal['ok']) {
+        return ['ok' => false, 'message' => (string) ($tglVal['message'] ?? 'Tanggal tidak valid.')];
     }
+    $tanggal = (string) $tglVal['ymd'];
     if ($penanggungJawab === '' || $pos === '' || $nominal <= 0) {
         return ['ok' => false, 'message' => 'Penanggung jawab, pos, dan nominal wajib diisi.'];
     }

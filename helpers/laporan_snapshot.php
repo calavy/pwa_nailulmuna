@@ -450,15 +450,26 @@ function laporan_snapshot_rekap_kas_to_rows(array $rekap, string $snapshotAt, st
 function laporan_snapshot_tunggakan_to_rows(array $body, string $snapshotAt, string $asOf, string $bulanLabel, string $taLabel): array
 {
     $rows = laporan_snapshot_meta_rows($snapshotAt, $asOf, 'Tunggakan Syahriyah — ' . $bulanLabel . ' TA ' . $taLabel);
-    $rows[] = ['jumlah_santri', count($body)];
+    $distinctTunggakan = [];
+    foreach ($body as $r) {
+        if ((int) ($r['sisa'] ?? 0) <= 0) {
+            continue;
+        }
+        $sid = (int) ($r['id'] ?? 0);
+        if ($sid > 0) {
+            $distinctTunggakan[$sid] = true;
+        }
+    }
+    $rows[] = ['jumlah_santri', count($distinctTunggakan)];
     $rows[] = [];
     $rows[] = [
-        'nis', 'nama', 'tingkatan', 'kategori', 'tagihan', 'bayar', 'sisa', 'status',
+        'santri_id', 'nis', 'nama', 'tingkatan', 'kategori', 'tagihan', 'bayar', 'sisa', 'status',
         'sy_expected', 'sy_paid', 'sy_sisa', 'mk_expected', 'mk_paid', 'mk_sisa', 'sk_expected', 'sk_paid', 'sk_sisa',
     ];
 
     foreach ($body as $r) {
         $rows[] = [
+            (int) ($r['id'] ?? 0),
             (string) ($r['nis'] ?? ''),
             (string) ($r['nama'] ?? ''),
             (string) ($r['tingkatan'] ?? ''),

@@ -441,7 +441,7 @@ require __DIR__ . '/partials/ui_page_header.php';
                 <p class="mb-1">Saldo akhir (uang nyata): <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_uang_nyata'] ?? $rekapSnap['saldo_akhir_fisik'] ?? 0))) ?></strong></p>
                 <?php if ((int) ($rekapSnap['selisih_saldo'] ?? 0) !== 0): ?>
                 <p class="small text-warning mb-1">Hitung buku <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_hitung'] ?? $rekapSnap['saldo_akhir'] ?? 0))) ?> · selisih <?= htmlspecialchars($formatRupiah(abs((int) $rekapSnap['selisih_saldo']))) ?></p>
-                <p class="small mb-2"><a href="/keuangan/perbaikan-kas.php">Perbaiki transaksi kas</a></p>
+                <p class="small mb-2"><a href="/keuangan/perbaikan-kas.php">Perbaiki transaksi kas</a> · <a href="/keuangan/perbaikan-data.php">Kualitas data</a></p>
                 <?php else: ?>
                 <p class="small text-muted mb-2">Masuk <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['masuk_total'] ?? 0))) ?> · Keluar <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['keluar'] ?? 0))) ?></p>
                 <?php endif; ?>

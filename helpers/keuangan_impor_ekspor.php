@@ -347,7 +347,10 @@ function keuangan_impor_ekspor_parse_date(string $raw): ?string
         return null;
     }
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
-        return $raw;
+        require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+        $norm = keuangan_tanggal_normalize_ymd($raw);
+
+        return $norm;
     }
     if (preg_match('/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/', $raw, $m)) {
         $d = (int) $m[1];
@@ -361,15 +364,19 @@ function keuangan_impor_ekspor_parse_date(string $raw): ?string
             $mo = $tmp;
         }
         if (checkdate($mo, $d, $y)) {
-            return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+            $candidate = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+
+            return keuangan_tanggal_normalize_ymd($candidate);
         }
     }
     if (is_numeric($raw)) {
         $n = (float) $raw;
         if ($n > 20000 && $n < 80000) {
             $ts = (int) round(($n - 25569) * 86400);
+            require_once __DIR__ . '/keuangan_tanggal_validasi.php';
 
-            return gmdate('Y-m-d', $ts);
+            return keuangan_tanggal_normalize_ymd(gmdate('Y-m-d', $ts));
         }
     }
 

@@ -442,6 +442,7 @@ function user_permission_path_map_keuangan(): array
         '/keuangan/riwayat_pembayaran.php' => $transaksi,
         '/keuangan/impor-ekspor.php' => $transaksi,
         '/keuangan/perbaikan-kas.php' => $transaksi,
+        '/keuangan/perbaikan-data.php' => $transaksi,
         '/keuangan/perbaikan-input-dobel.php' => $transaksi,
         '/keuangan/perbaikan-saku.php' => 'keuangan_cashless_scan',
         '/keuangan/potongan_syahriyah.php' => 'keuangan_potongan',

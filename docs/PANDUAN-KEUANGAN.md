@@ -214,6 +214,10 @@ Alokasi = **pagu virtual** untuk pelacakan, bukan transfer otomatis antar rekeni
 
 Setiap pembayaran dan pengeluaran **wajib** terhubung akun agar neraca akurat.
 
+**Pengeluaran — beda `pos` dan `alokasi_nama`:** di form pengeluaran, **pos** = kategori sumber dana (mis. kelompok alokasi syahriyah/makan); **alokasi_nama** = nama komponen alokasi yang dipotong. Rekap kas dan snapshot memetakan keluar berdasarkan keduanya — salah pilih pos mengaburkan kebutuhan riil per pos. Review outlier: `/keuangan/perbaikan-data.php`.
+
+**Tanggal transaksi:** harus dalam rentang tahun ajaran aktif (validasi form/impor). Perbaikan massal (hosting): `scripts/_diag_keuangan_data_quality.php` dan `_repair_keuangan_data_quality.php` (backup DB, dry-run dulu).
+
 ---
 
 ### 1.8 Midtrans (opsional — bayar online wali)

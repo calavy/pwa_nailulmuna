@@ -222,12 +222,28 @@ function keuangan_build_neraca(PDO $pdo, ?string $asOfDate = null, string $scope
     $asetNetoCoaBaris = keuangan_neraca_baris_from_coa($coaSaldo, 'ASET_NETO');
     $totalAsetNetoCoa = array_sum(array_column($asetNetoCoaBaris, 'nominal'));
 
+    $bebanCoaBarisRaw = keuangan_neraca_baris_from_coa($coaSaldo, 'BEBAN');
+    $bebanCoaBaris = [];
+    $totalBebanCoa = 0;
+    foreach ($bebanCoaBarisRaw as $bb) {
+        $nom = (int) ($bb['nominal'] ?? 0);
+        if ($nom === 0) {
+            continue;
+        }
+        $bebanCoaBaris[] = [
+            'label' => (string) ($bb['label'] ?? 'Beban'),
+            'nominal' => -abs($nom),
+            'indent' => true,
+        ];
+        $totalBebanCoa += abs($nom);
+    }
+
     $ringkasanOperasi = keuangan_neraca_ringkasan_operasi($pdo, $asOf);
     $surplusOperasi = (int) ($ringkasanOperasi['surplus_operasi'] ?? 0);
 
-    $asetNetoBaris = $asetNetoCoaBaris;
-    // Hindari double-count: surplus operasional hanya jika buku besar belum punya saldo aset neto
-    if ($surplusOperasi !== 0 && abs($totalAsetNetoCoa) < 1) {
+    $asetNetoBaris = array_merge($asetNetoCoaBaris, $bebanCoaBaris);
+    // Hindari double-count: surplus hanya jika jurnal belum tercermin di COA aset neto/beban
+    if ($surplusOperasi !== 0 && abs($totalAsetNetoCoa) + $totalBebanCoa < 1) {
         $asetNetoBaris[] = [
             'label' => 'Surplus/(defisit) operasional (tanpa titipan saku)',
             'nominal' => $surplusOperasi,

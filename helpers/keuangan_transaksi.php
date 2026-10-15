@@ -833,9 +833,12 @@ function keuangan_save_pembayaran(PDO $pdo, array $post, int $userId): array
     if (!in_array($metodeBayar, ['KAS', 'TRANSFER', 'MIDTRANS'], true)) {
         $metodeBayar = 'KAS';
     }
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggalBayar)) {
-        $tanggalBayar = date('Y-m-d');
+    require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+    $tglVal = keuangan_tanggal_validasi_input($pdo, $tanggalBayar);
+    if (!$tglVal['ok']) {
+        return ['ok' => false, 'message' => (string) ($tglVal['message'] ?? 'Tanggal bayar tidak valid.')];
     }
+    $tanggalBayar = (string) $tglVal['ymd'];
 
     $pickedPos = $post['bayar_pos'] ?? [];
     if (!is_array($pickedPos)) {
@@ -1116,9 +1119,12 @@ function keuangan_save_pengeluaran(PDO $pdo, array $post, int $userId): array
     $nominal = keuangan_money_input_to_int((string) ($post['nominal_pengeluaran'] ?? '0'));
     $keterangan = trim((string) ($post['keterangan_pengeluaran'] ?? ''));
 
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        $tanggal = date('Y-m-d');
+    require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+    $tglVal = keuangan_tanggal_validasi_input($pdo, $tanggal);
+    if (!$tglVal['ok']) {
+        return ['ok' => false, 'message' => (string) ($tglVal['message'] ?? 'Tanggal tidak valid.')];
     }
+    $tanggal = (string) $tglVal['ymd'];
     if (!in_array($metodeKeluar, ['KAS', 'TRANSFER'], true)) {
         $metodeKeluar = 'KAS';
     }
@@ -1262,9 +1268,12 @@ function keuangan_save_pemasukan(PDO $pdo, array $post, int $userId): array
     $nominal = keuangan_money_input_to_int((string) ($post['nominal_pemasukan'] ?? '0'));
     $keterangan = trim((string) ($post['keterangan_pemasukan'] ?? ''));
 
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tanggal)) {
-        $tanggal = date('Y-m-d');
+    require_once __DIR__ . '/keuangan_tanggal_validasi.php';
+    $tglVal = keuangan_tanggal_validasi_input($pdo, $tanggal);
+    if (!$tglVal['ok']) {
+        return ['ok' => false, 'message' => (string) ($tglVal['message'] ?? 'Tanggal tidak valid.')];
     }
+    $tanggal = (string) $tglVal['ymd'];
     if (!in_array($metodeBayar, ['KAS', 'TRANSFER'], true)) {
         $metodeBayar = 'KAS';
     }
