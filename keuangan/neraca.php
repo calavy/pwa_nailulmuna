@@ -41,10 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'backf
 }
 
 $neraca = null;
-$statusSaku = null;
-if ($view === 'saku') {
-    $statusSaku = keuangan_build_status_titipan_saku($pdo, $asOfInput);
-} else {
+if ($view !== 'saku') {
     $nerScope = $view === 'full' ? 'full' : 'pondok';
     $neraca = keuangan_build_neraca_cached($pdo, $asOfInput, 600, $nerScope);
 }
@@ -86,7 +83,7 @@ $keuUiHeader = [
     'kicker' => '<a href="/keuangan/index.php">Keuangan</a> · Laporan',
     'title' => $view === 'saku' ? 'Status Titipan Saku' : 'Neraca Keuangan',
     'subtitle' => $view === 'saku'
-        ? 'Titipan saku santri — terpisah dari neraca operasional pondok.'
+        ? 'Angka titipan saku ada di dashboard cashless, terpisah dari neraca operasional pondok.'
         : 'Posisi keuangan operasional pondok (tanpa titipan saku). Per ' . htmlspecialchars($asOfInput) . '.',
 ];
 require __DIR__ . '/partials/ui_page_header.php';
@@ -104,30 +101,13 @@ require __DIR__ . '/partials/ui_page_header.php';
     </li>
 </ul>
 
-<?php if ($view === 'saku' && is_array($statusSaku)): ?>
+<?php if ($view === 'saku'): ?>
 <div class="card shadow-sm mb-3">
     <div class="card-body">
-        <form method="get" class="row g-2 align-items-end">
-            <input type="hidden" name="view" value="saku">
-            <div class="col-md-4">
-                <label class="form-label small">Per tanggal</label>
-                <input type="date" name="per" class="form-control" value="<?= htmlspecialchars((string) ($statusSaku['as_of'] ?? $asOfInput)) ?>">
-            </div>
-            <div class="col-md-8 d-flex flex-wrap gap-2">
-                <button type="submit" class="btn btn-primary">Tampilkan</button>
-                <a class="btn btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/saku.php')) ?>">Dashboard saku</a>
-            </div>
-        </form>
+        <p class="mb-3">Kas titipan, saldo cashless, dan uang yang menunggu setor ditampilkan di dashboard cashless. Halaman ini tidak mengulang angka yang sama.</p>
+        <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/saku.php?per=' . urlencode($asOfInput))) ?>">Buka dashboard cashless</a>
     </div>
 </div>
-<div class="row g-3 mb-3">
-    <div class="col-md-4"><div class="app-mini-stat"><div class="app-mini-stat-label">Kas titipan (1103)</div><div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($statusSaku['kas_titipan_1103'] ?? 0))) ?></div></div></div>
-    <div class="col-md-4"><div class="app-mini-stat"><div class="app-mini-stat-label">Saldo cashless (2101)</div><div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($statusSaku['saldo_cashless_2101'] ?? 0))) ?></div></div></div>
-    <div class="col-md-4"><div class="app-mini-stat"><div class="app-mini-stat-label">Menunggu setor (2103)</div><div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($statusSaku['pending_setor_2103'] ?? 0))) ?></div></div></div>
-</div>
-<?php if ((int) ($statusSaku['selisih_saku_cashless'] ?? 0) !== 0): ?>
-<div class="alert alert-warning small">Selisih pembayaran saku vs cashless: <?= htmlspecialchars($fmt(abs((int) ($statusSaku['selisih_saku_cashless'] ?? 0)))) ?></div>
-<?php endif; ?>
 <?php else: ?>
 
 <div class="card shadow-sm mb-3">

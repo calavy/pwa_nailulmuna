@@ -82,9 +82,6 @@ require __DIR__ . '/partials/ui_page_header.php';
     <a class="btn btn-sm btn-success" href="<?= htmlspecialchars(app_href('/keuangan/pembayaran.php')) ?>">
         <i class="fa-solid fa-circle-plus me-1" aria-hidden="true"></i> Input pembayaran
     </a>
-    <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">
-        <i class="fa-solid fa-table-list me-1" aria-hidden="true"></i> Rekap kas
-    </a>
     <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/pembayaran/tagihan_syahriyah.php')) ?>">
         <i class="fa-solid fa-receipt me-1" aria-hidden="true"></i> Tagihan syahriyah
     </a>
@@ -421,80 +418,7 @@ require __DIR__ . '/partials/ui_page_header.php';
 </section>
 <?php endif; ?>
 
-<?php if ($dashSnap !== null): ?>
-<?php
-    $nerSnap = $dashSnap['neraca'];
-    $rekapSnap = $dashSnap['rekap_kas'] ?? [];
-    $lakRingkas = $dashSnap['arus_kas_ringkas'] ?? ['kenaikan_kas' => 0, 'periode_label' => ''];
-    $selisihNeracaSnap = abs((int) ($nerSnap['selisih'] ?? 0));
-    $neracaSnapSeimbang = !empty($nerSnap['seimbang']);
-?>
-<div class="row g-3 mb-4 keu-laporan-ringkas" id="laporan">
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-success border-2">
-            <div class="card-body">
-                <h2 class="h6 mb-2">
-                    <i class="fa-solid fa-table-list text-success me-1"></i> Rekap kas bulanan
-                    <span class="badge bg-success ms-1" style="font-size:0.65rem">Laporan utama</span>
-                </h2>
-                <p class="small text-muted mb-2">TA <?= htmlspecialchars((string) ($rekapSnap['ta_label'] ?? '')) ?> · s.d. <?= htmlspecialchars((string) ($rekapSnap['bulan_berjalan_label'] ?? '')) ?></p>
-                <p class="mb-1">Saldo akhir (uang nyata): <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_uang_nyata'] ?? $rekapSnap['saldo_akhir_fisik'] ?? 0))) ?></strong></p>
-                <?php if ((int) ($rekapSnap['selisih_saldo'] ?? 0) !== 0): ?>
-                <p class="small text-warning mb-1">Hitung buku <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['saldo_akhir_hitung'] ?? $rekapSnap['saldo_akhir'] ?? 0))) ?> · selisih <?= htmlspecialchars($formatRupiah(abs((int) $rekapSnap['selisih_saldo']))) ?></p>
-                <p class="small mb-2"><a href="/keuangan/perbaikan-kas.php">Perbaiki transaksi kas</a> · <a href="/keuangan/perbaikan-data.php">Kualitas data</a></p>
-                <?php else: ?>
-                <p class="small text-muted mb-2">Masuk <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['masuk_total'] ?? 0))) ?> · Keluar <?= htmlspecialchars($formatRupiah((int) ($rekapSnap['keluar'] ?? 0))) ?></p>
-                <?php endif; ?>
-                <div class="d-flex flex-wrap gap-2">
-                    <a href="/keuangan/rekap-kas-bulan.php" class="btn btn-success btn-sm">Buka rekap</a>
-                    <a href="/keuangan/rekap-kas-bulan.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-primary border-opacity-25">
-            <div class="card-body">
-                <h2 class="h6 mb-2"><i class="fa-solid fa-scale-balanced text-primary me-1"></i> Neraca</h2>
-                <p class="small text-muted mb-2">Per <?= htmlspecialchars((string) ($nerSnap['as_of_label'] ?? date('d/m/Y'))) ?></p>
-                <p class="mb-1">Total aset: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) ($nerSnap['total_aset'] ?? 0))) ?></strong></p>
-                <?php if (!$neracaSnapSeimbang): ?>
-                <p class="small text-warning mb-2">Selisih neraca: <?= htmlspecialchars($formatRupiah($selisihNeracaSnap)) ?></p>
-                <?php elseif ((int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
-                <p class="small text-warning mb-2"><?= (int) $nerSnap['jumlah_tanpa_jurnal'] ?> transaksi tanpa jurnal</p>
-                <?php else: ?>
-                <p class="small text-muted mb-2">Neraca seimbang</p>
-                <?php endif; ?>
-                <div class="d-flex flex-wrap gap-2">
-                    <a href="/keuangan/neraca.php" class="btn btn-primary btn-sm">Buka neraca</a>
-                    <a href="/keuangan/offline-data.php" class="btn btn-outline-secondary btn-sm" title="Unduh data untuk baca offline">
-                        <i class="fa-solid fa-download me-1"></i> Offline
-                    </a>
-                    <?php if (!$neracaSnapSeimbang || (int) ($nerSnap['jumlah_tanpa_jurnal'] ?? 0) > 0): ?>
-                    <a href="/keuangan/neraca-perbaikan.php" class="btn btn-warning btn-sm">Analisis</a>
-                    <?php endif; ?>
-                    <a href="/keuangan/neraca.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100 border-success border-opacity-25">
-            <div class="card-body">
-                <h2 class="h6 mb-2"><i class="fa-solid fa-money-bill-transfer text-success me-1"></i> Arus kas</h2>
-                <p class="small text-muted mb-2"><?= htmlspecialchars((string) $lakRingkas['periode_label']) ?></p>
-                <p class="mb-3">Kenaikan kas: <strong class="fs-5"><?= htmlspecialchars($formatRupiah((int) $lakRingkas['kenaikan_kas'])) ?></strong></p>
-                <div class="d-flex flex-wrap gap-2">
-                    <a href="/keuangan/arus-kas.php" class="btn btn-success btn-sm">Buka arus kas</a>
-                    <a href="/keuangan/arus-kas.php?print=1" target="_blank" class="btn btn-outline-secondary btn-sm">Cetak PDF</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<div class="row g-3 keu-modern-nav">
+<div class="row g-3 keu-modern-nav" id="laporan">
     <div class="col-lg-4">
         <div class="card shadow-sm h-100 border-0 keu-modern-section keu-modern-section--laporan">
             <div class="card-header fw-semibold">Laporan</div>
@@ -513,7 +437,7 @@ require __DIR__ . '/partials/ui_page_header.php';
             <div class="card-body d-grid gap-2">
                 <a class="keu-modern-link" href="/keuangan/pembayaran.php"><i class="fa-solid fa-circle-plus"></i><span>Input pembayaran</span></a>
                 <a class="keu-modern-link" href="/pembayaran/tagihan_syahriyah.php"><i class="fa-solid fa-receipt"></i><span>Status tagihan</span></a>
-                <a class="keu-modern-link" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat pembayaran</span></a>
+                <a class="keu-modern-link" href="/pembayaran/riwayat.php"><i class="fa-solid fa-clock-rotate-left"></i><span>Riwayat pembayaran santri</span></a>
                 <a class="keu-modern-link" href="/keuangan/pemasukan.php"><i class="fa-solid fa-hand-holding-dollar"></i><span>Pemasukan lain</span></a>
                 <a class="keu-modern-link" href="/keuangan/pengeluaran.php"><i class="fa-solid fa-minus-circle"></i><span>Input pengeluaran</span></a>
                 <a class="keu-modern-link" href="/keuangan/talangan.php"><i class="fa-solid fa-arrows-left-right"></i><span>Dana talangan antar-POS</span></a>
@@ -527,10 +451,7 @@ require __DIR__ . '/partials/ui_page_header.php';
             <div class="card-header fw-semibold">Pengaturan</div>
             <div class="card-body d-grid gap-2">
                 <a class="keu-modern-link" href="<?= htmlspecialchars(app_href('/keuangan/panduan.php')) ?>"><i class="fa-solid fa-book-open"></i><span>Panduan &amp; rumus keuangan</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan &amp; tarif</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=tarif"><i class="fa-solid fa-tags"></i><span>Tarif &amp; komponen</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=alokasi"><i class="fa-solid fa-chart-pie"></i><span>Alokasi dana</span></a>
-                <a class="keu-modern-link" href="/keuangan/pengaturan.php?bagian=santri_bulanan"><i class="fa-solid fa-user-gear"></i><span>Override per santri (bulanan)</span></a>
+                <a class="keu-modern-link" href="/keuangan/pengaturan.php"><i class="fa-solid fa-sliders"></i><span>Pengaturan keuangan</span></a>
                 <a class="keu-modern-link" href="/settings/kelas_keuangan.php"><i class="fa-solid fa-layer-group"></i><span>Kelas keuangan</span></a>
                 <a class="keu-modern-link" href="/keuangan/inventaris.php"><i class="fa-solid fa-warehouse"></i><span>Inventaris aset</span></a>
             </div>

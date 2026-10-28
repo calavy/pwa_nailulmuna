@@ -150,7 +150,7 @@ function perizinan_wa_log_kirim_gagal(string $context, int $izinId, array $resul
             $reason = 'send_failed';
         }
     }
-    if ($reason === 'duplicate') {
+    if ($reason === 'duplicate' || $reason === 'queued') {
         return;
     }
     $extra = !empty($result['fallback']) ? ' fallback=1' : '';

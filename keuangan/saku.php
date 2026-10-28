@@ -101,10 +101,8 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="col-md-6 col-xl-3">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
-                <div class="small text-muted mb-1">Per <?= htmlspecialchars((string) ($status['as_of_label'] ?? '')) ?></div>
-                <a href="<?= htmlspecialchars(app_href('/keuangan/neraca.php?view=saku&per=' . urlencode((string) ($status['as_of'] ?? date('Y-m-d'))))) ?>" class="btn btn-sm btn-outline-secondary w-100">
-                    <i class="fa-solid fa-scale-balanced me-1"></i> Status titipan saku
-                </a>
+                <div class="small text-muted mb-1">Per tanggal</div>
+                <div class="h5 mb-0"><?= htmlspecialchars((string) ($status['as_of_label'] ?? '')) ?></div>
             </div>
         </div>
     </div>
@@ -113,8 +111,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
         <div>
-            <span class="fw-semibold"><i class="fa-brands fa-whatsapp text-success me-1"></i> Rekap transaksi kemarin</span>
-            <span class="small text-muted ms-1">(sama dengan laporan WA harian)</span>
+            <span class="fw-semibold"><i class="fa-brands fa-whatsapp text-success me-1"></i> Laporan WA harian</span>
         </div>
         <span class="badge <?= $waSudahDikirim ? 'bg-success' : 'bg-warning text-dark' ?>">
             <?= $waSudahDikirim ? 'WA sudah dikirim' : 'WA belum dikirim' ?>
@@ -124,20 +121,9 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($resetHint !== ''): ?>
             <p class="small text-muted mb-2"><i class="fa-solid fa-clock me-1"></i><?= htmlspecialchars($resetHint) ?></p>
         <?php endif; ?>
-        <p class="small mb-2">
-            Tanggal operasional: <strong><?= htmlspecialchars((string) ($rekapKemarin['tanggal_label'] ?? '')) ?></strong>
-            · <?= (int) ($rekapKemarin['total_transaksi'] ?? 0) ?> transaksi
-            · <strong><?= htmlspecialchars($fmt((int) ($rekapKemarin['total_nominal'] ?? 0))) ?></strong>
+        <p class="small mb-3">
+            Rincian belanja tanggal <strong><?= htmlspecialchars((string) ($rekapKemarin['tanggal_label'] ?? '')) ?></strong> ada di Laporan Koperasi.
         </p>
-        <?php if (($rekapKemarin['per_koperasi'] ?? []) !== []): ?>
-            <ul class="small mb-3 ps-3">
-                <?php foreach ($rekapKemarin['per_koperasi'] as $pk): ?>
-                    <li><?= htmlspecialchars((string) ($pk['nama'] ?? '')) ?>: <?= (int) ($pk['jumlah'] ?? 0) ?> transaksi · <?= htmlspecialchars($fmt((int) ($pk['nominal'] ?? 0))) ?></li>
-                <?php endforeach; ?>
-            </ul>
-        <?php elseif ((int) ($rekapKemarin['total_transaksi'] ?? 0) === 0): ?>
-            <p class="small text-muted mb-3">Tidak ada transaksi debit pada tanggal tersebut.</p>
-        <?php endif; ?>
         <div class="d-flex flex-wrap gap-2">
             <a href="<?= htmlspecialchars($laporanKemarinUrl) ?>" class="btn btn-sm btn-outline-primary">
                 <i class="fa-solid fa-receipt me-1"></i> Lihat rincian di Laporan Koperasi

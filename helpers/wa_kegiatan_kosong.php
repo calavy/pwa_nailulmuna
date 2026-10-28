@@ -462,7 +462,7 @@ function trigger_wa_kelas_kosong_bertahap(PDO $pdo): void
                 'dedup_key' => $dedupKey,
                 'dedup_key_once' => true,
             ]);
-            if ((int) ($bulk['sent'] ?? 0) > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
+            if ((int) ($bulk['sent'] ?? 0) > 0 || (int) ($bulk['skipped'] ?? 0) > 0 || (int) ($bulk['queued'] ?? 0) > 0) {
                 save_setting($pdo, (string) $lv['sent_key'], '1');
                 save_setting($pdo, 'wa_kelas_kosong_last_sent_at', date('Y-m-d H:i:s'));
                 save_setting($pdo, 'wa_kelas_kosong_last_level', (string) $lv['level']);

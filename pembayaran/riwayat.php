@@ -273,9 +273,9 @@ $iconRiwayat = bendahara_page_icon('riwayat');
     </p>
     <h1 class="h3 mb-1 d-flex align-items-center gap-2 flex-wrap">
         <span class="bendahara-page-icon" aria-hidden="true"><i class="fa-solid <?= htmlspecialchars($iconRiwayat) ?>"></i></span>
-        Riwayat pembayaran (detail)
+        Riwayat pembayaran santri
     </h1>
-    <p class="text-muted mb-0">Filter tanggal, jenis, santri, metode, dan komponen POS. Cari nama/NIS santri untuk melihat seluruh pembayaran pada periode TA.</p>
+    <p class="text-muted mb-0">Pembayaran santri untuk kuitansi dan koreksi. Buku kas masuk dan keluar ada di <a href="<?= htmlspecialchars(app_href('/keuangan/riwayat_pembayaran.php')) ?>">Riwayat masuk &amp; keluar</a>.</p>
     <?php if (user_can_lihat_audit_operasional() || is_super_admin()): ?>
         <p class="small mb-0 mt-2 d-flex flex-wrap gap-2">
             <?php if (user_can_lihat_audit_operasional()): ?>

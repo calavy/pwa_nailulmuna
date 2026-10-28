@@ -117,13 +117,14 @@ function santri_outstanding_bulanan_rows(PDO $pdo, int $santriId, string $kelasK
 
 function santri_cashless_balance(PDO $pdo, int $santriId): int
 {
-    if (!table_exists($pdo, 'cashless_accounts') || $santriId <= 0) {
+    if ($santriId <= 0) {
         return 0;
     }
-    $st = $pdo->prepare('SELECT COALESCE(balance,0) FROM cashless_accounts WHERE santri_id = :id LIMIT 1');
-    $st->execute(['id' => $santriId]);
+    if (!function_exists('cashless_santri_saldo_tampil')) {
+        require_once __DIR__ . '/cashless_koperasi.php';
+    }
 
-    return (int) ((float) ($st->fetchColumn() ?: 0));
+    return cashless_santri_saldo_tampil($pdo, $santriId);
 }
 
 /** Tahun ajaran keuangan aktif (sama seperti halaman administrasi keluar). */
@@ -381,9 +382,6 @@ function santri_settle_keuangan_on_exit(
             ]);
             $pid = (int) $pdo->lastInsertId();
             $insD->execute(['pid' => $pid, 'slug' => $slug, 'nama' => $nama, 'nom' => $payFromCashless]);
-            if (table_exists($pdo, 'cashless_accounts')) {
-                $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :n WHERE santri_id = :sid')->execute(['n' => $payFromCashless, 'sid' => $santriId]);
-            }
             if (table_exists($pdo, 'cashless_transactions')) {
                 $pdo->prepare("INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by) VALUES (:sid,'DEBIT',:nom,:ket,:pid,:cb)")
                     ->execute([
@@ -393,6 +391,12 @@ function santri_settle_keuangan_on_exit(
                         'pid' => $pid,
                         'cb' => $createdBy,
                     ]);
+                if (!function_exists('cashless_sync_account_balance')) {
+                    require_once __DIR__ . '/cashless_koperasi.php';
+                }
+                cashless_sync_account_balance($pdo, $santriId);
+            } elseif (table_exists($pdo, 'cashless_accounts')) {
+                $pdo->prepare('UPDATE cashless_accounts SET balance = balance - :n WHERE santri_id = :sid')->execute(['n' => $payFromCashless, 'sid' => $santriId]);
             }
             $balance -= $payFromCashless;
             $cashlessUsed += $payFromCashless;
@@ -422,18 +426,23 @@ function santri_settle_keuangan_on_exit(
 
     $balanceAfter = santri_cashless_balance($pdo, $santriId);
     $cleared = 0;
-    if ($balanceAfter > 0 && table_exists($pdo, 'cashless_accounts')) {
+    if ($balanceAfter > 0 && table_exists($pdo, 'cashless_transactions')) {
+        $cleared = $balanceAfter;
+        $pdo->prepare("INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by) VALUES (:sid,'DEBIT',:nom,:ket,NULL,:cb)")
+            ->execute([
+                'sid' => $santriId,
+                'nom' => $cleared,
+                'ket' => 'Penutupan saldo cashless saat keluar santri — ' . $nomorSuratRef,
+                'cb' => $createdBy,
+            ]);
+        if (!function_exists('cashless_sync_account_balance')) {
+            require_once __DIR__ . '/cashless_koperasi.php';
+        }
+        cashless_sync_account_balance($pdo, $santriId);
+        $lines[] = 'Sisa saldo cashless Rp ' . number_format($cleared, 0, ',', '.') . ' dinolkan (penutupan akun).';
+    } elseif ($balanceAfter > 0 && table_exists($pdo, 'cashless_accounts')) {
         $cleared = $balanceAfter;
         $pdo->prepare('UPDATE cashless_accounts SET balance = 0 WHERE santri_id = :sid')->execute(['sid' => $santriId]);
-        if (table_exists($pdo, 'cashless_transactions')) {
-            $pdo->prepare("INSERT INTO cashless_transactions (santri_id, jenis, nominal, keterangan, ref_pembayaran_id, created_by) VALUES (:sid,'DEBIT',:nom,:ket,NULL,:cb)")
-                ->execute([
-                    'sid' => $santriId,
-                    'nom' => $cleared,
-                    'ket' => 'Penutupan saldo cashless saat keluar santri — ' . $nomorSuratRef,
-                    'cb' => $createdBy,
-                ]);
-        }
         $lines[] = 'Sisa saldo cashless Rp ' . number_format($cleared, 0, ',', '.') . ' dinolkan (penutupan akun).';
     }
 

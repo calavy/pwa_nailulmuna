@@ -609,6 +609,48 @@ function wa_otomatis_is_retryable(int $httpCode, string $curlError): bool
     return $httpCode === 0 || $httpCode >= 500;
 }
 
+/**
+ * Gagal yang pasti belum sampai ke provider, sehingga kunci dedup boleh dilepas dan dicoba lagi.
+ * Timeout, HTTP 0 setelah POST, dan 5xx menahan kunci agar tidak terkirim ganda.
+ *
+ * @param array<string, mixed> $result
+ */
+function wa_dispatch_failure_is_pre_send(array $result): bool
+{
+    $http = (int) ($result['http_code'] ?? 0);
+    if ($http >= 500 || ($http > 0 && $http < 500)) {
+        return false;
+    }
+
+    $err = strtolower(trim((string) ($result['error'] ?? '') . "\n" . (string) ($result['response'] ?? '')));
+    if ($err === '') {
+        return false;
+    }
+    if (str_contains($err, 'timed out') || str_contains($err, 'timeout') || str_contains($err, 'tidak ada respons')) {
+        return false;
+    }
+
+    $preSend = [
+        'pesan kosong',
+        'tidak valid',
+        'belum diisi',
+        'gateway wa tidak valid',
+        'could not resolve',
+        'couldn\'t resolve',
+        'failed to connect',
+        'couldn\'t connect',
+        'connection refused',
+        'network is unreachable',
+    ];
+    foreach ($preSend as $needle) {
+        if (str_contains($err, $needle)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /** Idempotensi WA otomatis aktif (default: ya). */
 function wa_dispatch_strict_enabled(PDO $pdo): bool
 {
@@ -1297,7 +1339,8 @@ function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, a
             if ($last['success'] ?? false) {
                 break;
             }
-            if ($i < $maxRetries && wa_otomatis_is_retryable((int) ($last['http_code'] ?? 0), (string) ($last['error'] ?? ''))) {
+            $retryable = wa_otomatis_is_retryable((int) ($last['http_code'] ?? 0), (string) ($last['error'] ?? ''));
+            if ($i < $maxRetries && $retryable && wa_dispatch_failure_is_pre_send($last)) {
                 usleep($delayMs * 1000);
                 continue;
             }
@@ -1317,7 +1360,7 @@ function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, a
     if ($dedupKey !== '' && $claimedDedup) {
         if ($last['success'] ?? false) {
             wa_dispatch_confirm($pdo, $dedupKey);
-        } else {
+        } elseif (wa_dispatch_failure_is_pre_send($last)) {
             wa_dispatch_release($pdo, $dedupKey);
         }
     }
@@ -1480,7 +1523,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
  * Kirim ke banyak target (personal atau grup).
  *
  * @param array<string, mixed> $opts delay_between_ms, max_retries
- * @return array{sent:int,failed:int,total:int,details:list<array<string,mixed>>}
+ * @return array{sent:int,failed:int,skipped:int,queued:int,total:int,details:list<array<string,mixed>>}
  */
 function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, array $opts = []): array
 {
@@ -1528,6 +1571,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
     $sent = 0;
     $failed = 0;
     $skipped = 0;
+    $queued = 0;
     $details = [];
     $dedupKeyBase = trim((string) ($opts['dedup_key'] ?? ''));
     $dedupOnce = !empty($opts['dedup_key_once']);
@@ -1547,6 +1591,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
                 'sent' => 0,
                 'failed' => 0,
                 'skipped' => count($targets),
+                'queued' => 0,
                 'total' => count($targets),
                 'details' => [[
                     'success' => true,
@@ -1560,6 +1605,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
     }
 
     $queuedIds = [];
+    $providerMayHaveAccepted = false;
     foreach ($targets as $idx => $target) {
         if (!$useOutboundQueue && $idx > 0 && $delayMs > 0) {
             if ($kind === 'tagihan') {
@@ -1580,8 +1626,10 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
                 $targetOpts['dedup_key'] = $dedupKeyBase;
             }
         } elseif ($dedupOnce) {
-            unset($targetOpts['dedup_key']);
-            $targetOpts['skip_dedup'] = true;
+            $targetOpts['dedup_key'] = $dedupKeyBase . ':t:' . wa_otomatis_normalize_target($target);
+            if (empty($opts['skip_dedup'])) {
+                unset($targetOpts['skip_dedup']);
+            }
         }
         $result = wa_otomatis_send($pdo, $target, $message, $targetOpts);
         if (!empty($result['skipped'])) {
@@ -1589,6 +1637,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         } elseif ($result['success'] ?? false) {
             $sent++;
         } elseif (!empty($result['queued'])) {
+            $queued++;
             $qid = (int) ($result['queue_id'] ?? 0);
             if ($qid > 0) {
                 $queuedIds[$qid] = true;
@@ -1615,18 +1664,34 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
                 continue;
             }
             unset($queuedIds[$qid]);
+            $queued = max(0, $queued - 1);
             if (!empty($detail['skipped'])) {
                 $skipped++;
             } elseif ($detail['success'] ?? false) {
                 $sent++;
             } else {
                 $failed++;
+                if (!wa_dispatch_failure_is_pre_send($detail)) {
+                    $providerMayHaveAccepted = true;
+                }
             }
         }
     }
 
     if ($claimedBulk) {
-        if ($sent > 0) {
+        $holdBulk = $sent > 0 || $queued > 0 || $providerMayHaveAccepted;
+        if (!$holdBulk) {
+            foreach ($details as $detail) {
+                if (!is_array($detail) || !empty($detail['success']) || !empty($detail['skipped']) || !empty($detail['queued'])) {
+                    continue;
+                }
+                if (!wa_dispatch_failure_is_pre_send($detail)) {
+                    $holdBulk = true;
+                    break;
+                }
+            }
+        }
+        if ($holdBulk) {
             wa_dispatch_confirm($pdo, $dedupKeyBase);
         } else {
             wa_dispatch_release($pdo, $dedupKeyBase);
@@ -1637,6 +1702,7 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
         'sent' => $sent,
         'failed' => $failed,
         'skipped' => $skipped,
+        'queued' => $queued,
         'total' => count($targets),
         'details' => $details,
     ];
@@ -1649,10 +1715,13 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
 function wa_kirim_pengasuh_pending_normalize_result(array $bulk): array
 {
     $sent = (int) ($bulk['sent'] ?? 0);
+    $queued = (int) ($bulk['queued'] ?? 0);
     $skipped = (int) ($bulk['skipped'] ?? 0);
     $reason = '';
     if ($sent === 0) {
-        if (!empty($bulk['blocked'])) {
+        if ($queued > 0) {
+            $reason = 'queued';
+        } elseif (!empty($bulk['blocked'])) {
             $reason = 'warmup';
         } elseif ($skipped > 0 && (int) ($bulk['failed'] ?? 0) === 0) {
             $detail0 = is_array($bulk['details'][0] ?? null) ? $bulk['details'][0] : [];
@@ -1664,7 +1733,7 @@ function wa_kirim_pengasuh_pending_normalize_result(array $bulk): array
 
     return array_merge($bulk, [
         'reason' => $reason,
-        'skipped_flag' => $sent === 0,
+        'skipped_flag' => $sent === 0 && $queued === 0,
     ]);
 }
 
@@ -1710,7 +1779,8 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
 
     $bulk = wa_otomatis_send_bulk($pdo, $targetsRaw, $message, $opts);
     $sent = (int) ($bulk['sent'] ?? 0);
-    if ($sent > 0) {
+    $queued = (int) ($bulk['queued'] ?? 0);
+    if ($sent > 0 || $queued > 0) {
         return wa_kirim_pengasuh_pending_normalize_result($bulk);
     }
 
@@ -1743,6 +1813,7 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
     $fallbackSent = 0;
     $fallbackFailed = 0;
     $fallbackSkipped = 0;
+    $fallbackQueued = 0;
     $details = [];
     foreach ($targets as $idx => $target) {
         if ($idx > 0 && $delayMs > 0) {
@@ -1759,13 +1830,17 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
             $fallbackSkipped++;
         } elseif ($result['success'] ?? false) {
             $fallbackSent++;
+        } elseif (!empty($result['queued'])) {
+            $fallbackQueued++;
         } else {
             $fallbackFailed++;
         }
     }
 
     $reason = '';
-    if ($fallbackSent === 0) {
+    if ($fallbackSent === 0 && $fallbackQueued > 0) {
+        $reason = 'queued';
+    } elseif ($fallbackSent === 0) {
         if ($fallbackSkipped > 0 && $fallbackFailed === 0) {
             $reason = 'duplicate';
         } elseif ($blocked) {
@@ -1773,7 +1848,8 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
         } else {
             $reason = 'send_failed';
         }
-    } elseif ($dedupKeyBase !== '' && !empty($opts['dedup_key_once'])) {
+    }
+    if (($fallbackSent > 0 || $fallbackQueued > 0) && $dedupKeyBase !== '' && !empty($opts['dedup_key_once'])) {
         wa_dispatch_mark_success($pdo, $dedupKeyBase, $kind);
     }
 
@@ -1781,9 +1857,10 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
         'sent' => $fallbackSent,
         'failed' => $fallbackFailed,
         'skipped' => $fallbackSkipped,
+        'queued' => $fallbackQueued,
         'total' => count($targets),
         'reason' => $reason,
-        'skipped_flag' => $fallbackSent === 0,
+        'skipped_flag' => $fallbackSent === 0 && $fallbackQueued === 0,
         'blocked' => $blocked,
         'fallback' => true,
         'details' => $details,
@@ -1939,7 +2016,7 @@ function wa_izin_pengasuh_pending_retry_tick(PDO $pdo, int $limit = 5): int
             'dedup_key_once' => true,
         ]);
         $sentTotal += (int) ($result['sent'] ?? 0);
-        if ((int) ($result['sent'] ?? 0) === 0 && ($result['reason'] ?? '') !== 'duplicate') {
+        if ((int) ($result['sent'] ?? 0) === 0 && (int) ($result['queued'] ?? 0) === 0 && !in_array((string) ($result['reason'] ?? ''), ['duplicate', 'queued'], true)) {
             error_log('[wa_izin_pengasuh_retry] izin_id=' . $izinId . ' reason=' . ($result['reason'] ?? 'unknown'));
         }
     }

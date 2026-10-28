@@ -1668,7 +1668,11 @@ function send_wa_message_with_result(PDO $pdo, string $phone, string $message, a
 function send_wa_message(PDO $pdo, string $phone, string $message, array $opts = []): bool
 {
     $result = send_wa_message_with_result($pdo, $phone, $message, $opts);
-    return (bool) ($result['success'] ?? false);
+    if (!empty($result['success']) || !empty($result['queued'])) {
+        return true;
+    }
+
+    return !empty($result['skipped']) && (string) ($result['skipped_reason'] ?? '') === 'duplicate';
 }
 
 function parse_phone_list(string $raw): array
@@ -1920,7 +1924,8 @@ function trigger_wa_mudabir_belum_hadir(PDO $pdo): void
         'dedup_key_once' => true,
     ]);
     $sent = (int) ($bulk['sent'] ?? 0);
-    if ($sent > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
+    $queued = (int) ($bulk['queued'] ?? 0);
+    if ($sent > 0 || $queued > 0 || (int) ($bulk['skipped'] ?? 0) > 0) {
         foreach ($missing as $m) {
             $jadwalId = (int) ($m['jadwal_id'] ?? 0);
             if ($jadwalId > 0) {

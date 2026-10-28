@@ -113,6 +113,8 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </h1>
     <p class="text-muted mb-0 small">
+        Buku kas masuk dan keluar, bukan daftar kuitansi per santri
+        (<a href="<?= htmlspecialchars(app_href('/pembayaran/riwayat.php')) ?>">riwayat pembayaran santri</a>).
         Filter per <strong>pos</strong> (Syahriyah, Makan, Saku, Awal Tahun, atau pos keluar), <strong>bulan pembayaran</strong> (tagihan TA), dan cari berdasarkan <strong>santri</strong>.
         Ringkasan bulanan:
         <a href="<?= htmlspecialchars(app_href('/keuangan/rekap-kas-bulan.php')) ?>">Rekap kas bulanan</a>.

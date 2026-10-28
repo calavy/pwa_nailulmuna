@@ -5,6 +5,9 @@ config/firebase.local.php
 config/midtrans.local.php
 config/google_service_account.json
 
+# Salinan database (lokal dan hosting). Berisi data santri.
+backups/
+
 # Upload pengguna (logo pondok, dll.) — tetap di server, tidak via GitHub
 uploads/*
 !uploads/.gitkeep

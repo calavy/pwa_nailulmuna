@@ -112,29 +112,6 @@ require __DIR__ . '/partials/ui_page_header.php';
     </div>
 </div>
 
-<?php $kasBankArus = keuangan_dashboard_kas_bank_detail($pdo); ?>
-<div class="row g-3 mb-3">
-    <div class="col-md-4">
-        <div class="app-mini-stat border-start border-4 border-success">
-            <div class="app-mini-stat-label">Kas fisik &amp; e-wallet (terkini)</div>
-            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_kas'] ?? 0))) ?></div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="app-mini-stat border-start border-4 border-primary">
-            <div class="app-mini-stat-label">Rekening bank (terkini)</div>
-            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_bank'] ?? 0))) ?></div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="app-mini-stat border-start border-4 border-secondary">
-            <div class="app-mini-stat-label">Total likuid (terkini)</div>
-            <div class="app-mini-stat-value"><?= htmlspecialchars($fmt((int) ($kasBankArus['total_likuid'] ?? 0))) ?></div>
-            <div class="small text-muted">Per <?= htmlspecialchars((string) ($kasBankArus['as_of'] ?? '')) ?></div>
-        </div>
-    </div>
-</div>
-
 <div class="card shadow-sm aruskas-report-card">
     <div class="card-body aruskas-report-body">
         <?php keuangan_aruskas_render_html($lak, $fmt); ?>

@@ -38,20 +38,22 @@ function presensi_wa_kirim(PDO $pdo, string $personalTargets, string $message, a
 {
     $sent = 0;
     $skipped = 0;
+    $queued = 0;
     $personalTargets = trim($personalTargets);
     if ($personalTargets !== '') {
         $bulk = send_wa_bulk_with_result($pdo, $personalTargets, $message, $opts);
         $sent += (int) ($bulk['sent'] ?? 0);
         $skipped += (int) ($bulk['skipped'] ?? 0);
+        $queued += (int) ($bulk['queued'] ?? 0);
     }
 
     if (!wa_presensi_grup_enabled($pdo)) {
-        return ['sent' => $sent, 'skipped' => $skipped];
+        return ['sent' => $sent, 'skipped' => $skipped, 'queued' => $queued];
     }
 
     $grupTargets = wa_presensi_grup_targets($pdo);
     if ($grupTargets === '') {
-        return ['sent' => $sent, 'skipped' => $skipped];
+        return ['sent' => $sent, 'skipped' => $skipped, 'queued' => $queued];
     }
 
     $grupOpts = $opts;
@@ -66,8 +68,9 @@ function presensi_wa_kirim(PDO $pdo, string $personalTargets, string $message, a
     $grupBulk = send_wa_bulk_with_result($pdo, $grupTargets, $message, $grupOpts);
     $sent += (int) ($grupBulk['sent'] ?? 0);
     $skipped += (int) ($grupBulk['skipped'] ?? 0);
+    $queued += (int) ($grupBulk['queued'] ?? 0);
 
-    return ['sent' => $sent, 'skipped' => $skipped];
+    return ['sent' => $sent, 'skipped' => $skipped, 'queued' => $queued];
 }
 
 /**
