@@ -507,13 +507,16 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false, ?str
     $bulk = send_wa_bulk_with_result($pdo, implode(',', $targets), $msg, $bulkOpts);
     $sent = (int) ($bulk['sent'] ?? 0);
     $failed = (int) ($bulk['failed'] ?? 0);
+    $queued = (int) ($bulk['queued'] ?? 0);
+    $skipped = (int) ($bulk['skipped'] ?? 0);
+    $tanggalLabel = (string) ($ringkasan['tanggal_label'] ?? '');
+    $ringkasAngka = (int) $ringkasan['total_transaksi'] . ' transaksi, ' . cashless_wa_rp((int) $ringkasan['total_nominal']);
 
-    if ($sent > 0) {
+    $catatTanggalLaporan = static function () use ($pdo, $today, $laporanTanggal, $ringkasan, $sent, $failed, $queued): void {
         save_setting($pdo, 'cashless_laporan_harian_last_date', $today);
         if ($laporanTanggal === cashless_wa_laporan_tanggal_data($today)) {
             save_setting($pdo, 'cashless_laporan_harian_last_laporan_tanggal', $laporanTanggal);
         }
-        save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
         save_setting($pdo, 'cashless_laporan_harian_last_error', '');
         save_setting($pdo, 'cashless_laporan_harian_last_stats', json_encode([
             'tanggal' => $laporanTanggal,
@@ -521,24 +524,60 @@ function cashless_wa_jalankan_laporan_harian(PDO $pdo, bool $paksa = false, ?str
             'nominal' => (int) $ringkasan['total_nominal'],
             'sent' => $sent,
             'failed' => $failed,
+            'queued' => $queued,
         ], JSON_UNESCAPED_UNICODE));
-    } else {
-        $errParts = [];
-        foreach ((array) ($bulk['details'] ?? []) as $d) {
-            if (empty($d['success']) && !empty($d['error'])) {
-                $errParts[] = (string) $d['error'];
-            }
-        }
-        $errMsg = $errParts !== [] ? implode('; ', array_unique($errParts)) : 'Gagal mengirim ke semua nomor penerima.';
-        save_setting($pdo, 'cashless_laporan_harian_last_error', $errMsg);
+    };
+
+    if ($sent > 0) {
+        $catatTanggalLaporan();
+        save_setting($pdo, 'cashless_laporan_harian_last_sent_at', date('Y-m-d H:i:s'));
+
+        return [
+            'ok' => true,
+            'message' => 'Laporan cashless ' . $tanggalLabel . ' terkirim ke ' . $sent . ' nomor (' . $ringkasAngka . ').',
+            'sent' => $sent,
+            'failed' => $failed,
+            'queued' => $queued,
+        ];
     }
 
+    if ($queued > 0) {
+        $catatTanggalLaporan();
+
+        return [
+            'ok' => true,
+            'message' => 'Laporan cashless ' . $tanggalLabel . ' masuk antrian untuk ' . $queued . ' nomor dan akan terkirim oleh cron (' . $ringkasAngka . ').',
+            'sent' => $sent,
+            'failed' => $failed,
+            'queued' => $queued,
+        ];
+    }
+
+    if ($skipped > 0 && $failed === 0) {
+        $catatTanggalLaporan();
+
+        return [
+            'ok' => true,
+            'message' => 'Laporan cashless ' . $tanggalLabel . ' sudah diproses.',
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => true,
+        ];
+    }
+
+    $errParts = [];
+    foreach ((array) ($bulk['details'] ?? []) as $d) {
+        if (!is_array($d) || !empty($d['success']) || empty($d['error'])) {
+            continue;
+        }
+        $errParts[] = (string) $d['error'];
+    }
+    $errMsg = $errParts !== [] ? implode('; ', array_unique($errParts)) : 'Gagal mengirim ke semua nomor penerima.';
+    save_setting($pdo, 'cashless_laporan_harian_last_error', $errMsg);
+
     return [
-        'ok' => $sent > 0,
-        'message' => $sent > 0
-            ? 'Laporan cashless ' . (string) ($ringkasan['tanggal_label'] ?? '') . ' terkirim ke ' . $sent . ' nomor ('
-                . (int) $ringkasan['total_transaksi'] . ' transaksi, ' . cashless_wa_rp((int) $ringkasan['total_nominal']) . ').'
-            : ('Gagal mengirim laporan cashless' . ($failed > 0 ? ' (' . $failed . ' gagal).' : '.')),
+        'ok' => false,
+        'message' => 'Gagal mengirim laporan cashless' . ($failed > 0 ? ' (' . $failed . ' gagal). ' : '. ') . $errMsg,
         'sent' => $sent,
         'failed' => $failed,
     ];

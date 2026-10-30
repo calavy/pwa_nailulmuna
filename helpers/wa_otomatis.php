@@ -1665,6 +1665,13 @@ function wa_otomatis_send_bulk(PDO $pdo, string $targetsRaw, string $message, ar
             }
             unset($queuedIds[$qid]);
             $queued = max(0, $queued - 1);
+            foreach ($details as $detailIdx => $existingDetail) {
+                if (!is_array($existingDetail) || (int) ($existingDetail['queue_id'] ?? 0) !== $qid) {
+                    continue;
+                }
+                $details[$detailIdx] = $detail;
+                break;
+            }
             if (!empty($detail['skipped'])) {
                 $skipped++;
             } elseif ($detail['success'] ?? false) {
