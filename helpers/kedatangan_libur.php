@@ -517,7 +517,7 @@ function kedatangan_libur_catat_scan(PDO $pdo, int $sesiId, string $code, int $c
     }
 
     require_once __DIR__ . '/santri_kartu_sementara.php';
-    $santri = santri_resolve_by_scan_code($pdo, $code);
+    $santri = santri_resolve_by_scan_code($pdo, $code, true);
     if (!is_array($santri)) {
         $empty['message'] = 'Peringatan: kode QR tidak terdaftar sebagai santri.';
 
@@ -528,7 +528,8 @@ function kedatangan_libur_catat_scan(PDO $pdo, int $sesiId, string $code, int $c
     $chkAktif = $pdo->prepare('SELECT 1 FROM santri s WHERE s.id = :id AND ' . santri_sql_aktif_only('s') . ' LIMIT 1');
     $chkAktif->execute(['id' => $santriId]);
     if (!$chkAktif->fetchColumn()) {
-        $empty['message'] = 'Santri tidak aktif — kedatangan tidak dicatat.';
+        $pesanNonaktif = santri_pesan_scan_nonaktif($santri);
+        $empty['message'] = $pesanNonaktif ?? 'Santri tidak aktif — kedatangan tidak dicatat.';
         $empty['santri'] = $santri;
 
         return $empty;

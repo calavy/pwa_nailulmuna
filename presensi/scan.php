@@ -130,8 +130,9 @@ $canBersihkanPresensi = !$pbPortalScan && user_can_hapus_presensi_admin();
             preg_match('/luar jadwal|tidak ada kegiatan/i', (string) $resultMessage) ? 'Di luar jadwal'
             : (preg_match('/hari libur/i', (string) $resultMessage) ? 'Hari libur'
             : (preg_match('/tidak terdaftar/i', (string) $resultMessage) ? 'QR tidak terdaftar'
+            : (preg_match('/dinonaktifkan pada/i', (string) $resultMessage) ? (string) $resultMessage
             : (preg_match('/tidak aktif|sudah keluar/i', (string) $resultMessage) ? 'Santri tidak aktif'
-            : ($resultType === 'danger' ? 'Scan ditolak' : $resultMessage))))
+            : ($resultType === 'danger' ? 'Scan ditolak' : $resultMessage)))))
         ));
     ?>
     <div class="presensi-scan-banner presensi-scan-banner--<?= htmlspecialchars($resultType) ?>" role="alert" aria-live="assertive">

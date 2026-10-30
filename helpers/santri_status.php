@@ -104,6 +104,40 @@ function santri_status_is_di_pondok(string $status): bool
     return in_array(santri_status_normalize($status), [santri_status_const_aktif(), santri_status_const_khidmah()], true);
 }
 
+/**
+ * Kalimat popup scan bila baris santri berstatus nonaktif.
+ * Null untuk aktif, khidmah, atau status lain.
+ */
+function santri_pesan_scan_nonaktif(array $row): ?string
+{
+    if (!santri_status_is_nonaktif(santri_status_from_row($row))) {
+        return null;
+    }
+    $nama = trim((string) ($row['nama_santri'] ?? ''));
+    if ($nama === '') {
+        $nama = trim((string) ($row['nama'] ?? ''));
+    }
+    if ($nama === '') {
+        $nama = 'Santri';
+    }
+    $tglRaw = trim((string) ($row['tanggal_keluar'] ?? ''));
+    $tglLabel = '';
+    if ($tglRaw !== '') {
+        if (!function_exists('app_format_tanggal_id')) {
+            require_once __DIR__ . '/datetime_display.php';
+        }
+        $formatted = app_format_tanggal_id($tglRaw);
+        if ($formatted !== '' && $formatted !== '—') {
+            $tglLabel = $formatted;
+        }
+    }
+    if ($tglLabel === '') {
+        return $nama . ' sudah tidak aktif. Dinonaktifkan pada tanggal yang belum tercatat.';
+    }
+
+    return $nama . ' sudah tidak aktif. Dinonaktifkan pada ' . $tglLabel . '.';
+}
+
 /** Sudah nonaktif / tidak mondok. */
 function santri_status_is_nonaktif(string $status): bool
 {

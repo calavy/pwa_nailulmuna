@@ -40,7 +40,7 @@ function santri_kartu_sementara_ensure_schema(PDO $pdo): void
  *
  * @return array<string, mixed>|null baris santri (+ kunci _kartu_sementara jika dari QR temp)
  */
-function santri_resolve_by_scan_code(PDO $pdo, string $code): ?array
+function santri_resolve_by_scan_code(PDO $pdo, string $code, bool $includeInactive = false): ?array
 {
     $code = trim($code);
     if ($code === '') {
@@ -51,7 +51,7 @@ function santri_resolve_by_scan_code(PDO $pdo, string $code): ?array
     santri_kartu_sementara_ensure_schema($pdo);
 
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $aktifSql = column_exists($pdo, 'santri', 'is_aktif') ? ' AND COALESCE(s.is_aktif, 1) = 1' : '';
+    $aktifSql = (!$includeInactive && column_exists($pdo, 'santri', 'is_aktif')) ? ' AND COALESCE(s.is_aktif, 1) = 1' : '';
 
     $st = $pdo->prepare('
         SELECT s.*

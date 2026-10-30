@@ -52,7 +52,7 @@ declare(strict_types=1);
     $code = trim($_POST['kode_qr'] ?? '');
     if ($code !== '') {
         require_once __DIR__ . '/santri_kartu_sementara.php';
-        $santri = santri_resolve_by_scan_code($pdo, $code);
+        $santri = santri_resolve_by_scan_code($pdo, $code, true);
         if (is_array($santri)) {
             $loadFull = $pdo->prepare('SELECT * FROM santri WHERE id = :id LIMIT 1');
             $loadFull->execute(['id' => (int) ($santri['id'] ?? 0)]);
@@ -90,8 +90,9 @@ declare(strict_types=1);
             $chkAktif->execute(['id' => (int) $santri['id']]);
             if (!$chkAktif->fetchColumn()) {
                 if ($izinSelesai === null || !($izinSelesai['ok'] ?? false)) {
+                    $pesanNonaktif = santri_pesan_scan_nonaktif($santri);
                     $resultType = 'warning';
-                    $resultMessage = 'Santri tidak aktif atau sedang izin — presensi tidak dicatat. Saat kembali dari izin, scan QR kartu santri di halaman ini.';
+                    $resultMessage = $pesanNonaktif ?? 'Santri tidak aktif atau sedang izin — presensi tidak dicatat. Saat kembali dari izin, scan QR kartu santri di halaman ini.';
                     goto end_scan_process;
                 }
             }
@@ -447,7 +448,7 @@ if ($resultMessage !== null && $resultMessage !== '' && $resultType === 'warning
     $pendingForClassify = $_SESSION['munawib_scan_pending'] ?? null;
     if (is_array($pendingForClassify) && !empty($pendingForClassify['slots'])) {
         $resultType = 'info';
-    } elseif (preg_match('/Kartu terbaca|luar jadwal|tidak ada jadwal aktif|Santri tidak aktif|Hari libur akademik/i', $resultMessage)) {
+    } elseif (preg_match('/Kartu terbaca|luar jadwal|tidak ada jadwal aktif|Santri tidak aktif|dinonaktifkan pada|Hari libur akademik/i', $resultMessage)) {
         $resultType = 'warning';
     } elseif (preg_match('/sudah tercatat|sudah scan|Scan ditolak|sudah diwakili|pembimbing asli sudah|Kegiatan ini sudah|sudah scan pada jadwal|Duplikat/i', $resultMessage)) {
         $resultType = 'duplicate';

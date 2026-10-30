@@ -508,6 +508,9 @@
             if (/tidak terdaftar/i.test(s)) {
                 return 'QR tidak terdaftar';
             }
+            if (/dinonaktifkan pada/i.test(s)) {
+                return s.length > 180 ? s.slice(0, 180) : s;
+            }
             if (/tidak aktif|sudah keluar/i.test(s)) {
                 return 'Santri tidak aktif';
             }
@@ -558,10 +561,14 @@
             + '  <span>' + escapeHtml(shortDisplayMessage(type, message)) + '</span>'
             + '</div>';
         global.clearTimeout(host._hideTimer);
+        var bannerMs = type === 'success' ? 5500 : 6500;
+        if (/dinonaktifkan pada/i.test(String(message || ''))) {
+            bannerMs = 8000;
+        }
         host._hideTimer = global.setTimeout(function () {
             host.innerHTML = '';
             host.hidden = true;
-        }, type === 'success' ? 5500 : 6500);
+        }, bannerMs);
     }
 
     function overlayExtra(extra) {
@@ -595,6 +602,9 @@
         wrap.setAttribute('aria-live', 'assertive');
         wrap.style.pointerEvents = 'none';
         var duration = type === 'success' ? 3500 : (type === 'duplicate' ? 3500 : (type === 'info' ? 3800 : 4200));
+        if (/dinonaktifkan pada/i.test(String(message || ''))) {
+            duration = 7000;
+        }
         var displayMessage = shortDisplayMessage(type, message);
         var cardClass = 'presensi-scan-result-card ' + meta.toneClass + (extra.photoUrl && (type === 'success' || type === 'duplicate') ? ' has-photo' : '');
         var textHtml = '<div class="presensi-scan-result-text">' + escapeHtml(displayMessage);

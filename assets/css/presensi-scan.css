@@ -927,6 +927,8 @@
 }
 
 .presensi-scan-result-text {
+    flex: 1;
+    min-width: 0;
     font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.4;
@@ -950,6 +952,10 @@
     font-weight: 700;
     line-height: 1.45;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.presensi-scan-banner span {
+    min-width: 0;
 }
 
 .presensi-scan-banner--success {
