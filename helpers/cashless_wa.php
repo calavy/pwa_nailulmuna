@@ -385,16 +385,26 @@ function cashless_wa_ringkasan_harian(PDO $pdo, ?string $tanggal = null): array
     require_once __DIR__ . '/cashless_koperasi.php';
     $range = cashless_tanggal_rentang_harian($tanggal, $pdo);
     $hasKop = column_exists($pdo, 'cashless_transactions', 'koperasi_id');
-    $sql = "
-        SELECT " . ($hasKop ? 'COALESCE(ct.koperasi_id, 0)' : '0') . " AS koperasi_id,
-               COUNT(*) AS jumlah,
-               COALESCE(SUM(ct.nominal), 0) AS nominal
-        FROM cashless_transactions ct
-        WHERE UPPER(ct.jenis) = 'DEBIT'
-          AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end
-        GROUP BY " . ($hasKop ? 'COALESCE(ct.koperasi_id, 0)' : '0') . "
-        ORDER BY koperasi_id ASC
-    ";
+    $sql = $hasKop
+        ? "
+            SELECT COALESCE(ct.koperasi_id, 0) AS koperasi_id,
+                   COUNT(*) AS jumlah,
+                   COALESCE(SUM(ct.nominal), 0) AS nominal
+            FROM cashless_transactions ct
+            WHERE UPPER(ct.jenis) = 'DEBIT'
+              AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end
+            GROUP BY COALESCE(ct.koperasi_id, 0)
+            ORDER BY koperasi_id ASC
+        "
+        : "
+            SELECT 0 AS koperasi_id,
+                   COUNT(*) AS jumlah,
+                   COALESCE(SUM(ct.nominal), 0) AS nominal
+            FROM cashless_transactions ct
+            WHERE UPPER(ct.jenis) = 'DEBIT'
+              AND ct.tanggal >= :tgl_start AND ct.tanggal < :tgl_end
+            HAVING COUNT(*) > 0
+        ";
     $st = $pdo->prepare($sql);
     $st->execute(['tgl_start' => $range['start'], 'tgl_end' => $range['end']]);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
