@@ -54,6 +54,7 @@ foreach ($pendingRows as $row) {
     $rombonganById[$rid]['izin_ids'][] = (int) ($row['id'] ?? 0);
 }
 $rombonganPending = array_values($rombonganById);
+$rombonganAnggotaTk = perizinan_rombongan_anggota_grouped_many($pdo, array_keys($rombonganById));
 
 $pageTitle = 'Persetujuan Izin — Pengasuh';
 $pageScripts = [
@@ -104,6 +105,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="pg-izin-card__body">
                     <div class="fw-semibold"><?= htmlspecialchars($rmJudul) ?></div>
                     <div class="small text-muted pg-izin-card__meta"<?= $rmAlasan !== '' ? ' title="' . htmlspecialchars($rmMeta) . '"' : '' ?>><?= htmlspecialchars($rmMeta) ?></div>
+                    <?php
+                    $anggotaGrouped = $rombonganAnggotaTk[$rid] ?? [];
+                    require __DIR__ . '/../includes/partials/perizinan_rombongan_tingkatan.php';
+                    ?>
                 </div>
                 <div class="pg-izin-card__actions">
                     <form method="post" action="<?= htmlspecialchars($izinAksiHref) ?>" class="pg-izin-setujui-form"

@@ -165,31 +165,57 @@ function pengasuh_laporan_hari_pkpps_snapshot(PDO $pdo, string $tanggal): array
 /**
  * Perizinan aktif & pengajuan pending pada tanggal.
  *
- * @return array{aktif:list<array<string,mixed>>,pending:list<array<string,mixed>>,pending_count:int}
+ * @return array{aktif:list<array<string,mixed>>,rombongan:list<array<string,mixed>>,pending:list<array<string,mixed>>,pending_count:int}
  */
 function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
 {
     if (!table_exists($pdo, 'perizinan') || !table_exists($pdo, 'santri')) {
-        return ['aktif' => [], 'pending' => [], 'pending_count' => 0];
+        return ['aktif' => [], 'rombongan' => [], 'pending' => [], 'pending_count' => 0];
     }
+    require_once __DIR__ . '/perizinan_rombongan.php';
+    perizinan_rombongan_ensure_schema($pdo);
     $aktifSql = santri_sql_aktif_only('s');
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
 
     $stAktif = $pdo->prepare("
-        SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai,
+        SELECT i.id, i.rombongan_id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai,
                i.status_izin, i.alasan, s.{$nameCol} AS nama_santri, s.nis, s.tingkatan
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktifSql}
         WHERE i.approval_status = 'DISETUJUI'
           AND i.tanggal_mulai <= :t AND i.tanggal_selesai >= :t
-        ORDER BY s.tingkatan ASC, s.{$nameCol} ASC
+        ORDER BY " . perizinan_rombongan_order_sql('s', $pdo) . "
         LIMIT 100
     ");
     $stAktif->execute(['t' => $tanggal]);
-    $aktif = $stAktif->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $aktifAll = $stAktif->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    require_once __DIR__ . '/perizinan_jenis.php';
-    $syari = perizinan_jenis_syari_kode();
+    $aktif = [];
+    $rombonganRows = [];
+    foreach ($aktifAll as $row) {
+        $rid = (int) ($row['rombongan_id'] ?? 0);
+        if ($rid > 0) {
+            $rombonganRows[$rid][] = $row;
+        } else {
+            $aktif[] = $row;
+        }
+    }
+    $rombongan = [];
+    foreach ($rombonganRows as $rid => $rows) {
+        $first = $rows[0];
+        $rombongan[] = [
+            'id' => $rid,
+            'jenis_izin' => (string) ($first['jenis_izin'] ?? ''),
+            'tanggal_mulai' => (string) ($first['tanggal_mulai'] ?? ''),
+            'tanggal_selesai' => (string) ($first['tanggal_selesai'] ?? ''),
+            'alasan' => (string) ($first['alasan'] ?? ''),
+            'jumlah' => count($rows),
+            'anggota_grouped' => perizinan_rombongan_group_by_tingkatan($rows),
+        ];
+    }
+
+    require_once __DIR__ . '/perizinan_approval.php';
+    $antrianSql = perizinan_sql_antrian_pengasuh($pdo, 'i');
     $filterPengasuh = column_exists($pdo, 'perizinan', 'pengasuh_approved_at')
         ? ' AND i.pengasuh_approved_at IS NULL'
         : '';
@@ -199,7 +225,7 @@ function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktifSql}
         WHERE i.approval_status = 'PENDING'
-          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+          AND {$antrianSql}{$filterPengasuh}
         ORDER BY i.created_at DESC
         LIMIT 20
     ");
@@ -212,12 +238,13 @@ function pengasuh_laporan_hari_perizinan(PDO $pdo, string $tanggal): array
             SELECT COUNT(*) FROM perizinan i
             INNER JOIN santri s ON s.id = i.santri_id AND {$aktifSql}
             WHERE i.approval_status = 'PENDING'
-              AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+              AND {$antrianSql}{$filterPengasuh}
         ")->fetchColumn();
     }
 
     return [
         'aktif' => $aktif,
+        'rombongan' => $rombongan,
         'pending' => $pending,
         'pending_count' => $pendingCount,
     ];

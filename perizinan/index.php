@@ -68,19 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
         exit;
     }
-    if ($action === 'approve_rombongan') {
-        $rid = (int) ($_POST['rombongan_id'] ?? 0);
-        $metaRombongan = $rid > 0 ? perizinan_rombongan_meta($pdo, $rid) : null;
-        if (is_array($metaRombongan) && perizinan_memerlukan_persetujuan_pengasuh((string) ($metaRombongan['jenis_izin'] ?? ''))) {
-            $respondPengurus(false, 'Izin syar\'i rombongan disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A4.', app_href('/perizinan/index.php'));
-        }
-        $bypassRombongan = perizinan_request_bypass_alpa($pdo, $_POST);
-        $res = perizinan_rombongan_approve($pdo, $rid, $_POST, (int) ($_SESSION['user']['id'] ?? 0), $bypassRombongan, false, true);
-        $okR = !empty($res['ok']);
-        $redirectR = ($okR && $rid > 0)
-            ? app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . $rid)
-            : app_href('/perizinan/index.php');
-        $respondPengurus($okR, (string) ($res['message'] ?? 'Aksi gagal.'), $redirectR);
+    if ($action === 'approve_rombongan' || $action === 'reject_rombongan') {
+        $respondPengurus(false, 'Izin rombongan hanya dapat disetujui/ditolak pengasuh.', app_href('/perizinan/index.php'));
     }
     if ($action === 'approve_izin') {
         $id = (int) ($_POST['izin_id'] ?? 0);
@@ -141,13 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'reject_izin') {
         $id = (int) ($_POST['izin_id'] ?? 0);
         $res = perizinan_tolak_izin_satu($pdo, $id, (int) ($_SESSION['user']['id'] ?? 0), 'pengurus');
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        header('Location: ' . app_href('/perizinan/index.php'));
-        exit;
-    }
-    if ($action === 'reject_rombongan') {
-        $rid = (int) ($_POST['rombongan_id'] ?? 0);
-        $res = perizinan_rombongan_tolak($pdo, $rid, (int) ($_SESSION['user']['id'] ?? 0), 'pengurus');
         set_flash($res['ok'] ? 'success' : 'error', $res['message']);
         header('Location: ' . app_href('/perizinan/index.php'));
         exit;
@@ -355,47 +337,13 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="card-body">
                 <?php if ($rombonganPending !== []): ?>
                 <div class="alert alert-warning py-2 mb-3">
-                    <strong>Izin rombongan menunggu persetujuan</strong>
-                    <span class="d-block small fw-normal text-muted">Kelola di halaman <a href="<?= htmlspecialchars(app_href('/perizinan/izin_rombongan.php')) ?>">Izin Rombongan</a>.</span>
+                    <strong>Izin rombongan menunggu persetujuan pengasuh</strong>
+                    <span class="d-block small fw-normal text-muted">Hanya pengasuh yang dapat menyetujui/menolak. Surat dapat dicetak setelah disetujui — lihat <a href="<?= htmlspecialchars(app_href('/perizinan/izin_rombongan.php')) ?>">Izin Rombongan</a>.</span>
                     <ul class="mb-0 small ps-3">
-                        <?php foreach ($rombonganPending as $rm):
-                            $rombonganSyari = perizinan_memerlukan_persetujuan_pengasuh((string) ($rm['jenis_izin'] ?? ''));
-                            $rombonganTungguPengasuh = false;
-                            if ($rombonganSyari && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
-                                $stRp = $pdo->prepare('SELECT COUNT(*) FROM perizinan WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL');
-                                $stRp->execute(['rid' => (int) $rm['id']]);
-                                $rombonganTungguPengasuh = (int) ($stRp->fetchColumn() ?: 0) > 0;
-                            }
-                        ?>
+                        <?php foreach ($rombonganPending as $rm): ?>
                             <li class="mt-1">
                                 #<?= (int) $rm['id'] ?> — <?= (int) ($rm['jumlah_santri'] ?? 0) ?> santri · <?= htmlspecialchars(jenis_izin_label((string) ($rm['jenis_izin'] ?? ''))) ?>
-                                <?php if ($rombonganTungguPengasuh): ?>
-                                    <span class="badge text-bg-warning ms-1">Menunggu pengasuh</span>
-                                <?php elseif ($rombonganSyari): ?>
-                                    <span class="badge text-bg-success ms-1">Disetujui pengasuh — cetak saja</span>
-                                <?php endif; ?>
-                                <?php if (!$rombonganSyari): ?>
-                                <form method="post" class="d-inline ms-1">
-                                    <input type="hidden" name="action" value="approve_rombongan">
-                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
-                                    <input type="hidden" name="tanggal_mulai" value="<?= htmlspecialchars((string) ($rm['tanggal_mulai'] ?? '')) ?>">
-                                    <input type="hidden" name="tanggal_selesai" value="<?= htmlspecialchars((string) ($rm['tanggal_selesai'] ?? '')) ?>">
-                                    <input type="hidden" name="jam_mulai" value="<?= htmlspecialchars(substr((string) ($rm['jam_mulai'] ?? ''), 0, 5)) ?>">
-                                    <input type="hidden" name="jam_selesai" value="<?= htmlspecialchars(substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)) ?>">
-                                    <?php if ($bolehBypassAlpa): ?>
-                                        <label class="small ms-1"><input type="checkbox" name="bypass_alpa" value="1"> Lewati ALPA</label>
-                                    <?php endif; ?>
-                                    <button type="submit" class="btn btn-sm btn-success">Setujui</button>
-                                </form>
-                                <?php endif; ?>
-                                <form method="post" class="d-inline ms-1" onsubmit="return confirm('Tolak izin rombongan ini?');">
-                                    <input type="hidden" name="action" value="reject_rombongan">
-                                    <input type="hidden" name="rombongan_id" value="<?= (int) $rm['id'] ?>">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
-                                </form>
-                                    <?php if (!$hideCetakSurat): ?>
-                                    <a class="btn btn-sm btn-outline-dark" target="_blank" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . (int) $rm['id'])) ?>">Cetak A4</a>
-                                    <?php endif; ?>
+                                <span class="badge text-bg-warning ms-1">Menunggu pengasuh</span>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -492,7 +440,9 @@ require_once __DIR__ . '/../includes/header.php';
                                 <span class="badge text-bg-<?= ($i['approval_status'] ?? 'PENDING') === 'DISETUJUI' ? 'success' : (($i['approval_status'] ?? 'PENDING') === 'DITOLAK' ? 'danger' : 'warning') ?>">
                                     <?= htmlspecialchars($i['approval_status'] ?? 'PENDING') ?>
                                 </span>
-                                <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
+                                <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING' && !empty($i['rombongan_id'])): ?>
+                                        <div class="small text-muted mt-1">Menunggu pengasuh (rombongan)</div>
+                                <?php elseif (($i['approval_status'] ?? 'PENDING') === 'PENDING' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
                                         <div class="small text-muted mt-1">Menunggu pengasuh (izin)</div>
                                 <?php elseif (($i['approval_status'] ?? '') === 'DISETUJUI' && perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''))): ?>
                                         <div class="small text-success mt-1">Disetujui pengasuh<?php if (trim((string) ($i['pengasuh_approved_at'] ?? '')) !== ''): ?> · <?= htmlspecialchars(app_format_datetime_id((string) $i['pengasuh_approved_at'])) ?><?php endif; ?></div>
@@ -511,7 +461,9 @@ require_once __DIR__ . '/../includes/header.php';
                             </td>
                             <td><?= htmlspecialchars($i['status_izin']) ?></td>
                             <td class="text-end">
-                                <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING'): ?>
+                                <?php if (($i['approval_status'] ?? 'PENDING') === 'PENDING' && !empty($i['rombongan_id'])): ?>
+                                    <span class="small text-muted me-1" title="Izin rombongan disetujui/ditolak pengasuh di menu Pengasuh">Tunggu pengasuh</span>
+                                <?php elseif (($i['approval_status'] ?? 'PENDING') === 'PENDING'): ?>
                                     <?php
                                     $isSyariIzin = perizinan_memerlukan_persetujuan_pengasuh((string) ($i['jenis_izin'] ?? ''));
                                     $alpaCekBtn = $izinAlpaMap[(int) $i['id']] ?? ['subject' => false, 'allowed' => true];

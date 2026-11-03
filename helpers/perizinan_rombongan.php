@@ -139,22 +139,7 @@ function perizinan_rombongan_create(PDO $pdo, array $post, array $santriIds, int
         }
         $pdo->commit();
 
-        if (perizinan_langsung_disetujui_tanpa_persetujuan($jenisIzin)) {
-            require_once __DIR__ . '/perizinan_approval.php';
-            $approveRes = perizinan_rombongan_approve($pdo, $rombonganId, $post, $userId, false, false);
-            if (!$approveRes['ok']) {
-                return ['ok' => false, 'message' => 'Izin rombongan tersimpan tetapi gagal diaktifkan: ' . $approveRes['message']];
-            }
-
-            return [
-                'ok' => true,
-                'message' => $approveRes['message'],
-                'rombongan_id' => $rombonganId,
-                'auto_approved' => true,
-            ];
-        }
-
-        return ['ok' => true, 'message' => 'Izin rombongan (' . count($santriIds) . ' santri) menunggu persetujuan.', 'rombongan_id' => $rombonganId];
+        return ['ok' => true, 'message' => 'Izin rombongan (' . count($santriIds) . ' santri) menunggu persetujuan pengasuh.', 'rombongan_id' => $rombonganId];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -303,6 +288,117 @@ function perizinan_rombongan_anggota_grouped(PDO $pdo, int $rombonganId): array
     return perizinan_rombongan_group_by_tingkatan(perizinan_rombongan_anggota($pdo, $rombonganId));
 }
 
+/**
+ * Anggota beberapa rombongan sekaligus, dikelompokkan per tingkatan.
+ *
+ * @param list<int> $rombonganIds
+ * @return array<int, array<string, list<array<string, mixed>>>>
+ */
+function perizinan_rombongan_anggota_grouped_many(PDO $pdo, array $rombonganIds): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $rombonganIds), static fn (int $v): bool => $v > 0)));
+    if ($ids === [] || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    perizinan_rombongan_ensure_schema($pdo);
+    $namaCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare('
+        SELECT i.id, i.santri_id, i.rombongan_id, i.rombongan_kembali, i.status_izin, i.approval_status,
+               s.' . $namaCol . ' AS nama_santri, s.nis, s.tingkatan, s.jenis_kelamin
+        FROM perizinan i
+        INNER JOIN santri s ON s.id = i.santri_id
+        WHERE i.rombongan_id IN (' . $in . ')
+        ORDER BY ' . perizinan_rombongan_order_sql('s', $pdo) . '
+    ');
+    $st->execute($ids);
+
+    $byRombongan = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $byRombongan[(int) $row['rombongan_id']][] = $row;
+    }
+    $out = [];
+    foreach ($byRombongan as $rid => $rows) {
+        $out[$rid] = perizinan_rombongan_group_by_tingkatan($rows);
+    }
+
+    return $out;
+}
+
+/**
+ * Daftar anggota rombongan untuk pesan WA: satu blok per tingkatan.
+ *
+ * @param list<array<string, mixed>> $anggota
+ */
+function perizinan_wa_format_daftar_rombongan(array $anggota): string
+{
+    if ($anggota === []) {
+        return '';
+    }
+    $blocks = [];
+    foreach (perizinan_rombongan_group_by_tingkatan($anggota) as $tk => $rows) {
+        $lines = ['*' . $tk . '* (' . count($rows) . ' santri)'];
+        $no = 1;
+        foreach ($rows as $r) {
+            $nis = trim((string) ($r['nis'] ?? ''));
+            $lines[] = $no++ . '. ' . trim((string) ($r['nama_santri'] ?? '-')) . ($nis !== '' ? ' (' . $nis . ')' : '');
+        }
+        $blocks[] = implode("\n", $lines);
+    }
+
+    return implode("\n\n", $blocks);
+}
+
+/**
+ * Ringkasan satu baris jumlah per tingkatan, mis. "Wustho 5 · Ulya 2".
+ *
+ * @param list<array<string, mixed>> $anggota
+ */
+function perizinan_wa_ringkasan_tingkatan(array $anggota): string
+{
+    $parts = [];
+    foreach (perizinan_rombongan_group_by_tingkatan($anggota) as $tk => $rows) {
+        $parts[] = $tk . ' ' . count($rows);
+    }
+
+    return implode(' · ', $parts);
+}
+
+/**
+ * Variabel template WA izin rombongan (permohonan & disetujui).
+ *
+ * @param array<string, mixed> $meta
+ * @param list<array<string, mixed>> $anggota
+ * @return array<string, string>
+ */
+function perizinan_wa_vars_rombongan(PDO $pdo, array $meta, array $anggota): array
+{
+    require_once __DIR__ . '/perizinan_jenis.php';
+    require_once __DIR__ . '/wa_templates.php';
+    $jenisKode = (string) ($meta['jenis_izin'] ?? 'KELUAR');
+    $tujuan = trim((string) ($meta['tujuan'] ?? ''));
+    $alasan = trim((string) ($meta['alasan'] ?? ''));
+    $jm1 = substr((string) ($meta['jam_mulai'] ?? ''), 0, 5);
+    $jm2 = substr((string) ($meta['jam_selesai'] ?? ''), 0, 5);
+    $namaPonpes = trim((string) app_setting($pdo, 'nama_ponpes', 'Pondok Pesantren'));
+
+    return [
+        'jumlah_santri' => (string) count($anggota),
+        'ringkasan_tingkatan' => perizinan_wa_ringkasan_tingkatan($anggota),
+        'daftar_santri' => perizinan_wa_format_daftar_rombongan($anggota),
+        'jenis_izin' => perizinan_jenis_wa_label($jenisKode),
+        'label_alasan' => perizinan_jenis_wa_label_alasan($jenisKode),
+        'alasan' => $alasan !== '' ? $alasan : '—',
+        'tanggal_mulai' => (string) ($meta['tanggal_mulai'] ?? ''),
+        'tanggal_selesai' => (string) ($meta['tanggal_selesai'] ?? ''),
+        'jam_mulai' => $jm1 !== '' ? $jm1 : '-',
+        'jam_selesai' => $jm2 !== '' ? $jm2 : '-',
+        'tujuan' => $tujuan,
+        'tujuan_baris' => $tujuan !== '' ? '• Tujuan: *' . $tujuan . "*\n" : '',
+        'nama_ponpes' => $namaPonpes !== '' ? $namaPonpes : 'Sistem Informasi',
+    ];
+}
+
 function perizinan_rombongan_by_qr(PDO $pdo, string $qrToken): ?array
 {
     $qr = trim($qrToken);
@@ -347,8 +443,8 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
     }
 
     $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
-    if ($stampPengasuh && !perizinan_memerlukan_persetujuan_pengasuh($jenisIzin)) {
-        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang dapat disetujui pengasuh.'];
+    if (!$stampPengasuh) {
+        return ['ok' => false, 'message' => 'Izin rombongan hanya dapat disetujui pengasuh.'];
     }
     $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
     foreach ($anggota as $ang) {
@@ -358,16 +454,6 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $nama = (string) ($ang['nama_santri'] ?? 'Santri #' . $sid);
 
             return ['ok' => false, 'message' => $nama . ': ' . $alpaErr];
-        }
-    }
-    if (!$stampPengasuh && perizinan_memerlukan_persetujuan_pengasuh($jenisIzin) && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
-        $stPengasuh = $pdo->prepare('
-            SELECT COUNT(*) FROM perizinan
-            WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL
-        ');
-        $stPengasuh->execute(['rid' => $rombonganId]);
-        if ((int) ($stPengasuh->fetchColumn() ?: 0) > 0) {
-            return ['ok' => false, 'message' => 'Izin syar\'i rombongan belum disetujui pengasuh. Minta pengasuh meninjau terlebih dahulu.'];
         }
     }
 
@@ -432,9 +518,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
         $pdo->commit();
 
         $alasanMeta = (string) ($meta['alasan'] ?? '');
-        $msg = $stampPengasuh
-            ? 'Izin syar\'i rombongan disetujui pengasuh (' . count($anggota) . ' santri). Pengurus tinggal cetak surat rombongan.'
-            : 'Izin rombongan disetujui. Satu QR/surat untuk semua anggota.';
+        $msg = 'Izin rombongan disetujui pengasuh (' . count($anggota) . ' santri). Pengurus tinggal cetak surat rombongan.';
         if ($bypassAlpa) {
             $msg .= ' (Syarat ALPA dilewati.)';
         }
@@ -448,6 +532,7 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
                 'jam_mulai' => $jamMulai,
                 'jam_selesai' => $jamSelesai,
                 'user_id' => $userId,
+                'rombongan_id' => $rombonganId,
             ]);
             $msg .= ' Notifikasi sedang dikirim.';
 
@@ -462,7 +547,8 @@ function perizinan_rombongan_approve(PDO $pdo, int $rombonganId, array $post, in
             $tglSelesai,
             $jamMulai,
             $jamSelesai,
-            $userId
+            $userId,
+            $rombonganId
         );
         $msg .= perizinan_wa_flash_kirim_disetujui($waRingkasan);
 
@@ -499,13 +585,11 @@ function perizinan_rombongan_tolak(PDO $pdo, int $rombonganId, int $userId, stri
         return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat ditolak.', 'jumlah' => 0];
     }
 
-    $actorNorm = strtolower(trim($actor)) === 'pengasuh' ? 'pengasuh' : 'pengurus';
-    $jenisIzin = strtoupper((string) ($meta['jenis_izin'] ?? 'KELUAR'));
-    if ($actorNorm === 'pengasuh' && !perizinan_memerlukan_persetujuan_pengasuh($jenisIzin)) {
-        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang dapat ditolak pengasuh.', 'jumlah' => 0];
+    if (strtolower(trim($actor)) !== 'pengasuh') {
+        return ['ok' => false, 'message' => 'Izin rombongan hanya dapat ditolak pengasuh.', 'jumlah' => 0];
     }
 
-    $reason = $actorNorm === 'pengasuh' ? 'Ditolak pengasuh' : 'Ditolak pengurus';
+    $reason = 'Ditolak pengasuh';
     $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
     $jumlah = count($anggota);
 

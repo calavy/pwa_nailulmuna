@@ -91,6 +91,81 @@ function perizinan_push_setelah_pengajuan(
     }
 }
 
+/** Notifikasi push + WA setelah pengajuan izin rombongan (satu pesan untuk seluruh anggota). */
+function perizinan_push_setelah_pengajuan_rombongan(PDO $pdo, int $rombonganId): void
+{
+    require_once __DIR__ . '/perizinan_rombongan.php';
+    $meta = perizinan_rombongan_meta($pdo, $rombonganId);
+    if (!$meta) {
+        return;
+    }
+    $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
+    $jenisKode = (string) ($meta['jenis_izin'] ?? 'KELUAR');
+    $label = jenis_izin_label($jenisKode);
+    $namaJudul = 'Izin rombongan (' . count($anggota) . ' santri)';
+    $tglMulai = (string) ($meta['tanggal_mulai'] ?? '');
+    $tglSelesai = (string) ($meta['tanggal_selesai'] ?? '');
+
+    push_event_izin_pengajuan_baru($pdo, $namaJudul, '', $label, $tglMulai, $tglSelesai);
+    $body = $namaJudul . ' — ' . $label . ' ' . $tglMulai . ' s/d ' . $tglSelesai;
+    $alasan = trim((string) ($meta['alasan'] ?? ''));
+    if ($alasan !== '') {
+        $body .= '. Alasan: ' . mb_substr($alasan, 0, 120);
+    }
+    push_notify_all_kiai($pdo, 'izin_pengajuan', 'Izin rombongan menunggu persetujuan', $body, [
+        'jenis' => perizinan_jenis_izin_normalize($jenisKode),
+    ], '/pengasuh/perizinan.php');
+
+    $waResult = perizinan_wa_kirim_permohonan_rombongan_pengasuh($pdo, $rombonganId);
+    perizinan_wa_log_kirim_gagal('pengajuan_rombongan_pengasuh', $rombonganId, $waResult);
+}
+
+/**
+ * WA permohonan izin rombongan ke pengasuh (template pengajuan_izin_rombongan_pengasuh).
+ *
+ * @return array{sent:int,skipped:bool,reason:string}
+ */
+function perizinan_wa_kirim_permohonan_rombongan_pengasuh(PDO $pdo, int $rombonganId): array
+{
+    require_once __DIR__ . '/perizinan_rombongan.php';
+    if (!wa_izin_pengasuh_pending_enabled($pdo)) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'disabled'];
+    }
+    if (trim((string) app_setting($pdo, 'wa_otomatis_master_enabled', '1')) !== '1') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'master_off'];
+    }
+    require_once __DIR__ . '/wa_otomatis.php';
+    if (wa_otomatis_gateway_error($pdo) !== null) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'gateway'];
+    }
+    $target = wa_pengasuh_pending_targets($pdo);
+    if ($target === '') {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_pengasuh_wa'];
+    }
+    $meta = perizinan_rombongan_meta($pdo, $rombonganId);
+    if (!$meta) {
+        return ['sent' => 0, 'skipped' => true, 'reason' => 'no_meta'];
+    }
+
+    $anggota = perizinan_rombongan_anggota($pdo, $rombonganId);
+    $msg = wa_template_render($pdo, 'pengajuan_izin_rombongan_pengasuh', perizinan_wa_vars_rombongan($pdo, $meta, $anggota));
+    $bulk = wa_kirim_pengasuh_pending($pdo, $msg, [
+        'kind' => 'izin',
+        'targets' => $target,
+        'dedup_key' => 'izin_rombongan:' . $rombonganId . ':pengasuh:submit',
+        'dedup_key_once' => true,
+    ]);
+    $sent = (int) ($bulk['sent'] ?? 0);
+
+    return [
+        'sent' => $sent,
+        'skipped' => !empty($bulk['skipped_flag']),
+        'reason' => (string) ($bulk['reason'] ?? ($sent === 0 ? 'send_failed' : '')),
+        'blocked' => !empty($bulk['blocked']),
+        'fallback' => !empty($bulk['fallback']),
+    ];
+}
+
 /** Notifikasi perpanjangan izin (portal wali / pengurus). */
 function perizinan_push_setelah_perpanjangan(
     PDO $pdo,

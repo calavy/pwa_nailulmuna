@@ -39,29 +39,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $santriIds = array_map('intval', (array) ($_POST['santri_ids_rombongan'] ?? []));
         $res = perizinan_rombongan_create($pdo, $_POST, $santriIds, $userId);
         if ($res['ok']) {
-            if (empty($res['auto_approved'])) {
-                $jenisRombongan = perizinan_jenis_izin_normalize((string) ($_POST['jenis_izin'] ?? 'KELUAR'));
-                perizinan_push_setelah_pengajuan(
-                    $pdo,
-                    'Izin rombongan (' . count($santriIds) . ' santri)',
-                    '',
-                    $jenisRombongan,
-                    trim((string) ($_POST['tanggal_mulai'] ?? date('Y-m-d'))),
-                    trim((string) ($_POST['tanggal_selesai'] ?? date('Y-m-d'))),
-                    [
-                        'jam_mulai' => trim((string) ($_POST['jam_mulai'] ?? date('H:i'))),
-                        'jam_selesai' => trim((string) ($_POST['jam_selesai'] ?? date('H:i'))),
-                        'alasan' => trim((string) ($_POST['alasan'] ?? '')),
-                        'tujuan' => trim((string) ($_POST['tujuan'] ?? '')),
-                    ],
-                    'rombongan'
-                );
+            if (!empty($res['rombongan_id'])) {
+                perizinan_push_setelah_pengajuan_rombongan($pdo, (int) $res['rombongan_id']);
             }
             set_flash('success', $res['message']);
-            if (!empty($res['auto_approved']) && !empty($res['rombongan_id'])) {
-                header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . (int) $res['rombongan_id']));
-                exit;
-            }
             header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
             exit;
         }
@@ -69,28 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
         exit;
     }
-    if ($action === 'approve_rombongan') {
-        $rid = (int) ($_POST['rombongan_id'] ?? 0);
-        $metaRombongan = $rid > 0 ? perizinan_rombongan_meta($pdo, $rid) : null;
-        if (is_array($metaRombongan) && perizinan_memerlukan_persetujuan_pengasuh((string) ($metaRombongan['jenis_izin'] ?? ''))) {
-            set_flash('error', 'Izin syar\'i rombongan disetujui oleh pengasuh. Pengurus tidak perlu menyetujui lagi — gunakan tombol Cetak A4.');
-            header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
-            exit;
-        }
-        $bypassRombongan = perizinan_request_bypass_alpa($pdo, $_POST);
-        $res = perizinan_rombongan_approve($pdo, $rid, $_POST, $userId, $bypassRombongan);
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
-        if ($res['ok'] && $rid > 0) {
-            header('Location: ' . app_rewrite_internal_url('/perizinan/surat_rombongan.php?id=' . $rid));
-            exit;
-        }
-        header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
-        exit;
-    }
-    if ($action === 'reject_rombongan') {
-        $rid = (int) ($_POST['rombongan_id'] ?? 0);
-        $res = perizinan_rombongan_tolak($pdo, $rid, $userId, 'pengurus');
-        set_flash($res['ok'] ? 'success' : 'error', $res['message']);
+    if ($action === 'approve_rombongan' || $action === 'reject_rombongan') {
+        set_flash('error', 'Izin rombongan hanya dapat disetujui/ditolak pengasuh.');
         header('Location: ' . app_href('/perizinan/izin_rombongan.php'));
         exit;
     }
@@ -268,13 +229,6 @@ require_once __DIR__ . '/../includes/header.php';
                             $st = (string) ($rm['approval_status'] ?? 'PENDING');
                             $jumlah = (int) ($rm['jumlah_santri'] ?? 0);
                             $kembali = (int) ($rm['jumlah_kembali'] ?? 0);
-                            $rombonganSyari = perizinan_memerlukan_persetujuan_pengasuh((string) ($rm['jenis_izin'] ?? ''));
-                            $rombonganTungguPengasuh = false;
-                            if ($rombonganSyari && column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
-                                $stRp = $pdo->prepare('SELECT COUNT(*) FROM perizinan WHERE rombongan_id = :rid AND approval_status = "PENDING" AND pengasuh_approved_at IS NULL');
-                                $stRp->execute(['rid' => $rid]);
-                                $rombonganTungguPengasuh = (int) ($stRp->fetchColumn() ?: 0) > 0;
-                            }
                             $badge = match ($st) {
                                 'DISETUJUI' => 'success',
                                 'DITOLAK' => 'danger',
@@ -296,35 +250,12 @@ require_once __DIR__ . '/../includes/header.php';
                                 </td>
                                 <td>
                                     <span class="badge text-bg-<?= $badge ?>"><?= htmlspecialchars($st) ?></span>
-                                    <?php if ($rombonganTungguPengasuh): ?>
-                                        <span class="badge text-bg-warning">Tunggu pengasuh</span>
-                                    <?php elseif ($rombonganSyari && $st === 'PENDING'): ?>
-                                        <span class="badge text-bg-info">Izin syar'i</span>
+                                    <?php if ($st === 'PENDING'): ?>
+                                        <span class="badge text-bg-warning">Menunggu pengasuh</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end text-nowrap">
-                                    <?php if ($st === 'PENDING'): ?>
-                                    <?php if (!$rombonganSyari): ?>
-                                    <form method="post" class="d-inline">
-                                        <input type="hidden" name="action" value="approve_rombongan">
-                                        <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
-                                        <input type="hidden" name="tanggal_mulai" value="<?= htmlspecialchars((string) ($rm['tanggal_mulai'] ?? '')) ?>">
-                                        <input type="hidden" name="tanggal_selesai" value="<?= htmlspecialchars((string) ($rm['tanggal_selesai'] ?? '')) ?>">
-                                        <input type="hidden" name="jam_mulai" value="<?= htmlspecialchars(substr((string) ($rm['jam_mulai'] ?? ''), 0, 5)) ?>">
-                                        <input type="hidden" name="jam_selesai" value="<?= htmlspecialchars(substr((string) ($rm['jam_selesai'] ?? ''), 0, 5)) ?>">
-                                        <?php if ($bolehBypassAlpa): ?>
-                                            <label class="small me-1"><input type="checkbox" name="bypass_alpa" value="1"> Lewati ALPA</label>
-                                        <?php endif; ?>
-                                        <button type="submit" class="btn btn-sm btn-success">Setujui</button>
-                                    </form>
-                                    <?php endif; ?>
-                                    <form method="post" class="d-inline" onsubmit="return confirm('Tolak izin rombongan ini?');">
-                                        <input type="hidden" name="action" value="reject_rombongan">
-                                        <input type="hidden" name="rombongan_id" value="<?= $rid ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">Tolak</button>
-                                    </form>
-                                    <?php endif; ?>
-                                    <?php if (!$hideCetakSurat && ($st === 'DISETUJUI' || ($rombonganSyari && !$rombonganTungguPengasuh && $st === 'PENDING'))): ?>
+                                    <?php if (!$hideCetakSurat && $st === 'DISETUJUI'): ?>
                                         <a class="btn btn-sm btn-outline-dark" target="_blank" rel="noopener" href="<?= htmlspecialchars(app_href('/perizinan/surat_rombongan.php?id=' . $rid)) ?>"><i class="fa-solid fa-print"></i></a>
                                     <?php endif; ?>
                                 </td>

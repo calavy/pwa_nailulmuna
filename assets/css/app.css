@@ -3127,6 +3127,33 @@ body.app-page-leaving .app-main {
     background: rgba(253, 230, 138, 0.35);
 }
 
+.pg-rombongan-tk {
+    margin-top: 0.35rem;
+}
+
+.pg-rombongan-tk > summary {
+    cursor: pointer;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.pg-rombongan-tk__list {
+    margin-top: 0.35rem;
+    display: grid;
+    gap: 0.4rem;
+}
+
+.pg-rombongan-tk__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.pg-rombongan-tk__names {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.8rem;
+    white-space: normal;
+}
+
 .pg-izin-card__body {
     min-width: 0;
     flex: 1 1 auto;

@@ -163,9 +163,46 @@ $telatIzin = $telatData['izin'] ?? [];
             <a href="<?= htmlspecialchars(app_href('/pengasuh/perizinan.php')) ?>" class="alert-link ms-1">Tinjau</a>
         </div>
     <?php endif; ?>
-    <?php if (($perizinanHari['aktif'] ?? []) === []): ?>
+    <?php if (($perizinanHari['aktif'] ?? []) === [] && ($perizinanHari['rombongan'] ?? []) === []): ?>
         <div class="yp-empty-inline">Tidak ada izin aktif hari ini.</div>
-    <?php else: ?>
+    <?php endif; ?>
+    <?php if (($perizinanHari['rombongan'] ?? []) !== []): ?>
+        <h3 class="h6 mb-2">Rombongan</h3>
+        <?php foreach ($perizinanHari['rombongan'] as $rm): ?>
+            <div class="table-responsive card border-0 shadow-sm mb-3">
+                <div class="card-header bg-transparent small fw-semibold">
+                    Rombongan #<?= (int) $rm['id'] ?>
+                    · <?= htmlspecialchars((string) $rm['jenis_izin']) ?>
+                    · <?= htmlspecialchars((string) $rm['tanggal_mulai']) ?> – <?= htmlspecialchars((string) $rm['tanggal_selesai']) ?>
+                    · <?= (int) $rm['jumlah'] ?> santri
+                    <?php if (trim((string) $rm['alasan']) !== ''): ?>
+                        <div class="fw-normal text-muted"><?= htmlspecialchars((string) $rm['alasan']) ?></div>
+                    <?php endif; ?>
+                </div>
+                <table class="table table-sm mb-0">
+                    <thead class="table-light"><tr><th>Santri</th><th>NIS</th><th>Status</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($rm['anggota_grouped'] as $tk => $tkRows): ?>
+                        <tr class="table-light">
+                            <td colspan="3" class="small fw-semibold"><?= htmlspecialchars((string) $tk) ?> <span class="text-muted fw-normal">(<?= count($tkRows) ?>)</span></td>
+                        </tr>
+                        <?php foreach ($tkRows as $iz): ?>
+                            <tr>
+                                <td><?= htmlspecialchars((string) ($iz['nama_santri'] ?? '')) ?></td>
+                                <td class="small"><?= htmlspecialchars((string) (($iz['nis'] ?? '') ?: '-')) ?></td>
+                                <td><span class="badge text-bg-info"><?= htmlspecialchars((string) ($iz['status_izin'] ?? 'IZIN')) ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+    <?php if (($perizinanHari['aktif'] ?? []) !== []): ?>
+        <?php if (($perizinanHari['rombongan'] ?? []) !== []): ?>
+            <h3 class="h6 mb-2">Perorangan</h3>
+        <?php endif; ?>
         <div class="table-responsive card border-0 shadow-sm">
             <table class="table table-sm mb-0">
                 <thead class="table-light"><tr><th>Santri</th><th>Kelas</th><th>Jenis</th><th>Periode</th><th>Status</th></tr></thead>

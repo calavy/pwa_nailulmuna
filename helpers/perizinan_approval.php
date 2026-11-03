@@ -1985,87 +1985,74 @@ function perizinan_kirim_wa_rombongan_disetujui(
     string $tglSelesai,
     string $jamMulai,
     string $jamSelesai,
-    int $approvedByUserId = 0
+    int $approvedByUserId = 0,
+    int $rombonganId = 0
 ): array {
     require_once __DIR__ . '/wa_otomatis.php';
+    require_once __DIR__ . '/perizinan_rombongan.php';
     if (!wa_otomatis_should_run($pdo, 'izin') || $anggota === []) {
         return perizinan_wa_kirim_ringkasan(0, 0, 0);
     }
 
     $jenisRaw = strtoupper(trim($jenisIzin));
-    $jenisLabel = jenis_izin_label($jenisRaw);
-    $daftarSantri = perizinan_wa_format_daftar_santri($anggota);
-    $jumlah = count($anggota);
-    $namaJudul = $jumlah > 1
-        ? 'Izin rombongan (' . $jumlah . ' santri)'
-        : (string) ($anggota[0]['nama_santri'] ?? '-');
+    $meta = $rombonganId > 0 ? (perizinan_rombongan_meta($pdo, $rombonganId) ?: []) : [];
+    $vars = perizinan_wa_vars_rombongan($pdo, [
+        'jenis_izin' => $jenisRaw,
+        'alasan' => $alasan,
+        'tujuan' => (string) ($meta['tujuan'] ?? ''),
+        'tanggal_mulai' => $tglMulai,
+        'tanggal_selesai' => $tglSelesai,
+        'jam_mulai' => $jamMulai,
+        'jam_selesai' => $jamSelesai,
+    ], $anggota);
+    $penyetuju = perizinan_wa_vars_penyetuju($pdo, $approvedByUserId);
+    $vars['nama_penyetuju'] = $penyetuju['nama_penyetuju'];
+    $vars['disetujui_oleh_baris'] = rtrim($penyetuju['disetujui_oleh_baris']);
+    $vars['ttd_penyetuju'] = $penyetuju['ttd_penyetuju'];
+    $msg = wa_template_render($pdo, 'izin_rombongan_disetujui', $vars);
+
+    $dedupBase = $rombonganId > 0
+        ? 'izin_rombongan:' . $rombonganId
+        : 'izin_rombongan:' . md5($tglMulai . '|' . $tglSelesai . '|' . $vars['daftar_santri']);
 
     $phones = [];
-    $pbNames = [];
     foreach ($anggota as $ang) {
-        $sid = (int) ($ang['santri_id'] ?? 0);
-        foreach (perizinan_pembimbing_wa_targets($pdo, $sid) as $ph) {
+        foreach (perizinan_pembimbing_wa_targets($pdo, (int) ($ang['santri_id'] ?? 0)) as $ph) {
             $phones[$ph] = true;
         }
-        $namaPb = perizinan_pembimbing_nama_untuk_santri($pdo, $sid);
-        if ($namaPb !== '') {
-            foreach (preg_split('/\s*,\s*/', $namaPb) ?: [] as $n) {
-                $n = trim((string) $n);
-                if ($n !== '') {
-                    $pbNames[$n] = true;
-                }
-            }
-        }
     }
-    $phoneList = array_keys($phones);
-    $namaPbAll = implode(', ', array_keys($pbNames));
-
     $sentPb = 0;
-    if ($phoneList !== []) {
-        $msg = wa_format_izin_disetujui_pembimbing(
-            $pdo,
-            $namaJudul,
-            '',
-            '',
-            $jenisLabel,
-            $tglMulai,
-            $tglSelesai,
-            $jamMulai,
-            $jamSelesai,
-            $alasan,
-            $namaPbAll,
-            $jenisRaw,
-            $daftarSantri,
-            $approvedByUserId
-        );
-        $sentPb = send_wa_bulk($pdo, implode(',', $phoneList), $msg, [
+    if ($phones !== []) {
+        $sentPb = send_wa_bulk($pdo, implode(',', array_keys($phones)), $msg, [
             'kind' => 'izin',
-            'dedup_key' => 'izin_rombongan:' . md5($tglMulai . '|' . $tglSelesai . '|' . $daftarSantri) . ':pembimbing',
+            'dedup_key' => $dedupBase . ':pembimbing:approved',
             'dedup_key_per_target' => true,
         ]);
     }
 
-    $izinRowGrup = [
-        'nama_santri' => $namaJudul,
-        'nis' => '',
-        'tingkatan' => '',
-        'jenis_izin' => $jenisRaw,
-        'alasan' => $alasan,
-        'daftar_santri' => $daftarSantri,
-    ];
+    $sentGrup = 0;
+    if (wa_otomatis_gateway_error($pdo) === null && wa_izin_grup_fonte_enabled($pdo)) {
+        $grupId = wa_izin_grup_fonte_targets($pdo);
+        if ($grupId !== '') {
+            $sentGrup = send_wa_bulk($pdo, $grupId, $msg, [
+                'kind' => 'izin',
+                'dedup_key' => $dedupBase . ':grup:approved',
+            ]);
+        }
+    }
 
-    $sentGrup = perizinan_kirim_wa_grup_fonte($pdo, $izinRowGrup, $tglMulai, $tglSelesai, $jamMulai, $jamSelesai, $daftarSantri, $approvedByUserId);
-    $sentPg = perizinan_kirim_wa_pengurus_disetujui(
-        $pdo,
-        $izinRowGrup,
-        $tglMulai,
-        $tglSelesai,
-        $jamMulai,
-        $jamSelesai,
-        $approvedByUserId,
-        $daftarSantri,
-        $anggota
-    );
+    $sentPg = 0;
+    if (wa_izin_pengurus_enabled($pdo) && wa_otomatis_gateway_error($pdo) === null) {
+        $kelompokList = perizinan_wa_pengurus_kelompok_dari_izin($pdo, ['jenis_izin' => $jenisRaw], $anggota);
+        $pgPhones = perizinan_wa_pengurus_phone_list($pdo, $approvedByUserId, $kelompokList);
+        if ($pgPhones !== []) {
+            $sentPg = send_wa_bulk($pdo, implode(',', $pgPhones), $msg, [
+                'kind' => 'izin',
+                'dedup_key' => $dedupBase . ':pengurus:approved',
+                'dedup_key_per_target' => true,
+            ]);
+        }
+    }
 
     foreach ($anggota as $ang) {
         $izinRowWali = [
@@ -2263,12 +2250,12 @@ function perizinan_redirect_kiai_dari_permohonan(): void
  * @param array<string, mixed> $izin
  * @return array{disetujui:bool,keterangan:string,nama:string,waktu:string}
  */
-function perizinan_surat_blok_pengasuh(PDO $pdo, array $izin): array
+function perizinan_surat_blok_pengasuh(PDO $pdo, array $izin, bool $wajibPengasuh = false): array
 {
     require_once __DIR__ . '/pondok_cetak.php';
     $kop = pondok_kop_data($pdo);
     $namaDefault = trim((string) ($kop['nama_pengasuh'] ?? ''));
-    $perluPersetujuan = perizinan_memerlukan_persetujuan_pengasuh((string) ($izin['jenis_izin'] ?? ''));
+    $perluPersetujuan = $wajibPengasuh || perizinan_memerlukan_persetujuan_pengasuh((string) ($izin['jenis_izin'] ?? ''));
     $approvedAt = trim((string) ($izin['pengasuh_approved_at'] ?? ''));
     if ($perluPersetujuan && $approvedAt !== '') {
         $nama = $namaDefault;
@@ -2309,7 +2296,7 @@ function perizinan_rombongan_surat_blok_pengasuh(PDO $pdo, int $rombonganId, arr
 {
     perizinan_approval_ensure_schema($pdo);
     if ($rombonganId <= 0 || !table_exists($pdo, 'perizinan') || !column_exists($pdo, 'perizinan', 'pengasuh_approved_at')) {
-        return perizinan_surat_blok_pengasuh($pdo, $meta);
+        return perizinan_surat_blok_pengasuh($pdo, $meta, true);
     }
     $st = $pdo->prepare('
         SELECT pengasuh_approved_by, pengasuh_approved_at
@@ -2323,7 +2310,7 @@ function perizinan_rombongan_surat_blok_pengasuh(PDO $pdo, int $rombonganId, arr
     $blok = is_array($row) ? $row : [];
     $blok['jenis_izin'] = (string) ($meta['jenis_izin'] ?? '');
 
-    return perizinan_surat_blok_pengasuh($pdo, $blok);
+    return perizinan_surat_blok_pengasuh($pdo, $blok, true);
 }
 
 /**
@@ -2395,6 +2382,9 @@ function perizinan_setujui_izin_satu(
     $statusNow = strtoupper((string) ($izinInfo['approval_status'] ?? ''));
     if ($statusNow === 'DISETUJUI') {
         return ['ok' => true, 'message' => 'Izin sudah disetujui sebelumnya.', 'wa' => $emptyWa];
+    }
+    if (perizinan_izin_rombongan_id($pdo, $id) > 0) {
+        return ['ok' => false, 'message' => 'Anggota izin rombongan hanya dapat disetujui pengasuh melalui persetujuan rombongan.', 'wa' => $emptyWa];
     }
 
     $tglMulai = trim((string) ($jadwal['tanggal_mulai'] ?? $izinInfo['tanggal_mulai'] ?? date('Y-m-d')));
@@ -2695,7 +2685,8 @@ function perizinan_notif_queue_proses(PDO $pdo, int $limit = 5): int
                     (string) ($payload['tgl_selesai'] ?? ''),
                     (string) ($payload['jam_mulai'] ?? ''),
                     (string) ($payload['jam_selesai'] ?? ''),
-                    (int) ($payload['user_id'] ?? 0)
+                    (int) ($payload['user_id'] ?? 0),
+                    (int) ($payload['rombongan_id'] ?? 0)
                 );
             } else {
                 perizinan_kirim_notif_setelah_disetujui($pdo, $payload);
@@ -2835,6 +2826,9 @@ function perizinan_tolak_izin_satu(PDO $pdo, int $izinId, int $userId, string $a
     if (strtoupper((string) ($row['approval_status'] ?? '')) !== 'PENDING') {
         return ['ok' => false, 'message' => 'Hanya permohonan menunggu yang dapat ditolak.'];
     }
+    if (perizinan_izin_rombongan_id($pdo, $izinId) > 0) {
+        return ['ok' => false, 'message' => 'Anggota izin rombongan hanya dapat ditolak pengasuh melalui persetujuan rombongan.'];
+    }
 
     $actorNorm = strtolower(trim($actor)) === 'pengasuh' ? 'pengasuh' : 'pengurus';
     if ($actorNorm === 'pengasuh') {
@@ -2941,9 +2935,6 @@ function perizinan_pengasuh_setujui_rombongan(PDO $pdo, int $rombonganId, int $u
     if (!$meta) {
         return ['ok' => false, 'message' => 'Data rombongan tidak ditemukan.', 'jumlah' => 0];
     }
-    if (!perizinan_memerlukan_persetujuan_pengasuh((string) ($meta['jenis_izin'] ?? ''))) {
-        return ['ok' => false, 'message' => 'Hanya izin syar\'i rombongan yang memerlukan persetujuan pengasuh.', 'jumlah' => 0];
-    }
     $metaStatus = strtoupper((string) ($meta['approval_status'] ?? ''));
     if ($metaStatus === 'DISETUJUI') {
         $jumlah = count(perizinan_rombongan_anggota($pdo, $rombonganId));
@@ -3043,6 +3034,30 @@ function perizinan_pengasuh_antrian(PDO $pdo, int $limitIndividu = 8): array
     ];
 }
 
+/** ID rombongan sebuah baris izin (0 jika perorangan). */
+function perizinan_izin_rombongan_id(PDO $pdo, int $izinId): int
+{
+    if ($izinId <= 0 || !column_exists($pdo, 'perizinan', 'rombongan_id')) {
+        return 0;
+    }
+    $st = $pdo->prepare('SELECT COALESCE(rombongan_id, 0) FROM perizinan WHERE id = :id LIMIT 1');
+    $st->execute(['id' => $izinId]);
+
+    return (int) ($st->fetchColumn() ?: 0);
+}
+
+/** Filter SQL antrean pengasuh: izin syar'i perorangan + semua izin rombongan (apa pun jenisnya). */
+function perizinan_sql_antrian_pengasuh(PDO $pdo, string $alias = 'i'): string
+{
+    $syari = perizinan_jenis_syari_kode();
+    $jenis = "UPPER(TRIM({$alias}.jenis_izin)) = '{$syari}'";
+    if (!column_exists($pdo, 'perizinan', 'rombongan_id')) {
+        return $jenis;
+    }
+
+    return "({$jenis} OR COALESCE({$alias}.rombongan_id, 0) > 0)";
+}
+
 /**
  * Daftar permohonan menunggu persetujuan pengasuh.
  *
@@ -3056,7 +3071,6 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
     require_once __DIR__ . '/santri_operasional.php';
     $aktif = santri_sql_aktif_only('s');
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $syari = perizinan_jenis_syari_kode();
     $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
     $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
     $tujuanCol = column_exists($pdo, 'perizinan', 'tujuan') ? 'i.tujuan,' : "'' AS tujuan,";
@@ -3070,7 +3084,7 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
         WHERE i.approval_status = 'PENDING'
-          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+          AND " . perizinan_sql_antrian_pengasuh($pdo, 'i') . "{$filterPengasuh}
         ORDER BY {$orderCol}
         LIMIT {$limit}
     ");
@@ -3078,7 +3092,7 @@ function perizinan_pengasuh_pending_list(PDO $pdo, int $limit = 80): array
     return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
 }
 
-/** Jumlah permohonan izin syar'i menunggu persetujuan pengasuh. */
+/** Jumlah permohonan menunggu persetujuan pengasuh (izin syar'i + izin rombongan). */
 function perizinan_pengasuh_pending_count(PDO $pdo): int
 {
     if (!table_exists($pdo, 'perizinan') || !table_exists($pdo, 'santri')) {
@@ -3086,7 +3100,6 @@ function perizinan_pengasuh_pending_count(PDO $pdo): int
     }
     require_once __DIR__ . '/santri_operasional.php';
     $aktif = santri_sql_aktif_only('s');
-    $syari = perizinan_jenis_syari_kode();
     $hasPengasuhCol = column_exists($pdo, 'perizinan', 'pengasuh_approved_at');
     $filterPengasuh = $hasPengasuhCol ? ' AND i.pengasuh_approved_at IS NULL' : '';
     $cnt = $pdo->query("
@@ -3094,7 +3107,7 @@ function perizinan_pengasuh_pending_count(PDO $pdo): int
         FROM perizinan i
         INNER JOIN santri s ON s.id = i.santri_id AND {$aktif}
         WHERE i.approval_status = 'PENDING'
-          AND UPPER(TRIM(i.jenis_izin)) = '{$syari}'{$filterPengasuh}
+          AND " . perizinan_sql_antrian_pengasuh($pdo, 'i') . "{$filterPengasuh}
     ")->fetchColumn();
 
     return (int) $cnt;

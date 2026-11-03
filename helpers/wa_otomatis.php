@@ -1976,6 +1976,8 @@ function wa_izin_pengasuh_pending_retry_tick(PDO $pdo, int $limit = 5): int
     $since = date('Y-m-d H:i:s', time() - 48 * 3600);
     $order = $hasCreated ? 'i.created_at DESC' : 'i.id DESC';
     $whereSince = $hasCreated ? ' AND i.created_at >= :since' : ' AND i.id >= (SELECT COALESCE(MAX(id),0) - 500 FROM perizinan)';
+    $hasRombonganCol = column_exists($pdo, 'perizinan', 'rombongan_id');
+    $whereIndividu = $hasRombonganCol ? ' AND (i.rombongan_id IS NULL OR i.rombongan_id = 0)' : '';
 
     $sql = '
         SELECT i.id, i.jenis_izin, i.tanggal_mulai, i.tanggal_selesai, i.jam_mulai, i.jam_selesai, i.alasan,
@@ -1985,7 +1987,7 @@ function wa_izin_pengasuh_pending_retry_tick(PDO $pdo, int $limit = 5): int
         WHERE i.jenis_izin = :syari
           AND i.approval_status = "PENDING"
           ' . ($hasPengasuhCol ? ' AND (i.pengasuh_approved_at IS NULL OR TRIM(i.pengasuh_approved_at) = "")' : '') . '
-          ' . $whereSince . '
+          ' . $whereSince . $whereIndividu . '
         ORDER BY ' . $order . '
         LIMIT ' . max(1, min(20, $limit * 4));
     $st = $pdo->prepare($sql);
@@ -2040,6 +2042,38 @@ function wa_izin_pengasuh_pending_retry_tick(PDO $pdo, int $limit = 5): int
         $sentTotal += (int) ($result['sent'] ?? 0);
         if ((int) ($result['sent'] ?? 0) === 0 && (int) ($result['queued'] ?? 0) === 0 && !in_array((string) ($result['reason'] ?? ''), ['duplicate', 'queued'], true)) {
             error_log('[wa_izin_pengasuh_retry] izin_id=' . $izinId . ' reason=' . ($result['reason'] ?? 'unknown'));
+        }
+    }
+
+    if ($hasRombonganCol && $attempts < $limit) {
+        $stR = $pdo->prepare('
+            SELECT DISTINCT i.rombongan_id
+            FROM perizinan i
+            WHERE i.rombongan_id > 0
+              AND i.approval_status = "PENDING"
+              ' . ($hasPengasuhCol ? ' AND (i.pengasuh_approved_at IS NULL OR TRIM(i.pengasuh_approved_at) = "")' : '') . '
+              ' . $whereSince . '
+            ORDER BY i.rombongan_id DESC
+            LIMIT 20
+        ');
+        $stR->execute($hasCreated ? ['since' => $since] : []);
+        $rombonganIds = array_map('intval', $stR->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        if ($rombonganIds !== []) {
+            require_once __DIR__ . '/push_events.php';
+        }
+        foreach ($rombonganIds as $rid) {
+            if ($attempts >= $limit) {
+                break;
+            }
+            if (wa_dispatch_dedup_succeeded($pdo, 'izin_rombongan:' . $rid . ':pengasuh:submit')) {
+                continue;
+            }
+            $attempts++;
+            $result = perizinan_wa_kirim_permohonan_rombongan_pengasuh($pdo, $rid);
+            $sentTotal += (int) ($result['sent'] ?? 0);
+            if ((int) ($result['sent'] ?? 0) === 0 && !in_array((string) ($result['reason'] ?? ''), ['duplicate', 'queued'], true)) {
+                error_log('[wa_izin_pengasuh_retry] rombongan_id=' . $rid . ' reason=' . ($result['reason'] ?? 'unknown'));
+            }
         }
     }
 

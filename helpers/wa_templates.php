@@ -87,7 +87,7 @@ function wa_template_definitions(): array
         ],
         'pengajuan_izin_baru' => [
             'label' => 'Pengajuan izin baru ke pengurus',
-            'hint' => 'Notifikasi saat ada permohonan izin santri baru (PENDING). Baris opsional: {nis_baris}, {tingkatan_baris}, {tujuan_baris}.',
+            'hint' => 'Notifikasi saat ada permohonan izin santri baru (PENDING, per santri — rombongan memakai template tersendiri). Baris opsional: {nis_baris}, {tingkatan_baris}, {tujuan_baris}.',
             'placeholders' => '{nama_santri}, {nis}, {nis_baris}, {tingkatan}, {tingkatan_baris}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {tujuan}, {tujuan_baris}, {nama_ponpes}',
             'default' => "*PEMBERITAHUAN RESMI*\n"
                 . "Perihal: Pengajuan perizinan santri (menunggu persetujuan)\n\n"
@@ -103,6 +103,39 @@ function wa_template_definitions(): array
                 . "Demikian disampaikan.\n\n"
                 . "_Hormat kami,_\n"
                 . "_{nama_ponpes}_",
+        ],
+        'pengajuan_izin_rombongan_pengasuh' => [
+            'label' => 'Pengajuan izin rombongan → pengasuh (PENDING)',
+            'hint' => 'Semua izin rombongan (apa pun jenisnya) hanya disetujui pengasuh. Satu pesan untuk seluruh rombongan; {daftar_santri} otomatis dikelompokkan per tingkatan.',
+            'placeholders' => '{jumlah_santri}, {ringkasan_tingkatan}, {daftar_santri}, {jenis_izin}, {label_alasan}, {alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {tujuan}, {tujuan_baris}, {nama_ponpes}',
+            'default' => "*PERMOHONAN IZIN ROMBONGAN*\n"
+                . "Menunggu persetujuan pengasuh:\n\n"
+                . "• Jumlah: *{jumlah_santri} santri* ({ringkasan_tingkatan})\n"
+                . "• Jenis: *{jenis_izin}*\n"
+                . "• Tanggal: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Waktu: *{jam_mulai}* – *{jam_selesai}*\n"
+                . "• {label_alasan}: _{alasan}_\n"
+                . "{tujuan_baris}\n"
+                . "*Daftar santri:*\n"
+                . "{daftar_santri}\n\n"
+                . "Mohon tinjau di menu *Pengasuh → Perizinan*.\n\n"
+                . "_{nama_ponpes}_",
+        ],
+        'izin_rombongan_disetujui' => [
+            'label' => 'Izin rombongan disetujui → pembimbing, grup WA, pengurus',
+            'hint' => 'Satu template untuk pembimbing, grup WA (Fonte), dan pengurus. Wali tetap menerima template per santri. {daftar_santri} otomatis dikelompokkan per tingkatan.',
+            'placeholders' => '{jumlah_santri}, {ringkasan_tingkatan}, {daftar_santri}, {jenis_izin}, {label_alasan}, {alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {tujuan}, {tujuan_baris}, {nama_ponpes}, {nama_penyetuju}, {disetujui_oleh_baris}, {ttd_penyetuju}',
+            'default' => "*IZIN ROMBONGAN DISETUJUI*\n\n"
+                . "• Jumlah: *{jumlah_santri} santri* ({ringkasan_tingkatan})\n"
+                . "• Jenis: *{jenis_izin}*\n"
+                . "• Periode: *{tanggal_mulai}* s/d *{tanggal_selesai}*\n"
+                . "• Waktu: *{jam_mulai}* – *{jam_selesai}*\n"
+                . "• {label_alasan}: _{alasan}_\n"
+                . "{tujuan_baris}\n"
+                . "*Daftar santri:*\n"
+                . "{daftar_santri}\n\n"
+                . "{disetujui_oleh_baris}"
+                . "{ttd_penyetuju}",
         ],
         'pb_munawib_pengajuan_pengasuh' => [
             'label' => 'Pengajuan munawib multi-hari → pengasuh',
@@ -204,7 +237,7 @@ function wa_template_definitions(): array
         ],
         'izin_disetujui_pembimbing_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → pembimbing',
-            'hint' => 'Template keluar, izin, tugas, dll. ke pembimbing. Izin rombongan: {daftar_santri}.',
+            'hint' => 'Template keluar, izin, tugas, dll. ke pembimbing (per santri). Izin rombongan memakai template "Izin rombongan disetujui".',
             'placeholders' => '{judul_disetujui}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pembimbing}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}',
             'default' => '{judul_disetujui} *{nama_santri}* ({nis}) · {tingkatan} telah *DISETUJUI*.\n'
                 . '{daftar_santri}'
@@ -233,7 +266,7 @@ function wa_template_definitions(): array
         ],
         'izin_grup_fonte_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → grup WA (Fonte)',
-            'hint' => 'Template keluar, izin, tugas, dll. ke grup Fonte.',
+            'hint' => 'Template keluar, izin, tugas, dll. ke grup Fonte (per santri). Izin rombongan memakai template "Izin rombongan disetujui".',
             'placeholders' => '{judul_grup}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}, {disetujui_oleh_baris}',
             'default' => "{judul_grup}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
@@ -322,7 +355,7 @@ function wa_template_definitions(): array
         ],
         'izin_disetujui_pengurus_lainnya' => [
             'label' => 'Izin (bukan sakit) disetujui → pengurus (petugas surat)',
-            'hint' => 'Template keluar, izin, tugas, dll. ke pengurus. Izin rombongan: {daftar_santri}.',
+            'hint' => 'Template keluar, izin, tugas, dll. ke pengurus (per santri). Izin rombongan memakai template "Izin rombongan disetujui".',
             'placeholders' => '{judul_pengurus}, {nama_santri}, {daftar_santri}, {nis}, {tingkatan}, {jenis_izin}, {label_alasan}, {tanggal_mulai}, {tanggal_selesai}, {jam_mulai}, {jam_selesai}, {alasan}, {nama_pengurus}, {nama_ponpes}, {nama_penyetuju}, {ttd_penyetuju}',
             'default' => "{judul_pengurus}\n\n"
                 . '*{nama_santri}* ({nis}) · {tingkatan}\n'
