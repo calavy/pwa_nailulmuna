@@ -12,26 +12,30 @@ declare(strict_types=1);
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
             <div>
                 <h2 class="h6 mb-1">Antrian outbound</h2>
-                <p class="small text-muted mb-0">Pesan menunggu dispatcher global — prioritas, cooldown, retry. Centang pesan <strong>pending/retry</strong> lalu klik <strong>Batalkan terpilih</strong>; pesan yang dibatalkan tidak dikirim dan tidak akan diantre ulang oleh job otomatis untuk kejadian yang sama (pesan tanpa kunci dedup bisa saja dibuat ulang oleh job).</p>
+                <p class="small text-muted mb-0">Pesan menunggu dispatcher global — prioritas, cooldown, retry. Centang pesan <strong>pending/retry/dead</strong>, lalu klik <strong>Batalkan terpilih</strong> (status jadi dibatalkan, hanya pending/retry) atau <strong>Hapus terpilih</strong> (dihapus permanen dari antrean). Keduanya mencegah pesan dikirim dan diantre ulang oleh job otomatis untuk kejadian yang sama (pesan tanpa kunci dedup bisa saja dibuat ulang oleh job).</p>
             </div>
             <a class="btn btn-outline-secondary btn-sm" href="<?= htmlspecialchars(app_href('/settings/wa_opt_out.php')) ?>">Kelola opt-out penerima</a>
         </div>
         <?php if (($waOutboundQueueRecent ?? []) === []): ?>
             <p class="text-muted small mb-0">Tidak ada baris pending/retry/sending/dead atau tabel belum tersedia.</p>
         <?php else: ?>
-            <form method="post" id="wa-outbound-cancel-form" onsubmit="return waOutboundConfirmCancel(this);">
-            <input type="hidden" name="action" value="wa_outbound_cancel">
+            <form method="post" id="wa-outbound-cancel-form">
             <input type="hidden" name="redirect_tab" value="log">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <button type="submit" class="btn btn-outline-danger btn-sm" id="wa-outbound-cancel-btn" disabled>
-                    <i class="fa-solid fa-ban me-1"></i> Batalkan terpilih (<span id="wa-outbound-cancel-count">0</span>)
+                <button type="submit" name="action" value="wa_outbound_cancel" class="btn btn-outline-warning btn-sm wa-outbound-action-btn" disabled
+                        onclick="return waOutboundConfirm(this.form, 'cancel');">
+                    <i class="fa-solid fa-ban me-1"></i> Batalkan terpilih (<span class="wa-outbound-count">0</span>)
+                </button>
+                <button type="submit" name="action" value="wa_outbound_delete" class="btn btn-outline-danger btn-sm wa-outbound-action-btn" disabled
+                        onclick="return waOutboundConfirm(this.form, 'delete');">
+                    <i class="fa-solid fa-trash me-1"></i> Hapus terpilih (<span class="wa-outbound-count">0</span>)
                 </button>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm table-striped align-middle mb-0">
                     <thead>
                     <tr>
-                        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="wa-outbound-check-all" title="Pilih semua pending/retry"></th>
+                        <th style="width:2rem"><input type="checkbox" class="form-check-input" id="wa-outbound-check-all" title="Pilih semua pending/retry/dead"></th>
                         <th>ID</th>
                         <th>Prioritas</th>
                         <th>Kategori</th>
@@ -47,7 +51,7 @@ declare(strict_types=1);
                     <?php foreach ($waOutboundQueueRecent as $qrow): ?>
                         <?php
                         $qStatus = (string) ($qrow['status'] ?? '');
-                        $qCancelable = in_array($qStatus, ['pending', 'retry_wait'], true);
+                        $qCancelable = in_array($qStatus, ['pending', 'retry_wait', 'dead'], true);
                         $qMsg = (string) ($qrow['message_preview'] ?? '');
                         ?>
                         <tr>
@@ -76,15 +80,15 @@ declare(strict_types=1);
                 var form = document.getElementById('wa-outbound-cancel-form');
                 if (!form) return;
                 var all = document.getElementById('wa-outbound-check-all');
-                var btn = document.getElementById('wa-outbound-cancel-btn');
-                var countEl = document.getElementById('wa-outbound-cancel-count');
+                var btns = form.querySelectorAll('.wa-outbound-action-btn');
+                var countEls = form.querySelectorAll('.wa-outbound-count');
                 var boxes = function () { return form.querySelectorAll('.wa-outbound-check'); };
                 var refresh = function () {
                     var list = boxes();
                     var n = 0;
                     list.forEach(function (b) { if (b.checked) n++; });
-                    countEl.textContent = String(n);
-                    btn.disabled = n === 0;
+                    countEls.forEach(function (el) { el.textContent = String(n); });
+                    btns.forEach(function (b) { b.disabled = n === 0; });
                     if (all) {
                         all.checked = list.length > 0 && n === list.length;
                         all.indeterminate = n > 0 && n < list.length;
@@ -101,10 +105,13 @@ declare(strict_types=1);
                 });
                 refresh();
             })();
-            function waOutboundConfirmCancel(form) {
+            function waOutboundConfirm(form, mode) {
                 var n = form.querySelectorAll('.wa-outbound-check:checked').length;
                 if (n === 0) return false;
-                return confirm('Batalkan ' + n + ' pesan WA? Pesan yang dibatalkan tidak akan dikirim dan tidak akan diantre ulang.');
+                if (mode === 'delete') {
+                    return confirm('Hapus permanen ' + n + ' pesan WA? Pesan tidak akan dikirim dan tidak bisa dikembalikan.');
+                }
+                return confirm('Batalkan ' + n + ' pesan WA? Pesan yang dibatalkan tidak akan dikirim dan tidak akan diantre ulang. Pesan berstatus dead dilewati.');
             }
             </script>
         <?php endif; ?>

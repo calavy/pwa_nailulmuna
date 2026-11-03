@@ -79,6 +79,14 @@ function wa_outbound_ensure_schema(PDO $pdo): void
                 INDEX idx_wa_opt_out_phone (target_phone)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ');
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS wa_outbound_blocked_keys (
+                dedup_key VARCHAR(191) NOT NULL PRIMARY KEY,
+                kind VARCHAR(40) NULL,
+                blocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                blocked_by INT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ');
     } catch (Throwable $e) {
         error_log('[wa_outbound_ensure_schema] ' . $e->getMessage());
     }
@@ -423,7 +431,7 @@ function wa_outbound_drain(PDO $pdo, int $budget, array $context = []): array
             continue;
         }
 
-        if ($dedupKey !== '' && wa_dispatch_dedup_succeeded($pdo, $dedupKey)) {
+        if ($dedupKey !== '' && empty($payload['skip_dedup']) && wa_dispatch_dedup_succeeded($pdo, $dedupKey)) {
             wa_outbound_mark_sent_duplicate($pdo, $queueId);
             $result['skipped']++;
             $processed++;
@@ -857,6 +865,72 @@ function wa_outbound_cancel_rows(PDO $pdo, array $ids, int $userId): int
     }
 }
 
+/**
+ * Hapus permanen pesan antrean (pending/retry_wait/dead). Dedup_key dicatat di wa_outbound_blocked_keys
+ * agar job otomatis tidak mengantre ulang kejadian yang sama.
+ *
+ * @param list<int|string> $ids
+ */
+function wa_outbound_delete_rows(PDO $pdo, array $ids, int $userId): int
+{
+    wa_outbound_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_outbound_queue')) {
+        return 0;
+    }
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+    if ($ids === []) {
+        return 0;
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $pdo->beginTransaction();
+        $sel = $pdo->prepare('
+            SELECT id, dedup_key, kind FROM wa_outbound_queue
+            WHERE id IN (' . $placeholders . ') AND status IN ("pending","retry_wait","dead")
+            FOR UPDATE
+        ');
+        $sel->execute($ids);
+        $rows = $sel->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        if ($rows === []) {
+            $pdo->commit();
+
+            return 0;
+        }
+
+        $block = $pdo->prepare('
+            INSERT IGNORE INTO wa_outbound_blocked_keys (dedup_key, kind, blocked_by)
+            VALUES (:d, :k, :u)
+        ');
+        $deleteIds = [];
+        foreach ($rows as $row) {
+            $deleteIds[] = (int) $row['id'];
+            $key = trim((string) ($row['dedup_key'] ?? ''));
+            if ($key !== '') {
+                $block->execute([
+                    'd' => $key,
+                    'k' => (string) ($row['kind'] ?? ''),
+                    'u' => $userId > 0 ? $userId : null,
+                ]);
+            }
+        }
+
+        $delPh = implode(',', array_fill(0, count($deleteIds), '?'));
+        $del = $pdo->prepare('DELETE FROM wa_outbound_queue WHERE id IN (' . $delPh . ')');
+        $del->execute($deleteIds);
+        $deleted = $del->rowCount();
+        $pdo->commit();
+
+        return $deleted;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('[wa_outbound_delete_rows] ' . $e->getMessage());
+
+        return 0;
+    }
+}
+
 function wa_outbound_dedup_cancelled(PDO $pdo, string $dedupKey): bool
 {
     $dedupKey = wa_dispatch_normalize_key($dedupKey);
@@ -865,6 +939,14 @@ function wa_outbound_dedup_cancelled(PDO $pdo, string $dedupKey): bool
     }
     try {
         $st = $pdo->prepare('SELECT 1 FROM wa_outbound_queue WHERE dedup_key = :d AND status = "cancelled" LIMIT 1');
+        $st->execute(['d' => $dedupKey]);
+        if ($st->fetchColumn()) {
+            return true;
+        }
+        if (!table_exists($pdo, 'wa_outbound_blocked_keys')) {
+            return false;
+        }
+        $st = $pdo->prepare('SELECT 1 FROM wa_outbound_blocked_keys WHERE dedup_key = :d LIMIT 1');
         $st->execute(['d' => $dedupKey]);
 
         return (bool) $st->fetchColumn();

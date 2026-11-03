@@ -47,3 +47,11 @@ CREATE TABLE IF NOT EXISTS wa_opt_out (
     UNIQUE KEY uk_wa_opt_out_target_cat (target_phone, category),
     INDEX idx_wa_opt_out_phone (target_phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Kunci dedup pesan yang dihapus permanen dari antrean; mencegah job mengantre ulang.
+CREATE TABLE IF NOT EXISTS wa_outbound_blocked_keys (
+    dedup_key VARCHAR(191) NOT NULL PRIMARY KEY,
+    kind VARCHAR(40) NULL,
+    blocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    blocked_by INT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

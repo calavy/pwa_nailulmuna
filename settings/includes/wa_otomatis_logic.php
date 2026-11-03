@@ -447,6 +447,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=log'));
         exit;
+    } elseif ($action === 'wa_outbound_delete') {
+        $ids = is_array($_POST['ids'] ?? null) ? $_POST['ids'] : [];
+        if ($ids === []) {
+            set_flash('warning', 'Pilih minimal satu pesan yang akan dihapus.');
+        } else {
+            $deleted = wa_outbound_delete_rows($pdo, $ids, (int) ($_SESSION['user']['id'] ?? 0));
+            $skippedCount = count($ids) - $deleted;
+            set_flash(
+                $deleted > 0 ? 'success' : 'warning',
+                $deleted . ' pesan dihapus permanen dan tidak akan dikirim.'
+                    . ($skippedCount > 0 ? ' ' . $skippedCount . ' pesan dilewati (sudah terkirim/sedang dikirim).' : '')
+            );
+        }
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=log'));
+        exit;
     } elseif ($action === 'reset_log') {
         $pdo->exec('TRUNCATE TABLE alpa_tier_dispatch_log');
         set_flash('success', 'Log dispatch alpa direset.');
