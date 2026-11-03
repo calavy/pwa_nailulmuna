@@ -216,6 +216,8 @@ function wa_outbound_migrate_schema_extras(PDO $pdo): void
         'dispatch_id' => 'VARCHAR(24) NULL',
         'provider_message_id' => 'VARCHAR(128) NULL',
         'retry_reason' => 'VARCHAR(64) NULL',
+        'cancelled_at' => 'DATETIME NULL',
+        'cancelled_by' => 'INT NULL',
     ];
     foreach ($cols as $col => $def) {
         if (function_exists('column_exists') && !column_exists($pdo, 'wa_outbound_queue', $col)) {
@@ -225,6 +227,18 @@ function wa_outbound_migrate_schema_extras(PDO $pdo): void
                 error_log('[wa_outbound_migrate] ' . $col . ': ' . $e->getMessage());
             }
         }
+    }
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM wa_outbound_queue LIKE 'status'");
+        $statusCol = $st ? $st->fetch(PDO::FETCH_ASSOC) : false;
+        if (is_array($statusCol) && !str_contains((string) ($statusCol['Type'] ?? ''), "'cancelled'")) {
+            $pdo->exec('
+                ALTER TABLE wa_outbound_queue
+                MODIFY status ENUM("pending","sending","retry_wait","sent","failed","dead","cancelled") NOT NULL DEFAULT "pending"
+            ');
+        }
+    } catch (Throwable $e) {
+        error_log('[wa_outbound_migrate] status cancelled: ' . $e->getMessage());
     }
     if (function_exists('column_exists') && column_exists($pdo, 'wa_outbound_queue', 'dispatch_id')) {
         try {

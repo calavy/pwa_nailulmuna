@@ -1305,6 +1305,21 @@ function wa_otomatis_send_direct(PDO $pdo, string $targetRaw, string $message, a
     $override['dedup_key'] = $dedupKey;
 
     $targetNorm = wa_otomatis_normalize_target($targetRaw);
+    if ($dedupKey !== '' && !$skipDedup && empty($opts['_from_outbound_worker'])) {
+        require_once __DIR__ . '/wa_outbound_dispatch.php';
+        if (wa_outbound_dedup_cancelled($pdo, $dedupKey)) {
+            return [
+                'success' => true,
+                'skipped' => true,
+                'skipped_reason' => 'cancelled',
+                'http_code' => 0,
+                'error' => '',
+                'response' => 'skipped_cancelled',
+                'target' => $targetNorm,
+                'attempts' => 0,
+            ];
+        }
+    }
     $claimedDedup = false;
     if ($dedupKey !== '' && wa_dispatch_strict_enabled($pdo) && !$skipDedup) {
         if (!wa_dispatch_claim($pdo, $dedupKey, $kind, $targetNorm, $message)) {
@@ -1390,7 +1405,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
             $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
 
             return [
-                'success' => $reason === 'duplicate',
+                'success' => $reason === 'duplicate' || $reason === 'cancelled',
                 'skipped' => true,
                 'skipped_reason' => $reason,
                 'http_code' => 0,
@@ -1431,7 +1446,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
             $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
 
             return [
-                'success' => $reason === 'duplicate',
+                'success' => $reason === 'duplicate' || $reason === 'cancelled',
                 'skipped' => true,
                 'skipped_reason' => $reason,
                 'http_code' => 0,
@@ -1484,7 +1499,7 @@ function wa_otomatis_send(PDO $pdo, string $targetRaw, string $message, array $o
         $reason = (string) ($enq['skipped_reason'] ?? 'skipped');
 
         return [
-            'success' => $reason === 'duplicate',
+            'success' => $reason === 'duplicate' || $reason === 'cancelled',
             'skipped' => true,
             'skipped_reason' => $reason,
             'http_code' => 0,
@@ -1732,7 +1747,7 @@ function wa_kirim_pengasuh_pending_normalize_result(array $bulk): array
             $reason = 'warmup';
         } elseif ($skipped > 0 && (int) ($bulk['failed'] ?? 0) === 0) {
             $detail0 = is_array($bulk['details'][0] ?? null) ? $bulk['details'][0] : [];
-            $reason = (($detail0['skipped_reason'] ?? '') === 'duplicate') ? 'duplicate' : 'skipped';
+            $reason = in_array($detail0['skipped_reason'] ?? '', ['duplicate', 'cancelled'], true) ? 'duplicate' : 'skipped';
         } else {
             $reason = 'send_failed';
         }
@@ -1795,7 +1810,7 @@ function wa_kirim_pengasuh_pending(PDO $pdo, string $message, array $opts = []):
     if (!empty($bulk['details']) && is_array($bulk['details'])) {
         $allDuplicate = true;
         foreach ($bulk['details'] as $detail) {
-            if (!is_array($detail) || ($detail['skipped_reason'] ?? '') !== 'duplicate') {
+            if (!is_array($detail) || !in_array($detail['skipped_reason'] ?? '', ['duplicate', 'cancelled'], true)) {
                 $allDuplicate = false;
                 break;
             }

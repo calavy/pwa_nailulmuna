@@ -432,6 +432,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         header('Location: ' . app_href('/settings/wa_otomatis.php?tab=alpa'));
         exit;
+    } elseif ($action === 'wa_outbound_cancel') {
+        $ids = is_array($_POST['ids'] ?? null) ? $_POST['ids'] : [];
+        if ($ids === []) {
+            set_flash('warning', 'Pilih minimal satu pesan yang akan dibatalkan.');
+        } else {
+            $cancelled = wa_outbound_cancel_rows($pdo, $ids, (int) ($_SESSION['user']['id'] ?? 0));
+            $skippedCount = count($ids) - $cancelled;
+            set_flash(
+                $cancelled > 0 ? 'success' : 'warning',
+                $cancelled . ' pesan dibatalkan dan tidak akan dikirim.'
+                    . ($skippedCount > 0 ? ' ' . $skippedCount . ' pesan dilewati (sudah diproses/sedang dikirim).' : '')
+            );
+        }
+        header('Location: ' . app_href('/settings/wa_otomatis.php?tab=log'));
+        exit;
     } elseif ($action === 'reset_log') {
         $pdo->exec('TRUNCATE TABLE alpa_tier_dispatch_log');
         set_flash('success', 'Log dispatch alpa direset.');
@@ -639,7 +654,7 @@ $waOutboundCounts = is_array($waOutboundSnapshot['counts'] ?? null) ? $waOutboun
 $waOutboundTotalPending = (int) ($waOutboundCounts['pending'] ?? 0)
     + (int) ($waOutboundCounts['retry_wait'] ?? 0)
     + (int) ($waOutboundCounts['sending'] ?? 0);
-$waOutboundQueueRecent = wa_outbound_queue_recent_rows($pdo, 20);
+$waOutboundQueueRecent = wa_outbound_queue_recent_rows($pdo, 100);
 
 // Log terbaru
 $waLogRecent = [];

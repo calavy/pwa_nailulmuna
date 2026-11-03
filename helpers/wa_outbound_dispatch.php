@@ -47,7 +47,7 @@ function wa_outbound_ensure_schema(PDO $pdo): void
                 message MEDIUMTEXT NOT NULL,
                 priority TINYINT UNSIGNED NOT NULL DEFAULT 40,
                 dedup_key VARCHAR(191) NULL,
-                status ENUM("pending","sending","retry_wait","sent","failed","dead") NOT NULL DEFAULT "pending",
+                status ENUM("pending","sending","retry_wait","sent","failed","dead","cancelled") NOT NULL DEFAULT "pending",
                 attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
                 dispatch_source ENUM("automatic","manual") NOT NULL DEFAULT "automatic",
                 payload_json TEXT NULL,
@@ -58,6 +58,8 @@ function wa_outbound_ensure_schema(PDO $pdo): void
                 last_error VARCHAR(500) NULL,
                 provider_message_id VARCHAR(128) NULL,
                 retry_reason VARCHAR(64) NULL,
+                cancelled_at DATETIME NULL,
+                cancelled_by INT NULL,
                 UNIQUE KEY uk_wa_outbound_dispatch_id (dispatch_id),
                 INDEX idx_wa_outbound_drain (status, next_retry_at, priority, id),
                 INDEX idx_wa_outbound_target (target_phone, status),
@@ -235,6 +237,9 @@ function wa_outbound_enqueue(PDO $pdo, string $targetRaw, string $message, array
     $skipDedup = !empty($opts['skip_dedup']);
     if ($dedupKey !== '' && !$skipDedup && wa_dispatch_dedup_succeeded($pdo, $dedupKey)) {
         return ['ok' => false, 'skipped' => true, 'skipped_reason' => 'duplicate'];
+    }
+    if ($dedupKey !== '' && !$skipDedup && wa_outbound_dedup_cancelled($pdo, $dedupKey)) {
+        return ['ok' => false, 'skipped' => true, 'skipped_reason' => 'cancelled'];
     }
 
     if ($dedupKey !== '') {
@@ -821,6 +826,56 @@ function wa_outbound_mask_phone(string $phone): string
 }
 
 /**
+ * Batalkan pesan antrean (hanya pending/retry_wait). Dedup_key yang dibatalkan tidak akan diantre ulang.
+ *
+ * @param list<int|string> $ids
+ */
+function wa_outbound_cancel_rows(PDO $pdo, array $ids, int $userId): int
+{
+    wa_outbound_ensure_schema($pdo);
+    if (!function_exists('table_exists') || !table_exists($pdo, 'wa_outbound_queue')) {
+        return 0;
+    }
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+    if ($ids === []) {
+        return 0;
+    }
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $st = $pdo->prepare('
+            UPDATE wa_outbound_queue
+            SET status = "cancelled", cancelled_at = NOW(), cancelled_by = ?, retry_reason = "cancelled_manual"
+            WHERE id IN (' . $placeholders . ') AND status IN ("pending","retry_wait")
+        ');
+        $st->execute(array_merge([$userId > 0 ? $userId : null], $ids));
+
+        return $st->rowCount();
+    } catch (Throwable $e) {
+        error_log('[wa_outbound_cancel_rows] ' . $e->getMessage());
+
+        return 0;
+    }
+}
+
+function wa_outbound_dedup_cancelled(PDO $pdo, string $dedupKey): bool
+{
+    $dedupKey = wa_dispatch_normalize_key($dedupKey);
+    if ($dedupKey === '') {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare('SELECT 1 FROM wa_outbound_queue WHERE dedup_key = :d AND status = "cancelled" LIMIT 1');
+        $st->execute(['d' => $dedupKey]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[wa_outbound_dedup_cancelled] ' . $e->getMessage());
+
+        return false;
+    }
+}
+
+/**
  * @return list<array<string, mixed>>
  */
 function wa_outbound_queue_recent_rows(PDO $pdo, int $limit = 20): array
@@ -829,11 +884,12 @@ function wa_outbound_queue_recent_rows(PDO $pdo, int $limit = 20): array
     if (!function_exists('table_exists') || !table_exists($pdo, 'wa_outbound_queue')) {
         return [];
     }
-    $limit = max(1, min(50, $limit));
+    $limit = max(1, min(200, $limit));
     try {
         $st = $pdo->query('
             SELECT id, created_at, priority, kind, target_phone, status, attempt_count,
-                   next_retry_at, last_error, last_attempt_at
+                   next_retry_at, last_error, last_attempt_at, dedup_key,
+                   LEFT(message, 500) AS message_preview
             FROM wa_outbound_queue
             WHERE status IN ("pending","retry_wait","sending","dead")
             ORDER BY priority ASC, id ASC

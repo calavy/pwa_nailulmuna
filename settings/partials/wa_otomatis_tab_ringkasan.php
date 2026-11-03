@@ -63,6 +63,7 @@ $obQueueOn = !empty($obSnap['enabled']);
                 <span class="badge bg-light text-dark border">Sending: <?= (int) ($obCounts['sending'] ?? 0) ?></span>
                 <span class="badge bg-light text-dark border">Retry: <?= (int) ($obCounts['retry_wait'] ?? 0) ?></span>
                 <span class="badge bg-light text-dark border">Dead: <?= (int) ($obCounts['dead'] ?? 0) ?></span>
+                <span class="badge bg-light text-dark border">Dibatalkan: <?= (int) ($obCounts['cancelled'] ?? 0) ?></span>
                 <span class="badge bg-light text-dark border">Terkirim 24j: <?= $obSent24 ?></span>
             </div>
             <ul class="small mb-2 ps-3">

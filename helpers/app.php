@@ -1672,7 +1672,7 @@ function send_wa_message(PDO $pdo, string $phone, string $message, array $opts =
         return true;
     }
 
-    return !empty($result['skipped']) && (string) ($result['skipped_reason'] ?? '') === 'duplicate';
+    return !empty($result['skipped']) && in_array((string) ($result['skipped_reason'] ?? ''), ['duplicate', 'cancelled'], true);
 }
 
 function parse_phone_list(string $raw): array
