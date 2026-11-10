@@ -105,6 +105,7 @@ function user_permission_groups(): array
                 'santri_index' => 'Santri Aktif',
                 'santri_create' => 'Tambah / Edit Santri',
                 'santri_import' => 'Import Santri',
+                'inventaris_barang' => 'Kelengkapan Barang Inventaris',
             ],
         ],
         'kajian' => [
@@ -228,6 +229,9 @@ function user_permission_path_map_base(): array
         '/santri/kartu_sementara.php' => 'santri_index',
         '/santri/kartu_qr.php' => 'santri_index',
         '/santri/kartu_batch.php' => 'santri_index',
+        '/inventaris/index.php' => 'inventaris_barang',
+        '/inventaris/label.php' => 'inventaris_barang',
+        '/inventaris/scan.php' => 'inventaris_barang',
         '/santri/import.php' => 'santri_import',
         '/pembimbing/edit.php' => 'pembimbing',
         '/jadwal/edit.php' => 'jadwal',
@@ -733,6 +737,35 @@ function migrate_keuangan_permissions_split(PDO $pdo): void
     }
 
     save_setting($pdo, 'acl_keuangan_split_v1', '1');
+    if (function_exists('app_acl_session_cache_clear')) {
+        app_acl_session_cache_clear(0);
+    }
+}
+
+/** Sekali: pengguna yang sudah boleh membuka Santri Aktif juga boleh kelengkapan barang. */
+function migrate_inventaris_barang_permission(PDO $pdo): void
+{
+    if (!function_exists('table_exists')) {
+        require_once __DIR__ . '/app.php';
+    }
+    if (!table_exists($pdo, 'user_access_permissions') || !table_exists($pdo, 'app_settings')) {
+        return;
+    }
+    if (app_setting($pdo, 'acl_inventaris_barang_v1', '') === '1') {
+        return;
+    }
+
+    $stmt = $pdo->query("SELECT DISTINCT user_id FROM user_access_permissions WHERE permission_key = 'santri_index'");
+    $userIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    $ins = $pdo->prepare('INSERT IGNORE INTO user_access_permissions (user_id, permission_key) VALUES (:uid, :key)');
+    foreach ($userIds as $uid) {
+        if ($uid <= 0) {
+            continue;
+        }
+        $ins->execute(['uid' => $uid, 'key' => 'inventaris_barang']);
+    }
+
+    save_setting($pdo, 'acl_inventaris_barang_v1', '1');
     if (function_exists('app_acl_session_cache_clear')) {
         app_acl_session_cache_clear(0);
     }

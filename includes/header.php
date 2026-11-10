@@ -50,6 +50,15 @@ if ($isScanKioskPage) {
     $hideAppSidebar = true;
     $loadPushFcm = false;
 }
+if (isset($_SESSION['user']) && empty($_SESSION['acl_inventaris_barang_checked'])) {
+    try {
+        require_once __DIR__ . '/../helpers/user_permissions.php';
+        migrate_inventaris_barang_permission($pdo);
+    } catch (Throwable $e) {
+        error_log('[acl migrate inventaris barang] ' . $e->getMessage());
+    }
+    $_SESSION['acl_inventaris_barang_checked'] = 1;
+}
 $menuPack = app_menu_pack($pdo);
 $menuItems = $menuPack['menuItems'];
 $menuStructure = $menuPack['menuStructure'];

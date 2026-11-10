@@ -66,6 +66,15 @@ function app_vendor_html5_qrcode_js_href(): string
     return 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
 }
 
+function app_vendor_qrcodejs_js_href(): string
+{
+    if (app_vendor_file_exists('qrcodejs/1.0.0/qrcode.min.js')) {
+        return app_vendor_href('qrcodejs/1.0.0/qrcode.min.js');
+    }
+
+    return 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+}
+
 /** @return list<string> path relatif untuk precache PWA */
 function app_vendor_precache_relative_paths(): array
 {

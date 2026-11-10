@@ -523,3 +523,59 @@ ALTER TABLE pkpps_tingkatan MODIFY urutan SMALLINT UNSIGNED NOT NULL;
 -- -----------------------------------------------------------------------------
 ALTER TABLE kegiatan ADD COLUMN IF NOT EXISTS kategori_kegiatan VARCHAR(20) NOT NULL DEFAULT 'TAALIM';
 UPDATE kegiatan SET kategori_kegiatan = 'TAALIM' WHERE COALESCE(kategori_kegiatan, '') = '';
+
+-- -----------------------------------------------------------------------------
+-- 2026-11-11 | Kelengkapan barang inventaris + QR
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS inventaris_barang (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    kode VARCHAR(32) NOT NULL,
+    nama VARCHAR(160) NOT NULL,
+    kategori VARCHAR(40) NOT NULL DEFAULT 'Lainnya',
+    lokasi VARCHAR(160) NULL,
+    merk VARCHAR(120) NULL,
+    keterangan VARCHAR(500) NULL,
+    jumlah INT NOT NULL DEFAULT 1,
+    satuan VARCHAR(40) NOT NULL DEFAULT 'unit',
+    kondisi VARCHAR(40) NOT NULL DEFAULT 'Baik',
+    status_kelengkapan VARCHAR(40) NOT NULL DEFAULT 'Lengkap',
+    catatan_kekurangan VARCHAR(500) NULL,
+    penanggung_jawab VARCHAR(120) NULL,
+    tanggal_cek DATE NULL,
+    is_aktif TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_inventaris_barang_kode (kode),
+    KEY idx_inventaris_barang_nama (nama),
+    KEY idx_inventaris_barang_status (status_kelengkapan)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventaris_barang_cek (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    barang_id INT NOT NULL,
+    kondisi VARCHAR(40) NOT NULL,
+    status_kelengkapan VARCHAR(40) NOT NULL,
+    catatan VARCHAR(500) NULL,
+    user_id INT NULL,
+    nama_petugas VARCHAR(120) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_inventaris_cek_barang (barang_id),
+    CONSTRAINT fk_inventaris_cek_barang FOREIGN KEY (barang_id) REFERENCES inventaris_barang(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE inventaris_barang MODIFY kode VARCHAR(64) NOT NULL;
+ALTER TABLE inventaris_barang_cek ADD COLUMN IF NOT EXISTS komponen_json TEXT NULL;
+
+CREATE TABLE IF NOT EXISTS inventaris_barang_komponen (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    barang_id INT NOT NULL,
+    nama VARCHAR(160) NOT NULL,
+    status VARCHAR(40) NOT NULL DEFAULT 'Lengkap',
+    catatan VARCHAR(255) NULL,
+    urutan INT NOT NULL DEFAULT 0,
+    KEY idx_inventaris_komponen_barang (barang_id),
+    CONSTRAINT fk_inventaris_komponen_barang FOREIGN KEY (barang_id) REFERENCES inventaris_barang(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS asal_barang VARCHAR(160) NULL;
+ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS status_barang VARCHAR(40) NOT NULL DEFAULT 'Tersedia';

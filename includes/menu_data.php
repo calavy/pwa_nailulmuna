@@ -159,6 +159,8 @@ return [
         '/rekap/munawib.php' => 'Laporan Munawib',
         '/rekap/kegiatan_khusus.php' => 'Rekap Kegiatan Khusus',
         '/pembimbing/munawib.php' => 'Data Munawib',
+        '/inventaris/index.php' => 'Kelengkapan Barang',
+        '/inventaris/scan.php' => 'Pindai Barang',
         '/akademik/hafalan.php' => 'Setoran Hafalan',
         '/akademik/setoran.php' => 'Setoran Hafalan (Hub)',
         '/akademik/setoran_dashboard.php' => 'Dashboard Setoran',
@@ -326,6 +328,10 @@ return [
             ['title' => 'Munawib', 'paths' => [
                 '/pembimbing/munawib.php',
                 '/rekap/munawib.php',
+            ]],
+            ['title' => 'Inventaris', 'paths' => [
+                '/inventaris/index.php',
+                '/inventaris/scan.php',
             ]],
         ]],
         ['type' => 'group', 'id' => 'menu-grp-ketertiban', 'label' => 'Ketertiban', 'icon' => 'fa-solid fa-shield-halved', 'sections' => [
