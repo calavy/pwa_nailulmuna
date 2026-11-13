@@ -177,7 +177,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(settings_pengaturan_hub_url()) ?>">Pengaturan</a></p>
     <h1 class="h4 mb-1"><i class="fa-solid fa-file-zipper me-1 text-primary"></i> Backup CSV Database</h1>
-    <p class="text-muted mb-0 small">Hanya <strong>super admin</strong>. Unduh ZIP periksa, atau jadwalkan backup lengkap yang terkunci. Tidak dikirim ke Google Drive.</p>
+    <p class="text-muted mb-0 small">Hanya <strong>super admin</strong>. Unduh ZIP periksa, atau jadwalkan backup lengkap yang terkunci. Email hanya mengirim ZIP periksa. Arsip lengkap tidak dikirim lewat email dan tidak dikirim ke Google Drive.</p>
 </div>
 
 <?php if ($lastError !== ''): ?>
@@ -198,14 +198,15 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="alert alert-warning">
     ZIP unduhan manual ini untuk diperiksa, bukan dump SQL.
     Indeks dan foreign key tidak ikut, dan nilai NULL menjadi sel kosong.
-    Password, PIN, token, dan kunci dikosongkan di CSV unduhan ini. Nilainya di database tidak berubah.
-    Kunci pembuka backup mingguan dipegang admin dan Ketua. Jangan menaruhnya di server.
+    Identitas, alamat, nomor kontak, isi pesan, kesehatan, foto, rekening, sandi, PIN, token, dan kunci dikosongkan di CSV unduhan ini. Nilainya di database tidak berubah.
+    Di dalam ZIP ada README.txt yang memuat tanggal ekspor dan pemisah titik koma.
+    Arsip lengkap mingguan terkunci disalin sendiri ke luar hosting. Kunci pembuka dipegang Pengasuh dan Ketua. Jangan menaruh kunci pembuka di server, dan jangan mengirim arsip lengkap lewat email.
 </div>
 
 <form method="post" class="card shadow-sm mb-3">
     <div class="card-header fw-semibold"><i class="fa-solid fa-file-csv me-1 text-success"></i> Unduh ZIP periksa</div>
     <div class="card-body">
-        <p class="small text-muted">Satu file CSV per tabel, pemisah titik koma, plus <code>_manifest.csv</code>. View tidak ikut. Kolom terkunci dikosongkan.</p>
+        <p class="small text-muted">Satu file CSV per tabel, pemisah titik koma, plus <code>_manifest.csv</code> dan <code>README.txt</code>. View tidak ikut. Kolom sensitif dikosongkan.</p>
         <label class="form-label small mb-1" for="confirm_text">Ketik <strong>UNDUH</strong> untuk konfirmasi</label>
         <input type="text" class="form-control mb-3" id="confirm_text" name="confirm_text" autocomplete="off" required placeholder="UNDUH" style="max-width:16rem">
         <input type="hidden" name="action" value="unduh_backup_csv">
@@ -218,8 +219,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <p class="small text-muted mb-3">
             Buat pasangan kunci di komputer Anda, bukan di server.
-            Berkas kunci pembuka disimpan oleh admin dan Ketua.
+            Berkas kunci pembuka disimpan oleh Pengasuh dan Ketua.
             Yang ditempel di sini hanya isi <code>kunci_publik.pem</code>.
+            Arsip lengkap yang terkunci disalin sendiri ke luar hosting dan tidak dikirim lewat email.
         </p>
         <pre class="small bg-light border rounded p-2">openssl genpkey -algorithm RSA -pkeyopt rsa_key_bits:2048 -out kunci_pembuka.pem
 openssl rsa -pubout -in kunci_pembuka.pem -out kunci_publik.pem</pre>
@@ -270,12 +272,13 @@ openssl rsa -pubout -in kunci_pembuka.pem -out kunci_publik.pem</pre>
                 <input type="email" class="form-control" id="backup_mingguan_smtp_from" name="backup_mingguan_smtp_from" value="<?= htmlspecialchars($v('backup_mingguan_smtp_from')) ?>">
             </div>
             <div class="col-md-6">
-                <label class="form-label small" for="backup_mingguan_email_admin">Email admin (ZIP periksa dan arsip terkunci)</label>
+                <label class="form-label small" for="backup_mingguan_email_admin">Email Pengasuh / admin (hanya ZIP periksa)</label>
                 <input type="email" class="form-control" id="backup_mingguan_email_admin" name="backup_mingguan_email_admin" value="<?= htmlspecialchars($v('backup_mingguan_email_admin')) ?>">
             </div>
             <div class="col-md-6">
-                <label class="form-label small" for="backup_mingguan_email_ketua">Email Ketua (arsip terkunci)</label>
+                <label class="form-label small" for="backup_mingguan_email_ketua">Email Ketua (catatan; tidak menerima lampiran)</label>
                 <input type="email" class="form-control" id="backup_mingguan_email_ketua" name="backup_mingguan_email_ketua" value="<?= htmlspecialchars($v('backup_mingguan_email_ketua')) ?>">
+                <div class="form-text">Alamat ini dicatat saja. Surat mingguan tidak dikirim ke Ketua. Arsip lengkap disalin sendiri ke luar server.</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label small" for="backup_mingguan_wa_gagal">WhatsApp jika gagal</label>
@@ -293,7 +296,7 @@ openssl rsa -pubout -in kunci_pembuka.pem -out kunci_publik.pem</pre>
 <form method="post" class="card shadow-sm mb-3">
     <div class="card-header fw-semibold">Jalankan sekarang</div>
     <div class="card-body">
-        <p class="small text-muted">Membuat arsip lengkap terkunci, menyimpannya di folder hosting yang tidak bisa dibuka dari browser, mengirim ZIP periksa ke email admin, dan mengirim salinan terkunci ke admin serta Ketua.</p>
+        <p class="small text-muted">Membuat arsip lengkap terkunci dan menyimpannya di folder hosting yang tidak bisa dibuka dari browser. Salin berkas itu ke luar server; kunci pembuka dipegang Pengasuh dan Ketua. Email hanya mengirim ZIP periksa ke admin.</p>
         <label class="form-label small mb-1" for="confirm_jalan">Ketik <strong>JALANKAN</strong></label>
         <input type="text" class="form-control mb-3" id="confirm_jalan" name="confirm_jalan" autocomplete="off" required placeholder="JALANKAN" style="max-width:16rem">
         <input type="hidden" name="action" value="jalankan_backup_mingguan">
@@ -304,6 +307,7 @@ openssl rsa -pubout -in kunci_pembuka.pem -out kunci_publik.pem</pre>
 <?php if ($sealedFiles !== []): ?>
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">Arsip terkunci di server</div>
+        <div class="card-body small text-muted border-bottom">Salin berkas ini ke luar hosting. Tidak dikirim lewat email. Kunci pembuka dipegang Pengasuh dan Ketua.</div>
         <ul class="list-group list-group-flush">
             <?php foreach ($sealedFiles as $path): ?>
                 <li class="list-group-item small d-flex justify-content-between">

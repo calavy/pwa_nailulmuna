@@ -199,7 +199,6 @@ function backup_mingguan_run(PDO $pdo, bool $force = false): array
         $inspectName = 'Backup_Periksa_' . $today . '.zip';
         $limit = backup_mingguan_attachment_limit();
         $inspectSize = (int) filesize($inspect['zip']);
-        $sealedSize = (int) filesize($sealedPath);
 
         if ($inspectSize > $limit) {
             backup_mingguan_mail_people(
@@ -207,7 +206,7 @@ function backup_mingguan_run(PDO $pdo, bool $force = false): array
                 $cfg,
                 [$cfg['admin']],
                 'ZIP periksa backup terlalu besar',
-                "ZIP periksa tanggal {$today} berukuran " . (string) $inspectSize . " byte, di atas batas lampiran 20 MB. Berkas tidak dilampirkan.\nArsip lengkap terkunci tetap tersimpan di folder backup hosting, bukan di Google."
+                "ZIP periksa tanggal {$today} berukuran " . (string) $inspectSize . " byte, di atas batas lampiran 20 MB. Berkas tidak dilampirkan.\nArsip lengkap terkunci ({$sealedName}) tetap di folder backup hosting. Salin berkas itu ke luar server. Kunci pembuka dipegang Pengasuh dan Ketua. Arsip lengkap tidak dikirim lewat email."
             );
         } else {
             backup_mingguan_mail_people(
@@ -215,35 +214,11 @@ function backup_mingguan_run(PDO $pdo, bool $force = false): array
                 $cfg,
                 [$cfg['admin']],
                 'ZIP periksa backup mingguan',
-                "Lampiran ini untuk diperiksa. Kolom terkunci (password, PIN, token, kunci) dikosongkan.\nBukan dump SQL dan bukan arsip lengkap.",
+                "Lampiran ini untuk diperiksa. Kolom identitas, kontak, pesan, kesehatan, foto, rekening, serta sandi dan kunci dikosongkan.\nBukan dump SQL dan bukan arsip lengkap.\nPemisah kolom titik koma (;). Lihat README.txt di dalam ZIP.",
                 [[
                     'path' => $inspect['zip'],
                     'filename' => $inspectName,
                     'mime' => 'application/zip',
-                ]]
-            );
-        }
-
-        $sealedTo = [$cfg['admin'], $cfg['ketua']];
-        if ($sealedSize > $limit) {
-            backup_mingguan_mail_people(
-                $pdo,
-                $cfg,
-                $sealedTo,
-                'Arsip backup terkunci terlalu besar untuk email',
-                "Arsip lengkap tanggal {$today} sudah dikunci dan disimpan di folder backup hosting ({$sealedName}). Ukurannya di atas 20 MB jadi tidak dilampirkan. Buka dengan kunci pembuka di komputer Anda, bukan di server. Bukan Google Drive."
-            );
-        } else {
-            backup_mingguan_mail_people(
-                $pdo,
-                $cfg,
-                $sealedTo,
-                'Arsip backup mingguan terkunci',
-                "Lampiran .pnm1 adalah backup lengkap yang terkunci dengan kunci publik. Server tidak menyimpan kunci pembuka. Buka di komputer Anda dengan kunci yang dipegang admin dan Ketua.\nAlat: php tools/buka_backup_mingguan.php --kunci=kunci_pembuka.pem --berkas={$sealedName} --keluar=backup.zip",
-                [[
-                    'path' => $sealedPath,
-                    'filename' => $sealedName,
-                    'mime' => 'application/octet-stream',
                 ]]
             );
         }

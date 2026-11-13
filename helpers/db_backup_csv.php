@@ -5,12 +5,13 @@ declare(strict_types=1);
 /**
  * Unduhan ZIP: satu CSV per tabel database.
  * Bukan dump SQL. Kolom dan baris rahasia dikosongkan di file, bukan di database.
+ * Pengosongan identitas, kontak, pesan, kesehatan, foto, dan rekening hanya untuk ZIP periksa.
  */
 
 function db_backup_csv_column_is_secret(string $column): bool
 {
     $name = strtolower($column);
-    foreach (['password', 'pin_hash', 'token', 'secret', 'api_key', 'private_key', 'server_key'] as $needle) {
+    foreach (['password', 'pin', 'token', 'secret', 'api_key', 'private_key', 'server_key'] as $needle) {
         if (str_contains($name, $needle)) {
             return true;
         }
@@ -19,13 +20,77 @@ function db_backup_csv_column_is_secret(string $column): bool
     return false;
 }
 
-function db_backup_csv_setting_key_is_secret(string $key): bool
+function db_backup_csv_column_is_personal(string $column): bool
 {
-    $name = strtolower($key);
-    foreach (['password', 'token', 'secret', 'api_key', 'server_key', 'cron_key', 'private_key'] as $needle) {
+    $name = strtolower($column);
+    $exact = [
+        'nik',
+        'dusun',
+        'rt_rw',
+        'desa_kelurahan',
+        'kecamatan',
+        'kabupaten',
+        'propinsi',
+        'alamat',
+        'no_wa',
+        'no_wa_wali',
+        'no_kontak_ayah',
+        'no_kontak_ibu',
+        'no_kontak_kafil',
+        'target_phone',
+        'keluhan_sakit',
+        'pengobatan',
+        'foto_profil',
+        'foto_path',
+        'foto_url',
+        'no_rekening',
+        'message',
+        'payload_json',
+    ];
+    if (in_array($name, $exact, true)) {
+        return true;
+    }
+    foreach (['no_wa', 'no_kontak', 'no_hp', 'telepon', 'foto_', 'no_rekening'] as $needle) {
         if (str_contains($name, $needle)) {
             return true;
         }
+    }
+
+    return false;
+}
+
+function db_backup_csv_column_is_table_personal(string $table, string $column): bool
+{
+    $tableName = strtolower($table);
+    $name = strtolower($column);
+    $byTable = [
+        'ehealth_records' => ['gejala', 'tindakan', 'suhu_tubuh'],
+        'wa_logs' => ['response_text'],
+        'wa_outbound_queue' => ['response_text'],
+        'push_logs' => ['body', 'data_json', 'response_text'],
+    ];
+    $names = $byTable[$tableName] ?? [];
+
+    return in_array($name, $names, true);
+}
+
+function db_backup_csv_column_should_blank(string $table, string $column): bool
+{
+    return db_backup_csv_column_is_secret($column)
+        || db_backup_csv_column_is_personal($column)
+        || db_backup_csv_column_is_table_personal($table, $column);
+}
+
+function db_backup_csv_setting_key_is_secret(string $key): bool
+{
+    $name = strtolower($key);
+    foreach (['password', 'pin', 'token', 'secret', 'api_key', 'server_key', 'cron_key', 'private_key'] as $needle) {
+        if (str_contains($name, $needle)) {
+            return true;
+        }
+    }
+    if (str_contains($name, 'wa_tpl_') && str_contains($name, 'izin')) {
+        return true;
     }
 
     return false;
@@ -164,7 +229,7 @@ function db_backup_csv_write_table(PDO $pdo, string $dir, string $table, array $
     $secretIdx = [];
     $secretCols = [];
     foreach ($columns as $i => $column) {
-        if ($redact && db_backup_csv_column_is_secret($column)) {
+        if ($redact && db_backup_csv_column_should_blank($table, $column)) {
             $secretIdx[$i] = true;
             $secretCols[] = $column;
         }
@@ -237,6 +302,26 @@ function db_backup_csv_write_table(PDO $pdo, string $dir, string $table, array $
     ];
 }
 
+function db_backup_csv_readme(bool $redact): string
+{
+    $lines = [
+        'Ekspor CSV database',
+        'Tanggal ekspor: ' . date('Y-m-d H:i:s'),
+        'Pemisah kolom: titik koma (;)',
+        'Tanda kutip: "',
+        '',
+    ];
+    if ($redact) {
+        $lines[] = 'Berkas ini untuk pemeriksaan. Kolom sensitif dikosongkan. Bukan dump SQL dan bukan arsip lengkap.';
+        $lines[] = 'Arsip lengkap terkunci disimpan terpisah di luar hosting. Kunci pembuka hanya di Pengasuh dan Ketua. Berkas itu tidak dikirim lewat email.';
+    } else {
+        $lines[] = 'Berkas ini arsip lengkap. Nilainya utuh dan tidak untuk dikirim lewat email.';
+        $lines[] = 'Simpan terpisah di luar hosting. Kunci pembuka hanya di Pengasuh dan Ketua.';
+    }
+
+    return implode("\n", $lines) . "\n";
+}
+
 /**
  * @return array{dir:string, zip:string, table_count:int, row_count:int}
  */
@@ -285,12 +370,18 @@ function db_backup_csv_build(PDO $pdo, bool $redact = true): array
             fclose($mf);
         }
 
+        $readmePath = $dir . DIRECTORY_SEPARATOR . 'README.txt';
+        if (file_put_contents($readmePath, db_backup_csv_readme($redact)) === false) {
+            throw new RuntimeException('Gagal membuat README.txt.');
+        }
+
         $zipPath = $dir . DIRECTORY_SEPARATOR . 'backup.zip';
         $zip = new ZipArchive();
         $opened = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         if ($opened !== true) {
             throw new RuntimeException('Gagal membuat file ZIP.');
         }
+        $zip->addFile($readmePath, 'README.txt');
         $zip->addFile($manifestPath, '_manifest.csv');
         foreach ($written as $item) {
             $zip->addFile($item['file'], $item['entry']);

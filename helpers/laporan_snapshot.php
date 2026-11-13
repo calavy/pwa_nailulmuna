@@ -825,7 +825,7 @@ function laporan_snapshot_collect_all(PDO $pdo, string $asOf): array
 
     try {
         require_once __DIR__ . '/santri_export.php';
-        $rows = santri_master_export_rows($pdo, true);
+        $rows = santri_master_export_rows($pdo, true, true);
         $out['Data_Master_Santri'] = ['rows' => $rows, 'rows_count' => count($rows)];
     } catch (Throwable $e) {
         $out['Data_Master_Santri'] = ['rows' => [], 'rows_count' => 0, 'error' => $e->getMessage()];

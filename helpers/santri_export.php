@@ -5,9 +5,36 @@ declare(strict_types=1);
 require_once __DIR__ . '/app.php';
 
 /** @return list<string> */
-function santri_master_export_headers(): array
+function santri_master_export_identitas_headers(): array
 {
-    return [
+    return ['NIK', 'Dusun', 'Desa/Kel', 'Kecamatan', 'Kabupaten', 'Propinsi'];
+}
+
+/**
+ * @param list<string> $cells
+ * @return list<string>
+ */
+function santri_master_export_drop_identitas(array $cells, bool $redactIdentitas): array
+{
+    if (!$redactIdentitas) {
+        return $cells;
+    }
+    $drop = array_flip(santri_master_export_identitas_headers());
+    $kept = [];
+    foreach (santri_master_export_headers(false) as $i => $name) {
+        if (isset($drop[$name])) {
+            continue;
+        }
+        $kept[] = (string) ($cells[$i] ?? '');
+    }
+
+    return $kept;
+}
+
+/** @return list<string> */
+function santri_master_export_headers(bool $redactIdentitas = false): array
+{
+    $headers = [
         'QR', 'NIS', 'Nama', 'NIK', 'Jenis kelamin', 'Tingkatan', 'Kategori kelas (kode)', 'WA Wali', 'Aktif (1/0)',
         'Tempat lahir', 'Tgl lahir (tanggal)', 'Tahun lahir',
         'Nama kafil', 'Status kafil', 'Pekerjaan kafil', 'Kontak kafil',
@@ -15,14 +42,16 @@ function santri_master_export_headers(): array
         'Nama ayah', 'Kontak ayah', 'Nama ibu', 'Kontak ibu',
         'Tanggal masuk',
     ];
+
+    return santri_master_export_drop_identitas($headers, $redactIdentitas);
 }
 
 /**
- * @return list<list<string>>
+ * @return list<string>
  */
-function santri_master_export_row_from_record(array $r): array
+function santri_master_export_row_from_record(array $r, bool $redactIdentitas = false): array
 {
-    return [
+    $row = [
         (string) ($r['qr'] ?? ''),
         (string) ($r['nis'] ?? ''),
         (string) ($r['nama_santri'] ?? ''),
@@ -50,6 +79,8 @@ function santri_master_export_row_from_record(array $r): array
         (string) ($r['no_kontak_ibu'] ?? ''),
         (string) ($r['tanggal_masuk'] ?? ''),
     ];
+
+    return santri_master_export_drop_identitas($row, $redactIdentitas);
 }
 
 /**
@@ -83,11 +114,11 @@ function santri_master_export_fetch(PDO $pdo, bool $onlyAktif = true): array
 /**
  * @return list<list<string>>
  */
-function santri_master_export_rows(PDO $pdo, bool $onlyAktif = true): array
+function santri_master_export_rows(PDO $pdo, bool $onlyAktif = true, bool $redactIdentitas = false): array
 {
-    $out = [santri_master_export_headers()];
+    $out = [santri_master_export_headers($redactIdentitas)];
     foreach (santri_master_export_fetch($pdo, $onlyAktif) as $r) {
-        $out[] = santri_master_export_row_from_record($r);
+        $out[] = santri_master_export_row_from_record($r, $redactIdentitas);
     }
 
     return $out;
