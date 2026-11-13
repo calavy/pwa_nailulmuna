@@ -8,6 +8,10 @@ config/google_service_account.json
 # Salinan database (lokal dan hosting). Berisi data santri.
 backups/
 
+# Arsip mingguan terkunci. Kunci pembuka tidak pernah ada di sini.
+storage/backup/*.pnm1
+storage/backup/*.tmp
+
 # Upload pengguna (logo pondok, dll.) — tetap di server, tidak via GitHub
 uploads/*
 !uploads/.gitkeep

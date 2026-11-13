@@ -378,6 +378,7 @@ function user_permission_path_map_base(): array
         '/poin/settings.php' => 'pengaturan',
         '/settings/admin.php' => 'settings_admin',
         '/settings/presensi_data.php' => 'settings_admin',
+        '/settings/backup_csv.php' => 'settings_admin',
         '/settings/push.php' => 'settings_admin',
         '/settings/midtrans.php' => 'pengaturan',
         '/settings/portal_pembimbing.php' => 'settings_portal_pembimbing',

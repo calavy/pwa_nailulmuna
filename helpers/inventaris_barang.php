@@ -64,6 +64,7 @@ function ensure_inventaris_barang_tables(PDO $pdo): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             kode VARCHAR(64) NOT NULL,
             nama VARCHAR(160) NOT NULL,
+            nama_label VARCHAR(160) NULL,
             kategori VARCHAR(40) NOT NULL DEFAULT \'Lainnya\',
             lokasi VARCHAR(160) NULL,
             merk VARCHAR(120) NULL,
@@ -100,6 +101,7 @@ function ensure_inventaris_barang_tables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ');
     $pdo->exec('ALTER TABLE inventaris_barang MODIFY kode VARCHAR(64) NOT NULL');
+    $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS nama_label VARCHAR(160) NULL');
     $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS asal_barang VARCHAR(160) NULL');
     $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS status_barang VARCHAR(40) NOT NULL DEFAULT \'Tersedia\'');
     $pdo->exec('ALTER TABLE inventaris_barang_cek ADD COLUMN IF NOT EXISTS komponen_json TEXT NULL');
@@ -178,7 +180,7 @@ function inventaris_barang_cek_url(string $kode): string
 
 /**
  * @param array<string, mixed> $post
- * @return array{nama:string,kategori:string,lokasi:?string,merk:?string,keterangan:?string,jumlah:int,satuan:string,kondisi:string,status_kelengkapan:string,status_barang:string,catatan_kekurangan:?string,penanggung_jawab:?string,asal_barang:?string,tanggal_cek:?string,is_aktif:int}
+ * @return array{nama:string,nama_label:?string,kategori:string,lokasi:?string,merk:?string,keterangan:?string,jumlah:int,satuan:string,kondisi:string,status_kelengkapan:string,status_barang:string,catatan_kekurangan:?string,penanggung_jawab:?string,asal_barang:?string,tanggal_cek:?string,is_aktif:int}
  */
 function inventaris_barang_normalize_input(array $post): array
 {
@@ -197,6 +199,7 @@ function inventaris_barang_normalize_input(array $post): array
 
     return [
         'nama' => inventaris_barang_clip((string) ($post['nama'] ?? ''), 160),
+        'nama_label' => inventaris_barang_nullable(inventaris_barang_clip((string) ($post['nama_label'] ?? ''), 160)),
         'kategori' => inventaris_barang_pick((string) ($post['kategori'] ?? ''), inventaris_barang_kategori_options(), 'Lainnya'),
         'lokasi' => inventaris_barang_nullable(inventaris_barang_clip((string) ($post['lokasi'] ?? ''), 160)),
         'merk' => inventaris_barang_nullable(inventaris_barang_clip((string) ($post['merk'] ?? ''), 120)),
@@ -347,7 +350,7 @@ function inventaris_barang_save(PDO $pdo, array $post, int $id = 0): array
             $pdo->beginTransaction();
             $pdo->prepare('
                 UPDATE inventaris_barang
-                SET kode = :kode, nama = :nama, kategori = :kategori, lokasi = :lokasi, merk = :merk, keterangan = :keterangan,
+                SET kode = :kode, nama = :nama, nama_label = :nama_label, kategori = :kategori, lokasi = :lokasi, merk = :merk, keterangan = :keterangan,
                     jumlah = :jumlah, satuan = :satuan, kondisi = :kondisi, status_kelengkapan = :status_kelengkapan,
                     status_barang = :status_barang, catatan_kekurangan = :catatan_kekurangan, penanggung_jawab = :penanggung_jawab,
                     asal_barang = :asal_barang, tanggal_cek = :tanggal_cek, is_aktif = :is_aktif
@@ -375,10 +378,10 @@ function inventaris_barang_save(PDO $pdo, array $post, int $id = 0): array
             $pdo->beginTransaction();
             $pdo->prepare('
                 INSERT INTO inventaris_barang (
-                    kode, nama, kategori, lokasi, merk, keterangan, jumlah, satuan, kondisi,
+                    kode, nama, nama_label, kategori, lokasi, merk, keterangan, jumlah, satuan, kondisi,
                     status_kelengkapan, status_barang, catatan_kekurangan, penanggung_jawab, asal_barang, tanggal_cek, is_aktif
                 ) VALUES (
-                    :kode, :nama, :kategori, :lokasi, :merk, :keterangan, :jumlah, :satuan, :kondisi,
+                    :kode, :nama, :nama_label, :kategori, :lokasi, :merk, :keterangan, :jumlah, :satuan, :kondisi,
                     :status_kelengkapan, :status_barang, :catatan_kekurangan, :penanggung_jawab, :asal_barang, :tanggal_cek, :is_aktif
                 )
             ')->execute($data + ['kode' => $kode]);

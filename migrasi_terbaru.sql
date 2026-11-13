@@ -577,5 +577,6 @@ CREATE TABLE IF NOT EXISTS inventaris_barang_komponen (
     CONSTRAINT fk_inventaris_komponen_barang FOREIGN KEY (barang_id) REFERENCES inventaris_barang(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS nama_label VARCHAR(160) NULL;
 ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS asal_barang VARCHAR(160) NULL;
 ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS status_barang VARCHAR(40) NOT NULL DEFAULT 'Tersedia';

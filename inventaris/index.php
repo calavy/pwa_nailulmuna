@@ -129,6 +129,11 @@ require_once __DIR__ . '/../includes/header.php';
                 <label class="form-label small">Nama barang</label>
                 <input type="text" name="nama" class="form-control" maxlength="160" required value="<?= htmlspecialchars($val('nama')) ?>" placeholder="Contoh: Lemari pakaian kamar 3">
             </div>
+            <div class="col-12">
+                <label class="form-label small" for="nama_label">Nama label</label>
+                <input type="text" name="nama_label" id="nama_label" class="form-control" maxlength="160" value="<?= htmlspecialchars($val('nama_label')) ?>" placeholder="Teks yang tercetak di label QR">
+                <div class="form-text">Diisi manual. Kosongkan untuk memakai nama barang. Teks ini tertulis di label dan menjadi nama berkas JPG.</div>
+            </div>
             <div class="col-md-3">
                 <label class="form-label small">Kategori</label>
                 <select name="kategori" class="form-select">
