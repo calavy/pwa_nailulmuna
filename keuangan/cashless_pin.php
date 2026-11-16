@@ -21,6 +21,39 @@ if (($_GET['download'] ?? '') === 'xlsx') {
     exit;
 }
 
+$pengeluaranDari = trim((string) ($_GET['dari'] ?? date('Y-m-01')));
+$pengeluaranSampai = trim((string) ($_GET['sampai'] ?? date('Y-m-d')));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $pengeluaranDari)) {
+    $pengeluaranDari = date('Y-m-01');
+}
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $pengeluaranSampai)) {
+    $pengeluaranSampai = date('Y-m-d');
+}
+if ($pengeluaranDari > $pengeluaranSampai) {
+    [$pengeluaranDari, $pengeluaranSampai] = [$pengeluaranSampai, $pengeluaranDari];
+}
+
+if (($_GET['download'] ?? '') === 'pengeluaran_csv') {
+    $pengeluaranRows = cashless_rekap_pengeluaran_manual_per_santri($pdo, $pengeluaranDari, $pengeluaranSampai);
+    $fn = 'rekap_pengeluaran_manual_' . $pengeluaranDari . '_' . $pengeluaranSampai . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $fn . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['NIS', 'Nama', 'Tingkatan', 'Jumlah transaksi', 'Total nominal'], ';');
+    foreach ($pengeluaranRows as $row) {
+        fputcsv($out, [
+            (string) ($row['nis'] ?? ''),
+            (string) ($row['nama_santri'] ?? ''),
+            (string) ($row['tingkatan'] ?? ''),
+            (string) ($row['jumlah'] ?? 0),
+            (string) ($row['total'] ?? 0),
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_POST['action'] ?? '') === 'save_cashless_limit') {
         $limitRaw = preg_replace('/[^0-9]/', '', (string) ($_POST['batas_harian'] ?? '10000')) ?? '10000';
@@ -196,6 +229,9 @@ if ($ubahPinSantriId > 0) {
     $activeTab = 'pin';
 }
 $pengeluaranRecent = $activeTab === 'rekap' ? cashless_list_pengeluaran_manual_recent($pdo, 15) : [];
+$pengeluaranRekap = $activeTab === 'rekap'
+    ? cashless_rekap_pengeluaran_manual_per_santri($pdo, $pengeluaranDari, $pengeluaranSampai)
+    : [];
 
 $santriNameExpr = column_exists($pdo, 'santri', 'nama_santri') ? 's.nama_santri' : 's.nama';
 $santriLevelExpr = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''";
@@ -317,8 +353,59 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
                     </button>
                 </div>
             </form>
+            <form method="get" class="row g-2 align-items-end mt-3">
+                <input type="hidden" name="tab" value="rekap">
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-0">Dari</label>
+                    <input type="date" name="dari" class="form-control form-control-sm" value="<?= htmlspecialchars($pengeluaranDari) ?>">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-0">Sampai</label>
+                    <input type="date" name="sampai" class="form-control form-control-sm" value="<?= htmlspecialchars($pengeluaranSampai) ?>">
+                </div>
+                <div class="col-auto d-flex flex-wrap gap-1">
+                    <button class="btn btn-primary btn-sm">Tampilkan</button>
+                    <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/keuangan/cashless_pin.php?' . http_build_query([
+                        'tab' => 'rekap',
+                        'dari' => $pengeluaranDari,
+                        'sampai' => $pengeluaranSampai,
+                        'download' => 'pengeluaran_csv',
+                    ]))) ?>">
+                        <i class="fa-solid fa-file-csv me-1"></i>Unduh CSV
+                    </a>
+                </div>
+            </form>
+            <div class="table-responsive mt-3">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr class="small text-muted">
+                            <th>NIS</th>
+                            <th>Nama</th>
+                            <th>Tingkatan</th>
+                            <th class="text-end">Jumlah</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if ($pengeluaranRekap === []): ?>
+                        <tr><td colspan="5" class="text-center text-muted py-3 small">Tidak ada pengeluaran manual pada rentang ini.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($pengeluaranRekap as $pr): ?>
+                            <tr class="small">
+                                <td class="font-monospace"><?= htmlspecialchars((string) ($pr['nis'] ?? '')) ?></td>
+                                <td><?= htmlspecialchars((string) ($pr['nama_santri'] ?? '')) ?></td>
+                                <td class="text-muted"><?= htmlspecialchars((string) (($pr['tingkatan'] ?? '') !== '' ? $pr['tingkatan'] : '—')) ?></td>
+                                <td class="text-end font-monospace"><?= (int) ($pr['jumlah'] ?? 0) ?></td>
+                                <td class="text-end font-monospace fw-semibold">Rp <?= number_format((int) ($pr['total'] ?? 0), 0, ',', '.') ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
             <?php if ($pengeluaranRecent !== []): ?>
-                <div class="table-responsive mt-3">
+                <div class="small text-muted mt-3 mb-1">15 transaksi terakhir</div>
+                <div class="table-responsive">
                     <table class="table table-sm mb-0 align-middle">
                         <thead class="table-light">
                             <tr class="small text-muted">

@@ -231,6 +231,78 @@ function cashless_list_pengeluaran_manual_recent(PDO $pdo, int $limit = 20): arr
 }
 
 /**
+ * Rekap pengeluaran manual (jenis PENGELUARAN) per santri aktif pada rentang tanggal.
+ *
+ * @return list<array{santri_id:int,nis:string,nama_santri:string,tingkatan:string,jumlah:int,total:int}>
+ */
+function cashless_rekap_pengeluaran_manual_per_santri(PDO $pdo, string $dari, string $sampai): array
+{
+    if (!table_exists($pdo, 'cashless_transactions') || !table_exists($pdo, 'santri')) {
+        return [];
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
+        return [];
+    }
+    if ($dari > $sampai) {
+        [$dari, $sampai] = [$sampai, $dari];
+    }
+
+    cashless_koperasi_ensure_schema($pdo);
+    cashless_ensure_jenis_pengeluaran($pdo);
+    require_once __DIR__ . '/santri_list_sort.php';
+
+    $namaCol = santri_list_nama_db_column($pdo);
+    $namaSql = santri_list_select_nama_sql($pdo, 's', 'nama_santri');
+    $tingkatanExpr = column_exists($pdo, 'santri', 'tingkatan') ? 's.tingkatan' : "''";
+    $joinKelas = '';
+    $groupTingkatan = '';
+    if (!column_exists($pdo, 'santri', 'tingkatan') && column_exists($pdo, 'santri', 'kelas_id') && table_exists($pdo, 'kelas')) {
+        $joinKelas = ' LEFT JOIN kelas k ON k.id = s.kelas_id ';
+        $tingkatanExpr = 'k.nama_kelas';
+        $groupTingkatan = ', k.nama_kelas';
+    } elseif (column_exists($pdo, 'santri', 'tingkatan')) {
+        $groupTingkatan = ', s.tingkatan';
+    }
+    $whereAktif = column_exists($pdo, 'santri', 'is_aktif') ? ' AND s.is_aktif = 1 ' : '';
+    $tanggalSql = column_exists($pdo, 'cashless_transactions', 'tanggal')
+        ? ' AND DATE(ct.tanggal) BETWEEN :dari AND :sampai '
+        : '';
+
+    $sql = '
+        SELECT s.id AS santri_id, s.nis, ' . $namaSql . ', ' . $tingkatanExpr . ' AS tingkatan,
+               COUNT(ct.id) AS jumlah,
+               COALESCE(SUM(ct.nominal), 0) AS total
+        FROM cashless_transactions ct
+        INNER JOIN santri s ON s.id = ct.santri_id
+        ' . $joinKelas . '
+        WHERE UPPER(ct.jenis) = \'PENGELUARAN\'
+        ' . $whereAktif . '
+        ' . $tanggalSql . '
+        GROUP BY s.id, s.nis, s.' . $namaCol . $groupTingkatan . '
+        ORDER BY total DESC, s.' . $namaCol . ' ASC
+    ';
+    $st = $pdo->prepare($sql);
+    $params = [];
+    if ($tanggalSql !== '') {
+        $params = ['dari' => $dari, 'sampai' => $sampai];
+    }
+    $st->execute($params);
+    $rows = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $rows[] = [
+            'santri_id' => (int) ($row['santri_id'] ?? 0),
+            'nis' => (string) ($row['nis'] ?? ''),
+            'nama_santri' => (string) ($row['nama_santri'] ?? ''),
+            'tingkatan' => (string) ($row['tingkatan'] ?? ''),
+            'jumlah' => (int) ($row['jumlah'] ?? 0),
+            'total' => (int) round((float) ($row['total'] ?? 0)),
+        ];
+    }
+
+    return $rows;
+}
+
+/**
  * Jam reset jatah harian cashless (HH:MM). Default 00:00 (tengah malam).
  */
 function cashless_daily_reset_jam(?PDO $pdo = null): string

@@ -73,6 +73,27 @@ if (table_exists($pdo, 'pkpps_jadwal') && table_exists($pdo, 'presensi_pembimbin
     $pembimbingRows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+if ((string) ($_GET['export'] ?? '') === 'pembimbing') {
+    $fn = 'keaktivan_pembimbing_pkpps_' . $dari . '_' . $sampai . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $fn . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['NIP', 'Nama', 'Tingkatan', 'Jadwal', 'Hadir', 'Hari'], ';');
+    foreach ($pembimbingRows as $r) {
+        fputcsv($out, [
+            (string) ($r['nip'] ?? ''),
+            (string) ($r['nama_pembimbing'] ?? ''),
+            (string) ($r['jumlah_tingkatan'] ?? 0),
+            (string) ($r['jumlah_jadwal'] ?? 0),
+            (string) ($r['total_hadir'] ?? 0),
+            (string) ($r['hari_hadir'] ?? 0),
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 $pageTitle = 'Keaktivan PKPPS';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -177,7 +198,17 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <div class="card shadow-sm mb-3">
-    <div class="card-header"><strong>Keaktivan Pembimbing PKPPS — <?= $filterMode === 'bulan' ? htmlspecialchars($periodeLabelPkpps . ' (' . $rentangPkpps . ')') : htmlspecialchars($dari . ' s/d ' . $sampai) ?></strong></div>
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <strong>Keaktivan Pembimbing PKPPS — <?= $filterMode === 'bulan' ? htmlspecialchars($periodeLabelPkpps . ' (' . $rentangPkpps . ')') : htmlspecialchars($dari . ' s/d ' . $sampai) ?></strong>
+        <?php
+        $csvPembimbingQs = $_GET;
+        $csvPembimbingQs['export'] = 'pembimbing';
+        unset($csvPembimbingQs['sync']);
+        ?>
+        <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pkpps_keaktivan.php?' . http_build_query($csvPembimbingQs))) ?>">
+            <i class="fa-solid fa-file-csv me-1"></i>Unduh CSV
+        </a>
+    </div>
     <div class="table-responsive">
         <table class="table table-sm table-striped mb-0 align-middle">
             <thead class="table-light">

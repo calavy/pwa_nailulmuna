@@ -42,6 +42,27 @@ $allRows = rekap_pembimbing_kehadiran_rows($pdo, $startDate, $endDate, $pembimbi
 $rows = $hanyaTanpaScan ? rekap_pembimbing_kehadiran_filter_tanpa_scan($allRows) : $allRows;
 $summary = rekap_pembimbing_kehadiran_summary($allRows);
 
+if ((string) ($_GET['export'] ?? '') === 'csv') {
+    $fn = 'rekap_kehadiran_pembimbing_' . $startDate . '_' . $endDate . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $fn . '"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, ['Pembimbing', 'NIP', 'Kegiatan', 'Tanggal', 'Hari', 'Status'], ';');
+    foreach ($rows as $row) {
+        fputcsv($out, [
+            (string) ($row['nama_pembimbing'] ?? ''),
+            (string) ($row['nip'] ?? ''),
+            (string) ($row['nama_kegiatan'] ?? ''),
+            (string) ($row['tanggal_tampil'] ?? ($row['tanggal'] ?? '')),
+            (string) ($row['hari_label'] ?? ''),
+            (string) ($row['status_label'] ?? ''),
+        ], ';');
+    }
+    fclose($out);
+    exit;
+}
+
 $statusBadge = static function (string $status, string $label): string {
     if ($status === 'H') {
         return '<span class="badge text-bg-success">' . htmlspecialchars($label) . '</span>';
@@ -155,7 +176,14 @@ unset($rekapPeriodeExtraSlot);
     </div>
 </div>
 
-<div class="d-flex justify-content-end mb-2 print-hide">
+<div class="d-flex justify-content-end gap-2 mb-2 print-hide">
+    <?php
+    $csvQs = $_GET;
+    $csvQs['export'] = 'csv';
+    ?>
+    <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(app_href('/rekap/pembimbing_kehadiran.php?' . http_build_query($csvQs))) ?>">
+        <i class="fa-solid fa-file-csv me-1"></i> Unduh CSV
+    </a>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
         <i class="fa-solid fa-print me-1"></i> Cetak
     </button>

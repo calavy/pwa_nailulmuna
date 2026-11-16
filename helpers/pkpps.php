@@ -693,13 +693,21 @@ function pkpps_rekap_keaktivan_santri_tahun(PDO $pdo, int $tahun, bool $useCache
     }
     [$dari, $sampai] = $clamped;
 
+    require_once __DIR__ . '/presensi_admin.php';
+    ensure_presensi_jadwal_column($pdo);
+
     $goodMax = (int) app_setting($pdo, 'kategori_baik_max', '1');
     $mediumMax = (int) app_setting($pdo, 'kategori_sedang_max', '3');
     $aktifSql = santri_sql_aktif_only('s');
     $nameCol = column_exists($pdo, 'santri', 'nama_santri') ? 'nama_santri' : 'nama';
-    $pkppsPresensiSql = table_exists($pdo, 'pkpps_jadwal')
-        ? '(p.pkpps_jadwal_id IS NOT NULL OR p.kegiatan_id IN (SELECT DISTINCT kegiatan_id FROM pkpps_jadwal WHERE is_aktif = 1))'
-        : '1=0';
+    $byKegiatan = 'p.kegiatan_id IN (SELECT DISTINCT kegiatan_id FROM pkpps_jadwal WHERE is_aktif = 1)';
+    if (!table_exists($pdo, 'pkpps_jadwal')) {
+        $pkppsPresensiSql = '1=0';
+    } elseif (column_exists($pdo, 'presensi', 'pkpps_jadwal_id')) {
+        $pkppsPresensiSql = '(p.pkpps_jadwal_id IS NOT NULL OR ' . $byKegiatan . ')';
+    } else {
+        $pkppsPresensiSql = '(' . $byKegiatan . ')';
+    }
 
     $st = $pdo->prepare('
         SELECT
