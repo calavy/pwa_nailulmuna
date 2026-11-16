@@ -1085,7 +1085,6 @@
         min-height: 1.5rem;
     }
 
-    .login-scan-kegiatan__hint,
     .login-pb-scan .login-pb-qr__hint,
     .presensi-scan-start-wrap .small {
         display: none;

@@ -1331,17 +1331,7 @@ body.auth-portal-page--pb-scan {
     flex-shrink: 0;
 }
 
-.login-scan-kegiatan__hint {
-    flex-shrink: 0;
-    padding: 0.3rem 0.75rem 0.4rem;
-    color: #94a3b8 !important;
-}
-
 @media (max-height: 760px) {
-    .login-scan-kegiatan__hint {
-        display: none;
-    }
-
     .login-scan-kegiatan .presensi-scan-timer:not(.has-marquee) .presensi-scan-timer-inner {
         padding: 0.35rem 0.5rem 0.3rem;
     }
