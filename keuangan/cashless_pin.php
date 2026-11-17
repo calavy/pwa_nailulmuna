@@ -157,6 +157,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $redir);
         exit;
     }
+    if (in_array(($_POST['action'] ?? ''), ['edit_pengeluaran_manual', 'delete_pengeluaran_manual'], true)) {
+        $postDari = trim((string) ($_POST['dari'] ?? ''));
+        $postSampai = trim((string) ($_POST['sampai'] ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $postDari)) {
+            $pengeluaranDari = $postDari;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $postSampai)) {
+            $pengeluaranSampai = $postSampai;
+        }
+        if ($pengeluaranDari > $pengeluaranSampai) {
+            [$pengeluaranDari, $pengeluaranSampai] = [$pengeluaranSampai, $pengeluaranDari];
+        }
+        $userId = (int) ($_SESSION['user']['id'] ?? 0);
+        $txId = (int) ($_POST['tx_id'] ?? 0);
+        if (($_POST['action'] ?? '') === 'delete_pengeluaran_manual') {
+            $res = cashless_delete_pengeluaran_manual($pdo, $txId);
+        } else {
+            $nominalRaw = preg_replace('/[^0-9]/', '', (string) ($_POST['nominal'] ?? '0')) ?? '0';
+            $nominal = (int) $nominalRaw;
+            $ket = trim((string) ($_POST['keterangan'] ?? ''));
+            $res = cashless_update_pengeluaran_manual($pdo, $txId, $nominal, $ket, $userId);
+        }
+        set_flash($res['ok'] ? 'success' : 'error', (string) ($res['message'] ?? 'Gagal.'));
+        $q = [
+            'tab' => 'rekap',
+            'dari' => $pengeluaranDari,
+            'sampai' => $pengeluaranSampai,
+        ];
+        $sid = (int) ($_POST['pengeluaran_santri'] ?? 0);
+        if ($sid > 0) {
+            $q['pengeluaran_santri'] = $sid;
+        }
+        header('Location: ' . app_rewrite_internal_url('/keuangan/cashless_pin.php?' . http_build_query($q) . '#pengeluaran-manual'));
+        exit;
+    }
     if (($_POST['action'] ?? '') === 'save_cashless_pin') {
         $santriId = (int) ($_POST['santri_id'] ?? 0);
         $pinBaru = trim((string) ($_POST['pin_baru'] ?? ''));
@@ -228,7 +263,9 @@ if (!in_array($activeTab, $allowedTabs, true)) {
 if ($ubahPinSantriId > 0) {
     $activeTab = 'pin';
 }
-$pengeluaranRecent = $activeTab === 'rekap' ? cashless_list_pengeluaran_manual_recent($pdo, 15) : [];
+$pengeluaranRincian = $activeTab === 'rekap'
+    ? cashless_list_pengeluaran_manual($pdo, $pengeluaranDari, $pengeluaranSampai, 200)
+    : [];
 $pengeluaranRekap = $activeTab === 'rekap'
     ? cashless_rekap_pengeluaran_manual_per_santri($pdo, $pengeluaranDari, $pengeluaranSampai)
     : [];
@@ -403,31 +440,117 @@ $tabBaseUrl = app_href('/keuangan/cashless_pin.php');
                     </tbody>
                 </table>
             </div>
-            <?php if ($pengeluaranRecent !== []): ?>
-                <div class="small text-muted mt-3 mb-1">15 transaksi terakhir</div>
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr class="small text-muted">
-                                <th>Waktu</th>
-                                <th>Santri</th>
-                                <th class="text-end">Nominal</th>
-                                <th>Keterangan</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($pengeluaranRecent as $pg): ?>
+            <div class="small text-muted mt-3 mb-1">
+                Rincian transaksi
+                <?php if (count($pengeluaranRincian) >= 200): ?>
+                    <span>(maksimal 200 baris terbaru pada rentang ini)</span>
+                <?php endif; ?>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr class="small text-muted">
+                            <th>Waktu</th>
+                            <th>Santri</th>
+                            <th class="text-end">Nominal</th>
+                            <th>Keterangan</th>
+                            <th class="text-end d-print-none">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if ($pengeluaranRincian === []): ?>
+                        <tr><td colspan="5" class="text-center text-muted py-3 small">Tidak ada pengeluaran manual pada rentang ini.</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($pengeluaranRincian as $pg):
+                            $pgId = (int) ($pg['id'] ?? 0);
+                            $pgNominal = (int) round((float) ($pg['nominal'] ?? 0));
+                            $pgKet = (string) ($pg['keterangan'] ?? '');
+                            $pgNama = (string) (($pg['nis'] ?? '') . ' — ' . ($pg['nama_santri'] ?? ''));
+                            ?>
                             <tr class="small">
                                 <td class="text-muted font-monospace"><?= htmlspecialchars((string) ($pg['tanggal'] ?? '')) ?></td>
-                                <td><?= htmlspecialchars((string) (($pg['nis'] ?? '') . ' — ' . ($pg['nama_santri'] ?? ''))) ?></td>
-                                <td class="text-end font-monospace fw-semibold">Rp <?= number_format((int) round((float) ($pg['nominal'] ?? 0)), 0, ',', '.') ?></td>
-                                <td class="text-muted"><?= htmlspecialchars((string) ($pg['keterangan'] ?? '—')) ?></td>
+                                <td><?= htmlspecialchars($pgNama) ?></td>
+                                <td class="text-end font-monospace fw-semibold">Rp <?= number_format($pgNominal, 0, ',', '.') ?></td>
+                                <td class="text-muted"><?= htmlspecialchars($pgKet !== '' ? $pgKet : '—') ?></td>
+                                <td class="text-end text-nowrap d-print-none">
+                                    <button type="button"
+                                            class="btn btn-outline-primary btn-sm py-0 px-1 me-1 btn-edit-pengeluaran"
+                                            title="Edit"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#modalEditPengeluaran"
+                                            data-tx-id="<?= $pgId ?>"
+                                            data-nominal="<?= $pgNominal ?>"
+                                            data-keterangan="<?= htmlspecialchars($pgKet, ENT_QUOTES, 'UTF-8') ?>"
+                                            data-nama="<?= htmlspecialchars($pgNama, ENT_QUOTES, 'UTF-8') ?>">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <form method="post" class="d-inline form-delete-pengeluaran">
+                                        <input type="hidden" name="action" value="delete_pengeluaran_manual">
+                                        <input type="hidden" name="tx_id" value="<?= $pgId ?>">
+                                        <input type="hidden" name="dari" value="<?= htmlspecialchars($pengeluaranDari) ?>">
+                                        <input type="hidden" name="sampai" value="<?= htmlspecialchars($pengeluaranSampai) ?>">
+                                        <input type="hidden" name="pengeluaran_santri" value="<?= (int) $pengeluaranSantriId ?>">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal fade" id="modalEditPengeluaran" tabindex="-1" aria-labelledby="modalEditPengeluaranLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <form method="post" class="modal-content" id="formEditPengeluaran">
+                        <input type="hidden" name="action" value="edit_pengeluaran_manual">
+                        <input type="hidden" name="tx_id" id="editPengeluaranTxId" value="">
+                        <input type="hidden" name="dari" value="<?= htmlspecialchars($pengeluaranDari) ?>">
+                        <input type="hidden" name="sampai" value="<?= htmlspecialchars($pengeluaranSampai) ?>">
+                        <input type="hidden" name="pengeluaran_santri" value="<?= (int) $pengeluaranSantriId ?>">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalEditPengeluaranLabel">Edit pengeluaran manual</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="small text-muted mb-3" id="editPengeluaranSantri"></p>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold" for="editPengeluaranNominal">Nominal (Rp)</label>
+                                <input type="number" name="nominal" id="editPengeluaranNominal" class="form-control" min="1" step="1" required>
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label small fw-semibold" for="editPengeluaranKeterangan">Keterangan</label>
+                                <input type="text" name="keterangan" id="editPengeluaranKeterangan" class="form-control" maxlength="255">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-primary">Simpan</button>
+                        </div>
+                    </form>
                 </div>
-            <?php endif; ?>
+            </div>
+            <script>
+            (function () {
+                var modal = document.getElementById('modalEditPengeluaran');
+                if (modal) {
+                    modal.addEventListener('show.bs.modal', function (e) {
+                        var btn = e.relatedTarget;
+                        if (!btn) return;
+                        document.getElementById('editPengeluaranTxId').value = btn.getAttribute('data-tx-id') || '';
+                        document.getElementById('editPengeluaranNominal').value = btn.getAttribute('data-nominal') || '';
+                        document.getElementById('editPengeluaranKeterangan').value = btn.getAttribute('data-keterangan') || '';
+                        document.getElementById('editPengeluaranSantri').textContent = 'Santri: ' + (btn.getAttribute('data-nama') || '-');
+                    });
+                }
+                document.querySelectorAll('.form-delete-pengeluaran').forEach(function (form) {
+                    form.addEventListener('submit', function (e) {
+                        if (!confirm('Hapus pengeluaran manual ini? Saldo santri akan dikembalikan.')) {
+                            e.preventDefault();
+                        }
+                    });
+                });
+            })();
+            </script>
         </div>
     </div>
 

@@ -206,28 +206,205 @@ function cashless_insert_pengeluaran_manual(
 }
 
 /**
+ * Rincian pengeluaran manual (jenis PENGELUARAN) pada rentang tanggal.
+ *
  * @return list<array<string,mixed>>
  */
-function cashless_list_pengeluaran_manual_recent(PDO $pdo, int $limit = 20): array
+function cashless_list_pengeluaran_manual(PDO $pdo, string $dari, string $sampai, int $limit = 200): array
 {
     if (!table_exists($pdo, 'cashless_transactions') || !table_exists($pdo, 'santri')) {
         return [];
     }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dari) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $sampai)) {
+        return [];
+    }
+    if ($dari > $sampai) {
+        [$dari, $sampai] = [$sampai, $dari];
+    }
+
     cashless_ensure_jenis_pengeluaran($pdo);
-    $limit = max(1, min(100, $limit));
     require_once __DIR__ . '/santri_list_sort.php';
     $namaSql = santri_list_select_nama_sql($pdo, 's', 'nama_santri');
-    $st = $pdo->query("
+    $limit = max(1, min(200, $limit));
+    $tanggalSql = column_exists($pdo, 'cashless_transactions', 'tanggal')
+        ? ' AND DATE(ct.tanggal) BETWEEN :dari AND :sampai '
+        : '';
+
+    $sql = '
         SELECT ct.id, ct.santri_id, ct.nominal, ct.keterangan, ct.tanggal,
-               s.nis, {$namaSql}
+               s.nis, ' . $namaSql . '
         FROM cashless_transactions ct
         INNER JOIN santri s ON s.id = ct.santri_id
-        WHERE UPPER(ct.jenis) = 'PENGELUARAN'
+        WHERE UPPER(ct.jenis) = \'PENGELUARAN\'
+        ' . $tanggalSql . '
         ORDER BY ct.tanggal DESC, ct.id DESC
-        LIMIT {$limit}
-    ");
+        LIMIT ' . $limit;
+    $st = $pdo->prepare($sql);
+    $params = [];
+    if ($tanggalSql !== '') {
+        $params = ['dari' => $dari, 'sampai' => $sampai];
+    }
+    $st->execute($params);
 
-    return $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * Ubah nominal/keterangan pengeluaran manual. Santri dan tanggal tetap.
+ * Saldo dan jurnal titipan saku ikut disesuaikan. Jatah harian tidak berubah.
+ *
+ * @return array{ok:bool,message:string}
+ */
+function cashless_update_pengeluaran_manual(
+    PDO $pdo,
+    int $txId,
+    int $newNominal,
+    string $newKeterangan,
+    int $userId
+): array {
+    if ($txId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+        return ['ok' => false, 'message' => 'Transaksi tidak valid.'];
+    }
+    if ($newNominal <= 0) {
+        return ['ok' => false, 'message' => 'Nominal harus lebih dari 0.'];
+    }
+
+    cashless_ensure_jenis_pengeluaran($pdo);
+    $ket = trim($newKeterangan);
+    if ($ket === '') {
+        $ket = 'Pengeluaran manual (tanpa jatah harian)';
+    } elseif (mb_strlen($ket) > 255) {
+        $ket = mb_substr($ket, 0, 255);
+    }
+
+    $stmt = $pdo->prepare('
+        SELECT id, santri_id, jenis, nominal, keterangan, tanggal
+        FROM cashless_transactions
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $stmt->execute(['id' => $txId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || strtoupper((string) ($row['jenis'] ?? '')) !== 'PENGELUARAN') {
+        return ['ok' => false, 'message' => 'Pengeluaran manual tidak ditemukan.'];
+    }
+
+    $santriId = (int) ($row['santri_id'] ?? 0);
+    $oldNominal = (int) round((float) ($row['nominal'] ?? 0));
+    $oldKeterangan = trim((string) ($row['keterangan'] ?? ''));
+    if ($santriId <= 0 || $oldNominal <= 0) {
+        return ['ok' => false, 'message' => 'Data transaksi tidak lengkap.'];
+    }
+    if ($newNominal === $oldNominal && $ket === $oldKeterangan) {
+        return ['ok' => true, 'message' => 'Tidak ada perubahan.'];
+    }
+
+    $diff = $newNominal - $oldNominal;
+    if ($diff > 0) {
+        $saldoTampil = cashless_santri_saldo_tampil($pdo, $santriId);
+        if ($saldoTampil < $diff) {
+            $kurang = $diff - $saldoTampil;
+
+            return [
+                'ok' => false,
+                'message' => 'Saldo santri tidak cukup untuk menaikkan nominal (kurang Rp ' . number_format($kurang, 0, ',', '.') . ').',
+            ];
+        }
+    }
+
+    $tanggalJurnal = date('Y-m-d', strtotime((string) ($row['tanggal'] ?? 'now')) ?: time());
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $upd = $pdo->prepare('
+            UPDATE cashless_transactions
+            SET nominal = :nominal, keterangan = :keterangan
+            WHERE id = :id AND UPPER(jenis) = \'PENGELUARAN\'
+        ');
+        $upd->execute([
+            'nominal' => $newNominal,
+            'keterangan' => $ket,
+            'id' => $txId,
+        ]);
+        keuangan_jurnal_delete_by_ref($pdo, 'cashless_pengeluaran', $txId);
+        cashless_jurnal_pengeluaran_manual($pdo, $txId, $tanggalJurnal, $newNominal, $userId, $ket);
+        cashless_sync_account_balance($pdo, $santriId);
+        $pdo->commit();
+
+        return ['ok' => true, 'message' => 'Pengeluaran manual diperbarui. Saldo santri ikut disesuaikan.'];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal memperbarui: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Hapus pengeluaran manual, jurnalnya, lalu kembalikan saldo santri.
+ *
+ * @return array{ok:bool,message:string}
+ */
+function cashless_delete_pengeluaran_manual(PDO $pdo, int $txId): array
+{
+    if ($txId <= 0 || !table_exists($pdo, 'cashless_transactions')) {
+        return ['ok' => false, 'message' => 'Transaksi tidak valid.'];
+    }
+    cashless_ensure_jenis_pengeluaran($pdo);
+
+    $stmt = $pdo->prepare('
+        SELECT id, santri_id, jenis, nominal
+        FROM cashless_transactions
+        WHERE id = :id
+        LIMIT 1
+    ');
+    $stmt->execute(['id' => $txId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row || strtoupper((string) ($row['jenis'] ?? '')) !== 'PENGELUARAN') {
+        return ['ok' => false, 'message' => 'Pengeluaran manual tidak ditemukan.'];
+    }
+
+    $santriId = (int) ($row['santri_id'] ?? 0);
+    $nominal = (int) round((float) ($row['nominal'] ?? 0));
+    if ($santriId <= 0 || $nominal <= 0) {
+        return ['ok' => false, 'message' => 'Data transaksi tidak lengkap.'];
+    }
+
+    require_once __DIR__ . '/keuangan_jurnal.php';
+    if (!$pdo->inTransaction()) {
+        ensure_keuangan_jurnal_tables($pdo);
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $del = $pdo->prepare('
+            DELETE FROM cashless_transactions
+            WHERE id = :id AND UPPER(jenis) = \'PENGELUARAN\'
+        ');
+        $del->execute(['id' => $txId]);
+        if ($del->rowCount() < 1) {
+            throw new RuntimeException('Pengeluaran manual tidak terhapus.');
+        }
+        keuangan_jurnal_delete_by_ref($pdo, 'cashless_pengeluaran', $txId);
+        cashless_sync_account_balance($pdo, $santriId);
+        $pdo->commit();
+
+        return [
+            'ok' => true,
+            'message' => 'Pengeluaran manual dihapus. Saldo dikembalikan Rp ' . number_format($nominal, 0, ',', '.') . '.',
+        ];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return ['ok' => false, 'message' => 'Gagal menghapus: ' . $e->getMessage()];
+    }
 }
 
 /**
