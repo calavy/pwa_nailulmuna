@@ -54,7 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $editId = (int) ($_GET['edit'] ?? 0);
 $edit = $editId > 0 ? inventaris_barang_find($pdo, $editId) : null;
 $komponenEdit = is_array($edit) ? inventaris_barang_komponen_list($pdo, (int) $edit['id']) : [];
-$kodeUsulan = is_array($edit) ? (string) $edit['kode'] : inventaris_barang_generate_kode($pdo);
+$sheetEdit = is_array($edit)
+    ? inventaris_barang_sheet_dari_baris($edit)
+    : ['lokasi' => 'LAB', 'kategori' => 'PC', 'urut' => inventaris_barang_nomor_urut_berikutnya($pdo, 'LAB', 'PC'), 'induk' => ''];
+$lokasiDetail = is_array($edit) ? inventaris_barang_lokasi_detail($edit) : '';
+$kodePratinjau = inventaris_barang_susun_kode($sheetEdit['lokasi'], $sheetEdit['kategori'], $sheetEdit['urut']);
+if ($kodePratinjau === '' && is_array($edit)) {
+    $kodePratinjau = (string) $edit['kode'];
+}
+$pakaiKodeLama = is_array($edit) && ($sheetEdit['lokasi'] === '' || $sheetEdit['kategori'] === '' || $sheetEdit['urut'] === '');
+$petaUrut = inventaris_barang_peta_urut($pdo);
+$kodeSaran = $pdo->query('SELECT kode FROM inventaris_barang ORDER BY kode ASC')->fetchAll(PDO::FETCH_COLUMN) ?: [];
 $rows = inventaris_barang_list($pdo, $filter);
 $ringkas = inventaris_barang_ringkas($pdo);
 $qsKeep = array_filter([
@@ -80,7 +90,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="page-intro mb-3">
     <p class="page-intro-kicker mb-1"><a href="<?= htmlspecialchars(app_href('/menu/menu_hub.php?id=menu-grp-santri')) ?>">SDM</a></p>
     <h1 class="h4 mb-1">Kelengkapan barang inventaris</h1>
-    <p class="text-muted mb-0">Catat data barang beserta komponennya, unduh kode QR, lalu tempelkan pada barang. Memindai kode menampilkan kelengkapan barang.</p>
+    <p class="text-muted mb-0">Catat data barang beserta komponennya, unduh stiker, lalu tempelkan pada barang. Memindai kode QR menampilkan kelengkapan barang.</p>
 </div>
 
 <div class="row g-2 mb-3">
@@ -120,31 +130,66 @@ require_once __DIR__ . '/../includes/header.php';
             <?php foreach ($qsKeep as $keepKey => $keepVal): ?>
                 <input type="hidden" name="<?= htmlspecialchars((string) $keepKey) ?>" value="<?= htmlspecialchars((string) $keepVal) ?>">
             <?php endforeach; ?>
-            <div class="col-md-4">
-                <label class="form-label small">Kode barang</label>
-                <input type="text" name="kode" class="form-control" maxlength="64" value="<?= htmlspecialchars($kodeUsulan) ?>" placeholder="Contoh: LEMARI-03">
-                <div class="form-text">Kosongkan untuk kode otomatis. Huruf, angka, minus, dan garis bawah. Mengubah kode membuat QR lama tidak lagi cocok.</div>
+            <div class="col-12">
+                <div class="border border-success-subtle rounded-3 p-3 bg-success-subtle">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <div class="small fw-bold text-success-emphasis">Format kode sheet · LOKASI-KATEGORI-URUT</div>
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <a class="small" href="<?= htmlspecialchars(app_href('/inventaris/kode.php')) ?>">Atur kode</a>
+                            <div class="small">Pratinjau: <code id="kode-pratinjau"><?= htmlspecialchars($kodePratinjau !== '' ? $kodePratinjau : '—') ?></code></div>
+                        </div>
+                    </div>
+                    <?php if ($pakaiKodeLama): ?>
+                        <p class="small mb-2">Kode saat ini <strong><?= htmlspecialchars((string) $edit['kode']) ?></strong> bukan format sheet. Isi ketiga kolom untuk menggantinya, atau biarkan kosong untuk mempertahankan kode lama.</p>
+                    <?php endif; ?>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1" for="kode_lokasi">Kode lokasi</label>
+                            <select name="kode_lokasi" id="kode_lokasi" class="form-select form-select-sm">
+                                <option value="">—</option>
+                                <?php foreach (inventaris_barang_lokasi_sheet() as $kodeLok => $namaLok): ?>
+                                    <option value="<?= htmlspecialchars($kodeLok) ?>"<?= $sheetEdit['lokasi'] === $kodeLok ? ' selected' : '' ?>><?= htmlspecialchars($kodeLok . ' · ' . $namaLok) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1" for="kode_kategori">Kode kategori</label>
+                            <select name="kode_kategori" id="kode_kategori" class="form-select form-select-sm">
+                                <option value="">—</option>
+                                <?php foreach (inventaris_barang_kategori_sheet() as $kodeKat => $metaKat): ?>
+                                    <option value="<?= htmlspecialchars($kodeKat) ?>"<?= $sheetEdit['kategori'] === $kodeKat ? ' selected' : '' ?>><?= htmlspecialchars($kodeKat . ' · ' . $metaKat['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1" for="nomor_urut">No. urut</label>
+                            <input type="text" name="nomor_urut" id="nomor_urut" class="form-control form-control-sm text-uppercase" maxlength="8" value="<?= htmlspecialchars($sheetEdit['urut']) ?>" placeholder="01" inputmode="numeric">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small mb-1" for="kode_induk">Kode induk (opsional, untuk komponen)</label>
+                            <input type="text" name="kode_induk" id="kode_induk" class="form-control form-control-sm text-uppercase" maxlength="64" value="<?= htmlspecialchars($sheetEdit['induk']) ?>" list="saran-kode-induk" placeholder="Kosongkan, atau contoh LAB-PC-01">
+                            <datalist id="saran-kode-induk">
+                                <?php foreach ($kodeSaran as $saran): ?>
+                                    <option value="<?= htmlspecialchars((string) $saran) ?>"></option>
+                                <?php endforeach; ?>
+                            </datalist>
+                        </div>
+                    </div>
+                    <p class="form-text mb-0 mt-2">Barang utama memakai kode seperti <code>LAB-PC-01</code>. Komponen yang perlu stiker sendiri dicatat terpisah dengan kode induk.</p>
+                </div>
             </div>
             <div class="col-md-8">
                 <label class="form-label small">Nama barang</label>
-                <input type="text" name="nama" class="form-control" maxlength="160" required value="<?= htmlspecialchars($val('nama')) ?>" placeholder="Contoh: Lemari pakaian kamar 3">
+                <input type="text" name="nama" class="form-control" maxlength="160" required value="<?= htmlspecialchars($val('nama')) ?>" placeholder="Contoh: Komputer laboratorium">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small" for="lokasi">Detail tempat</label>
+                <input type="text" name="lokasi" id="lokasi" class="form-control" maxlength="120" value="<?= htmlspecialchars($lokasiDetail) ?>" placeholder="Kamar, ruang, atau gedung">
             </div>
             <div class="col-12">
                 <label class="form-label small" for="nama_label">Nama label</label>
-                <input type="text" name="nama_label" id="nama_label" class="form-control" maxlength="160" value="<?= htmlspecialchars($val('nama_label')) ?>" placeholder="Teks yang tercetak di label QR">
-                <div class="form-text">Diisi manual. Kosongkan untuk memakai nama barang. Teks ini tertulis di label dan menjadi nama berkas JPG.</div>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">Kategori</label>
-                <select name="kategori" class="form-select">
-                    <?php foreach (inventaris_barang_kategori_options() as $opt): ?>
-                        <option value="<?= htmlspecialchars($opt) ?>"<?= $val('kategori', 'Lainnya') === $opt ? ' selected' : '' ?>><?= htmlspecialchars($opt) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label small">Lokasi</label>
-                <input type="text" name="lokasi" class="form-control" maxlength="160" value="<?= htmlspecialchars($val('lokasi')) ?>" placeholder="Kamar, ruang, gedung">
+                <input type="text" name="nama_label" id="nama_label" class="form-control" maxlength="160" value="<?= htmlspecialchars($val('nama_label')) ?>" placeholder="Nama pendek, jika berbeda dari nama barang">
+                <div class="form-text">Dipakai di daftar jika diisi. Teks besar pada stiker tetap kode barang.</div>
             </div>
             <div class="col-md-3">
                 <label class="form-label small">Merk</label>
@@ -239,7 +284,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
             <div class="col-12">
-                <button type="submit" class="btn btn-success"><?= $edit ? 'Simpan perubahan' : 'Simpan dan buat kode QR' ?></button>
+                <button type="submit" class="btn btn-success"><?= $edit ? 'Simpan perubahan' : 'Simpan dan buat stiker' ?></button>
             </div>
         </form>
     </div>
@@ -249,7 +294,10 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h2 class="h5 mb-0">Daftar barang</h2>
-            <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/inventaris/scan.php')) ?>"><i class="fa-solid fa-qrcode me-1"></i>Pindai barang</a>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/inventaris/kode.php')) ?>">Atur kode sheet</a>
+                <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars(app_href('/inventaris/scan.php')) ?>"><i class="fa-solid fa-qrcode me-1"></i>Pindai barang</a>
+            </div>
         </div>
         <form method="get" class="row g-2 align-items-end mb-3">
             <div class="col-md-4">
@@ -296,7 +344,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <form id="form-cetak-label" method="post" action="<?= htmlspecialchars(app_href('/inventaris/label.php')) ?>"></form>
         <div class="d-flex justify-content-end mb-2">
-            <button type="submit" class="btn btn-sm btn-outline-secondary" form="form-cetak-label">Kode QR terpilih</button>
+            <button type="submit" class="btn btn-sm btn-outline-secondary" form="form-cetak-label">Stiker terpilih</button>
         </div>
         <div class="table-responsive">
             <table class="table table-sm table-striped align-middle">
@@ -322,6 +370,9 @@ require_once __DIR__ . '/../includes/header.php';
                             <td>
                                 <div class="fw-semibold"><?= htmlspecialchars((string) $row['nama']) ?></div>
                                 <div class="small text-muted"><?= htmlspecialchars((string) $row['kode']) ?> · <?= htmlspecialchars((string) $row['kategori']) ?><?= (int) $row['is_aktif'] === 1 ? '' : ' · nonaktif' ?></div>
+                                <?php if (trim((string) ($row['kode_induk'] ?? '')) !== ''): ?>
+                                    <div class="small text-muted">Induk: <?= htmlspecialchars((string) $row['kode_induk']) ?></div>
+                                <?php endif; ?>
                             </td>
                             <td class="small">
                                 <?= htmlspecialchars((string) ($row['lokasi'] ?: '—')) ?>
@@ -341,7 +392,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
                             </td>
                             <td class="text-end text-nowrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/inventaris/label.php?id=' . $rowId)) ?>">Kode QR</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars(app_href('/inventaris/label.php?id=' . $rowId)) ?>">Stiker</a>
                                 <a class="btn btn-sm btn-outline-primary" href="<?= htmlspecialchars($editHref) ?>">Ubah</a>
                                 <form method="post" class="d-inline" onsubmit="return confirm('Hapus barang ini beserta riwayat pengecekannya?');">
                                     <input type="hidden" name="action" value="delete">
@@ -408,6 +459,61 @@ require_once __DIR__ . '/../includes/header.php';
     if (!daftar.children.length) {
         daftar.appendChild(template.content.cloneNode(true));
     }
+})();
+(function () {
+    var loc = document.getElementById('kode_lokasi');
+    var cat = document.getElementById('kode_kategori');
+    var seq = document.getElementById('nomor_urut');
+    var preview = document.getElementById('kode-pratinjau');
+    if (!loc || !cat || !seq || !preview) return;
+    var peta = <?= json_encode($petaUrut, JSON_UNESCAPED_UNICODE) ?>;
+    var asalLok = <?= json_encode($sheetEdit['lokasi']) ?>;
+    var asalKat = <?= json_encode($sheetEdit['kategori']) ?>;
+    var asalUrut = <?= json_encode($sheetEdit['urut']) ?>;
+    var kodeAwal = <?= json_encode($kodePratinjau) ?>;
+    var sedangUbah = <?= $edit ? 'true' : 'false' ?>;
+    var urutManual = false;
+    var digitUrut = <?= (int) inventaris_barang_digit_urut($pdo) ?>;
+    function pad(n) {
+        var teks = String(n);
+        while (teks.length < digitUrut) teks = '0' + teks;
+        return teks;
+    }
+    function susun() {
+        var urut = String(seq.value || '').trim().toUpperCase();
+        if (/^\d+$/.test(urut)) urut = pad(urut);
+        if (!loc.value && !cat.value && !urut) {
+            preview.textContent = kodeAwal || '—';
+            return;
+        }
+        var bagian = [loc.value, cat.value, urut].filter(Boolean);
+        preview.textContent = bagian.length ? bagian.join('-') : (kodeAwal || '—');
+    }
+    function sarankanUrut() {
+        if (urutManual) {
+            susun();
+            return;
+        }
+        if (sedangUbah && loc.value === asalLok && cat.value === asalKat) {
+            seq.value = asalUrut;
+            susun();
+            return;
+        }
+        if (!loc.value || !cat.value) {
+            susun();
+            return;
+        }
+        var terakhir = peta[loc.value + '|' + cat.value] || 0;
+        seq.value = pad(terakhir + 1);
+        susun();
+    }
+    seq.addEventListener('input', function () {
+        urutManual = String(seq.value || '').trim() !== '';
+        susun();
+    });
+    loc.addEventListener('change', sarankanUrut);
+    cat.addEventListener('change', sarankanUrut);
+    susun();
 })();
 </script>
 

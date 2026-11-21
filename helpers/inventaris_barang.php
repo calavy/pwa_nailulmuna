@@ -8,6 +8,358 @@ function inventaris_barang_kategori_options(): array
     return ['Furnitur', 'Elektronik', 'Peralatan', 'Perlengkapan asrama', 'Lainnya'];
 }
 
+/** @return array<string, string> */
+function inventaris_barang_lokasi_bawaan(): array
+{
+    return [
+        'LAB' => 'Laboratorium / BLK',
+        'KTR' => 'Kantor Pengurus',
+        'ASR' => 'Asrama / Kamar',
+        'KLS' => 'Ruang Kelas',
+        'AUL' => 'Aula',
+        'NDL' => 'Ndalem',
+        'MSJ' => 'Masjid / Mushola',
+        'DPR' => 'Dapur / Kantin',
+    ];
+}
+
+/**
+ * @return array<string, array{label:string,footer:string}>
+ */
+function inventaris_barang_kategori_bawaan(): array
+{
+    return [
+        'PC' => ['label' => 'Komputer / CPU', 'footer' => 'KOMPUTER'],
+        'MON' => ['label' => 'Monitor', 'footer' => 'MONITOR'],
+        'KBD' => ['label' => 'Keyboard', 'footer' => 'KEYBOARD'],
+        'MOU' => ['label' => 'Mouse', 'footer' => 'MOUSE'],
+        'PRT' => ['label' => 'Printer', 'footer' => 'PRINTER'],
+        'LPT' => ['label' => 'Laptop', 'footer' => 'LAPTOP'],
+        'PRY' => ['label' => 'Proyektor', 'footer' => 'PROYEKTOR'],
+        'KPS' => ['label' => 'Kipas Angin', 'footer' => 'KIPAS ANGIN'],
+        'AC' => ['label' => 'Air Conditioner (AC)', 'footer' => 'AC'],
+        'MJA' => ['label' => 'Meja', 'footer' => 'MEJA'],
+        'KRS' => ['label' => 'Kursi', 'footer' => 'KURSI'],
+        'LMR' => ['label' => 'Lemari / Rak', 'footer' => 'LEMARI'],
+        'SND' => ['label' => 'Sound System / Mic', 'footer' => 'SOUND SYSTEM'],
+        'NET' => ['label' => 'Router / WiFi / Switch', 'footer' => 'JARINGAN'],
+    ];
+}
+
+function inventaris_barang_pdo(?PDO $pdo = null): ?PDO
+{
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+    $global = $GLOBALS['pdo'] ?? null;
+
+    return $global instanceof PDO ? $global : null;
+}
+
+function inventaris_barang_kode_sheet_cache_reset(): void
+{
+    unset($GLOBALS['inventaris_kode_sheet_cache']);
+}
+
+function inventaris_barang_digit_dari_teks(?string $raw): int
+{
+    $n = (int) $raw;
+
+    return in_array($n, [2, 3, 4], true) ? $n : 2;
+}
+
+/**
+ * @return array{lokasi:array<string,string>,kategori:array<string,array{label:string,footer:string}>,digit:int}
+ */
+function inventaris_barang_kode_sheet_muat(?PDO $pdo = null, bool $segarkan = false): array
+{
+    if (!$segarkan && isset($GLOBALS['inventaris_kode_sheet_cache']) && is_array($GLOBALS['inventaris_kode_sheet_cache'])) {
+        return $GLOBALS['inventaris_kode_sheet_cache'];
+    }
+    $lokasi = inventaris_barang_lokasi_bawaan();
+    $kategori = inventaris_barang_kategori_bawaan();
+    $digit = 2;
+    $pdo = inventaris_barang_pdo($pdo);
+    if ($pdo instanceof PDO && function_exists('app_setting')) {
+        $lokasiSimpan = inventaris_barang_lokasi_dari_json((string) app_setting($pdo, 'inventaris_kode_lokasi', ''));
+        $kategoriSimpan = inventaris_barang_kategori_dari_json((string) app_setting($pdo, 'inventaris_kode_kategori', ''));
+        if ($lokasiSimpan !== []) {
+            $lokasi = $lokasiSimpan;
+        }
+        if ($kategoriSimpan !== []) {
+            $kategori = $kategoriSimpan;
+        }
+        $digit = inventaris_barang_digit_dari_teks(app_setting($pdo, 'inventaris_kode_digit', '2'));
+    }
+    $cache = ['lokasi' => $lokasi, 'kategori' => $kategori, 'digit' => $digit];
+    $GLOBALS['inventaris_kode_sheet_cache'] = $cache;
+
+    return $cache;
+}
+
+/** @return array<string, string> */
+function inventaris_barang_lokasi_dari_json(string $json): array
+{
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $out = [];
+    foreach ($decoded as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $kode = strtoupper(trim((string) ($row['kode'] ?? '')));
+        $nama = trim((string) ($row['nama'] ?? ''));
+        if ($kode === '' || $nama === '' || isset($out[$kode])) {
+            continue;
+        }
+        $out[$kode] = $nama;
+    }
+
+    return $out;
+}
+
+/**
+ * @return array<string, array{label:string,footer:string}>
+ */
+function inventaris_barang_kategori_dari_json(string $json): array
+{
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $out = [];
+    foreach ($decoded as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $kode = strtoupper(trim((string) ($row['kode'] ?? '')));
+        $label = trim((string) ($row['label'] ?? ''));
+        $footer = strtoupper(trim((string) ($row['footer'] ?? '')));
+        if ($kode === '' || $label === '' || isset($out[$kode])) {
+            continue;
+        }
+        if ($footer === '') {
+            $footer = strtoupper($label);
+        }
+        $out[$kode] = ['label' => $label, 'footer' => $footer];
+    }
+
+    return $out;
+}
+
+/** @return array<string, string> */
+function inventaris_barang_lokasi_sheet(?PDO $pdo = null): array
+{
+    return inventaris_barang_kode_sheet_muat($pdo)['lokasi'];
+}
+
+/**
+ * @return array<string, array{label:string,footer:string}>
+ */
+function inventaris_barang_kategori_sheet(?PDO $pdo = null): array
+{
+    return inventaris_barang_kode_sheet_muat($pdo)['kategori'];
+}
+
+function inventaris_barang_digit_urut(?PDO $pdo = null): int
+{
+    return inventaris_barang_kode_sheet_muat($pdo)['digit'];
+}
+
+/**
+ * @return array{lokasi:list<string>,kategori:list<string>}
+ */
+function inventaris_barang_kode_terpakai(PDO $pdo): array
+{
+    ensure_inventaris_barang_tables($pdo);
+    $lokasi = [];
+    $kategori = [];
+    foreach ($pdo->query("SELECT DISTINCT kode_lokasi FROM inventaris_barang WHERE kode_lokasi IS NOT NULL AND kode_lokasi <> ''")->fetchAll(PDO::FETCH_COLUMN) ?: [] as $kode) {
+        $kode = strtoupper(trim((string) $kode));
+        if ($kode !== '') {
+            $lokasi[$kode] = $kode;
+        }
+    }
+    foreach ($pdo->query("SELECT DISTINCT kode_kategori FROM inventaris_barang WHERE kode_kategori IS NOT NULL AND kode_kategori <> ''")->fetchAll(PDO::FETCH_COLUMN) ?: [] as $kode) {
+        $kode = strtoupper(trim((string) $kode));
+        if ($kode !== '') {
+            $kategori[$kode] = $kode;
+        }
+    }
+
+    return ['lokasi' => array_values($lokasi), 'kategori' => array_values($kategori)];
+}
+
+/**
+ * @param list<string> $kode
+ * @param list<string> $nama
+ * @return array{ok:bool,message:string,data:array<string,string>}
+ */
+function inventaris_barang_lokasi_dari_form(array $kode, array $nama): array
+{
+    $out = [];
+    $jumlah = max(count($kode), count($nama));
+    for ($i = 0; $i < $jumlah; $i++) {
+        $kodeBaris = strtoupper(trim((string) ($kode[$i] ?? '')));
+        $namaBaris = trim((string) ($nama[$i] ?? ''));
+        if ($kodeBaris === '' && $namaBaris === '') {
+            continue;
+        }
+        if (!preg_match('/^[A-Z0-9]{1,8}$/', $kodeBaris)) {
+            return ['ok' => false, 'message' => 'Kode lokasi harus 1–8 huruf atau angka.', 'data' => []];
+        }
+        if ($namaBaris === '' || strlen($namaBaris) > 80) {
+            return ['ok' => false, 'message' => 'Nama lokasi ' . $kodeBaris . ' wajib diisi, paling panjang 80 karakter.', 'data' => []];
+        }
+        if (isset($out[$kodeBaris])) {
+            return ['ok' => false, 'message' => 'Kode lokasi ' . $kodeBaris . ' tertulis dua kali.', 'data' => []];
+        }
+        $out[$kodeBaris] = $namaBaris;
+    }
+    if ($out === []) {
+        return ['ok' => false, 'message' => 'Isi paling sedikit satu kode lokasi.', 'data' => []];
+    }
+    if (count($out) > 40) {
+        return ['ok' => false, 'message' => 'Kode lokasi paling banyak 40 baris.', 'data' => []];
+    }
+
+    return ['ok' => true, 'message' => '', 'data' => $out];
+}
+
+/**
+ * @param list<string> $kode
+ * @param list<string> $label
+ * @param list<string> $footer
+ * @return array{ok:bool,message:string,data:array<string,array{label:string,footer:string}>}
+ */
+function inventaris_barang_kategori_dari_form(array $kode, array $label, array $footer): array
+{
+    $out = [];
+    $jumlah = max(count($kode), count($label), count($footer));
+    for ($i = 0; $i < $jumlah; $i++) {
+        $kodeBaris = strtoupper(trim((string) ($kode[$i] ?? '')));
+        $labelBaris = trim((string) ($label[$i] ?? ''));
+        $footerBaris = strtoupper(trim((string) ($footer[$i] ?? '')));
+        if ($kodeBaris === '' && $labelBaris === '' && $footerBaris === '') {
+            continue;
+        }
+        if (!preg_match('/^[A-Z0-9]{1,8}$/', $kodeBaris)) {
+            return ['ok' => false, 'message' => 'Kode kategori harus 1–8 huruf atau angka.', 'data' => []];
+        }
+        if ($labelBaris === '' || strlen($labelBaris) > 80) {
+            return ['ok' => false, 'message' => 'Nama kategori ' . $kodeBaris . ' wajib diisi, paling panjang 80 karakter.', 'data' => []];
+        }
+        if ($footerBaris === '') {
+            $footerBaris = strtoupper($labelBaris);
+        }
+        if (strlen($footerBaris) > 40) {
+            return ['ok' => false, 'message' => 'Teks stiker kategori ' . $kodeBaris . ' paling panjang 40 karakter.', 'data' => []];
+        }
+        if (isset($out[$kodeBaris])) {
+            return ['ok' => false, 'message' => 'Kode kategori ' . $kodeBaris . ' tertulis dua kali.', 'data' => []];
+        }
+        $out[$kodeBaris] = ['label' => $labelBaris, 'footer' => $footerBaris];
+    }
+    if ($out === []) {
+        return ['ok' => false, 'message' => 'Isi paling sedikit satu kode kategori.', 'data' => []];
+    }
+    if (count($out) > 60) {
+        return ['ok' => false, 'message' => 'Kode kategori paling banyak 60 baris.', 'data' => []];
+    }
+
+    return ['ok' => true, 'message' => '', 'data' => $out];
+}
+
+/**
+ * @param array<string, string> $lokasi
+ * @param array<string, array{label:string,footer:string}> $kategori
+ * @return array{ok:bool,message:string}
+ */
+function inventaris_barang_kode_sheet_simpan(PDO $pdo, array $lokasi, array $kategori, int $digit): array
+{
+    $digit = inventaris_barang_digit_dari_teks((string) $digit);
+    $terpakai = inventaris_barang_kode_terpakai($pdo);
+    $hilangLokasi = array_values(array_diff($terpakai['lokasi'], array_keys($lokasi)));
+    $hilangKategori = array_values(array_diff($terpakai['kategori'], array_keys($kategori)));
+    if ($hilangLokasi !== [] || $hilangKategori !== []) {
+        $daftar = implode(', ', array_merge($hilangLokasi, $hilangKategori));
+
+        return ['ok' => false, 'message' => 'Kode ' . $daftar . ' masih dipakai barang. Nama boleh diubah, kodenya jangan dihapus.'];
+    }
+    $lokasiJson = [];
+    foreach ($lokasi as $kode => $nama) {
+        $lokasiJson[] = ['kode' => $kode, 'nama' => $nama];
+    }
+    $kategoriJson = [];
+    foreach ($kategori as $kode => $meta) {
+        $kategoriJson[] = ['kode' => $kode, 'label' => $meta['label'], 'footer' => $meta['footer']];
+    }
+    save_setting($pdo, 'inventaris_kode_lokasi', (string) json_encode($lokasiJson, JSON_UNESCAPED_UNICODE));
+    save_setting($pdo, 'inventaris_kode_kategori', (string) json_encode($kategoriJson, JSON_UNESCAPED_UNICODE));
+    save_setting($pdo, 'inventaris_kode_digit', (string) $digit);
+    inventaris_barang_kode_sheet_cache_reset();
+
+    return ['ok' => true, 'message' => 'Setingan kode sheet disimpan. Pencatatan dan stiker memakai daftar ini.'];
+}
+
+function inventaris_barang_footer_aset(string $kodeKategori, string $kategoriLabel = ''): string
+{
+    $kodeKategori = strtoupper(trim($kodeKategori));
+    $sheet = inventaris_barang_kategori_sheet();
+    if (isset($sheet[$kodeKategori])) {
+        return 'ASET INVENTARIS ' . $sheet[$kodeKategori]['footer'];
+    }
+    $label = trim($kategoriLabel);
+    if ($label === '') {
+        return 'ASET INVENTARIS';
+    }
+
+    return 'ASET INVENTARIS ' . strtoupper($label);
+}
+
+function inventaris_barang_pad_urut(string $seq): string
+{
+    $seq = strtoupper(trim($seq));
+    if ($seq !== '' && preg_match('/^\d+$/', $seq)) {
+        return str_pad($seq, inventaris_barang_digit_urut(), '0', STR_PAD_LEFT);
+    }
+
+    return $seq;
+}
+
+function inventaris_barang_susun_kode(string $lokasi, string $kategori, string $urut): string
+{
+    $parts = array_values(array_filter([
+        strtoupper(trim($lokasi)),
+        strtoupper(trim($kategori)),
+        inventaris_barang_pad_urut($urut),
+    ], static fn(string $part): bool => $part !== ''));
+
+    return implode('-', $parts);
+}
+
+/**
+ * @return array{lokasi:string,kategori:string,urut:string}|null
+ */
+function inventaris_barang_parse_kode_sheet(string $kode): ?array
+{
+    $kode = strtoupper(trim($kode));
+    if (!preg_match('/^([A-Z0-9]+)-([A-Z0-9]+)-([A-Z0-9]+)$/', $kode, $m)) {
+        return null;
+    }
+    if (!isset(inventaris_barang_lokasi_sheet()[$m[1]], inventaris_barang_kategori_sheet()[$m[2]])) {
+        return null;
+    }
+
+    return [
+        'lokasi' => $m[1],
+        'kategori' => $m[2],
+        'urut' => inventaris_barang_pad_urut($m[3]),
+    ];
+}
+
 /** @return list<string> */
 function inventaris_barang_kondisi_options(): array
 {
@@ -102,6 +454,10 @@ function ensure_inventaris_barang_tables(PDO $pdo): void
     ');
     $pdo->exec('ALTER TABLE inventaris_barang MODIFY kode VARCHAR(64) NOT NULL');
     $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS nama_label VARCHAR(160) NULL');
+    $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS kode_lokasi VARCHAR(16) NULL');
+    $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS kode_kategori VARCHAR(16) NULL');
+    $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS nomor_urut VARCHAR(8) NULL');
+    $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS kode_induk VARCHAR(64) NULL');
     $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS asal_barang VARCHAR(160) NULL');
     $pdo->exec('ALTER TABLE inventaris_barang ADD COLUMN IF NOT EXISTS status_barang VARCHAR(40) NOT NULL DEFAULT \'Tersedia\'');
     $pdo->exec('ALTER TABLE inventaris_barang_cek ADD COLUMN IF NOT EXISTS komponen_json TEXT NULL');
@@ -154,6 +510,221 @@ function inventaris_barang_generate_kode(PDO $pdo): string
     }
 
     return $prefix . str_pad((string) $seq, 4, '0', STR_PAD_LEFT);
+}
+
+function inventaris_barang_nomor_urut_berikutnya(PDO $pdo, string $lokasi, string $kategori): string
+{
+    $lokasi = strtoupper(trim($lokasi));
+    $kategori = strtoupper(trim($kategori));
+    if ($lokasi === '' || $kategori === '') {
+        return inventaris_barang_pad_urut('1');
+    }
+    ensure_inventaris_barang_tables($pdo);
+    $max = 0;
+    $st = $pdo->prepare('SELECT nomor_urut FROM inventaris_barang WHERE kode_lokasi = :lokasi AND kode_kategori = :kategori');
+    $st->execute(['lokasi' => $lokasi, 'kategori' => $kategori]);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $urut) {
+        if (preg_match('/^\d+$/', (string) $urut)) {
+            $max = max($max, (int) $urut);
+        }
+    }
+    $like = $pdo->prepare('SELECT kode FROM inventaris_barang WHERE kode LIKE :pfx');
+    $like->execute(['pfx' => $lokasi . '-' . $kategori . '-%']);
+    $pola = '/^' . preg_quote($lokasi . '-' . $kategori, '/') . '-(\d+)$/';
+    foreach ($like->fetchAll(PDO::FETCH_COLUMN) ?: [] as $kode) {
+        if (preg_match($pola, (string) $kode, $m)) {
+            $max = max($max, (int) $m[1]);
+        }
+    }
+
+    return inventaris_barang_pad_urut((string) ($max + 1));
+}
+
+/** @return array<string, int> */
+function inventaris_barang_peta_urut(PDO $pdo): array
+{
+    ensure_inventaris_barang_tables($pdo);
+    $peta = [];
+    $st = $pdo->query('SELECT kode, kode_lokasi, kode_kategori, nomor_urut FROM inventaris_barang');
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $lokasi = strtoupper(trim((string) ($row['kode_lokasi'] ?? '')));
+        $kategori = strtoupper(trim((string) ($row['kode_kategori'] ?? '')));
+        $urut = strtoupper(trim((string) ($row['nomor_urut'] ?? '')));
+        if ($lokasi === '' || $kategori === '' || $urut === '') {
+            $parsed = inventaris_barang_parse_kode_sheet((string) ($row['kode'] ?? ''));
+            if ($parsed !== null) {
+                $lokasi = $lokasi !== '' ? $lokasi : $parsed['lokasi'];
+                $kategori = $kategori !== '' ? $kategori : $parsed['kategori'];
+                $urut = $urut !== '' ? $urut : $parsed['urut'];
+            }
+        }
+        if ($lokasi === '' || $kategori === '' || !preg_match('/^\d+$/', $urut)) {
+            continue;
+        }
+        $key = $lokasi . '|' . $kategori;
+        $peta[$key] = max($peta[$key] ?? 0, (int) $urut);
+    }
+
+    return $peta;
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array{lokasi:string,kategori:string,urut:string,induk:string}
+ */
+function inventaris_barang_sheet_dari_baris(array $row): array
+{
+    $lokasi = strtoupper(trim((string) ($row['kode_lokasi'] ?? '')));
+    $kategori = strtoupper(trim((string) ($row['kode_kategori'] ?? '')));
+    $urut = strtoupper(trim((string) ($row['nomor_urut'] ?? '')));
+    $induk = strtoupper(trim((string) ($row['kode_induk'] ?? '')));
+    if ($lokasi === '' || $kategori === '' || $urut === '') {
+        $parsed = inventaris_barang_parse_kode_sheet((string) ($row['kode'] ?? ''));
+        if ($parsed !== null) {
+            $lokasi = $lokasi !== '' ? $lokasi : $parsed['lokasi'];
+            $kategori = $kategori !== '' ? $kategori : $parsed['kategori'];
+            $urut = $urut !== '' ? $urut : $parsed['urut'];
+        }
+    }
+
+    return [
+        'lokasi' => isset(inventaris_barang_lokasi_sheet()[$lokasi]) ? $lokasi : '',
+        'kategori' => isset(inventaris_barang_kategori_sheet()[$kategori]) ? $kategori : '',
+        'urut' => $urut,
+        'induk' => $induk,
+    ];
+}
+
+/** @param array<string, mixed> $row */
+function inventaris_barang_lokasi_detail(array $row): string
+{
+    $lokasi = trim((string) ($row['lokasi'] ?? ''));
+    $kode = inventaris_barang_sheet_dari_baris($row)['lokasi'];
+    $nama = inventaris_barang_lokasi_sheet()[$kode] ?? '';
+    if ($nama === '') {
+        return $lokasi;
+    }
+    if ($lokasi === $nama) {
+        return '';
+    }
+    $prefix = $nama . ' — ';
+    if (str_starts_with($lokasi, $prefix)) {
+        return trim(substr($lokasi, strlen($prefix)));
+    }
+
+    return $lokasi;
+}
+
+/**
+ * @param array<string, mixed> $post
+ * @param array<string, mixed>|null $ada
+ * @return array{ok:bool,message:string,mode:string,kode:string,kode_lokasi:?string,kode_kategori:?string,nomor_urut:?string,kode_induk:?string,kategori:?string,lokasi:?string}
+ */
+function inventaris_barang_sheet_dari_post(array $post, ?array $ada = null): array
+{
+    $kosong = [
+        'ok' => false,
+        'message' => '',
+        'mode' => '',
+        'kode' => '',
+        'kode_lokasi' => null,
+        'kode_kategori' => null,
+        'nomor_urut' => null,
+        'kode_induk' => null,
+        'kategori' => null,
+        'lokasi' => null,
+    ];
+    $lokasi = strtoupper(trim((string) ($post['kode_lokasi'] ?? '')));
+    $kategori = strtoupper(trim((string) ($post['kode_kategori'] ?? '')));
+    $urut = inventaris_barang_pad_urut((string) ($post['nomor_urut'] ?? ''));
+    $induk = strtoupper(trim((string) ($post['kode_induk'] ?? '')));
+    $adaBagian = $lokasi !== '' || $kategori !== '' || $urut !== '' || $induk !== '';
+
+    if (!$adaBagian) {
+        if ($ada === null) {
+            $kosong['message'] = 'Lengkapi kode lokasi, kategori, dan nomor urut.';
+
+            return $kosong;
+        }
+        $kosong['ok'] = true;
+        $kosong['mode'] = 'legacy';
+        $kosong['kode'] = (string) ($ada['kode'] ?? '');
+        $kosong['kode_lokasi'] = inventaris_barang_nullable((string) ($ada['kode_lokasi'] ?? ''));
+        $kosong['kode_kategori'] = inventaris_barang_nullable((string) ($ada['kode_kategori'] ?? ''));
+        $kosong['nomor_urut'] = inventaris_barang_nullable((string) ($ada['nomor_urut'] ?? ''));
+        $kosong['kode_induk'] = inventaris_barang_nullable((string) ($ada['kode_induk'] ?? ''));
+
+        return $kosong;
+    }
+
+    if (!isset(inventaris_barang_lokasi_sheet()[$lokasi]) || !isset(inventaris_barang_kategori_sheet()[$kategori]) || !preg_match('/^[A-Z0-9]{1,8}$/', $urut)) {
+        $kosong['message'] = 'Lengkapi kode lokasi, kategori, dan nomor urut.';
+
+        return $kosong;
+    }
+    if ($induk !== '') {
+        $indukCek = inventaris_barang_kode_dari_input($induk);
+        if ($indukCek['error'] !== '') {
+            $kosong['message'] = 'Kode induk hanya boleh huruf, angka, tanda minus, dan garis bawah.';
+
+            return $kosong;
+        }
+        $induk = $indukCek['kode'];
+    }
+    $kode = inventaris_barang_susun_kode($lokasi, $kategori, $urut);
+    $kodeCek = inventaris_barang_kode_dari_input($kode);
+    if ($kodeCek['error'] !== '') {
+        $kosong['message'] = $kodeCek['error'];
+
+        return $kosong;
+    }
+    if ($induk !== '' && $induk === $kodeCek['kode']) {
+        $kosong['message'] = 'Kode induk tidak boleh sama dengan kode barang.';
+
+        return $kosong;
+    }
+    $detail = inventaris_barang_clip((string) ($post['lokasi'] ?? ''), 120);
+    $namaLokasi = inventaris_barang_lokasi_sheet()[$lokasi];
+    $lokasiTeks = $detail !== '' ? inventaris_barang_clip($namaLokasi . ' — ' . $detail, 160) : $namaLokasi;
+
+    return [
+        'ok' => true,
+        'message' => '',
+        'mode' => 'sheet',
+        'kode' => $kodeCek['kode'],
+        'kode_lokasi' => $lokasi,
+        'kode_kategori' => $kategori,
+        'nomor_urut' => $urut,
+        'kode_induk' => $induk !== '' ? $induk : null,
+        'kategori' => inventaris_barang_kategori_sheet()[$kategori]['label'],
+        'lokasi' => $lokasiTeks,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array<string, mixed>
+ */
+function inventaris_barang_stiker_payload(array $row): array
+{
+    $sheet = inventaris_barang_sheet_dari_baris($row);
+    $kode = (string) ($row['kode'] ?? '');
+    $induk = $sheet['induk'];
+
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'nama' => (string) ($row['nama'] ?? ''),
+        'kode' => $kode,
+        'kodeLokasi' => $sheet['lokasi'],
+        'kodeKategori' => $sheet['kategori'],
+        'nomorUrut' => $sheet['urut'],
+        'kodeInduk' => $induk,
+        'qrText' => $kode,
+        'qrSubText' => $induk !== '' ? 'Set Induk: ' . $induk : 'Pindai untuk cek data',
+        'qrContent' => inventaris_barang_cek_url($kode),
+        'footerText' => inventaris_barang_footer_aset($sheet['kategori'], (string) ($row['kategori'] ?? '')),
+        'badgeText' => 'JANGAN DILEPAS',
+    ];
 }
 
 function inventaris_barang_extract_kode(string $raw): string
@@ -330,19 +901,29 @@ function inventaris_barang_save(PDO $pdo, array $post, int $id = 0): array
     if ($data['nama'] === '') {
         return ['ok' => false, 'message' => 'Nama barang wajib diisi.', 'id' => 0];
     }
-    $kodeInput = inventaris_barang_kode_dari_input((string) ($post['kode'] ?? ''));
-    if ($kodeInput['error'] !== '') {
-        return ['ok' => false, 'message' => $kodeInput['error'], 'id' => 0];
+    $ada = $id > 0 ? inventaris_barang_find($pdo, $id) : null;
+    if ($id > 0 && $ada === null) {
+        return ['ok' => false, 'message' => 'Barang tidak ditemukan.', 'id' => 0];
     }
+    $sheet = inventaris_barang_sheet_dari_post($post, $ada);
+    if (!$sheet['ok']) {
+        return ['ok' => false, 'message' => $sheet['message'], 'id' => 0];
+    }
+    if ($sheet['mode'] === 'sheet') {
+        $data['kategori'] = (string) $sheet['kategori'];
+        $data['lokasi'] = $sheet['lokasi'];
+    } elseif (is_array($ada)) {
+        $data['kategori'] = (string) ($ada['kategori'] ?? $data['kategori']);
+    }
+    $data['kode_lokasi'] = $sheet['kode_lokasi'];
+    $data['kode_kategori'] = $sheet['kode_kategori'];
+    $data['nomor_urut'] = $sheet['nomor_urut'];
+    $data['kode_induk'] = $sheet['kode_induk'];
+    $kode = $sheet['kode'];
     $komponen = inventaris_barang_parse_komponen($post);
     $data['status_kelengkapan'] = inventaris_barang_status_dari_komponen($komponen, $data['status_kelengkapan']);
 
     if ($id > 0) {
-        $ada = inventaris_barang_find($pdo, $id);
-        if ($ada === null) {
-            return ['ok' => false, 'message' => 'Barang tidak ditemukan.', 'id' => 0];
-        }
-        $kode = $kodeInput['kode'] !== '' ? $kodeInput['kode'] : (string) $ada['kode'];
         if (inventaris_barang_kode_dipakai($pdo, $kode, $id)) {
             return ['ok' => false, 'message' => 'Kode barang sudah dipakai.', 'id' => 0];
         }
@@ -353,7 +934,8 @@ function inventaris_barang_save(PDO $pdo, array $post, int $id = 0): array
                 SET kode = :kode, nama = :nama, nama_label = :nama_label, kategori = :kategori, lokasi = :lokasi, merk = :merk, keterangan = :keterangan,
                     jumlah = :jumlah, satuan = :satuan, kondisi = :kondisi, status_kelengkapan = :status_kelengkapan,
                     status_barang = :status_barang, catatan_kekurangan = :catatan_kekurangan, penanggung_jawab = :penanggung_jawab,
-                    asal_barang = :asal_barang, tanggal_cek = :tanggal_cek, is_aktif = :is_aktif
+                    asal_barang = :asal_barang, tanggal_cek = :tanggal_cek, is_aktif = :is_aktif,
+                    kode_lokasi = :kode_lokasi, kode_kategori = :kode_kategori, nomor_urut = :nomor_urut, kode_induk = :kode_induk
                 WHERE id = :id
             ')->execute($data + ['kode' => $kode, 'id' => $id]);
             inventaris_barang_replace_komponen($pdo, $id, $komponen);
@@ -369,43 +951,35 @@ function inventaris_barang_save(PDO $pdo, array $post, int $id = 0): array
         return ['ok' => true, 'message' => 'Data barang diperbarui.', 'id' => $id];
     }
 
-    $manual = $kodeInput['kode'];
-    $attempts = $manual !== '' ? 1 : 3;
-    $lastError = 'Gagal menyimpan barang.';
-    for ($attempt = 0; $attempt < $attempts; $attempt++) {
-        $kode = $manual !== '' ? $manual : inventaris_barang_generate_kode($pdo);
-        try {
-            $pdo->beginTransaction();
-            $pdo->prepare('
-                INSERT INTO inventaris_barang (
-                    kode, nama, nama_label, kategori, lokasi, merk, keterangan, jumlah, satuan, kondisi,
-                    status_kelengkapan, status_barang, catatan_kekurangan, penanggung_jawab, asal_barang, tanggal_cek, is_aktif
-                ) VALUES (
-                    :kode, :nama, :nama_label, :kategori, :lokasi, :merk, :keterangan, :jumlah, :satuan, :kondisi,
-                    :status_kelengkapan, :status_barang, :catatan_kekurangan, :penanggung_jawab, :asal_barang, :tanggal_cek, :is_aktif
-                )
-            ')->execute($data + ['kode' => $kode]);
-            $newId = (int) $pdo->lastInsertId();
-            inventaris_barang_replace_komponen($pdo, $newId, $komponen);
-            $pdo->commit();
-
-            return ['ok' => true, 'message' => 'Barang disimpan dengan kode ' . $kode . '. Unduh kode QR lalu tempelkan pada barang.', 'id' => $newId];
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            $dup = str_contains(strtolower($e->getMessage()), 'duplicate');
-            if ($manual !== '' && $dup) {
-                return ['ok' => false, 'message' => 'Kode barang sudah dipakai.', 'id' => 0];
-            }
-            $lastError = $dup ? 'Kode barang sudah dipakai.' : 'Gagal menyimpan barang.';
-            if (!$dup) {
-                break;
-            }
-        }
+    if (inventaris_barang_kode_dipakai($pdo, $kode)) {
+        return ['ok' => false, 'message' => 'Kode barang sudah dipakai.', 'id' => 0];
     }
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('
+            INSERT INTO inventaris_barang (
+                kode, nama, nama_label, kategori, lokasi, merk, keterangan, jumlah, satuan, kondisi,
+                status_kelengkapan, status_barang, catatan_kekurangan, penanggung_jawab, asal_barang, tanggal_cek, is_aktif,
+                kode_lokasi, kode_kategori, nomor_urut, kode_induk
+            ) VALUES (
+                :kode, :nama, :nama_label, :kategori, :lokasi, :merk, :keterangan, :jumlah, :satuan, :kondisi,
+                :status_kelengkapan, :status_barang, :catatan_kekurangan, :penanggung_jawab, :asal_barang, :tanggal_cek, :is_aktif,
+                :kode_lokasi, :kode_kategori, :nomor_urut, :kode_induk
+            )
+        ')->execute($data + ['kode' => $kode]);
+        $newId = (int) $pdo->lastInsertId();
+        inventaris_barang_replace_komponen($pdo, $newId, $komponen);
+        $pdo->commit();
 
-    return ['ok' => false, 'message' => $lastError, 'id' => 0];
+        return ['ok' => true, 'message' => 'Barang disimpan dengan kode ' . $kode . '. Unduh stiker lalu tempelkan pada barang.', 'id' => $newId];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $dup = str_contains(strtolower($e->getMessage()), 'duplicate');
+
+        return ['ok' => false, 'message' => $dup ? 'Kode barang sudah dipakai.' : 'Gagal menyimpan barang.', 'id' => 0];
+    }
 }
 
 function inventaris_barang_delete(PDO $pdo, int $id): bool
@@ -491,13 +1065,14 @@ function inventaris_barang_list(PDO $pdo, array $filter = []): array
     $params = [];
     $q = trim((string) ($filter['q'] ?? ''));
     if ($q !== '') {
-        $where[] = '(b.nama LIKE :q1 OR b.kode LIKE :q2 OR b.lokasi LIKE :q3 OR b.merk LIKE :q4 OR b.asal_barang LIKE :q5)';
+        $where[] = '(b.nama LIKE :q1 OR b.kode LIKE :q2 OR b.lokasi LIKE :q3 OR b.merk LIKE :q4 OR b.asal_barang LIKE :q5 OR b.kode_induk LIKE :q6)';
         $like = '%' . $q . '%';
         $params['q1'] = $like;
         $params['q2'] = $like;
         $params['q3'] = $like;
         $params['q4'] = $like;
         $params['q5'] = $like;
+        $params['q6'] = $like;
     }
     $status = trim((string) ($filter['status'] ?? ''));
     if (in_array($status, inventaris_barang_status_options(), true)) {

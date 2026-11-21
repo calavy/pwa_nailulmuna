@@ -230,6 +230,7 @@ function user_permission_path_map_base(): array
         '/santri/kartu_qr.php' => 'santri_index',
         '/santri/kartu_batch.php' => 'santri_index',
         '/inventaris/index.php' => 'inventaris_barang',
+        '/inventaris/kode.php' => 'inventaris_barang',
         '/inventaris/label.php' => 'inventaris_barang',
         '/inventaris/scan.php' => 'inventaris_barang',
         '/santri/import.php' => 'santri_import',

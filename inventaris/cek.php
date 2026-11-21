@@ -87,6 +87,9 @@ $loginHref = app_href('/login.php');
                 <div class="table-responsive mb-3">
                     <table class="table table-sm table-bordered mb-0">
                         <tr><th class="text-nowrap">Kode</th><td><?= htmlspecialchars((string) $barang['kode']) ?></td></tr>
+                        <?php if (trim((string) ($barang['kode_induk'] ?? '')) !== ''): ?>
+                            <tr><th>Kode induk</th><td><?= htmlspecialchars((string) $barang['kode_induk']) ?></td></tr>
+                        <?php endif; ?>
                         <tr><th>Kategori</th><td><?= htmlspecialchars((string) $barang['kategori']) ?></td></tr>
                         <tr><th>Lokasi</th><td><?= htmlspecialchars((string) ($barang['lokasi'] ?: '—')) ?></td></tr>
                         <tr><th>Merk</th><td><?= htmlspecialchars((string) ($barang['merk'] ?: '—')) ?></td></tr>

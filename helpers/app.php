@@ -4767,6 +4767,7 @@ function menu_tile_icon_for_path(string $path): string
         '/settings/tingkatan.php' => 'fa-solid fa-layer-group',
         '/settings/kamar_ranjang.php' => 'fa-solid fa-bed',
         '/inventaris/index.php' => 'fa-solid fa-boxes-stacked',
+        '/inventaris/kode.php' => 'fa-solid fa-barcode',
         '/inventaris/scan.php' => 'fa-solid fa-qrcode',
         '/settings/kelas_ruangan.php' => 'fa-solid fa-door-open',
         '/settings/kelas_keuangan.php' => 'fa-solid fa-coins',

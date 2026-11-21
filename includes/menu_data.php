@@ -160,6 +160,7 @@ return [
         '/rekap/kegiatan_khusus.php' => 'Rekap Kegiatan Khusus',
         '/pembimbing/munawib.php' => 'Data Munawib',
         '/inventaris/index.php' => 'Kelengkapan Barang',
+        '/inventaris/kode.php' => 'Kode Sheet Barang',
         '/inventaris/scan.php' => 'Pindai Barang',
         '/akademik/hafalan.php' => 'Setoran Hafalan',
         '/akademik/setoran.php' => 'Setoran Hafalan (Hub)',
@@ -332,6 +333,7 @@ return [
             ]],
             ['title' => 'Inventaris', 'paths' => [
                 '/inventaris/index.php',
+                '/inventaris/kode.php',
                 '/inventaris/scan.php',
             ]],
         ]],
